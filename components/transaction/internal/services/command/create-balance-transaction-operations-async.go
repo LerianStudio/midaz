@@ -263,3 +263,55 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 
 	return nil
 }
+
+// UpdateTransactionBackupOperations updates the Redis backup queue entry
+// for a transaction to include the materialized operations. This ensures
+// that if the cron consumer reprocesses this backup, it uses the exact same
+// operation IDs that were returned to the user.
+//
+// This is a best-effort operation: failures are logged but do not block
+// the main transaction flow.
+func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, operations []*operation.Operation) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.update_transaction_backup_operations")
+	defer span.End()
+
+	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
+
+	raw, err := uc.RedisRepo.ReadMessageFromQueue(ctx, transactionKey)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to read transaction backup for operations update", err)
+		logger.Warnf("Failed to read transaction backup for operations update: %v", err)
+
+		return
+	}
+
+	var queue mmodel.TransactionRedisQueue
+	if err := json.Unmarshal(raw, &queue); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal transaction backup for operations update", err)
+		logger.Warnf("Failed to unmarshal transaction backup for operations update: %v", err)
+
+		return
+	}
+
+	redisOps := make([]mmodel.OperationRedis, 0, len(operations))
+	for _, op := range operations {
+		redisOps = append(redisOps, op.ToRedis())
+	}
+
+	queue.Operations = redisOps
+
+	updated, err := json.Marshal(queue)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to marshal updated transaction backup", err)
+		logger.Warnf("Failed to marshal updated transaction backup: %v", err)
+
+		return
+	}
+
+	if err := uc.RedisRepo.AddMessageToQueue(ctx, transactionKey, updated); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to write updated transaction backup with operations", err)
+		logger.Warnf("Failed to write updated transaction backup with operations: %v", err)
+	}
+}

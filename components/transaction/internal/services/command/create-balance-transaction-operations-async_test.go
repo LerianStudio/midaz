@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vmihailenco/msgpack/v5"
 	"go.uber.org/mock/gomock"
 )
@@ -1317,4 +1319,143 @@ func TestCreateBTOAsync(t *testing.T) {
 
 	// Call the method - this should not panic
 	uc.CreateBTOSync(ctx, queue)
+}
+
+func TestUpdateTransactionBackupOperations(t *testing.T) {
+	t.Run("success_updates_backup_with_operations", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		uc := &UseCase{
+			RedisRepo: mockRedisRepo,
+		}
+
+		ctx := context.Background()
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New().String()
+
+		amount := decimal.NewFromFloat(100.00)
+		avail := decimal.NewFromFloat(500.00)
+		onHold := decimal.NewFromFloat(0)
+		version := int64(1)
+
+		operations := []*operation.Operation{
+			{
+				ID:            "op-1",
+				TransactionID: transactionID,
+				Type:          "DEBIT",
+				AssetCode:     "BRL",
+				Amount:        operation.Amount{Value: &amount},
+				Balance: operation.Balance{
+					Available: &avail,
+					OnHold:    &onHold,
+					Version:   &version,
+				},
+				BalanceAfter: operation.Balance{
+					Available: &avail,
+					OnHold:    &onHold,
+					Version:   &version,
+				},
+				AccountID:      "acc-1",
+				BalanceID:      "bal-1",
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+			},
+		}
+
+		backupJSON := `{"header_id":"req-1","transaction_id":"` + transactionID + `","organization_id":"` + organizationID.String() + `","ledger_id":"` + ledgerID.String() + `","ttl":"2026-01-01T00:00:00Z","transaction_status":"CREATED","transaction_date":"2026-01-01T00:00:00Z"}`
+
+		mockRedisRepo.EXPECT().
+			ReadMessageFromQueue(gomock.Any(), gomock.Any()).
+			Return([]byte(backupJSON), nil).
+			Times(1)
+
+		mockRedisRepo.EXPECT().
+			AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ string, raw []byte) error {
+				var queue mmodel.TransactionRedisQueue
+				err := json.Unmarshal(raw, &queue)
+				require.NoError(t, err)
+				assert.Len(t, queue.Operations, 1)
+				assert.Equal(t, "op-1", queue.Operations[0].ID)
+				assert.Equal(t, "DEBIT", queue.Operations[0].Type)
+				return nil
+			}).
+			Times(1)
+
+		uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID, operations)
+	})
+
+	t.Run("read_failure_does_not_panic", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		uc := &UseCase{
+			RedisRepo: mockRedisRepo,
+		}
+
+		ctx := context.Background()
+
+		mockRedisRepo.EXPECT().
+			ReadMessageFromQueue(gomock.Any(), gomock.Any()).
+			Return(nil, errors.New("redis connection refused")).
+			Times(1)
+
+		// Should not panic, just log and return
+		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-1", nil)
+	})
+
+	t.Run("unmarshal_failure_does_not_panic", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		uc := &UseCase{
+			RedisRepo: mockRedisRepo,
+		}
+
+		ctx := context.Background()
+
+		mockRedisRepo.EXPECT().
+			ReadMessageFromQueue(gomock.Any(), gomock.Any()).
+			Return([]byte("invalid json{{{"), nil).
+			Times(1)
+
+		// Should not panic, just log and return
+		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-2", nil)
+	})
+
+	t.Run("write_failure_does_not_panic", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		uc := &UseCase{
+			RedisRepo: mockRedisRepo,
+		}
+
+		ctx := context.Background()
+
+		backupJSON := `{"header_id":"req-1","transaction_id":"` + uuid.New().String() + `","organization_id":"` + uuid.New().String() + `","ledger_id":"` + uuid.New().String() + `","ttl":"2026-01-01T00:00:00Z","transaction_status":"CREATED","transaction_date":"2026-01-01T00:00:00Z"}`
+
+		mockRedisRepo.EXPECT().
+			ReadMessageFromQueue(gomock.Any(), gomock.Any()).
+			Return([]byte(backupJSON), nil).
+			Times(1)
+
+		mockRedisRepo.EXPECT().
+			AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(errors.New("redis write failed")).
+			Times(1)
+
+		// Should not panic, just log and return
+		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-3", []*operation.Operation{})
+	})
 }

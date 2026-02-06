@@ -578,3 +578,198 @@ func TestOperation_ToLog(t *testing.T) {
 		// The assertions above confirm ToLog() maps exactly the fields OperationLog contains.
 	})
 }
+
+func TestOperation_ToRedis(t *testing.T) {
+	t.Run("with_all_fields_populated", func(t *testing.T) {
+		amount := decimal.NewFromFloat(1500.00)
+		availBefore := decimal.NewFromFloat(5000.00)
+		onHoldBefore := decimal.NewFromFloat(500.00)
+		versionBefore := int64(1)
+		availAfter := decimal.NewFromFloat(3500.00)
+		onHoldAfter := decimal.NewFromFloat(500.00)
+		versionAfter := int64(2)
+		now := time.Now().Truncate(time.Millisecond)
+
+		statusDesc := "Approved"
+
+		op := &Operation{
+			ID:              "op-123",
+			TransactionID:   "tx-456",
+			Description:     "Payment operation",
+			Type:            "DEBIT",
+			AssetCode:       "BRL",
+			ChartOfAccounts: "1000",
+			Amount:          Amount{Value: &amount},
+			Balance: Balance{
+				Available: &availBefore,
+				OnHold:    &onHoldBefore,
+				Version:   &versionBefore,
+			},
+			BalanceAfter: Balance{
+				Available: &availAfter,
+				OnHold:    &onHoldAfter,
+				Version:   &versionAfter,
+			},
+			Status: Status{
+				Code:        "APPROVED",
+				Description: &statusDesc,
+			},
+			BalanceID:       "bal-012",
+			AccountID:       "acc-789",
+			AccountAlias:    "@main",
+			BalanceKey:      "default",
+			OrganizationID:  "org-345",
+			LedgerID:        "ledger-678",
+			CreatedAt:       now,
+			UpdatedAt:       now,
+			Route:           "route-123",
+			BalanceAffected: true,
+			Metadata:        map[string]any{"key": "value"},
+		}
+
+		r := op.ToRedis()
+
+		assert.Equal(t, op.ID, r.ID)
+		assert.Equal(t, op.TransactionID, r.TransactionID)
+		assert.Equal(t, op.Description, r.Description)
+		assert.Equal(t, op.Type, r.Type)
+		assert.Equal(t, op.AssetCode, r.AssetCode)
+		assert.Equal(t, op.ChartOfAccounts, r.ChartOfAccounts)
+		assert.True(t, amount.Equal(r.AmountValue))
+		assert.True(t, availBefore.Equal(r.BalanceAvailable))
+		assert.True(t, onHoldBefore.Equal(r.BalanceOnHold))
+		assert.Equal(t, versionBefore, r.BalanceVersion)
+		assert.True(t, availAfter.Equal(r.BalanceAfterAvailable))
+		assert.True(t, onHoldAfter.Equal(r.BalanceAfterOnHold))
+		assert.Equal(t, versionAfter, r.BalanceAfterVersion)
+		assert.Equal(t, op.BalanceID, r.BalanceID)
+		assert.Equal(t, op.AccountID, r.AccountID)
+		assert.Equal(t, op.AccountAlias, r.AccountAlias)
+		assert.Equal(t, op.BalanceKey, r.BalanceKey)
+		assert.Equal(t, op.OrganizationID, r.OrganizationID)
+		assert.Equal(t, op.LedgerID, r.LedgerID)
+		assert.Equal(t, op.CreatedAt, r.CreatedAt)
+		assert.Equal(t, op.UpdatedAt, r.UpdatedAt)
+		assert.Equal(t, op.Route, r.Route)
+		assert.Equal(t, "APPROVED", r.StatusCode)
+		require.NotNil(t, r.StatusDescription)
+		assert.Equal(t, "Approved", *r.StatusDescription)
+		assert.True(t, r.BalanceAffected)
+		assert.Equal(t, op.Metadata, r.Metadata)
+	})
+
+	t.Run("with_nil_pointer_fields", func(t *testing.T) {
+		op := &Operation{
+			ID:              "op-nil",
+			TransactionID:   "tx-nil",
+			Type:            "CREDIT",
+			AssetCode:       "USD",
+			AccountID:       "acc-nil",
+			BalanceID:       "bal-nil",
+			OrganizationID:  "org-nil",
+			LedgerID:        "ledger-nil",
+			BalanceAffected: false,
+		}
+
+		r := op.ToRedis()
+
+		assert.True(t, r.AmountValue.IsZero())
+		assert.True(t, r.BalanceAvailable.IsZero())
+		assert.True(t, r.BalanceOnHold.IsZero())
+		assert.Equal(t, int64(0), r.BalanceVersion)
+		assert.True(t, r.BalanceAfterAvailable.IsZero())
+		assert.True(t, r.BalanceAfterOnHold.IsZero())
+		assert.Equal(t, int64(0), r.BalanceAfterVersion)
+		assert.Empty(t, r.StatusCode)
+		assert.Nil(t, r.StatusDescription)
+		assert.False(t, r.BalanceAffected)
+	})
+}
+
+func TestOperationFromRedis(t *testing.T) {
+	t.Run("roundtrip_preserves_all_fields", func(t *testing.T) {
+		amount := decimal.NewFromFloat(1500.00)
+		availBefore := decimal.NewFromFloat(5000.00)
+		onHoldBefore := decimal.NewFromFloat(500.00)
+		versionBefore := int64(1)
+		availAfter := decimal.NewFromFloat(3500.00)
+		onHoldAfter := decimal.NewFromFloat(500.00)
+		versionAfter := int64(2)
+		now := time.Now().Truncate(time.Millisecond)
+
+		rtStatusDesc := "Active"
+
+		original := &Operation{
+			ID:              "op-roundtrip",
+			TransactionID:   "tx-roundtrip",
+			Description:     "Roundtrip test",
+			Type:            "DEBIT",
+			AssetCode:       "BRL",
+			ChartOfAccounts: "2000",
+			Amount:          Amount{Value: &amount},
+			Balance: Balance{
+				Available: &availBefore,
+				OnHold:    &onHoldBefore,
+				Version:   &versionBefore,
+			},
+			BalanceAfter: Balance{
+				Available: &availAfter,
+				OnHold:    &onHoldAfter,
+				Version:   &versionAfter,
+			},
+			Status: Status{
+				Code:        "ACTIVE",
+				Description: &rtStatusDesc,
+			},
+			BalanceID:       "bal-rt",
+			AccountID:       "acc-rt",
+			AccountAlias:    "@savings",
+			BalanceKey:      "USD",
+			OrganizationID:  "org-rt",
+			LedgerID:        "ledger-rt",
+			CreatedAt:       now,
+			UpdatedAt:       now,
+			Route:           "route-rt",
+			BalanceAffected: true,
+			Metadata:        map[string]any{"env": "test"},
+		}
+
+		redisModel := original.ToRedis()
+		restored := OperationFromRedis(redisModel)
+
+		assert.Equal(t, original.ID, restored.ID)
+		assert.Equal(t, original.TransactionID, restored.TransactionID)
+		assert.Equal(t, original.Description, restored.Description)
+		assert.Equal(t, original.Type, restored.Type)
+		assert.Equal(t, original.AssetCode, restored.AssetCode)
+		assert.Equal(t, original.ChartOfAccounts, restored.ChartOfAccounts)
+		require.NotNil(t, restored.Amount.Value)
+		assert.True(t, amount.Equal(*restored.Amount.Value))
+		require.NotNil(t, restored.Balance.Available)
+		assert.True(t, availBefore.Equal(*restored.Balance.Available))
+		require.NotNil(t, restored.Balance.OnHold)
+		assert.True(t, onHoldBefore.Equal(*restored.Balance.OnHold))
+		require.NotNil(t, restored.Balance.Version)
+		assert.Equal(t, versionBefore, *restored.Balance.Version)
+		require.NotNil(t, restored.BalanceAfter.Available)
+		assert.True(t, availAfter.Equal(*restored.BalanceAfter.Available))
+		require.NotNil(t, restored.BalanceAfter.OnHold)
+		assert.True(t, onHoldAfter.Equal(*restored.BalanceAfter.OnHold))
+		require.NotNil(t, restored.BalanceAfter.Version)
+		assert.Equal(t, versionAfter, *restored.BalanceAfter.Version)
+		assert.Equal(t, original.BalanceID, restored.BalanceID)
+		assert.Equal(t, original.AccountID, restored.AccountID)
+		assert.Equal(t, original.AccountAlias, restored.AccountAlias)
+		assert.Equal(t, original.BalanceKey, restored.BalanceKey)
+		assert.Equal(t, original.OrganizationID, restored.OrganizationID)
+		assert.Equal(t, original.LedgerID, restored.LedgerID)
+		assert.Equal(t, original.CreatedAt, restored.CreatedAt)
+		assert.Equal(t, original.UpdatedAt, restored.UpdatedAt)
+		assert.Equal(t, original.Route, restored.Route)
+		assert.Equal(t, original.Status.Code, restored.Status.Code)
+		require.NotNil(t, restored.Status.Description)
+		assert.Equal(t, *original.Status.Description, *restored.Status.Description)
+		assert.True(t, restored.BalanceAffected)
+		assert.Equal(t, original.Metadata, restored.Metadata)
+	})
+}

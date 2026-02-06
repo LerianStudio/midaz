@@ -1055,6 +1055,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
+	handler.Command.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID.String(), operations)
+
 	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &transactionInput, validate, balances, tran)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
