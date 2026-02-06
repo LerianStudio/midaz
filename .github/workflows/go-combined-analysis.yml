@@ -25,7 +25,7 @@ on:
 jobs:
   go-analysis:
     name: Go Analysis
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@v1.10.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-analysis.yml@feature/pr-analysis-changes
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       filter_paths: '["components/onboarding", "components/transaction", "components/crm", "components/ledger"]'
