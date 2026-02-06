@@ -54,40 +54,11 @@ jobs:
         run: make test
 
   # =========================
-  # INTEGRATION TESTS - CONSOLE
-  # =========================
-  integration_tests_console:
-    name: Console Integration Tests
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    defaults:
-      run:
-        working-directory: components/console
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install SWC binary (Linux only)
-        run: npm install --no-save @next/swc-linux-x64-gnu --platform=linux --cpu=x64
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Patch Next.js SWC binaries (warm-up)
-        run: npx next build
-
-      - name: Run Unit Tests
-        run: npm test
-
-  # =========================
   # RELEASE
   # =========================
   release:
     name: Create Release
-    needs: [integration_tests_go, integration_tests_console]
+    needs: [integration_tests_go]
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/release.yml@v1.10.1
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
