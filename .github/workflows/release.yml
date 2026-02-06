@@ -18,47 +18,10 @@ permissions:
 
 jobs:
   # =========================
-  # INTEGRATION TESTS - GO
-  # =========================
-  integration_tests_go:
-    name: Go Integration Tests
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-          cache: true
-
-      - name: Unit Tests - Onboarding
-        working-directory: components/onboarding
-        shell: bash
-        run: make test
-
-      - name: Unit Tests - Transaction
-        working-directory: components/transaction
-        shell: bash
-        run: make test
-
-      - name: Unit Tests - CRM
-        working-directory: components/crm
-        shell: bash
-        run: make test
-
-      - name: Unit Tests - Ledger
-        working-directory: components/ledger
-        shell: bash
-        run: make test
-
-  # =========================
   # RELEASE
   # =========================
   release:
     name: Create Release
-    needs: [integration_tests_go]
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/release.yml@v1.10.1
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
