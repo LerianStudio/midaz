@@ -1,7 +1,5 @@
 name: "Go Combined Analysis"
 
-# Shared workflows version: v1.10.1
-
 on:
   pull_request:
     branches:

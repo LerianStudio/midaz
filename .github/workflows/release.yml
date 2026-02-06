@@ -1,7 +1,5 @@
 name: Release
 
-# Shared workflows version: v1.10.1
-
 on:
   push:
     branches:

@@ -30,7 +30,6 @@ jobs:
       filter_paths: |-
         components/onboarding
         components/transaction
-        components/console
         components/crm
         components/ledger
       path_level: "2"
