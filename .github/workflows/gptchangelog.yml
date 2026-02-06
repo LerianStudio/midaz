@@ -1,0 +1,30 @@
+name: "GPT Changelog"
+
+# This workflow generates CHANGELOG.md using GPTChangelog
+# Triggered after releases to generate AI-powered release notes
+#
+# Features:
+# - Generates CHANGELOG.md with AI-powered summaries
+# - Updates GitHub Release notes
+# - Creates PR with changelog updates
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+    branches: [main]  # Only trigger for releases on main (stable releases)
+  workflow_dispatch:  # Allow manual trigger for testing
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  changelog:
+    # Run if: manual trigger OR Release workflow succeeded
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gptchangelog.yml@v1.10.2
+    with:
+      runner_type: "blacksmith-4vcpu-ubuntu-2404"
+      # No filter_paths = single app mode (non-monorepo)
+    secrets: inherit

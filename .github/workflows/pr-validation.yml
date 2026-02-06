@@ -42,7 +42,6 @@ jobs:
       min_description_length: 50
       check_changelog: false
       enable_auto_labeler: false
-      # Source branch validation (replaces check-branch.yml)
       enforce_source_branches: true
       allowed_source_branches: 'develop|release-candidate|hotfix/*'
       target_branches_for_source_check: 'main'
