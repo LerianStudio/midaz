@@ -1,15 +1,5 @@
 name: "Build"
 
-# Shared workflows version: v1.10.1
-# This workflow builds and pushes Docker images
-# Triggered on any tag push (e.g., v1.0.0, v1.0.0-beta.1)
-#
-# Monorepo strategy:
-# - Uses filter_paths to detect which components changed
-# - Builds only the changed components
-# - Updates GitOps for beta/rc tags
-# - Dispatches Helm chart updates for RC and production releases
-
 on:
   push:
     tags:
@@ -26,11 +16,9 @@ jobs:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/build.yml@v1.10.2
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
-      # Monorepo configuration
       filter_paths: |-
         components/onboarding
         components/transaction
-        components/console
         components/crm
         components/ledger
       path_level: '2'
@@ -64,7 +52,7 @@ jobs:
       gitops_server: "firmino"
       app_name: "midaz"
       artifact_pattern: "gitops-tags-midaz-*"
-      yaml_key_mappings: '{"onboarding.tag": ".onboarding.image.tag", "transaction.tag": ".transaction.image.tag", "console.tag": ".console.image.tag", "crm.tag": ".crm.image.tag", "ledger.tag": ".ledger.image.tag"}'
+      yaml_key_mappings: '{"onboarding.tag": ".onboarding.image.tag", "transaction.tag": ".transaction.image.tag", "crm.tag": ".crm.image.tag", "ledger.tag": ".ledger.image.tag"}'
       commit_message_prefix: "midaz"
       enable_argocd_sync: true
       argocd_app_name: "firmino-midaz"
