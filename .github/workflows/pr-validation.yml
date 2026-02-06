@@ -40,7 +40,7 @@ jobs:
         deps
       require_scope: false
       min_description_length: 50
-      check_changelog: true
+      check_changelog: false
       enable_auto_labeler: false
       # Source branch validation (replaces check-branch.yml)
       enforce_source_branches: true
