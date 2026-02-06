@@ -10,6 +10,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/shopspring/decimal"
 )
 
@@ -355,6 +356,108 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 	if operation.DeletedAt != nil {
 		deletedAtCopy := *operation.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
+	}
+}
+
+// ToRedis converts an Operation to its flat Redis cache representation.
+func (op *Operation) ToRedis() mmodel.OperationRedis {
+	r := mmodel.OperationRedis{
+		ID:              op.ID,
+		TransactionID:   op.TransactionID,
+		Description:     op.Description,
+		Type:            op.Type,
+		AssetCode:       op.AssetCode,
+		ChartOfAccounts: op.ChartOfAccounts,
+		BalanceID:       op.BalanceID,
+		AccountID:       op.AccountID,
+		AccountAlias:    op.AccountAlias,
+		BalanceKey:      op.BalanceKey,
+		OrganizationID:  op.OrganizationID,
+		LedgerID:        op.LedgerID,
+		CreatedAt:       op.CreatedAt,
+		UpdatedAt:       op.UpdatedAt,
+		Route:           op.Route,
+		BalanceAffected: op.BalanceAffected,
+		Metadata:        op.Metadata,
+	}
+
+	if op.Amount.Value != nil {
+		r.AmountValue = *op.Amount.Value
+	}
+
+	if op.Balance.Available != nil {
+		r.BalanceAvailable = *op.Balance.Available
+	}
+
+	if op.Balance.OnHold != nil {
+		r.BalanceOnHold = *op.Balance.OnHold
+	}
+
+	if op.Balance.Version != nil {
+		r.BalanceVersion = *op.Balance.Version
+	}
+
+	if op.BalanceAfter.Available != nil {
+		r.BalanceAfterAvailable = *op.BalanceAfter.Available
+	}
+
+	if op.BalanceAfter.OnHold != nil {
+		r.BalanceAfterOnHold = *op.BalanceAfter.OnHold
+	}
+
+	if op.BalanceAfter.Version != nil {
+		r.BalanceAfterVersion = *op.BalanceAfter.Version
+	}
+
+	r.StatusCode = op.Status.Code
+	r.StatusDescription = op.Status.Description
+
+	return r
+}
+
+// OperationFromRedis converts a flat Redis cache representation back into an Operation.
+func OperationFromRedis(r mmodel.OperationRedis) *Operation {
+	amountVal := r.AmountValue
+	balAvail := r.BalanceAvailable
+	balOnHold := r.BalanceOnHold
+	balVersion := r.BalanceVersion
+	balAfterAvail := r.BalanceAfterAvailable
+	balAfterOnHold := r.BalanceAfterOnHold
+	balAfterVersion := r.BalanceAfterVersion
+
+	return &Operation{
+		ID:              r.ID,
+		TransactionID:   r.TransactionID,
+		Description:     r.Description,
+		Type:            r.Type,
+		AssetCode:       r.AssetCode,
+		ChartOfAccounts: r.ChartOfAccounts,
+		Amount:          Amount{Value: &amountVal},
+		Balance: Balance{
+			Available: &balAvail,
+			OnHold:    &balOnHold,
+			Version:   &balVersion,
+		},
+		BalanceAfter: Balance{
+			Available: &balAfterAvail,
+			OnHold:    &balAfterOnHold,
+			Version:   &balAfterVersion,
+		},
+		BalanceID:      r.BalanceID,
+		AccountID:      r.AccountID,
+		AccountAlias:   r.AccountAlias,
+		BalanceKey:     r.BalanceKey,
+		OrganizationID: r.OrganizationID,
+		LedgerID:       r.LedgerID,
+		CreatedAt:      r.CreatedAt,
+		UpdatedAt:      r.UpdatedAt,
+		Route:          r.Route,
+		Status: Status{
+			Code:        r.StatusCode,
+			Description: r.StatusDescription,
+		},
+		BalanceAffected: r.BalanceAffected,
+		Metadata:        r.Metadata,
 	}
 }
 

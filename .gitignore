@@ -6,16 +6,20 @@ ide/
 tmp/
 CLAUDE.md
 .claude/
+.mcp.json
 .windsurf/
+.windsurfrules
 .cursor/
 .run/onboarding.run.xml
 .run/transaction.run.xml
+.ring/
+docs/ring*/
 
 # OS generated files
 .DS_Store
 
 # Build and binary files
-*__debug_bin1675735721
+*__debug_bin*
 dist/
 coverage.out
 scripts/coverage_ignore.txt
@@ -38,9 +42,7 @@ scripts/demo-data/sdk-source/
 # Other
 postman/backups
 
-.windsurfrules
 cert/
-.mcp.json
 
 # Security scan reports
 *.sarif

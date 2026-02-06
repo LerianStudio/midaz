@@ -504,4 +504,5 @@ type TransactionRedisQueue struct {
 	Validate          *pkgTransaction.Responses  `json:"validate"`
 	TransactionStatus string                     `json:"transaction_status"`
 	TransactionDate   time.Time                  `json:"transaction_date"`
+	Operations        []OperationRedis           `json:"operations,omitempty"`
 }

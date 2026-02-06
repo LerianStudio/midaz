@@ -18,6 +18,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -214,24 +215,37 @@ Outer:
 				},
 			}
 
-			var fromTo []pkgTransaction.FromTo
+			var operations []*operation.Operation
 
-			fromTo = append(fromTo, r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Source.From, true)...)
-			to := r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Distribute.To, true)
+			if len(m.Operations) > 0 {
+				operations = make([]*operation.Operation, 0, len(m.Operations))
+				for _, r := range m.Operations {
+					operations = append(operations, operation.OperationFromRedis(r))
+				}
 
-			if m.TransactionStatus != constant.PENDING {
-				fromTo = append(fromTo, to...)
-			}
+				logger.Infof("Using %d materialized operations from backup", len(operations))
+			} else {
+				var fromTo []pkgTransaction.FromTo
 
-			operations, _, err := r.TransactionHandler.BuildOperations(
-				msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
-			)
-			if err != nil {
-				libOpentelemetry.HandleSpanError(&msgSpan, "Failed to validate balances", err)
+				fromTo = append(fromTo, r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Source.From, true)...)
+				to := r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Distribute.To, true)
 
-				logger.Errorf("Failed to validate balance: %v", err.Error())
+				if m.TransactionStatus != constant.PENDING {
+					fromTo = append(fromTo, to...)
+				}
 
-				return
+				var buildErr error
+
+				operations, _, buildErr = r.TransactionHandler.BuildOperations(
+					msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
+				)
+				if buildErr != nil {
+					libOpentelemetry.HandleSpanError(&msgSpan, "Failed to validate balances", buildErr)
+
+					logger.Errorf("Failed to validate balance: %v", buildErr.Error())
+
+					return
+				}
 			}
 
 			tran.Source = m.Validate.Sources
