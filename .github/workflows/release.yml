@@ -24,17 +24,3 @@ jobs:
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
     secrets: inherit
-
-  # =========================
-  # AI-POWERED CHANGELOG
-  # =========================
-  generate_changelog:
-    name: Generate AI-powered Changelog
-    needs: release
-    if: always() && needs.release.result == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gptchangelog.yml@v1.10.1
-    with:
-      runner_type: "blacksmith-4vcpu-ubuntu-2404"
-      stable_releases_only: true
-      openai_model: "openai/gpt-4o"
-    secrets: inherit
