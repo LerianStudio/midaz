@@ -205,7 +205,7 @@ func DetermineOperation(isPending bool, isFrom bool, transactionType string) str
 // CalculateTotal Calculate total for sources/destinations based on shares, amounts and remains
 func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType string, t chan decimal.Decimal, ft chan map[string]Amount, sd chan []string, or chan map[string]string) {
 	fmto := make(map[string]Amount)
-	scdt := make([]string, 0)
+	scdt := make([]string, 0, len(fromTos))
 
 	total := decimal.NewFromInt(0)
 

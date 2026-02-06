@@ -58,6 +58,7 @@ type Repository interface {
 	ListAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
 	ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, libHTTP.CursorPagination, error)
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
+	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
 	ListByAliasesWithKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error)
 	BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
@@ -67,6 +68,7 @@ type Repository interface {
 	Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
 	UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error
 	ListByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error)
+	ListByAccountIDAtTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time) ([]*mmodel.Balance, error)
 }
 
 // BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
@@ -241,6 +243,99 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 
+		logger.Errorf("Failed to iterate rows: %v", err)
+
+		return nil, err
+	}
+
+	return balances, nil
+}
+
+// ListByIDs retrieves balances by their balance IDs.
+func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_balance_ids")
+	defer span.End()
+
+	if len(ids) == 0 {
+		return []*mmodel.Balance{}, nil
+	}
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return nil, err
+	}
+
+	var balances []*mmodel.Balance
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_balance_ids.query")
+
+	query := squirrel.Select(balanceColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	sqlQuery, args, err := query.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
+	logger.Debugf("ListByIDs query: %s with args: %v", sqlQuery, args)
+
+	rows, err := db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		logger.Errorf("Failed to execute query: %v", err)
+
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	spanQuery.End()
+
+	for rows.Next() {
+		var balance BalancePostgreSQLModel
+		if err := rows.Scan(
+			&balance.ID,
+			&balance.OrganizationID,
+			&balance.LedgerID,
+			&balance.AccountID,
+			&balance.Alias,
+			&balance.AssetCode,
+			&balance.Available,
+			&balance.OnHold,
+			&balance.Version,
+			&balance.AccountType,
+			&balance.AllowSending,
+			&balance.AllowReceiving,
+			&balance.CreatedAt,
+			&balance.UpdatedAt,
+			&balance.DeletedAt,
+			&balance.Key,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			logger.Errorf("Failed to scan row: %v", err)
+
+			return nil, err
+		}
+
+		balances = append(balances, balance.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 		logger.Errorf("Failed to iterate rows: %v", err)
 
 		return nil, err
@@ -747,9 +842,9 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 	for _, balance := range balances {
 		ctxBalance, spanUpdate := tracer.Start(ctx, "postgres.update_balance")
 
-		var updates []string
+		updates := make([]string, 0, 4)
 
-		var args []any
+		args := make([]any, 0, 8)
 
 		updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
 		args = append(args, balance.Available)
@@ -1442,6 +1537,138 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
 			&balance.Key,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			logger.Errorf("Failed to scan row: %v", err)
+
+			return nil, err
+		}
+
+		balances = append(balances, balance.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		logger.Errorf("Failed to iterate rows: %v", err)
+
+		return nil, err
+	}
+
+	return balances, nil
+}
+
+// ListByAccountIDAtTimestamp retrieves all balances for an account at a specific point in time.
+// It uses a single optimized query with LEFT JOIN to fetch balance states, avoiding multiple round-trips.
+// Balances without operations at the timestamp are returned with zero values (initial state).
+func (r *BalancePostgreSQLRepository) ListByAccountIDAtTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time) ([]*mmodel.Balance, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_account_id_at_timestamp")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return nil, err
+	}
+
+	balances := make([]*mmodel.Balance, 0)
+
+	// Build CTE subquery for latest operations per balance using DISTINCT ON
+	// This gets the last operation for each balance before the timestamp
+	// NOTE: Do NOT use PlaceholderFormat here - let the main query convert all ? to $1, $2, etc.
+	latestOpsSubquery := squirrel.Select(
+		"DISTINCT ON (balance_id) balance_id",
+		"available_balance_after",
+		"on_hold_balance_after",
+		"balance_version_after",
+		"created_at as op_created_at",
+	).
+		From("operation").
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"account_id": accountID}).
+		Where(squirrel.LtOrEq{"created_at": timestamp}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("balance_id", "created_at DESC")
+
+	latestOpsSql, latestOpsArgs, err := latestOpsSubquery.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build CTE subquery", err)
+		logger.Errorf("Failed to build CTE subquery: %v", err)
+
+		return nil, err
+	}
+
+	// Build main query with LEFT JOIN using CTE
+	// COALESCE handles balances without operations (returns 0 for initial state)
+	mainQuery := squirrel.Select(
+		"b.id",
+		"b.organization_id",
+		"b.ledger_id",
+		"b.account_id",
+		"b.alias",
+		"b.key",
+		"b.asset_code",
+		"b.account_type",
+		"b.created_at",
+		"COALESCE(o.available_balance_after, 0) as available",
+		"COALESCE(o.on_hold_balance_after, 0) as on_hold",
+		"COALESCE(o.balance_version_after, 0) as version",
+		"COALESCE(o.op_created_at, b.created_at) as updated_at",
+	).
+		Prefix("WITH latest_ops AS ("+latestOpsSql+")", latestOpsArgs...).
+		From("balance b").
+		LeftJoin("latest_ops o ON b.id = o.balance_id").
+		Where(squirrel.Eq{"b.organization_id": organizationID}).
+		Where(squirrel.Eq{"b.ledger_id": ledgerID}).
+		Where(squirrel.Eq{"b.account_id": accountID}).
+		Where(squirrel.Eq{"b.deleted_at": nil}).
+		Where(squirrel.LtOrEq{"b.created_at": timestamp}).
+		OrderBy("b.id ASC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	sqlQuery, args, err := mainQuery.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build main query", err)
+		logger.Errorf("Failed to build main query: %v", err)
+
+		return nil, err
+	}
+
+	logger.Debugf("ListByAccountIDAtTimestamp query: %s with args: %v", sqlQuery, args)
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.list_balances_by_account_id_at_timestamp.query")
+
+	rows, err := db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		logger.Errorf("Failed to execute query: %v", err)
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	for rows.Next() {
+		var balance BalanceAtTimestampModel
+		if err := rows.Scan(
+			&balance.ID,
+			&balance.OrganizationID,
+			&balance.LedgerID,
+			&balance.AccountID,
+			&balance.Alias,
+			&balance.Key,
+			&balance.AssetCode,
+			&balance.AccountType,
+			&balance.CreatedAt,
+			&balance.Available,
+			&balance.OnHold,
+			&balance.Version,
+			&balance.UpdatedAt,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 			logger.Errorf("Failed to scan row: %v", err)

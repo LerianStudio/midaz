@@ -10,6 +10,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -481,4 +482,209 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 	logger.Infof("Successfully created additional balance")
 
 	return http.Created(c, balance)
+}
+
+// GetBalanceAtTimestamp retrieves a balance at a specific point in time.
+//
+//	@Summary		Get Balance history at date
+//	@Description	Get the historical state of a Balance at a specific point in time (yyyy-mm-dd hh:mm:ss format)
+//	@Tags			Balances
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			balance_id		path		string	true	"Balance ID"
+//	@Param			date			query		string	true	"Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)"
+//	@Success		200				{object}	mmodel.BalanceHistory
+//	@Failure		400				{object}	mmodel.Error	"Invalid date format or date in the future"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Balance not found or no data available at date"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history [Get]
+func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_balance_at_timestamp")
+	defer span.End()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get organization_id from path", err)
+		logger.Errorf("Failed to get organization_id from path: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get ledger_id from path", err)
+		logger.Errorf("Failed to get ledger_id from path: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	balanceID, err := http.GetUUIDFromLocals(c, "balance_id")
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get balance_id from path", err)
+		logger.Errorf("Failed to get balance_id from path: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	// Parse date from query parameter - requires yyyy-mm-dd hh:mm:ss format
+	dateStr := c.Query("date")
+	if dateStr == "" {
+		err := pkg.ValidateBusinessError(cn.ErrMissingRequiredQueryParameter, "Balance", "date")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing date parameter", err)
+		logger.Warnf("Missing date query parameter")
+
+		return http.WithError(c, err)
+	}
+
+	date, hasTime, err := libCommons.ParseDateTime(dateStr, false)
+	if err != nil {
+		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "yyyy-mm-dd hh:mm:ss")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid date format", validationErr)
+		logger.Warnf("Invalid date format: %s", dateStr)
+
+		return http.WithError(c, validationErr)
+	}
+
+	// Time component is required
+	if !hasTime {
+		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "yyyy-mm-dd hh:mm:ss")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Time component is required", validationErr)
+		logger.Warnf("Missing time component in date: %s", dateStr)
+
+		return http.WithError(c, validationErr)
+	}
+
+	logger.Infof("Initiating retrieval of balance %s at date %s", balanceID, date.Format("2006-01-02 15:04:05"))
+
+	balance, err := handler.Query.GetBalanceAtTimestamp(ctx, organizationID, ledgerID, balanceID, date)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve balance at date", err)
+		logger.Errorf("Failed to retrieve balance at date, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved balance %s at date %s", balanceID, date.Format("2006-01-02 15:04:05"))
+
+	// Convert to history response (without permission flags)
+	return http.OK(c, balance.ToHistoryResponse())
+}
+
+// GetAccountBalancesAtTimestamp retrieves all balances for an account at a specific point in time.
+//
+//	@Summary		Get Account Balances history at date
+//	@Description	Get the historical state of all Balances for an account at a specific point in time (yyyy-mm-dd hh:mm:ss format)
+//	@Tags			Balances
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			account_id		path		string	true	"Account ID"
+//	@Param			date			query		string	true	"Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)"
+//	@Success		200				{object}	[]mmodel.BalanceHistory
+//	@Failure		400				{object}	mmodel.Error	"Invalid date format or date in the future"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Account not found or no data available at date"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history [Get]
+func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_account_balances_at_timestamp")
+	defer span.End()
+
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get organization_id from path", err)
+		logger.Errorf("Failed to get organization_id from path: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get ledger_id from path", err)
+		logger.Errorf("Failed to get ledger_id from path: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	accountID, err := http.GetUUIDFromLocals(c, "account_id")
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get account_id from path", err)
+		logger.Errorf("Failed to get account_id from path: %v", err)
+
+		return http.WithError(c, err)
+	}
+
+	// Parse date from query parameter - requires yyyy-mm-dd hh:mm:ss format
+	dateStr := c.Query("date")
+	if dateStr == "" {
+		err := pkg.ValidateBusinessError(cn.ErrMissingRequiredQueryParameter, "Balance", "date")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing date parameter", err)
+		logger.Warnf("Missing date query parameter")
+
+		return http.WithError(c, err)
+	}
+
+	date, hasTime, err := libCommons.ParseDateTime(dateStr, false)
+	if err != nil {
+		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "yyyy-mm-dd hh:mm:ss")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid date format", validationErr)
+		logger.Warnf("Invalid date format: %s", dateStr)
+
+		return http.WithError(c, validationErr)
+	}
+
+	// Time component is required
+	if !hasTime {
+		validationErr := pkg.ValidateBusinessError(cn.ErrInvalidDatetimeFormat, "Balance", "date", "yyyy-mm-dd hh:mm:ss")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Time component is required", validationErr)
+		logger.Warnf("Missing time component in date: %s", dateStr)
+
+		return http.WithError(c, validationErr)
+	}
+
+	logger.Infof("Initiating retrieval of balances for account %s at date %s", accountID, date.Format("2006-01-02 15:04:05"))
+
+	balances, err := handler.Query.GetAccountBalancesAtTimestamp(ctx, organizationID, ledgerID, accountID, date)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve account balances at date", err)
+		logger.Errorf("Failed to retrieve account balances at date, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	// Check if we have any balances to return
+	if len(balances) == 0 {
+		// No balances existed at that time
+		err := pkg.ValidateBusinessError(cn.ErrNoBalanceDataAtTimestamp, date.Format("2006-01-02 15:04:05"))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No balance data available for the specified timestamp", err)
+		logger.Infof("No balances found for account %s at timestamp %s", accountID, date.Format("2006-01-02 15:04:05"))
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved %d balances for account %s at date %s", len(balances), accountID, date.Format("2006-01-02 15:04:05"))
+
+	// Convert to history responses (without permission flags)
+	historyBalances := make([]*mmodel.BalanceHistory, len(balances))
+	for i := range balances {
+		historyBalances[i] = balances[i].ToHistoryResponse()
+	}
+
+	return http.OK(c, historyBalances)
 }

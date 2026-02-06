@@ -36,7 +36,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 	ctx, span := tracer.Start(ctx, "command.write_transaction_async")
 	defer span.End()
 
-	queueData := make([]mmodel.QueueData, 0)
+	queueData := make([]mmodel.QueueData, 0, 1)
 
 	value := transaction.TransactionProcessingPayload{
 		Validate:    validate,
@@ -111,7 +111,7 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 	ctx, span := tracer.Start(ctx, "command.write_transaction_sync")
 	defer span.End()
 
-	queueData := make([]mmodel.QueueData, 0)
+	queueData := make([]mmodel.QueueData, 0, 1)
 
 	value := transaction.TransactionProcessingPayload{
 		Validate:    validate,

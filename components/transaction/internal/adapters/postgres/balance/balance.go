@@ -86,3 +86,39 @@ func (b *BalancePostgreSQLModel) ToEntity() *mmodel.Balance {
 
 	return balance
 }
+
+// BalanceAtTimestampModel represents a balance snapshot at a specific point in time
+type BalanceAtTimestampModel struct {
+	ID             string
+	OrganizationID string
+	LedgerID       string
+	AccountID      string
+	Alias          string
+	Key            string
+	AssetCode      string
+	AccountType    string
+	Available      decimal.Decimal
+	OnHold         decimal.Decimal
+	Version        int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// ToEntity converts BalanceAtTimestampModel to mmodel.Balance
+func (b *BalanceAtTimestampModel) ToEntity() *mmodel.Balance {
+	return &mmodel.Balance{
+		ID:             b.ID,
+		OrganizationID: b.OrganizationID,
+		LedgerID:       b.LedgerID,
+		AccountID:      b.AccountID,
+		Alias:          b.Alias,
+		Key:            b.Key,
+		AssetCode:      b.AssetCode,
+		AccountType:    b.AccountType,
+		Available:      b.Available,
+		OnHold:         b.OnHold,
+		Version:        b.Version,
+		CreatedAt:      b.CreatedAt,
+		UpdatedAt:      b.UpdatedAt,
+	}
+}

@@ -2972,6 +2972,73 @@ paths:
           description: Internal server error
           schema:
             $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
+    get:
+      description: Get the historical state of all Balances for an account at a specific
+        point in time (yyyy-mm-dd hh:mm:ss format)
+      produces:
+      - application/json
+      tags:
+      - Balances
+      summary: Get Account Balances history at date
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Account ID
+        name: account_id
+        in: path
+        required: true
+      - type: string
+        description: 'Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15
+          10:30:00)'
+        name: date
+        in: query
+        required: true
+      responses:
+        '200':
+          description: OK
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/BalanceHistory'
+        '400':
+          description: Invalid date format or date in the future
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Account not found or no data available at date
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       description: Get all Operations with the input ID
@@ -3595,6 +3662,71 @@ paths:
             $ref: '#/definitions/Error'
         '404':
           description: Balance not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
+    get:
+      description: Get the historical state of a Balance at a specific point in time
+        (yyyy-mm-dd hh:mm:ss format)
+      produces:
+      - application/json
+      tags:
+      - Balances
+      summary: Get Balance history at date
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Balance ID
+        name: balance_id
+        in: path
+        required: true
+      - type: string
+        description: 'Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15
+          10:30:00)'
+        name: date
+        in: query
+        required: true
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/BalanceHistory'
+        '400':
+          description: Invalid date format or date in the future
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Balance not found or no data available at date
           schema:
             $ref: '#/definitions/Error'
         '500':
@@ -6648,6 +6780,133 @@ definitions:
         type: integer
         minimum: 0
         example: 2
+  BalanceHistory:
+    description: Historical balance snapshot at a specific point in time. Does not
+      include permission flags (allowSending/allowReceiving) as these are not tracked
+      historically.
+    type: object
+    properties:
+      accountId:
+        description: 'Account that holds this balance
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      accountType:
+        description: 'Type of account holding this balance
+
+          example: creditCard
+
+          maxLength: 50'
+        type: string
+        maxLength: 50
+        example: creditCard
+      alias:
+        description: 'Alias for the account, used for easy identification or tagging
+
+          example: @person1
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: '@person1'
+      assetCode:
+        description: 'Asset code identifying the currency or asset type of this balance
+
+          example: USD
+
+          minLength: 2
+
+          maxLength: 10'
+        type: string
+        maxLength: 10
+        minLength: 2
+        example: USD
+      available:
+        description: 'Amount available for transactions (in the smallest unit of the
+          asset, e.g. cents)
+
+          example: 1500
+
+          minimum: 0'
+        type: number
+        minimum: 0
+        example: 1500
+      createdAt:
+        description: 'Timestamp when the balance was created (RFC3339 format)
+
+          example: 2021-01-01T00:00:00Z
+
+          format: date-time'
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+      id:
+        description: 'Unique identifier for the balance (UUID format)
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      key:
+        description: 'Unique key for the balance
+
+          example: asset-freeze
+
+          maxLength: 100'
+        type: string
+        maxLength: 100
+        example: asset-freeze
+      ledgerId:
+        description: 'Ledger containing the account this balance belongs to
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      onHold:
+        description: 'Amount currently on hold and unavailable for transactions
+
+          example: 500
+
+          minimum: 0'
+        type: number
+        minimum: 0
+        example: 500
+      organizationId:
+        description: 'Organization that owns this balance
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      updatedAt:
+        description: 'Timestamp when the balance was last updated (RFC3339 format)
+
+          example: 2021-01-01T00:00:00Z
+
+          format: date-time'
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+      version:
+        description: 'Optimistic concurrency control version
+
+          example: 1
+
+          minimum: 1'
+        type: integer
+        minimum: 1
+        example: 1
   CreateAdditionalBalance:
     description: Request payload for creating a new balance with specified permissions
       and custom key.

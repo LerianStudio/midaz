@@ -385,6 +385,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Action Not Permitted",
 			Message:    "The action you are attempting is not allowed in the current environment. Please refer to the documentation for guidance.",
 		},
+		constant.ErrMissingFieldsInRequest: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMissingFieldsInRequest.Error(),
+			Title:      "Missing Fields in Request",
+			Message:    fmt.Sprintf("Your request is missing one or more required fields: %v. Please refer to the documentation to ensure all necessary fields are included in your request.", args...),
+		},
 		constant.ErrAccountTypeImmutable: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountTypeImmutable.Error(),
@@ -1067,7 +1073,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidDatetimeFormat.Error(),
 			Title:      "Invalid Datetime Format Error",
-			Message:    "The 'initialDate', 'finalDate', or both are in the incorrect format. Please use the 'yyyy-mm-dd' or 'yyyy-mm-dd hh:mm:ss' format and try again.",
+			Message:    fmt.Sprintf("The '%v' parameter is in the incorrect format. Please use the '%v' format and try again.", args...),
 		},
 		constant.ErrHolderNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -1200,6 +1206,24 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrGRPCServiceUnavailable.Error(),
 			Title:      "gRPC Service Unavailable",
 			Message:    "The balance service is temporarily unavailable. Please try again later.",
+		},
+		constant.ErrMissingRequiredQueryParameter: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMissingRequiredQueryParameter.Error(),
+			Title:      "Missing Required Query Parameter",
+			Message:    fmt.Sprintf("The required query parameter '%v' is missing from the request.", args...),
+		},
+		constant.ErrInvalidTimestamp: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidTimestamp.Error(),
+			Title:      "Invalid Timestamp",
+			Message:    fmt.Sprintf("The provided timestamp '%v' is invalid. Timestamps cannot be in the future.", args...),
+		},
+		constant.ErrNoBalanceDataAtTimestamp: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoBalanceDataAtTimestamp.Error(),
+			Title:      "No Balance Data at Date",
+			Message:    "No balance data is available at the specified date.",
 		},
 	}
 
