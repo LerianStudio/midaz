@@ -1,9 +1,5 @@
 name: "PR Security Scan"
 
-# Shared workflows version: v1.10.1
-# This workflow runs security scans on pull requests
-# targeting develop, release-candidate, and main branches
-
 on:
   pull_request:
     branches:

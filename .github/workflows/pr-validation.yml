@@ -30,19 +30,18 @@ jobs:
       pr_title_scopes: |
         onboarding
         transaction
-        ledger
         crm
-        console
-        mdz
-        infra
+        ledger
+        api
         pkg
+        infra
+        migrations
         scripts
         deps
-        api
       require_scope: false
       min_description_length: 50
       check_changelog: true
-      enable_auto_labeler: true
+      enable_auto_labeler: false
       labeler_config_path: '.github/labeler.yml'
       # Source branch validation (replaces check-branch.yml)
       enforce_source_branches: true
