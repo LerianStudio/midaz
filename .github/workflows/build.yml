@@ -49,7 +49,7 @@ jobs:
       gitops_server: "firmino"
       app_name: "midaz"
       artifact_pattern: "gitops-tags-midaz-*"
-      yaml_key_mappings: '{"onboarding.tag": ".onboarding.image.tag", "transaction.tag": ".transaction.image.tag", "crm.tag": ".crm.image.tag", "ledger.tag": ".ledger.image.tag"}'
+      yaml_key_mappings: '{"midaz-onboarding.tag": ".onboarding.image.tag", "midaz-transaction.tag": ".transaction.image.tag", "midaz-crm.tag": ".crm.image.tag", "midaz-ledger.tag": ".ledger.image.tag"}'
       commit_message_prefix: "midaz"
       enable_argocd_sync: true
       argocd_app_name: "firmino-midaz"
