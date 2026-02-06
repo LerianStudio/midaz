@@ -22,14 +22,10 @@ services:
       timeout: 5s
       retries: 5
     user: root
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
     ports:
       - ${MONGO_PORT}:${MONGO_PORT}
-    command: [ "sh", "-c", "chmod 400 /data/mongo-keyfile && mongod --replSet rs0 --bind_ip_all --port ${MONGO_PORT} --keyFile /data/mongo-keyfile" ]
+    command: [ "sh", "-c", "mongod --replSet rs0 --bind_ip_all --port ${MONGO_PORT}" ]
     volumes:
-      - ./mongo/mongo-keyfile:/data/mongo-keyfile
       - mongodb-schema-data:/data/db
     networks:
       - infra-network
