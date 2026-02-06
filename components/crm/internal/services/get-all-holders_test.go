@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -110,6 +111,17 @@ func TestGetAllHolders(t *testing.T) {
 			},
 			expectErr:      false,
 			expectedResult: []*mmodel.Holder{},
+		},
+		{
+			name:   "Error when repository fails to find all holders",
+			filter: query,
+			mockSetup: func() {
+				mockRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), query, false).
+					Return(nil, errors.New("database error"))
+			},
+			expectErr:      true,
+			expectedResult: nil,
 		},
 	}
 

@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -179,6 +180,18 @@ func TestGetAllAliases(t *testing.T) {
 			},
 			expectedErr:    nil,
 			expectedResult: []*mmodel.Alias{},
+		},
+		{
+			name:     "Error when repository fails to find all aliases",
+			holderId: holderID,
+			filter:   query,
+			mockSetup: func() {
+				mockAliasRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					Return(nil, errors.New("database error"))
+			},
+			expectedErr:    errors.New("database error"),
+			expectedResult: nil,
 		},
 	}
 

@@ -889,6 +889,113 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 	}
 }
 
+func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupMocks     func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID, relatedPartyID uuid.UUID)
+		expectedStatus int
+		validateBody   func(t *testing.T, body []byte)
+	}{
+		{
+			name: "success returns 204 no content",
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID, relatedPartyID uuid.UUID) {
+				aliasRepo.EXPECT().
+					DeleteRelatedParty(gomock.Any(), orgID, holderID, aliasID, relatedPartyID).
+					Return(nil).
+					Times(1)
+			},
+			expectedStatus: 204,
+			validateBody:   nil,
+		},
+		{
+			name: "not found returns 404",
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID, relatedPartyID uuid.UUID) {
+				aliasRepo.EXPECT().
+					DeleteRelatedParty(gomock.Any(), orgID, holderID, aliasID, relatedPartyID).
+					Return(pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())).
+					Times(1)
+			},
+			expectedStatus: 404,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrAliasNotFound.Error(), errResp["code"])
+			},
+		},
+		{
+			name: "repository error returns 500",
+			setupMocks: func(aliasRepo *alias.MockRepository, orgID string, holderID, aliasID, relatedPartyID uuid.UUID) {
+				aliasRepo.EXPECT().
+					DeleteRelatedParty(gomock.Any(), orgID, holderID, aliasID, relatedPartyID).
+					Return(pkg.InternalServerError{
+						Code:    "0046",
+						Title:   "Internal Server Error",
+						Message: "Database connection failed",
+					}).
+					Times(1)
+			},
+			expectedStatus: 500,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Contains(t, errResp, "message", "error response should contain message")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			orgID := uuid.New().String()
+			holderID := uuid.New()
+			aliasID := uuid.New()
+			relatedPartyID := uuid.New()
+
+			mockAliasRepo := alias.NewMockRepository(ctrl)
+			tt.setupMocks(mockAliasRepo, orgID, holderID, aliasID, relatedPartyID)
+
+			uc := &services.UseCase{
+				AliasRepo: mockAliasRepo,
+			}
+			handler := &AliasHandler{Service: uc}
+
+			app := fiber.New()
+			app.Delete("/v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id",
+				func(c *fiber.Ctx) error {
+					c.Locals("holder_id", holderID)
+					c.Locals("alias_id", aliasID)
+					c.Locals("related_party_id", relatedPartyID)
+					c.Request().Header.Set("X-Organization-Id", orgID)
+					return c.Next()
+				},
+				handler.DeleteRelatedParty,
+			)
+
+			url := "/v1/holders/" + holderID.String() + "/aliases/" + aliasID.String() + "/related-parties/" + relatedPartyID.String()
+			req := httptest.NewRequest("DELETE", url, nil)
+			req.Header.Set("X-Organization-Id", orgID)
+			resp, err := app.Test(req)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if tt.validateBody != nil {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				tt.validateBody(t, body)
+			}
+		})
+	}
+}
+
 func TestAliasHandler_GetAllAliases(t *testing.T) {
 	tests := []struct {
 		name           string
