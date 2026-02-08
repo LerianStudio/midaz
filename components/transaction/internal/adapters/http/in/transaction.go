@@ -1193,7 +1193,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		}
 	}
 
-	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
+	err = handler.executeWithRetryOn422(ctx, &span, logger, organizationID, ledgerID, &parserDSL, validate, preBalances, tran)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 
@@ -1207,6 +1207,63 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
+}
+
+// executeWithRetryOn422 wraps TransactionExecute with retry logic for 422 Unprocessable Entity errors.
+// If a 422 error occurs, it waits 50ms and retries once (max 2 attempts total).
+func (handler *TransactionHandler) executeWithRetryOn422(
+	ctx context.Context,
+	span *libOpentelemetry.Span,
+	logger libLog.Logger,
+	organizationID, ledgerID uuid.UUID,
+	parserDSL *pkgTransaction.Transaction,
+	validate *pkgTransaction.Responses,
+	preBalances []*mmodel.Balance,
+	tran *transaction.Transaction,
+) error {
+	const maxAttempts = 2
+	const retryDelay = 50 * time.Millisecond
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		err := handler.Command.TransactionExecute(ctx, organizationID, ledgerID, parserDSL, validate, preBalances, tran)
+		if err == nil {
+			return nil
+		}
+
+		// Check if error is UnprocessableOperationError (422)
+		var unprocessableErr pkg.UnprocessableOperationError
+		if !errors.As(err, &unprocessableErr) {
+			// Not a 422 error, return immediately
+			return err
+		}
+
+		// If this was the last attempt, return the error
+		if attempt >= maxAttempts {
+			logger.Errorf("Transaction execution failed after %d attempts - transaction: %s - Error: %v", maxAttempts, tran.ID, err)
+			return err
+		}
+
+		// Log retry attempt
+		logger.Warnf("Transaction execution returned 422, retrying (attempt %d/%d) - transaction: %s", attempt, maxAttempts, tran.ID)
+
+		// Add span event for retry
+		libOpentelemetry.AddSpanEvent(span, "transaction_execution_retry", map[string]interface{}{
+			"attempt":       attempt,
+			"transaction_id": tran.ID,
+			"error_code":    unprocessableErr.Code,
+		})
+
+		// Wait before retry
+		select {
+		case <-time.After(retryDelay):
+			// Retry after delay
+		case <-ctx.Done():
+			// Context cancelled, return immediately
+			return ctx.Err()
+		}
+	}
+
+	return nil
 }
 
 // ApplyDefaultBalanceKeys sets the BalanceKey to "default" for any entries where the BalanceKey is empty.

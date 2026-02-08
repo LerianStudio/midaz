@@ -1776,3 +1776,113 @@ func TestCancelTransaction(t *testing.T) {
 		})
 	}
 }
+
+// TestExecuteWithRetryOn422 tests the retry logic for 422 Unprocessable Entity errors
+func TestExecuteWithRetryOn422(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		setupMocks    func(commandMock *command.MockUseCase)
+		shouldRetry   bool
+		shouldSucceed bool
+		expectedError string
+	}{
+		{
+			name: "success on first attempt",
+			setupMocks: func(commandMock *command.MockUseCase) {
+				commandMock.EXPECT().
+					TransactionExecute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil).
+					Times(1)
+			},
+			shouldRetry:   false,
+			shouldSucceed: true,
+		},
+		{
+			name: "success on second attempt after 422",
+			setupMocks: func(commandMock *command.MockUseCase) {
+				gomock.InOrder(
+					commandMock.EXPECT().
+						TransactionExecute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+						Return(pkg.UnprocessableOperationError{
+							Code:    "VALIDATION_ERROR",
+							Message: "Transaction validation failed",
+						}).
+						Times(1),
+					commandMock.EXPECT().
+						TransactionExecute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+						Return(nil).
+						Times(1),
+				)
+			},
+			shouldRetry:   true,
+			shouldSucceed: true,
+		},
+		{
+			name: "failure after retrying 422 twice",
+			setupMocks: func(commandMock *command.MockUseCase) {
+				commandMock.EXPECT().
+					TransactionExecute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(pkg.UnprocessableOperationError{
+						Code:    "VALIDATION_ERROR",
+						Message: "Transaction validation failed",
+					}).
+					Times(2)
+			},
+			shouldRetry:   true,
+			shouldSucceed: false,
+			expectedError: "VALIDATION_ERROR",
+		},
+		{
+			name: "non-422 error returns immediately without retry",
+			setupMocks: func(commandMock *command.MockUseCase) {
+				commandMock.EXPECT().
+					TransactionExecute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(errors.New("some other error")).
+					Times(1)
+			},
+			shouldRetry:   false,
+			shouldSucceed: false,
+			expectedError: "some other error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			commandMock := command.NewMockUseCase(ctrl)
+			tt.setupMocks(commandMock)
+
+			ctx := context.Background()
+			_, span := libOpentelemetry.NewSpan(ctx, "test")
+			logger := libLog.NewLogger()
+
+			handler := &TransactionHandler{
+				Command: commandMock,
+			}
+
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+			tran := &transaction.Transaction{
+				ID: uuid.New().String(),
+			}
+
+			// Act
+			err := handler.executeWithRetryOn422(ctx, &span, logger, orgID, ledgerID, nil, nil, nil, tran)
+
+			// Assert
+			if tt.shouldSucceed {
+				require.NoError(t, err, "error should be nil")
+			} else {
+				require.Error(t, err, "error should not be nil")
+				if tt.expectedError != "" {
+					assert.Contains(t, err.Error(), tt.expectedError, "error message should contain expected error")
+				}
+			}
+		})
+	}
+}
