@@ -134,6 +134,21 @@ func (mr *MockRepositoryMockRecorder) FindOrListAllWithOperations(ctx, organizat
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOrListAllWithOperations", reflect.TypeOf((*MockRepository)(nil).FindOrListAllWithOperations), ctx, organizationID, ledgerID, ids, filter)
 }
 
+// FindWithFallback mocks base method.
+func (m *MockRepository) FindWithFallback(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindWithFallback", ctx, organizationID, ledgerID, id)
+	ret0, _ := ret[0].(*Transaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindWithFallback indicates an expected call of FindWithFallback.
+func (mr *MockRepositoryMockRecorder) FindWithFallback(ctx, organizationID, ledgerID, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindWithFallback", reflect.TypeOf((*MockRepository)(nil).FindWithFallback), ctx, organizationID, ledgerID, id)
+}
+
 // FindWithOperations mocks base method.
 func (m *MockRepository) FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
 	m.ctrl.T.Helper()
@@ -147,6 +162,21 @@ func (m *MockRepository) FindWithOperations(ctx context.Context, organizationID,
 func (mr *MockRepositoryMockRecorder) FindWithOperations(ctx, organizationID, ledgerID, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindWithOperations", reflect.TypeOf((*MockRepository)(nil).FindWithOperations), ctx, organizationID, ledgerID, id)
+}
+
+// FindWithOperationsWithFallback mocks base method.
+func (m *MockRepository) FindWithOperationsWithFallback(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindWithOperationsWithFallback", ctx, organizationID, ledgerID, id)
+	ret0, _ := ret[0].(*Transaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindWithOperationsWithFallback indicates an expected call of FindWithOperationsWithFallback.
+func (mr *MockRepositoryMockRecorder) FindWithOperationsWithFallback(ctx, organizationID, ledgerID, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindWithOperationsWithFallback", reflect.TypeOf((*MockRepository)(nil).FindWithOperationsWithFallback), ctx, organizationID, ledgerID, id)
 }
 
 // ListByIDs mocks base method.

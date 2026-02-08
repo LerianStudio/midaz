@@ -345,9 +345,9 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 				Body: txBody,
 			}
 
-			// Mock: Find transaction
+			// Mock: Find transaction with operations (uses fallback method)
 			mockTransactionRepo.EXPECT().
-				Find(gomock.Any(), orgID, ledgerID, transactionID).
+				FindWithOperationsWithFallback(gomock.Any(), orgID, ledgerID, transactionID).
 				Return(tran, nil).
 				Times(1)
 
@@ -1474,7 +1474,7 @@ func TestCancelTransaction(t *testing.T) {
 			name: "transaction not found returns 404",
 			setupMocks: func(transactionRepo *transaction.MockRepository, metadataRepo *mongodb.MockRepository, operationRepo *operation.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperationsWithFallback(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(nil, pkg.EntityNotFoundError{
 						EntityType: "Transaction",
 						Code:       cn.ErrEntityNotFound.Error(),
@@ -1524,9 +1524,9 @@ func TestCancelTransaction(t *testing.T) {
 					Body: txBody,
 				}
 
-				// Query.GetTransactionByID
+				// Query.GetTransactionWithOperationsByIDWithFallback
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperationsWithFallback(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
 					Times(1)
 
@@ -1588,9 +1588,9 @@ func TestCancelTransaction(t *testing.T) {
 					Body: txBody,
 				}
 
-				// Query.GetTransactionByID
+				// Query.GetTransactionWithOperationsByIDWithFallback
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperationsWithFallback(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
 					Times(1)
 
@@ -1649,9 +1649,9 @@ func TestCancelTransaction(t *testing.T) {
 					Body: txBody,
 				}
 
-				// Query.GetTransactionByID
+				// Query.GetTransactionWithOperationsByIDWithFallback
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperationsWithFallback(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
 					Times(1)
 
@@ -1692,9 +1692,9 @@ func TestCancelTransaction(t *testing.T) {
 					},
 				}
 
-				// Query.GetTransactionByID - Find succeeds
+				// Query.GetTransactionWithOperationsByIDWithFallback - Find succeeds
 				transactionRepo.EXPECT().
-					Find(gomock.Any(), orgID, ledgerID, transactionID).
+					FindWithOperationsWithFallback(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(tran, nil).
 					Times(1)
 

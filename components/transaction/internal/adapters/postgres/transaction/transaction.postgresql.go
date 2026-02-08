@@ -62,6 +62,15 @@ var transactionColumnListPrefixed = []string{
 	"t.route",
 }
 
+var operationColumnListPrefixed = []string{
+	"o.id", "o.transaction_id", "o.description", "o.type", "o.asset_code",
+	"o.amount", "o.available_balance", "o.on_hold_balance", "o.available_balance_after",
+	"o.on_hold_balance_after", "o.status", "o.status_description", "o.account_id",
+	"o.account_alias", "o.balance_id", "o.chart_of_accounts", "o.organization_id",
+	"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
+	"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
+}
+
 // Repository provides an interface for operations related to transaction template entities.
 // It defines methods for creating, retrieving, updating, and deleting transactions.
 type Repository interface {
@@ -74,6 +83,8 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
+	FindWithFallback(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
+	FindWithOperationsWithFallback(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 }
 
 // TransactionPostgreSQLRepository is a Postgresql-specific implementation of the TransactionRepository.
@@ -504,6 +515,114 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	return transaction.ToEntity(), nil
 }
 
+// FindWithFallback retrieves a transaction from replica with primary fallback.
+// This method is currently used by GetTransactionByIDWithFallback in the query service layer,
+// which may be used in future operations that need a fallback read. See the design document:
+// docs/plans/2026-02-08-primary-read-fallback-pattern-design.md
+//
+// Returns the transaction or error; if replica returns EntityNotFoundError, retries from primary.
+func (r *TransactionPostgreSQLRepository) FindWithFallback(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_transaction_with_fallback")
+	defer span.End()
+
+	// Step 1: Try reading from the replica (default behavior of Find)
+	tran, err := r.Find(ctx, organizationID, ledgerID, id)
+	if err == nil {
+		return tran, nil
+	}
+
+	// Step 2: If the error is NOT a "not found" error, return it immediately (e.g., connection error)
+	var entityNotFoundErr pkg.EntityNotFoundError
+	if !errors.As(err, &entityNotFoundErr) {
+		return nil, err
+	}
+
+	// Step 3: Replica returned "not found" -- fall back to primary
+	logger.Infof("Replica miss for transaction %s, falling back to primary read", id.String())
+
+	db, dbErr := r.connection.GetDB()
+	if dbErr != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection for primary fallback", dbErr)
+		logger.Errorf("Failed to get database connection for primary fallback: %v", dbErr)
+		return nil, dbErr
+	}
+
+	primaryDBs := db.PrimaryDBs()
+	if len(primaryDBs) == 0 {
+		libOpentelemetry.HandleSpanError(&span, "No primary database available for fallback", err)
+		logger.Errorf("No primary database available for fallback")
+		return nil, err
+	}
+
+	primaryDB := primaryDBs[0]
+
+	transaction := &TransactionPostgreSQLModel{}
+	var body *string
+
+	ctx, spanPrimary := tracer.Start(ctx, "postgres.find_transaction_with_fallback.primary_query")
+	defer spanPrimary.End()
+
+	find := squirrel.Select(transactionColumnList...).
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ?", id)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, queryErr := find.ToSql()
+	if queryErr != nil {
+		libOpentelemetry.HandleSpanError(&spanPrimary, "Failed to build primary fallback query", queryErr)
+		logger.Errorf("Failed to build primary fallback query: %v", queryErr)
+		return nil, queryErr
+	}
+
+	row := primaryDB.QueryRowContext(ctx, query, args...)
+
+	if scanErr := row.Scan(
+		&transaction.ID,
+		&transaction.ParentTransactionID,
+		&transaction.Description,
+		&transaction.Status,
+		&transaction.StatusDescription,
+		&transaction.Amount,
+		&transaction.AssetCode,
+		&transaction.ChartOfAccountsGroupName,
+		&transaction.LedgerID,
+		&transaction.OrganizationID,
+		&body,
+		&transaction.CreatedAt,
+		&transaction.UpdatedAt,
+		&transaction.DeletedAt,
+		&transaction.Route,
+	); scanErr != nil {
+		if errors.Is(scanErr, sql.ErrNoRows) {
+			// Not found on primary either -- return the original not-found error
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanPrimary, "Transaction not found on primary fallback", err)
+			logger.Infof("Transaction %s not found on primary fallback either", id.String())
+			return nil, err
+		}
+
+		libOpentelemetry.HandleSpanError(&spanPrimary, "Failed to scan row from primary fallback", scanErr)
+		logger.Errorf("Failed to scan row from primary fallback: %v", scanErr)
+		return nil, scanErr
+	}
+
+	if !libCommons.IsNilOrEmpty(body) {
+		if unmarshalErr := json.Unmarshal([]byte(*body), &transaction.Body); unmarshalErr != nil {
+			libOpentelemetry.HandleSpanError(&spanPrimary, "Failed to unmarshal body from primary fallback", unmarshalErr)
+			logger.Errorf("Failed to unmarshal body from primary fallback: %v", unmarshalErr)
+			return nil, unmarshalErr
+		}
+	}
+
+	logger.Infof("Transaction %s found on primary fallback (replica lag detected)", id.String())
+
+	return transaction.ToEntity(), nil
+}
+
 // FindByParentID retrieves a Transaction entity from the database using the provided parent ID.
 func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -749,15 +868,6 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_transaction_with_operations.query")
 	defer spanQuery.End()
 
-	operationColumnListPrefixed := []string{
-		"o.id", "o.transaction_id", "o.description", "o.type", "o.asset_code",
-		"o.amount", "o.available_balance", "o.on_hold_balance", "o.available_balance_after",
-		"o.on_hold_balance_after", "o.status", "o.status_description", "o.account_id",
-		"o.account_alias", "o.balance_id", "o.chart_of_accounts", "o.organization_id",
-		"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
-		"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
-	}
-
 	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
 
 	findWithOps := squirrel.Select(selectColumns...).
@@ -875,6 +985,161 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	return newTransaction, nil
 }
 
+// FindWithOperationsWithFallback retrieves a Transaction with its Operations, trying the replica first
+// and falling back to the primary on empty result (replication lag scenario).
+func (r *TransactionPostgreSQLRepository) FindWithOperationsWithFallback(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_transaction_with_operations_with_fallback")
+	defer span.End()
+
+	// Step 1: Try reading from the replica (default behavior of FindWithOperations)
+	tran, err := r.FindWithOperations(ctx, organizationID, ledgerID, id)
+	if err != nil {
+		// Non-recoverable error (connection issue, query error) -- return immediately
+		return nil, err
+	}
+
+	// Step 2: If transaction was found on replica, return it
+	if tran != nil && tran.ID != "" {
+		return tran, nil
+	}
+
+	// Step 3: Replica returned empty result -- fall back to primary
+	logger.Infof("Replica miss for transaction with operations %s, falling back to primary read", id.String())
+
+	db, dbErr := r.connection.GetDB()
+	if dbErr != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection for primary fallback", dbErr)
+		logger.Errorf("Failed to get database connection for primary fallback: %v", dbErr)
+		return nil, dbErr
+	}
+
+	primaryDBs := db.PrimaryDBs()
+	if len(primaryDBs) == 0 {
+		libOpentelemetry.HandleSpanError(&span, "No primary database available for fallback", err)
+		logger.Errorf("No primary database available for fallback: %v", err)
+		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+	}
+
+	primaryDB := primaryDBs[0]
+
+	ctx, spanPrimary := tracer.Start(ctx, "postgres.find_transaction_with_operations_with_fallback.primary_query")
+	defer spanPrimary.End()
+
+	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
+
+	findWithOps := squirrel.Select(selectColumns...).
+		From(r.tableName + " t").
+		InnerJoin("operation o ON t.id = o.transaction_id").
+		Where(squirrel.Expr("t.organization_id = ?", organizationID)).
+		Where(squirrel.Expr("t.ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("t.id = ?", id)).
+		Where(squirrel.Eq{"t.deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, queryErr := findWithOps.ToSql()
+	if queryErr != nil {
+		libOpentelemetry.HandleSpanError(&spanPrimary, "Failed to build primary fallback query", queryErr)
+		logger.Errorf("Failed to build primary fallback query: %v", queryErr)
+		return nil, queryErr
+	}
+
+	rows, queryExecErr := primaryDB.QueryContext(ctx, query, args...)
+	if queryExecErr != nil {
+		libOpentelemetry.HandleSpanError(&spanPrimary, "Failed to execute primary fallback query", queryExecErr)
+		logger.Errorf("Failed to execute primary fallback query: %v", queryExecErr)
+		return nil, queryExecErr
+	}
+	defer rows.Close()
+
+	newTransaction := &Transaction{}
+	operations := make([]*operation.Operation, 0)
+
+	for rows.Next() {
+		tranModel := &TransactionPostgreSQLModel{}
+		op := operation.OperationPostgreSQLModel{}
+
+		var body *string
+
+		if scanErr := rows.Scan(
+			&tranModel.ID,
+			&tranModel.ParentTransactionID,
+			&tranModel.Description,
+			&tranModel.Status,
+			&tranModel.StatusDescription,
+			&tranModel.Amount,
+			&tranModel.AssetCode,
+			&tranModel.ChartOfAccountsGroupName,
+			&tranModel.LedgerID,
+			&tranModel.OrganizationID,
+			&body,
+			&tranModel.CreatedAt,
+			&tranModel.UpdatedAt,
+			&tranModel.DeletedAt,
+			&tranModel.Route,
+			&op.ID,
+			&op.TransactionID,
+			&op.Description,
+			&op.Type,
+			&op.AssetCode,
+			&op.Amount,
+			&op.AvailableBalance,
+			&op.OnHoldBalance,
+			&op.AvailableBalanceAfter,
+			&op.OnHoldBalanceAfter,
+			&op.Status,
+			&op.StatusDescription,
+			&op.AccountID,
+			&op.AccountAlias,
+			&op.BalanceID,
+			&op.ChartOfAccounts,
+			&op.OrganizationID,
+			&op.LedgerID,
+			&op.CreatedAt,
+			&op.UpdatedAt,
+			&op.DeletedAt,
+			&op.Route,
+			&op.BalanceAffected,
+			&op.BalanceKey,
+			&op.VersionBalance,
+			&op.VersionBalanceAfter,
+		); scanErr != nil {
+			libOpentelemetry.HandleSpanError(&spanPrimary, "Failed to scan rows from primary fallback", scanErr)
+			logger.Errorf("Failed to scan rows from primary fallback: %v", scanErr)
+			return nil, scanErr
+		}
+
+		if !libCommons.IsNilOrEmpty(body) {
+			if unmarshalErr := json.Unmarshal([]byte(*body), &tranModel.Body); unmarshalErr != nil {
+				libOpentelemetry.HandleSpanError(&spanPrimary, "Failed to unmarshal body from primary fallback", unmarshalErr)
+				logger.Errorf("Failed to unmarshal body from primary fallback: %v", unmarshalErr)
+				return nil, unmarshalErr
+			}
+		}
+
+		newTransaction = tranModel.ToEntity()
+		operations = append(operations, op.ToEntity())
+	}
+
+	if rowErr := rows.Err(); rowErr != nil {
+		libOpentelemetry.HandleSpanError(&spanPrimary, "Failed to get rows from primary fallback", rowErr)
+		logger.Errorf("Failed to get rows from primary fallback: %v", rowErr)
+		return nil, rowErr
+	}
+
+	newTransaction.Operations = operations
+
+	if newTransaction.ID != "" {
+		logger.Infof("Transaction %s with operations found on primary fallback (replica lag detected)", id.String())
+	} else {
+		logger.Infof("Transaction %s with operations not found on primary fallback either", id.String())
+		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+	}
+
+	return newTransaction, nil
+}
+
 // FindOrListAllWithOperations retrieves a list of transactions from the database using the provided IDs.
 //
 //nolint:gocyclo // Complexity due to LEFT JOIN NULL handling for transactions without operations
@@ -921,15 +1186,6 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	}
 
 	subQuery, orderDirection = libHTTP.ApplyCursorPagination(subQuery, decodedCursor, orderDirection, filter.Limit)
-
-	operationColumnListPrefixed := []string{
-		"o.id", "o.transaction_id", "o.description", "o.type", "o.asset_code",
-		"o.amount", "o.available_balance", "o.on_hold_balance", "o.available_balance_after",
-		"o.on_hold_balance_after", "o.status", "o.status_description", "o.account_id",
-		"o.account_alias", "o.balance_id", "o.chart_of_accounts", "o.organization_id",
-		"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
-		"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
-	}
 
 	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
 

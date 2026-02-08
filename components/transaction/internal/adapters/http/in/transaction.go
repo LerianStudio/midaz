@@ -319,7 +319,7 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	_, span := tracer.Start(ctx, "handler.commit_transaction")
 	defer span.End()
 
-	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetTransactionWithOperationsByIDWithFallback(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
 
@@ -363,7 +363,7 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 	_, span := tracer.Start(ctx, "handler.cancel_transaction")
 	defer span.End()
 
-	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetTransactionWithOperationsByIDWithFallback(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
 
