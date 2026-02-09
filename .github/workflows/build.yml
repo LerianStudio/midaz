@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/build.yml@v1.10.2
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/build.yml@v1.11.0
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       filter_paths: |-
@@ -27,13 +27,11 @@ jobs:
       enable_ghcr: true
       dockerhub_org: lerianstudio
       enable_gitops_artifacts: true
+      # helm dispatch configuration
       enable_helm_dispatch: true
-      helm_repository: "LerianStudio/helm"
       helm_chart: "midaz"
-      helm_target_ref: "main"
-      helm_components_base_path: "components"
-      helm_env_file: ".env.example"
       helm_detect_env_changes: true
+      helm_values_key_mappings: '{"midaz-onboarding": "onboarding", "midaz-transaction": "transaction", "midaz-crm": "crm", "midaz-ledger": "ledger"}'
     secrets: inherit
 
   # =========================
@@ -42,14 +40,14 @@ jobs:
   update_gitops:
     needs: [build]
     if: needs.build.result == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gitops-update.yml@v1.10.2
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gitops-update.yml@v1.11.0
     with:
       runner_type: "firmino-lxc-runners"
       gitops_repository: "LerianStudio/midaz-firmino-gitops"
       gitops_server: "firmino"
       app_name: "midaz"
       artifact_pattern: "gitops-tags-midaz-*"
-      yaml_key_mappings: '{"onboarding.tag": ".onboarding.image.tag", "transaction.tag": ".transaction.image.tag", "crm.tag": ".crm.image.tag", "ledger.tag": ".ledger.image.tag"}'
+      yaml_key_mappings: '{"midaz-onboarding.tag": ".onboarding.image.tag", "midaz-transaction.tag": ".transaction.image.tag", "midaz-crm.tag": ".crm.image.tag", "midaz-ledger.tag": ".ledger.image.tag"}'
       commit_message_prefix: "midaz"
       enable_argocd_sync: true
       argocd_app_name: "firmino-midaz"
@@ -62,7 +60,7 @@ jobs:
   api_dog_e2e_tests:
     needs: [update_gitops]
     if: needs.update_gitops.result == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/api-dog-e2e-tests.yml@v1.10.1
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/api-dog-e2e-tests.yml@v1.11.0
     with:
       runner_type: "firmino-lxc-runners"
       auto_detect_environment: true
