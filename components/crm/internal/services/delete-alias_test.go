@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -45,6 +46,17 @@ func TestDeleteAliasByID(t *testing.T) {
 					Return(nil)
 			},
 			expectedError: nil,
+		},
+		{
+			name:     "Error when repository fails to delete alias",
+			holderID: holderID,
+			id:       id,
+			mockSetup: func() {
+				mockAliasRepo.EXPECT().
+					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					Return(errors.New("database error"))
+			},
+			expectedError: errors.New("database error"),
 		},
 	}
 

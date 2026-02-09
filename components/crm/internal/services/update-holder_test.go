@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -56,6 +57,19 @@ func TestUpdateHolderByID(t *testing.T) {
 				Name:     &name,
 				Document: &document,
 			},
+		},
+		{
+			name: "Error when repository fails to update holder",
+			input: &mmodel.UpdateHolderInput{
+				Name: &name,
+			},
+			mockSetup: func() {
+				mockRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("database error"))
+			},
+			expectErr:      true,
+			expectedHolder: nil,
 		},
 	}
 
