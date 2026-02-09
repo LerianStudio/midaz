@@ -136,53 +136,6 @@ test-unit:
 	  fi; \
 	fi
 
-# Unit tests with coverage (uses covermode=atomic)
-# Supports PKG parameter to filter packages (e.g., PKG=./components/transaction/...)
-# Supports .ignorecoverunit file to exclude patterns from coverage stats
-.PHONY: coverage-unit
-coverage-unit:
-	$(call print_title,Running Go unit tests with coverage)
-	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	@set -e; mkdir -p $(TEST_REPORTS_DIR); \
-	if [ -n "$(PKG)" ]; then \
-	  echo "Using specified package: $(PKG)"; \
-	  pkgs=$$(go list $(PKG) 2>/dev/null | awk '!/\/tests($|\/)/' | awk '!/\/api($|\/)/' | tr '\n' ' '); \
-	else \
-	  pkgs=$$(go list ./... | awk '!/\/tests($|\/)/' | awk '!/\/api($|\/)/'); \
-	fi; \
-	if [ -z "$$pkgs" ]; then \
-	  echo "No unit test packages found (outside ./tests)"; \
-	else \
-	  echo "Packages: $$pkgs"; \
-	  if [ -n "$(GOTESTSUM)" ]; then \
-	    echo "Running unit tests with gotestsum (coverage enabled)"; \
-	    gotestsum --format testname -- -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit_coverage.out $$pkgs || { \
-	      if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
-	        echo "Retrying unit tests once..."; \
-	        gotestsum --format testname -- -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit_coverage.out $$pkgs; \
-	      else \
-	        exit 1; \
-	      fi; \
-	    }; \
-	  else \
-	    go test -v -race -count=1 $(GO_TEST_LDFLAGS) -covermode=atomic -coverprofile=$(TEST_REPORTS_DIR)/unit_coverage.out $$pkgs; \
-	  fi; \
-	  if [ -f .ignorecoverunit ]; then \
-	    echo "Filtering coverage with .ignorecoverunit patterns..."; \
-	    patterns=$$(grep -v '^#' .ignorecoverunit | grep -v '^$$' | tr '\n' '|' | sed 's/|$$//'); \
-	    if [ -n "$$patterns" ]; then \
-	      regex_patterns=$$(echo "$$patterns" | sed 's/\./\\./g' | sed 's/\*/.*/g'); \
-	      head -1 $(TEST_REPORTS_DIR)/unit_coverage.out > $(TEST_REPORTS_DIR)/unit_coverage_filtered.out; \
-	      tail -n +2 $(TEST_REPORTS_DIR)/unit_coverage.out | grep -vE "$$regex_patterns" >> $(TEST_REPORTS_DIR)/unit_coverage_filtered.out || true; \
-	      mv $(TEST_REPORTS_DIR)/unit_coverage_filtered.out $(TEST_REPORTS_DIR)/unit_coverage.out; \
-	      echo "Excluded patterns: $$patterns"; \
-	    fi; \
-	  fi; \
-	  echo "----------------------------------------"; \
-	  go tool cover -func=$(TEST_REPORTS_DIR)/unit_coverage.out | grep total | awk '{print "Total coverage: " $$3}'; \
-	  echo "----------------------------------------"; \
-	fi
-
 # System-level chaos tests (full stack with docker-compose)
 # Starts the complete backend stack, runs chaos tests, then tears down.
 .PHONY: test-chaos-system

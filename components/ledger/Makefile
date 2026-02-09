@@ -11,6 +11,10 @@ $(shell mkdir -p $(BIN_DIR) $(ARTIFACTS_DIR))
 # Define the root directory of the project
 MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
 
+# Unit test coverage (shared target from mk/coverage-unit.mk)
+COVERAGE_PACKAGES := ./components/ledger/...
+include $(MIDAZ_ROOT)/mk/coverage-unit.mk
+
 # Include shared color definitions and utility functions
 define title1
 	@echo ""
@@ -34,7 +38,7 @@ help:
 	@echo "  make test                        - Run tests"
 	@echo "  make clean                       - Clean build artifacts"
 	@echo "  make run                         - Run the application with .env config"
-	@echo "  make cover-html                  - Generate HTML test coverage report"
+	@echo "  make coverage-unit               - Run unit tests with coverage report"
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
 	@echo "  make lint                        - Run linting tools"
@@ -81,18 +85,6 @@ test:
 	@go test -v ./...
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Tests completed successfully$(GREEN) ✔️$(NC)"
 
-.PHONY: cover-html
-cover-html:
-	$(call title1,"Generating HTML test coverage report")
-	@go test -coverprofile=$(ARTIFACTS_DIR)/coverage.out ./...
-	@go tool cover -html=$(ARTIFACTS_DIR)/coverage.out -o $(ARTIFACTS_DIR)/coverage.html
-	@echo "$(GREEN)Coverage report generated at $(ARTIFACTS_DIR)/coverage.html$(NC)"
-	@echo ""
-	@echo "$(CYAN)Coverage Summary:$(NC)"
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@go tool cover -func=$(ARTIFACTS_DIR)/coverage.out | grep total | awk '{print "Total coverage: " $$3}'
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@echo "$(YELLOW)Open $(ARTIFACTS_DIR)/coverage.html in your browser to view detailed coverage report$(NC)"
 
 #-------------------------------------------------------
 # Code Quality Commands
@@ -152,7 +144,7 @@ sec:
 .PHONY: clean
 clean:
 	$(call title1,"Cleaning build artifacts")
-	@rm -rf $(BIN_DIR)/* $(ARTIFACTS_DIR)/*
+	@rm -rf $(BIN_DIR)/* $(ARTIFACTS_DIR)/* $(TEST_REPORTS_DIR)/*
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Artifacts cleaned successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------

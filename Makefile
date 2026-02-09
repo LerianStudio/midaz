@@ -80,6 +80,8 @@ export DOCKER_CMD
 
 MK_DIR := $(abspath mk)
 
+COVERAGE_PACKAGES := ./...
+include $(MK_DIR)/coverage-unit.mk
 include $(MK_DIR)/tests.mk
 
 #-------------------------------------------------------
