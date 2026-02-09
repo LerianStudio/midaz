@@ -23,7 +23,7 @@ jobs:
   changelog:
     # Run if: manual trigger OR Release workflow succeeded
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gptchangelog.yml@v1.10.2
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gptchangelog.yml@v1.11.0
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       # No filter_paths = single app mode (non-monorepo)
