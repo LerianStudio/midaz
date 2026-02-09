@@ -27,13 +27,11 @@ jobs:
       enable_ghcr: true
       dockerhub_org: lerianstudio
       enable_gitops_artifacts: true
+      # helm dispatch configuration
       enable_helm_dispatch: true
-      helm_repository: "LerianStudio/helm"
       helm_chart: "midaz"
-      helm_target_ref: "main"
-      helm_components_base_path: "components"
-      helm_env_file: ".env.example"
       helm_detect_env_changes: true
+      helm_values_key_mappings: '{"midaz-onboarding": "onboarding", "midaz-transaction": "transaction", "midaz-crm": "crm", "midaz-ledger": "ledger"}'
     secrets: inherit
 
   # =========================
