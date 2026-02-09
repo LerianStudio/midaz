@@ -16,7 +16,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*string, error) {
+func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*string, *string, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_idempotency_key")
@@ -36,7 +36,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 
 		logger.Error("Error to lock idempotency key on redis failed:", err.Error())
 
-		return nil, err
+		return nil, &internalKey, err
 	}
 
 	if !success {
@@ -46,23 +46,23 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 
 			logger.Error("Error to get idempotency key on redis failed:", err.Error())
 
-			return nil, err
+			return nil, &internalKey, err
 		}
 
 		if !libCommons.IsNilOrEmpty(&value) {
 			logger.Infof("Found value on redis with this key: %v", internalKey)
 
-			return &value, nil
+			return &value, &internalKey, nil
 		} else {
 			err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
 
 			logger.Warnf("Failed, exists value on redis with this key: %v", err)
 
-			return nil, err
+			return nil, &internalKey, err
 		}
 	}
 
-	return nil, nil
+	return nil, &internalKey, nil
 }
 
 // SetValueOnExistingIdempotencyKey func that set value on idempotency key to return to user.

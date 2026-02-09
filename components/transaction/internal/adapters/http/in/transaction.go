@@ -888,7 +888,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 	hash := libCommons.HashSHA256(ts)
 	key, ttl := http.GetIdempotencyKeyAndTTL(c)
 
-	value, err := handler.Command.CreateOrCheckIdempotencyKey(ctxIdempotency, organizationID, ledgerID, key, hash, ttl)
+	value, internalKey, err := handler.Command.CreateOrCheckIdempotencyKey(ctxIdempotency, organizationID, ledgerID, key, hash, ttl)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanIdempotency, "Error on create or check redis idempotency key", err)
 		spanIdempotency.End()
@@ -923,7 +923,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
 
-		_ = handler.Command.RedisRepo.Del(ctx, key)
+		_ = handler.Command.RedisRepo.Del(ctx, *internalKey)
 
 		return http.WithError(c, err)
 	}
@@ -939,7 +939,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 		// Only delete idempotency key if marshal failed
 		// If Redis is down, Del would also fail
 		if errors.Is(err, constant.ErrTransactionBackupCacheMarshalFailed) {
-			_ = handler.Command.RedisRepo.Del(ctxSendTransactionToRedisQueue, key)
+			_ = handler.Command.RedisRepo.Del(ctxSendTransactionToRedisQueue, *internalKey)
 		}
 
 		spanSendTransactionToRedisQueue.End()
@@ -957,7 +957,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 
 		logger.Errorf("Failed to get balances: %v", err.Error())
 
-		_ = handler.Command.RedisRepo.Del(ctx, key)
+		_ = handler.Command.RedisRepo.Del(ctx, *internalKey)
 
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, transactionID.String())
 		spanGetBalances.End()

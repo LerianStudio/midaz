@@ -42,11 +42,12 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+		value, createdInternalKey, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
 
 		// Assertions
 		assert.NoError(t, err)
 		assert.Nil(t, value)
+		assert.Equal(t, createdInternalKey, &internalKey)
 	})
 
 	t.Run("success with empty key", func(t *testing.T) {
@@ -60,11 +61,12 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, "", hash, ttl)
+		value, createdInternalKey, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, "", hash, ttl)
 
 		// Assertions
 		assert.NoError(t, err)
 		assert.Nil(t, value)
+		assert.Equal(t, createdInternalKey, &internalKey)
 	})
 
 	t.Run("key already exists", func(t *testing.T) {
@@ -85,12 +87,13 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+		value, createdInternalKey, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
 
 		// Assertions
 		assert.NoError(t, err) // Based on the actual implementation, this should not error when value is found
 		assert.NotNil(t, value)
 		assert.Equal(t, existingValue, *value)
+		assert.Equal(t, createdInternalKey, &internalKey)
 	})
 
 	t.Run("redis error", func(t *testing.T) {
@@ -110,12 +113,13 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+		value, createdInternalKey, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
 
 		// Assertions
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "already in use")
 		assert.Nil(t, value)
+		assert.Equal(t, createdInternalKey, &internalKey)
 	})
 }
 

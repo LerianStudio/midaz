@@ -23,7 +23,8 @@ type ProducerRepository interface {
 
 // ProducerRabbitMQRepository is a rabbitmq implementation of the producer
 type ProducerRabbitMQRepository struct {
-	conn *libRabbitmq.RabbitMQConnection
+	conn             *libRabbitmq.RabbitMQConnection
+	confirmedChannel *amqp.Channel
 }
 
 // NewProducerRabbitMQ returns a new instance of ProducerRabbitMQRepository using the given rabbitmq connection.
@@ -86,7 +87,24 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			continue
 		}
 
-		err = prmq.conn.Channel.Publish(
+		if prmq.conn.Channel != prmq.confirmedChannel {
+			if err = prmq.conn.Channel.Confirm(false); err != nil {
+				logger.Warnf("Failed to put channel in confirm mode: %v", err)
+
+				sleepDuration := utils.FullJitter(backoff)
+				logger.Infof("Retrying in %v...", sleepDuration)
+				time.Sleep(sleepDuration)
+
+				backoff = utils.NextBackoff(backoff)
+
+				continue
+			}
+
+			prmq.confirmedChannel = prmq.conn.Channel
+		}
+
+		publishConfirmation, err := prmq.conn.Channel.PublishWithDeferredConfirmWithContext(
+			ctx,
 			exchange,
 			key,
 			false,
@@ -99,12 +117,22 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			},
 		)
 		if err == nil {
+			publishConfirmationCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+			defer cancel()
+
+			ackConfirmed, err := publishConfirmation.WaitContext(publishConfirmationCtx)
+			if err != nil || !ackConfirmed {
+				logger.Warnf("Failed to wait for publish confirmation: %v", err)
+
+				return nil, err
+			}
+
 			logger.Infof("Messages sent successfully to exchange: %s, key: %s", exchange, key)
 
 			return nil, nil
+		} else {
+			logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, utils.MaxRetries+1, err)
 		}
-
-		logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, utils.MaxRetries+1, err)
 
 		if attempt == utils.MaxRetries {
 			libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message after retries", err)
