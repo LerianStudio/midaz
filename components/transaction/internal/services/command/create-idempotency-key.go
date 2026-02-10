@@ -50,7 +50,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 		}
 
 		if !libCommons.IsNilOrEmpty(&value) {
-			logger.Infof("Found value on redis with this key: %v", internalKey)
+			logger.Infof("Found cached value for idempotency key lookup")
 
 			return &value, &internalKey, nil
 		} else {

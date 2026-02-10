@@ -1,6 +1,8 @@
 package main
 
 import (
+	"log"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap"
 )
@@ -17,5 +19,11 @@ import (
 // @BasePath		/
 func main() {
 	libCommons.InitLocalEnvConfig()
-	bootstrap.InitServers().Run()
+
+	service, err := bootstrap.InitServers()
+	if err != nil {
+		log.Fatalf("Failed to initialize servers: %v", err)
+	}
+
+	service.Run()
 }
