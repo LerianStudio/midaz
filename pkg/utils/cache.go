@@ -65,6 +65,27 @@ func RedisConsumerLockKey(organizationID, ledgerID uuid.UUID, transactionID stri
 	return builder.String()
 }
 
+// WriteBehindParentKey returns a key with the following format to be used on redis cluster:
+// "wb_parent_transaction:{organizationID:ledgerID:parentTransactionID}"
+// This key is used as an atomic lock to prevent duplicate reversals of the same transaction.
+// The parentTransactionID is included inside the hash tag for even slot distribution (same rationale
+// as WriteBehindTransactionKey — these keys are accessed individually, no multi-key operations).
+func WriteBehindParentKey(organizationID, ledgerID uuid.UUID, parentTransactionID string) string {
+	var builder strings.Builder
+
+	builder.WriteString("wb_parent_transaction")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(parentTransactionID)
+	builder.WriteString(endKey)
+
+	return builder.String()
+}
+
 // WriteBehindTransactionKey returns a key with the following format to be used on redis cluster:
 // "wb_transaction:{organizationID:ledgerID:transactionID}"
 // This key is used to store transaction data in the write-behind cache before persistence.

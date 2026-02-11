@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vmihailenco/msgpack/v5"
@@ -398,6 +399,389 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	require.NoError(t, err)
 
 	// Error from SetNX short-circuit, but write-behind was used and Postgres was NOT called
+	assert.True(t, resp.StatusCode >= 400)
+}
+
+// TestRevertTransaction_SetNXFalse_DuplicateBlocked verifies that when SetNX returns false (lock already held),
+// the handler returns an error immediately without querying Postgres.
+func TestRevertTransaction_SetNXFalse_DuplicateBlocked(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	tranID := libCommons.GenerateUUIDv7()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	handler := &TransactionHandler{
+		Command: &command.UseCase{RedisRepo: mockRedisRepo},
+		Query:   &query.UseCase{RedisRepo: mockRedisRepo},
+	}
+
+	// SetNX returns false → lock already held, duplicate revert blocked
+	mockRedisRepo.EXPECT().
+		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(false, nil).
+		Times(1)
+
+	// No TransactionRepo mock → proves Postgres is never queried
+
+	app := fiber.New()
+	app.Post("/test", func(c *fiber.Ctx) error {
+		c.Locals("organization_id", orgID)
+		c.Locals("ledger_id", ledgerID)
+		c.Locals("transaction_id", tranID)
+		return handler.RevertTransaction(c)
+	})
+
+	req := httptest.NewRequest("POST", "/test", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+
+	assert.True(t, resp.StatusCode >= 400, "Expected error status code, got %d", resp.StatusCode)
+}
+
+// TestRevertTransaction_SetNXError_FallbackToPostgresGuard verifies that when SetNX fails with an error,
+// the handler falls back to the Postgres guard (FindByParentID).
+func TestRevertTransaction_SetNXError_FallbackToPostgresGuard(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	tranID := libCommons.GenerateUUIDv7()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	handler := &TransactionHandler{
+		Command: &command.UseCase{RedisRepo: mockRedisRepo},
+		Query: &query.UseCase{
+			RedisRepo:       mockRedisRepo,
+			TransactionRepo: mockTransactionRepo,
+			MetadataRepo:    mockMetadataRepo,
+		},
+	}
+
+	// SetNX error → fall through to Postgres guard (lockAcquired stays false)
+	mockRedisRepo.EXPECT().
+		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(false, errors.New("redis error")).
+		Times(1)
+
+	// FindByParentID returns a parent → duplicate detected via Postgres
+	parentTran := &transaction.Transaction{ID: libCommons.GenerateUUIDv7().String()}
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, tranID).
+		Return(parentTran, nil).
+		Times(1)
+
+	// Metadata lookup (called because parent != nil in GetParentByTransactionID)
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		Times(1)
+
+	app := fiber.New()
+	app.Post("/test", func(c *fiber.Ctx) error {
+		c.Locals("organization_id", orgID)
+		c.Locals("ledger_id", ledgerID)
+		c.Locals("transaction_id", tranID)
+		return handler.RevertTransaction(c)
+	})
+
+	req := httptest.NewRequest("POST", "/test", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+
+	assert.True(t, resp.StatusCode >= 400)
+}
+
+// TestRevertTransaction_WriteBehindHit_PostgresNotCalled verifies that when write-behind cache hits,
+// FindWithOperations (Postgres) is never called.
+func TestRevertTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	tranID := libCommons.GenerateUUIDv7()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	handler := &TransactionHandler{
+		Command: &command.UseCase{RedisRepo: mockRedisRepo},
+		Query: &query.UseCase{
+			RedisRepo:       mockRedisRepo,
+			TransactionRepo: mockTransactionRepo,
+		},
+	}
+
+	// SetNX #1 (revert lock) → acquired; #2 (idempotency in createTransaction) → error short-circuits
+	gomock.InOrder(
+		mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(true, nil),
+		mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(false, errors.New("idempotency error")),
+	)
+
+	// No parent exists
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, tranID).
+		Return(nil, nil).
+		Times(1)
+
+	// Write-behind hit with APPROVED status and Amount set
+	amount := decimal.NewFromInt(100)
+	tran := &transaction.Transaction{
+		ID:             tranID.String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		AssetCode:      "BRL",
+		Amount:         &amount,
+		Status:         transaction.Status{Code: "APPROVED"},
+	}
+	wbData, err := msgpack.Marshal(tran)
+	require.NoError(t, err)
+
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), gomock.Any()).
+		Return(wbData, nil).
+		Times(1)
+
+	// No FindWithOperations mock → proves Postgres is never called for transaction lookup
+	// No Del mock → revertCreated=true before createTransaction, so defer skips cleanup
+
+	app := fiber.New()
+	app.Post("/test", func(c *fiber.Ctx) error {
+		c.Locals("organization_id", orgID)
+		c.Locals("ledger_id", ledgerID)
+		c.Locals("transaction_id", tranID)
+		return handler.RevertTransaction(c)
+	})
+
+	req := httptest.NewRequest("POST", "/test", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+
+	assert.True(t, resp.StatusCode >= 400)
+}
+
+// TestRevertTransaction_WriteBehindMiss_PostgresHit verifies fallback to Postgres (FindWithOperations)
+// when write-behind cache misses.
+func TestRevertTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	tranID := libCommons.GenerateUUIDv7()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	handler := &TransactionHandler{
+		Command: &command.UseCase{RedisRepo: mockRedisRepo},
+		Query: &query.UseCase{
+			RedisRepo:       mockRedisRepo,
+			TransactionRepo: mockTransactionRepo,
+			MetadataRepo:    mockMetadataRepo,
+		},
+	}
+
+	// SetNX #1 (revert lock) → acquired; #2 (idempotency in createTransaction) → error short-circuits
+	gomock.InOrder(
+		mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(true, nil),
+		mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(false, errors.New("idempotency error")),
+	)
+
+	// No parent exists
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, tranID).
+		Return(nil, nil).
+		Times(1)
+
+	// Write-behind miss
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("redis: nil")).
+		Times(1)
+
+	// Postgres hit with APPROVED status and Amount set
+	amount := decimal.NewFromInt(100)
+	tran := &transaction.Transaction{
+		ID:             tranID.String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		AssetCode:      "BRL",
+		Amount:         &amount,
+		Status:         transaction.Status{Code: "APPROVED"},
+	}
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
+		Return(tran, nil).
+		Times(1)
+
+	// Metadata lookup from GetTransactionWithOperationsByID (tran != nil)
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		Times(1)
+
+	// No Del mock → revertCreated=true before createTransaction, so defer skips cleanup
+
+	app := fiber.New()
+	app.Post("/test", func(c *fiber.Ctx) error {
+		c.Locals("organization_id", orgID)
+		c.Locals("ledger_id", ledgerID)
+		c.Locals("transaction_id", tranID)
+		return handler.RevertTransaction(c)
+	})
+
+	req := httptest.NewRequest("POST", "/test", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+
+	// Error from idempotency short-circuit, but FindWithOperations WAS called (fallback worked)
+	assert.True(t, resp.StatusCode >= 400)
+}
+
+// TestRevertTransaction_LookupFails_LockCleaned verifies that when both write-behind and Postgres
+// lookups fail, the revert lock is cleaned up by the deferred function.
+func TestRevertTransaction_LookupFails_LockCleaned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	tranID := libCommons.GenerateUUIDv7()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	handler := &TransactionHandler{
+		Command: &command.UseCase{RedisRepo: mockRedisRepo},
+		Query: &query.UseCase{
+			RedisRepo:       mockRedisRepo,
+			TransactionRepo: mockTransactionRepo,
+		},
+	}
+
+	// SetNX lock acquired
+	mockRedisRepo.EXPECT().
+		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
+		Times(1)
+
+	// No parent exists
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, tranID).
+		Return(nil, nil).
+		Times(1)
+
+	// Write-behind miss
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("redis: nil")).
+		Times(1)
+
+	// Postgres also fails
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
+		Return(nil, errors.New("record not found")).
+		Times(1)
+
+	// Del called by defer (lockAcquired=true, revertCreated=false)
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	app := fiber.New()
+	app.Post("/test", func(c *fiber.Ctx) error {
+		c.Locals("organization_id", orgID)
+		c.Locals("ledger_id", ledgerID)
+		c.Locals("transaction_id", tranID)
+		return handler.RevertTransaction(c)
+	})
+
+	req := httptest.NewRequest("POST", "/test", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+
+	assert.True(t, resp.StatusCode >= 400)
+}
+
+// TestRevertTransaction_StatusNotApproved_LockCleaned verifies that when the transaction status
+// is not APPROVED, the handler returns an error and the revert lock is cleaned up.
+func TestRevertTransaction_StatusNotApproved_LockCleaned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	tranID := libCommons.GenerateUUIDv7()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	handler := &TransactionHandler{
+		Command: &command.UseCase{RedisRepo: mockRedisRepo},
+		Query: &query.UseCase{
+			RedisRepo:       mockRedisRepo,
+			TransactionRepo: mockTransactionRepo,
+		},
+	}
+
+	// SetNX lock acquired
+	mockRedisRepo.EXPECT().
+		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
+		Times(1)
+
+	// No parent exists
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, tranID).
+		Return(nil, nil).
+		Times(1)
+
+	// Write-behind hit with PENDING status (not APPROVED)
+	tran := newTestTransactionData(orgID, ledgerID, tranID)
+	wbData, err := msgpack.Marshal(tran)
+	require.NoError(t, err)
+
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), gomock.Any()).
+		Return(wbData, nil).
+		Times(1)
+
+	// Del called by defer (lockAcquired=true, revertCreated=false)
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	app := fiber.New()
+	app.Post("/test", func(c *fiber.Ctx) error {
+		c.Locals("organization_id", orgID)
+		c.Locals("ledger_id", ledgerID)
+		c.Locals("transaction_id", tranID)
+		return handler.RevertTransaction(c)
+	})
+
+	req := httptest.NewRequest("POST", "/test", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+
 	assert.True(t, resp.StatusCode >= 400)
 }
 

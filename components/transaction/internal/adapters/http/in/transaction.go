@@ -406,6 +406,34 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
 	defer span.End()
 
+	parentKey := utils.WriteBehindParentKey(organizationID, ledgerID, transactionID.String())
+	lockAcquired := false
+
+	locked, lockErr := handler.Command.RedisRepo.SetNX(ctx, parentKey, transactionID.String(), 0)
+	if lockErr != nil {
+		logger.Warnf("Failed to acquire revert lock in Redis, falling back to Postgres guard: %v", lockErr)
+	} else if !locked {
+		err := pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction Has Already Parent Transaction (revert lock)", err)
+
+		logger.Errorf("Transaction Has Already Parent Transaction with ID: %s (revert lock)", transactionID.String())
+
+		return http.WithError(c, err)
+	} else {
+		lockAcquired = true
+	}
+
+	revertCreated := false
+
+	defer func() {
+		if lockAcquired && !revertCreated {
+			if delErr := handler.Command.RedisRepo.Del(ctx, parentKey); delErr != nil {
+				logger.Warnf("Failed to release revert lock: %v", delErr)
+			}
+		}
+	}()
+
 	parent, err := handler.Query.GetParentByTransactionID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Parent Transaction on query", err)
@@ -425,13 +453,16 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	tran, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
+		tran, err = handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
 
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+			logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
 
-		return http.WithError(c, err)
+			return http.WithError(c, err)
+		}
 	}
 
 	if tran.ParentTransactionID != nil {
@@ -464,6 +495,8 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 		return http.WithError(c, err)
 	}
+
+	revertCreated = true
 
 	response := handler.createTransaction(c, transactionReverted, constant.CREATED)
 
