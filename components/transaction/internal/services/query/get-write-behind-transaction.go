@@ -26,7 +26,7 @@ func (uc *UseCase) GetWriteBehindTransaction(ctx context.Context, organizationID
 
 	data, err := uc.RedisRepo.GetBytes(ctx, key)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Transaction not found in write-behind cache", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction not found in write-behind cache", err)
 		logger.Infof("Transaction not found in write-behind cache: %s", key)
 		return nil, err
 	}

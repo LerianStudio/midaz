@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -31,7 +32,8 @@ func (uc *UseCase) UpdateWriteBehindTransaction(ctx context.Context, organizatio
 
 	key := utils.WriteBehindTransactionKey(organizationID, ledgerID, tran.ID)
 
-	if err := uc.RedisRepo.SetBytes(ctx, key, data, 0); err != nil {
+	// 86400 seconds = 24 hours (SetBytes multiplies by time.Second internally)
+	if err := uc.RedisRepo.SetBytes(ctx, key, data, time.Duration(86400)); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update transaction in write-behind cache", err)
 		logger.Warnf("Failed to update transaction in write-behind cache: %v", err)
 		return

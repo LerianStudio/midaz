@@ -409,7 +409,8 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	parentKey := utils.WriteBehindParentKey(organizationID, ledgerID, transactionID.String())
 	lockAcquired := false
 
-	locked, lockErr := handler.Command.RedisRepo.SetNX(ctx, parentKey, transactionID.String(), 0)
+	// TTL of 300 seconds as safety net if cleanup fails (matches commitOrCancelTransaction)
+	locked, lockErr := handler.Command.RedisRepo.SetNX(ctx, parentKey, transactionID.String(), time.Duration(300))
 	if lockErr != nil {
 		logger.Warnf("Failed to acquire revert lock in Redis, falling back to Postgres guard: %v", lockErr)
 	} else if !locked {
@@ -1231,7 +1232,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
-	go handler.Command.UpdateWriteBehindTransaction(ctx, organizationID, ledgerID, tran)
+	go handler.Command.UpdateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran)
 
 	return http.Created(c, tran)
 }
