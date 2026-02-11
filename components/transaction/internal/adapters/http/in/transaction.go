@@ -313,13 +313,16 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	_, span := tracer.Start(ctx, "handler.commit_transaction")
 	defer span.End()
 
-	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
+		tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
 
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+			logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
 
-		return http.WithError(c, err)
+			return http.WithError(c, err)
+		}
 	}
 
 	return handler.commitOrCancelTransaction(c, tran, constant.APPROVED)
@@ -356,13 +359,16 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 	_, span := tracer.Start(ctx, "handler.cancel_transaction")
 	defer span.End()
 
-	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
+		tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
 
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+			logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
 
-		return http.WithError(c, err)
+			return http.WithError(c, err)
+		}
 	}
 
 	return handler.commitOrCancelTransaction(c, tran, constant.CANCELED)
@@ -563,6 +569,13 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 		c.Set("X-Cache-Hit", "true")
 
 		return http.OK(c, cachedTran)
+	}
+
+	// Try to get transaction from write-behind cache (operations already embedded)
+	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID); wbErr == nil {
+		c.Set("X-Cache-Hit", "true")
+
+		return http.OK(c, wbTran)
 	}
 
 	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
@@ -1013,6 +1026,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL lib
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
+	handler.Command.CreateWriteBehindTransaction(ctx, organizationID, ledgerID, tran, parserDSL)
+
 	err = handler.Command.TransactionExecute(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
@@ -1180,6 +1195,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	}
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
+
+	go handler.Command.UpdateWriteBehindTransaction(ctx, organizationID, ledgerID, tran)
 
 	return http.Created(c, tran)
 }
