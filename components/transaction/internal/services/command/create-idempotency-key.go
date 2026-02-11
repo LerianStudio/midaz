@@ -7,8 +7,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
-
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
@@ -91,22 +89,3 @@ func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organiz
 	}
 }
 
-// SetTransactionIdempotencyMapping stores the reverse mapping from transactionID to idempotency key.
-// This allows looking up which idempotency key corresponds to a given transaction.
-func (uc *UseCase) SetTransactionIdempotencyMapping(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID, idempotencyKey string, ttl time.Duration) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "command.set_transaction_idempotency_mapping")
-	defer span.End()
-
-	logger.Infof("Trying to set transaction idempotency mapping in redis for transactionID: %s", transactionID)
-
-	reverseKey := utils.IdempotencyReverseKey(organizationID, ledgerID, transactionID)
-
-	err := uc.RedisRepo.Set(ctx, reverseKey, idempotencyKey, ttl)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Error setting transaction idempotency mapping in redis", err)
-
-		logger.Errorf("Error setting transaction idempotency mapping in redis for transactionID %s: %s", transactionID, err.Error())
-	}
-}

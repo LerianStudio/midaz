@@ -46,25 +46,6 @@ func BalanceInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 	return balance
 }
 
-// IdempotencyReverseKey returns a key with the following format to be used on redis cluster:
-// "idempotency_reverse:{organizationID:ledgerID}:transactionID"
-// This key maps a transactionID to its idempotency key for reverse lookups.
-func IdempotencyReverseKey(organizationID, ledgerID uuid.UUID, transactionID string) string {
-	var builder strings.Builder
-
-	builder.WriteString("idempotency_reverse")
-	builder.WriteString(keySeparator)
-	builder.WriteString(beginningKey)
-	builder.WriteString(organizationID.String())
-	builder.WriteString(keySeparator)
-	builder.WriteString(ledgerID.String())
-	builder.WriteString(endKey)
-	builder.WriteString(keySeparator)
-	builder.WriteString(transactionID)
-
-	return builder.String()
-}
-
 // RedisConsumerLockKey returns a key with the following format to be used on redis cluster:
 // "redis_consumer_lock:{organizationID:ledgerID}:transactionID"
 // This key is used to prevent duplicate processing of the same transaction across multiple pods.

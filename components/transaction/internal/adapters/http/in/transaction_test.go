@@ -47,12 +47,6 @@ func TestGetTransaction_WriteBehindHit(t *testing.T) {
 		Query:   queryUC,
 	}
 
-	// Idempotency cache miss (GetTransactionFromIdempotencyCache calls Get for reverse key)
-	mockRedisRepo.EXPECT().
-		Get(gomock.Any(), gomock.Any()).
-		Return("", errors.New("not found")).
-		Times(1)
-
 	// Write-behind hit
 	tran := newTestTransactionData(orgID, ledgerID, tranID)
 	wbData, err := msgpack.Marshal(tran)
