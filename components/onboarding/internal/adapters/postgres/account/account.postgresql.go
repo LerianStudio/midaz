@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -794,16 +795,22 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if !libCommons.IsNilOrEmpty(acc.SegmentID) {
 		updates = append(updates, "segment_id = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.SegmentID)
+	} else if slices.Contains(acc.NullFields, "segmentId") {
+		updates = append(updates, "segment_id = NULL")
 	}
 
 	if !libCommons.IsNilOrEmpty(acc.EntityID) {
 		updates = append(updates, "entity_id = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.EntityID)
+	} else if slices.Contains(acc.NullFields, "entityId") {
+		updates = append(updates, "entity_id = NULL")
 	}
 
 	if !libCommons.IsNilOrEmpty(acc.PortfolioID) {
 		updates = append(updates, "portfolio_id = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.PortfolioID)
+	} else if slices.Contains(acc.NullFields, "portfolioId") {
+		updates = append(updates, "portfolio_id = NULL")
 	}
 
 	record.UpdatedAt = time.Now()

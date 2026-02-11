@@ -93,6 +93,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	c.Locals("fields", diffFields)
 
 	parseMetadata(s, originalMap)
+	populateNullFields(s, originalMap)
 
 	return d.handler(s, c)
 }
@@ -510,6 +511,44 @@ func parseMetadata(s any, originalMap map[string]any) {
 	if _, exists := originalMap["metadata"]; !exists {
 		metadataField.Set(reflect.ValueOf(make(map[string]any)))
 	}
+}
+
+// populateNullFields detects fields explicitly sent as null in the JSON request
+// and populates the NullFields slice for downstream processing.
+// This enables RFC 7396 JSON Merge Patch semantics for nullable fields.
+//
+// TODO(review): Consider adding allowlist validation for NullFields to enforce
+// defense-in-depth. Currently, the repository layer provides protection by only
+// processing specific fields (segmentId, entityId, portfolioId). (security-reviewer, 2026-02-11, Low)
+func populateNullFields(s any, originalMap map[string]any) {
+	if s == nil {
+		return
+	}
+
+	val := reflect.ValueOf(s)
+	if val.Kind() != reflect.Ptr || val.IsNil() {
+		return
+	}
+
+	val = val.Elem()
+	if val.Kind() != reflect.Struct {
+		return
+	}
+
+	nullFieldsField := val.FieldByName("NullFields")
+	if !nullFieldsField.IsValid() || !nullFieldsField.CanSet() {
+		return
+	}
+
+	var nullFields []string
+
+	for key, value := range originalMap {
+		if value == nil {
+			nullFields = append(nullFields, key)
+		}
+	}
+
+	nullFieldsField.Set(reflect.ValueOf(nullFields))
 }
 
 // FindUnknownFields finds fields that are present in the original map but not in the marshaled map.
