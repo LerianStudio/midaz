@@ -49,7 +49,7 @@ type Repository interface {
 	Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error)
 	Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error)
 	Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error)
-	FindAll(ctx context.Context, filter http.Pagination) ([]*mmodel.Organization, error)
+	FindAll(ctx context.Context, filter http.Pagination, legalName, doingBusinessAs *string) ([]*mmodel.Organization, error)
 	ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	Count(ctx context.Context) (int64, error)
@@ -340,7 +340,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 }
 
 // FindAll retrieves Organizations entities from the database.
-func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter http.Pagination) ([]*mmodel.Organization, error) {
+func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter http.Pagination, legalName, doingBusinessAs *string) ([]*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_organizations")
@@ -366,6 +366,16 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 		Limit(libCommons.SafeIntToUint64(filter.Limit)).
 		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
+
+	if legalName != nil && *legalName != "" {
+		sanitized := http.EscapeSearchMetacharacters(*legalName)
+		findAll = findAll.Where(squirrel.ILike{"legal_name": sanitized + "%"})
+	}
+
+	if doingBusinessAs != nil && *doingBusinessAs != "" {
+		sanitized := http.EscapeSearchMetacharacters(*doingBusinessAs)
+		findAll = findAll.Where(squirrel.ILike{"doing_business_as": sanitized + "%"})
+	}
 
 	query, args, err := findAll.ToSql()
 	if err != nil {

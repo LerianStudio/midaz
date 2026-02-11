@@ -512,7 +512,7 @@ func TestIntegration_OrganizationRepository_FindAll_Pagination(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			orgs, err := repo.FindAll(ctx, tc.filter)
+			orgs, err := repo.FindAll(ctx, tc.filter, nil, nil)
 
 			require.NoError(t, err)
 			assert.Len(t, orgs, tc.expectCount)
@@ -535,10 +535,10 @@ func TestIntegration_OrganizationRepository_FindAll_NoDuplicatesAcrossPages(t *t
 	}
 
 	// Fetch page 1 and page 2 with limit 2
-	page1, err := repo.FindAll(ctx, defaultPagination(1, 2))
+	page1, err := repo.FindAll(ctx, defaultPagination(1, 2), nil, nil)
 	require.NoError(t, err)
 
-	page2, err := repo.FindAll(ctx, defaultPagination(2, 2))
+	page2, err := repo.FindAll(ctx, defaultPagination(2, 2), nil, nil)
 	require.NoError(t, err)
 
 	// Collect all IDs and ensure no duplicates
@@ -578,7 +578,7 @@ func TestIntegration_OrganizationRepository_FindAll_ExcludesSoftDeleted(t *testi
 	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, deletedParams)
 
 	// FindAll should only return active organizations
-	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10))
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), nil, nil)
 
 	require.NoError(t, err)
 	assert.Len(t, orgs, 2, "should only return active organizations")
@@ -586,4 +586,250 @@ func TestIntegration_OrganizationRepository_FindAll_ExcludesSoftDeleted(t *testi
 	for _, org := range orgs {
 		assert.NotEqual(t, "Deleted Org", org.LegalName)
 	}
+}
+
+// ============================================================================
+// FindAll Name Filter Tests
+// ============================================================================
+
+func TestIntegration_OrganizationRepository_FindAll_FilterByLegalName(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	// Create organizations with distinct legal names
+	params1 := pgtestutil.DefaultOrganizationParams()
+	params1.LegalName = "Acme Corporation"
+	params1.LegalDocument = "60000000000001"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params1)
+
+	params2 := pgtestutil.DefaultOrganizationParams()
+	params2.LegalName = "Acme Industries"
+	params2.LegalDocument = "60000000000002"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params2)
+
+	params3 := pgtestutil.DefaultOrganizationParams()
+	params3.LegalName = "Beta Holdings"
+	params3.LegalDocument = "60000000000003"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params3)
+
+	// Filter by "Acme" prefix - should return 2
+	legalName := "Acme"
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, nil)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 2, "should return organizations matching 'Acme' prefix")
+
+	for _, org := range orgs {
+		assert.Contains(t, org.LegalName, "Acme")
+	}
+}
+
+func TestIntegration_OrganizationRepository_FindAll_FilterByLegalName_CaseInsensitive(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	params := pgtestutil.DefaultOrganizationParams()
+	params.LegalName = "Acme Corporation"
+	params.LegalDocument = "61000000000001"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params)
+
+	// Search with lowercase
+	legalName := "acme"
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, nil)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 1, "ILIKE should match case-insensitively")
+	assert.Equal(t, "Acme Corporation", orgs[0].LegalName)
+}
+
+func TestIntegration_OrganizationRepository_FindAll_FilterByDoingBusinessAs(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	dba1 := "TechShop"
+	params1 := pgtestutil.DefaultOrganizationParams()
+	params1.LegalName = "Tech Store LLC"
+	params1.LegalDocument = "62000000000001"
+	params1.DoingBusinessAs = &dba1
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params1)
+
+	dba2 := "TechMart"
+	params2 := pgtestutil.DefaultOrganizationParams()
+	params2.LegalName = "Digital Retail Inc"
+	params2.LegalDocument = "62000000000002"
+	params2.DoingBusinessAs = &dba2
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params2)
+
+	params3 := pgtestutil.DefaultOrganizationParams()
+	params3.LegalName = "Other Corp"
+	params3.LegalDocument = "62000000000003"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params3)
+
+	// Filter by "Tech" prefix in doing_business_as
+	dba := "Tech"
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), nil, &dba)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 2, "should return organizations with DBA matching 'Tech' prefix")
+}
+
+func TestIntegration_OrganizationRepository_FindAll_FilterByBothNames(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	dba1 := "AcmeShop"
+	params1 := pgtestutil.DefaultOrganizationParams()
+	params1.LegalName = "Acme Corporation"
+	params1.LegalDocument = "63000000000001"
+	params1.DoingBusinessAs = &dba1
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params1)
+
+	dba2 := "BetaShop"
+	params2 := pgtestutil.DefaultOrganizationParams()
+	params2.LegalName = "Acme Industries"
+	params2.LegalDocument = "63000000000002"
+	params2.DoingBusinessAs = &dba2
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params2)
+
+	// Filter by legal_name "Acme" AND doing_business_as "Acme" - only first matches both
+	legalName := "Acme"
+	dba := "Acme"
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, &dba)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 1, "should return only organization matching both filters")
+	assert.Equal(t, "Acme Corporation", orgs[0].LegalName)
+}
+
+func TestIntegration_OrganizationRepository_FindAll_NilFiltersReturnsAll(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	// Create 3 organizations
+	for i := 0; i < 3; i++ {
+		params := pgtestutil.DefaultOrganizationParams()
+		params.LegalName = "NilFilter-" + string(rune('A'+i))
+		params.LegalDocument = "6400000000000" + string(rune('0'+i))
+		pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params)
+	}
+
+	// Nil filters should return all
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), nil, nil)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 3, "nil filters should return all organizations")
+}
+
+func TestIntegration_OrganizationRepository_FindAll_PrefixMatchOnly(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	params := pgtestutil.DefaultOrganizationParams()
+	params.LegalName = "MyAcmeCorp"
+	params.LegalDocument = "65000000000001"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params)
+
+	// "Acme" should NOT match "MyAcmeCorp" because we use prefix match (term%)
+	legalName := "Acme"
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, nil)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 0, "prefix match should not find 'Acme' inside 'MyAcmeCorp'")
+}
+
+// ============================================================================
+// FindAll Wildcard Injection Tests
+// ============================================================================
+
+func TestIntegration_OrganizationRepository_FindAll_WildcardInjection(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	// Create organizations to verify wildcards don't match
+	params1 := pgtestutil.DefaultOrganizationParams()
+	params1.LegalName = "Acme Corporation"
+	params1.LegalDocument = "66000000000001"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params1)
+
+	params2 := pgtestutil.DefaultOrganizationParams()
+	params2.LegalName = "Beta Holdings"
+	params2.LegalDocument = "66000000000002"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params2)
+
+	cases := []struct {
+		name      string
+		legalName string
+		expectLen int
+		reason    string
+	}{
+		{
+			name:      "percent wildcard should not match all",
+			legalName: "%",
+			expectLen: 0,
+			reason:    "'%' should be escaped and treated as literal, not SQL wildcard",
+		},
+		{
+			name:      "underscore wildcard should not match single char",
+			legalName: "Acm_",
+			expectLen: 0,
+			reason:    "'_' should be escaped and treated as literal, not SQL single-char wildcard",
+		},
+		{
+			name:      "backslash should not cause escape issues",
+			legalName: `Acme\`,
+			expectLen: 0,
+			reason:    "backslash should be escaped and treated as literal",
+		},
+		{
+			name:      "percent mid-string should not match",
+			legalName: "A%e",
+			expectLen: 0,
+			reason:    "'%' inside search term should be escaped, not act as wildcard",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			filter := tc.legalName
+			orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &filter, nil)
+
+			require.NoError(t, err)
+			assert.Len(t, orgs, tc.expectLen, tc.reason)
+		})
+	}
+}
+
+func TestIntegration_OrganizationRepository_FindAll_LiteralSpecialCharsInName(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	// Create org with literal % in legal name
+	params := pgtestutil.DefaultOrganizationParams()
+	params.LegalName = "100% Organic Corp"
+	params.LegalDocument = "67000000000001"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params)
+
+	// Searching for "100%" should find it (literal match)
+	legalName := "100%"
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, nil)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 1, "should find organization with literal '%' in name")
+	assert.Equal(t, "100% Organic Corp", orgs[0].LegalName)
 }

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
@@ -48,6 +49,9 @@ type QueryHeader struct {
 	RegulatoryFieldsParticipantDocument *string
 	RelatedPartyDocument                *string
 	RelatedPartyRole                    *string
+	Name                                *string
+	LegalName                           *string
+	DoingBusinessAs                     *string
 }
 
 // Pagination entity from query parameter from get apis
@@ -88,6 +92,9 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		regulatoryFieldsParticipantDocument *string
 		relatedPartyDocument                *string
 		relatedPartyRole                    *string
+		name                                *string
+		legalName                           *string
+		doingBusinessAs                     *string
 	)
 
 	for key, value := range params {
@@ -147,7 +154,25 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			relatedPartyDocument = &value
 		case strings.Contains(key, "related_party_role"):
 			relatedPartyRole = &value
+		case key == "name":
+			name = &value
+		case key == "legal_name":
+			legalName = &value
+		case key == "doing_business_as":
+			doingBusinessAs = &value
 		}
+	}
+
+	if err := validateSearchTermLength(&name, "name"); err != nil {
+		return nil, err
+	}
+
+	if err := validateSearchTermLength(&legalName, "legal_name"); err != nil {
+		return nil, err
+	}
+
+	if err := validateSearchTermLength(&doingBusinessAs, "doing_business_as"); err != nil {
+		return nil, err
 	}
 
 	err := validateDates(&startDate, &endDate)
@@ -191,6 +216,9 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		RegulatoryFieldsParticipantDocument: regulatoryFieldsParticipantDocument,
 		RelatedPartyDocument:                relatedPartyDocument,
 		RelatedPartyRole:                    relatedPartyRole,
+		Name:                                name,
+		LegalName:                           legalName,
+		DoingBusinessAs:                     doingBusinessAs,
 	}
 
 	return query, nil
@@ -322,6 +350,11 @@ func (qh *QueryHeader) ToOffsetPagination() Pagination {
 	}
 }
 
+// HasNameFilters returns true if any name-based search filter is set.
+func (qh *QueryHeader) HasNameFilters() bool {
+	return qh.Name != nil || qh.LegalName != nil || qh.DoingBusinessAs != nil
+}
+
 func (qh *QueryHeader) ToCursorPagination() Pagination {
 	return Pagination{
 		Limit:     qh.Limit,
@@ -356,6 +389,39 @@ func GetUUIDFromLocals(c *fiber.Ctx, key string) (uuid.UUID, error) {
 // It supports strings, numbers, booleans, nil, and arrays without nested maps or overly long strings.
 func ValidateMetadataValue(value any) (any, error) {
 	return validateMetadataValueWithDepth(value, 0)
+}
+
+// EscapeSearchMetacharacters escapes SQL pattern matching metacharacters (%, _, \)
+// to prevent wildcard injection in LIKE/ILIKE queries.
+func EscapeSearchMetacharacters(input string) string {
+	result := strings.ReplaceAll(input, `\`, `\\`)
+	result = strings.ReplaceAll(result, `%`, `\%`)
+	result = strings.ReplaceAll(result, `_`, `\_`)
+
+	return result
+}
+
+// validateSearchTermLength validates that a search term is within the allowed length range (1-256 chars).
+// Nil or empty values are silently ignored (filter not applied).
+// When the trimmed value is empty, the pointer is set to nil so the filter is not applied.
+func validateSearchTermLength(term **string, fieldName string) error {
+	if *term == nil {
+		return nil
+	}
+
+	trimmed := strings.TrimSpace(**term)
+	if trimmed == "" {
+		*term = nil
+		return nil
+	}
+
+	if utf8.RuneCountInString(trimmed) > 256 {
+		return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", fieldName)
+	}
+
+	**term = trimmed
+
+	return nil
 }
 
 func validateMetadataValueWithDepth(value any, depth int) (any, error) {

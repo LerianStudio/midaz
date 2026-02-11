@@ -14,6 +14,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -144,6 +145,325 @@ func TestIntegration_LedgerRepository_ListByIDs_IsolatesByOrganization(t *testin
 	require.NoError(t, err)
 	assert.Len(t, ledgers, 1, "should find ledger with correct organization")
 }
+
+// ============================================================================
+// FindAll (Pagination) Tests
+// ============================================================================
+
+// defaultPagination returns a Pagination with valid date range for tests.
+func defaultPagination(page, limit int) http.Pagination {
+	return http.Pagination{
+		Page:      page,
+		Limit:     limit,
+		StartDate: time.Now().AddDate(-1, 0, 0), // 1 year ago
+		EndDate:   time.Now().AddDate(0, 0, 1),  // tomorrow
+	}
+}
+
+func TestIntegration_LedgerRepository_FindAll_Pagination(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+
+	// Create 5 ledgers
+	for i := 0; i < 5; i++ {
+		params := pgtestutil.DefaultLedgerParams()
+		params.Name = "Ledger-" + string(rune('A'+i))
+		pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, params)
+	}
+
+	cases := []struct {
+		name        string
+		filter      http.Pagination
+		expectCount int
+	}{
+		{
+			name:        "page 1 limit 2",
+			filter:      defaultPagination(1, 2),
+			expectCount: 2,
+		},
+		{
+			name:        "page 2 limit 2",
+			filter:      defaultPagination(2, 2),
+			expectCount: 2,
+		},
+		{
+			name:        "page 3 limit 2 (last page with 1 item)",
+			filter:      defaultPagination(3, 2),
+			expectCount: 1,
+		},
+		{
+			name:        "page beyond data returns empty",
+			filter:      defaultPagination(10, 2),
+			expectCount: 0,
+		},
+		{
+			name:        "limit larger than total returns all",
+			filter:      defaultPagination(1, 100),
+			expectCount: 5,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ledgers, err := repo.FindAll(ctx, orgID, tc.filter, nil)
+
+			require.NoError(t, err)
+			assert.Len(t, ledgers, tc.expectCount)
+		})
+	}
+}
+
+func TestIntegration_LedgerRepository_FindAll_ExcludesSoftDeleted(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+
+	// Create 2 active + 1 deleted
+	for i := 0; i < 2; i++ {
+		params := pgtestutil.DefaultLedgerParams()
+		params.Name = "Active-" + string(rune('A'+i))
+		pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, params)
+	}
+
+	deletedAt := time.Now()
+	deletedParams := pgtestutil.DefaultLedgerParams()
+	deletedParams.Name = "Deleted Ledger"
+	deletedParams.DeletedAt = &deletedAt
+	pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, deletedParams)
+
+	ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), nil)
+
+	require.NoError(t, err)
+	assert.Len(t, ledgers, 2, "should only return active ledgers")
+
+	for _, l := range ledgers {
+		assert.NotEqual(t, "Deleted Ledger", l.Name)
+	}
+}
+
+func TestIntegration_LedgerRepository_FindAll_IsolatesByOrganization(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	org1ID := pgtestutil.CreateTestOrganization(t, container.DB)
+	org2ID := pgtestutil.CreateTestOrganization(t, container.DB)
+
+	// Create 2 ledgers in org1, 1 in org2
+	for i := 0; i < 2; i++ {
+		params := pgtestutil.DefaultLedgerParams()
+		params.Name = "Org1-Ledger-" + string(rune('A'+i))
+		pgtestutil.CreateTestLedgerWithParams(t, container.DB, org1ID, params)
+	}
+
+	params := pgtestutil.DefaultLedgerParams()
+	params.Name = "Org2-Ledger"
+	pgtestutil.CreateTestLedgerWithParams(t, container.DB, org2ID, params)
+
+	// FindAll for org1 should only return org1's ledgers
+	ledgers, err := repo.FindAll(ctx, org1ID, defaultPagination(1, 10), nil)
+
+	require.NoError(t, err)
+	assert.Len(t, ledgers, 2, "should only return org1's ledgers")
+
+	// FindAll for org2 should only return org2's ledger
+	ledgers, err = repo.FindAll(ctx, org2ID, defaultPagination(1, 10), nil)
+
+	require.NoError(t, err)
+	assert.Len(t, ledgers, 1, "should only return org2's ledgers")
+}
+
+// ============================================================================
+// FindAll Name Filter Tests
+// ============================================================================
+
+func TestIntegration_LedgerRepository_FindAll_FilterByName(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+
+	// Create ledgers with distinct names
+	params1 := pgtestutil.DefaultLedgerParams()
+	params1.Name = "Primary Ledger"
+	pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, params1)
+
+	params2 := pgtestutil.DefaultLedgerParams()
+	params2.Name = "Primary Backup"
+	pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, params2)
+
+	params3 := pgtestutil.DefaultLedgerParams()
+	params3.Name = "Secondary Ledger"
+	pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, params3)
+
+	// Filter by "Primary" prefix - should return 2
+	name := "Primary"
+	ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), &name)
+
+	require.NoError(t, err)
+	assert.Len(t, ledgers, 2, "should return ledgers matching 'Primary' prefix")
+
+	for _, l := range ledgers {
+		assert.Contains(t, l.Name, "Primary")
+	}
+}
+
+func TestIntegration_LedgerRepository_FindAll_FilterByName_CaseInsensitive(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+
+	params := pgtestutil.DefaultLedgerParams()
+	params.Name = "Primary Ledger"
+	pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, params)
+
+	// Search with lowercase
+	name := "primary"
+	ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), &name)
+
+	require.NoError(t, err)
+	assert.Len(t, ledgers, 1, "ILIKE should match case-insensitively")
+	assert.Equal(t, "Primary Ledger", ledgers[0].Name)
+}
+
+func TestIntegration_LedgerRepository_FindAll_NilNameReturnsAll(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+
+	// Create 3 ledgers
+	for i := 0; i < 3; i++ {
+		params := pgtestutil.DefaultLedgerParams()
+		params.Name = "NilFilter-" + string(rune('A'+i))
+		pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, params)
+	}
+
+	// Nil name should return all
+	ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), nil)
+
+	require.NoError(t, err)
+	assert.Len(t, ledgers, 3, "nil name filter should return all ledgers")
+}
+
+func TestIntegration_LedgerRepository_FindAll_PrefixMatchOnly(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+
+	params := pgtestutil.DefaultLedgerParams()
+	params.Name = "MyPrimaryLedger"
+	pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, params)
+
+	// "Primary" should NOT match "MyPrimaryLedger" because we use prefix match (term%)
+	name := "Primary"
+	ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), &name)
+
+	require.NoError(t, err)
+	assert.Len(t, ledgers, 0, "prefix match should not find 'Primary' inside 'MyPrimaryLedger'")
+}
+
+// ============================================================================
+// FindAll Wildcard Injection Tests
+// ============================================================================
+
+func TestIntegration_LedgerRepository_FindAll_WildcardInjection(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+
+	// Create ledgers to verify wildcards don't match
+	params1 := pgtestutil.DefaultLedgerParams()
+	params1.Name = "Primary Ledger"
+	pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, params1)
+
+	params2 := pgtestutil.DefaultLedgerParams()
+	params2.Name = "Secondary Ledger"
+	pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, params2)
+
+	cases := []struct {
+		name      string
+		filter    string
+		expectLen int
+		reason    string
+	}{
+		{
+			name:      "percent wildcard should not match all",
+			filter:    "%",
+			expectLen: 0,
+			reason:    "'%' should be escaped and treated as literal, not SQL wildcard",
+		},
+		{
+			name:      "underscore wildcard should not match single char",
+			filter:    "Primar_",
+			expectLen: 0,
+			reason:    "'_' should be escaped and treated as literal, not SQL single-char wildcard",
+		},
+		{
+			name:      "backslash should not cause escape issues",
+			filter:    `Primary\`,
+			expectLen: 0,
+			reason:    "backslash should be escaped and treated as literal",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			filter := tc.filter
+			ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), &filter)
+
+			require.NoError(t, err)
+			assert.Len(t, ledgers, tc.expectLen, tc.reason)
+		})
+	}
+}
+
+func TestIntegration_LedgerRepository_FindAll_LiteralSpecialCharsInName(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+
+	// Create ledger with literal % in name
+	params := pgtestutil.DefaultLedgerParams()
+	params.Name = "100% Returns Ledger"
+	pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, params)
+
+	// Searching for "100%" should find it (literal match)
+	name := "100%"
+	ledgers, err := repo.FindAll(ctx, orgID, defaultPagination(1, 10), &name)
+
+	require.NoError(t, err)
+	assert.Len(t, ledgers, 1, "should find ledger with literal '%' in name")
+	assert.Equal(t, "100% Returns Ledger", ledgers[0].Name)
+}
+
+// ============================================================================
+// ListByIDs Tests (continued)
+// ============================================================================
 
 func TestIntegration_LedgerRepository_ListByIDs_EdgeCases(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)

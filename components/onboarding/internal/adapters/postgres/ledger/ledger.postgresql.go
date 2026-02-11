@@ -44,7 +44,7 @@ var ledgerColumnList = []string{
 type Repository interface {
 	Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
 	Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error)
-	FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination) ([]*mmodel.Ledger, error)
+	FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination, name *string) ([]*mmodel.Ledger, error)
 	FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error)
 	ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error)
 	Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
@@ -207,7 +207,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 }
 
 // FindAll retrieves Ledgers entities from the database.
-func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination) ([]*mmodel.Ledger, error) {
+func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination, name *string) ([]*mmodel.Ledger, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_ledgers")
@@ -234,6 +234,11 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 		Limit(libCommons.SafeIntToUint64(filter.Limit)).
 		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
+
+	if name != nil && *name != "" {
+		sanitized := http.EscapeSearchMetacharacters(*name)
+		findAll = findAll.Where(squirrel.ILike{"name": sanitized + "%"})
+	}
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
