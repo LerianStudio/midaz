@@ -98,11 +98,11 @@ type Config struct {
 }
 
 // InitServers initiate http and grpc servers.
-func InitServers() (*Service, error) {
+func InitServers() *Service {
 	cfg := &Config{}
 
 	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
-		return nil, fmt.Errorf("failed to load config from env vars: %w", err)
+		panic(err)
 	}
 
 	logger := libZap.InitializeLogger()
@@ -198,10 +198,7 @@ func InitServers() (*Service, error) {
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
-	producerRabbitMQRepository, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create RabbitMQ producer: %w", err)
-	}
+	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 
 	commandUseCase := &command.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
@@ -272,5 +269,5 @@ func InitServers() (*Service, error) {
 	return &Service{
 		Server: serverAPI,
 		Logger: logger,
-	}, nil
+	}
 }

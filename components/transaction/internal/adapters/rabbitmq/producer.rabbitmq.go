@@ -2,14 +2,13 @@ package rabbitmq
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -25,23 +24,23 @@ type ProducerRepository interface {
 
 // ProducerRabbitMQRepository is a rabbitmq implementation of the producer
 type ProducerRabbitMQRepository struct {
-	conn             *libRabbitmq.RabbitMQConnection
-	mu               sync.Mutex
-	confirmedChannel *amqp.Channel
+	conn   *libRabbitmq.RabbitMQConnection
+	logger libLog.Logger
 }
 
 // NewProducerRabbitMQ returns a new instance of ProducerRabbitMQRepository using the given rabbitmq connection.
-func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) (*ProducerRabbitMQRepository, error) {
+func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection, logger libLog.Logger) *ProducerRabbitMQRepository {
 	prmq := &ProducerRabbitMQRepository{
-		conn: c,
+		conn:   c,
+		logger: logger,
 	}
 
 	_, err := c.GetNewConnect()
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to rabbitmq: %w", err)
+		panic("Failed to connect rabbitmq")
 	}
 
-	return prmq, nil
+	return prmq
 }
 
 // CheckRabbitMQHealth checks the health of the rabbitmq connection.
@@ -85,30 +84,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			continue
 		}
 
-		prmq.mu.Lock()
-		needsConfirm := prmq.conn.Channel != prmq.confirmedChannel
-		prmq.mu.Unlock()
-
-		if needsConfirm {
-			if err = prmq.conn.Channel.Confirm(false); err != nil {
-				logger.Warnf("Failed to put channel in confirm mode: %v", err)
-
-				sleepDuration := utils.FullJitter(backoff)
-				logger.Infof("Retrying in %v...", sleepDuration)
-				time.Sleep(sleepDuration)
-
-				backoff = utils.NextBackoff(backoff)
-
-				continue
-			}
-
-			prmq.mu.Lock()
-			prmq.confirmedChannel = prmq.conn.Channel
-			prmq.mu.Unlock()
-		}
-
-		publishConfirmation, err := prmq.conn.Channel.PublishWithDeferredConfirmWithContext(
-			ctx,
+		err = prmq.conn.Channel.Publish(
 			exchange,
 			key,
 			false, // mandatory
@@ -121,25 +97,12 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			},
 		)
 		if err == nil {
-			publishConfirmationCtx, cancel := context.WithTimeout(ctx, time.Second*5)
-			ackConfirmed, waitErr := publishConfirmation.WaitContext(publishConfirmationCtx)
-
-			cancel() // Call cancel immediately after use, not via defer
-
-			if waitErr != nil || !ackConfirmed {
-				libOpentelemetry.HandleSpanError(&spanProducer, "Failed to wait for publish confirmation", waitErr)
-
-				logger.Errorf("Failed to wait for publish confirmation: %v", waitErr)
-
-				return nil, waitErr
-			}
-
 			logger.Infof("Messages sent successfully to exchange: %s, key: %s", exchange, key)
 
 			return nil, nil
-		} else {
-			logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, utils.MaxRetries+1, err)
 		}
+
+		logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, utils.MaxRetries+1, err)
 
 		if attempt == utils.MaxRetries {
 			libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message after retries", err)
