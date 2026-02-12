@@ -1232,7 +1232,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
-	go handler.Command.UpdateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran)
+	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
+		go handler.Command.UpdateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran)
+	}
 
 	return http.Created(c, tran)
 }
