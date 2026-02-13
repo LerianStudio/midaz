@@ -1,6 +1,8 @@
 package in
 
 import (
+	"fmt"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -17,6 +19,23 @@ import (
 type AssetRateHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
+}
+
+// NewAssetRateHandler creates a new AssetRateHandler with validation.
+// Returns an error if required dependencies are nil.
+func NewAssetRateHandler(cmd *command.UseCase, qry *query.UseCase) (*AssetRateHandler, error) {
+	if cmd == nil {
+		return nil, fmt.Errorf("command use case cannot be nil")
+	}
+
+	if qry == nil {
+		return nil, fmt.Errorf("query use case cannot be nil")
+	}
+
+	return &AssetRateHandler{
+		Command: cmd,
+		Query:   qry,
+	}, nil
 }
 
 // CreateOrUpdateAssetRate creates or updates an asset rate.

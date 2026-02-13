@@ -146,6 +146,14 @@ var (
 	ErrMetadataIndexCreationFailed              = errors.New("0136")
 	ErrMetadataIndexDeletionForbidden           = errors.New("0137")
 	ErrInvalidEntityName                        = errors.New("0138")
+	ErrRateLimitExceeded                        = errors.New("0139")
+	ErrBatchSizeExceeded                        = errors.New("0140")
+	ErrBatchRateLimitExceeded                   = errors.New("0141")
+	ErrInvalidBatchRequest                      = errors.New("0142")
+	ErrRecursiveBatchRequest                    = errors.New("0143")
+	ErrDuplicateBatchRequestID                  = errors.New("0144")
+	ErrBatchRequestTimeout                      = errors.New("0145")
+	ErrRateLimitingUnavailable                  = errors.New("0146")
 )
 
 // List of CRM errors.

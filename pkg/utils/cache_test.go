@@ -294,6 +294,80 @@ func TestRedisConsumerLockKey(t *testing.T) {
 	}
 }
 
+func TestBatchIdempotencyKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		key            string
+		expected       string
+	}{
+		{
+			name:           "standard batch idempotency key",
+			organizationID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
+			ledgerID:       uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
+			key:            "batch-request-123",
+			expected:       "batch_idempotency:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:batch}:batch-request-123",
+		},
+		{
+			name:           "nil UUID (zero value)",
+			organizationID: uuid.Nil,
+			ledgerID:       uuid.Nil,
+			key:            "batch-request-456",
+			expected:       "batch_idempotency:{00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000:batch}:batch-request-456",
+		},
+		{
+			name:           "empty key",
+			organizationID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
+			ledgerID:       uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
+			key:            "",
+			expected:       "batch_idempotency:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:batch}:",
+		},
+		{
+			name:           "different tenants produce different keys",
+			organizationID: uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+			ledgerID:       uuid.MustParse("22222222-2222-2222-2222-222222222222"),
+			key:            "same-key",
+			expected:       "batch_idempotency:{11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222:batch}:same-key",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := BatchIdempotencyKey(tt.organizationID, tt.ledgerID, tt.key)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestBatchIdempotencyKey_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
+	// Verify that the same idempotency key for different tenants produces different internal keys
+	org1 := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	ledger1 := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+
+	org2 := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	ledger2 := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+
+	sameKey := "same-idempotency-key"
+
+	key1 := BatchIdempotencyKey(org1, ledger1, sameKey)
+	key2 := BatchIdempotencyKey(org2, ledger2, sameKey)
+
+	// Keys must be different to ensure tenant isolation
+	assert.NotEqual(t, key1, key2, "Same idempotency key for different tenants must produce different internal keys")
+
+	// Verify both contain the tenant-specific hash tag
+	assert.Contains(t, key1, "{11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222:batch}")
+	assert.Contains(t, key2, "{33333333-3333-3333-3333-333333333333:44444444-4444-4444-4444-444444444444:batch}")
+}
+
 func TestCacheKeyConstants(t *testing.T) {
 	t.Parallel()
 

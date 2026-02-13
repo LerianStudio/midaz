@@ -158,11 +158,21 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	ledgerLogger.Info("Creating unified HTTP server on " + cfg.ServerAddress)
 
+	// Get Redis client from transaction service for rate limiting (if available)
+	redisClient := transactionService.GetRedisClient()
+
+	// Create unified server options with Redis and auth for batch endpoint
+	serverOpts := &UnifiedServerOptions{
+		RedisClient: redisClient,
+		AuthClient:  auth,
+	}
+
 	// Create the unified server that consolidates all routes on a single port
-	unifiedServer := NewUnifiedServer(
+	unifiedServer := NewUnifiedServerWithOptions(
 		cfg.ServerAddress,
 		ledgerLogger,
 		telemetry,
+		serverOpts,
 		onboardingService.GetRouteRegistrar(),
 		transactionService.GetRouteRegistrar(),
 		ledgerRouteRegistrar,
