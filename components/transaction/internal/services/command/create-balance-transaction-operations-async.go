@@ -123,16 +123,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	go uc.DeleteWriteBehindTransaction(ctx, data.OrganizationID, data.LedgerID, tran.ID)
 
-	if tran.ParentTransactionID != nil {
-		parentKey := utils.WriteBehindParentKey(data.OrganizationID, data.LedgerID, *tran.ParentTransactionID)
-
-		go func() {
-			if err := uc.RedisRepo.Del(ctx, parentKey); err != nil {
-				logger.Warnf("Failed to delete revert lock: %v", err)
-			}
-		}()
-	}
-
 	return nil
 }
 
