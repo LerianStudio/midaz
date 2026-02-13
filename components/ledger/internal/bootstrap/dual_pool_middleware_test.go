@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
+	tenantmanager "github.com/LerianStudio/lib-commons/v2/commons/tenant-manager"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/gofiber/fiber/v2"
@@ -28,8 +28,8 @@ func TestDualPoolMiddleware_SelectPool(t *testing.T) {
 	logger := libZap.InitializeLogger()
 
 	// Create pools with default connections (single-tenant mode)
-	onboardingPool := poolmanager.NewTenantConnectionPool(nil, "ledger", "onboarding", logger)
-	transactionPool := poolmanager.NewTenantConnectionPool(nil, "ledger", "transaction", logger)
+	onboardingPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "onboarding", logger)
+	transactionPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "transaction", logger)
 
 	middleware := &DualPoolMiddleware{
 		onboardingPool:  onboardingPool,
@@ -211,9 +211,9 @@ func TestDualPoolMiddleware_IsTransactionPath(t *testing.T) {
 func TestDualPoolMiddleware_SingleTenantMode(t *testing.T) {
 	logger := libZap.InitializeLogger()
 
-	// Create pools without Pool Manager client (single-tenant mode)
-	onboardingPool := poolmanager.NewTenantConnectionPool(nil, "ledger", "onboarding", logger)
-	transactionPool := poolmanager.NewTenantConnectionPool(nil, "ledger", "transaction", logger)
+	// Create pools without Tenant Manager client (single-tenant mode)
+	onboardingPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "onboarding", logger)
+	transactionPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "transaction", logger)
 
 	pools := &MultiTenantPools{
 		OnboardingPool:  onboardingPool,
@@ -252,14 +252,14 @@ func TestDualPoolMiddleware_WithDefaultConnection(t *testing.T) {
 	logger := libZap.InitializeLogger()
 
 	// Create pools with default connections
-	onboardingPool := poolmanager.NewTenantConnectionPool(nil, "ledger", "onboarding", logger)
+	onboardingPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "onboarding", logger)
 	onboardingDefaultConn := &libPostgres.PostgresConnection{
 		ConnectionStringPrimary: "host=onboarding-db",
 		Logger:                  logger,
 	}
 	onboardingPool.WithDefaultConnection(onboardingDefaultConn)
 
-	transactionPool := poolmanager.NewTenantConnectionPool(nil, "ledger", "transaction", logger)
+	transactionPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "transaction", logger)
 	transactionDefaultConn := &libPostgres.PostgresConnection{
 		ConnectionStringPrimary: "host=transaction-db",
 		Logger:                  logger,
@@ -289,7 +289,7 @@ func TestDualPoolMiddleware_WithDefaultConnection(t *testing.T) {
 }
 
 func TestGetTenantConnection(t *testing.T) {
-	// GetTenantConnection now delegates to poolmanager.GetTenantPGConnectionFromContext()
+	// GetTenantConnection now delegates to tenantmanager.GetTenantPGConnectionFromContext()
 	// which returns dbresolver.DB, not *libPostgres.PostgresConnection
 
 	t.Run("returns nil when not set", func(t *testing.T) {
@@ -302,10 +302,10 @@ func TestGetTenantConnection(t *testing.T) {
 }
 
 func TestGetTenantID(t *testing.T) {
-	// GetTenantID now delegates to poolmanager.GetTenantIDFromContext()
+	// GetTenantID now delegates to tenantmanager.GetTenantIDFromContext()
 
-	t.Run("returns tenant ID when set using poolmanager context", func(t *testing.T) {
-		ctx := poolmanager.ContextWithTenantID(context.Background(), "tenant-123")
+	t.Run("returns tenant ID when set using tenantmanager context", func(t *testing.T) {
+		ctx := tenantmanager.ContextWithTenantID(context.Background(), "tenant-123")
 
 		result := GetTenantID(ctx)
 
@@ -324,8 +324,8 @@ func TestGetTenantID(t *testing.T) {
 func TestNewDualPoolMiddleware(t *testing.T) {
 	logger := libZap.InitializeLogger()
 
-	onboardingPool := poolmanager.NewTenantConnectionPool(nil, "ledger", "onboarding", logger)
-	transactionPool := poolmanager.NewTenantConnectionPool(nil, "ledger", "transaction", logger)
+	onboardingPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "onboarding", logger)
+	transactionPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "transaction", logger)
 
 	pools := &MultiTenantPools{
 		OnboardingPool:  onboardingPool,
@@ -343,8 +343,8 @@ func TestNewDualPoolMiddleware(t *testing.T) {
 func TestMultiTenantPools_Structure(t *testing.T) {
 	logger := libZap.InitializeLogger()
 
-	onboardingPool := poolmanager.NewTenantConnectionPool(nil, "ledger", "onboarding", logger)
-	transactionPool := poolmanager.NewTenantConnectionPool(nil, "ledger", "transaction", logger)
+	onboardingPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "onboarding", logger)
+	transactionPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "transaction", logger)
 
 	pools := &MultiTenantPools{
 		OnboardingPool:  onboardingPool,

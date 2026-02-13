@@ -175,9 +175,9 @@ type Config struct {
 
 	// Multi-Tenant Configuration
 	// When enabled, the single-tenant RabbitMQ consumer is disabled because
-	// the unified ledger handles multi-tenant message routing through Pool Manager
+	// the unified ledger handles multi-tenant message routing through Tenant Manager
 	MultiTenantEnabled bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
-	PoolManagerURL     string `env:"POOL_MANAGER_URL"`
+	MultiTenantURL     string `env:"MULTI_TENANT_URL"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -425,7 +425,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Initialize RabbitMQ consumer based on mode (single-tenant or multi-tenant)
-	// In multi-tenant mode, the unified ledger handles message routing through Pool Manager
+	// In multi-tenant mode, the unified ledger handles message routing through Tenant Manager
 	var multiQueueConsumer *MultiQueueConsumer
 	var multiTenantRabbitMQConsumer *MultiTenantRabbitMQConsumer
 

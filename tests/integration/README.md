@@ -49,13 +49,13 @@ go test -v ./tests/integration/... -run "MultiTenant"
 
 To run full multi-tenant isolation tests, you need:
 
-1. **Pool Manager running**: The tenant configuration service
+1. **Tenant Manager running**: The tenant configuration service
 2. **Multi-tenant enabled services**: Onboarding and Transaction services configured with `MULTI_TENANT_ENABLED=true`
 
 ```bash
 # Set environment variables
 export MULTI_TENANT_ENABLED=true
-export POOL_MANAGER_URL=http://localhost:8080
+export MULTI_TENANT_URL=http://localhost:8080
 export ONBOARDING_URL=http://localhost:3000
 export TRANSACTION_URL=http://localhost:3001
 
@@ -68,7 +68,7 @@ go test -v ./tests/integration/... -run "MultiTenant"
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MULTI_TENANT_ENABLED` | `false` | Enable multi-tenant mode |
-| `POOL_MANAGER_URL` | - | URL of the pool manager service (required when multi-tenant is enabled) |
+| `MULTI_TENANT_URL` | - | URL of the tenant manager service (required when multi-tenant is enabled) |
 | `ONBOARDING_URL` | `http://localhost:3000` | Onboarding service URL |
 | `TRANSACTION_URL` | `http://localhost:3001` | Transaction service URL |
 | `TEST_AUTH_URL` | - | OAuth token endpoint (optional) |
@@ -160,9 +160,9 @@ The tenant ID is extracted from the JWT using the hardcoded claim key "tenantId"
 1. **"Skipping ... - multi-tenant mode is not enabled"**
    - Set `MULTI_TENANT_ENABLED=true` to run isolation tests
 
-2. **Pool Manager connection errors**
-   - Ensure Pool Manager is running at `POOL_MANAGER_URL`
-   - Verify tenant configurations exist in Pool Manager
+2. **Tenant Manager connection errors**
+   - Ensure Tenant Manager is running at `MULTI_TENANT_URL`
+   - Verify tenant configurations exist in Tenant Manager
 
 3. **JWT validation errors**
    - Check that the auth service accepts test tokens

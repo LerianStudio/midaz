@@ -14,7 +14,7 @@ services:
     networks:
       - infra-network
       - ledger-network
-      - pool-manager-network
+      - tenant-manager-network
 
 networks:
   infra-network:
@@ -24,5 +24,5 @@ networks:
   ledger-network:
     name: ledger-network
     driver: bridge
-  pool-manager-network:
+  tenant-manager-network:
     external: true

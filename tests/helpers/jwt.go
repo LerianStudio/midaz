@@ -196,7 +196,7 @@ func IsMultiTenantEnabled() bool {
 	return os.Getenv("MULTI_TENANT_ENABLED") == "true"
 }
 
-// GetPoolManagerURL returns the pool manager URL from environment.
-func GetPoolManagerURL() string {
-	return os.Getenv("POOL_MANAGER_URL")
+// GetMultiTenantURL returns the tenant manager URL from environment.
+func GetMultiTenantURL() string {
+	return os.Getenv("MULTI_TENANT_URL")
 }

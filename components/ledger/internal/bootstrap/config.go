@@ -7,7 +7,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
+	tenantmanager "github.com/LerianStudio/lib-commons/v2/commons/tenant-manager"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
@@ -41,10 +41,9 @@ type Config struct {
 
 	// Multi-Tenant Configuration
 	// When enabled, the middleware extracts tenant ID from JWT and resolves
-	// tenant-specific database connections from the Pool Manager
+	// tenant-specific database connections from the Tenant Manager
 	MultiTenantEnabled bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
-	PoolManagerURL     string `env:"POOL_MANAGER_URL"`
-	TenantCacheTTL     string `env:"MULTI_TENANT_CACHE_TTL" default:"24h"`
+	MultiTenantURL     string `env:"MULTI_TENANT_URL"`
 
 	// PostgreSQL Primary - for multi-tenant default connection
 	PrimaryDBHost     string `env:"DB_HOST"`
@@ -93,23 +92,23 @@ func InitServers() (*Service, error) {
 }
 
 // MultiTenantPools holds the connection pools for the unified ledger.
-// In multi-tenant mode, the Pool Manager returns separate database credentials
+// In multi-tenant mode, the Tenant Manager returns separate database credentials
 // for each module (onboarding and transaction).
-// Supports both PostgreSQL (TenantConnectionPool) and MongoDB (MongoPool) connections.
+// Supports both PostgreSQL (TenantConnectionManager) and MongoDB (MongoManager) connections.
 type MultiTenantPools struct {
 	// OnboardingPool handles PostgreSQL connections for onboarding entities:
 	// organizations, ledgers, accounts, assets, portfolios, segments, account-types
-	OnboardingPool *poolmanager.TenantConnectionPool
+	OnboardingPool *tenantmanager.TenantConnectionManager
 
 	// TransactionPool handles PostgreSQL connections for transaction entities:
 	// transactions, operations, balances, asset-rates, operation-routes, transaction-routes
-	TransactionPool *poolmanager.TenantConnectionPool
+	TransactionPool *tenantmanager.TenantConnectionManager
 
 	// OnboardingMongoPool handles MongoDB connections for onboarding entities
-	OnboardingMongoPool *poolmanager.MongoPool
+	OnboardingMongoPool *tenantmanager.MongoManager
 
 	// TransactionMongoPool handles MongoDB connections for transaction entities
-	TransactionMongoPool *poolmanager.MongoPool
+	TransactionMongoPool *tenantmanager.MongoManager
 }
 
 // InitServersWithOptions initializes the unified ledger service with optional dependency injection.
@@ -149,11 +148,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// In multi-tenant mode, we create TWO pools: one for onboarding and one for transaction
 	var tenantPools *MultiTenantPools
 
-	if cfg.MultiTenantEnabled && cfg.PoolManagerURL != "" {
+	if cfg.MultiTenantEnabled && cfg.MultiTenantURL != "" {
 		tenantPools = initMultiTenantPools(cfg, baseLogger)
-		baseLogger.Infof("Multi-tenant mode enabled with Pool Manager URL: %s (dual pools: onboarding + transaction)", cfg.PoolManagerURL)
+		baseLogger.Infof("Multi-tenant mode enabled with Tenant Manager URL: %s (dual managers: onboarding + transaction)", cfg.MultiTenantURL)
 	} else {
-		baseLogger.Info("Running in SINGLE-TENANT MODE - multi-tenant disabled or no Pool Manager URL")
+		baseLogger.Info("Running in SINGLE-TENANT MODE - multi-tenant disabled or no Tenant Manager URL")
 	}
 
 	// Generate startup ID for tracing initialization issues
@@ -239,7 +238,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	ledgerLogger.Info("Creating unified HTTP server on " + cfg.ServerAddress)
 
 	// Create the unified server that consolidates all routes on a single port
-	// Pass the dual pools for path-based routing to the correct database
+	// Pass the dual managers for path-based routing to the correct database
 	unifiedServer := NewUnifiedServer(
 		cfg.ServerAddress,
 		ledgerLogger,
@@ -269,7 +268,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 // PostgreSQL pools for onboarding and transaction entities, and optionally
 // MongoDB pools when MongoDB configuration is present.
 //
-// The Pool Manager returns separate database credentials for each module:
+// The Tenant Manager returns separate database credentials for each module:
 //
 //	"databases": {
 //	  "ledger": {
@@ -320,40 +319,40 @@ func initMultiTenantPools(cfg *Config, logger libLog.Logger) *MultiTenantPools {
 		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
 
-	// Create Pool Manager client (shared between all pools)
-	poolManagerClient := poolmanager.NewClient(cfg.PoolManagerURL, logger)
+	// Create Tenant Manager client (shared between all pools)
+	tenantManagerClient := tenantmanager.NewClient(cfg.MultiTenantURL, logger)
 
 	// Create onboarding pool - handles organizations, ledgers, accounts, assets, portfolios, segments, account-types
-	// The module parameter "onboarding" tells Pool Manager which service credentials to return
-	onboardingPool := poolmanager.NewTenantConnectionPool(poolManagerClient, "ledger", "onboarding", logger).
+	// The module parameter "onboarding" tells Tenant Manager which service credentials to return
+	onboardingPool := tenantmanager.NewTenantConnectionManager(tenantManagerClient, "ledger", "onboarding", logger).
 		WithConnectionLimits(cfg.MaxOpenConnections, cfg.MaxIdleConnections).
 		WithDefaultConnection(onboardingDefaultConn)
 
-	logger.Info("Created onboarding PostgreSQL connection pool for multi-tenant mode")
+	logger.Info("Created onboarding PostgreSQL connection manager for multi-tenant mode")
 
 	// Create transaction pool - handles transactions, operations, balances, asset-rates, routes
-	// The module parameter "transaction" tells Pool Manager which service credentials to return
-	transactionPool := poolmanager.NewTenantConnectionPool(poolManagerClient, "ledger", "transaction", logger).
+	// The module parameter "transaction" tells Tenant Manager which service credentials to return
+	transactionPool := tenantmanager.NewTenantConnectionManager(tenantManagerClient, "ledger", "transaction", logger).
 		WithConnectionLimits(cfg.MaxOpenConnections, cfg.MaxIdleConnections).
 		WithDefaultConnection(transactionDefaultConn)
 
-	logger.Info("Created transaction PostgreSQL connection pool for multi-tenant mode")
+	logger.Info("Created transaction PostgreSQL connection manager for multi-tenant mode")
 
 	// Create MongoDB pools for multi-tenant mode
-	// In multi-tenant mode, MongoDB connection info comes from Pool Manager, not env vars
+	// In multi-tenant mode, MongoDB connection info comes from Tenant Manager, not env vars
 	// Create onboarding MongoDB pool
-	onboardingMongoPool := poolmanager.NewMongoPool(poolManagerClient, "ledger",
-		poolmanager.WithMongoModule("onboarding"),
-		poolmanager.WithMongoLogger(logger),
+	onboardingMongoPool := tenantmanager.NewMongoManager(tenantManagerClient, "ledger",
+		tenantmanager.WithMongoModule("onboarding"),
+		tenantmanager.WithMongoLogger(logger),
 	)
-	logger.Info("Created onboarding MongoDB connection pool for multi-tenant mode")
+	logger.Info("Created onboarding MongoDB connection manager for multi-tenant mode")
 
 	// Create transaction MongoDB pool
-	transactionMongoPool := poolmanager.NewMongoPool(poolManagerClient, "ledger",
-		poolmanager.WithMongoModule("transaction"),
-		poolmanager.WithMongoLogger(logger),
+	transactionMongoPool := tenantmanager.NewMongoManager(tenantManagerClient, "ledger",
+		tenantmanager.WithMongoModule("transaction"),
+		tenantmanager.WithMongoLogger(logger),
 	)
-	logger.Info("Created transaction MongoDB connection pool for multi-tenant mode")
+	logger.Info("Created transaction MongoDB connection manager for multi-tenant mode")
 
 	return &MultiTenantPools{
 		OnboardingPool:       onboardingPool,

@@ -20,12 +20,12 @@ import (
 //
 // Environment Variables:
 // - MULTI_TENANT_ENABLED: Set to "true" to enable multi-tenant tests
-// - POOL_MANAGER_URL: URL of the pool manager service (required when multi-tenant is enabled)
+// - MULTI_TENANT_URL: URL of the tenant manager service (required when multi-tenant is enabled)
 // - ONBOARDING_URL: URL of the onboarding service
 // - TRANSACTION_URL: URL of the transaction service
 //
 // To run multi-tenant tests:
-//   MULTI_TENANT_ENABLED=true POOL_MANAGER_URL=http://pool-manager:8080 go test ./tests/integration/... -v -run "MultiTenant"
+//   MULTI_TENANT_ENABLED=true MULTI_TENANT_URL=http://tenant-manager:4003 go test ./tests/integration/... -v -run "MultiTenant"
 
 // TestMultiTenant_BackwardCompatibility verifies that single-tenant mode works
 // when MULTI_TENANT_ENABLED=false (default behavior).

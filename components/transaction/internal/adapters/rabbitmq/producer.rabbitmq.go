@@ -11,7 +11,7 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
+	tenantmanager "github.com/LerianStudio/lib-commons/v2/commons/tenant-manager"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -28,7 +28,7 @@ type ProducerRepository interface {
 // ProducerRabbitMQRepository is a rabbitmq implementation of the producer
 type ProducerRabbitMQRepository struct {
 	conn            *libRabbitmq.RabbitMQConnection
-	rabbitMQPool    *poolmanager.RabbitMQPool
+	rabbitMQPool    *tenantmanager.RabbitMQManager
 	multiTenantMode bool
 }
 
@@ -50,8 +50,8 @@ func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRep
 }
 
 // NewProducerRabbitMQMultiTenant returns a new instance of ProducerRabbitMQRepository for multi-tenant mode.
-// Uses RabbitMQPool to get tenant-specific connections.
-func NewProducerRabbitMQMultiTenant(pool *poolmanager.RabbitMQPool) *ProducerRabbitMQRepository {
+// Uses RabbitMQManager to get tenant-specific connections.
+func NewProducerRabbitMQMultiTenant(pool *tenantmanager.RabbitMQManager) *ProducerRabbitMQRepository {
 	return &ProducerRabbitMQRepository{
 		rabbitMQPool:    pool,
 		multiTenantMode: true,
@@ -100,7 +100,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	}
 
 	// Inject tenant ID if available in context (multi-tenant mode)
-	tenantID := poolmanager.GetTenantID(ctx)
+	tenantID := tenantmanager.GetTenantID(ctx)
 	if tenantID != "" {
 		headers["X-Tenant-ID"] = tenantID
 	}

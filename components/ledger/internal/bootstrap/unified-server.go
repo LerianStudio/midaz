@@ -11,7 +11,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
+	tenantmanager "github.com/LerianStudio/lib-commons/v2/commons/tenant-manager"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v2/commons/server"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/gofiber/fiber/v2"
@@ -38,10 +38,10 @@ type UnifiedServer struct {
 // It selects the appropriate pool (onboarding or transaction) based on the request path.
 // Supports both PostgreSQL (TenantConnectionPool) and MongoDB (MongoPool) connections.
 type DualPoolMiddleware struct {
-	onboardingPool       *poolmanager.TenantConnectionPool
-	transactionPool      *poolmanager.TenantConnectionPool
-	onboardingMongoPool  *poolmanager.MongoPool
-	transactionMongoPool *poolmanager.MongoPool
+	onboardingPool       *tenantmanager.TenantConnectionManager
+	transactionPool      *tenantmanager.TenantConnectionManager
+	onboardingMongoPool  *tenantmanager.MongoManager
+	transactionMongoPool *tenantmanager.MongoManager
 	logger               libLog.Logger
 }
 
@@ -113,8 +113,8 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 
 	logger.Infof("[WithTenantDB] Extracted tenant ID: %s for path: %s", tenantID, path)
 
-	// Store tenant ID in context using lib-commons poolmanager context function
-	ctx = poolmanager.ContextWithTenantID(ctx, tenantID)
+	// Store tenant ID in context using lib-commons tenantmanager context function
+	ctx = tenantmanager.ContextWithTenantID(ctx, tenantID)
 	logger.Infof("[WithTenantDB] Set tenant ID in context: %s", tenantID)
 
 	// Get tenant-specific connection from the selected pool
@@ -124,11 +124,11 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get tenant connection", err)
 
 		// Check for specific errors
-		if errors.Is(err, poolmanager.ErrTenantNotFound) {
+		if errors.Is(err, tenantmanager.ErrTenantNotFound) {
 			return libHTTP.NotFound(c, "TENANT_NOT_FOUND", "Not Found", "tenant not found")
 		}
 
-		if errors.Is(err, poolmanager.ErrPoolClosed) {
+		if errors.Is(err, tenantmanager.ErrManagerClosed) {
 			return libHTTP.JSONResponse(c, http.StatusServiceUnavailable, libCommons.Response{
 				Code:    "SERVICE_UNAVAILABLE",
 				Title:   "Service Unavailable",
@@ -150,12 +150,12 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 		return libHTTP.InternalServerError(c, "DB_ERROR", "Internal Server Error", "failed to get database interface")
 	}
 
-	// Store module-specific connection in context using poolmanager's context functions
+	// Store module-specific connection in context using tenantmanager's context functions
 	// This ensures repositories can find the tenant connection via module-specific getters
 	// CRITICAL: Set BOTH module connections for in-process calls between modules
 	if m.isTransactionPath(path) {
 		// Primary: Transaction path - set transaction connection
-		ctx = poolmanager.ContextWithTransactionPGConnection(ctx, db)
+		ctx = tenantmanager.ContextWithTransactionPGConnection(ctx, db)
 		logger.Infof("[WithTenantDB] Set Transaction PostgreSQL connection in context for tenant: %s", tenantID)
 
 		// Secondary: Also get and set onboarding connection for in-process calls FROM transaction TO onboarding
@@ -164,14 +164,14 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 			if onboardingErr == nil {
 				onboardingDB, dbErr := onboardingConn.GetDB()
 				if dbErr == nil && onboardingDB != nil {
-					ctx = poolmanager.ContextWithOnboardingPGConnection(ctx, onboardingDB)
+					ctx = tenantmanager.ContextWithOnboardingPGConnection(ctx, onboardingDB)
 					logger.Infof("[WithTenantDB] Also set Onboarding PostgreSQL connection in context for tenant: %s (for in-process calls)", tenantID)
 				}
 			}
 		}
 	} else {
 		// Primary: Onboarding path - set onboarding connection
-		ctx = poolmanager.ContextWithOnboardingPGConnection(ctx, db)
+		ctx = tenantmanager.ContextWithOnboardingPGConnection(ctx, db)
 		logger.Infof("[WithTenantDB] Set Onboarding PostgreSQL connection in context for tenant: %s", tenantID)
 
 		// Secondary: Also get and set transaction connection for in-process calls FROM onboarding TO transaction
@@ -180,7 +180,7 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 			if transactionErr == nil {
 				transactionDB, dbErr := transactionConn.GetDB()
 				if dbErr == nil && transactionDB != nil {
-					ctx = poolmanager.ContextWithTransactionPGConnection(ctx, transactionDB)
+					ctx = tenantmanager.ContextWithTransactionPGConnection(ctx, transactionDB)
 					logger.Infof("[WithTenantDB] Also set Transaction PostgreSQL connection in context for tenant: %s (for in-process calls)", tenantID)
 				}
 			}
@@ -204,7 +204,7 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 			return libHTTP.InternalServerError(c, "TENANT_MONGO_ERROR", "Internal Server Error", "failed to resolve tenant MongoDB connection")
 		}
 
-		ctx = poolmanager.ContextWithTenantMongo(ctx, mongoDB)
+		ctx = tenantmanager.ContextWithTenantMongo(ctx, mongoDB)
 		logger.Infof("[WithTenantDB] Set MongoDB connection in context for tenant: %s (pool: %s, db: %s)", tenantID, poolName, mongoDB.Name())
 	} else {
 		logger.Warnf("[WithTenantDB] MongoDB pool is nil for path %s - MongoDB connection will NOT be set in context", path)
@@ -233,7 +233,7 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 //	/v1/organizations/:org/ledgers/:ledger/asset-rates,
 //	/v1/organizations/:org/ledgers/:ledger/operation-routes,
 //	/v1/organizations/:org/ledgers/:ledger/transaction-routes
-func (m *DualPoolMiddleware) selectPool(path string) *poolmanager.TenantConnectionPool {
+func (m *DualPoolMiddleware) selectPool(path string) *tenantmanager.TenantConnectionManager {
 	if m.isTransactionPath(path) {
 		return m.transactionPool
 	}
@@ -244,7 +244,7 @@ func (m *DualPoolMiddleware) selectPool(path string) *poolmanager.TenantConnecti
 // selectMongoPool determines which MongoDB pool to use based on the request path.
 // Uses the same path-based routing logic as selectPool.
 // Returns nil if no MongoDB pool is configured for the selected path.
-func (m *DualPoolMiddleware) selectMongoPool(path string) *poolmanager.MongoPool {
+func (m *DualPoolMiddleware) selectMongoPool(path string) *tenantmanager.MongoManager {
 	if m.isTransactionPath(path) {
 		return m.transactionMongoPool
 	}
@@ -327,18 +327,18 @@ func (m *DualPoolMiddleware) extractTenantIDFromToken(c *fiber.Ctx) (string, err
 }
 
 // GetTenantConnection retrieves the tenant database connection from the context.
-// Deprecated: Use poolmanager.GetTenantPGConnectionFromContext() directly instead.
+// Deprecated: Use tenantmanager.GetTenantPGConnectionFromContext() directly instead.
 // This function returns nil since we no longer store the full PostgresConnection in context.
-// Repositories should use poolmanager.GetPostgresForTenant() to get database connections.
+// Repositories should use tenantmanager.GetPostgresForTenant() to get database connections.
 func GetTenantConnection(ctx context.Context) interface{} {
-	return poolmanager.GetTenantPGConnectionFromContext(ctx)
+	return tenantmanager.GetTenantPGConnectionFromContext(ctx)
 }
 
 // GetTenantID retrieves the tenant ID from the context.
-// Deprecated: Use poolmanager.GetTenantIDFromContext() directly instead.
+// Deprecated: Use tenantmanager.GetTenantIDFromContext() directly instead.
 // Returns empty string if no tenant ID is set.
 func GetTenantID(ctx context.Context) string {
-	return poolmanager.GetTenantIDFromContext(ctx)
+	return tenantmanager.GetTenantIDFromContext(ctx)
 }
 
 // handleUnifiedServerError is a custom error handler that extends the default Fiber error handling
@@ -353,7 +353,7 @@ func handleUnifiedServerError(c *fiber.Ctx, err error) error {
 
 	// Check for unprovisioned tenant database error (SQLSTATE 42P01)
 	// This occurs when the tenant database schema has not been initialized
-	if poolmanager.IsTenantNotProvisionedError(err) {
+	if tenantmanager.IsTenantNotProvisionedError(err) {
 		log.Printf("Tenant database not provisioned on %s %s: %v", c.Method(), c.Path(), err)
 
 		return libHTTP.UnprocessableEntity(c, "TENANT_NOT_PROVISIONED", "Unprocessable Entity", "The tenant database schema has not been initialized. Please contact support.")

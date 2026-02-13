@@ -5,7 +5,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
+	tenantmanager "github.com/LerianStudio/lib-commons/v2/commons/tenant-manager"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/redis/go-redis/v9"
@@ -13,9 +13,9 @@ import (
 
 // MultiTenantPools contains all connection pools used in multi-tenant mode.
 type MultiTenantPools struct {
-	RabbitMQPool *poolmanager.RabbitMQPool
-	PostgresPool *poolmanager.Pool
-	MongoPool    *poolmanager.MongoPool
+	RabbitMQPool *tenantmanager.RabbitMQManager
+	PostgresPool *tenantmanager.PostgresManager
+	MongoPool    *tenantmanager.MongoManager
 }
 
 // MultiTenantProducerResult contains the result of multi-tenant producer initialization.
@@ -25,8 +25,8 @@ type MultiTenantProducerResult struct {
 }
 
 // initMultiTenantProducer initializes the RabbitMQ producer for multi-tenant mode.
-// It creates connection pools for RabbitMQ, PostgreSQL, and MongoDB using Pool Manager.
-// The serviceName parameter determines the service name used for Pool Manager API registration.
+// It creates connection pools for RabbitMQ, PostgreSQL, and MongoDB using Tenant Manager.
+// The serviceName parameter determines the service name used for Tenant Manager API registration.
 func initMultiTenantProducer(cfg *Config, opts *Options, logger libLog.Logger) MultiTenantProducerResult {
 	// Determine service name for RabbitMQ pool registration
 	// When running as part of unified ledger, use the caller's service name
@@ -37,27 +37,27 @@ func initMultiTenantProducer(cfg *Config, opts *Options, logger libLog.Logger) M
 
 	logger.Info("Multi-tenant mode enabled - initializing multi-tenant RabbitMQ producer")
 
-	poolManagerClient := poolmanager.NewClient(cfg.PoolManagerURL, logger)
+	tenantManagerClient := tenantmanager.NewClient(cfg.MultiTenantURL, logger)
 
 	// Create RabbitMQ pool for tenant-specific connections
-	rabbitMQPool := poolmanager.NewRabbitMQPool(poolManagerClient, serviceName,
-		poolmanager.WithRabbitMQModule("transaction"),
-		poolmanager.WithRabbitMQLogger(logger),
+	rabbitMQPool := tenantmanager.NewRabbitMQManager(tenantManagerClient, serviceName,
+		tenantmanager.WithRabbitMQModule("transaction"),
+		tenantmanager.WithRabbitMQLogger(logger),
 	)
 
 	// Create PostgreSQL pool for multi-tenant mode
-	postgresPool := poolmanager.NewPool(poolManagerClient, serviceName,
-		poolmanager.WithModule("transaction"),
-		poolmanager.WithPoolLogger(logger),
+	postgresPool := tenantmanager.NewPostgresManager(tenantManagerClient, serviceName,
+		tenantmanager.WithModule("transaction"),
+		tenantmanager.WithPostgresLogger(logger),
 	)
-	logger.Info("Created PostgreSQL connection pool for multi-tenant mode")
+	logger.Info("Created PostgreSQL connection manager for multi-tenant mode")
 
 	// Create MongoDB pool for multi-tenant mode
-	mongoPool := poolmanager.NewMongoPool(poolManagerClient, serviceName,
-		poolmanager.WithMongoModule("transaction"),
-		poolmanager.WithMongoLogger(logger),
+	mongoPool := tenantmanager.NewMongoManager(tenantManagerClient, serviceName,
+		tenantmanager.WithMongoModule("transaction"),
+		tenantmanager.WithMongoLogger(logger),
 	)
-	logger.Info("Created MongoDB connection pool for multi-tenant mode")
+	logger.Info("Created MongoDB connection manager for multi-tenant mode")
 
 	producer := rabbitmq.NewProducerRabbitMQMultiTenant(rabbitMQPool)
 	logger.Infof("Multi-tenant RabbitMQ producer initialized for service: %s", serviceName)
@@ -73,7 +73,7 @@ func initMultiTenantProducer(cfg *Config, opts *Options, logger libLog.Logger) M
 }
 
 // initMultiTenantConsumer initializes the RabbitMQ consumer for multi-tenant mode.
-// It creates a MultiTenantRabbitMQConsumer that uses Pool Manager for tenant-specific connections.
+// It creates a MultiTenantRabbitMQConsumer that uses Tenant Manager for tenant-specific connections.
 func initMultiTenantConsumer(
 	cfg *Config,
 	opts *Options,
@@ -99,7 +99,7 @@ func initMultiTenantConsumer(
 		pools.RabbitMQPool,
 		redisClient,
 		serviceName,
-		cfg.PoolManagerURL,
+		cfg.MultiTenantURL,
 		cfg.RabbitMQBalanceCreateQueue,
 		btoQueue,
 		useCase,

@@ -8,7 +8,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
+	tenantmanager "github.com/LerianStudio/lib-commons/v2/commons/tenant-manager"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -19,50 +19,50 @@ import (
 // MultiTenantRabbitMQConsumer wraps the lib-commons MultiTenantConsumer
 // with transaction-specific message handlers.
 type MultiTenantRabbitMQConsumer struct {
-	consumer           *poolmanager.MultiTenantConsumer
+	consumer           *tenantmanager.MultiTenantConsumer
 	useCase            *command.UseCase
 	logger             libLog.Logger
 	telemetry          *libOpentelemetry.Telemetry
 	balanceCreateQueue string
 	btoQueue           string
 	// Database pools for tenant connection injection
-	postgresPool *poolmanager.Pool
-	mongoPool    *poolmanager.MongoPool
+	postgresPool *tenantmanager.PostgresManager
+	mongoPool    *tenantmanager.MongoManager
 }
 
 // NewMultiTenantRabbitMQConsumer creates a new multi-tenant RabbitMQ consumer.
 // Parameters:
-//   - pool: RabbitMQ connection pool for tenant vhosts
+//   - pool: RabbitMQ connection manager for tenant vhosts
 //   - redisClient: Redis client for tenant cache access
-//   - serviceName: Service name for Pool Manager API (e.g., "ledger")
-//   - poolManagerURL: Pool Manager URL for fallback tenant discovery
+//   - serviceName: Service name for Tenant Manager API (e.g., "ledger")
+//   - tenantManagerURL: Tenant Manager URL for fallback tenant discovery
 //   - balanceCreateQueue: Queue name for balance create messages
 //   - btoQueue: Queue name for balance transaction operation messages
 //   - useCase: Transaction use case for processing messages
 //   - logger: Logger for operational logging
 //   - telemetry: Telemetry for tracing
-//   - postgresPool: PostgreSQL connection pool for tenant database access
-//   - mongoPool: MongoDB connection pool for tenant database access (optional)
+//   - postgresPool: PostgreSQL connection manager for tenant database access
+//   - mongoPool: MongoDB connection manager for tenant database access (optional)
 func NewMultiTenantRabbitMQConsumer(
-	pool *poolmanager.RabbitMQPool,
+	pool *tenantmanager.RabbitMQManager,
 	redisClient redis.UniversalClient,
 	serviceName string,
-	poolManagerURL string,
+	tenantManagerURL string,
 	balanceCreateQueue string,
 	btoQueue string,
 	useCase *command.UseCase,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
-	postgresPool *poolmanager.Pool,
-	mongoPool *poolmanager.MongoPool,
+	postgresPool *tenantmanager.PostgresManager,
+	mongoPool *tenantmanager.MongoManager,
 ) *MultiTenantRabbitMQConsumer {
-	config := poolmanager.DefaultMultiTenantConfig()
+	config := tenantmanager.DefaultMultiTenantConfig()
 	config.Service = serviceName
-	config.PoolManagerURL = poolManagerURL
+	config.MultiTenantURL = tenantManagerURL
 	config.WorkersPerQueue = 5
 	config.PrefetchCount = 10
 
-	consumer := poolmanager.NewMultiTenantConsumer(pool, redisClient, config, logger)
+	consumer := tenantmanager.NewMultiTenantConsumer(pool, redisClient, config, logger)
 
 	mtc := &MultiTenantRabbitMQConsumer{
 		consumer:           consumer,
@@ -127,7 +127,7 @@ func (c *MultiTenantRabbitMQConsumer) injectTenantDBConnections(ctx context.Cont
 			return ctx, fmt.Errorf("failed to get DB interface: %w", err)
 		}
 
-		ctx = poolmanager.ContextWithTransactionPGConnection(ctx, db)
+		ctx = tenantmanager.ContextWithTransactionPGConnection(ctx, db)
 		logger.Infof("Injected PostgreSQL connection for tenant: %s", tenantID)
 	}
 
@@ -138,7 +138,7 @@ func (c *MultiTenantRabbitMQConsumer) injectTenantDBConnections(ctx context.Cont
 			logger.Warnf("Failed to get MongoDB connection for tenant %s: %v (continuing without MongoDB)", tenantID, err)
 			// MongoDB is optional, don't fail the entire operation
 		} else {
-			ctx = poolmanager.ContextWithTenantMongo(ctx, mongoDB)
+			ctx = tenantmanager.ContextWithTenantMongo(ctx, mongoDB)
 			logger.Infof("Injected MongoDB connection for tenant: %s", tenantID)
 		}
 	}
@@ -147,7 +147,7 @@ func (c *MultiTenantRabbitMQConsumer) injectTenantDBConnections(ctx context.Cont
 }
 
 // handleBalanceCreateMessage processes balance create messages.
-// The context contains the tenant ID via poolmanager.SetTenantIDInContext.
+// The context contains the tenant ID via tenantmanager.SetTenantIDInContext.
 func (c *MultiTenantRabbitMQConsumer) handleBalanceCreateMessage(ctx context.Context, delivery amqp.Delivery) error {
 	// Use c.logger directly since context doesn't have logger set up by multi-tenant consumer
 	logger := c.logger
@@ -159,7 +159,7 @@ func (c *MultiTenantRabbitMQConsumer) handleBalanceCreateMessage(ctx context.Con
 	ctx, span := tracer.Start(ctx, "multitenant_consumer.handle_balance_create")
 	defer span.End()
 
-	tenantID := poolmanager.GetTenantIDFromContext(ctx)
+	tenantID := tenantmanager.GetTenantIDFromContext(ctx)
 	logger.Infof("Processing balance create message for tenant: %s", tenantID)
 
 	// Inject tenant database connections into context
@@ -192,7 +192,7 @@ func (c *MultiTenantRabbitMQConsumer) handleBalanceCreateMessage(ctx context.Con
 }
 
 // handleBTOMessage processes balance transaction operation messages.
-// The context contains the tenant ID via poolmanager.SetTenantIDInContext.
+// The context contains the tenant ID via tenantmanager.SetTenantIDInContext.
 func (c *MultiTenantRabbitMQConsumer) handleBTOMessage(ctx context.Context, delivery amqp.Delivery) error {
 	// Use c.logger directly since context doesn't have logger set up by multi-tenant consumer
 	logger := c.logger
@@ -204,7 +204,7 @@ func (c *MultiTenantRabbitMQConsumer) handleBTOMessage(ctx context.Context, deli
 	ctx, span := tracer.Start(ctx, "multitenant_consumer.handle_bto")
 	defer span.End()
 
-	tenantID := poolmanager.GetTenantIDFromContext(ctx)
+	tenantID := tenantmanager.GetTenantIDFromContext(ctx)
 	logger.Infof("Processing BTO message for tenant: %s", tenantID)
 
 	// Inject tenant database connections into context
@@ -244,6 +244,6 @@ func (c *MultiTenantRabbitMQConsumer) Close() error {
 }
 
 // Stats returns statistics about the consumer.
-func (c *MultiTenantRabbitMQConsumer) Stats() poolmanager.MultiTenantConsumerStats {
+func (c *MultiTenantRabbitMQConsumer) Stats() tenantmanager.MultiTenantConsumerStats {
 	return c.consumer.Stats()
 }

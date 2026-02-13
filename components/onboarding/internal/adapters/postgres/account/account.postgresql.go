@@ -11,7 +11,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
-	poolmanager "github.com/LerianStudio/lib-commons/v2/commons/pool-manager"
+	tenantmanager "github.com/LerianStudio/lib-commons/v2/commons/tenant-manager"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -89,7 +89,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	ctx, span := tracer.Start(ctx, "postgres.create_account")
 	defer span.End()
 
-	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -204,7 +204,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "postgres.find_all_accounts")
 	defer span.End()
 
-	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -303,7 +303,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "postgres.find_account")
 	defer span.End()
 
-	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -389,7 +389,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 	ctx, span := tracer.Start(ctx, "postgres.find_with_deleted_account")
 	defer span.End()
 
-	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -474,7 +474,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "postgres.find_alias")
 	defer span.End()
 
-	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -560,7 +560,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 	ctx, span := tracer.Start(ctx, "postgres.find_account_by_alias")
 	defer span.End()
 
-	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -624,7 +624,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
 	defer span.End()
 
-	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -720,7 +720,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
 	defer span.End()
 
-	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -813,7 +813,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "postgres.update_account")
 	defer span.End()
 
-	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -930,7 +930,7 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "postgres.delete_account")
 	defer span.End()
 
-	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -982,7 +982,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
 	defer span.End()
 
-	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -1074,7 +1074,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
 	defer span.End()
 
-	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -1168,7 +1168,7 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 	var count = int64(0)
 
-	db, err := poolmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
