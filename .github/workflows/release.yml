@@ -6,7 +6,6 @@ on:
       - develop
       - release-candidate
       - main
-      - hotfix/v*
     paths-ignore:
       - '.gitignore'
       - '**/*.env'   # Ignores all .env files
@@ -15,6 +14,7 @@ on:
       - '*.md'       # Ignores .md files in the root directory
       - '**/*.txt'   # Ignores all .env files
       - '*.txt'      # Ignores .env files in the root directory
+      - '.github/workflows/**' # Ignores all GitHub Actions workflows
     tags-ignore: ['**']
 
 permissions:
