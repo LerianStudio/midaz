@@ -10,6 +10,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	tenantmanager "github.com/LerianStudio/lib-commons/v2/commons/tenant-manager"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
@@ -127,7 +128,7 @@ func (c *MultiTenantRabbitMQConsumer) injectTenantDBConnections(ctx context.Cont
 			return ctx, fmt.Errorf("failed to get DB interface: %w", err)
 		}
 
-		ctx = tenantmanager.ContextWithTransactionPGConnection(ctx, db)
+		ctx = tenantmanager.ContextWithModulePGConnection(ctx, constant.ModuleTransaction, db)
 		logger.Infof("Injected PostgreSQL connection for tenant: %s", tenantID)
 	}
 

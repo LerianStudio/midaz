@@ -14,6 +14,7 @@ import (
 	tenantmanager "github.com/LerianStudio/lib-commons/v2/commons/tenant-manager"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v2/commons/server"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	jwt "github.com/golang-jwt/jwt/v5"
@@ -155,7 +156,7 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 	// CRITICAL: Set BOTH module connections for in-process calls between modules
 	if m.isTransactionPath(path) {
 		// Primary: Transaction path - set transaction connection
-		ctx = tenantmanager.ContextWithTransactionPGConnection(ctx, db)
+		ctx = tenantmanager.ContextWithModulePGConnection(ctx, constant.ModuleTransaction, db)
 		logger.Infof("[WithTenantDB] Set Transaction PostgreSQL connection in context for tenant: %s", tenantID)
 
 		// Secondary: Also get and set onboarding connection for in-process calls FROM transaction TO onboarding
@@ -164,14 +165,14 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 			if onboardingErr == nil {
 				onboardingDB, dbErr := onboardingConn.GetDB()
 				if dbErr == nil && onboardingDB != nil {
-					ctx = tenantmanager.ContextWithOnboardingPGConnection(ctx, onboardingDB)
+					ctx = tenantmanager.ContextWithModulePGConnection(ctx, constant.ModuleOnboarding, onboardingDB)
 					logger.Infof("[WithTenantDB] Also set Onboarding PostgreSQL connection in context for tenant: %s (for in-process calls)", tenantID)
 				}
 			}
 		}
 	} else {
 		// Primary: Onboarding path - set onboarding connection
-		ctx = tenantmanager.ContextWithOnboardingPGConnection(ctx, db)
+		ctx = tenantmanager.ContextWithModulePGConnection(ctx, constant.ModuleOnboarding, db)
 		logger.Infof("[WithTenantDB] Set Onboarding PostgreSQL connection in context for tenant: %s", tenantID)
 
 		// Secondary: Also get and set transaction connection for in-process calls FROM onboarding TO transaction
@@ -180,7 +181,7 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 			if transactionErr == nil {
 				transactionDB, dbErr := transactionConn.GetDB()
 				if dbErr == nil && transactionDB != nil {
-					ctx = tenantmanager.ContextWithTransactionPGConnection(ctx, transactionDB)
+					ctx = tenantmanager.ContextWithModulePGConnection(ctx, constant.ModuleTransaction, transactionDB)
 					logger.Infof("[WithTenantDB] Also set Transaction PostgreSQL connection in context for tenant: %s (for in-process calls)", tenantID)
 				}
 			}

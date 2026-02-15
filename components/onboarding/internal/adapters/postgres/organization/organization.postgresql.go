@@ -80,7 +80,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	ctx, span := tracer.Start(ctx, "postgres.create_organization")
 	defer span.End()
 
-	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -161,7 +161,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	ctx, span := tracer.Start(ctx, "postgres.update_organization")
 	defer span.End()
 
-	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -272,7 +272,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 	ctx, span := tracer.Start(ctx, "postgres.find_organization")
 	defer span.End()
 
-	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -343,7 +343,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 	ctx, span := tracer.Start(ctx, "postgres.find_all_organizations")
 	defer span.End()
 
-	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -433,7 +433,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 		return []*mmodel.Organization{}, nil
 	}
 
-	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -517,7 +517,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 	ctx, span := tracer.Start(ctx, "postgres.delete_organization")
 	defer span.End()
 
-	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -568,7 +568,7 @@ func (r *OrganizationPostgreSQLRepository) Count(ctx context.Context) (int64, er
 
 	var count = int64(0)
 
-	db, err := tenantmanager.GetOnboardingPostgresForTenant(ctx)
+	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
