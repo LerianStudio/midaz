@@ -53,7 +53,7 @@ type Repository interface {
 	FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string) ([]*mmodel.Account, error)
-	Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error)
+	Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, uai *mmodel.UpdateAccountInput) (*mmodel.Account, error)
 	Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error
 	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
@@ -806,7 +806,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 }
 
 // Update an Account entity into Postgresql and returns the Account updated.
-func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
+func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, uai *mmodel.UpdateAccountInput) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_account")
@@ -821,42 +821,48 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		return nil, err
 	}
 
-	record := &AccountPostgreSQLModel{}
-	record.FromEntity(acc)
-
 	builder := squirrel.Update(r.tableName)
 
-	if acc.Name != "" {
-		builder = builder.Set("name", record.Name)
+	if uai.Name != "" {
+		builder = builder.Set("name", uai.Name)
 	}
 
-	if !acc.Status.IsEmpty() {
-		builder = builder.Set("status", record.Status)
-		builder = builder.Set("status_description", record.StatusDescription)
+	if !uai.Status.IsEmpty() {
+		builder = builder.Set("status", uai.Status.Code)
+		builder = builder.Set("status_description", uai.Status.Description)
 	}
 
-	if !libCommons.IsNilOrEmpty(acc.Alias) {
-		builder = builder.Set("alias", record.Alias)
+	if uai.Blocked != nil {
+		builder = builder.Set("blocked", *uai.Blocked)
 	}
 
-	if acc.Blocked != nil {
-		builder = builder.Set("blocked", *acc.Blocked)
+	// Handle nullable fields - these can be set to NULL explicitly
+	if uai.SegmentID.ShouldUpdate() {
+		if uai.SegmentID.ShouldSetNull() {
+			builder = builder.Set("segment_id", nil)
+		} else {
+			builder = builder.Set("segment_id", uai.SegmentID.Value)
+		}
 	}
 
-	if !libCommons.IsNilOrEmpty(acc.SegmentID) {
-		builder = builder.Set("segment_id", record.SegmentID)
+	if uai.EntityID.ShouldUpdate() {
+		if uai.EntityID.ShouldSetNull() {
+			builder = builder.Set("entity_id", nil)
+		} else {
+			builder = builder.Set("entity_id", uai.EntityID.Value)
+		}
 	}
 
-	if !libCommons.IsNilOrEmpty(acc.EntityID) {
-		builder = builder.Set("entity_id", record.EntityID)
+	if uai.PortfolioID.ShouldUpdate() {
+		if uai.PortfolioID.ShouldSetNull() {
+			builder = builder.Set("portfolio_id", nil)
+		} else {
+			builder = builder.Set("portfolio_id", uai.PortfolioID.Value)
+		}
 	}
 
-	if !libCommons.IsNilOrEmpty(acc.PortfolioID) {
-		builder = builder.Set("portfolio_id", record.PortfolioID)
-	}
-
-	record.UpdatedAt = time.Now()
-	builder = builder.Set("updated_at", record.UpdatedAt)
+	updatedAt := time.Now()
+	builder = builder.Set("updated_at", updatedAt)
 
 	builder = builder.Where(squirrel.Eq{"organization_id": organizationID})
 	builder = builder.Where(squirrel.Eq{"ledger_id": ledgerID})
@@ -919,7 +925,8 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		return nil, err
 	}
 
-	return record.ToEntity(), nil
+	// Fetch the updated account to return
+	return r.Find(ctx, organizationID, ledgerID, portfolioID, id)
 }
 
 // Delete an Account entity from the database (soft delete) using the provided ID.

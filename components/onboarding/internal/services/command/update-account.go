@@ -36,17 +36,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
-	account := &mmodel.Account{
-		Name:        uai.Name,
-		Status:      uai.Status,
-		EntityID:    uai.EntityID,
-		SegmentID:   uai.SegmentID,
-		PortfolioID: uai.PortfolioID,
-		Metadata:    uai.Metadata,
-		Blocked:     uai.Blocked,
-	}
-
-	accountUpdated, err := uc.AccountRepo.Update(ctx, organizationID, ledgerID, portfolioID, id, account)
+	accountUpdated, err := uc.AccountRepo.Update(ctx, organizationID, ledgerID, portfolioID, id, uai)
 	if err != nil {
 		logger.Errorf("Error updating account on repo by id: %v", err)
 
