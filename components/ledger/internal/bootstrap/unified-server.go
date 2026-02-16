@@ -11,10 +11,12 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	tenantmanager "github.com/LerianStudio/lib-commons/v2/commons/tenant-manager"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v2/commons/server"
+	tenantmanager "github.com/LerianStudio/lib-commons/v2/commons/tenant-manager"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	midazHTTP "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	jwt "github.com/golang-jwt/jwt/v5"
@@ -109,7 +111,11 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 	if err != nil {
 		logger.Errorf("[WithTenantDB] Failed to extract tenant ID from token: %v", err)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to extract tenant ID", err)
-		return libHTTP.Unauthorized(c, "TENANT_ID_REQUIRED", "Unauthorized", "tenantId claim is required in JWT token for multi-tenant mode")
+		return midazHTTP.WithError(c, pkg.UnauthorizedError{
+			Code:    constant.ErrInvalidToken.Error(),
+			Title:   "Unauthorized",
+			Message: "tenantId claim is required in JWT token for multi-tenant mode",
+		})
 	}
 
 	logger.Infof("[WithTenantDB] Extracted tenant ID: %s for path: %s", tenantID, path)
@@ -124,20 +130,53 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 		logger.Errorf("[WithTenantDB] Failed to get PostgreSQL connection for tenant %s: %v", tenantID, err)
 		libOpentelemetry.HandleSpanError(&span, "Failed to get tenant connection", err)
 
-		// Check for specific errors
 		if errors.Is(err, tenantmanager.ErrTenantNotFound) {
-			return libHTTP.NotFound(c, "TENANT_NOT_FOUND", "Not Found", "tenant not found")
-		}
-
-		if errors.Is(err, tenantmanager.ErrManagerClosed) {
-			return libHTTP.JSONResponse(c, http.StatusServiceUnavailable, libCommons.Response{
-				Code:    "SERVICE_UNAVAILABLE",
-				Title:   "Service Unavailable",
-				Message: "Service temporarily unavailable",
+			return midazHTTP.WithError(c, pkg.EntityNotFoundError{
+				Code:    constant.ErrEntityNotFound.Error(),
+				Title:   "Not Found",
+				Message: "tenant not found",
 			})
 		}
 
-		return libHTTP.InternalServerError(c, "CONNECTION_ERROR", "Internal Server Error", "failed to establish database connection")
+		if errors.Is(err, tenantmanager.ErrManagerClosed) {
+			return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
+				Code:    constant.ErrGRPCServiceUnavailable.Error(),
+				Title:   "Service Unavailable",
+				Message: "service temporarily unavailable",
+			})
+		}
+
+		if errors.Is(err, tenantmanager.ErrServiceNotConfigured) {
+			return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
+				Code:    constant.ErrGRPCServiceUnavailable.Error(),
+				Title:   "Service Unavailable",
+				Message: "database service not configured for tenant",
+			})
+		}
+
+		errMsg := err.Error()
+
+		if strings.Contains(errMsg, "schema mode requires") {
+			return midazHTTP.WithError(c, pkg.UnprocessableOperationError{
+				Code:    constant.ErrGRPCServiceUnavailable.Error(),
+				Title:   "Unprocessable Entity",
+				Message: "invalid schema configuration for tenant database",
+			})
+		}
+
+		if strings.Contains(errMsg, "failed to connect") {
+			return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
+				Code:    constant.ErrGRPCServiceUnavailable.Error(),
+				Title:   "Service Unavailable",
+				Message: "database connection unavailable for tenant",
+			})
+		}
+
+		return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
+			Code:    constant.ErrGRPCServiceUnavailable.Error(),
+			Title:   "Service Unavailable",
+			Message: "failed to establish database connection for tenant",
+		})
 	}
 
 	logger.Infof("[WithTenantDB] Got PostgreSQL connection for tenant: %s", tenantID)
@@ -148,7 +187,11 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 		logger.Errorf("[WithTenantDB] Failed to get DB interface for tenant %s: %v", tenantID, err)
 		libOpentelemetry.HandleSpanError(&span, "Failed to get DB interface", err)
 
-		return libHTTP.InternalServerError(c, "DB_ERROR", "Internal Server Error", "failed to get database interface")
+		return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
+			Code:    constant.ErrGRPCServiceUnavailable.Error(),
+			Title:   "Service Unavailable",
+			Message: "database interface unavailable for tenant",
+		})
 	}
 
 	// Store module-specific connection in context using tenantmanager's context functions
@@ -202,7 +245,11 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 			logger.Errorf("[WithTenantDB] Failed to get tenant MongoDB connection for tenant %s: %v", tenantID, mongoErr)
 			libOpentelemetry.HandleSpanError(&span, "Failed to get tenant MongoDB connection", mongoErr)
 
-			return libHTTP.InternalServerError(c, "TENANT_MONGO_ERROR", "Internal Server Error", "failed to resolve tenant MongoDB connection")
+			return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
+				Code:    constant.ErrGRPCServiceUnavailable.Error(),
+				Title:   "Service Unavailable",
+				Message: "MongoDB connection unavailable for tenant",
+			})
 		}
 
 		ctx = tenantmanager.ContextWithTenantMongo(ctx, mongoDB)
