@@ -324,16 +324,24 @@ func initMultiTenantPools(cfg *Config, logger libLog.Logger) *MultiTenantPools {
 
 	// Create onboarding pool - handles organizations, ledgers, accounts, assets, portfolios, segments, account-types
 	// The module parameter "onboarding" tells Tenant Manager which service credentials to return
-	onboardingPool := tenantmanager.NewTenantConnectionManager(tenantManagerClient, "ledger", "onboarding", logger).
-		WithConnectionLimits(cfg.MaxOpenConnections, cfg.MaxIdleConnections).
+	onboardingPool := tenantmanager.NewPostgresManager(tenantManagerClient, "ledger",
+		tenantmanager.WithModule("onboarding"),
+		tenantmanager.WithPostgresLogger(logger),
+		tenantmanager.WithMaxOpenConns(cfg.MaxOpenConnections),
+		tenantmanager.WithMaxIdleConns(cfg.MaxIdleConnections),
+	).
 		WithDefaultConnection(onboardingDefaultConn)
 
 	logger.Info("Created onboarding PostgreSQL connection manager for multi-tenant mode")
 
 	// Create transaction pool - handles transactions, operations, balances, asset-rates, routes
 	// The module parameter "transaction" tells Tenant Manager which service credentials to return
-	transactionPool := tenantmanager.NewTenantConnectionManager(tenantManagerClient, "ledger", "transaction", logger).
-		WithConnectionLimits(cfg.MaxOpenConnections, cfg.MaxIdleConnections).
+	transactionPool := tenantmanager.NewPostgresManager(tenantManagerClient, "ledger",
+		tenantmanager.WithModule("transaction"),
+		tenantmanager.WithPostgresLogger(logger),
+		tenantmanager.WithMaxOpenConns(cfg.MaxOpenConnections),
+		tenantmanager.WithMaxIdleConns(cfg.MaxIdleConnections),
+	).
 		WithDefaultConnection(transactionDefaultConn)
 
 	logger.Info("Created transaction PostgreSQL connection manager for multi-tenant mode")

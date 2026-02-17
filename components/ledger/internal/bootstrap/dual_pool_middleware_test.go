@@ -547,7 +547,7 @@ func TestWithTenantDB_Returns503WhenServiceNotConfigured(t *testing.T) {
 			ID:            tenantID,
 			TenantSlug:    "test-tenant",
 			IsolationMode: "isolated",
-			Databases:     map[string]tenantmanager.ServiceDatabaseConfig{},
+			Databases:     map[string]tenantmanager.DatabaseConfig{},
 		}
 	})
 	defer mockServer.Close()
@@ -581,19 +581,15 @@ func TestWithTenantDB_Returns422WhenSchemaConfigInvalid(t *testing.T) {
 			ID:            tenantID,
 			TenantSlug:    "test-tenant",
 			IsolationMode: "schema",
-			Databases: map[string]tenantmanager.ServiceDatabaseConfig{
-				"ledger": {
-					Services: map[string]tenantmanager.DatabaseConfig{
-						"onboarding": {
-							PostgreSQL: &tenantmanager.PostgreSQLConfig{
-								Host:     "localhost",
-								Port:     5432,
-								Database: "midaz",
-								Username: "test",
-								Password: "test",
-								Schema:   "",
-							},
-						},
+			Databases: map[string]tenantmanager.DatabaseConfig{
+				"onboarding": {
+					PostgreSQL: &tenantmanager.PostgreSQLConfig{
+						Host:     "localhost",
+						Port:     5432,
+						Database: "midaz",
+						Username: "test",
+						Password: "test",
+						Schema:   "",
 					},
 				},
 			},
@@ -630,18 +626,14 @@ func TestWithTenantDB_Returns503WhenConnectionFails(t *testing.T) {
 			ID:            tenantID,
 			TenantSlug:    "test-tenant",
 			IsolationMode: "isolated",
-			Databases: map[string]tenantmanager.ServiceDatabaseConfig{
-				"ledger": {
-					Services: map[string]tenantmanager.DatabaseConfig{
-						"onboarding": {
-							PostgreSQL: &tenantmanager.PostgreSQLConfig{
-								Host:     "unreachable-host-that-does-not-exist.invalid",
-								Port:     5432,
-								Database: "midaz",
-								Username: "test",
-								Password: "test",
-							},
-						},
+			Databases: map[string]tenantmanager.DatabaseConfig{
+				"onboarding": {
+					PostgreSQL: &tenantmanager.PostgreSQLConfig{
+						Host:     "unreachable-host-that-does-not-exist.invalid",
+						Port:     5432,
+						Database: "midaz",
+						Username: "test",
+						Password: "test",
 					},
 				},
 			},
@@ -715,18 +707,14 @@ func TestWithTenantDB_Returns503WhenMongoUnavailable(t *testing.T) {
 			ID:            tenantID,
 			TenantSlug:    "test-tenant",
 			IsolationMode: "isolated",
-			Databases: map[string]tenantmanager.ServiceDatabaseConfig{
-				"ledger": {
-					Services: map[string]tenantmanager.DatabaseConfig{
-						"onboarding": {
-							PostgreSQL: &tenantmanager.PostgreSQLConfig{
-								Host:     "localhost",
-								Port:     5432,
-								Database: "midaz",
-								Username: "test",
-								Password: "test",
-							},
-						},
+			Databases: map[string]tenantmanager.DatabaseConfig{
+				"onboarding": {
+					PostgreSQL: &tenantmanager.PostgreSQLConfig{
+						Host:     "localhost",
+						Port:     5432,
+						Database: "midaz",
+						Username: "test",
+						Password: "test",
 					},
 				},
 			},
@@ -901,7 +889,7 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 						ID:            tenantID,
 						TenantSlug:    "test",
 						IsolationMode: "isolated",
-						Databases:     map[string]tenantmanager.ServiceDatabaseConfig{},
+						Databases:     map[string]tenantmanager.DatabaseConfig{},
 					}
 				})
 			},
@@ -922,18 +910,14 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 						ID:            tenantID,
 						TenantSlug:    "test",
 						IsolationMode: "schema",
-						Databases: map[string]tenantmanager.ServiceDatabaseConfig{
-							"ledger": {
-								Services: map[string]tenantmanager.DatabaseConfig{
-									"onboarding": {
-										PostgreSQL: &tenantmanager.PostgreSQLConfig{
-											Host:     "localhost",
-											Port:     5432,
-											Database: "midaz",
-											Username: "test",
-											Password: "test",
-										},
-									},
+						Databases: map[string]tenantmanager.DatabaseConfig{
+							"onboarding": {
+								PostgreSQL: &tenantmanager.PostgreSQLConfig{
+									Host:     "localhost",
+									Port:     5432,
+									Database: "midaz",
+									Username: "test",
+									Password: "test",
 								},
 							},
 						},
