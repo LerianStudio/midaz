@@ -123,6 +123,8 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	go uc.SendTransactionEvents(ctx, tran)
 
+	logger.Infof("Backup queue: cleaning up transaction %s after successful processing", tran.ID)
+
 	go uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
 
 	return nil
@@ -222,9 +224,9 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
 
 	if err := uc.RedisRepo.RemoveMessageFromQueue(ctx, transactionKey); err != nil {
-		logger.Warnf("err to remove message on redis: %s", err.Error())
+		logger.Warnf("Backup queue: failed to remove transaction %s: %s", transactionKey, err.Error())
 	} else {
-		logger.Infof("message removed from redis successfully: %s", transactionKey)
+		logger.Infof("Backup queue: transaction removed successfully from backup_queue:{transactions} with key %s", transactionKey)
 	}
 }
 

@@ -74,7 +74,10 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 		return err
 	}
 
-	if _, err := uc.RabbitMQRepo.ProducerDefault(
+	// ProducerDefaultWithContext handles scoped timeout internally.
+	// If it fails, we fall back to direct DB write using the original context
+	// which still has remaining HTTP timeout.
+	if _, err := uc.RabbitMQRepo.ProducerDefaultWithContext(
 		ctx,
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
@@ -84,6 +87,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 
 		logger.Infof("Trying to send message directly to database: %s", tran.ID)
 
+		// Use original context for fallback - it still has remaining HTTP timeout
 		err = uc.CreateBalanceTransactionOperationsAsync(ctx, queueMessage)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to send message directly to database", err)
