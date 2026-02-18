@@ -6,7 +6,7 @@ on:
       - develop
       - release-candidate
       - main
-      - maintenance/v*
+      - maintenance/v3.3.x
     paths-ignore:
       - '.gitignore'
       - '**/*.env'   # Ignores all .env files
@@ -15,6 +15,7 @@ on:
       - '*.md'       # Ignores .md files in the root directory
       - '**/*.txt'   # Ignores all .env files
       - '*.txt'      # Ignores .env files in the root directory
+      - '.github/workflows/**'
     tags-ignore: ['**']
 
 permissions:
