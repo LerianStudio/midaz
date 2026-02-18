@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
@@ -17,6 +18,32 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// mockConsumerTrigger implements mbootstrap.ConsumerTrigger for testing.
+// It records which tenant IDs had their consumers triggered.
+type mockConsumerTrigger struct {
+	mu        sync.Mutex
+	triggered []string
+}
+
+// EnsureConsumerStarted records the tenant ID that was triggered.
+func (m *mockConsumerTrigger) EnsureConsumerStarted(_ context.Context, tenantID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.triggered = append(m.triggered, tenantID)
+}
+
+// getTriggered returns a copy of the triggered tenant IDs (thread-safe).
+func (m *mockConsumerTrigger) getTriggered() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	result := make([]string, len(m.triggered))
+	copy(result, m.triggered)
+
+	return result
+}
 
 // createMockJWT creates a mock JWT token with the given claims for testing.
 func createMockJWT(claims map[string]interface{}) string {
@@ -223,7 +250,7 @@ func TestDualPoolMiddleware_SingleTenantMode(t *testing.T) {
 		TransactionPool: transactionPool,
 	}
 
-	middleware := NewDualPoolMiddleware(pools, logger)
+	middleware := NewDualPoolMiddleware(pools, nil, logger)
 
 	app := fiber.New()
 	app.Use(middleware.WithTenantDB)
@@ -274,7 +301,7 @@ func TestDualPoolMiddleware_WithDefaultConnection(t *testing.T) {
 		TransactionPool: transactionPool,
 	}
 
-	middleware := NewDualPoolMiddleware(pools, logger)
+	middleware := NewDualPoolMiddleware(pools, nil, logger)
 
 	app := fiber.New()
 	app.Use(middleware.WithTenantDB)
@@ -335,12 +362,26 @@ func TestNewDualPoolMiddleware(t *testing.T) {
 		TransactionPool: transactionPool,
 	}
 
-	middleware := NewDualPoolMiddleware(pools, logger)
+	t.Run("without consumer trigger", func(t *testing.T) {
+		middleware := NewDualPoolMiddleware(pools, nil, logger)
 
-	assert.NotNil(t, middleware)
-	assert.Equal(t, onboardingPool, middleware.onboardingPool)
-	assert.Equal(t, transactionPool, middleware.transactionPool)
-	assert.NotNil(t, middleware.logger)
+		assert.NotNil(t, middleware)
+		assert.Equal(t, onboardingPool, middleware.onboardingPool)
+		assert.Equal(t, transactionPool, middleware.transactionPool)
+		assert.Nil(t, middleware.consumerTrigger)
+		assert.NotNil(t, middleware.logger)
+	})
+
+	t.Run("with consumer trigger", func(t *testing.T) {
+		trigger := &mockConsumerTrigger{}
+		middleware := NewDualPoolMiddleware(pools, trigger, logger)
+
+		assert.NotNil(t, middleware)
+		assert.Equal(t, onboardingPool, middleware.onboardingPool)
+		assert.Equal(t, transactionPool, middleware.transactionPool)
+		assert.Equal(t, trigger, middleware.consumerTrigger)
+		assert.NotNil(t, middleware.logger)
+	})
 }
 
 func TestMultiTenantPools_Structure(t *testing.T) {

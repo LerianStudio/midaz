@@ -16,6 +16,7 @@ import (
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	midazHTTP "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -40,22 +41,27 @@ type UnifiedServer struct {
 // DualPoolMiddleware provides path-based routing to the correct tenant connection pool.
 // It selects the appropriate pool (onboarding or transaction) based on the request path.
 // Supports both PostgreSQL (TenantConnectionPool) and MongoDB (MongoPool) connections.
+// Optionally triggers on-demand consumer activation for multi-tenant lazy mode.
 type DualPoolMiddleware struct {
 	onboardingPool       *tenantmanager.TenantConnectionManager
 	transactionPool      *tenantmanager.TenantConnectionManager
 	onboardingMongoPool  *tenantmanager.MongoManager
 	transactionMongoPool *tenantmanager.MongoManager
+	consumerTrigger      mbootstrap.ConsumerTrigger
 	logger               libLog.Logger
 }
 
 // NewDualPoolMiddleware creates a middleware that routes requests to the appropriate pool.
 // Supports both PostgreSQL and MongoDB pools for multi-tenant database routing.
-func NewDualPoolMiddleware(pools *MultiTenantPools, logger libLog.Logger) *DualPoolMiddleware {
+// The consumerTrigger parameter is optional (nil in single-tenant mode). When provided,
+// it ensures the RabbitMQ consumer is active for the tenant on each request (lazy mode trigger).
+func NewDualPoolMiddleware(pools *MultiTenantPools, consumerTrigger mbootstrap.ConsumerTrigger, logger libLog.Logger) *DualPoolMiddleware {
 	return &DualPoolMiddleware{
 		onboardingPool:       pools.OnboardingPool,
 		transactionPool:      pools.TransactionPool,
 		onboardingMongoPool:  pools.OnboardingMongoPool,
 		transactionMongoPool: pools.TransactionMongoPool,
+		consumerTrigger:      consumerTrigger,
 		logger:               logger,
 	}
 }
@@ -123,6 +129,14 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 	// Store tenant ID in context using lib-commons tenantmanager context function
 	ctx = tenantmanager.ContextWithTenantID(ctx, tenantID)
 	logger.Infof("[WithTenantDB] Set tenant ID in context: %s", tenantID)
+
+	// Lazy mode trigger: ensure RabbitMQ consumer is active for this tenant.
+	// In multi-tenant lazy mode, consumers are not started until the first request
+	// arrives for a tenant. This call is a no-op if the consumer is already running.
+	if m.consumerTrigger != nil {
+		m.consumerTrigger.EnsureConsumerStarted(ctx, tenantID)
+		logger.Infof("[WithTenantDB] Ensured consumer started for tenant: %s", tenantID)
+	}
 
 	// Get tenant-specific connection from the selected pool
 	conn, err := pool.GetConnection(ctx, tenantID)
@@ -437,11 +451,14 @@ func handleUnifiedServerError(c *fiber.Ctx, err error) error {
 // in one Fiber app.
 // tenantPools is optional - when provided, enables multi-tenant database routing
 // with path-based pool selection (onboarding vs transaction).
+// consumerTrigger is optional - when provided, triggers on-demand RabbitMQ consumer
+// activation in the tenant middleware (lazy mode).
 func NewUnifiedServer(
 	serverAddress string,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
 	tenantPools *MultiTenantPools,
+	consumerTrigger mbootstrap.ConsumerTrigger,
 	routeRegistrars ...RouteRegistrar,
 ) *UnifiedServer {
 	app := fiber.New(fiber.Config{
@@ -460,7 +477,7 @@ func NewUnifiedServer(
 	// The middleware extracts tenant ID from JWT and routes to the appropriate pool
 	// based on the request path (onboarding vs transaction)
 	if tenantPools != nil {
-		dualPoolMid := NewDualPoolMiddleware(tenantPools, logger)
+		dualPoolMid := NewDualPoolMiddleware(tenantPools, consumerTrigger, logger)
 		app.Use(dualPoolMid.WithTenantDB)
 		logger.Info("Multi-tenant middleware enabled with dual pools (onboarding + transaction)")
 	} else {

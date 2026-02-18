@@ -244,6 +244,14 @@ func (c *MultiTenantRabbitMQConsumer) Close() error {
 	return c.consumer.Close()
 }
 
+// EnsureConsumerStarted triggers on-demand consumer spawning for the given tenant.
+// This is called from the tenant middleware when an HTTP request arrives for a tenant,
+// ensuring the RabbitMQ consumer is active (lazy mode trigger).
+// If the consumer for the given tenant is already running, this is a no-op.
+func (c *MultiTenantRabbitMQConsumer) EnsureConsumerStarted(ctx context.Context, tenantID string) {
+	c.consumer.EnsureConsumerStarted(ctx, tenantID)
+}
+
 // Stats returns statistics about the consumer.
 func (c *MultiTenantRabbitMQConsumer) Stats() tenantmanager.MultiTenantConsumerStats {
 	return c.consumer.Stats()

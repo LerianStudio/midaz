@@ -235,6 +235,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Create route registrar for ledger-specific routes (metadata indexes)
 	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler)
 
+	// Get consumer trigger for on-demand RabbitMQ consumer activation (lazy mode).
+	// In multi-tenant mode, the tenant middleware uses this to ensure the consumer
+	// is active when the first HTTP request arrives for a tenant.
+	consumerTrigger := transactionService.GetConsumerTrigger()
+
+	if consumerTrigger != nil {
+		ledgerLogger.Info("Consumer trigger available - lazy mode consumer activation enabled in tenant middleware")
+	}
+
 	ledgerLogger.Info("Creating unified HTTP server on " + cfg.ServerAddress)
 
 	// Create the unified server that consolidates all routes on a single port
@@ -244,6 +253,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		ledgerLogger,
 		telemetry,
 		tenantPools,
+		consumerTrigger,
 		onboardingService.GetRouteRegistrar(),
 		transactionService.GetRouteRegistrar(),
 		ledgerRouteRegistrar,

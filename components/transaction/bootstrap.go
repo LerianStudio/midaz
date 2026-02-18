@@ -29,6 +29,12 @@ type TransactionService interface {
 	// GetRouteRegistrar returns a function that registers transaction routes to a Fiber app.
 	// This is used by the unified ledger server to consolidate all routes on a single port.
 	GetRouteRegistrar() func(*fiber.App)
+
+	// GetConsumerTrigger returns a ConsumerTrigger for on-demand consumer activation.
+	// In multi-tenant lazy mode, the tenant middleware calls this to ensure the
+	// RabbitMQ consumer is active when an HTTP request arrives for a tenant.
+	// Returns nil if multi-tenant consumer is not configured.
+	GetConsumerTrigger() mbootstrap.ConsumerTrigger
 }
 
 // Options configures the transaction service initialization behavior.

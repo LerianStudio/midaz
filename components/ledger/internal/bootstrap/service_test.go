@@ -71,6 +71,10 @@ func (s *StubTransactionService) GetRouteRegistrar() func(*fiber.App) {
 	return func(app *fiber.App) {}
 }
 
+func (s *StubTransactionService) GetConsumerTrigger() mbootstrap.ConsumerTrigger {
+	return nil
+}
+
 // Ensure StubTransactionService implements transaction.TransactionService
 var _ transaction.TransactionService = (*StubTransactionService)(nil)
 

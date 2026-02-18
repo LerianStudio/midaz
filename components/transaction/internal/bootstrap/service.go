@@ -143,5 +143,17 @@ func (app *Service) GetRouteRegistrar() func(*fiber.App) {
 	}
 }
 
+// GetConsumerTrigger returns a ConsumerTrigger for on-demand consumer activation.
+// In multi-tenant lazy mode, the tenant middleware calls this to ensure the
+// RabbitMQ consumer is active when an HTTP request arrives for a tenant.
+// Returns nil if multi-tenant consumer is not configured (single-tenant mode).
+func (app *Service) GetConsumerTrigger() mbootstrap.ConsumerTrigger {
+	if app.MultiTenantRabbitMQConsumer == nil {
+		return nil
+	}
+
+	return app.MultiTenantRabbitMQConsumer
+}
+
 // Ensure Service implements mbootstrap.Service interface at compile time
 var _ mbootstrap.Service = (*Service)(nil)

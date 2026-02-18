@@ -4,6 +4,8 @@
 package mbootstrap
 
 import (
+	"context"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 )
 
@@ -26,4 +28,15 @@ type Service interface {
 type RunnableConfig struct {
 	Name     string
 	Runnable Runnable
+}
+
+// ConsumerTrigger provides on-demand consumer activation for multi-tenant message queues.
+// In lazy mode, consumers are not started until the first request arrives for a tenant.
+// The tenant middleware calls EnsureConsumerStarted to trigger consumer spawning
+// when an HTTP request arrives for a tenant that does not yet have an active consumer.
+type ConsumerTrigger interface {
+	// EnsureConsumerStarted ensures a message consumer is running for the given tenant.
+	// If the consumer is already running, this is a no-op.
+	// This method is safe for concurrent use by multiple goroutines.
+	EnsureConsumerStarted(ctx context.Context, tenantID string)
 }
