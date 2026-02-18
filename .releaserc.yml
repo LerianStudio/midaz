@@ -44,3 +44,6 @@ branches:
     prerelease: beta
   - name: release-candidate
     prerelease: rc
+  - name: maintenance/v3.4.x
+    range: 3.4.x
+    channel: 3.4.x

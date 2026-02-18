@@ -6,7 +6,7 @@ on:
       - develop
       - release-candidate
       - main
-      - hotfix/v*
+      - maintenance/v3.4.x
     paths-ignore:
       - '.gitignore'
       - '**/*.env'   # Ignores all .env files
@@ -15,6 +15,7 @@ on:
       - '*.md'       # Ignores .md files in the root directory
       - '**/*.txt'   # Ignores all .env files
       - '*.txt'      # Ignores .env files in the root directory
+      - '.github/workflows/**'
     tags-ignore: ['**']
 
 permissions:
@@ -128,7 +129,6 @@ jobs:
       with:
         ci: false
         semantic_version: 23.0.8
-        config_file: ${{ steps.releaserc.outputs.path }}
         extra_plugins: |
           conventional-changelog-conventionalcommits@v7.0.2
           @saithodev/semantic-release-backmerge
