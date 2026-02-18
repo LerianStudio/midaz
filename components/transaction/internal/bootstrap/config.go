@@ -393,6 +393,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Create metric state listener for circuit breaker observability
 	metricStateListener, err := rabbitmq.NewMetricStateListener(telemetry.MetricsFactory)
 	if err != nil {
+		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
+			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
+		}
+
 		return nil, fmt.Errorf("failed to create metric state listener: %w", err)
 	}
 
@@ -434,6 +438,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Create circuit breaker manager (always enabled)
 	circuitBreakerManager, err := NewCircuitBreakerManager(logger, rabbitMQConnection, cbConfig, stateListener)
 	if err != nil {
+		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
+			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
+		}
+
 		return nil, fmt.Errorf("failed to create circuit breaker manager: %w", err)
 	}
 
@@ -445,6 +453,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		cbConfig.OperationTimeout,
 	)
 	if err != nil {
+		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
+			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
+		}
+
 		return nil, fmt.Errorf("failed to create circuit breaker producer: %w", err)
 	}
 

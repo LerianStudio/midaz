@@ -25,6 +25,9 @@ type ProducerRepository interface {
 	// The context deadline/timeout controls how long to wait for RabbitMQ connection.
 	ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error)
 	CheckRabbitMQHealth() bool
+	// Close releases any resources held by the producer (AMQP channel and connection).
+	// Safe to call multiple times or on nil receivers.
+	Close() error
 }
 
 // ProducerRabbitMQRepository is a rabbitmq implementation of the producer
@@ -151,4 +154,33 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.C
 	logger.Infof("Messages sent successfully to exchange: %s, key: %s (with context)", exchange, key)
 
 	return nil, nil
+}
+
+// Close releases AMQP channel and connection resources.
+// Safe to call multiple times or on nil receivers.
+// Returns the first error encountered, but attempts to close both channel and connection.
+func (prmq *ProducerRabbitMQRepository) Close() error {
+	if prmq == nil || prmq.conn == nil {
+		return nil
+	}
+
+	var firstErr error
+
+	// Close channel first
+	if prmq.conn.Channel != nil {
+		if err := prmq.conn.Channel.Close(); err != nil {
+			firstErr = fmt.Errorf("failed to close AMQP channel: %w", err)
+		}
+	}
+
+	// Close connection
+	if prmq.conn.Connection != nil {
+		if err := prmq.conn.Connection.Close(); err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("failed to close AMQP connection: %w", err)
+			}
+		}
+	}
+
+	return firstErr
 }

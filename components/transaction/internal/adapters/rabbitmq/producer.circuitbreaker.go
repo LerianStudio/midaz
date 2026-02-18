@@ -169,3 +169,13 @@ func (p *CircuitBreakerProducer) IsCircuitHealthy() bool {
 func (p *CircuitBreakerProducer) GetCounts() libCircuitBreaker.Counts {
 	return p.cbManager.GetCounts(CircuitBreakerServiceName)
 }
+
+// Close releases resources held by the underlying producer.
+// Safe to call multiple times or on nil receivers.
+func (p *CircuitBreakerProducer) Close() error {
+	if p == nil || p.underlying == nil {
+		return nil
+	}
+
+	return p.underlying.Close()
+}
