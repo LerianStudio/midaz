@@ -67,7 +67,8 @@ export class MidazSegmentRepository implements SegmentRepository {
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/segments${createQueryString(
         {
           page: filters.page,
-          limit: filters.limit
+          limit: filters.limit,
+          sort_order: filters.sortOrder || 'desc'
         }
       )}`
     )

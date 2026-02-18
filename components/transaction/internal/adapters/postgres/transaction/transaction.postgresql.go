@@ -46,7 +46,7 @@ const transactionColumns = "id, parent_transaction_id, description, status, stat
 
 // operationColumnsForJoin defines the explicit column list for operation table when used in JOINs.
 // This ensures backward compatibility when new columns are added in future versions.
-const operationColumnsForJoin = "o.id, o.transaction_id, o.description, o.type, o.asset_code, o.amount, o.available_balance, o.on_hold_balance, o.available_balance_after, o.on_hold_balance_after, o.status, o.status_description, o.account_id, o.account_alias, o.balance_id, o.chart_of_accounts, o.organization_id, o.ledger_id, o.created_at, o.updated_at, o.deleted_at, o.route, o.balance_affected, o.balance_key"
+const operationColumnsForJoin = "o.id, o.transaction_id, o.description, o.type, o.asset_code, o.amount, o.available_balance, o.on_hold_balance, o.available_balance_after, o.on_hold_balance_after, o.status, o.status_description, o.account_id, o.account_alias, o.balance_id, o.chart_of_accounts, o.organization_id, o.ledger_id, o.created_at, o.updated_at, o.deleted_at, o.route, o.balance_affected, o.balance_key, o.balance_version_before, o.balance_version_after"
 
 // transactionColumnsAliased defines the explicit column list for transaction table with alias prefix.
 const transactionColumnsAliased = "t.id, t.parent_transaction_id, t.description, t.status, t.status_description, t.amount, t.asset_code, t.chart_of_accounts_group_name, t.ledger_id, t.organization_id, t.body, t.created_at, t.updated_at, t.deleted_at, t.route"
@@ -784,6 +784,8 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&op.Route,
 			&op.BalanceAffected,
 			&op.BalanceKey,
+			&op.VersionBalance,
+			&op.VersionBalanceAfter,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
@@ -868,7 +870,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	subQuery, orderDirection = libHTTP.ApplyCursorPagination(subQuery, decodedCursor, orderDirection, filter.Limit)
 
 	findAll := squirrel.
-		Select(transactionColumnsAliased + ", " + operationColumnsForJoin).
+		Select(transactionColumnsAliased+", "+operationColumnsForJoin).
 		FromSelect(subQuery, "t").
 		LeftJoin("operation o ON t.id = o.transaction_id").
 		PlaceholderFormat(squirrel.Dollar).
@@ -916,6 +918,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			opCreatedAt, opUpdatedAt                                     *time.Time
 			opDeletedAt                                                  sql.NullTime
 			opBalanceAffected                                            *bool
+			opVersionBalance, opVersionBalanceAfter                      *int64
 		)
 
 		if err := rows.Scan(
@@ -958,6 +961,8 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&opRoute,
 			&opBalanceAffected,
 			&opBalanceKey,
+			&opVersionBalance,
+			&opVersionBalanceAfter,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
@@ -1015,7 +1020,10 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 				Route:                 opRoute,
 				BalanceAffected:       *opBalanceAffected,
 				BalanceKey:            *opBalanceKey,
+				VersionBalance:        opVersionBalance,
+				VersionBalanceAfter:   opVersionBalanceAfter,
 			}
+
 			t.Operations = append(t.Operations, op.ToEntity())
 		}
 	}

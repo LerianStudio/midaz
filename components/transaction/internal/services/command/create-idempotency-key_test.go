@@ -296,4 +296,3 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 		uc.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, txn, ttl)
 	})
 }
-

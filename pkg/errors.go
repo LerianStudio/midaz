@@ -154,6 +154,19 @@ func (e FailedPreconditionError) Error() string {
 	return e.Message
 }
 
+// ServiceUnavailableError indicates a dependent service is temporarily unavailable.
+type ServiceUnavailableError struct {
+	EntityType string `json:"entityType,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
+}
+
+func (e ServiceUnavailableError) Error() string {
+	return e.Message
+}
+
 // InternalServerError indicates midaz has an unexpected failure during an operation.
 type InternalServerError struct {
 	EntityType string `json:"entityType,omitempty"`
@@ -955,6 +968,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Transaction Route ID",
 			Message:    "The provided transaction route ID is not a valid UUID format. Please provide a valid UUID for the transaction route.",
 		},
+		constant.ErrInvalidTransactionNonPositiveValue: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidTransactionNonPositiveValue.Error(),
+			Title:      "Invalid Transaction Value",
+			Message:    "Negative or zero transaction values are not allowed. The 'send.value' must be greater than zero.",
+		},
 		constant.ErrAccountingRouteCountMismatch: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountingRouteCountMismatch.Error(),
@@ -1014,6 +1033,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Field for Pending Transaction Error",
 			Message:    "Pending transactions do not support the 'transactionDate' field. To proceed, please remove it from your request.",
 		},
+		constant.ErrDefaultBalanceNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrDefaultBalanceNotFound.Error(),
+			Title:      "Default Balance Not Found",
+			Message:    "Default balance must be created first for this account.",
+		},
 		constant.ErrDuplicatedAliasKeyValue: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrDuplicatedAliasKeyValue.Error(),
@@ -1025,6 +1050,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrAdditionalBalanceNotAllowed.Error(),
 			Title:      "Additional Balance Creation Not Allowed",
 			Message:    "Additional balances are not allowed for external account type.",
+		},
+		constant.ErrAccountCreationFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountCreationFailed.Error(),
+			Title:      "Account Creation Failed",
+			Message:    "The account could not be created because the default balance could not be created. Please try again.",
 		},
 		constant.ErrTransactionBackupCacheFailed: InternalServerError{
 			EntityType: entityType,
@@ -1043,6 +1074,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrTransactionBackupCacheRetrievalFailed.Error(),
 			Title:      "Transaction Backup Cache Retrieval Failed",
 			Message:    "The transaction could not be retrieved from the backup cache internal function. Please ensure the transaction exists in the cache before processing balances.",
+		},
+		constant.ErrGRPCServiceUnavailable: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrGRPCServiceUnavailable.Error(),
+			Title:      "gRPC Service Unavailable",
+			Message:    "The balance service is temporarily unavailable. Please try again later.",
 		},
 	}
 

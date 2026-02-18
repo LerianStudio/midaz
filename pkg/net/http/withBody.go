@@ -170,6 +170,11 @@ func ValidateStruct(s any) error {
 		return &errPtr
 	}
 
+	// Generic null-byte validation across all string fields in the payload
+	if violations := validateNoNullBytes(s); len(violations) > 0 {
+		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
+	}
+
 	return nil
 }
 
@@ -463,6 +468,7 @@ func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) pk
 	requiredFields := fieldsRequired(invalidFieldsMap)
 
 	var vErr pkg.ValidationKnownFieldsError
+
 	_ = errors.As(pkg.ValidateBadRequestFieldsError(requiredFields, invalidFieldsMap, "", make(map[string]any)), &vErr)
 
 	return vErr
@@ -492,6 +498,83 @@ func fieldsRequired(myMap pkg.FieldValidations) pkg.FieldValidations {
 	}
 
 	return result
+}
+
+// validateNoNullBytes walks through the struct payload and ensures no string value contains a null byte (\x00).
+// Returns a map of invalid field names to error messages when violations are found.
+func validateNoNullBytes(s any) pkg.FieldValidations {
+	out := make(pkg.FieldValidations)
+
+	rv := reflect.ValueOf(s)
+
+	collectNullByteViolations(rv, "", out)
+
+	if len(out) == 0 {
+		return nil
+	}
+
+	return out
+}
+
+// collectNullByteViolations recursively traverses values and records fields that contain null bytes.
+func collectNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+	if !rv.IsValid() {
+		return
+	}
+
+	switch rv.Kind() {
+	case reflect.Ptr:
+		if rv.IsNil() {
+			return
+		}
+
+		collectNullByteViolations(rv.Elem(), jsonPath, out)
+	case reflect.Struct:
+		rt := rv.Type()
+		for i := 0; i < rv.NumField(); i++ {
+			f := rt.Field(i)
+
+			// Skip unexported fields
+			if f.PkgPath != "" {
+				continue
+			}
+
+			name := jsonFieldName(f)
+			if name == "-" {
+				continue
+			}
+
+			collectNullByteViolations(rv.Field(i), name, out)
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < rv.Len(); i++ {
+			collectNullByteViolations(rv.Index(i), jsonPath, out)
+		}
+	case reflect.String:
+		if strings.ContainsRune(rv.String(), '\x00') {
+			key := jsonPath
+			if key == "" {
+				key = "value"
+			}
+
+			out[key] = key + " cannot contain null byte (\\x00)"
+		}
+	default:
+		// primitives: no-op
+	}
+}
+
+// jsonFieldName returns the effective JSON field name for a struct field.
+func jsonFieldName(f reflect.StructField) string {
+	tag := f.Tag.Get("json")
+
+	name := strings.Split(tag, ",")[0]
+
+	if name == "" {
+		return f.Name
+	}
+
+	return name
 }
 
 // parseMetadata For compliance with RFC7396 JSON Merge Patch

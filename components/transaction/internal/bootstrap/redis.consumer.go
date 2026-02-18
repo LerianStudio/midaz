@@ -59,7 +59,7 @@ func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
 	}
 }
 
-//nolint:dogsled
+//nolint:dogsled,gocognit
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -136,6 +136,7 @@ Outer:
 			select {
 			case <-msgCtxWithSpan.Done():
 				logger.Warn("Transaction message processing cancelled due to shutdown/timeout")
+
 				return
 			default:
 			}
@@ -168,6 +169,7 @@ Outer:
 
 			if m.Validate == nil {
 				logger.Warnf("Message (key: %s) has nil Validate field, skipping. Message will remain in queue.", key)
+
 				return
 			}
 

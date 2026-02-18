@@ -23,13 +23,17 @@ export class MidazTransactionRepository implements TransactionRepository {
   async create(
     organizationId: string,
     ledgerId: string,
-    transaction: TransactionEntity
+    transaction: TransactionEntity,
+    idempotencyKey: string
   ): Promise<TransactionEntity> {
     const dto = MidazTransactionMapper.toCreateDto(transaction)
     const response = await this.httpService.post<MidazTransactionDto>(
       `${this.baseUrl}/organizations/${organizationId}/ledgers/${ledgerId}/transactions/json`,
       {
-        body: JSON.stringify(dto)
+        body: JSON.stringify(dto),
+        headers: {
+          'X-Idempotency': idempotencyKey
+        }
       }
     )
 

@@ -143,6 +143,14 @@ definitions:
         example: 500
         minimum: 0
         type: number
+      version:
+        description: |-
+          Balance version after the operation
+          example: 2
+          minimum: 0
+        example: 2
+        minimum: 0
+        type: integer
     type: object
   CreateAdditionalBalance:
     description: Request payload for creating a new balance with specified permissions
@@ -3457,6 +3465,10 @@ paths:
           description: Transaction already has a parent transaction
           schema:
             $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
+          schema:
+            $ref: '#/definitions/Error'
         "500":
           description: Internal server error
           schema:
@@ -3514,6 +3526,10 @@ paths:
           description: Forbidden access
           schema:
             $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
+          schema:
+            $ref: '#/definitions/Error'
         "500":
           description: Internal server error
           schema:
@@ -3568,6 +3584,10 @@ paths:
             $ref: '#/definitions/Error'
         "403":
           description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
           schema:
             $ref: '#/definitions/Error'
         "500":
@@ -3627,6 +3647,10 @@ paths:
           description: Forbidden access
           schema:
             $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
+          schema:
+            $ref: '#/definitions/Error'
         "500":
           description: Internal server error
           schema:
@@ -3684,6 +3708,10 @@ paths:
           description: Forbidden access
           schema:
             $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
+          schema:
+            $ref: '#/definitions/Error'
         "500":
           description: Internal server error
           schema:
@@ -3739,6 +3767,10 @@ paths:
             $ref: '#/definitions/Error'
         "403":
           description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "422":
+          description: Unprocessable Entity, validation errors
           schema:
             $ref: '#/definitions/Error'
         "500":

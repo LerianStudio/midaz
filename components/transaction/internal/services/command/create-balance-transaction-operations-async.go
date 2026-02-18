@@ -180,12 +180,6 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 // CreateMetadataAsync func that create metadata into operations
 func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger, metadata map[string]any, ID string, collection string) error {
 	if metadata != nil {
-		if err := libCommons.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
-			logger.Errorf("Error checking metadata key and value length: %v", err)
-
-			return err
-		}
-
 		meta := mongodb.Metadata{
 			EntityID:   ID,
 			EntityName: collection,

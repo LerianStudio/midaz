@@ -228,19 +228,21 @@ local function validateTransactionExists(transactionBackupQueue, transactionKey)
 end
 
 local function main()
-    local ttl = 3600
+    local ttl = 3600 -- 1 hour
     local groupSize = 16
     local returnBalances = {}
     local rollbackBalances = {}
 
     local transactionBackupQueue = KEYS[1]
     local transactionKey = KEYS[2]
-
-    -- local validationErr = validateTransactionExists(transactionBackupQueue, transactionKey)
-    -- if validationErr then
-    --     return validationErr
-    -- end
-
+    local scheduleKey = KEYS[3]
+    
+    -- schedule a pre-expire warning 10 minutes before the TTL
+    local warnBefore = 600 -- 10 minutes
+    local timeNow = redis.call("TIME")
+    local nowSec = tonumber(timeNow[1])
+    local dueAt = nowSec + (ttl - warnBefore)
+    
     for i = 1, #ARGV, groupSize do
         local redisBalanceKey = ARGV[i]
         local isPending = tonumber(ARGV[i + 1])
@@ -326,6 +328,8 @@ local function main()
 
         redisBalance = cjson.encode(balance)
         redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
+
+        redis.call("ZADD", scheduleKey, dueAt, redisBalanceKey)
     end
 
     updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances)

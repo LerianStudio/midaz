@@ -16,7 +16,7 @@ import (
 const midazName = "midaz"
 const routingName = "routing"
 
-// NewRouter registerNewRouters routes to the Server.
+// NewRouter register NewRouter routes to the Server.
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,

@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -10,9 +11,9 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
@@ -22,10 +23,14 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const ApplicationName = "onboarding"
@@ -55,17 +60,9 @@ type Config struct {
 	MongoDBUser                  string `env:"MONGO_USER"`
 	MongoDBPassword              string `env:"MONGO_PASSWORD"`
 	MongoDBPort                  string `env:"MONGO_PORT"`
+	MongoDBParameters            string `env:"MONGO_PARAMETERS"`
 	MaxPoolSize                  int    `env:"MONGO_MAX_POOL_SIZE"`
 	JWKAddress                   string `env:"CASDOOR_JWK_ADDRESS"`
-	RabbitURI                    string `env:"RABBITMQ_URI"`
-	RabbitMQHost                 string `env:"RABBITMQ_HOST"`
-	RabbitMQPortHost             string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP             string `env:"RABBITMQ_PORT_AMQP"`
-	RabbitMQUser                 string `env:"RABBITMQ_DEFAULT_USER"`
-	RabbitMQPass                 string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQExchange             string `env:"RABBITMQ_EXCHANGE"`
-	RabbitMQHealthCheckURL       string `env:"RABBITMQ_HEALTH_CHECK_URL"`
-	RabbitMQKey                  string `env:"RABBITMQ_KEY"`
 	OtelServiceName              string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName              string `env:"OTEL_LIBRARY_NAME"`
 	OtelServiceVersion           string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
@@ -95,6 +92,8 @@ type Config struct {
 	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
 	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
+	TransactionGRPCAddress       string `env:"TRANSACTION_GRPC_ADDRESS"`
+	TransactionGRPCPort          string `env:"TRANSACTION_GRPC_PORT"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -134,11 +133,18 @@ func InitServers() *Service {
 		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
 
-	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
+	// Extract port and parameters for MongoDB connection
+	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
+
+	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
+		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, mongoPort)
 
 	if cfg.MaxPoolSize <= 0 {
 		cfg.MaxPoolSize = 100
+	}
+
+	if mongoParameters != "" {
+		mongoSource += "?" + mongoParameters
 	}
 
 	mongoConnection := &libMongo.MongoConnection{
@@ -146,19 +152,6 @@ func InitServers() *Service {
 		Database:               cfg.MongoDBName,
 		Logger:                 logger,
 		MaxPoolSize:            uint64(cfg.MaxPoolSize),
-	}
-
-	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
-
-	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQUser,
-		Pass:                   cfg.RabbitMQPass,
-		Logger:                 logger,
 	}
 
 	redisConnection := &libRedis.RedisConnection{
@@ -186,6 +179,23 @@ func InitServers() *Service {
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
 
+	if cfg.TransactionGRPCAddress == "" {
+		cfg.TransactionGRPCAddress = "midaz-transaction"
+
+		logger.Warn("TRANSACTION_GRPC_ADDRESS not set, using default: midaz-transaction")
+	}
+
+	if cfg.TransactionGRPCPort == "" {
+		cfg.TransactionGRPCPort = "3011"
+
+		logger.Warn("TRANSACTION_GRPC_PORT not set, using default: 3011")
+	}
+
+	grpcConnection := &mgrpc.GRPCConnection{
+		Addr:   fmt.Sprintf("%s:%s", cfg.TransactionGRPCAddress, cfg.TransactionGRPCPort),
+		Logger: logger,
+	}
+
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
 	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
@@ -198,7 +208,24 @@ func InitServers() *Service {
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
-	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	// Ensure indexes also for known base collections on fresh installs
+	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancelEnsureIndexes()
+
+	indexModel := mongo.IndexModel{
+		Keys: bson.D{{Key: "entity_id", Value: 1}},
+		Options: options.Index().
+			SetUnique(false),
+	}
+
+	collections := []string{"organization", "ledger", "segment", "account", "portfolio", "asset", "account_type"}
+	for _, collection := range collections {
+		if err := mongoConnection.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
+			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
+		}
+	}
+
+	balanceGRPCRepository := out.NewBalanceGRPC(grpcConnection)
 
 	commandUseCase := &command.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
@@ -209,8 +236,8 @@ func InitServers() *Service {
 		AssetRepo:        assetPostgreSQLRepository,
 		AccountTypeRepo:  accountTypePostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
-		RabbitMQRepo:     producerRabbitMQRepository,
 		RedisRepo:        redisConsumerRepository,
+		BalanceGRPCRepo:  balanceGRPCRepository,
 	}
 
 	queryUseCase := &query.UseCase{

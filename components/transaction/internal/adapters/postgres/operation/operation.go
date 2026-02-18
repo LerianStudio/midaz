@@ -21,8 +21,10 @@ type OperationPostgreSQLModel struct {
 	Amount                *decimal.Decimal // Operation amount value
 	AvailableBalance      *decimal.Decimal // Available balance before operation
 	OnHoldBalance         *decimal.Decimal // On-hold balance before operation
+	VersionBalance        *int64           // Balance version before operation
 	AvailableBalanceAfter *decimal.Decimal // Available balance after operation
 	OnHoldBalanceAfter    *decimal.Decimal // On-hold balance after operation
+	VersionBalanceAfter   *int64           // Balance version after operation
 	Status                string           // Status code (e.g., "ACTIVE", "PENDING")
 	StatusDescription     *string          // Status description
 	AccountID             string           // Account ID associated with operation
@@ -91,6 +93,11 @@ type Balance struct {
 	// example: 500
 	// minimum: 0
 	OnHold *decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
+
+	// Balance version after the operation
+	// example: 2
+	// minimum: 0
+	Version *int64 `json:"version" example:"2" minimum:"0"`
 } // @name Balance
 
 // IsEmpty method that set empty or nil in fields
@@ -219,11 +226,13 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 	balance := Balance{
 		Available: t.AvailableBalance,
 		OnHold:    t.OnHoldBalance,
+		Version:   t.VersionBalance,
 	}
 
 	balanceAfter := Balance{
 		Available: t.AvailableBalanceAfter,
 		OnHold:    t.OnHoldBalanceAfter,
+		Version:   t.VersionBalanceAfter,
 	}
 
 	Operation := &Operation{
@@ -283,8 +292,10 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		Amount:                operation.Amount.Value,
 		OnHoldBalance:         operation.Balance.OnHold,
 		AvailableBalance:      operation.Balance.Available,
+		VersionBalance:        operation.Balance.Version,
 		AvailableBalanceAfter: operation.BalanceAfter.Available,
 		OnHoldBalanceAfter:    operation.BalanceAfter.OnHold,
+		VersionBalanceAfter:   operation.BalanceAfter.Version,
 		Status:                operation.Status.Code,
 		StatusDescription:     operation.Status.Description,
 		AccountID:             operation.AccountID,

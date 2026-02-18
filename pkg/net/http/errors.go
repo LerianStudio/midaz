@@ -33,6 +33,7 @@ func WithError(c *fiber.Ctx, err error) error {
 		return BadRequest(c, e)
 	case pkg.ResponseError:
 		var rErr pkg.ResponseError
+
 		_ = errors.As(err, &rErr)
 
 		return JSONResponseError(c, rErr)
@@ -54,6 +55,8 @@ func WithError(c *fiber.Ctx, err error) error {
 
 	case pkg.InternalServerError:
 		return InternalServerError(c, e.Code, e.Title, e.Message)
+	case pkg.ServiceUnavailableError:
+		return ServiceUnavailable(c, e.Code, e.Title, e.Message)
 	default:
 		return pkg.ValidateInternalError(err, "")
 	}

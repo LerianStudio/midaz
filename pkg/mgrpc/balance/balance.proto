@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package balance;
+
+option go_package = "./balance";
+
+// Balance corresponds to pkg/mmodel.Balance
+message Balance {
+  string id = 1;
+  string organization_id = 2;
+  string ledger_id = 3;
+  string account_id = 4;
+
+  string alias = 5;
+  string key = 6;
+  string asset_code = 7;
+
+  string available = 8;
+  string on_hold = 9;
+
+  int64 version = 10;
+  string account_type = 11;
+  bool allow_sending = 12;
+  bool allow_receiving = 13;
+
+  string created_at = 14;
+  string updated_at = 15;
+  // Null when not deleted
+  string deleted_at = 16;
+
+  Metadata metadata = 17;
+}
+
+message Metadata {
+  map<string, string> value = 1;
+}
+
+// Request payload for creating a balance with all required properties
+message BalanceRequest {
+  string organization_id = 1;
+  string ledger_id = 2;
+  string account_id = 3;
+  string alias = 4;
+  string key = 5;
+  string asset_code = 6;
+  string account_type = 7;
+  bool allow_sending = 8;
+  bool allow_receiving = 9;
+  string request_id = 10;
+}
+
+// Response payload with a reduced view of balance fields
+message BalanceResponse {
+  string id = 1;
+  string alias = 2;
+  string key = 3;
+  string asset_code = 4;
+  string available = 5;
+  string on_hold = 6;
+  bool allow_sending = 7;
+  bool allow_receiving = 8;
+}
+
+service BalanceProto {
+    rpc CreateBalance(BalanceRequest) returns (BalanceResponse) {}
+}

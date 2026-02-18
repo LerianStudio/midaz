@@ -387,65 +387,6 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	assert.Equal(t, expectedError, err)
 }
 
-// TestCreateTransactionRouteErrorInvalidMetadata tests error when metadata validation fails
-func TestCreateTransactionRouteErrorInvalidMetadata(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	operationRouteID1 := uuid.New()
-	operationRouteID2 := uuid.New()
-
-	// Create metadata that exceeds key length limit
-	longKey := string(make([]byte, 101)) // Exceeds 100 character limit
-	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
-		Metadata:        map[string]any{longKey: "value"},
-	}
-
-	expectedOperationRoutes := []*mmodel.OperationRoute{
-		{
-			ID:            operationRouteID1,
-			OperationType: "source",
-		},
-		{
-			ID:            operationRouteID2,
-			OperationType: "destination",
-		},
-	}
-
-	expectedTransactionRoute := &mmodel.TransactionRoute{
-		ID:          uuid.New(),
-		Title:       payload.Title,
-		Description: payload.Description,
-	}
-
-	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
-	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
-
-	uc := &UseCase{
-		OperationRouteRepo:   mockOperationRouteRepo,
-		TransactionRouteRepo: mockTransactionRouteRepo,
-	}
-
-	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
-		Return(expectedOperationRoutes, nil).
-		Times(1)
-
-	mockTransactionRouteRepo.EXPECT().
-		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(expectedTransactionRoute, nil).
-		Times(1)
-
-	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
-
-	assert.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "0050")
-}
 
 // TestValidateOperationRouteTypesSuccess tests successful validation
 func TestValidateOperationRouteTypesSuccess(t *testing.T) {

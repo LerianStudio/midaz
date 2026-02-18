@@ -1,0 +1,18 @@
+{
+  "code": "TR-INFLOW-001",
+  "description": "Test inflow",
+  "send": {
+    "asset": "USD",
+    "value": "100.00",
+    "distribute": {
+      "to": [
+        {
+          "accountAlias": "cash",
+          "amount": { "asset": "USD", "value": "100.00" },
+          "description": "credit cash"
+        }
+      ]
+    }
+  },
+  "metadata": { "env": "test" }
+}

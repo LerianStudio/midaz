@@ -44,12 +44,6 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 	}
 
 	if payload.Metadata != nil {
-		if err := libCommons.CheckMetadataKeyAndValueLength(100, payload.Metadata); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to check metadata key and value length", err)
-
-			return nil, err
-		}
-
 		meta := mongodb.Metadata{
 			EntityID:   createdOperationRoute.ID.String(),
 			EntityName: reflect.TypeOf(mmodel.OperationRoute{}).Name(),

@@ -100,7 +100,7 @@ jobs:
   update_gitops:
     needs: [build_and_publish]
     if: ${{ contains(github.ref, '-beta') || contains(github.ref, '-rc') }}   # Only run for beta/rc tags
-    runs-on: ubuntu-latest
+    runs-on: firmino-lxc-runners
     steps:
       - uses: actions/checkout@v4
         with:
@@ -118,6 +118,7 @@ jobs:
       - name: Download tags from artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: gitops-tags-*
           path: .gitops-tags
 
       - name: Apply image tags to values.yaml (beta → dev, rc → stg)

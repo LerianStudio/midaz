@@ -28,10 +28,10 @@ plugins:
         release: major
 
   # Plugin to version the CHANGELOG.md
-  - path: "@semantic-release/git"
-    assets:
-      - CHANGELOG.md
-    message: "chore(release): ${nextRelease.version}\n\nChangelog atualizado."
+  - ["@semantic-release/git", {
+      assets: ["CHANGELOG.md"],
+      message: "chore(release): ${nextRelease.version}\n\nupdated changelog."
+    }]
 
   # Plugin to publish the CHANGELOG.md as an asset in the GitHub release
   - path: "@semantic-release/github"
@@ -50,6 +50,6 @@ branches:
     prerelease: beta
   - name: release-candidate
     prerelease: rc
-  - name: maintenance/v3.3.x
-    range: 3.3.x
-    channel: 3.3.x
+  - name: maintenance/v3.4.x
+    range: 3.4.x
+    channel: 3.4.x

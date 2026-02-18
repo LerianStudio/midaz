@@ -179,8 +179,9 @@ func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 	ikey := c.Get(libConstants.IdempotencyKey)
 	iTTL := c.Get(libConstants.IdempotencyTTL)
 
+	// Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
 	t, err := strconv.Atoi(iTTL)
-	if err != nil {
+	if err != nil || t <= 0 {
 		t = libRedis.TTL
 	}
 

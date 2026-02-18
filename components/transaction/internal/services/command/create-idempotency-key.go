@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
@@ -88,4 +88,3 @@ func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organiz
 		logger.Error("Error to set value on lock idempotency key on redis:", err.Error())
 	}
 }
-

@@ -6,6 +6,9 @@ import (
 	"github.com/google/uuid"
 )
 
+const BalanceSyncScheduleKey = "schedule:{transactions}:balance-sync"
+const BalanceSyncLockPrefix = "lock:{transactions}:balance-sync:"
+
 const beginningKey = "{"
 const keySeparator = ":"
 const endKey = "}"
