@@ -108,7 +108,8 @@ func setupIntegrationInfra(t *testing.T) *integrationTestInfra {
 	}
 
 	// Create producer repository
-	producer := NewProducerRabbitMQ(conn)
+	producer, err := NewProducerRabbitMQ(conn)
+	require.NoError(t, err, "failed to create producer")
 
 	return &integrationTestInfra{
 		rmqContainer: rmqContainer,
@@ -149,7 +150,8 @@ func setupRabbitMQChaosInfra(t *testing.T) *chaosTestInfra {
 	}
 
 	// Create producer repository
-	producer := NewProducerRabbitMQ(conn)
+	producer, err := NewProducerRabbitMQ(conn)
+	require.NoError(t, err, "failed to create producer")
 
 	// Create chaos orchestrator
 	chaosOrch := chaos.NewOrchestrator(t)
@@ -220,7 +222,8 @@ func setupRabbitMQNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 		Pass:                   rmqtestutil.DefaultPassword,
 		Logger:                 logger,
 	}
-	proxyProducer := NewProducerRabbitMQ(proxyConn)
+	proxyProducer, err := NewProducerRabbitMQ(proxyConn)
+	require.NoError(t, err, "failed to create proxy producer")
 
 	return &networkChaosTestInfra{
 		rmqContainer:  rmqContainer,

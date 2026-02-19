@@ -9,6 +9,7 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
@@ -47,6 +48,10 @@ type Options struct {
 	// Logger allows callers to provide a pre-configured logger, avoiding multiple
 	// initializations when composing components (e.g. unified ledger).
 	Logger libLog.Logger
+
+	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
+	// This is optional - pass nil if you don't need state change notifications.
+	CircuitBreakerStateListener libCircuitBreaker.StateChangeListener
 }
 
 // InitServers initializes the unified ledger service that composes
@@ -113,10 +118,19 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	ledgerLogger.Info("Initializing transaction module...")
 
+	var stateListener libCircuitBreaker.StateChangeListener
+
+	if opts != nil {
+		stateListener = opts.CircuitBreakerStateListener
+	}
+
+	transactionOpts := &transaction.Options{
+		Logger:                      transactionLogger,
+		CircuitBreakerStateListener: stateListener,
+	}
+
 	// Initialize transaction module first to get the BalancePort
-	transactionService, err := transaction.InitServiceWithOptionsOrError(&transaction.Options{
-		Logger: transactionLogger,
-	})
+	transactionService, err := transaction.InitServiceWithOptionsOrError(transactionOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize transaction module: %w", err)
 	}

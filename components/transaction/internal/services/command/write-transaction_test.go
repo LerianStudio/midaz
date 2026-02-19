@@ -182,9 +182,9 @@ func TestWriteTransaction(t *testing.T) {
 		ledgerID := uuid.New()
 		td := createTestData(organizationID, ledgerID)
 
-		// Expect RabbitMQ producer to be called (async path)
+		// Expect RabbitMQ producer to be called (async path) with context-aware method
 		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
+			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
 			Return(nil, nil).
 			Times(1)
 
@@ -215,9 +215,9 @@ func TestWriteTransaction(t *testing.T) {
 		ledgerID := uuid.New()
 		td := createTestData(organizationID, ledgerID)
 
-		// Expect RabbitMQ producer to be called (async path)
+		// Expect RabbitMQ producer to be called (async path) with context-aware method
 		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
+			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
 			Return(nil, nil).
 			Times(1)
 
@@ -352,7 +352,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		// Expect RabbitMQ producer to be called with correct exchange and key
 		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
+			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
 			Return(nil, nil).
 			Times(1)
 
@@ -389,7 +389,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		// RabbitMQ producer fails - triggers fallback
 		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
+			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
 			Return(nil, errors.New("rabbitmq connection failed")).
 			Times(1)
 
@@ -430,7 +430,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		// RabbitMQ producer fails - triggers fallback
 		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
+			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
 			Return(nil, errors.New("rabbitmq connection failed")).
 			Times(1)
 
@@ -480,7 +480,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		// Expect RabbitMQ producer to be called with empty exchange and key
 		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "", "", gomock.Any()).
+			ProducerDefaultWithContext(gomock.Any(), "", "", gomock.Any()).
 			Return(nil, nil).
 			Times(1)
 

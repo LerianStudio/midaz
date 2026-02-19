@@ -6,23 +6,28 @@ package rabbitmq
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // ProducerRepository provides an interface for Producer related to rabbitmq.
-// // It defines methods for sending messages to a queue.
+// It defines methods for sending messages to a queue.
 type ProducerRepository interface {
 	ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error)
+	// ProducerDefaultWithContext sends message with explicit context timeout control.
+	// The context deadline/timeout controls how long to wait for RabbitMQ connection.
+	ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error)
 	CheckRabbitMQHealth() bool
+	// Close releases any resources held by the producer (AMQP channel and connection).
+	// Safe to call multiple times or on nil receivers.
+	Close() error
 }
 
 // ProducerRabbitMQRepository is a rabbitmq implementation of the producer
@@ -31,17 +36,22 @@ type ProducerRabbitMQRepository struct {
 }
 
 // NewProducerRabbitMQ returns a new instance of ProducerRabbitMQRepository using the given rabbitmq connection.
-func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRepository {
+// Returns an error if the connection cannot be established.
+func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) (*ProducerRabbitMQRepository, error) {
+	if c == nil {
+		return nil, fmt.Errorf("rabbitmq connection cannot be nil")
+	}
+
 	prmq := &ProducerRabbitMQRepository{
 		conn: c,
 	}
 
 	_, err := c.GetNewConnect()
 	if err != nil {
-		panic("Failed to connect rabbitmq")
+		return nil, fmt.Errorf("failed to connect to rabbitmq: %w", err)
 	}
 
-	return prmq
+	return prmq, nil
 }
 
 // CheckRabbitMQHealth checks the health of the rabbitmq connection.
@@ -62,9 +72,52 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
 
-	var err error
+	headers := amqp.Table{
+		libConstants.HeaderID: reqId,
+	}
 
-	backoff := utils.InitialBackoff
+	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
+
+	if err := prmq.conn.EnsureChannel(); err != nil {
+		logger.Errorf("Failed to ensure channel: %v", err)
+		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to ensure channel", err)
+
+		return nil, err
+	}
+
+	err := prmq.conn.Channel.Publish(
+		exchange,
+		key,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType:  "application/json",
+			DeliveryMode: amqp.Persistent,
+			Headers:      headers,
+			Body:         message,
+		},
+	)
+	if err != nil {
+		logger.Errorf("Failed to publish message to exchange: %s, key: %s: %v", exchange, key, err)
+		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message", err)
+
+		return nil, err
+	}
+
+	logger.Infof("Messages sent successfully to exchange: %s, key: %s", exchange, key)
+
+	return nil, nil
+}
+
+// ProducerDefaultWithContext sends a message to RabbitMQ with context-aware timeout.
+// Uses EnsureChannelWithContext to respect context deadline for connection attempts.
+func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error) {
+	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
+
+	logger.Infof("Init sent message to exchange: %s, key: %s (with context)", exchange, key)
+
+	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message_with_context")
+	defer spanProducer.End()
 
 	headers := amqp.Table{
 		libConstants.HeaderID: reqId,
@@ -72,53 +125,62 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
-	for attempt := 0; attempt <= utils.MaxRetries; attempt++ {
-		if err = prmq.conn.EnsureChannel(); err != nil {
-			logger.Errorf("Failed to reopen channel: %v", err)
+	if err := prmq.conn.EnsureChannelWithContext(ctx); err != nil {
+		logger.Errorf("Failed to ensure channel with context: %v", err)
+		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to ensure channel with context", err)
 
-			sleepDuration := utils.FullJitter(backoff)
-			logger.Infof("Retrying to reconnect in %v...", sleepDuration)
-			time.Sleep(sleepDuration)
-
-			backoff = utils.NextBackoff(backoff)
-
-			continue
-		}
-
-		err = prmq.conn.Channel.Publish(
-			exchange,
-			key,
-			false,
-			false,
-			amqp.Publishing{
-				ContentType:  "application/json",
-				DeliveryMode: amqp.Persistent,
-				Headers:      headers,
-				Body:         message,
-			},
-		)
-		if err == nil {
-			logger.Infof("Messages sent successfully to exchange: %s, key: %s", exchange, key)
-
-			return nil, nil
-		}
-
-		logger.Warnf("Failed to publish message to exchange: %s, key: %s, attempt %d/%d: %s", exchange, key, attempt+1, utils.MaxRetries+1, err)
-
-		if attempt == utils.MaxRetries {
-			libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message after retries", err)
-
-			logger.Errorf("Giving up after %d attempts: %s", utils.MaxRetries+1, err)
-
-			return nil, err
-		}
-
-		sleepDuration := utils.FullJitter(backoff)
-		logger.Infof("Retrying to publish message in %v (attempt %d)...", sleepDuration, attempt+2)
-		time.Sleep(sleepDuration)
-
-		backoff = utils.NextBackoff(backoff)
+		return nil, err
 	}
 
-	return nil, err
+	err := prmq.conn.Channel.Publish(
+		exchange,
+		key,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType:  "application/json",
+			DeliveryMode: amqp.Persistent,
+			Headers:      headers,
+			Body:         message,
+		},
+	)
+	if err != nil {
+		logger.Errorf("Failed to publish message to exchange: %s, key: %s: %v", exchange, key, err)
+		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message", err)
+
+		return nil, err
+	}
+
+	logger.Infof("Messages sent successfully to exchange: %s, key: %s (with context)", exchange, key)
+
+	return nil, nil
+}
+
+// Close releases AMQP channel and connection resources.
+// Safe to call multiple times or on nil receivers.
+// Returns the first error encountered, but attempts to close both channel and connection.
+func (prmq *ProducerRabbitMQRepository) Close() error {
+	if prmq == nil || prmq.conn == nil {
+		return nil
+	}
+
+	var firstErr error
+
+	// Close channel first
+	if prmq.conn.Channel != nil {
+		if err := prmq.conn.Channel.Close(); err != nil {
+			firstErr = fmt.Errorf("failed to close AMQP channel: %w", err)
+		}
+	}
+
+	// Close connection
+	if prmq.conn.Connection != nil {
+		if err := prmq.conn.Connection.Close(); err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("failed to close AMQP connection: %w", err)
+			}
+		}
+	}
+
+	return firstErr
 }

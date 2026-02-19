@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -49,7 +50,7 @@ func TestEnvFallback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := envFallback(tt.prefixed, tt.fallback)
+			got := utils.EnvFallback(tt.prefixed, tt.fallback)
 
 			assert.Equal(t, tt.want, got)
 		})
@@ -107,7 +108,7 @@ func TestEnvFallbackInt(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := envFallbackInt(tt.prefixed, tt.fallback)
+			got := utils.EnvFallbackInt(tt.prefixed, tt.fallback)
 
 			assert.Equal(t, tt.want, got)
 		})

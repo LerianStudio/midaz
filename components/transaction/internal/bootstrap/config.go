@@ -13,6 +13,7 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -34,6 +35,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -41,22 +43,13 @@ import (
 
 const ApplicationName = "transaction"
 
-// envFallback returns the prefixed value if not empty, otherwise returns the fallback value.
-func envFallback(prefixed, fallback string) string {
-	if prefixed != "" {
-		return prefixed
+// initLogger initializes the logger from options or creates a new one.
+func initLogger(opts *Options) (libLog.Logger, error) {
+	if opts != nil && opts.Logger != nil {
+		return opts.Logger, nil
 	}
 
-	return fallback
-}
-
-// envFallbackInt returns the prefixed value if not zero, otherwise returns the fallback value.
-func envFallbackInt(prefixed, fallback int) int {
-	if prefixed != 0 {
-		return prefixed
-	}
-
-	return fallback
+	return libZap.InitializeLoggerWithError()
 }
 
 // buildRabbitMQConnectionString constructs an AMQP connection string with optional vhost.
@@ -193,6 +186,20 @@ type Config struct {
 	ProtoAddress                 string `env:"PROTO_ADDRESS"`
 	BalanceSyncWorkerEnabled     bool   `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
 	BalanceSyncMaxWorkers        int    `env:"BALANCE_SYNC_MAX_WORKERS"`
+
+	// Circuit Breaker configuration for RabbitMQ
+	// Protects against RabbitMQ outages by failing fast when broker is unavailable
+	RabbitMQCircuitBreakerConsecutiveFailures int `env:"RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES"`
+	RabbitMQCircuitBreakerFailureRatio        int `env:"RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO"` // Stored as percentage (e.g., 50 for 0.5)
+	RabbitMQCircuitBreakerInterval            int `env:"RABBITMQ_CIRCUIT_BREAKER_INTERVAL"`      // Stored in seconds
+	RabbitMQCircuitBreakerMaxRequests         int `env:"RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS"`
+	RabbitMQCircuitBreakerMinRequests         int `env:"RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS"`
+	RabbitMQCircuitBreakerTimeout             int `env:"RABBITMQ_CIRCUIT_BREAKER_TIMEOUT"` // Stored in seconds
+	// Health Check configuration for circuit breaker recovery
+	RabbitMQCircuitBreakerHealthCheckInterval int `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_INTERVAL"` // Stored in seconds
+	RabbitMQCircuitBreakerHealthCheckTimeout  int `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_TIMEOUT"`  // Stored in seconds
+	// Operation timeout for RabbitMQ connection and publish operations (e.g., "5s", "3s")
+	RabbitMQOperationTimeout string `env:"RABBITMQ_OPERATION_TIMEOUT"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -200,6 +207,10 @@ type Options struct {
 	// Logger allows callers to provide a pre-configured logger, avoiding double
 	// initialization when the cmd/app wants to handle bootstrap errors.
 	Logger libLog.Logger
+
+	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
+	// This is optional - pass nil if you don't need state change notifications.
+	CircuitBreakerStateListener libCircuitBreaker.StateChangeListener
 }
 
 // InitServers initiate http and grpc servers.
@@ -215,16 +226,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	var logger libLog.Logger
-	if opts != nil && opts.Logger != nil {
-		logger = opts.Logger
-	} else {
-		var err error
-
-		logger, err = libZap.InitializeLoggerWithError()
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize logger: %w", err)
-		}
+	logger, err := initLogger(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
 	// BalanceSyncWorkerEnabled defaults to true via struct tag
@@ -245,22 +249,22 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
-	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
-	dbUser := envFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
-	dbPassword := envFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
-	dbName := envFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
-	dbPort := envFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
-	dbSSLMode := envFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
+	dbHost := utils.EnvFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
+	dbUser := utils.EnvFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
+	dbPassword := utils.EnvFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
+	dbName := utils.EnvFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
+	dbPort := utils.EnvFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
+	dbSSLMode := utils.EnvFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
 
-	dbReplicaHost := envFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
-	dbReplicaUser := envFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
-	dbReplicaPassword := envFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
-	dbReplicaName := envFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
-	dbReplicaPort := envFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
-	dbReplicaSSLMode := envFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
+	dbReplicaHost := utils.EnvFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
+	dbReplicaUser := utils.EnvFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
+	dbReplicaPassword := utils.EnvFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
+	dbReplicaName := utils.EnvFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
+	dbReplicaPort := utils.EnvFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
+	dbReplicaSSLMode := utils.EnvFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
 
-	maxOpenConns := envFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
-	maxIdleConns := envFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
+	maxOpenConns := utils.EnvFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
+	maxIdleConns := utils.EnvFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
 
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
@@ -280,14 +284,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Apply fallback for MongoDB prefixed env vars
-	mongoURI := envFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
-	mongoHost := envFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
-	mongoName := envFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
-	mongoUser := envFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
-	mongoPassword := envFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
-	mongoPortRaw := envFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
-	mongoParametersRaw := envFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
-	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
+	mongoURI := utils.EnvFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
+	mongoHost := utils.EnvFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
+	mongoName := utils.EnvFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
+	mongoUser := utils.EnvFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
+	mongoPassword := utils.EnvFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
+	mongoPortRaw := utils.EnvFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
+	mongoParametersRaw := utils.EnvFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
+	mongoPoolSize := utils.EnvFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
 
 	// Extract port and parameters for MongoDB connection (handles backward compatibility)
 	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
@@ -380,7 +384,81 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger:                 logger,
 	}
 
-	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	// Create raw producer
+	rawProducerRabbitMQ, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create RabbitMQ producer: %w", err)
+	}
+
+	// Create metric state listener for circuit breaker observability
+	metricStateListener, err := rabbitmq.NewMetricStateListener(telemetry.MetricsFactory)
+	if err != nil {
+		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
+			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
+		}
+
+		return nil, fmt.Errorf("failed to create metric state listener: %w", err)
+	}
+
+	// Use metric listener, or combine with external listener if provided
+	var stateListener libCircuitBreaker.StateChangeListener
+	if opts != nil && opts.CircuitBreakerStateListener != nil {
+		stateListener = &compositeStateListener{
+			listeners: []libCircuitBreaker.StateChangeListener{
+				metricStateListener,
+				opts.CircuitBreakerStateListener,
+			},
+		}
+	} else {
+		stateListener = metricStateListener
+	}
+
+	// Prepare circuit breaker configuration with defaults applied
+	// Note: Config fields are int because lib-commons doesn't support uint32/float64/time.Duration
+	operationTimeout := rabbitmq.DefaultOperationTimeout
+
+	if cfg.RabbitMQOperationTimeout != "" {
+		if parsed, err := time.ParseDuration(cfg.RabbitMQOperationTimeout); err == nil && parsed > 0 {
+			operationTimeout = parsed
+		}
+	}
+
+	cbConfig := rabbitmq.CircuitBreakerConfig{
+		ConsecutiveFailures: utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerConsecutiveFailures, 15),
+		FailureRatio:        utils.GetFloat64FromIntPercentWithDefault(cfg.RabbitMQCircuitBreakerFailureRatio, 0.5),
+		Interval:            utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerInterval, 2*time.Minute),
+		MaxRequests:         utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerMaxRequests, 3),
+		MinRequests:         utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerMinRequests, 10),
+		Timeout:             utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerTimeout, 30*time.Second),
+		HealthCheckInterval: utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckInterval, 30*time.Second),
+		HealthCheckTimeout:  utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckTimeout, 10*time.Second),
+		OperationTimeout:    operationTimeout,
+	}
+
+	// Create circuit breaker manager (always enabled)
+	circuitBreakerManager, err := NewCircuitBreakerManager(logger, rabbitMQConnection, cbConfig, stateListener)
+	if err != nil {
+		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
+			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
+		}
+
+		return nil, fmt.Errorf("failed to create circuit breaker manager: %w", err)
+	}
+
+	// Wrap producer with circuit breaker
+	producerRabbitMQRepository, err := rabbitmq.NewCircuitBreakerProducer(
+		rawProducerRabbitMQ,
+		circuitBreakerManager.Manager,
+		logger,
+		cbConfig.OperationTimeout,
+	)
+	if err != nil {
+		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
+			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
+		}
+
+		return nil, fmt.Errorf("failed to create circuit breaker producer: %w", err)
+	}
 
 	useCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,
@@ -496,6 +574,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		RedisQueueConsumer:       redisConsumer,
 		BalanceSyncWorker:        balanceSyncWorker,
 		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
+		CircuitBreakerManager:    circuitBreakerManager,
 		Logger:                   logger,
 		Ports: Ports{
 			BalancePort:  useCase,
@@ -509,4 +588,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		operationRouteHandler:   operationRouteHandler,
 		transactionRouteHandler: transactionRouteHandler,
 	}, nil
+}
+
+// compositeStateListener fans out state change notifications to multiple listeners.
+type compositeStateListener struct {
+	listeners []libCircuitBreaker.StateChangeListener
+}
+
+// OnStateChange notifies all registered listeners of the state change.
+func (c *compositeStateListener) OnStateChange(serviceName string, from, to libCircuitBreaker.State) {
+	for _, listener := range c.listeners {
+		listener.OnStateChange(serviceName, from, to)
+	}
 }

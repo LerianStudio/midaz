@@ -361,6 +361,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 	spanScript.End()
 
+	logger.Infof("Backup queue: transaction written to %s with key %s", TransactionBackupQueue, transactionKey)
 	logger.Infof("result value: %v", result)
 
 	blcsRedis := make([]mmodel.BalanceRedis, 0)
