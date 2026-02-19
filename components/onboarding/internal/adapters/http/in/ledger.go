@@ -413,3 +413,51 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 
 	return http.OK(c, settings)
 }
+
+// UpdateLedgerSettings updates the settings for a specific ledger using merge semantics.
+//
+//	@Summary		Update ledger settings
+//	@Description	Updates the configuration settings for a specific ledger. New settings are merged with existing settings (partial update). Set a key to null to remove it.
+//	@Tags			Ledgers
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			id				path		string			true	"Ledger ID in UUID format"
+//	@Param			settings		body		map[string]any	true	"Settings to merge with existing settings"
+//	@Success		200				{object}	map[string]any	"Successfully updated ledger settings"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request body"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Ledger not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{id}/settings [patch]
+func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_ledger_settings")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
+
+	settings := i.(*map[string]any)
+
+	logger.Infof("Request to update settings for Ledger with ID: %s", id.String())
+
+	updatedSettings, err := handler.Command.UpdateLedgerSettings(ctx, organizationID, id, *settings)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update ledger settings", err)
+
+		logger.Errorf("Failed to update settings for Ledger with ID: %s, Error: %s", id.String(), err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully updated settings for Ledger with ID: %s", id.String())
+
+	return http.OK(c, updatedSettings)
+}
