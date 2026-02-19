@@ -8,6 +8,7 @@ package postgres
 
 import (
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -91,6 +92,34 @@ func CreateTestLedgerWithParams(t *testing.T, db *sql.DB, orgID uuid.UUID, param
 	require.NoError(t, err, "failed to create test ledger")
 
 	return id
+}
+
+// SetLedgerSettings sets the settings JSONB for a ledger directly in the database.
+// Useful for testing GetSettings without going through the repository.
+func SetLedgerSettings(t *testing.T, db *sql.DB, ledgerID uuid.UUID, settings map[string]any) {
+	t.Helper()
+
+	settingsJSON, err := json.Marshal(settings)
+	require.NoError(t, err, "failed to marshal settings")
+
+	_, err = db.Exec(`UPDATE ledger SET settings = $1::jsonb WHERE id = $2`, settingsJSON, ledgerID)
+	require.NoError(t, err, "failed to set ledger settings")
+}
+
+// GetLedgerSettings retrieves the settings JSONB for a ledger directly from the database.
+// Useful for verifying UpdateSettings without going through the repository.
+func GetLedgerSettings(t *testing.T, db *sql.DB, ledgerID uuid.UUID) map[string]any {
+	t.Helper()
+
+	var settingsJSON []byte
+	err := db.QueryRow(`SELECT COALESCE(settings, '{}') FROM ledger WHERE id = $1`, ledgerID).Scan(&settingsJSON)
+	require.NoError(t, err, "failed to get ledger settings")
+
+	var settings map[string]any
+	err = json.Unmarshal(settingsJSON, &settings)
+	require.NoError(t, err, "failed to unmarshal settings")
+
+	return settings
 }
 
 // PortfolioParams holds parameters for creating a test portfolio with full control.
