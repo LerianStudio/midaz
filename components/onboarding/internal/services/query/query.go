@@ -5,6 +5,8 @@
 package query
 
 import (
+	"time"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
@@ -51,4 +53,8 @@ type UseCase struct {
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
+
+	// SettingsCacheTTL is the TTL for cached ledger settings.
+	// If zero, defaults to DefaultSettingsCacheTTL (5 minutes).
+	SettingsCacheTTL time.Duration
 }

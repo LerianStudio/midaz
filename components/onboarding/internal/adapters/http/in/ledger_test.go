@@ -1048,3 +1048,282 @@ func TestHandler_CreateLedger_Validation(t *testing.T) {
 
 // Ensure libPostgres.Pagination is used (referenced in handler)
 var _ = libPostgres.Pagination{}
+
+func TestHandler_GetLedgerSettings(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupMocks     func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID)
+		expectedStatus int
+		validateBody   func(t *testing.T, body []byte)
+	}{
+		{
+			name: "success returns 200 with settings",
+			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+				ledgerRepo.EXPECT().
+					GetSettings(gomock.Any(), orgID, ledgerID).
+					Return(map[string]any{
+						"accounting": map[string]any{
+							"validateAccountType": true,
+						},
+					}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				assert.Contains(t, result, "accounting", "response should contain accounting key")
+				accounting := result["accounting"].(map[string]any)
+				assert.Equal(t, true, accounting["validateAccountType"])
+			},
+		},
+		{
+			name: "empty settings returns 200 with empty object",
+			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+				ledgerRepo.EXPECT().
+					GetSettings(gomock.Any(), orgID, ledgerID).
+					Return(map[string]any{}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				assert.Empty(t, result, "response should be empty map")
+			},
+		},
+		{
+			name: "ledger not found returns 404",
+			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+				ledgerRepo.EXPECT().
+					GetSettings(gomock.Any(), orgID, ledgerID).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())).
+					Times(1)
+			},
+			expectedStatus: 404,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrLedgerIDNotFound.Error(), errResp["code"])
+			},
+		},
+		{
+			name: "repository error returns 500",
+			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+				ledgerRepo.EXPECT().
+					GetSettings(gomock.Any(), orgID, ledgerID).
+					Return(nil, pkg.InternalServerError{
+						Code:    "0046",
+						Title:   "Internal Server Error",
+						Message: "Database connection failed",
+					}).
+					Times(1)
+			},
+			expectedStatus: 500,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			// Arrange
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+
+			mockLedgerRepo := ledger.NewMockRepository(ctrl)
+			tt.setupMocks(mockLedgerRepo, orgID, ledgerID)
+
+			queryUC := &query.UseCase{
+				LedgerRepo: mockLedgerRepo,
+			}
+			handler := &LedgerHandler{Query: queryUC}
+
+			app := fiber.New()
+			app.Get("/v1/organizations/:organization_id/ledgers/:id/settings",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					c.Locals("id", ledgerID)
+					return c.Next()
+				},
+				handler.GetLedgerSettings,
+			)
+
+			// Act
+			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/settings", nil)
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if tt.validateBody != nil {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				tt.validateBody(t, body)
+			}
+		})
+	}
+}
+
+func TestHandler_UpdateLedgerSettings(t *testing.T) {
+	tests := []struct {
+		name           string
+		requestBody    map[string]any
+		setupMocks     func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID)
+		expectedStatus int
+		validateBody   func(t *testing.T, body []byte)
+	}{
+		{
+			name: "success returns 200 with merged settings",
+			requestBody: map[string]any{
+				"newKey": "newValue",
+			},
+			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+				ledgerRepo.EXPECT().
+					UpdateSettings(gomock.Any(), orgID, ledgerID, map[string]any{"newKey": "newValue"}).
+					Return(map[string]any{
+						"existingKey": "existingValue",
+						"newKey":      "newValue",
+					}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				assert.Equal(t, "existingValue", result["existingKey"])
+				assert.Equal(t, "newValue", result["newKey"])
+			},
+		},
+		{
+			name:        "empty settings returns 200",
+			requestBody: map[string]any{},
+			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+				ledgerRepo.EXPECT().
+					UpdateSettings(gomock.Any(), orgID, ledgerID, map[string]any{}).
+					Return(map[string]any{"existingKey": "existingValue"}, nil).
+					Times(1)
+			},
+			expectedStatus: 200,
+			validateBody: func(t *testing.T, body []byte) {
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
+				require.NoError(t, err)
+
+				assert.Equal(t, "existingValue", result["existingKey"])
+			},
+		},
+		{
+			name: "ledger not found returns 404",
+			requestBody: map[string]any{
+				"key": "value",
+			},
+			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+				ledgerRepo.EXPECT().
+					UpdateSettings(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					Return(nil, pkg.ValidateBusinessError(cn.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())).
+					Times(1)
+			},
+			expectedStatus: 404,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrLedgerIDNotFound.Error(), errResp["code"])
+			},
+		},
+		{
+			name: "repository error returns 500",
+			requestBody: map[string]any{
+				"key": "value",
+			},
+			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+				ledgerRepo.EXPECT().
+					UpdateSettings(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					Return(nil, pkg.InternalServerError{
+						Code:    "0046",
+						Title:   "Internal Server Error",
+						Message: "Database connection failed",
+					}).
+					Times(1)
+			},
+			expectedStatus: 500,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			// Arrange
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+
+			mockLedgerRepo := ledger.NewMockRepository(ctrl)
+			tt.setupMocks(mockLedgerRepo, orgID, ledgerID)
+
+			cmdUC := &command.UseCase{
+				LedgerRepo: mockLedgerRepo,
+			}
+			handler := &LedgerHandler{Command: cmdUC}
+
+			app := fiber.New()
+			app.Patch("/v1/organizations/:organization_id/ledgers/:id/settings",
+				func(c *fiber.Ctx) error {
+					c.Locals("organization_id", orgID)
+					c.Locals("id", ledgerID)
+					return c.Next()
+				},
+				func(c *fiber.Ctx) error {
+					return handler.UpdateLedgerSettings(&tt.requestBody, c)
+				},
+			)
+
+			// Act
+			bodyBytes, err := json.Marshal(tt.requestBody)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/settings", bytes.NewReader(bodyBytes))
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := app.Test(req)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if tt.validateBody != nil {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				tt.validateBody(t, body)
+			}
+		})
+	}
+}

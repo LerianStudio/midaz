@@ -15,11 +15,23 @@ import (
 	"github.com/google/uuid"
 )
 
-// LedgerSettingsCacheTTL defines the TTL for cached ledger settings (5 minutes).
-const LedgerSettingsCacheTTL = 5 * time.Minute
+// DefaultSettingsCacheTTL is the default TTL for cached ledger settings (5 minutes).
+// Can be overridden via UseCase.SettingsCacheTTL or SETTINGS_CACHE_TTL env var.
+const DefaultSettingsCacheTTL = 5 * time.Minute
 
 // LedgerSettingsCacheKeyPrefix is the prefix for ledger settings cache keys.
+// Full key format: ledger_settings:{organizationID}:{ledgerID}
+// Organization ID is required to ensure proper tenant isolation in multi-tenant deployments.
 const LedgerSettingsCacheKeyPrefix = "ledger_settings"
+
+// getSettingsCacheTTL returns the configured cache TTL or the default if not set.
+func (uc *UseCase) getSettingsCacheTTL() time.Duration {
+	if uc.SettingsCacheTTL > 0 {
+		return uc.SettingsCacheTTL
+	}
+
+	return DefaultSettingsCacheTTL
+}
 
 // BuildLedgerSettingsCacheKey builds the cache key for ledger settings.
 func BuildLedgerSettingsCacheKey(organizationID, ledgerID uuid.UUID) string {
@@ -53,6 +65,11 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 			} else {
 				logger.Debugf("Cache hit for ledger settings: %s", ledgerID.String())
 
+				// Ensure we never return nil from cache (defensive check)
+				if settings == nil {
+					settings = make(map[string]any)
+				}
+
 				return settings, nil
 			}
 		}
@@ -79,7 +96,7 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 		if err != nil {
 			logger.Warnf("Failed to marshal settings for cache: %v", err)
 		} else {
-			if err := uc.RedisRepo.Set(ctx, cacheKey, string(settingsJSON), LedgerSettingsCacheTTL); err != nil {
+			if err := uc.RedisRepo.Set(ctx, cacheKey, string(settingsJSON), uc.getSettingsCacheTTL()); err != nil {
 				logger.Warnf("Failed to cache ledger settings: %v", err)
 			} else {
 				logger.Debugf("Cached ledger settings: %s", ledgerID.String())

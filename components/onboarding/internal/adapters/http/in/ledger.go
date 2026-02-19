@@ -395,8 +395,15 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_ledger_settings")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "organization_id"))
+	}
+
+	id, ok := c.Locals("id").(uuid.UUID)
+	if !ok {
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "id"))
+	}
 
 	logger.Infof("Retrieving settings for Ledger with ID: %s", id.String())
 
@@ -417,7 +424,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 // UpdateLedgerSettings updates the settings for a specific ledger using merge semantics.
 //
 //	@Summary		Update ledger settings
-//	@Description	Updates the configuration settings for a specific ledger. New settings are merged with existing settings (partial update). Set a key to null to remove it.
+//	@Description	Updates the configuration settings for a specific ledger. New settings are merged at TOP LEVEL only (shallow merge). Nested objects are REPLACED entirely, not deep-merged. To update a nested key, you must send the complete nested object. Set a key to null to remove it.
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
@@ -441,10 +448,20 @@ func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_ledger_settings")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "organization_id"))
+	}
 
-	settings := i.(*map[string]any)
+	id, ok := c.Locals("id").(uuid.UUID)
+	if !ok {
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "id"))
+	}
+
+	settings, ok := i.(*map[string]any)
+	if !ok {
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidRequestBody, "settings"))
+	}
 
 	logger.Infof("Request to update settings for Ledger with ID: %s", id.String())
 

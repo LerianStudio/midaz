@@ -181,7 +181,8 @@ func TestGetLedgerSettings_CacheHit(t *testing.T) {
 			"validateAccountType": true,
 		},
 	}
-	cachedJSON, _ := json.Marshal(expectedSettings)
+	cachedJSON, err := json.Marshal(expectedSettings)
+	require.NoError(t, err, "test setup: failed to marshal expected settings")
 	cacheKey := BuildLedgerSettingsCacheKey(orgID, ledgerID)
 
 	// Cache hit - should NOT call database
@@ -195,6 +196,8 @@ func TestGetLedgerSettings_CacheHit(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotNil(t, settings)
+	// Verify actual content matches cached value
+	assert.Equal(t, expectedSettings["accounting"], settings["accounting"], "settings content should match cached value")
 }
 
 func TestGetLedgerSettings_CacheMiss_PopulatesCache(t *testing.T) {
@@ -233,7 +236,7 @@ func TestGetLedgerSettings_CacheMiss_PopulatesCache(t *testing.T) {
 
 	// Cache should be populated
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, gomock.Any(), LedgerSettingsCacheTTL).
+		Set(gomock.Any(), cacheKey, gomock.Any(), DefaultSettingsCacheTTL).
 		Return(nil)
 
 	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
@@ -277,7 +280,7 @@ func TestGetLedgerSettings_CacheErrorOnRead_FallsBackToDatabase(t *testing.T) {
 
 	// Should still try to populate cache
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, gomock.Any(), LedgerSettingsCacheTTL).
+		Set(gomock.Any(), cacheKey, gomock.Any(), DefaultSettingsCacheTTL).
 		Return(nil)
 
 	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
@@ -320,7 +323,7 @@ func TestGetLedgerSettings_InvalidCacheJSON_FallsBackToDatabase(t *testing.T) {
 
 	// Should try to populate cache with valid data
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, gomock.Any(), LedgerSettingsCacheTTL).
+		Set(gomock.Any(), cacheKey, gomock.Any(), DefaultSettingsCacheTTL).
 		Return(nil)
 
 	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
@@ -363,7 +366,7 @@ func TestGetLedgerSettings_CacheSetError_DoesNotFailOperation(t *testing.T) {
 
 	// Cache set fails - operation should still succeed
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, gomock.Any(), LedgerSettingsCacheTTL).
+		Set(gomock.Any(), cacheKey, gomock.Any(), DefaultSettingsCacheTTL).
 		Return(errors.New("redis write error"))
 
 	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)

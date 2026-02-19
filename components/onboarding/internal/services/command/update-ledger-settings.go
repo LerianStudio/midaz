@@ -6,20 +6,12 @@ package command
 
 import (
 	"context"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/google/uuid"
 )
-
-// ledgerSettingsCacheKeyPrefix is the prefix for ledger settings cache keys.
-const ledgerSettingsCacheKeyPrefix = "ledger_settings"
-
-// buildLedgerSettingsCacheKey builds the cache key for ledger settings.
-func buildLedgerSettingsCacheKey(organizationID, ledgerID uuid.UUID) string {
-	return fmt.Sprintf("%s:%s:%s", ledgerSettingsCacheKeyPrefix, organizationID.String(), ledgerID.String())
-}
 
 // UpdateLedgerSettings updates the settings for a specific ledger using JSONB merge semantics.
 // The new settings are merged with existing settings (not replaced).
@@ -50,7 +42,7 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 
 	// Invalidate cache after successful write
 	if uc.RedisRepo != nil {
-		cacheKey := buildLedgerSettingsCacheKey(organizationID, ledgerID)
+		cacheKey := query.BuildLedgerSettingsCacheKey(organizationID, ledgerID)
 		if err := uc.RedisRepo.Del(ctx, cacheKey); err != nil {
 			logger.Warnf("Failed to invalidate ledger settings cache: %v", err)
 		} else {

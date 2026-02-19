@@ -713,8 +713,17 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update_settings.exec")
 
-	// Use JSONB merge operator (||) to merge new settings with existing
-	// COALESCE handles the case where settings is NULL
+	// Use JSONB merge operator (||) to merge new settings with existing.
+	// COALESCE handles the case where settings is NULL.
+	//
+	// NOTE: PostgreSQL || performs SHALLOW merge at top level only.
+	// Nested objects are replaced entirely, not deep-merged.
+	// Example:
+	//   existing: {"a": {"x": 1, "y": 2}, "b": 1}
+	//   update:   {"a": {"z": 3}}
+	//   result:   {"a": {"z": 3}, "b": 1}  // "a" replaced, "b" preserved
+	//
+	// To update nested keys, clients must read-modify-write the nested object.
 	query := `
 		UPDATE ledger
 		SET settings = COALESCE(settings, '{}') || $1::jsonb, updated_at = now()

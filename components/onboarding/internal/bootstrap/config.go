@@ -158,6 +158,10 @@ type Config struct {
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
 	TransactionGRPCAddress       string `env:"TRANSACTION_GRPC_ADDRESS"`
 	TransactionGRPCPort          string `env:"TRANSACTION_GRPC_PORT"`
+
+	// SettingsCacheTTL is the TTL for cached ledger settings.
+	// Format: Go duration string (e.g., "5m", "1h", "30s"). Default: 5m.
+	SettingsCacheTTL string `env:"SETTINGS_CACHE_TTL"`
 }
 
 // Options contains optional dependencies that can be injected when running
@@ -389,6 +393,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalancePort:      balancePort,
 	}
 
+	// Parse settings cache TTL from config (default: 5m via query.DefaultSettingsCacheTTL)
+	var settingsCacheTTL time.Duration
+
+	if cfg.SettingsCacheTTL != "" {
+		if parsed, err := time.ParseDuration(cfg.SettingsCacheTTL); err == nil && parsed > 0 {
+			settingsCacheTTL = parsed
+			logger.Infof("Settings cache TTL configured: %v", settingsCacheTTL)
+		} else {
+			logger.Warnf("Invalid SETTINGS_CACHE_TTL value '%s', using default", cfg.SettingsCacheTTL)
+		}
+	}
+
 	queryUseCase := &query.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
 		LedgerRepo:       ledgerPostgreSQLRepository,
@@ -399,6 +415,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		AccountTypeRepo:  accountTypePostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
 		RedisRepo:        redisConsumerRepository,
+		SettingsCacheTTL: settingsCacheTTL,
 	}
 
 	accountHandler := &httpin.AccountHandler{

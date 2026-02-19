@@ -123,6 +123,18 @@ func WithBody(s any, h DecodeHandlerFunc) fiber.Handler {
 	return d.FiberHandlerFunc
 }
 
+// WithBodyLimit returns a middleware that limits the request body size.
+// If the body exceeds the limit, it returns a 400 Bad Request error.
+func WithBodyLimit(maxBytes int) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if len(c.Body()) > maxBytes {
+			return BadRequest(c, pkg.ValidateBusinessError(cn.ErrPayloadTooLarge, "request"))
+		}
+
+		return c.Next()
+	}
+}
+
 // SetBodyInContext is a higher-order function that wraps a Fiber handler, injecting the decoded body into the request context.
 func SetBodyInContext(handler fiber.Handler) DecodeHandlerFunc {
 	return func(s any, c *fiber.Ctx) error {
