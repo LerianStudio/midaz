@@ -1,8 +1,6 @@
 # Stage 1: Build the Go application
 FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS builder
 
-# v3.3.14
-
 WORKDIR /onboarding-app
 
 # Copy Go module files and download dependencies
