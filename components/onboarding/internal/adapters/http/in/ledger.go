@@ -370,3 +370,46 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 
 	return http.NoContent(c)
 }
+
+// GetLedgerSettings retrieves the settings for a specific ledger.
+//
+//	@Summary		Get ledger settings
+//	@Description	Returns the current configuration settings for a specific ledger. Returns an empty object {} if no settings have been defined.
+//	@Tags			Ledgers
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			id				path		string	true	"Ledger ID in UUID format"
+//	@Success		200				{object}	map[string]any	"Successfully retrieved ledger settings"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Ledger not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{id}/settings [get]
+func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_ledger_settings")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
+
+	logger.Infof("Retrieving settings for Ledger with ID: %s", id.String())
+
+	settings, err := handler.Query.GetLedgerSettings(ctx, organizationID, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get ledger settings", err)
+
+		logger.Errorf("Failed to get settings for Ledger with ID: %s, Error: %s", id.String(), err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved settings for Ledger with ID: %s", id.String())
+
+	return http.OK(c, settings)
+}

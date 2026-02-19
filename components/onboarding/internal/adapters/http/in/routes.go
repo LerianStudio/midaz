@@ -73,6 +73,7 @@ func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, ah *AccountH
 	f.Patch("/v1/organizations/:organization_id/ledgers/:id", auth.Authorize(midazName, "ledgers", "patch"), http.ParseUUIDPathParameters("ledger"), http.WithBody(new(mmodel.UpdateLedgerInput), lh.UpdateLedger))
 	f.Get("/v1/organizations/:organization_id/ledgers", auth.Authorize(midazName, "ledgers", "get"), http.ParseUUIDPathParameters("ledger"), lh.GetAllLedgers)
 	f.Get("/v1/organizations/:organization_id/ledgers/:id", auth.Authorize(midazName, "ledgers", "get"), http.ParseUUIDPathParameters("ledger"), lh.GetLedgerByID)
+	f.Get("/v1/organizations/:organization_id/ledgers/:id/settings", auth.Authorize(midazName, "ledgers", "get"), http.ParseUUIDPathParameters("ledger"), lh.GetLedgerSettings)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:id", auth.Authorize(midazName, "ledgers", "delete"), http.ParseUUIDPathParameters("ledger"), lh.DeleteLedgerByID)
 	f.Head("/v1/organizations/:organization_id/ledgers/metrics/count", auth.Authorize(midazName, "ledgers", "head"), http.ParseUUIDPathParameters("ledger"), lh.CountLedgers)
 
