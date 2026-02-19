@@ -3,6 +3,7 @@ package account
 import (
 	"database/sql"
 	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -288,7 +289,7 @@ func verifyQueryBuildingLogic(t *testing.T, acc *mmodel.Account, expectedPattern
 
 // Helper function to convert int to string
 func itoa(i int) string {
-	return string(rune('0' + i))
+	return strconv.Itoa(i)
 }
 
 // Helper function to check if slice contains string
