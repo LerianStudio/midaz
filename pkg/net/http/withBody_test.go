@@ -858,3 +858,90 @@ func TestFindUnknownFields_DateComparison(t *testing.T) {
 		})
 	}
 }
+
+// Test struct with NullFields for populateNullFields tests
+type StructWithNullFields struct {
+	Name       string   `json:"name"`
+	SegmentID  *string  `json:"segmentId"`
+	EntityID   *string  `json:"entityId"`
+	NullFields []string `json:"-"`
+}
+
+// Test struct without NullFields field
+type StructWithoutNullFields struct {
+	Name      string  `json:"name"`
+	SegmentID *string `json:"segmentId"`
+}
+
+func TestPopulateNullFields_SetsNullFieldsFromOriginalMap(t *testing.T) {
+	s := &StructWithNullFields{}
+	originalMap := map[string]any{
+		"name":      "Test Account",
+		"segmentId": nil,
+		"entityId":  nil,
+	}
+
+	populateNullFields(s, originalMap)
+
+	assert.Len(t, s.NullFields, 2)
+	assert.Contains(t, s.NullFields, "segmentId")
+	assert.Contains(t, s.NullFields, "entityId")
+}
+
+func TestPopulateNullFields_IgnoresNonNilValues(t *testing.T) {
+	s := &StructWithNullFields{}
+	originalMap := map[string]any{
+		"name":      "Test Account",
+		"segmentId": "some-uuid-value",
+		"entityId":  nil,
+	}
+
+	populateNullFields(s, originalMap)
+
+	assert.Len(t, s.NullFields, 1)
+	assert.Contains(t, s.NullFields, "entityId")
+	assert.NotContains(t, s.NullFields, "segmentId")
+}
+
+func TestPopulateNullFields_NoOpWithoutNullFieldsField(t *testing.T) {
+	s := &StructWithoutNullFields{}
+	originalMap := map[string]any{
+		"name":      "Test Account",
+		"segmentId": nil,
+	}
+
+	// Should not panic or error
+	populateNullFields(s, originalMap)
+
+	// No assertion needed - just verify no panic
+}
+
+func TestPopulateNullFields_EmptyMapProducesEmptySlice(t *testing.T) {
+	s := &StructWithNullFields{}
+	originalMap := map[string]any{
+		"name": "Test Account",
+	}
+
+	populateNullFields(s, originalMap)
+
+	assert.Empty(t, s.NullFields)
+}
+
+func TestPopulateNullFields_NonPointerInputNoOp(t *testing.T) {
+	s := StructWithNullFields{}
+	originalMap := map[string]any{
+		"segmentId": nil,
+	}
+
+	// Should not panic - just no-op for non-pointer
+	populateNullFields(s, originalMap)
+}
+
+func TestPopulateNullFields_NilInputNoOp(t *testing.T) {
+	originalMap := map[string]any{
+		"segmentId": nil,
+	}
+
+	// Should not panic - just no-op for nil input
+	populateNullFields(nil, originalMap)
+}

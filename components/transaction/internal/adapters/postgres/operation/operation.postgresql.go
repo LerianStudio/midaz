@@ -37,6 +37,10 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
 
+// operationColumns defines the explicit column list for operation table queries.
+// This ensures backward compatibility when new columns are added in future versions.
+const operationColumns = "id, transaction_id, description, type, asset_code, amount, available_balance, on_hold_balance, available_balance_after, on_hold_balance_after, status, status_description, account_id, account_alias, balance_id, chart_of_accounts, organization_id, ledger_id, created_at, updated_at, deleted_at, route, balance_affected, balance_key, balance_version_before, balance_version_after"
+
 // OperationPostgreSQLRepository is a Postgresql-specific implementation of the OperationRepository.
 type OperationPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
@@ -222,7 +226,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		}
 	}
 
-	findAll := squirrel.Select(operationColumnList...).
+	findAll := squirrel.Select(operationColumns).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
@@ -343,25 +347,25 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 	var operations []*Operation
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.list_all_by_ids.query")
-
-	list := squirrel.
-		Select(operationColumnList...).
+	findAll := squirrel.Select(operationColumns).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID}).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
-	query, args, err := list.ToSql()
+	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build list by IDs query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build list by IDs query: %v", err)
+		logger.Errorf("Failed to build query: %v", err)
 
 		return nil, err
 	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.list_all_by_ids.query")
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -442,25 +446,27 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		return nil, err
 	}
 
-	operation := &OperationPostgreSQLModel{}
-
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
-
-	find := squirrel.
-		Select(operationColumnList...).
+	findOne := squirrel.Select(operationColumns).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "transaction_id": transactionID, "id": id}).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("transaction_id = ?", transactionID)).
+		Where(squirrel.Expr("id = ?", id)).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		PlaceholderFormat(squirrel.Dollar)
 
-	query, args, err := find.ToSql()
+	query, args, err := findOne.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build find query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build find query: %v", err)
+		logger.Errorf("Failed to build query: %v", err)
 
 		return nil, err
 	}
+
+	operation := &OperationPostgreSQLModel{}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
 	row := db.QueryRowContext(ctx, query, args...)
 
@@ -530,25 +536,27 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		return nil, err
 	}
 
-	operation := &OperationPostgreSQLModel{}
-
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all_by_account.query")
-
-	findAcc := squirrel.
-		Select(operationColumnList...).
+	findOne := squirrel.Select(operationColumns).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "account_id": accountID, "id": id}).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("account_id = ?", accountID)).
+		Where(squirrel.Expr("id = ?", id)).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		PlaceholderFormat(squirrel.Dollar)
 
-	query, args, err := findAcc.ToSql()
+	query, args, err := findOne.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build find by account query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build find by account query: %v", err)
+		logger.Errorf("Failed to build query: %v", err)
 
 		return nil, err
 	}
+
+	operation := &OperationPostgreSQLModel{}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all_by_account.query")
 
 	row := db.QueryRowContext(ctx, query, args...)
 
@@ -776,7 +784,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		}
 	}
 
-	findAll := squirrel.Select(operationColumnList...).
+	findAll := squirrel.Select(operationColumns).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).

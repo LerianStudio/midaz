@@ -43,6 +43,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		SegmentID:   uai.SegmentID,
 		PortfolioID: uai.PortfolioID,
 		Metadata:    uai.Metadata,
+		NullFields:  uai.NullFields,
 		Blocked:     uai.Blocked,
 	}
 

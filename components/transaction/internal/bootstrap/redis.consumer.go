@@ -144,18 +144,28 @@ Outer:
 			// Acquire distributed lock to prevent duplicate processing across pods
 			lockKey := utils.RedisConsumerLockKey(m.OrganizationID, m.LedgerID, m.TransactionID.String())
 
+			_, spanLock := tracer.Start(msgCtxWithSpan, "redis.consumer.acquire_lock")
+
 			success, err := r.TransactionHandler.Command.RedisRepo.SetNX(msgCtxWithSpan, lockKey, "", ConsumerLockTTL)
 			if err != nil {
+				libOpentelemetry.HandleSpanError(&spanLock, "Failed to acquire lock", err)
+				spanLock.End()
+
 				logger.Warnf("Failed to acquire lock for message %s: %v", key, err)
 
 				return
 			}
 
 			if !success {
+				libOpentelemetry.HandleSpanEvent(&spanLock, "Lock already held by another pod")
+				spanLock.End()
+
 				logger.Infof("Message %s already being processed by another pod, skipping", key)
 
 				return
 			}
+
+			spanLock.End()
 
 			if m.Validate == nil {
 				logger.Warnf("Message (key: %s) has nil Validate field, skipping. Message will remain in queue.", key)
@@ -174,6 +184,7 @@ Outer:
 					Alias:          balance.Alias,
 					ID:             balance.ID,
 					AccountID:      balance.AccountID,
+					Key:            balanceKey,
 					Available:      balance.Available,
 					OnHold:         balance.OnHold,
 					Version:        balance.Version,
@@ -181,7 +192,6 @@ Outer:
 					AllowSending:   balance.AllowSending == 1,
 					AllowReceiving: balance.AllowReceiving == 1,
 					AssetCode:      balance.AssetCode,
-					Key:            balanceKey,
 					OrganizationID: m.OrganizationID.String(),
 					LedgerID:       m.LedgerID.String(),
 				})
