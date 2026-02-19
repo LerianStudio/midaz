@@ -25,6 +25,11 @@ func TestUpdateBalanceSuccess(t *testing.T) {
 		AllowReceiving: nil,
 	}
 
+	expectedBalance := &mmodel.Balance{
+		ID:           balanceID.String(),
+		AllowSending: false,
+	}
+
 	uc := UseCase{
 		BalanceRepo: balance.NewMockRepository(gomock.NewController(t)),
 	}
@@ -32,11 +37,13 @@ func TestUpdateBalanceSuccess(t *testing.T) {
 	uc.BalanceRepo.(*balance.MockRepository).
 		EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(nil).
+		Return(expectedBalance, nil).
 		Times(1)
-	err := uc.BalanceRepo.Update(context.TODO(), organizationID, ledgerID, balanceID, balanceUpdate)
+	result, err := uc.BalanceRepo.Update(context.TODO(), organizationID, ledgerID, balanceID, balanceUpdate)
 
 	assert.Nil(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, false, result.AllowSending)
 }
 
 // TestUpdateBalanceError is responsible to test UpdateBalanceError with error
@@ -61,9 +68,10 @@ func TestUpdateBalanceError(t *testing.T) {
 	uc.BalanceRepo.(*balance.MockRepository).
 		EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(errors.New(errMSG))
-	err := uc.BalanceRepo.Update(context.TODO(), organizationID, ledgerID, balanceID, balanceUpdate)
+		Return(nil, errors.New(errMSG))
+	result, err := uc.BalanceRepo.Update(context.TODO(), organizationID, ledgerID, balanceID, balanceUpdate)
 
+	assert.Nil(t, result)
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)
 }

@@ -8,6 +8,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -23,13 +24,15 @@ type ProducerRepository interface {
 
 // ProducerRabbitMQRepository is a rabbitmq implementation of the producer
 type ProducerRabbitMQRepository struct {
-	conn *libRabbitmq.RabbitMQConnection
+	conn   *libRabbitmq.RabbitMQConnection
+	logger libLog.Logger
 }
 
 // NewProducerRabbitMQ returns a new instance of ProducerRabbitMQRepository using the given rabbitmq connection.
-func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRepository {
+func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection, logger libLog.Logger) *ProducerRabbitMQRepository {
 	prmq := &ProducerRabbitMQRepository{
-		conn: c,
+		conn:   c,
+		logger: logger,
 	}
 
 	_, err := c.GetNewConnect()
@@ -84,8 +87,8 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		err = prmq.conn.Channel.Publish(
 			exchange,
 			key,
-			false,
-			false,
+			false, // mandatory
+			false, // immediate
 			amqp.Publishing{
 				ContentType:  "application/json",
 				DeliveryMode: amqp.Persistent,

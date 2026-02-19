@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
 )
 
 // Repository provides an interface for operations related to account entities.
@@ -39,6 +41,10 @@ type Repository interface {
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
+
+// accountColumns defines the explicit column list for account table queries.
+// This ensures backward compatibility when new columns are added in future versions.
+const accountColumns = "id, name, parent_account_id, entity_id, asset_code, organization_id, ledger_id, portfolio_id, segment_id, status, status_description, alias, type, created_at, updated_at, deleted_at, blocked"
 
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
 type AccountPostgreSQLRepository struct {
@@ -194,7 +200,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	var accounts []*mmodel.Account
 
-	findAll := squirrel.Select("*").
+	findAll := squirrel.Select(accountColumns).
 		From(r.tableName).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
@@ -291,21 +297,21 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	builder := squirrel.Select("*").
+	findOne := squirrel.Select(accountColumns).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"id": id}).
-		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ?", id)).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		Limit(1).
 		PlaceholderFormat(squirrel.Dollar)
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
-		builder = builder.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
+		findOne = findOne.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
 	}
 
-	query, args, err := builder.ToSql()
+	query, args, err := findOne.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
@@ -377,20 +383,20 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		return nil, err
 	}
 
-	builder := squirrel.Select("*").
+	findOne := squirrel.Select(accountColumns).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ?", id)).
 		OrderBy("created_at DESC").
 		Limit(1).
 		PlaceholderFormat(squirrel.Dollar)
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
-		builder = builder.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
+		findOne = findOne.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
 	}
 
-	query, args, err := builder.ToSql()
+	query, args, err := findOne.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
@@ -462,21 +468,21 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		return nil, err
 	}
 
-	builder := squirrel.Select("*").
+	findOne := squirrel.Select(accountColumns).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"alias": alias}).
-		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("alias = ?", alias)).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		Limit(1).
 		PlaceholderFormat(squirrel.Dollar)
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
-		builder = builder.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
+		findOne = findOne.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
 	}
 
-	query, args, err := builder.ToSql()
+	query, args, err := findOne.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
@@ -614,20 +620,20 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	var accounts []*mmodel.Account
 
-	builder := squirrel.Select("*").
+	findAll := squirrel.Select(accountColumns).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"id": ids}).
-		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
-		builder = builder.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
+		findAll = findAll.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
 	}
 
-	query, args, err := builder.ToSql()
+	query, args, err := findAll.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
@@ -710,17 +716,17 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 	var accounts []*mmodel.Account
 
-	builder := squirrel.Select("*").
+	findAll := squirrel.Select(accountColumns).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"portfolio_id": portfolioID}).
-		Where(squirrel.Eq{"alias": alias}).
-		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("portfolio_id = ?", portfolioID)).
+		Where(squirrel.Expr("alias = ANY(?)", pq.Array(alias))).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
-	query, args, err := builder.ToSql()
+	query, args, err := findAll.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
@@ -825,14 +831,20 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	if !libCommons.IsNilOrEmpty(acc.SegmentID) {
 		builder = builder.Set("segment_id", record.SegmentID)
+	} else if slices.Contains(acc.NullFields, "segmentId") {
+		builder = builder.Set("segment_id", nil)
 	}
 
 	if !libCommons.IsNilOrEmpty(acc.EntityID) {
 		builder = builder.Set("entity_id", record.EntityID)
+	} else if slices.Contains(acc.NullFields, "entityId") {
+		builder = builder.Set("entity_id", nil)
 	}
 
 	if !libCommons.IsNilOrEmpty(acc.PortfolioID) {
 		builder = builder.Set("portfolio_id", record.PortfolioID)
+	} else if slices.Contains(acc.NullFields, "portfolioId") {
+		builder = builder.Set("portfolio_id", nil)
 	}
 
 	record.UpdatedAt = time.Now()
@@ -972,16 +984,16 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 	var accounts []*mmodel.Account
 
-	builder := squirrel.Select("*").
+	findAll := squirrel.Select(accountColumns).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"id": ids}).
-		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
-	query, args, err := builder.ToSql()
+	query, args, err := findAll.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
@@ -1064,16 +1076,16 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 	var accounts []*mmodel.Account
 
-	builder := squirrel.Select("*").
+	findAll := squirrel.Select(accountColumns).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"alias": aliases}).
-		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("alias = ANY(?)", pq.Array(aliases))).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
-	query, args, err := builder.ToSql()
+	query, args, err := findAll.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 

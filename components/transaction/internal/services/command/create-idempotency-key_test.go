@@ -9,9 +9,10 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -42,11 +43,12 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+		value, createdInternalKey, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
 
 		// Assertions
 		assert.NoError(t, err)
 		assert.Nil(t, value)
+		assert.Equal(t, &internalKey, createdInternalKey)
 	})
 
 	t.Run("success with empty key", func(t *testing.T) {
@@ -60,14 +62,15 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, "", hash, ttl)
+		value, createdInternalKey, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, "", hash, ttl)
 
 		// Assertions
 		assert.NoError(t, err)
 		assert.Nil(t, value)
+		assert.Equal(t, &internalKey, createdInternalKey)
 	})
 
-	t.Run("key already exists", func(t *testing.T) {
+	t.Run("key already exists with cached value", func(t *testing.T) {
 		key := "existing-key"
 		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
 		existingValue := "existing-transaction-json"
@@ -85,37 +88,115 @@ func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 			Times(1)
 
 		// Call the method
-		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+		value, createdInternalKey, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
 
 		// Assertions
 		assert.NoError(t, err) // Based on the actual implementation, this should not error when value is found
 		assert.NotNil(t, value)
 		assert.Equal(t, existingValue, *value)
+		assert.Equal(t, &internalKey, createdInternalKey)
 	})
 
-	t.Run("redis error", func(t *testing.T) {
+	t.Run("key exists with empty value returns idempotency error", func(t *testing.T) {
 		key := "test-key"
 		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
 
-		// Mock Redis.SetNX - redis error
+		// Mock Redis.SetNX - key exists (in-flight transaction)
 		mockRedisRepo.EXPECT().
 			SetNX(gomock.Any(), internalKey, "", ttl).
 			Return(false, nil).
 			Times(1)
 
-		// Mock Redis.Get - return empty value
+		// Mock Redis.Get - return empty value (transaction still processing)
 		mockRedisRepo.EXPECT().
 			Get(gomock.Any(), internalKey).
 			Return("", nil).
 			Times(1)
 
 		// Call the method
-		value, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+		value, createdInternalKey, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
 
-		// Assertions
+		// Assertions - should return idempotency error because key is in use
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "already in use")
 		assert.Nil(t, value)
+		assert.Equal(t, &internalKey, createdInternalKey)
+	})
+
+	t.Run("key disappeared between SetNX and Get returns idempotency error", func(t *testing.T) {
+		key := "disappearing-key"
+		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
+
+		// Mock Redis.SetNX - key exists (returns false)
+		mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), internalKey, "", ttl).
+			Return(false, nil).
+			Times(1)
+
+		// Mock Redis.Get - key no longer exists (redis.Nil)
+		// This simulates the edge case where key expired/was deleted between SetNX and Get
+		mockRedisRepo.EXPECT().
+			Get(gomock.Any(), internalKey).
+			Return("", goredis.Nil).
+			Times(1)
+
+		// Call the method
+		value, createdInternalKey, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+
+		// Current behavior: returns idempotency error (key existed but now has no value)
+		// Note: This could be improved to retry SetNX instead
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "already in use")
+		assert.Nil(t, value)
+		assert.Equal(t, &internalKey, createdInternalKey)
+	})
+
+	t.Run("SetNX returns error", func(t *testing.T) {
+		key := "error-key"
+		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
+		expectedErr := assert.AnError
+
+		// Mock Redis.SetNX - returns error
+		mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), internalKey, "", ttl).
+			Return(false, expectedErr).
+			Times(1)
+
+		// Call the method
+		value, createdInternalKey, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+
+		// Assertions
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+		assert.Nil(t, value)
+		assert.Equal(t, &internalKey, createdInternalKey)
+	})
+
+	t.Run("Get returns non-nil error other than redis.Nil", func(t *testing.T) {
+		key := "get-error-key"
+		internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, key)
+		expectedErr := assert.AnError
+
+		// Mock Redis.SetNX - key exists
+		mockRedisRepo.EXPECT().
+			SetNX(gomock.Any(), internalKey, "", ttl).
+			Return(false, nil).
+			Times(1)
+
+		// Mock Redis.Get - returns error (not redis.Nil)
+		mockRedisRepo.EXPECT().
+			Get(gomock.Any(), internalKey).
+			Return("", expectedErr).
+			Times(1)
+
+		// Call the method
+		value, createdInternalKey, err := uc.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+
+		// Assertions
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+		assert.Nil(t, value)
+		assert.Equal(t, &internalKey, createdInternalKey)
 	})
 }
 
@@ -149,7 +230,8 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 			Status:                   transaction.Status{Code: "COMMITTED"},
 		}
 
-		expectedValue, _ := json.Marshal(txn)
+		expectedValue, err := json.Marshal(txn)
+		require.NoError(t, err)
 
 		// Mock Redis.Set - success case
 		mockRedisRepo.EXPECT().
@@ -174,7 +256,8 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 			Status:                   transaction.Status{Code: "COMMITTED"},
 		}
 
-		expectedValue, _ := json.Marshal(txn)
+		expectedValue, err := json.Marshal(txn)
+		require.NoError(t, err)
 
 		// Mock Redis.Set - success case
 		mockRedisRepo.EXPECT().
@@ -200,7 +283,8 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 			Status:                   transaction.Status{Code: "COMMITTED"},
 		}
 
-		expectedValue, _ := json.Marshal(txn)
+		expectedValue, err := json.Marshal(txn)
+		require.NoError(t, err)
 
 		// Mock Redis.Set - error case
 		mockRedisRepo.EXPECT().
@@ -210,49 +294,5 @@ func TestSetValueOnExistingIdempotencyKey(t *testing.T) {
 
 		// Call the method - should not panic or return error
 		uc.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, txn, ttl)
-	})
-}
-
-func TestSetTransactionIdempotencyMapping(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-	uc := &UseCase{
-		RedisRepo: mockRedisRepo,
-	}
-
-	ctx := context.Background()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New().String()
-	idempotencyKey := "test-idempotency-key"
-	ttl := time.Duration(5) // Value in seconds (Redis Set multiplies by time.Second internally)
-
-	t.Run("success", func(t *testing.T) {
-		expectedKey := utils.IdempotencyReverseKey(organizationID, ledgerID, transactionID)
-
-		// Mock Redis.Set - success case
-		mockRedisRepo.EXPECT().
-			Set(gomock.Any(), expectedKey, idempotencyKey, ttl).
-			Return(nil).
-			Times(1)
-
-		// Call the method
-		uc.SetTransactionIdempotencyMapping(ctx, organizationID, ledgerID, transactionID, idempotencyKey, ttl)
-	})
-
-	t.Run("redis set error logs but does not panic", func(t *testing.T) {
-		expectedKey := utils.IdempotencyReverseKey(organizationID, ledgerID, transactionID)
-
-		// Mock Redis.Set - error case
-		mockRedisRepo.EXPECT().
-			Set(gomock.Any(), expectedKey, idempotencyKey, ttl).
-			Return(assert.AnError).
-			Times(1)
-
-		// Call the method - should not panic
-		uc.SetTransactionIdempotencyMapping(ctx, organizationID, ledgerID, transactionID, idempotencyKey, ttl)
 	})
 }

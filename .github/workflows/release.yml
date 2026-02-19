@@ -121,7 +121,7 @@ jobs:
       # Install semantic-release plugins
     - name: Install missing plugin @semantic-release/exec
       run: npm install --save-dev @semantic-release/exec
-
+      
     # Run semantic-release to determine version and create release
     - name: Semantic Release
       uses: cycjimmy/semantic-release-action@v4

@@ -347,7 +347,7 @@ func (r *mockRepository) FindWithOperations(ctx context.Context, organizationID,
 
 	row := r.db.QueryRowContext(
 		ctx,
-		"SELECT * FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = $1 AND t.ledger_id = $2 AND t.id = $3 AND t.deleted_at IS NULL",
+		"SELECT "+transactionColumnsAliased+", "+operationColumnsForJoin+" FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = $1 AND t.ledger_id = $2 AND t.id = $3 AND t.deleted_at IS NULL",
 		organizationID, ledgerID, id,
 	)
 
@@ -949,7 +949,7 @@ func TestTransactionRepository_FindWithOperations(t *testing.T) {
 					uuid.New().String(), uuid.New().String(), nil, time.Now(), time.Now(), nil,
 				)
 
-				mock.ExpectQuery(`SELECT \* FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = \$1 AND t.ledger_id = \$2 AND t.id = \$3 AND t.deleted_at IS NULL`).
+				mock.ExpectQuery(`SELECT t\.id, t\.parent_transaction_id, t\.description, t\.status, t\.status_description, t\.amount, t\.asset_code, t\.chart_of_accounts_group_name, t\.ledger_id, t\.organization_id, t\.body, t\.created_at, t\.updated_at, t\.deleted_at, t\.route, o\.id, o\.transaction_id, o\.description, o\.type, o\.asset_code, o\.amount, o\.available_balance, o\.on_hold_balance, o\.available_balance_after, o\.on_hold_balance_after, o\.status, o\.status_description, o\.account_id, o\.account_alias, o\.balance_id, o\.chart_of_accounts, o\.organization_id, o\.ledger_id, o\.created_at, o\.updated_at, o\.deleted_at, o\.route, o\.balance_affected, o\.balance_key, o\.balance_version_before, o\.balance_version_after FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = \$1 AND t.ledger_id = \$2 AND t.id = \$3 AND t.deleted_at IS NULL`).
 					WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 					WillReturnRows(rows)
 
@@ -965,7 +965,7 @@ func TestTransactionRepository_FindWithOperations(t *testing.T) {
 			setupRepo: func() *mockRepository {
 				repo, mock := setupMockDB(t)
 
-				mock.ExpectQuery(`SELECT \* FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = \$1 AND t.ledger_id = \$2 AND t.id = \$3 AND t.deleted_at IS NULL`).
+				mock.ExpectQuery(`SELECT t\.id, t\.parent_transaction_id, t\.description, t\.status, t\.status_description, t\.amount, t\.asset_code, t\.chart_of_accounts_group_name, t\.ledger_id, t\.organization_id, t\.body, t\.created_at, t\.updated_at, t\.deleted_at, t\.route, o\.id, o\.transaction_id, o\.description, o\.type, o\.asset_code, o\.amount, o\.available_balance, o\.on_hold_balance, o\.available_balance_after, o\.on_hold_balance_after, o\.status, o\.status_description, o\.account_id, o\.account_alias, o\.balance_id, o\.chart_of_accounts, o\.organization_id, o\.ledger_id, o\.created_at, o\.updated_at, o\.deleted_at, o\.route, o\.balance_affected, o\.balance_key, o\.balance_version_before, o\.balance_version_after FROM transaction t INNER JOIN operation o ON t.id = o.transaction_id WHERE t.organization_id = \$1 AND t.ledger_id = \$2 AND t.id = \$3 AND t.deleted_at IS NULL`).
 					WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 					WillReturnError(sql.ErrNoRows)
 

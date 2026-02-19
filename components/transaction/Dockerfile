@@ -1,5 +1,7 @@
 FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS builder
 
+# v3.3.14
+
 WORKDIR /transaction-app
 
 COPY go.mod go.sum ./
@@ -13,6 +15,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) go b
 FROM gcr.io/distroless/static-debian12
 
 COPY --from=builder /app /app
+
 COPY --from=builder /transaction-app/components/transaction/migrations /components/transaction/migrations
 
 EXPOSE 3001 3011
