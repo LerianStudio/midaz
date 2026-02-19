@@ -6,14 +6,24 @@ package command
 
 import (
 	"context"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/google/uuid"
 )
 
+// ledgerSettingsCacheKeyPrefix is the prefix for ledger settings cache keys.
+const ledgerSettingsCacheKeyPrefix = "ledger_settings"
+
+// buildLedgerSettingsCacheKey builds the cache key for ledger settings.
+func buildLedgerSettingsCacheKey(organizationID, ledgerID uuid.UUID) string {
+	return fmt.Sprintf("%s:%s:%s", ledgerSettingsCacheKeyPrefix, organizationID.String(), ledgerID.String())
+}
+
 // UpdateLedgerSettings updates the settings for a specific ledger using JSONB merge semantics.
 // The new settings are merged with existing settings (not replaced).
+// Invalidates the cache after successful write.
 // Returns the merged settings after the update.
 // Returns an error if the ledger does not exist.
 func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
@@ -36,6 +46,16 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 	// Ensure we never return nil, always return empty map
 	if updatedSettings == nil {
 		updatedSettings = make(map[string]any)
+	}
+
+	// Invalidate cache after successful write
+	if uc.RedisRepo != nil {
+		cacheKey := buildLedgerSettingsCacheKey(organizationID, ledgerID)
+		if err := uc.RedisRepo.Del(ctx, cacheKey); err != nil {
+			logger.Warnf("Failed to invalidate ledger settings cache: %v", err)
+		} else {
+			logger.Debugf("Invalidated cache for ledger settings: %s", ledgerID.String())
+		}
 	}
 
 	logger.Infof("Successfully updated settings for ledger: %s", ledgerID.String())

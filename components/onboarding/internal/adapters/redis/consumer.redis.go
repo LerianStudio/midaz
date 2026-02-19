@@ -6,19 +6,23 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+	"github.com/redis/go-redis/v9"
 )
 
 // RedisRepository provides an interface for redis.
 // It is used to set, get and delete keys in redis.
+//
+//go:generate mockgen --destination=consumer.redis_mock.go --package=redis . RedisRepository
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
-	Get(ctx context.Context, key string) error
+	Get(ctx context.Context, key string) (string, error)
 	Del(ctx context.Context, key string) error
 }
 
@@ -68,10 +72,54 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	return nil
 }
 
-func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) error {
-	return nil
+func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.get")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to connect on redis", err)
+
+		logger.Errorf("Failed to connect on redis: %v", err)
+
+		return "", err
+	}
+
+	val, err := rds.Get(ctx, key).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get on redis", err)
+
+		logger.Errorf("Failed to get on redis: %v", err)
+
+		return "", err
+	}
+
+	return val, nil
 }
 
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.del")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		return err
+	}
+
+	val, err := rds.Del(ctx, key).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to del on redis", err)
+
+		return err
+	}
+
+	logger.Infof("deleted keys count: %v", val)
+
 	return nil
 }

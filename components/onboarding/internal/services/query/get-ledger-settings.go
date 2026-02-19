@@ -6,13 +6,28 @@ package query
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/google/uuid"
 )
 
+// LedgerSettingsCacheTTL defines the TTL for cached ledger settings (5 minutes).
+const LedgerSettingsCacheTTL = 5 * time.Minute
+
+// LedgerSettingsCacheKeyPrefix is the prefix for ledger settings cache keys.
+const LedgerSettingsCacheKeyPrefix = "ledger_settings"
+
+// BuildLedgerSettingsCacheKey builds the cache key for ledger settings.
+func BuildLedgerSettingsCacheKey(organizationID, ledgerID uuid.UUID) string {
+	return fmt.Sprintf("%s:%s:%s", LedgerSettingsCacheKeyPrefix, organizationID.String(), ledgerID.String())
+}
+
 // GetLedgerSettings retrieves the settings for a specific ledger.
+// Uses cache-aside pattern: checks cache first, falls back to database on miss.
 // Returns an empty map if no settings are defined (not an error).
 // Returns an error if the ledger does not exist.
 func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error) {
@@ -23,6 +38,27 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 
 	logger.Infof("Retrieving settings for ledger: %s", ledgerID.String())
 
+	cacheKey := BuildLedgerSettingsCacheKey(organizationID, ledgerID)
+
+	// Try to get from cache first
+	if uc.RedisRepo != nil {
+		cached, err := uc.RedisRepo.Get(ctx, cacheKey)
+		if err != nil {
+			logger.Warnf("Cache error, falling back to database: %v", err)
+		} else if cached != "" {
+			// Cache hit - unmarshal and return
+			var settings map[string]any
+			if err := json.Unmarshal([]byte(cached), &settings); err != nil {
+				logger.Warnf("Failed to unmarshal cached settings, falling back to database: %v", err)
+			} else {
+				logger.Debugf("Cache hit for ledger settings: %s", ledgerID.String())
+
+				return settings, nil
+			}
+		}
+	}
+
+	// Cache miss or error - get from database
 	settings, err := uc.LedgerRepo.GetSettings(ctx, organizationID, ledgerID)
 	if err != nil {
 		logger.Errorf("Error getting ledger settings: %v", err)
@@ -35,6 +71,20 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 	// Ensure we never return nil, always return empty map
 	if settings == nil {
 		settings = make(map[string]any)
+	}
+
+	// Populate cache for future reads
+	if uc.RedisRepo != nil {
+		settingsJSON, err := json.Marshal(settings)
+		if err != nil {
+			logger.Warnf("Failed to marshal settings for cache: %v", err)
+		} else {
+			if err := uc.RedisRepo.Set(ctx, cacheKey, string(settingsJSON), LedgerSettingsCacheTTL); err != nil {
+				logger.Warnf("Failed to cache ledger settings: %v", err)
+			} else {
+				logger.Debugf("Cached ledger settings: %s", ledgerID.String())
+			}
+		}
 	}
 
 	logger.Infof("Successfully retrieved settings for ledger: %s", ledgerID.String())
