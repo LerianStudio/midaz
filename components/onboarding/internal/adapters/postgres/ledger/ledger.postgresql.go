@@ -105,6 +105,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to marshal settings", err)
 		logger.Errorf("Failed to marshal settings: %v", err)
+
 		return nil, err
 	}
 
@@ -225,6 +226,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 		if err := json.Unmarshal(settingsJSON, &ledger.Settings); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal settings", err)
 			logger.Errorf("Failed to unmarshal settings: %v", err)
+
 			return nil, err
 		}
 	}
@@ -284,6 +286,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 
 	for rows.Next() {
 		var ledger LedgerPostgreSQLModel
+
 		var settingsJSON []byte
 		if err := rows.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
 			&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt, &settingsJSON); err != nil {
@@ -298,6 +301,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 			if err := json.Unmarshal(settingsJSON, &ledger.Settings); err != nil {
 				libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal settings", err)
 				logger.Errorf("Failed to unmarshal settings: %v", err)
+
 				return nil, err
 			}
 		}
@@ -420,6 +424,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 
 	for rows.Next() {
 		var ledger LedgerPostgreSQLModel
+
 		var settingsJSON []byte
 		if err := rows.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
 			&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt, &settingsJSON); err != nil {
@@ -434,6 +439,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 			if err := json.Unmarshal(settingsJSON, &ledger.Settings); err != nil {
 				libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal settings", err)
 				logger.Errorf("Failed to unmarshal settings: %v", err)
+
 				return nil, err
 			}
 		}

@@ -19,6 +19,10 @@ import (
 type Ports struct {
 	// MetadataPort is the MongoDB metadata repository for direct access in unified ledger mode.
 	MetadataPort mbootstrap.MetadataIndexRepository
+
+	// SettingsPort is the ledger settings query service for direct access in unified ledger mode.
+	// This allows the transaction module to query ledger settings during validation.
+	SettingsPort mbootstrap.SettingsPort
 }
 
 // Service is the application glue where we put all top level components to be used.
@@ -79,6 +83,12 @@ func (app *Service) GetRouteRegistrar() func(*fiber.App) {
 // This allows direct in-process calls for metadata index operations.
 func (app *Service) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
 	return app.Ports.MetadataPort
+}
+
+// GetSettingsPort returns the settings port for use by transaction in unified mode.
+// This allows the transaction module to query ledger settings during validation.
+func (app *Service) GetSettingsPort() mbootstrap.SettingsPort {
+	return app.Ports.SettingsPort
 }
 
 // Ensure Service implements mbootstrap.Service interface at compile time

@@ -33,6 +33,7 @@ func (s *StubRunnable) Run(l *libCommons.Launcher) error {
 type StubService struct {
 	runnables         []mbootstrap.RunnableConfig
 	metadataIndexRepo mbootstrap.MetadataIndexRepository
+	settingsPort      mbootstrap.SettingsPort
 }
 
 func (s *StubService) GetRunnables() []mbootstrap.RunnableConfig {
@@ -47,6 +48,10 @@ func (s *StubService) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository 
 	return s.metadataIndexRepo
 }
 
+func (s *StubService) GetSettingsPort() mbootstrap.SettingsPort {
+	return s.settingsPort
+}
+
 // Ensure StubService implements onboarding.OnboardingService
 var _ onboarding.OnboardingService = (*StubService)(nil)
 
@@ -57,6 +62,7 @@ type StubTransactionService struct {
 	runnables         []mbootstrap.RunnableConfig
 	balancePort       mbootstrap.BalancePort
 	metadataIndexRepo mbootstrap.MetadataIndexRepository
+	settingsPort      mbootstrap.SettingsPort
 }
 
 func (s *StubTransactionService) GetRunnables() []mbootstrap.RunnableConfig {
@@ -73,6 +79,10 @@ func (s *StubTransactionService) GetMetadataIndexPort() mbootstrap.MetadataIndex
 
 func (s *StubTransactionService) GetRouteRegistrar() func(*fiber.App) {
 	return func(app *fiber.App) {}
+}
+
+func (s *StubTransactionService) SetSettingsPort(port mbootstrap.SettingsPort) {
+	s.settingsPort = port
 }
 
 // Ensure StubTransactionService implements transaction.TransactionService

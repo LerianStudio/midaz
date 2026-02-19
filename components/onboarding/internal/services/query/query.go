@@ -14,7 +14,14 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 )
+
+// Compile-time interface verification.
+// UseCase implements mbootstrap.SettingsPort for unified ledger mode,
+// allowing the transaction module to query ledger settings directly (in-process)
+// without network overhead.
+var _ mbootstrap.SettingsPort = (*UseCase)(nil)
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementation.
 type UseCase struct {

@@ -447,6 +447,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger: logger,
 		Ports: Ports{
 			MetadataPort: metadataMongoDBRepository,
+			SettingsPort: queryUseCase,
 		},
 		auth:                auth,
 		accountHandler:      accountHandler,

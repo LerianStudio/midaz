@@ -28,6 +28,10 @@ type OnboardingService interface {
 	// GetMetadataIndexPort returns the metadata index port for use by other modules.
 	// This allows direct in-process calls for metadata index operations when running in unified mode.
 	GetMetadataIndexPort() mbootstrap.MetadataIndexRepository
+
+	// GetSettingsPort returns the settings port for use by the transaction module.
+	// This allows direct in-process calls to query ledger settings when running in unified mode.
+	GetSettingsPort() mbootstrap.SettingsPort
 }
 
 // Options configures the onboarding service initialization behavior.

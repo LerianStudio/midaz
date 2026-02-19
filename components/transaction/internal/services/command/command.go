@@ -53,9 +53,24 @@ type UseCase struct {
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
+
+	// SettingsPort provides an abstraction for querying ledger settings.
+	// This is a transport-agnostic "port" that can be implemented by either:
+	//   - onboarding query.UseCase: Direct in-process calls (unified ledger mode)
+	//   - GRPCSettingsAdapter: Network calls via gRPC (separate services mode, future)
+	// Optional - may be nil if settings functionality is not enabled.
+	SettingsPort mbootstrap.SettingsPort
 }
 
 // CheckHealth returns nil for unified mode (in-process calls don't need health checks).
 func (uc *UseCase) CheckHealth(ctx context.Context) error {
 	return nil
+}
+
+// SetSettingsPort sets the settings port after initialization.
+// This is used in unified ledger mode where the initialization order creates
+// a circular dependency: transaction needs to be initialized first to provide
+// BalancePort to onboarding, but onboarding's SettingsPort is needed by transaction.
+func (uc *UseCase) SetSettingsPort(port mbootstrap.SettingsPort) {
+	uc.SettingsPort = port
 }
