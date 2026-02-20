@@ -581,65 +581,106 @@ func collectNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldV
 
 	switch rv.Kind() {
 	case reflect.Ptr:
-		if rv.IsNil() {
-			return
-		}
-
-		collectNullByteViolations(rv.Elem(), jsonPath, out)
+		collectNullBytesFromPtr(rv, jsonPath, out)
 	case reflect.Struct:
-		rt := rv.Type()
-		for i := 0; i < rv.NumField(); i++ {
-			f := rt.Field(i)
-
-			// Skip unexported fields
-			if f.PkgPath != "" {
-				continue
-			}
-
-			name := jsonFieldName(f)
-			if name == "-" {
-				continue
-			}
-
-			collectNullByteViolations(rv.Field(i), name, out)
-		}
+		collectNullBytesFromStruct(rv, out)
 	case reflect.Slice, reflect.Array:
-		for i := 0; i < rv.Len(); i++ {
-			collectNullByteViolations(rv.Index(i), jsonPath, out)
-		}
+		collectNullBytesFromSliceOrArray(rv, jsonPath, out)
 	case reflect.Map:
-		iter := rv.MapRange()
-		for iter.Next() {
-			k := iter.Key()
-			v := iter.Value()
-			keyPath := jsonPath
-
-			if k.Kind() == reflect.String {
-				if jsonPath != "" {
-					keyPath = jsonPath + "." + k.String()
-				} else {
-					keyPath = k.String()
-				}
-			}
-
-			collectNullByteViolations(v, keyPath, out)
-		}
+		collectNullBytesFromMap(rv, jsonPath, out)
 	case reflect.Interface:
-		if !rv.IsNil() {
-			collectNullByteViolations(rv.Elem(), jsonPath, out)
-		}
+		collectNullBytesFromInterface(rv, jsonPath, out)
 	case reflect.String:
-		if strings.ContainsRune(rv.String(), '\x00') {
-			key := jsonPath
-			if key == "" {
-				key = "value"
-			}
-
-			out[key] = key + " cannot contain null byte (\\x00)"
-		}
+		collectNullBytesFromString(rv, jsonPath, out)
 	default:
 		// primitives: no-op
 	}
+}
+
+// collectNullBytesFromPtr handles pointer values by dereferencing and recursing.
+func collectNullBytesFromPtr(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+	if rv.IsNil() {
+		return
+	}
+
+	collectNullByteViolations(rv.Elem(), jsonPath, out)
+}
+
+// collectNullBytesFromStruct iterates over exported struct fields and recurses into each.
+func collectNullBytesFromStruct(rv reflect.Value, out pkg.FieldValidations) {
+	rt := rv.Type()
+
+	for i := 0; i < rv.NumField(); i++ {
+		f := rt.Field(i)
+
+		// Skip unexported fields
+		if f.PkgPath != "" {
+			continue
+		}
+
+		name := jsonFieldName(f)
+		if name == "-" {
+			continue
+		}
+
+		collectNullByteViolations(rv.Field(i), name, out)
+	}
+}
+
+// collectNullBytesFromSliceOrArray iterates over slice/array elements and recurses into each.
+func collectNullBytesFromSliceOrArray(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+	for i := 0; i < rv.Len(); i++ {
+		collectNullByteViolations(rv.Index(i), jsonPath, out)
+	}
+}
+
+// collectNullBytesFromMap iterates over map entries, building key paths for string keys.
+func collectNullBytesFromMap(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+	iter := rv.MapRange()
+
+	for iter.Next() {
+		k := iter.Key()
+		v := iter.Value()
+		keyPath := buildMapKeyPath(k, jsonPath)
+
+		collectNullByteViolations(v, keyPath, out)
+	}
+}
+
+// buildMapKeyPath constructs the JSON path for a map entry key.
+func buildMapKeyPath(k reflect.Value, jsonPath string) string {
+	if k.Kind() != reflect.String {
+		return jsonPath
+	}
+
+	if jsonPath != "" {
+		return jsonPath + "." + k.String()
+	}
+
+	return k.String()
+}
+
+// collectNullBytesFromInterface handles interface values by unwrapping and recursing.
+func collectNullBytesFromInterface(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+	if rv.IsNil() {
+		return
+	}
+
+	collectNullByteViolations(rv.Elem(), jsonPath, out)
+}
+
+// collectNullBytesFromString checks if a string contains a null byte and records the violation.
+func collectNullBytesFromString(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+	if !strings.ContainsRune(rv.String(), '\x00') {
+		return
+	}
+
+	key := jsonPath
+	if key == "" {
+		key = "value"
+	}
+
+	out[key] = key + " cannot contain null byte (\\x00)"
 }
 
 // jsonFieldName returns the effective JSON field name for a struct field.
