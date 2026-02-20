@@ -95,3 +95,87 @@ func TestProperty_ValidateStruct_OversizedFields(t *testing.T) {
 }
 
 func ptrStr(s string) *string { return &s }
+
+func TestCollectNullByteViolations_MapWithNullBytes(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		input     any
+		wantErr   bool
+		wantField string
+	}{
+		{
+			name: "map with null byte in string value",
+			input: map[string]any{
+				"key": "value\x00with null",
+			},
+			wantErr:   true,
+			wantField: "key",
+		},
+		{
+			name: "map with null byte in nested string",
+			input: map[string]any{
+				"outer": map[string]any{
+					"inner": "nested\x00value",
+				},
+			},
+			wantErr:   true,
+			wantField: "outer.inner",
+		},
+		{
+			name: "map with clean values",
+			input: map[string]any{
+				"key": "clean value",
+			},
+			wantErr: false,
+		},
+		{
+			name: "map with null byte in array element",
+			input: map[string]any{
+				"items": []any{"clean", "dirty\x00value"},
+			},
+			wantErr:   true,
+			wantField: "items",
+		},
+		{
+			name: "deeply nested map with null byte",
+			input: map[string]any{
+				"level1": map[string]any{
+					"level2": map[string]any{
+						"level3": "deep\x00null",
+					},
+				},
+			},
+			wantErr:   true,
+			wantField: "level1.level2.level3",
+		},
+		{
+			name: "map with interface value containing null byte",
+			input: map[string]any{
+				"data": any("interface\x00value"),
+			},
+			wantErr:   true,
+			wantField: "data",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateStruct(tc.input)
+
+			if tc.wantErr {
+				require.Error(t, err, "expected validation error for null byte")
+
+				var vErr pkg.ValidationKnownFieldsError
+				require.True(t, errors.As(err, &vErr), "expected ValidationKnownFieldsError type, got %T", err)
+				_, hasField := vErr.Fields[tc.wantField]
+				require.True(t, hasField, "expected field %q in validation errors, got fields: %v", tc.wantField, vErr.Fields)
+			} else {
+				require.NoError(t, err, "expected no validation error")
+			}
+		})
+	}
+}

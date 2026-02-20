@@ -48,7 +48,7 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 	ctx, span := tracer.Start(ctx, "query.get_ledger_settings")
 	defer span.End()
 
-	logger.Infof("Retrieving settings for ledger: %s", ledgerID.String())
+	logger.Debugf("Retrieving settings for ledger: %s", ledgerID.String())
 
 	cacheKey := BuildLedgerSettingsCacheKey(organizationID, ledgerID)
 
@@ -65,7 +65,8 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 			} else {
 				logger.Debugf("Cache hit for ledger settings: %s", ledgerID.String())
 
-				// Ensure we never return nil from cache (defensive check)
+				// Ensure we never return nil from cache (defensive check for edge case
+				// where JSON "null" was somehow cached instead of "{}")
 				if settings == nil {
 					settings = make(map[string]any)
 				}
@@ -92,15 +93,23 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 
 	// Populate cache for future reads
 	if uc.RedisRepo != nil {
+		_, cacheSpan := tracer.Start(ctx, "cache.set_ledger_settings")
+
 		settingsJSON, err := json.Marshal(settings)
 		if err != nil {
 			logger.Warnf("Failed to marshal settings for cache: %v", err)
+
+			cacheSpan.End()
 		} else {
 			if err := uc.RedisRepo.Set(ctx, cacheKey, string(settingsJSON), uc.getSettingsCacheTTL()); err != nil {
+				libOpentelemetry.HandleSpanError(&cacheSpan, "Failed to cache ledger settings", err)
+
 				logger.Warnf("Failed to cache ledger settings: %v", err)
 			} else {
 				logger.Debugf("Cached ledger settings: %s", ledgerID.String())
 			}
+
+			cacheSpan.End()
 		}
 	}
 

@@ -112,10 +112,12 @@ func GetLedgerSettings(t *testing.T, db *sql.DB, ledgerID uuid.UUID) map[string]
 	t.Helper()
 
 	var settingsJSON []byte
+
 	err := db.QueryRow(`SELECT COALESCE(settings, '{}') FROM ledger WHERE id = $1`, ledgerID).Scan(&settingsJSON)
 	require.NoError(t, err, "failed to get ledger settings")
 
 	var settings map[string]any
+
 	err = json.Unmarshal(settingsJSON, &settings)
 	require.NoError(t, err, "failed to unmarshal settings")
 

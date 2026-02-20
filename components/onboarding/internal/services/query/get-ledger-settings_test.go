@@ -386,3 +386,74 @@ func TestBuildLedgerSettingsCacheKey(t *testing.T) {
 	expected := "ledger_settings:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222"
 	assert.Equal(t, expected, key)
 }
+
+func TestGetLedgerSettings_CustomCacheTTL(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	// Custom TTL of 10 minutes instead of default 5 minutes
+	customTTL := 10 * DefaultSettingsCacheTTL
+
+	uc := &UseCase{
+		LedgerRepo:       mockLedgerRepo,
+		RedisRepo:        mockRedisRepo,
+		SettingsCacheTTL: customTTL,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	expectedSettings := map[string]any{
+		"key": "value",
+	}
+	cacheKey := BuildLedgerSettingsCacheKey(orgID, ledgerID)
+
+	// Cache miss
+	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), cacheKey).
+		Return("", nil)
+
+	// Database returns data
+	mockLedgerRepo.EXPECT().
+		GetSettings(gomock.Any(), orgID, ledgerID).
+		Return(expectedSettings, nil)
+
+	// Cache should be set with custom TTL, not default
+	mockRedisRepo.EXPECT().
+		Set(gomock.Any(), cacheKey, gomock.Any(), customTTL).
+		Return(nil)
+
+	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
+
+	require.NoError(t, err)
+	assert.Equal(t, expectedSettings, settings)
+}
+
+func TestGetSettingsCacheTTL_DefaultValue(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	ttl := uc.getSettingsCacheTTL()
+
+	assert.Equal(t, DefaultSettingsCacheTTL, ttl)
+}
+
+func TestGetSettingsCacheTTL_CustomValue(t *testing.T) {
+	t.Parallel()
+
+	customTTL := 15 * DefaultSettingsCacheTTL
+
+	uc := &UseCase{
+		SettingsCacheTTL: customTTL,
+	}
+
+	ttl := uc.getSettingsCacheTTL()
+
+	assert.Equal(t, customTTL, ttl)
+}

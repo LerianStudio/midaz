@@ -11,6 +11,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // UpdateLedgerSettings updates the settings for a specific ledger using JSONB merge semantics.
@@ -23,6 +24,11 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 
 	ctx, span := tracer.Start(ctx, "command.update_ledger_settings")
 	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+	)
 
 	logger.Infof("Updating settings for ledger: %s", ledgerID.String())
 

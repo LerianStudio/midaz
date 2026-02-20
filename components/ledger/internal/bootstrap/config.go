@@ -176,6 +176,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		transactionService.SetSettingsPort(settingsPort)
 
 		ledgerLogger.Info("SettingsPort wired from onboarding to transaction for in-process settings queries")
+	} else {
+		ledgerLogger.Warn("SettingsPort not available from onboarding - ledger settings queries will not work in unified mode")
 	}
 
 	ledgerLogger.Info("Both metadata index repositories available for settings routes")

@@ -149,7 +149,14 @@ func GetPayloadFromContext(c *fiber.Ctx) any {
 }
 
 // ValidateStruct validates a struct against defined validation rules, using the validator package.
+// Also validates null bytes in string fields for all types (structs and maps).
 func ValidateStruct(s any) error {
+	// Generic null-byte validation across all string fields in the payload
+	// This runs for all types including maps and structs
+	if violations := validateNoNullBytes(s); len(violations) > 0 {
+		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
+	}
+
 	v, trans := newValidator()
 
 	k := reflect.ValueOf(s).Kind()
@@ -157,6 +164,7 @@ func ValidateStruct(s any) error {
 		k = reflect.ValueOf(s).Elem().Kind()
 	}
 
+	// Struct-specific validation using go-playground/validator
 	if k != reflect.Struct {
 		return nil
 	}
@@ -185,11 +193,6 @@ func ValidateStruct(s any) error {
 		errPtr := malformedRequestErr(err.(validator.ValidationErrors), trans)
 
 		return &errPtr
-	}
-
-	// Generic null-byte validation across all string fields in the payload
-	if violations := validateNoNullBytes(s); len(violations) > 0 {
-		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
 	}
 
 	return nil
@@ -603,6 +606,27 @@ func collectNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldV
 	case reflect.Slice, reflect.Array:
 		for i := 0; i < rv.Len(); i++ {
 			collectNullByteViolations(rv.Index(i), jsonPath, out)
+		}
+	case reflect.Map:
+		iter := rv.MapRange()
+		for iter.Next() {
+			k := iter.Key()
+			v := iter.Value()
+			keyPath := jsonPath
+
+			if k.Kind() == reflect.String {
+				if jsonPath != "" {
+					keyPath = jsonPath + "." + k.String()
+				} else {
+					keyPath = k.String()
+				}
+			}
+
+			collectNullByteViolations(v, keyPath, out)
+		}
+	case reflect.Interface:
+		if !rv.IsNil() {
+			collectNullByteViolations(rv.Elem(), jsonPath, out)
 		}
 	case reflect.String:
 		if strings.ContainsRune(rv.String(), '\x00') {
