@@ -97,12 +97,6 @@ type Config struct {
 	ReplicaDBPort     string `env:"DB_REPLICA_PORT"`
 	ReplicaDBSSLMode  string `env:"DB_REPLICA_SSLMODE"`
 
-	// PostgreSQL connection pool - prefixed with fallback
-	PrefixedMaxOpenConnections int `env:"DB_ONBOARDING_MAX_OPEN_CONNS"`
-	PrefixedMaxIdleConnections int `env:"DB_ONBOARDING_MAX_IDLE_CONNS"`
-	MaxOpenConnections         int `env:"DB_MAX_OPEN_CONNS"`
-	MaxIdleConnections         int `env:"DB_MAX_IDLE_CONNS"`
-
 	// MongoDB - prefixed vars for unified ledger deployment
 	PrefixedMongoURI          string `env:"MONGO_ONBOARDING_URI"`
 	PrefixedMongoDBHost       string `env:"MONGO_ONBOARDING_HOST"`
@@ -229,9 +223,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	dbReplicaPort := envFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
 	dbReplicaSSLMode := envFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
 
-	maxOpenConns := envFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
-	maxIdleConns := envFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
-
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
 
@@ -246,8 +237,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		ReplicaDBName:           dbReplicaName,
 		Component:               ApplicationName,
 		Logger:                  logger,
-		MaxOpenConnections:      maxOpenConns,
-		MaxIdleConnections:      maxIdleConns,
 	}
 
 	// Apply fallback for MongoDB prefixed env vars

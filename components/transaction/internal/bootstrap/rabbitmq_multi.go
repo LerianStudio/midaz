@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"os"
+	"time"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -37,18 +38,35 @@ func initMultiTenantProducer(cfg *Config, opts *Options, logger libLog.Logger) M
 
 	logger.Info("Multi-tenant mode enabled - initializing multi-tenant RabbitMQ producer")
 
-	tenantManagerClient := tenantmanager.NewClient(cfg.MultiTenantURL, logger)
+	// Build client options for Tenant Manager
+	var clientOpts []tenantmanager.ClientOption
+	if cfg.MultiTenantCircuitBreakerThreshold > 0 {
+		clientOpts = append(clientOpts,
+			tenantmanager.WithCircuitBreaker(
+				cfg.MultiTenantCircuitBreakerThreshold,
+				time.Duration(cfg.MultiTenantCircuitBreakerTimeoutSec)*time.Second,
+			),
+		)
+	}
+
+	tenantManagerClient := tenantmanager.NewClient(cfg.MultiTenantURL, logger, clientOpts...)
+
+	idleTimeout := time.Duration(cfg.MultiTenantIdleTimeoutSec) * time.Second
 
 	// Create RabbitMQ pool for tenant-specific connections
 	rabbitMQPool := tenantmanager.NewRabbitMQManager(tenantManagerClient, serviceName,
 		tenantmanager.WithRabbitMQModule("transaction"),
 		tenantmanager.WithRabbitMQLogger(logger),
+		tenantmanager.WithRabbitMQMaxTenantPools(cfg.MultiTenantMaxTenantPools),
+		tenantmanager.WithRabbitMQIdleTimeout(idleTimeout),
 	)
 
 	// Create PostgreSQL pool for multi-tenant mode
 	postgresPool := tenantmanager.NewPostgresManager(tenantManagerClient, serviceName,
 		tenantmanager.WithModule("transaction"),
 		tenantmanager.WithPostgresLogger(logger),
+		tenantmanager.WithMaxTenantPools(cfg.MultiTenantMaxTenantPools),
+		tenantmanager.WithIdleTimeout(idleTimeout),
 	)
 	logger.Info("Created PostgreSQL connection manager for multi-tenant mode")
 
@@ -56,6 +74,8 @@ func initMultiTenantProducer(cfg *Config, opts *Options, logger libLog.Logger) M
 	mongoPool := tenantmanager.NewMongoManager(tenantManagerClient, serviceName,
 		tenantmanager.WithMongoModule("transaction"),
 		tenantmanager.WithMongoLogger(logger),
+		tenantmanager.WithMongoMaxTenantPools(cfg.MultiTenantMaxTenantPools),
+		tenantmanager.WithMongoIdleTimeout(idleTimeout),
 	)
 	logger.Info("Created MongoDB connection manager for multi-tenant mode")
 
@@ -100,6 +120,7 @@ func initMultiTenantConsumer(
 		redisClient,
 		serviceName,
 		cfg.MultiTenantURL,
+		cfg.MultiTenantEnvironment,
 		cfg.RabbitMQBalanceCreateQueue,
 		btoQueue,
 		useCase,

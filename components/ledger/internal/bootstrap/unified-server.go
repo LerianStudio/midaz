@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -186,6 +187,18 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 			})
 		}
 
+		var suspErr *tenantmanager.TenantSuspendedError
+		if errors.As(err, &suspErr) {
+			logger.Errorf("[WithTenantDB] Tenant %s service is suspended (status: %s)", tenantID, suspErr.Status)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Tenant service is suspended", err)
+
+			return midazHTTP.WithError(c, pkg.ForbiddenError{
+				Code:    constant.ErrServiceSuspended.Error(),
+				Title:   "Service Suspended",
+				Message: fmt.Sprintf("tenant service is %s", suspErr.Status),
+			})
+		}
+
 		return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
 			Code:    constant.ErrGRPCServiceUnavailable.Error(),
 			Title:   "Service Unavailable",
@@ -258,6 +271,18 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 		if mongoErr != nil {
 			logger.Errorf("[WithTenantDB] Failed to get tenant MongoDB connection for tenant %s: %v", tenantID, mongoErr)
 			libOpentelemetry.HandleSpanError(&span, "Failed to get tenant MongoDB connection", mongoErr)
+
+			var suspErr *tenantmanager.TenantSuspendedError
+			if errors.As(mongoErr, &suspErr) {
+				logger.Errorf("[WithTenantDB] Tenant %s MongoDB service is suspended (status: %s)", tenantID, suspErr.Status)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Tenant MongoDB service is suspended", mongoErr)
+
+				return midazHTTP.WithError(c, pkg.ForbiddenError{
+					Code:    constant.ErrServiceSuspended.Error(),
+					Title:   "Service Suspended",
+					Message: fmt.Sprintf("tenant service is %s", suspErr.Status),
+				})
+			}
 
 			return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
 				Code:    constant.ErrGRPCServiceUnavailable.Error(),

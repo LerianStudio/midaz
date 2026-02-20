@@ -37,6 +37,7 @@ type MultiTenantRabbitMQConsumer struct {
 //   - redisClient: Redis client for tenant cache access
 //   - serviceName: Service name for Tenant Manager API (e.g., "ledger")
 //   - tenantManagerURL: Tenant Manager URL for fallback tenant discovery
+//   - environment: Deployment environment (e.g., "staging", "production") for cache key segmentation
 //   - balanceCreateQueue: Queue name for balance create messages
 //   - btoQueue: Queue name for balance transaction operation messages
 //   - useCase: Transaction use case for processing messages
@@ -49,6 +50,7 @@ func NewMultiTenantRabbitMQConsumer(
 	redisClient redis.UniversalClient,
 	serviceName string,
 	tenantManagerURL string,
+	environment string,
 	balanceCreateQueue string,
 	btoQueue string,
 	useCase *command.UseCase,
@@ -60,10 +62,14 @@ func NewMultiTenantRabbitMQConsumer(
 	config := tenantmanager.DefaultMultiTenantConfig()
 	config.Service = serviceName
 	config.MultiTenantURL = tenantManagerURL
+	config.Environment = environment
 	config.WorkersPerQueue = 5
 	config.PrefetchCount = 10
 
-	consumer := tenantmanager.NewMultiTenantConsumer(pool, redisClient, config, logger)
+	consumer := tenantmanager.NewMultiTenantConsumer(pool, redisClient, config, logger,
+		tenantmanager.WithConsumerPostgresManager(postgresPool),
+		tenantmanager.WithConsumerMongoManager(mongoPool),
+	)
 
 	mtc := &MultiTenantRabbitMQConsumer{
 		consumer:           consumer,

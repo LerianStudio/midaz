@@ -95,12 +95,6 @@ type Config struct {
 	ReplicaDBPort     string `env:"DB_REPLICA_PORT"`
 	ReplicaDBSSLMode  string `env:"DB_REPLICA_SSLMODE"`
 
-	// PostgreSQL connection pool - prefixed with fallback
-	PrefixedMaxOpenConnections int `env:"DB_TRANSACTION_MAX_OPEN_CONNS"`
-	PrefixedMaxIdleConnections int `env:"DB_TRANSACTION_MAX_IDLE_CONNS"`
-	MaxOpenConnections         int `env:"DB_MAX_OPEN_CONNS"`
-	MaxIdleConnections         int `env:"DB_MAX_IDLE_CONNS"`
-
 	// MongoDB - prefixed vars for unified ledger deployment
 	PrefixedMongoURI          string `env:"MONGO_TRANSACTION_URI"`
 	PrefixedMongoDBHost       string `env:"MONGO_TRANSACTION_HOST"`
@@ -176,8 +170,13 @@ type Config struct {
 	// Multi-Tenant Configuration
 	// When enabled, the single-tenant RabbitMQ consumer is disabled because
 	// the unified ledger handles multi-tenant message routing through Tenant Manager
-	MultiTenantEnabled bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
-	MultiTenantURL     string `env:"MULTI_TENANT_URL"`
+	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
+	MultiTenantURL                      string `env:"MULTI_TENANT_URL"`
+	MultiTenantEnvironment              string `env:"MULTI_TENANT_ENVIRONMENT" default:"staging"`
+	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS" default:"100"`
+	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC" default:"300"`
+	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD" default:"5"`
+	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC" default:"30"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -249,9 +248,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	dbReplicaPort := envFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
 	dbReplicaSSLMode := envFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
 
-	maxOpenConns := envFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
-	maxIdleConns := envFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
-
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
 
@@ -265,8 +261,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		ReplicaDBName:           dbReplicaName,
 		Component:               ApplicationName,
 		Logger:                  logger,
-		MaxOpenConnections:      maxOpenConns,
-		MaxIdleConnections:      maxIdleConns,
 	}
 
 	// Apply fallback for MongoDB prefixed env vars

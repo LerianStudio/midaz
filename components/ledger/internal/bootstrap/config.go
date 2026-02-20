@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -42,8 +43,13 @@ type Config struct {
 	// Multi-Tenant Configuration
 	// When enabled, the middleware extracts tenant ID from JWT and resolves
 	// tenant-specific database connections from the Tenant Manager
-	MultiTenantEnabled bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
-	MultiTenantURL     string `env:"MULTI_TENANT_URL"`
+	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
+	MultiTenantURL                      string `env:"MULTI_TENANT_URL"`
+	MultiTenantEnvironment              string `env:"MULTI_TENANT_ENVIRONMENT" default:"staging"`
+	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS" default:"100"`
+	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC" default:"300"`
+	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD" default:"5"`
+	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC" default:"30"`
 
 	// PostgreSQL Primary - for multi-tenant default connection
 	PrimaryDBHost     string `env:"DB_HOST"`
@@ -60,10 +66,6 @@ type Config struct {
 	ReplicaDBName     string `env:"DB_REPLICA_NAME"`
 	ReplicaDBPort     string `env:"DB_REPLICA_PORT"`
 	ReplicaDBSSLMode  string `env:"DB_REPLICA_SSLMODE"`
-
-	// PostgreSQL connection pool
-	MaxOpenConnections int `env:"DB_MAX_OPEN_CONNS"`
-	MaxIdleConnections int `env:"DB_MAX_IDLE_CONNS"`
 
 	// MongoDB - for multi-tenant default connection
 	MongoURI          string `env:"MONGO_URI"`
@@ -313,8 +315,6 @@ func initMultiTenantPools(cfg *Config, logger libLog.Logger) *MultiTenantPools {
 		ReplicaDBName:           cfg.ReplicaDBName,
 		Component:               "onboarding",
 		Logger:                  logger,
-		MaxOpenConnections:      cfg.MaxOpenConnections,
-		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
 
 	// Default connection for transaction module
@@ -325,20 +325,31 @@ func initMultiTenantPools(cfg *Config, logger libLog.Logger) *MultiTenantPools {
 		ReplicaDBName:           cfg.ReplicaDBName,
 		Component:               "transaction",
 		Logger:                  logger,
-		MaxOpenConnections:      cfg.MaxOpenConnections,
-		MaxIdleConnections:      cfg.MaxIdleConnections,
+	}
+
+	// Build client options for Tenant Manager
+	var clientOpts []tenantmanager.ClientOption
+	if cfg.MultiTenantCircuitBreakerThreshold > 0 {
+		clientOpts = append(clientOpts,
+			tenantmanager.WithCircuitBreaker(
+				cfg.MultiTenantCircuitBreakerThreshold,
+				time.Duration(cfg.MultiTenantCircuitBreakerTimeoutSec)*time.Second,
+			),
+		)
 	}
 
 	// Create Tenant Manager client (shared between all pools)
-	tenantManagerClient := tenantmanager.NewClient(cfg.MultiTenantURL, logger)
+	tenantManagerClient := tenantmanager.NewClient(cfg.MultiTenantURL, logger, clientOpts...)
+
+	idleTimeout := time.Duration(cfg.MultiTenantIdleTimeoutSec) * time.Second
 
 	// Create onboarding pool - handles organizations, ledgers, accounts, assets, portfolios, segments, account-types
 	// The module parameter "onboarding" tells Tenant Manager which service credentials to return
 	onboardingPool := tenantmanager.NewPostgresManager(tenantManagerClient, "ledger",
 		tenantmanager.WithModule("onboarding"),
 		tenantmanager.WithPostgresLogger(logger),
-		tenantmanager.WithMaxOpenConns(cfg.MaxOpenConnections),
-		tenantmanager.WithMaxIdleConns(cfg.MaxIdleConnections),
+		tenantmanager.WithMaxTenantPools(cfg.MultiTenantMaxTenantPools),
+		tenantmanager.WithIdleTimeout(idleTimeout),
 	).
 		WithDefaultConnection(onboardingDefaultConn)
 
@@ -349,8 +360,8 @@ func initMultiTenantPools(cfg *Config, logger libLog.Logger) *MultiTenantPools {
 	transactionPool := tenantmanager.NewPostgresManager(tenantManagerClient, "ledger",
 		tenantmanager.WithModule("transaction"),
 		tenantmanager.WithPostgresLogger(logger),
-		tenantmanager.WithMaxOpenConns(cfg.MaxOpenConnections),
-		tenantmanager.WithMaxIdleConns(cfg.MaxIdleConnections),
+		tenantmanager.WithMaxTenantPools(cfg.MultiTenantMaxTenantPools),
+		tenantmanager.WithIdleTimeout(idleTimeout),
 	).
 		WithDefaultConnection(transactionDefaultConn)
 
@@ -362,6 +373,8 @@ func initMultiTenantPools(cfg *Config, logger libLog.Logger) *MultiTenantPools {
 	onboardingMongoPool := tenantmanager.NewMongoManager(tenantManagerClient, "ledger",
 		tenantmanager.WithMongoModule("onboarding"),
 		tenantmanager.WithMongoLogger(logger),
+		tenantmanager.WithMongoMaxTenantPools(cfg.MultiTenantMaxTenantPools),
+		tenantmanager.WithMongoIdleTimeout(idleTimeout),
 	)
 	logger.Info("Created onboarding MongoDB connection manager for multi-tenant mode")
 
@@ -369,6 +382,8 @@ func initMultiTenantPools(cfg *Config, logger libLog.Logger) *MultiTenantPools {
 	transactionMongoPool := tenantmanager.NewMongoManager(tenantManagerClient, "ledger",
 		tenantmanager.WithMongoModule("transaction"),
 		tenantmanager.WithMongoLogger(logger),
+		tenantmanager.WithMongoMaxTenantPools(cfg.MultiTenantMaxTenantPools),
+		tenantmanager.WithMongoIdleTimeout(idleTimeout),
 	)
 	logger.Info("Created transaction MongoDB connection manager for multi-tenant mode")
 
