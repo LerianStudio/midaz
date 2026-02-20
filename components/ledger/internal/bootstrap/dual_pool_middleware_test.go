@@ -11,9 +11,9 @@ import (
 	"sync"
 	"testing"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	tenantmanager "github.com/LerianStudio/lib-commons/v2/commons/tenant-manager"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
+	tenantmanager "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager"
+	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

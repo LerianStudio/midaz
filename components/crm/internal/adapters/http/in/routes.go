@@ -5,9 +5,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"

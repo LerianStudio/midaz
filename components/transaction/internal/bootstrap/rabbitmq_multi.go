@@ -4,9 +4,9 @@ import (
 	"os"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	tenantmanager "github.com/LerianStudio/lib-commons/v2/commons/tenant-manager"
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	tenantmanager "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/redis/go-redis/v9"

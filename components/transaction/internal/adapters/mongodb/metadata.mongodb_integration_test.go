@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
+	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"

@@ -6,7 +6,7 @@ package mbootstrap
 import (
 	"context"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 )
 
 // Runnable represents a component that can be run by the launcher.

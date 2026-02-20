@@ -6,9 +6,9 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/LerianStudio/lib-commons/v2/commons"
-	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
-	"github.com/LerianStudio/lib-commons/v2/commons/log"
+	"github.com/LerianStudio/lib-commons/v3/commons"
+	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
+	"github.com/LerianStudio/lib-commons/v3/commons/log"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel"

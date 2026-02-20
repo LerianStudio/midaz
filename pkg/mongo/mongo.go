@@ -3,7 +3,7 @@ package mongo
 import (
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	"github.com/iancoleman/strcase"
 	"go.mongodb.org/mongo-driver/bson"
 )

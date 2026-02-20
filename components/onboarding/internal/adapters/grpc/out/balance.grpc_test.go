@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	libConstant "github.com/LerianStudio/lib-commons/v3/commons/constants"
 	proto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"

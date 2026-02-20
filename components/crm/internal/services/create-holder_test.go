@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"

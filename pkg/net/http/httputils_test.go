@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	libConstants "github.com/LerianStudio/lib-commons/v3/commons/constants"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

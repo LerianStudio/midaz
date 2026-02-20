@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
 )
 
 // RedisRepository provides an interface for redis.

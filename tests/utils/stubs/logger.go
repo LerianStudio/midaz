@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 )
 
 // Compile-time check that LoggerStub implements libLog.Logger
