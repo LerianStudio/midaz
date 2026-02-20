@@ -961,7 +961,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 
 	ctxSendTransactionToRedisQueue, spanSendTransactionToRedisQueue := tracer.Start(ctx, "handler.create_transaction.send_transaction_to_redis_queue")
 
-	err = handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, parserDSL, validate, transactionStatus, transactionDate)
+	err = handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, parserDSL, validate, transactionStatus, transactionDate, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendTransactionToRedisQueue, "Failed to send transaction to backup cache", err)
 
@@ -1199,6 +1199,17 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	tran.Source = getAliasWithoutKey(validate.Sources)
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
+
+	// Send commit/cancel transaction to Redis backup queue for recovery
+	ctxBackup, spanBackup := tracer.Start(ctx, "handler.commit_or_cancel_transaction.send_to_redis_queue")
+
+	if backupErr := handler.Command.SendTransactionToRedisQueue(ctxBackup, organizationID, ledgerID, tran.IDtoUUID(), parserDSL, validate, transactionStatus, time.Now(), preBalances); backupErr != nil {
+		libOpentelemetry.HandleSpanError(&spanBackup, "Failed to send transaction to backup cache", backupErr)
+
+		logger.Warnf("Failed to send commit/cancel transaction to backup cache: %v", backupErr)
+	}
+
+	spanBackup.End()
 
 	// immediately update transaction status if application is configured to persist transaction asynchronously
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {

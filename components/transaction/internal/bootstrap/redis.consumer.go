@@ -13,11 +13,11 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
@@ -223,7 +223,7 @@ Outer:
 			fromTo = append(fromTo, r.TransactionHandler.HandleAccountFields(m.ParserDSL.Send.Source.From, true)...)
 			to := r.TransactionHandler.HandleAccountFields(m.ParserDSL.Send.Distribute.To, true)
 
-			if m.TransactionStatus != constant.PENDING {
+			if m.TransactionStatus != constant.PENDING && m.TransactionStatus != constant.CANCELED {
 				fromTo = append(fromTo, to...)
 			}
 
