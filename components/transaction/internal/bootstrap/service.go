@@ -5,6 +5,8 @@
 package bootstrap
 
 import (
+	"io"
+
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -33,11 +35,16 @@ type Service struct {
 	*RedisQueueConsumer
 	*BalanceSyncWorker
 	BalanceSyncWorkerEnabled bool
+	*ShardRebalanceWorker
+	ShardRebalanceWorkerEnabled bool
 	*CircuitBreakerManager
 	libLog.Logger
 
 	// Ports groups all external interface dependencies.
 	Ports Ports
+
+	// authorizerCloser closes the authorizer gRPC connection on shutdown.
+	authorizerCloser io.Closer
 
 	// Route registration dependencies (for unified ledger mode)
 	auth                    *middleware.AuthClient
@@ -69,11 +76,22 @@ func (app *Service) Run() {
 		opts = append(opts, libCommons.RunApp("Balance Sync Worker", app.BalanceSyncWorker))
 	}
 
+	if app.ShardRebalanceWorkerEnabled && app.ShardRebalanceWorker != nil {
+		opts = append(opts, libCommons.RunApp("Shard Rebalance Worker", app.ShardRebalanceWorker))
+	}
+
 	libCommons.NewLauncher(opts...).Run()
 
 	// Stop circuit breaker health checker on shutdown
 	if app.CircuitBreakerManager != nil {
 		app.CircuitBreakerManager.Stop() //nolint:staticcheck // QF1008: explicit field access for clarity
+	}
+
+	// Close authorizer gRPC connection on shutdown
+	if app.authorizerCloser != nil {
+		if err := app.authorizerCloser.Close(); err != nil {
+			app.Warnf("Failed to close authorizer gRPC connection: %v", err)
+		}
 	}
 }
 
@@ -96,6 +114,12 @@ func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.Runna
 	if app.BalanceSyncWorkerEnabled {
 		runnables = append(runnables, mbootstrap.RunnableConfig{
 			Name: "Transaction Balance Sync Worker", Runnable: app.BalanceSyncWorker,
+		})
+	}
+
+	if app.ShardRebalanceWorkerEnabled && app.ShardRebalanceWorker != nil {
+		runnables = append(runnables, mbootstrap.RunnableConfig{
+			Name: "Transaction Shard Rebalance Worker", Runnable: app.ShardRebalanceWorker,
 		})
 	}
 

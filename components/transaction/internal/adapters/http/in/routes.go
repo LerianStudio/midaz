@@ -5,6 +5,8 @@
 package in
 
 import (
+	"time"
+
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
@@ -14,20 +16,29 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
 const (
-	midazName   = "midaz"
-	routingName = "routing"
+	midazName    = "midaz"
+	routingName  = "routing"
+	shardingName = "sharding"
 )
 
 // NewRouter register NewRouter routes to the Server.
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
+		ReadTimeout:           30 * time.Second,
+		WriteTimeout:          30 * time.Second,
+		IdleTimeout:           120 * time.Second,
+		BodyLimit:             4 * 1024 * 1024, // 4MB
+		ReadBufferSize:        8192,
+		WriteBufferSize:       8192,
+		Concurrency:           256 * 1024,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
 			return libHTTP.HandleFiberError(ctx, err)
 		},
@@ -36,7 +47,14 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
 
 	f.Use(tlMid.WithTelemetry(tl))
-	f.Use(cors.New())
+	f.Use(cors.New(cors.Config{
+		AllowOrigins:  utils.CORSAllowedOrigins(),
+		AllowMethods:  "GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD",
+		AllowHeaders:  "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-Swagger-Token",
+		ExposeHeaders: "X-Request-Id",
+		MaxAge:        300,
+	}))
+	f.Use(utils.SecurityHeadersMiddleware)
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
 
 	// Register all routes
@@ -49,7 +67,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/version", libHTTP.Version)
 
 	// Doc
-	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
+	f.Get("/swagger/*", utils.SwaggerRateLimitMiddleware(), WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
 		fiberSwagger.InstanceName("transaction"),
 	))
 
@@ -77,6 +95,10 @@ func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, th *Transact
 
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", auth.Authorize(midazName, "transactions", "get"), http.ParseUUIDPathParameters("transaction"), th.GetTransaction)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", auth.Authorize(midazName, "transactions", "get"), http.ParseUUIDPathParameters("transaction"), th.GetAllTransactions)
+	f.Get("/v1/sharding/rebalance/status", utils.ShardingControlPlaneMiddleware(), auth.Authorize(midazName, shardingName, "get"), th.GetShardRebalanceStatus)
+	f.Post("/v1/sharding/rebalance/pause", utils.ShardingControlPlaneMiddleware(), auth.Authorize(midazName, shardingName, "post"), th.PauseShardRebalance)
+	f.Post("/v1/sharding/rebalance/resume", utils.ShardingControlPlaneMiddleware(), auth.Authorize(midazName, shardingName, "post"), th.ResumeShardRebalance)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/sharding/migrations", utils.ShardingControlPlaneMiddleware(), auth.Authorize(midazName, shardingName, "post"), http.ParseUUIDPathParameters("transaction"), http.WithBody(new(migrateAccountShardInput), th.MigrateAccountShard))
 
 	// Operations
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations", auth.Authorize(midazName, "operations", "get"), http.ParseUUIDPathParameters("operation"), oh.GetAllOperationsByAccount)

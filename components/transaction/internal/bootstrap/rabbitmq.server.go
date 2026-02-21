@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -32,9 +33,35 @@ func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *command.Use
 
 	// Registry handlers for each queue
 	routes.Register(os.Getenv("RABBITMQ_BALANCE_CREATE_QUEUE"), consumer.handlerBalanceCreateQueue)
-	routes.Register(os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"), consumer.handlerBTOQueue)
+
+	btoQueue := os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE")
+	if btoQueue == "" {
+		fmt.Fprintln(os.Stderr, "WARNING: RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE is empty; no BTO queue consumers will be registered")
+	}
+
+	for _, queueName := range resolveBTOQueueNames(btoQueue, useCase) {
+		routes.Register(queueName, consumer.handlerBTOQueue)
+	}
 
 	return consumer
+}
+
+func resolveBTOQueueNames(baseQueue string, useCase *command.UseCase) []string {
+	if baseQueue == "" {
+		return nil
+	}
+
+	queueNames := []string{baseQueue}
+
+	if useCase == nil || !command.IsShardedBTOQueueEnabled(useCase.ShardRouter, useCase.ShardedBTOQueuesEnabled) {
+		return queueNames
+	}
+
+	for shardID := 0; shardID < useCase.ShardRouter.ShardCount(); shardID++ {
+		queueNames = append(queueNames, fmt.Sprintf("%s.shard_%d", baseQueue, shardID))
+	}
+
+	return queueNames
 }
 
 // Run starts consumers for all registered queues.
@@ -94,6 +121,12 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 		logger.Errorf("Error unmarshalling balance message JSON: %v", err)
 
 		return err
+	}
+
+	if len(message.QueueData) == 0 {
+		logger.Warn("Empty queue data in balance_retry_queue_fifo message")
+
+		return nil
 	}
 
 	logger.Infof("Transaction message consumed: %s", message.QueueData[0].ID)

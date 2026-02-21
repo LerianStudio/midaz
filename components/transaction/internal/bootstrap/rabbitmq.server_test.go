@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -106,6 +107,10 @@ func (s *balanceRepoStub) ListByIDs(ctx context.Context, orgID, ledgerID uuid.UU
 
 func (s *balanceRepoStub) ListByAccountIDAtTimestamp(ctx context.Context, orgID, ledgerID, accountID uuid.UUID, timestamp time.Time) ([]*mmodel.Balance, error) {
 	return nil, nil
+}
+
+func (s *balanceRepoStub) CreateIfNotExists(ctx context.Context, balance *mmodel.Balance) error {
+	return nil
 }
 
 // =============================================================================
@@ -343,6 +348,26 @@ func TestHandlerBTOQueue(t *testing.T) {
 		// unmarshal QueueData.Value into TransactionProcessingPayload which fails
 		require.Error(t, err)
 	})
+
+	t.Run("empty_queue_data_is_ignored", func(t *testing.T) {
+		t.Parallel()
+
+		consumer := &MultiQueueConsumer{
+			UseCase: &command.UseCase{},
+		}
+
+		queueMessage := mmodel.Queue{
+			OrganizationID: uuid.New(),
+			LedgerID:       uuid.New(),
+			QueueData:      []mmodel.QueueData{},
+		}
+
+		body, err := msgpack.Marshal(queueMessage)
+		require.NoError(t, err)
+
+		err = consumer.handlerBTOQueue(ctx, body)
+		require.NoError(t, err)
+	})
 }
 
 // =============================================================================
@@ -359,4 +384,38 @@ func TestMultiQueueConsumer_StructFields(t *testing.T) {
 
 	assert.NotNil(t, consumer)
 	assert.Equal(t, uc, consumer.UseCase)
+}
+
+func TestResolveBTOQueueNames(t *testing.T) {
+	t.Run("empty base queue returns nil", func(t *testing.T) {
+		queueNames := resolveBTOQueueNames("", &command.UseCase{ShardRouter: shard.NewRouter(8), ShardedBTOQueuesEnabled: true})
+
+		assert.Nil(t, queueNames)
+	})
+
+	t.Run("sharding disabled keeps legacy queue only", func(t *testing.T) {
+		queueNames := resolveBTOQueueNames("transaction.bto.queue", &command.UseCase{ShardRouter: shard.NewRouter(8), ShardedBTOQueuesEnabled: false})
+
+		assert.Equal(t, []string{"transaction.bto.queue"}, queueNames)
+	})
+
+	t.Run("sharding enabled with nil router keeps legacy queue only", func(t *testing.T) {
+		queueNames := resolveBTOQueueNames("transaction.bto.queue", &command.UseCase{ShardedBTOQueuesEnabled: true})
+
+		assert.Equal(t, []string{"transaction.bto.queue"}, queueNames)
+	})
+
+	t.Run("sharding enabled returns legacy plus all shard queues", func(t *testing.T) {
+		queueNames := resolveBTOQueueNames("transaction.bto.queue", &command.UseCase{ShardRouter: shard.NewRouter(3), ShardedBTOQueuesEnabled: true})
+
+		assert.Equal(t,
+			[]string{
+				"transaction.bto.queue",
+				"transaction.bto.queue.shard_0",
+				"transaction.bto.queue.shard_1",
+				"transaction.bto.queue.shard_2",
+			},
+			queueNames,
+		)
+	})
 }

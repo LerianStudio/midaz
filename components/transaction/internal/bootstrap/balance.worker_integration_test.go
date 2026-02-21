@@ -40,7 +40,7 @@ func TestIntegration_BalanceSyncSchedule_FullFlow(t *testing.T) {
 	container := redistestutil.SetupContainer(t)
 	conn := redistestutil.CreateConnection(t, container.Addr)
 
-	repo, err := redis.NewConsumerRedis(conn, true)
+	repo, err := redis.NewConsumerRedis(conn, true, nil)
 	require.NoError(t, err, "should create Redis repository")
 
 	ctx := context.Background()
@@ -158,7 +158,7 @@ func TestIntegration_BalanceSyncSchedule_FutureKeys(t *testing.T) {
 	container := redistestutil.SetupContainer(t)
 	conn := redistestutil.CreateConnection(t, container.Addr)
 
-	repo, err := redis.NewConsumerRedis(conn, true)
+	repo, err := redis.NewConsumerRedis(conn, true, nil)
 	require.NoError(t, err, "should create Redis repository")
 
 	ctx := context.Background()
@@ -197,8 +197,8 @@ func TestIntegration_BalanceSyncSchedule_FutureKeys(t *testing.T) {
 	t.Logf("GetBalanceSyncKeys returned %d keys (expected 1)", len(keys))
 
 	// Cleanup
-	_ = repo.RemoveBalanceSyncKey(ctx, dueNowKey)
-	_ = repo.RemoveBalanceSyncKey(ctx, futureDueKey)
+	require.NoError(t, repo.RemoveBalanceSyncKey(ctx, dueNowKey))
+	require.NoError(t, repo.RemoveBalanceSyncKey(ctx, futureDueKey))
 
 	t.Log("Integration test passed: future keys correctly filtered")
 }

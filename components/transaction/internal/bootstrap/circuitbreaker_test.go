@@ -136,7 +136,7 @@ func TestNewCircuitBreakerManager_CircuitTripsAfterConsecutiveFailures(t *testin
 	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
 	logger.EXPECT().Warnf(gomock.Any(), gomock.Any()).AnyTimes()
 	logger.EXPECT().Errorf(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Error(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Error(gomock.Any()).AnyTimes()
 
 	// Connection with logger to prevent panic during health checks
 	conn := &libRabbitmq.RabbitMQConnection{

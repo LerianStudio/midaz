@@ -103,7 +103,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
-	redisRepo, err := redis.NewConsumerRedis(redisConn, false)
+	redisRepo, err := redis.NewConsumerRedis(redisConn, false, nil)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	// Store repositories for test assertions
@@ -153,15 +153,24 @@ func (infra *testInfra) setupRoutes() {
 		txIDStr := c.Params("transaction_id")
 
 		if orgIDStr != "" {
-			orgID, _ := uuid.Parse(orgIDStr)
+			orgID, err := uuid.Parse(orgIDStr)
+			if err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, "invalid organization_id")
+			}
 			c.Locals("organization_id", orgID)
 		}
 		if ledgerIDStr != "" {
-			ledgerID, _ := uuid.Parse(ledgerIDStr)
+			ledgerID, err := uuid.Parse(ledgerIDStr)
+			if err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id")
+			}
 			c.Locals("ledger_id", ledgerID)
 		}
 		if txIDStr != "" {
-			txID, _ := uuid.Parse(txIDStr)
+			txID, err := uuid.Parse(txIDStr)
+			if err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, "invalid transaction_id")
+			}
 			c.Locals("transaction_id", txID)
 		}
 		return c.Next()
@@ -208,15 +217,12 @@ func getBalanceFromRedis(t *testing.T, ctx context.Context, redisRepo redis.Redi
 // 3. ValidateSendSourceAndDistribute calculates source/destination totals
 // 4. GetBalances retrieves balances (Redis cache -> PostgreSQL fallback)
 // 5. BuildOperations creates Operation objects with DEBIT/CREDIT types
-// 6. WriteTransaction -> WriteTransactionSync (since RABBITMQ_TRANSACTION_ASYNC=false)
+// 6. WriteTransaction -> WriteTransactionSync (since TransactionAsync=false, the default)
 // 7. CreateBalanceTransactionOperationsAsync persists all data
 // 8. Returns HTTP 201 with complete transaction
 func TestIntegration_TransactionHandler_CreateTransactionJSON_Sync(t *testing.T) {
 	// Arrange
 	infra := setupTestInfra(t)
-
-	// Ensure sync mode is enabled (RABBITMQ_TRANSACTION_ASYNC=false is default when not set)
-	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
 	// Use fake account IDs (account table is in onboarding component)
 	sourceAccountID := libCommons.GenerateUUIDv7()
@@ -550,18 +556,21 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	// so some "connection reset" logs may still appear during cleanup - this is expected behavior.
 	// Container cleanup is handled automatically by SetupContainer via t.Cleanup().
 	t.Cleanup(func() {
+		if infra.consumerRoutes != nil {
+			infra.consumerRoutes.Stop()
+		}
+
 		// Close the consumer's RabbitMQ channel and connection first to signal goroutines to stop.
 		// The consumer watches for channel closure via NotifyClose, then enters retry mode.
 		if infra.consumerRabbitMQConn != nil {
 			if infra.consumerRabbitMQConn.Channel != nil {
-				_ = infra.consumerRabbitMQConn.Channel.Close()
+				require.NoError(t, infra.consumerRabbitMQConn.Channel.Close())
 			}
 			if infra.consumerRabbitMQConn.Connection != nil {
-				_ = infra.consumerRabbitMQConn.Connection.Close()
+				require.NoError(t, infra.consumerRabbitMQConn.Connection.Close())
 			}
-			// Wait for the consumer's first retry backoff (~200-400ms) to start,
-			// so container termination happens while consumer is sleeping, not connecting.
-			time.Sleep(500 * time.Millisecond)
+			// Allow consumer goroutines to observe cancellation and connection close.
+			time.Sleep(50 * time.Millisecond)
 		}
 	})
 
@@ -609,7 +618,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
-	redisRepo, err := redis.NewConsumerRedis(redisConn, false)
+	redisRepo, err := redis.NewConsumerRedis(redisConn, false, nil)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	// Store Redis repository for test assertions
@@ -625,7 +634,8 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 		Pass:                   rabbitmqtestutil.DefaultPassword,
 		Logger:                 logger,
 	}
-	producerRepo := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	producerRepo, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	require.NoError(t, err, "failed to create RabbitMQ producer")
 
 	// Create use cases with RabbitMQ producer
 	queryUC := &query.UseCase{
@@ -636,12 +646,16 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 		RedisRepo:       redisRepo,
 	}
 	infra.commandUC = &command.UseCase{
-		TransactionRepo: transactionRepo,
-		OperationRepo:   operationRepo,
-		BalanceRepo:     balanceRepo,
-		MetadataRepo:    metadataRepo,
-		RedisRepo:       redisRepo,
-		RabbitMQRepo:    producerRepo,
+		TransactionRepo:                  transactionRepo,
+		OperationRepo:                    operationRepo,
+		BalanceRepo:                      balanceRepo,
+		MetadataRepo:                     metadataRepo,
+		RedisRepo:                        redisRepo,
+		RabbitMQRepo:                     producerRepo,
+		RabbitMQBalanceOperationExchange: "test.transaction.exchange",
+		RabbitMQBalanceOperationKey:      "test.transaction.key",
+		TransactionAsync:                 true,
+		ShardedBTOQueuesEnabled:          false,
 	}
 
 	// Create handler
@@ -694,15 +708,24 @@ func (infra *testAsyncInfra) setupRoutes() {
 		txIDStr := c.Params("transaction_id")
 
 		if orgIDStr != "" {
-			orgID, _ := uuid.Parse(orgIDStr)
+			orgID, err := uuid.Parse(orgIDStr)
+			if err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, "invalid organization_id")
+			}
 			c.Locals("organization_id", orgID)
 		}
 		if ledgerIDStr != "" {
-			ledgerID, _ := uuid.Parse(ledgerIDStr)
+			ledgerID, err := uuid.Parse(ledgerIDStr)
+			if err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id")
+			}
 			c.Locals("ledger_id", ledgerID)
 		}
 		if txIDStr != "" {
-			txID, _ := uuid.Parse(txIDStr)
+			txID, err := uuid.Parse(txIDStr)
+			if err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, "invalid transaction_id")
+			}
 			c.Locals("transaction_id", txID)
 		}
 		return c.Next()
@@ -778,7 +801,7 @@ func waitForOperations(t *testing.T, db *sql.DB, transactionID uuid.UUID, expect
 // 3. ValidateSendSourceAndDistribute calculates source/destination totals
 // 4. GetBalances retrieves balances (Redis cache -> PostgreSQL fallback)
 // 5. BuildOperations creates Operation objects with DEBIT/CREDIT types
-// 6. WriteTransaction -> WriteTransactionAsync (since RABBITMQ_TRANSACTION_ASYNC=true)
+// 6. WriteTransaction -> WriteTransactionAsync (since TransactionAsync=true)
 // 7. Message is sent to RabbitMQ queue
 // 8. Returns HTTP 201 with transaction in CREATED status (immediate response)
 // 9. Consumer processes the message and updates status to APPROVED
@@ -1284,7 +1307,8 @@ func TestIntegration_TransactionHandler_CommitOnNonPending_Returns4xx(t *testing
 	require.NoError(t, err, "response should be valid JSON")
 
 	txIDStr := result["id"].(string)
-	txID, _ := uuid.Parse(txIDStr)
+	txID, err := uuid.Parse(txIDStr)
+	require.NoError(t, err)
 
 	// Verify transaction is APPROVED (not PENDING)
 	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
@@ -1305,6 +1329,10 @@ func TestIntegration_TransactionHandler_CommitOnNonPending_Returns4xx(t *testing
 	// Assert: Should return 4xx (400 or 422)
 	assert.True(t, commitResp.StatusCode == 400 || commitResp.StatusCode == 422,
 		"expected HTTP 400 or 422 for commit on non-pending, got %d: %s", commitResp.StatusCode, string(commitBody))
+
+	var commitErrResp map[string]any
+	require.NoError(t, json.Unmarshal(commitBody, &commitErrResp))
+	assert.NotEmpty(t, commitErrResp["code"], "error response should include code")
 }
 
 // TestIntegration_TransactionHandler_RevertOnPending_Returns4xx validates that
@@ -1371,7 +1399,8 @@ func TestIntegration_TransactionHandler_RevertOnPending_Returns4xx(t *testing.T)
 	require.NoError(t, err, "response should be valid JSON")
 
 	txIDStr := result["id"].(string)
-	txID, _ := uuid.Parse(txIDStr)
+	txID, err := uuid.Parse(txIDStr)
+	require.NoError(t, err)
 
 	// Verify transaction is PENDING
 	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
@@ -1396,6 +1425,10 @@ func TestIntegration_TransactionHandler_RevertOnPending_Returns4xx(t *testing.T)
 	}
 	assert.True(t, revertResp.StatusCode == 400 || revertResp.StatusCode == 422 || revertResp.StatusCode == 500,
 		"expected HTTP 400, 422, or 500 for revert on pending, got %d: %s", revertResp.StatusCode, string(revertBody))
+
+	var revertErrResp map[string]any
+	require.NoError(t, json.Unmarshal(revertBody, &revertErrResp))
+	assert.NotEmpty(t, revertErrResp["code"], "error response should include code")
 }
 
 // TestIntegration_TransactionHandler_PendingTransaction_Revert validates the full
@@ -1470,7 +1503,8 @@ func TestIntegration_TransactionHandler_PendingTransaction_Revert(t *testing.T) 
 	require.NoError(t, err, "response should be valid JSON")
 
 	txIDStr := result["id"].(string)
-	txID, _ := uuid.Parse(txIDStr)
+	txID, err := uuid.Parse(txIDStr)
+	require.NoError(t, err)
 
 	// Verify PENDING state
 	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
@@ -1654,7 +1688,8 @@ func TestIntegration_TransactionHandler_CancelPendingTransaction(t *testing.T) {
 	require.NoError(t, err, "response should be valid JSON")
 
 	txIDStr := result["id"].(string)
-	txID, _ := uuid.Parse(txIDStr)
+	txID, err := uuid.Parse(txIDStr)
+	require.NoError(t, err)
 
 	// =========================================
 	// Assert: State after PENDING creation
@@ -1812,7 +1847,8 @@ func TestIntegration_TransactionHandler_CancelOnNonPending_Returns4xx(t *testing
 	require.NoError(t, err, "response should be valid JSON")
 
 	txIDStr := result["id"].(string)
-	txID, _ := uuid.Parse(txIDStr)
+	txID, err := uuid.Parse(txIDStr)
+	require.NoError(t, err)
 
 	// Verify transaction is APPROVED (not PENDING)
 	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
@@ -1833,6 +1869,10 @@ func TestIntegration_TransactionHandler_CancelOnNonPending_Returns4xx(t *testing
 	// Assert: Should return 4xx (400 or 422)
 	assert.True(t, cancelResp.StatusCode == 400 || cancelResp.StatusCode == 422,
 		"expected HTTP 400 or 422 for cancel on non-pending, got %d: %s", cancelResp.StatusCode, string(cancelBody))
+
+	var cancelErrResp map[string]any
+	require.NoError(t, json.Unmarshal(cancelBody, &cancelErrResp))
+	assert.NotEmpty(t, cancelErrResp["code"], "error response should include code")
 }
 
 // TestIntegration_TransactionHandler_ConcurrentMixedTransactions validates that
@@ -2366,9 +2406,10 @@ func TestIntegration_Property_Transaction_Amounts(t *testing.T) {
 
 			// Property: Should never return 5xx (except known overflow errors)
 			if resp.StatusCode >= 500 {
-				body, _ := io.ReadAll(resp.Body)
+				body, readErr := io.ReadAll(resp.Body)
+				require.NoError(t, readErr)
 				var errResp map[string]any
-				_ = json.Unmarshal(body, &errResp)
+				require.NoError(t, json.Unmarshal(body, &errResp))
 
 				// Allow known overflow error code 0097
 				if code, ok := errResp["code"].(string); ok && code == "0097" {

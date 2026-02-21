@@ -8,8 +8,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
+	"hash/fnv"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
@@ -914,6 +916,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
 	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
+	handler.ApplyExternalPreSplitBalanceKeys(ctx, organizationID, ledgerID, &transactionInput)
 
 	var fromTo []pkgTransaction.FromTo
 
@@ -1001,6 +1004,12 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 		_ = handler.Command.RedisRepo.Del(ctx, key)
 
+		// touchedShards is not passed because this is the sync error-cleanup
+		// path: GetBalances failed, so the Lua script may not have executed
+		// (or only partially), and no per-shard backup keys exist yet beyond
+		// the pre-flight backup. The fallback (all-shard iteration + legacy
+		// key) in RemoveTransactionFromRedisQueue is correct for this
+		// best-effort cleanup.
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, transactionID.String())
 		spanGetBalances.End()
 
@@ -1203,7 +1212,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	tran.Operations = operations
 
 	// immediately update transaction status if application is configured to persist transaction asynchronously
-	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
+	if handler.Command.TransactionAsync {
 		_, err = handler.Command.UpdateTransactionStatus(ctx, tran)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction status synchronously", err)
@@ -1235,6 +1244,107 @@ func (handler *TransactionHandler) ApplyDefaultBalanceKeys(entries []pkgTransact
 			entries[i].BalanceKey = constant.DefaultBalanceKey
 		}
 	}
+}
+
+// ApplyExternalPreSplitBalanceKeys sets shard-scoped balance keys for external
+// accounts to keep inflow/outflow transactions on the same Redis shard as the
+// non-external counterparty.
+func (handler *TransactionHandler) ApplyExternalPreSplitBalanceKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction) {
+	if handler == nil || handler.Query == nil || handler.Query.ShardRouter == nil || transactionInput == nil {
+		return
+	}
+
+	nonExternalSources := collectNonExternalAliases(transactionInput.Send.Source.From)
+	nonExternalDestinations := collectNonExternalAliases(transactionInput.Send.Distribute.To)
+
+	handler.applyExternalKeysToEntries(ctx, organizationID, ledgerID, transactionInput.Send.Source.From, nonExternalDestinations)
+	handler.applyExternalKeysToEntries(ctx, organizationID, ledgerID, transactionInput.Send.Distribute.To, nonExternalSources)
+}
+
+// applyExternalKeysToEntries iterates over FromTo entries and assigns the
+// canonical external balance key for each external alias using the provided
+// counterparty list.
+func (handler *TransactionHandler) applyExternalKeysToEntries(ctx context.Context, organizationID, ledgerID uuid.UUID, entries []pkgTransaction.FromTo, counterparties []string) {
+	for i := range entries {
+		entry := &entries[i]
+		alias := entry.SplitAlias()
+		counterparty := pickExternalCounterpartyAlias(counterparties, alias, i)
+
+		if !shard.IsExternal(alias) || counterparty == "" {
+			continue
+		}
+
+		targetShard := handler.resolveCounterpartyShard(ctx, organizationID, ledgerID, counterparty)
+		canonicalKey := shard.ExternalBalanceKey(targetShard)
+
+		handler.setExternalBalanceKey(entry, canonicalKey)
+	}
+}
+
+// setExternalBalanceKey assigns the canonical external balance key to the
+// entry, replacing any missing, malformed, or stale value.
+func (handler *TransactionHandler) setExternalBalanceKey(entry *pkgTransaction.FromTo, canonicalKey string) {
+	if !shard.IsExternalBalanceKey(entry.BalanceKey) {
+		entry.BalanceKey = canonicalKey
+		return
+	}
+
+	currentShard, parsed := shard.ParseExternalBalanceShardID(entry.BalanceKey)
+	if !parsed || currentShard < 0 || currentShard >= handler.Query.ShardRouter.ShardCount() || entry.BalanceKey != canonicalKey {
+		entry.BalanceKey = canonicalKey
+	}
+}
+
+func (handler *TransactionHandler) resolveCounterpartyShard(ctx context.Context, organizationID, ledgerID uuid.UUID, counterparty string) int {
+	if handler == nil || handler.Query == nil || handler.Query.ShardRouter == nil {
+		return 0
+	}
+
+	if handler.Query.ShardRouter.ShardCount() <= 0 {
+		return 0
+	}
+
+	if handler.Query.ShardManager != nil {
+		if shardID, err := handler.Query.ShardManager.ResolveBalanceShard(ctx, organizationID, ledgerID, counterparty, constant.DefaultBalanceKey); err == nil {
+			return shardID
+		}
+	}
+
+	return handler.Query.ShardRouter.Resolve(counterparty)
+}
+
+func collectNonExternalAliases(entries []pkgTransaction.FromTo) []string {
+	nonExternal := make([]string, 0, len(entries))
+
+	for _, entry := range entries {
+		alias := entry.SplitAlias()
+		if alias == "" || shard.IsExternal(alias) {
+			continue
+		}
+
+		nonExternal = append(nonExternal, alias)
+	}
+
+	return nonExternal
+}
+
+func pickExternalCounterpartyAlias(counterparties []string, externalAlias string, entryIndex int) string {
+	if len(counterparties) == 0 {
+		return ""
+	}
+
+	if len(counterparties) == 1 {
+		return counterparties[0]
+	}
+
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(externalAlias))
+	_, _ = h.Write([]byte("#"))
+	_, _ = h.Write([]byte(strconv.Itoa(entryIndex)))
+
+	idx := int(h.Sum32()) % len(counterparties)
+
+	return counterparties[idx]
 }
 
 // getAliasWithoutKey takes a slice of strings and returns a new slice containing the first part of each string split by '#'.

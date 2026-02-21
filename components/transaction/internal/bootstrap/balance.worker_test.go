@@ -18,6 +18,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
@@ -445,14 +447,17 @@ func TestProcessBalancesToExpire_ShutdownDuringProcessing(t *testing.T) {
 // mockRedisClient is a stub for redis.UniversalClient used in tests
 type mockRedisClient struct {
 	goredis.UniversalClient
-	ttlResult    time.Duration
-	ttlErr       error
-	getResult    string
-	getErr       error
-	zRemResult   int64
-	zRemErr      error
-	ttlCallCount int
-	getCallCount int
+	ttlResult            time.Duration
+	ttlErr               error
+	getResult            string
+	getErr               error
+	zRemResult           int64
+	zRemErr              error
+	zRangeWithScoresData map[string][]goredis.Z
+	zRangeWithScoresErr  map[string]error
+	zRangeCallKeys       []string
+	ttlCallCount         int
+	getCallCount         int
 }
 
 func (m *mockRedisClient) TTL(ctx context.Context, key string) *goredis.DurationCmd {
@@ -475,6 +480,64 @@ func (m *mockRedisClient) Get(ctx context.Context, key string) *goredis.StringCm
 		cmd.SetVal(m.getResult)
 	}
 	return cmd
+}
+
+func (m *mockRedisClient) ZRangeWithScores(ctx context.Context, key string, start, stop int64) *goredis.ZSliceCmd {
+	m.zRangeCallKeys = append(m.zRangeCallKeys, key)
+	cmd := goredis.NewZSliceCmd(ctx, "ZRANGE", key, start, stop, "WITHSCORES")
+
+	if m.zRangeWithScoresErr != nil {
+		if err, ok := m.zRangeWithScoresErr[key]; ok {
+			cmd.SetErr(err)
+			return cmd
+		}
+	}
+
+	if m.zRangeWithScoresData != nil {
+		if values, ok := m.zRangeWithScoresData[key]; ok {
+			cmd.SetVal(values)
+			return cmd
+		}
+	}
+
+	cmd.SetVal([]goredis.Z{})
+	return cmd
+}
+
+func TestWaitForNextOrBackoff_ShardedSelectsEarliestDueSchedule(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	router := shard.NewRouter(2)
+	worker := &BalanceSyncWorker{
+		logger:   newTestLogger(),
+		idleWait: 10 * time.Second,
+		useCase: &command.UseCase{
+			ShardRouter: router,
+		},
+	}
+
+	earliestPast := float64(time.Now().Unix() - 1)
+	laterFuture := float64(time.Now().Unix() + 3600)
+
+	shard0Key := utils.BalanceSyncScheduleShardKey(0)
+	shard1Key := utils.BalanceSyncScheduleShardKey(1)
+	legacyKey := utils.BalanceSyncScheduleKey
+
+	rds := &mockRedisClient{
+		zRangeWithScoresData: map[string][]goredis.Z{
+			shard0Key: {{Member: "s0", Score: laterFuture}},
+			shard1Key: {{Member: "s1", Score: earliestPast}},
+			legacyKey: {{Member: "legacy", Score: laterFuture}},
+		},
+	}
+
+	shutdown := worker.waitForNextOrBackoff(ctx, rds)
+
+	assert.False(t, shutdown, "earliest past due entry should avoid long wait")
+	assert.ElementsMatch(t, []string{shard0Key, shard1Key, legacyKey}, rds.zRangeCallKeys)
 }
 
 func TestProcessBalanceToExpire_EmptyMember(t *testing.T) {
@@ -701,7 +764,8 @@ func TestProcessBalanceToExpire_SyncError(t *testing.T) {
 		Available: decimal.NewFromInt(1000),
 		OnHold:    decimal.Zero,
 	}
-	balanceJSON, _ := json.Marshal(balanceRedis)
+	balanceJSON, err := json.Marshal(balanceRedis)
+	require.NoError(t, err)
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
@@ -749,7 +813,8 @@ func TestProcessBalanceToExpire_SyncSuccess(t *testing.T) {
 		Available: decimal.NewFromInt(1000),
 		OnHold:    decimal.Zero,
 	}
-	balanceJSON, _ := json.Marshal(balanceRedis)
+	balanceJSON, err := json.Marshal(balanceRedis)
+	require.NoError(t, err)
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
@@ -801,7 +866,8 @@ func TestProcessBalanceToExpire_SyncSkipped(t *testing.T) {
 		Available: decimal.NewFromInt(1000),
 		OnHold:    decimal.Zero,
 	}
-	balanceJSON, _ := json.Marshal(balanceRedis)
+	balanceJSON, err := json.Marshal(balanceRedis)
+	require.NoError(t, err)
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockBalanceRepo := balance.NewMockRepository(ctrl)

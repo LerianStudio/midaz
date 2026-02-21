@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"sync"
@@ -157,24 +158,53 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 }
 
 // waitForNextOrBackoff waits based on the next schedule entry or backs off if none.
+// When sharding is enabled, checks all shard schedules and waits for the earliest.
 // Returns true if it shut down while waiting.
 func (w *BalanceSyncWorker) waitForNextOrBackoff(ctx context.Context, rds redis.UniversalClient) bool {
-	next, err := rds.ZRangeWithScores(ctx, utils.BalanceSyncScheduleKey, 0, 0).Result()
-	if err != nil && !errors.Is(err, redis.Nil) {
-		w.logger.Warnf("BalanceSyncWorker: zrangewithscores error: %v", err)
+	// Collect all schedule keys to check
+	var scheduleKeys []string
 
-		return waitOrDone(ctx, w.idleWait, w.logger)
+	if w.useCase.ShardRouter != nil {
+		for i := 0; i < w.useCase.ShardRouter.ShardCount(); i++ {
+			scheduleKeys = append(scheduleKeys, utils.BalanceSyncScheduleShardKey(i))
+		}
+
+		// Migration compatibility: include legacy schedule while mixed keys may exist.
+		scheduleKeys = append(scheduleKeys, utils.BalanceSyncScheduleKey)
+	} else {
+		scheduleKeys = []string{utils.BalanceSyncScheduleKey}
 	}
 
-	if len(next) == 0 {
+	// Find the earliest due entry across all schedules
+	earliestScore := int64(math.MaxInt64)
+	found := false
+
+	for _, key := range scheduleKeys {
+		next, err := rds.ZRangeWithScores(ctx, key, 0, 0).Result()
+		if err != nil && !errors.Is(err, redis.Nil) {
+			w.logger.Warnf("BalanceSyncWorker: zrangewithscores error on %s: %v", key, err)
+
+			continue
+		}
+
+		if len(next) > 0 {
+			score := int64(next[0].Score)
+			if score < earliestScore {
+				earliestScore = score
+				found = true
+			}
+		}
+	}
+
+	if !found {
 		w.logger.Info("BalanceSyncWorker: nothing scheduled; back off.")
 
 		return waitOrDone(ctx, w.idleWait, w.logger)
 	}
 
-	w.logger.Infof("BalanceSyncWorker: next: %+v", next[0])
+	w.logger.Infof("BalanceSyncWorker: earliest due at unix=%d", earliestScore)
 
-	return w.waitUntilDue(ctx, int64(next[0].Score), w.logger)
+	return w.waitUntilDue(ctx, earliestScore, w.logger)
 }
 
 // processBalanceToExpire handles a single scheduled member lifecycle.
@@ -305,7 +335,8 @@ func (w *BalanceSyncWorker) waitUntilDue(ctx context.Context, dueAtUnix int64, l
 }
 
 // extractIDsFromMember parses a Redis member key that follows the pattern
-// balance:{transactions}:<organizationID>:<ledgerID>:@account#key
+// balance:{transactions}:<organizationID>:<ledgerID>:@account#key  (legacy)
+// balance:{shard_N}:<organizationID>:<ledgerID>:@account#key      (sharded)
 func (w *BalanceSyncWorker) extractIDsFromMember(member string) (organizationID uuid.UUID, ledgerID uuid.UUID, err error) {
 	var (
 		first     uuid.UUID
