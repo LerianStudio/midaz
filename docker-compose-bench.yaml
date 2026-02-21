@@ -1,0 +1,256 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: midaz-bench-postgres
+    environment:
+      POSTGRES_USER: midaz
+      POSTGRES_PASSWORD: lerian
+      POSTGRES_DB: transaction
+    command:
+      - postgres
+      - -c
+      - max_connections=2000
+      - -c
+      - shared_buffers=1GB
+    volumes:
+      - ./scripts/compose/init-postgres-bench.sql:/docker-entrypoint-initdb.d/init-postgres-bench.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U midaz -d transaction"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: midaz-bench-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: transaction
+      RABBITMQ_DEFAULT_PASS: lerian
+      RABBITMQ_DEFAULT_VHOST: /
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: '-rabbitmq_management load_definitions "/etc/rabbitmq/definitions.json"'
+    volumes:
+      - ./components/infra/rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: midaz-bench-dragonfly
+    command:
+      - --port=6379
+      - --cache_mode=true
+      - --proactor_threads=4
+      - --maxmemory=3gb
+    healthcheck:
+      test: ["CMD", "redis-cli", "-h", "127.0.0.1", "-p", "6379", "PING"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mongodb:
+    image: mongo:7
+    container_name: midaz-bench-mongodb
+    command: ["--bind_ip_all"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  authorizer:
+    build:
+      context: .
+      dockerfile: ./components/authorizer/Dockerfile
+    container_name: midaz-bench-authorizer
+    environment:
+      AUTHORIZER_GRPC_ADDRESS: ":50051"
+      AUTHORIZER_SHARD_COUNT: "8"
+      AUTHORIZER_MAX_CONCURRENT_STREAMS: "10000"
+      AUTHORIZER_WAL_ENABLED: "false"
+      AUTHORIZER_RABBITMQ_ENABLED: "true"
+      DB_TRANSACTION_HOST: postgres
+      DB_TRANSACTION_PORT: "5432"
+      DB_TRANSACTION_USER: midaz
+      DB_TRANSACTION_PASSWORD: lerian
+      DB_TRANSACTION_NAME: transaction
+      DB_TRANSACTION_SSLMODE: disable
+      RABBITMQ_URI: amqp
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT_HOST: "5672"
+      RABBITMQ_DEFAULT_USER: transaction
+      RABBITMQ_DEFAULT_PASS: lerian
+      RABBITMQ_VHOST: /
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  ledger-1:
+    build:
+      context: .
+      dockerfile: ./components/ledger/Dockerfile
+    container_name: midaz-bench-ledger-1
+    environment: &ledger_env
+      SERVER_ADDRESS: ":3001"
+      PLUGIN_AUTH_ENABLED: "false"
+      DB_ONBOARDING_HOST: postgres
+      DB_ONBOARDING_PORT: "5432"
+      DB_ONBOARDING_USER: midaz
+      DB_ONBOARDING_PASSWORD: lerian
+      DB_ONBOARDING_NAME: onboarding
+      DB_ONBOARDING_REPLICA_HOST: postgres
+      DB_ONBOARDING_REPLICA_PORT: "5432"
+      DB_ONBOARDING_REPLICA_USER: midaz
+      DB_ONBOARDING_REPLICA_PASSWORD: lerian
+      DB_ONBOARDING_REPLICA_NAME: onboarding
+      DB_ONBOARDING_MAX_OPEN_CONNS: "120"
+      DB_ONBOARDING_MAX_IDLE_CONNS: "60"
+      DB_TRANSACTION_HOST: postgres
+      DB_TRANSACTION_PORT: "5432"
+      DB_TRANSACTION_USER: midaz
+      DB_TRANSACTION_PASSWORD: lerian
+      DB_TRANSACTION_NAME: transaction
+      DB_TRANSACTION_REPLICA_HOST: postgres
+      DB_TRANSACTION_REPLICA_PORT: "5432"
+      DB_TRANSACTION_REPLICA_USER: midaz
+      DB_TRANSACTION_REPLICA_PASSWORD: lerian
+      DB_TRANSACTION_REPLICA_NAME: transaction
+      DB_TRANSACTION_MAX_OPEN_CONNS: "320"
+      DB_TRANSACTION_MAX_IDLE_CONNS: "160"
+      MONGO_ONBOARDING_URI: mongodb
+      MONGO_ONBOARDING_HOST: mongodb
+      MONGO_ONBOARDING_PORT: "27017"
+      MONGO_ONBOARDING_USER: ""
+      MONGO_ONBOARDING_PASSWORD: ""
+      MONGO_ONBOARDING_NAME: onboarding
+      MONGO_TRANSACTION_URI: mongodb
+      MONGO_TRANSACTION_HOST: mongodb
+      MONGO_TRANSACTION_PORT: "27017"
+      MONGO_TRANSACTION_USER: ""
+      MONGO_TRANSACTION_PASSWORD: ""
+      MONGO_TRANSACTION_NAME: transaction
+      REDIS_HOST: dragonfly:6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: "0"
+      REDIS_PROTOCOL: "3"
+      REDIS_POOL_SIZE: "1024"
+      REDIS_MIN_IDLE_CONNS: "128"
+      REDIS_READ_TIMEOUT: "10"
+      REDIS_WRITE_TIMEOUT: "10"
+      REDIS_POOL_TIMEOUT: "5"
+      RABBITMQ_URI: amqp
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT_HOST: "5672"
+      RABBITMQ_PORT_AMQP: "15672"
+      RABBITMQ_HEALTH_CHECK_URL: http://rabbitmq:15672
+      RABBITMQ_DEFAULT_USER: transaction
+      RABBITMQ_DEFAULT_PASS: lerian
+      RABBITMQ_CONSUMER_USER: transaction
+      RABBITMQ_CONSUMER_PASS: lerian
+      RABBITMQ_BALANCE_CREATE_QUEUE: transaction.balance_create.queue
+      RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE: transaction.transaction_balance_operation.exchange
+      RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY: transaction.transaction_balance_operation.key
+      RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE: transaction.transaction_balance_operation.queue
+      RABBITMQ_TRANSACTION_BALANCE_OPERATION_SHARDED: "false"
+      RABBITMQ_TRANSACTION_EVENTS_EXCHANGE: transaction.transaction_events.exchange
+      RABBITMQ_TRANSACTION_ASYNC: "true"
+      RABBITMQ_NUMBERS_OF_PREFETCH: "400"
+      RABBITMQ_NUMBERS_OF_WORKERS: "120"
+      BALANCE_SYNC_WORKER_ENABLED: "false"
+      REDIS_SHARD_COUNT: "8"
+      SHARD_REBALANCE_WORKER_ENABLED: "false"
+      AUTHORIZER_ENABLED: "true"
+      AUTHORIZER_HOST: authorizer
+      AUTHORIZER_PORT: "50051"
+      AUTHORIZER_TIMEOUT_MS: "250"
+      AUTHORIZER_USE_STREAMING: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
+      ENABLE_TELEMETRY: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      dragonfly:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    restart: on-failure
+
+  ledger-2:
+    build:
+      context: .
+      dockerfile: ./components/ledger/Dockerfile
+    container_name: midaz-bench-ledger-2
+    environment:
+      <<: *ledger_env
+      SERVER_ADDRESS: ":3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      dragonfly:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    restart: on-failure
+
+  ledger-3:
+    build:
+      context: .
+      dockerfile: ./components/ledger/Dockerfile
+    container_name: midaz-bench-ledger-3
+    environment:
+      <<: *ledger_env
+      SERVER_ADDRESS: ":3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      dragonfly:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    restart: on-failure
+
+  ledger-4:
+    build:
+      context: .
+      dockerfile: ./components/ledger/Dockerfile
+    container_name: midaz-bench-ledger-4
+    environment:
+      <<: *ledger_env
+      SERVER_ADDRESS: ":3004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      dragonfly:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    restart: on-failure
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: midaz-bench-nginx
+    ulimits:
+      nofile:
+        soft: 200000
+        hard: 200000
+    volumes:
+      - ./nginx-bench.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "3010:3000"
+    depends_on:
+      - ledger-1
+      - ledger-2
+      - ledger-3
+      - ledger-4

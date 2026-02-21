@@ -17,6 +17,7 @@ import (
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -29,6 +30,8 @@ const (
 	DefaultDBUser = "test"
 	// DefaultDBPassword is the default database password for test containers.
 	DefaultDBPassword = "test"
+	postgresPortID    = "5432/tcp"
+	mappedPortTimeout = 30 * time.Second
 )
 
 // ContainerConfig holds configuration for PostgreSQL test container.
@@ -78,7 +81,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 
 	req := testcontainers.ContainerRequest{
 		Image:        cfg.Image,
-		ExposedPorts: []string{"5432/tcp"},
+		ExposedPorts: []string{postgresPortID},
 		Env: map[string]string{
 			"POSTGRES_DB":       cfg.DBName,
 			"POSTGRES_USER":     cfg.DBUser,
@@ -86,7 +89,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		},
 		WaitingFor: wait.ForAll(
 			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
-			wait.ForListeningPort("5432/tcp"),
+			wait.ForListeningPort(postgresPortID).SkipExternalCheck(),
 		).WithDeadline(120 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
@@ -102,8 +105,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	host, err := ctr.Host(ctx)
 	require.NoError(t, err, "failed to get container host")
 
-	port, err := ctr.MappedPort(ctx, "5432")
-	require.NoError(t, err, "failed to get container port")
+	port := waitForMappedPort(t, ctx, ctr, postgresPortID)
 
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		host, port.Port(), cfg.DBUser, cfg.DBPassword, cfg.DBName)
@@ -129,6 +131,30 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		DSN:       dsn,
 		Config:    cfg,
 	}
+}
+
+func waitForMappedPort(t *testing.T, ctx context.Context, ctr testcontainers.Container, portID string) nat.Port {
+	t.Helper()
+
+	deadline := time.Now().Add(mappedPortTimeout)
+
+	var (
+		mappedPort nat.Port
+		lastErr    error
+	)
+
+	for time.Now().Before(deadline) {
+		mappedPort, lastErr = ctr.MappedPort(ctx, nat.Port(portID))
+		if lastErr == nil && mappedPort.Port() != "" {
+			return mappedPort
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	require.NoError(t, lastErr, "failed to get PostgreSQL mapped port %s after %v", portID, mappedPortTimeout)
+
+	return ""
 }
 
 // BuildConnectionString builds a PostgreSQL connection string from host, port and config.

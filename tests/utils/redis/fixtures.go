@@ -39,8 +39,9 @@ func CreateBalanceOperationWithOnHold(organizationID, ledgerID uuid.UUID, alias,
 	balanceID := libCommons.GenerateUUIDv7().String()
 	accountID := libCommons.GenerateUUIDv7().String()
 	balanceKey := "default"
+	aliasKey := alias + "#" + balanceKey
 
-	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balanceKey)
+	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, aliasKey)
 
 	return mmodel.BalanceOperation{
 		Balance: &mmodel.Balance{
@@ -67,6 +68,45 @@ func CreateBalanceOperationWithOnHold(organizationID, ledgerID uuid.UUID, alias,
 			Operation: operation,
 		},
 		InternalKey: internalKey,
+	}
+}
+
+// CreateShardedBalanceOperation creates a shard-aware BalanceOperation for testing.
+// Uses {shard_N} hash tags in the InternalKey and sets ShardID on the operation.
+func CreateShardedBalanceOperation(organizationID, ledgerID uuid.UUID, alias, assetCode, operation string, amount, available decimal.Decimal, accountType string, shardID int) mmodel.BalanceOperation {
+	balanceID := libCommons.GenerateUUIDv7().String()
+	accountID := libCommons.GenerateUUIDv7().String()
+	balanceKey := "default"
+	aliasKey := alias + "#" + balanceKey
+
+	internalKey := utils.BalanceShardKey(shardID, organizationID, ledgerID, aliasKey)
+
+	return mmodel.BalanceOperation{
+		Balance: &mmodel.Balance{
+			ID:             balanceID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      accountID,
+			Alias:          alias,
+			Key:            balanceKey,
+			AssetCode:      assetCode,
+			Available:      available,
+			OnHold:         decimal.Zero,
+			Version:        1,
+			AccountType:    accountType,
+			AllowSending:   true,
+			AllowReceiving: true,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
+		},
+		Alias:       alias,
+		InternalKey: internalKey,
+		ShardID:     shardID,
+		Amount: pkgTransaction.Amount{
+			Asset:     assetCode,
+			Value:     amount,
+			Operation: operation,
+		},
 	}
 }
 

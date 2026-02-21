@@ -9,12 +9,14 @@ package rabbitmq
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/go-connections/nat"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/require"
@@ -26,7 +28,10 @@ const (
 	// DefaultUser is the default RabbitMQ user for test containers.
 	DefaultUser = "test"
 	// DefaultPassword is the default RabbitMQ password for test containers.
-	DefaultPassword = "test"
+	DefaultPassword       = "test"
+	amqpPortID            = "5672/tcp"
+	mgmtPortID            = "15672/tcp"
+	mappedPortWaitTimeout = 30 * time.Second
 )
 
 // ContainerConfig holds configuration for RabbitMQ test container.
@@ -75,18 +80,12 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 
 	req := testcontainers.ContainerRequest{
 		Image:        cfg.Image,
-		ExposedPorts: []string{"5672/tcp", "15672/tcp"},
+		ExposedPorts: []string{amqpPortID, mgmtPortID},
 		Env: map[string]string{
 			"RABBITMQ_DEFAULT_USER": cfg.User,
 			"RABBITMQ_DEFAULT_PASS": cfg.Password,
 		},
-		WaitingFor: wait.ForAll(
-			wait.ForLog("Server startup complete").WithStartupTimeout(120*time.Second),
-			wait.ForHTTP("/api/health/checks/alarms").
-				WithPort("15672/tcp").
-				WithBasicAuth(cfg.User, cfg.Password).
-				WithStartupTimeout(60*time.Second),
-		),
+		WaitingFor: wait.ForListeningPort(amqpPortID).WithStartupTimeout(120 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
@@ -101,11 +100,9 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	host, err := ctr.Host(ctx)
 	require.NoError(t, err, "failed to get RabbitMQ container host")
 
-	amqpPort, err := ctr.MappedPort(ctx, "5672")
-	require.NoError(t, err, "failed to get RabbitMQ AMQP port")
-
-	mgmtPort, err := ctr.MappedPort(ctx, "15672")
-	require.NoError(t, err, "failed to get RabbitMQ management port")
+	amqpPort := waitForMappedPort(t, ctx, ctr, amqpPortID)
+	mgmtPort := waitForMappedPort(t, ctx, ctr, mgmtPortID)
+	waitForManagementReady(t, host, mgmtPort.Port(), cfg.User, cfg.Password, 30*time.Second)
 
 	uri := fmt.Sprintf("amqp://%s:%s@%s:%s/", cfg.User, cfg.Password, host, amqpPort.Port())
 
@@ -156,20 +153,14 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 
 	req := testcontainers.ContainerRequest{
 		Image:        cfg.Image,
-		ExposedPorts: []string{"5672/tcp", "15672/tcp"},
+		ExposedPorts: []string{amqpPortID, mgmtPortID},
 		Env: map[string]string{
 			"RABBITMQ_DEFAULT_USER": cfg.User,
 			"RABBITMQ_DEFAULT_PASS": cfg.Password,
 		},
 		Networks:       []string{networkName},
 		NetworkAliases: map[string][]string{networkName: {networkAlias}},
-		WaitingFor: wait.ForAll(
-			wait.ForLog("Server startup complete").WithStartupTimeout(120*time.Second),
-			wait.ForHTTP("/api/health/checks/alarms").
-				WithPort("15672/tcp").
-				WithBasicAuth(cfg.User, cfg.Password).
-				WithStartupTimeout(60*time.Second),
-		),
+		WaitingFor:     wait.ForListeningPort(amqpPortID).WithStartupTimeout(120 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
@@ -184,11 +175,9 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 	host, err := rmqContainer.Host(ctx)
 	require.NoError(t, err, "failed to get RabbitMQ container host")
 
-	amqpPort, err := rmqContainer.MappedPort(ctx, "5672")
-	require.NoError(t, err, "failed to get RabbitMQ AMQP port")
-
-	mgmtPort, err := rmqContainer.MappedPort(ctx, "15672")
-	require.NoError(t, err, "failed to get RabbitMQ management port")
+	amqpPort := waitForMappedPort(t, ctx, rmqContainer, amqpPortID)
+	mgmtPort := waitForMappedPort(t, ctx, rmqContainer, mgmtPortID)
+	waitForManagementReady(t, host, mgmtPort.Port(), cfg.User, cfg.Password, 30*time.Second)
 
 	uri := fmt.Sprintf("amqp://%s:%s@%s:%s/", cfg.User, cfg.Password, host, amqpPort.Port())
 
@@ -389,4 +378,67 @@ func CreateChannelWithRetry(t *testing.T, uri string, timeout time.Duration) *am
 	require.NoError(t, lastErr, "failed to connect to RabbitMQ at %s after %v", uri, timeout)
 
 	return nil // unreachable, require.NoError fails the test
+}
+
+func waitForMappedPort(t *testing.T, ctx context.Context, ctr testcontainers.Container, portID string) nat.Port {
+	t.Helper()
+
+	deadline := time.Now().Add(mappedPortWaitTimeout)
+
+	var (
+		mappedPort nat.Port
+		lastErr    error
+	)
+
+	for time.Now().Before(deadline) {
+		mappedPort, lastErr = ctr.MappedPort(ctx, nat.Port(portID))
+		if lastErr == nil && mappedPort.Port() != "" {
+			return mappedPort
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	require.NoError(t, lastErr, "failed to get RabbitMQ mapped port %s after %v", portID, mappedPortWaitTimeout)
+
+	return ""
+}
+
+func waitForManagementReady(t *testing.T, host, port, user, password string, timeout time.Duration) {
+	t.Helper()
+
+	url := fmt.Sprintf("http://%s:%s/api/health/checks/alarms", host, port)
+	client := &http.Client{Timeout: 2 * time.Second}
+	deadline := time.Now().Add(timeout)
+
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+		if err != nil {
+			lastErr = err
+
+			time.Sleep(250 * time.Millisecond)
+
+			continue
+		}
+
+		req.SetBasicAuth(user, password)
+
+		resp, err := client.Do(req)
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return
+			}
+
+			lastErr = fmt.Errorf("management health check returned status %d", resp.StatusCode)
+		} else {
+			lastErr = err
+		}
+
+		time.Sleep(250 * time.Millisecond)
+	}
+
+	require.NoError(t, lastErr, "rabbitmq management endpoint not ready at %s after %v", url, timeout)
 }

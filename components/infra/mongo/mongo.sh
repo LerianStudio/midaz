@@ -16,31 +16,46 @@ done
 
 echo "initializing replica set... 🚀 "
 
-# Initialize the replica set
+# Initialize the replica set (idempotent: skip if already initialized)
 mongosh --host "${MONGO_HOST}" --port "${MONGO_PORT}" <<EOF
-    rs.initiate({
-      _id: "rs0",
-      members: [{ _id: 0, host: "${MONGO_HOST}:${MONGO_PORT}" }]
-    });
+    var status = rs.status();
+    if (status.ok === 0) {
+      rs.initiate({
+        _id: "rs0",
+        members: [{ _id: 0, host: "${MONGO_HOST}:${MONGO_PORT}" }]
+      });
+      print("Replica set initialized.");
+    } else {
+      print("Replica set already initialized, skipping.");
+    }
 EOF
 
 # Wait for the replica set to initialize
 sleep 5
 
-# Create the admin user
+# Create or update the admin user (idempotent)
 echo "creating admin user... 🔑"
 mongosh --host "${MONGO_HOST}" --port "${MONGO_PORT}" <<EOF
     use admin;
-    db.createUser({
-      user: "${MONGO_USER}",
-      pwd: "${MONGO_PASSWORD}",
-      roles: [
-        { role: "root", db: "admin" },
-        { role: "userAdminAnyDatabase", db: "admin" },
-        { role: "dbAdminAnyDatabase", db: "admin" },
-        { role: "readWriteAnyDatabase", db: "admin" }
-      ]
-    });
+    if (db.getUser("${MONGO_USER}") === null) {
+      db.createUser({
+        user: "${MONGO_USER}",
+        pwd: "${MONGO_PASSWORD}",
+        roles: [
+          { role: "dbAdminAnyDatabase", db: "admin" },
+          { role: "readWriteAnyDatabase", db: "admin" }
+        ]
+      });
+      print("User created successfully.");
+    } else {
+      db.updateUser("${MONGO_USER}", {
+        roles: [
+          { role: "dbAdminAnyDatabase", db: "admin" },
+          { role: "readWriteAnyDatabase", db: "admin" }
+        ]
+      });
+      print("User already exists, roles updated.");
+    }
 EOF
 
 echo "mongodb replica set initialization complete! ✅ "

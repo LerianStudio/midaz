@@ -78,6 +78,51 @@ endef
 DOCKER_CMD := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
 export DOCKER_CMD
 
+# Benchmark + k6 defaults
+BENCH_COMPOSE_FILE ?= docker-compose-bench.yaml
+K6_DIR ?= ./tests/k6
+K6_REPO_URL ?= https://github.com/LerianStudio/k6.git
+K6_REPO_LOCAL ?= ../k6
+K6_SCENARIO_DIR ?= tests/v3.x.x/tps_constant_accounting
+BENCH_PROFILE ?= load
+BENCH_ENVIRONMENT ?= midaz-bench
+BENCH_AUTH_ENABLED ?= false
+BENCH_LOG ?= OFF
+BENCH_ORGANIZATION_ID ?= 019819da-dfb9-7a68-b3f6-a8906de0d639
+BENCH_LEDGER_ID ?= 019819db-c78c-77b9-a22b-9d018febd0a5
+BENCH_RUN_SETUP ?= true
+BENCH_FORCE_SETUP ?= false
+
+ifeq ($(BENCH_PROFILE),smoke)
+BENCH_PROFILE_TPS := 10
+BENCH_PROFILE_DURATION := 10s
+BENCH_PROFILE_PRE_VUS := 5
+BENCH_PROFILE_MAX_VUS := 20
+else ifeq ($(BENCH_PROFILE),load)
+BENCH_PROFILE_TPS := 500
+BENCH_PROFILE_DURATION := 30s
+BENCH_PROFILE_PRE_VUS := 200
+BENCH_PROFILE_MAX_VUS := 1000
+else ifeq ($(BENCH_PROFILE),stress)
+BENCH_PROFILE_TPS := 1500
+BENCH_PROFILE_DURATION := 60s
+BENCH_PROFILE_PRE_VUS := 600
+BENCH_PROFILE_MAX_VUS := 4000
+else ifeq ($(BENCH_PROFILE),100k)
+BENCH_PROFILE_TPS := 100000
+BENCH_PROFILE_DURATION := 100s
+BENCH_PROFILE_PRE_VUS := 5000
+BENCH_PROFILE_MAX_VUS := 10000
+else
+$(error Invalid BENCH_PROFILE='$(BENCH_PROFILE)'. Use smoke, load, stress, or 100k)
+endif
+
+BENCH_TPS ?= $(BENCH_PROFILE_TPS)
+BENCH_DURATION ?= $(BENCH_PROFILE_DURATION)
+BENCH_PRE_VUS ?= $(BENCH_PROFILE_PRE_VUS)
+BENCH_MAX_VUS ?= $(BENCH_PROFILE_MAX_VUS)
+BENCH_BUILD_STACK ?= false
+
 MK_DIR := $(abspath mk)
 
 COVERAGE_PACKAGES := ./...
@@ -139,9 +184,17 @@ help:
 	@echo "  make transaction COMMAND=<cmd>    - Run command in transaction component"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
+	@echo "  make k6-sync                      - Clone/update tests/k6 load-test repository"
+	@echo "  make k6-bench                     - Start/check bench stack, seed fixtures, run k6 setup + load"
 	@echo ""
 	@echo "  UNIFIED=true (default): Uses unified ledger service (onboarding + transaction in one process)"
 	@echo "  UNIFIED=false: Starts onboarding and transaction as separate services"
+	@echo ""
+	@echo "  k6-bench vars (defaults):"
+	@echo "    BENCH_PROFILE=$(BENCH_PROFILE) BENCH_ENVIRONMENT=$(BENCH_ENVIRONMENT)"
+	@echo "    BENCH_TPS=$(BENCH_TPS) BENCH_DURATION=$(BENCH_DURATION) BENCH_PRE_VUS=$(BENCH_PRE_VUS) BENCH_MAX_VUS=$(BENCH_MAX_VUS)"
+	@echo "    BENCH_RUN_SETUP=$(BENCH_RUN_SETUP) BENCH_FORCE_SETUP=$(BENCH_FORCE_SETUP) BENCH_AUTH_ENABLED=$(BENCH_AUTH_ENABLED) BENCH_BUILD_STACK=$(BENCH_BUILD_STACK)"
+	@echo "    profiles: smoke(10/10s/5/20) load(500/30s/200/1000) stress(1500/60s/600/4000) 100k(1000/100s/400/3000)"
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
@@ -590,6 +643,129 @@ logs:
 	@echo ""
 	@echo "=== CRM logs ==="
 	@cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
+
+.PHONY: k6-sync k6-bench-stack k6-bench-seed k6-bench-fund-external k6-bench-reset-fixtures k6-bench-run k6-bench
+
+k6-sync:
+	$(call print_title,Syncing k6 repository)
+	@mkdir -p ./tests
+	@if [ -d "$(K6_DIR)/.git" ]; then \
+		echo "Updating existing k6 repo in $(K6_DIR)..."; \
+		git -C "$(K6_DIR)" pull --ff-only; \
+	elif [ -d "$(K6_REPO_LOCAL)/.git" ]; then \
+		echo "Cloning k6 from local path $(K6_REPO_LOCAL)..."; \
+		git clone "$(K6_REPO_LOCAL)" "$(K6_DIR)"; \
+	else \
+		echo "Cloning k6 from $(K6_REPO_URL)..."; \
+		git clone "$(K6_REPO_URL)" "$(K6_DIR)"; \
+	fi
+
+k6-bench-stack:
+	$(call print_title,Starting benchmark stack)
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_command,curl,"Install curl from https://curl.se/")
+	@if [ "$(BENCH_BUILD_STACK)" = "true" ]; then \
+		echo "Bringing up benchmark stack with image rebuild..."; \
+		$(DOCKER_CMD) -f $(BENCH_COMPOSE_FILE) up -d --build; \
+	else \
+		echo "Bringing up benchmark stack (no rebuild)..."; \
+		$(DOCKER_CMD) -f $(BENCH_COMPOSE_FILE) up -d; \
+	fi
+	@docker restart midaz-bench-nginx >/dev/null 2>&1 || true
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		status=$$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3010/health || true); \
+		if [ "$$status" = "200" ]; then \
+			echo "Benchmark gateway is healthy on :3010"; \
+			exit 0; \
+		fi; \
+		sleep 2; \
+	done; \
+	echo "Error: benchmark gateway did not become healthy on :3010"; \
+	exit 1
+
+k6-bench-seed:
+	$(call print_title,Seeding benchmark fixtures)
+	@onboarding_sql="$(K6_DIR)/$(K6_SCENARIO_DIR)/000_onboarding_setup.sql"; \
+	if [ ! -f "$$onboarding_sql" ]; then \
+		onboarding_sql="$(K6_DIR)/$(K6_SCENARIO_DIR)/000_onboading_setup.sql"; \
+	fi; \
+	transaction_sql="$(K6_DIR)/$(K6_SCENARIO_DIR)/000_transaction_setup.sql"; \
+	if [ ! -f "$$onboarding_sql" ] || [ ! -f "$$transaction_sql" ]; then \
+		echo "Error: benchmark SQL fixtures not found in $(K6_DIR)/$(K6_SCENARIO_DIR)"; \
+		exit 1; \
+	fi; \
+	echo "Applying onboarding fixture SQL (idempotent/best-effort)..."; \
+	docker exec -i midaz-bench-postgres psql -v ON_ERROR_STOP=0 -U midaz -d onboarding < "$$onboarding_sql" >/dev/null; \
+	echo "Applying transaction fixture SQL (idempotent/best-effort)..."; \
+	docker exec -i midaz-bench-postgres psql -v ON_ERROR_STOP=0 -U midaz -d transaction < "$$transaction_sql" >/dev/null
+	@org_exists=$$(docker exec -i midaz-bench-postgres psql -U midaz -d onboarding -Atc "SELECT COUNT(1) FROM organization WHERE id='$(BENCH_ORGANIZATION_ID)';"); \
+	ledger_exists=$$(docker exec -i midaz-bench-postgres psql -U midaz -d onboarding -Atc "SELECT COUNT(1) FROM ledger WHERE id='$(BENCH_LEDGER_ID)' AND organization_id='$(BENCH_ORGANIZATION_ID)';"); \
+	if [ "$$org_exists" != "1" ] || [ "$$ledger_exists" != "1" ]; then \
+		echo "Error: benchmark organization/ledger fixtures were not applied correctly"; \
+		echo "  expected organization=$(BENCH_ORGANIZATION_ID), ledger=$(BENCH_LEDGER_ID)"; \
+		exit 1; \
+	fi
+	@docker restart midaz-bench-authorizer >/dev/null 2>&1 || true
+	@sleep 2
+
+k6-bench-fund-external:
+	@docker exec -i midaz-bench-postgres psql -U midaz -d transaction -v ON_ERROR_STOP=1 -c "WITH external_keys AS (SELECT 'default' AS k UNION ALL SELECT 'shard_' || gs::text AS k FROM generate_series(0, 7) AS gs) INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, \"key\", asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at, deleted_at) SELECT gen_random_uuid(), '$(BENCH_ORGANIZATION_ID)', '$(BENCH_LEDGER_ID)', '019819de-0000-7000-8000-000000000002', '@external/BRL', ek.k, 'BRL', 1000000000000, 0, 1, 'external', true, true, NOW(), NOW(), NULL FROM external_keys ek WHERE NOT EXISTS (SELECT 1 FROM balance b WHERE b.organization_id='$(BENCH_ORGANIZATION_ID)' AND b.ledger_id='$(BENCH_LEDGER_ID)' AND b.alias='@external/BRL' AND b.\"key\"=ek.k AND b.deleted_at IS NULL);" >/dev/null
+	@docker exec -i midaz-bench-postgres psql -U midaz -d transaction -c "UPDATE balance SET allow_sending=true, allow_receiving=true, updated_at=NOW(), deleted_at=NULL WHERE organization_id='$(BENCH_ORGANIZATION_ID)' AND ledger_id='$(BENCH_LEDGER_ID)' AND ((alias='@external/BRL' AND (\"key\"='default' OR \"key\" ~ '^shard_[0-9]+$$')) OR ((alias ~ '^@(cacc|savings|card|bsacc|ewallet|cash)_[1-5]') AND \"key\"='default'));" >/dev/null
+	@docker exec -i midaz-bench-postgres psql -U midaz -d transaction -c "UPDATE balance SET available=1000000000000, updated_at=NOW(), deleted_at=NULL WHERE organization_id='$(BENCH_ORGANIZATION_ID)' AND ledger_id='$(BENCH_LEDGER_ID)' AND alias='@external/BRL';" >/dev/null
+
+k6-bench-reset-fixtures:
+	@echo "Resetting benchmark fixture records for organization=$(BENCH_ORGANIZATION_ID), ledger=$(BENCH_LEDGER_ID)..."
+	@docker exec -i midaz-bench-postgres psql -U midaz -d onboarding -v ON_ERROR_STOP=1 -c "DELETE FROM account WHERE organization_id='$(BENCH_ORGANIZATION_ID)' AND ledger_id='$(BENCH_LEDGER_ID)' AND alias ~ '^@(cacc|savings|card|bsacc|ewallet|cash)_[1-5]';" >/dev/null
+	@docker exec -i midaz-bench-postgres psql -U midaz -d onboarding -v ON_ERROR_STOP=1 -c "DELETE FROM asset WHERE organization_id='$(BENCH_ORGANIZATION_ID)' AND ledger_id='$(BENCH_LEDGER_ID)' AND code='BRL';" >/dev/null
+	@docker exec -i midaz-bench-postgres psql -U midaz -d transaction -v ON_ERROR_STOP=1 -c "DELETE FROM balance WHERE organization_id='$(BENCH_ORGANIZATION_ID)' AND ledger_id='$(BENCH_LEDGER_ID)' AND (alias='@external/BRL' OR alias ~ '^@(cacc|savings|card|bsacc|ewallet|cash)_[1-5]');" >/dev/null
+
+k6-bench-run:
+	$(call print_title,Running k6 benchmark suite)
+	$(call check_command,k6,"Install k6 with: brew install k6")
+	@if [ ! -d "$(K6_DIR)/$(K6_SCENARIO_DIR)" ]; then \
+		echo "Error: k6 scenario directory not found: $(K6_DIR)/$(K6_SCENARIO_DIR)"; \
+		exit 1; \
+	fi
+	@seed_account_count=$$(docker exec -i midaz-bench-postgres psql -U midaz -d onboarding -Atc "SELECT COUNT(*) FROM account WHERE organization_id='$(BENCH_ORGANIZATION_ID)' AND ledger_id='$(BENCH_LEDGER_ID)' AND deleted_at IS NULL AND alias ~ '^@(cacc|savings|card|bsacc|ewallet|cash)_[1-5]';" || echo 0); \
+	if [ "$(BENCH_RUN_SETUP)" = "true" ]; then \
+		if [ "$(BENCH_FORCE_SETUP)" = "true" ] || [ "$$seed_account_count" != "30" ]; then \
+			echo "Setup required (seeded accounts=$$seed_account_count, expected=30)."; \
+			$(MAKE) k6-bench-reset-fixtures BENCH_ORGANIZATION_ID=$(BENCH_ORGANIZATION_ID) BENCH_LEDGER_ID=$(BENCH_LEDGER_ID); \
+			echo "Running setup scripts (001_create_accounts, 002_charge)..."; \
+			( cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
+			for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
+			k6 run -e ENVIRONMENT=$(BENCH_ENVIRONMENT) -e AUTH_ENABLED=$(BENCH_AUTH_ENABLED) -e LOG=$(BENCH_LOG) 001_create_accounts.js ) && \
+			$(MAKE) k6-bench-fund-external BENCH_ORGANIZATION_ID=$(BENCH_ORGANIZATION_ID) BENCH_LEDGER_ID=$(BENCH_LEDGER_ID) && \
+			( cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
+			for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
+			k6 run -e ENVIRONMENT=$(BENCH_ENVIRONMENT) -e AUTH_ENABLED=$(BENCH_AUTH_ENABLED) -e LOG=$(BENCH_LOG) 002_charge.js ); \
+		else \
+			echo "Skipping setup scripts: benchmark accounts already seeded (set BENCH_FORCE_SETUP=true to rerun)."; \
+		fi; \
+	else \
+		if [ "$$seed_account_count" != "30" ]; then \
+			echo "Error: BENCH_RUN_SETUP=false but fixtures are incomplete (seeded accounts=$$seed_account_count, expected=30)."; \
+			echo "Run with BENCH_RUN_SETUP=true or BENCH_FORCE_SETUP=true."; \
+			exit 1; \
+		fi; \
+		echo "Skipping setup scripts because BENCH_RUN_SETUP=$(BENCH_RUN_SETUP) and fixtures are ready."; \
+	fi
+	@$(MAKE) k6-bench-fund-external BENCH_ORGANIZATION_ID=$(BENCH_ORGANIZATION_ID) BENCH_LEDGER_ID=$(BENCH_LEDGER_ID)
+	@echo "Running load script 003_transactions.js with TPS=$(BENCH_TPS), DURATION=$(BENCH_DURATION)..."
+	@cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
+		for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
+		k6 run \
+		-e ENVIRONMENT=$(BENCH_ENVIRONMENT) \
+		-e AUTH_ENABLED=$(BENCH_AUTH_ENABLED) \
+		-e LOG=$(BENCH_LOG) \
+		-e TPS=$(BENCH_TPS) \
+		-e DURATION=$(BENCH_DURATION) \
+		-e PRE_VUS=$(BENCH_PRE_VUS) \
+		-e MAX_VUS=$(BENCH_MAX_VUS) \
+		003_transactions.js
+
+k6-bench: k6-sync k6-bench-stack k6-bench-seed k6-bench-run
+	@echo "[ok] Benchmark stack and k6 suite completed"
 
 # Component-specific command execution
 .PHONY: infra onboarding transaction ledger all-components
