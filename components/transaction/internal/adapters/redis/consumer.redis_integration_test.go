@@ -8,6 +8,7 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 
@@ -331,6 +333,96 @@ func TestIntegration_Redis_PendingTransactionFlow(t *testing.T) {
 	require.NoError(t, err, "commit operation should succeed")
 
 	t.Log("Integration test passed: pending transaction flow verified")
+}
+
+func TestIntegration_Redis_LegacyBalanceRescaledBeforeV2Arithmetic(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+
+	legacyAlias := "@legacy-scale"
+	legacyKey := utils.BalanceInternalKey(orgID, ledgerID, legacyAlias+"#default")
+
+	legacySeed := map[string]any{
+		"id":             uuid.NewString(),
+		"alias":          legacyAlias,
+		"accountId":      uuid.NewString(),
+		"assetCode":      "USD",
+		"available":      "100.50",
+		"onHold":         "0",
+		"version":        1,
+		"accountType":    "deposit",
+		"allowSending":   1,
+		"allowReceiving": 1,
+		"key":            "default",
+	}
+
+	payload, err := json.Marshal(legacySeed)
+	require.NoError(t, err)
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, legacyKey, payload, time.Hour).Err())
+
+	balanceOps := []mmodel.BalanceOperation{
+		redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, legacyAlias, "USD",
+			constant.DEBIT, decimal.RequireFromString("1.25"),
+			decimal.RequireFromString("100.50"),
+			"deposit",
+		),
+	}
+
+	// Operation 1: DEBIT 1.25 from legacy balance of 100.50 (stored without scale).
+	// The Lua script must rescale the stored string "100.50" before applying V2 arithmetic.
+	// Expected: 100.50 - 1.25 = 99.25
+	balancesOp1, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, txID, "ACTIVE", false, balanceOps)
+	require.NoError(t, err, "first debit on legacy balance should succeed")
+	require.Len(t, balancesOp1, 1, "operation 1 should return pre-operation snapshot")
+
+	afterOp1, err := infra.repo.ListBalanceByKey(ctx, orgID, ledgerID, legacyAlias+"#default")
+	require.NoError(t, err, "should read balance after operation 1")
+	assert.True(t, afterOp1.Available.Equal(decimal.RequireFromString("99.25")),
+		"after debit of 1.25 from legacy 100.50, Available should be 99.25, got %s", afterOp1.Available)
+
+	secondTxID := uuid.New()
+	secondOps := []mmodel.BalanceOperation{
+		redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, legacyAlias, "USD",
+			constant.DEBIT, decimal.RequireFromString("99.25"),
+			decimal.RequireFromString("99.25"),
+			"deposit",
+		),
+	}
+
+	// Operation 2: DEBIT 99.25 from the rescaled balance of 99.25.
+	// This drains the account to exactly zero, which is still a valid state.
+	// Expected: 99.25 - 99.25 = 0.00
+	balancesOp2, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, secondTxID, "ACTIVE", false, secondOps)
+	require.NoError(t, err, "second debit that drains balance to zero should succeed")
+	require.Len(t, balancesOp2, 1, "operation 2 should return pre-operation snapshot")
+
+	afterOp2, err := infra.repo.ListBalanceByKey(ctx, orgID, ledgerID, legacyAlias+"#default")
+	require.NoError(t, err, "should read balance after operation 2")
+	assert.True(t, afterOp2.Available.Equal(decimal.Zero),
+		"after debit of 99.25 from 99.25, Available should be 0, got %s", afterOp2.Available)
+
+	thirdTxID := uuid.New()
+	thirdOps := []mmodel.BalanceOperation{
+		redistestutil.CreateBalanceOperationWithAvailable(
+			orgID, ledgerID, legacyAlias, "USD",
+			constant.DEBIT, decimal.RequireFromString("0.01"),
+			decimal.RequireFromString("0"),
+			"deposit",
+		),
+	}
+
+	_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, thirdTxID, "ACTIVE", false, thirdOps)
+	redistestutil.AssertInsufficientFundsError(t, err)
 }
 
 // =============================================================================
