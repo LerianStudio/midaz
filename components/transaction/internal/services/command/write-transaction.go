@@ -6,32 +6,37 @@ package command
 
 import (
 	"context"
-	"os"
-	"strings"
+	"strconv"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
+// RELEASE NOTE: TransactionAsync, RabbitMQBalanceOperationExchange, and
+// RabbitMQBalanceOperationKey are now resolved once at startup (not per-request).
+// Changing these env vars requires a pod restart to take effect.
+
 // WriteTransaction routes the transaction to sync or async execution
-// based on the RABBITMQ_TRANSACTION_ASYNC environment variable.
+// based on the TransactionAsync field (resolved once at startup from RABBITMQ_TRANSACTION_ASYNC).
 func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
-	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
+	if uc.TransactionAsync {
 		return uc.WriteTransactionAsync(ctx, organizationID, ledgerID, transactionInput, validate, blc, tran)
-	} else {
-		return uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, blc, tran)
 	}
+
+	return uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, blc, tran)
 }
 
 // WriteTransactionAsync publishes the transaction payload to RabbitMQ
 // for asynchronous processing. Falls back to direct DB write if queue fails.
 func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	logger, tracer, reqID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.write_transaction_async")
 	defer span.End()
@@ -74,13 +79,31 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 		return err
 	}
 
+	exchange := uc.RabbitMQBalanceOperationExchange
+	routingKey := resolveBTORoutingKey(uc.RabbitMQBalanceOperationKey, tran.IDtoUUID(), uc.ShardRouter, uc.ShardedBTOQueuesEnabled)
+
+	if uc.Authorizer != nil && uc.Authorizer.Enabled() {
+		headers := map[string]string{}
+		if reqID != "" {
+			headers[libConstants.HeaderID] = reqID
+		}
+
+		publishErr := uc.Authorizer.PublishBalanceOperations(ctx, exchange, routingKey, message, headers)
+		if publishErr == nil {
+			logger.Infof("Transaction sent successfully via authorizer publisher: %s", tran.ID)
+			return nil
+		}
+
+		logger.Warnf("Failed to publish via authorizer for transaction %s: %v. Falling back to local RabbitMQ producer", tran.ID, publishErr)
+	}
+
 	// ProducerDefaultWithContext handles scoped timeout internally.
 	// If it fails, we fall back to direct DB write using the original context
 	// which still has remaining HTTP timeout.
 	if _, err := uc.RabbitMQRepo.ProducerDefaultWithContext(
 		ctx,
-		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),
-		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
+		exchange,
+		routingKey,
 		message,
 	); err != nil {
 		logger.Warnf("Failed to send message to queue: %s", err.Error())
@@ -105,6 +128,16 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 	logger.Infof("Transaction send successfully to queue: %s", tran.ID)
 
 	return nil
+}
+
+func resolveBTORoutingKey(baseKey string, transactionID uuid.UUID, shardRouter *shard.Router, shardedEnabled bool) string {
+	if !IsShardedBTOQueueEnabled(shardRouter, shardedEnabled) {
+		return baseKey
+	}
+
+	shardID := shardRouter.Resolve(transactionID.String())
+
+	return baseKey + ".shard_" + strconv.Itoa(shardID)
 }
 
 // WriteTransactionSync performs direct database writes for balance updates,

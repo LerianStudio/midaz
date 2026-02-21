@@ -15,11 +15,13 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -82,7 +84,8 @@ func TestGetBalances(t *testing.T) {
 			AllowReceiving: 1,
 			AssetCode:      "USD",
 		}
-		balanceRedisJSON, _ := json.Marshal(balanceRedis)
+		balanceRedisJSON, marshalErr := json.Marshal(balanceRedis)
+		require.NoError(t, marshalErr)
 
 		databaseBalances := []*mmodel.Balance{
 			{
@@ -229,7 +232,8 @@ func TestGetBalances(t *testing.T) {
 			AllowReceiving: 1,
 			AssetCode:      "USD",
 		}
-		balance1JSON, _ := json.Marshal(balance1)
+		balance1JSON, marshalErr := json.Marshal(balance1)
+		require.NoError(t, marshalErr)
 
 		balance2 := mmodel.BalanceRedis{
 			ID:        uuid.New().String(),
@@ -243,7 +247,8 @@ func TestGetBalances(t *testing.T) {
 			AllowReceiving: 1,
 			AssetCode:      "EUR",
 		}
-		balance2JSON, _ := json.Marshal(balance2)
+		balance2JSON, marshalErr := json.Marshal(balance2)
+		require.NoError(t, marshalErr)
 
 		internalKey1 := utils.BalanceInternalKey(organizationID, ledgerID, "alias1#default")
 		mockRedisRepo.EXPECT().
@@ -403,7 +408,8 @@ func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
 			AllowReceiving: 1,
 			AssetCode:      "USD",
 		}
-		balance1JSON, _ := json.Marshal(balance1)
+		balance1JSON, marshalErr := json.Marshal(balance1)
+		require.NoError(t, marshalErr)
 
 		internalKey1 := utils.BalanceInternalKey(organizationID, ledgerID, "alias1#default")
 		mockRedisRepo.EXPECT().
@@ -423,7 +429,8 @@ func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
 			Return("", nil).
 			Times(1)
 
-		balances, remainingAliases := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, aliases)
+		balances, remainingAliases, err := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, aliases)
+		require.NoError(t, err)
 
 		assert.Len(t, balances, 1)
 		assert.Equal(t, balance1.ID, balances[0].ID)
@@ -433,6 +440,195 @@ func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
 		assert.Contains(t, remainingAliases, "alias2#default")
 		assert.Contains(t, remainingAliases, "alias3#default")
 	})
+}
+
+func TestValidateIfBalanceExistsOnRedis_ShardedUsesShardKey(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		RedisRepo:   mockRedisRepo,
+		ShardRouter: shard.NewRouter(8),
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	aliases := []string{"@alice#default", "@bob#default"}
+
+	balanceAlice := mmodel.BalanceRedis{
+		ID:             uuid.New().String(),
+		AccountID:      uuid.New().String(),
+		Available:      decimal.NewFromInt(100),
+		OnHold:         decimal.Zero,
+		Version:        2,
+		AccountType:    "deposit",
+		AllowSending:   1,
+		AllowReceiving: 1,
+		AssetCode:      "USD",
+	}
+	balanceAliceJSON, marshalErr := json.Marshal(balanceAlice)
+	require.NoError(t, marshalErr)
+
+	aliceShard := uc.ShardRouter.Resolve(shard.ExtractAccountAlias(aliases[0]))
+	bobShard := uc.ShardRouter.Resolve(shard.ExtractAccountAlias(aliases[1]))
+
+	aliceKey := utils.BalanceShardKey(aliceShard, organizationID, ledgerID, aliases[0])
+	bobKey := utils.BalanceShardKey(bobShard, organizationID, ledgerID, aliases[1])
+
+	mockRedisRepo.EXPECT().Get(gomock.Any(), aliceKey).Return(string(balanceAliceJSON), nil).Times(1)
+	mockRedisRepo.EXPECT().Get(gomock.Any(), bobKey).Return("", nil).Times(1)
+
+	balances, remainingAliases, err := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, aliases)
+	require.NoError(t, err)
+
+	require.Len(t, balances, 1)
+	assert.Equal(t, "@alice", balances[0].Alias)
+	assert.True(t, balances[0].Available.Equal(decimal.NewFromInt(100)))
+	require.Len(t, remainingAliases, 1)
+	assert.Equal(t, "@bob#default", remainingAliases[0])
+}
+
+func TestValidateIfBalanceExistsOnRedis_ShardedCorruptJSON(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		RedisRepo:   mockRedisRepo,
+		ShardRouter: shard.NewRouter(8),
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	aliases := []string{"@carol#default", "@dave#default"}
+
+	// @carol gets corrupt JSON, @dave gets an empty response (cache miss)
+	carolShard := uc.ShardRouter.Resolve(shard.ExtractAccountAlias(aliases[0]))
+	daveShard := uc.ShardRouter.Resolve(shard.ExtractAccountAlias(aliases[1]))
+
+	carolKey := utils.BalanceShardKey(carolShard, organizationID, ledgerID, aliases[0])
+	daveKey := utils.BalanceShardKey(daveShard, organizationID, ledgerID, aliases[1])
+
+	mockRedisRepo.EXPECT().Get(gomock.Any(), carolKey).Return("not-valid-json", nil).Times(1)
+	mockRedisRepo.EXPECT().Get(gomock.Any(), daveKey).Return("", nil).Times(1)
+
+	balances, remainingAliases, err := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, aliases)
+	require.NoError(t, err)
+
+	// When the sharded Redis entry contains corrupt JSON, the unmarshal error
+	// is logged as a warning and the loop continues. The alias is silently
+	// skipped: it does NOT appear in the returned balances (because
+	// deserialization failed) and it does NOT appear in remainingAliases
+	// (because the value was non-empty, so the else-branch adding it to
+	// newAliases is never reached). Only @dave, which had a cache miss,
+	// ends up in remainingAliases.
+	assert.Empty(t, balances, "corrupt JSON entry must not produce a balance")
+	require.Len(t, remainingAliases, 1)
+	assert.Equal(t, "@dave#default", remainingAliases[0])
+}
+
+func TestGetAccountAndLock_ShardedOperationsContainShardData(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	organizationID := uuid.MustParse("ad0032e5-ccf5-45f4-a3b2-12045e71b38a")
+	ledgerID := uuid.MustParse("5d8ac48a-af68-4544-9bf8-80c3cc0715f4")
+	uc := UseCase{
+		RedisRepo:   mockRedisRepo,
+		ShardRouter: shard.NewRouter(8),
+	}
+
+	validate := &pkgTransaction.Responses{
+		Aliases: []string{"@alice", "@bob"},
+		From: map[string]pkgTransaction.Amount{
+			"0#@alice#default": {
+				Asset:     "USD",
+				Value:     decimal.NewFromInt(40),
+				Operation: constant.DEBIT,
+			},
+		},
+		To: map[string]pkgTransaction.Amount{
+			"1#@bob#default": {
+				Asset:     "USD",
+				Value:     decimal.NewFromInt(40),
+				Operation: constant.CREDIT,
+			},
+		},
+	}
+
+	balances := []*mmodel.Balance{
+		{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "@alice",
+			Key:            "default",
+			Available:      decimal.NewFromInt(100),
+			OnHold:         decimal.Zero,
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			AssetCode:      "USD",
+		},
+		{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "@bob",
+			Key:            "default",
+			Available:      decimal.NewFromInt(100),
+			OnHold:         decimal.Zero,
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			AssetCode:      "USD",
+		},
+	}
+
+	var capturedOps []mmodel.BalanceOperation
+
+	mockRedisRepo.EXPECT().
+		ProcessBalanceAtomicOperation(
+			gomock.Any(),
+			organizationID,
+			ledgerID,
+			gomock.Any(),
+			constant.CREATED,
+			false,
+			gomock.Any(),
+		).
+		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID, _ string, _ bool, ops []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
+			capturedOps = ops
+			return balances, nil
+		})
+
+	transactionID := uuid.New()
+	lockedBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, constant.CREATED)
+	require.NoError(t, err)
+	require.Len(t, lockedBalances, 2)
+	require.Len(t, capturedOps, 2)
+
+	for _, op := range capturedOps {
+		alias := op.Balance.Alias
+		aliasKey := alias + "#" + op.Balance.Key
+		expectedShard := uc.ShardRouter.Resolve(alias)
+		expectedInternalKey := utils.BalanceShardKey(expectedShard, organizationID, ledgerID, aliasKey)
+
+		assert.Equal(t, expectedShard, op.ShardID)
+		assert.Equal(t, expectedInternalKey, op.InternalKey)
+	}
 }
 
 func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
@@ -460,7 +656,7 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				ID:             "01968142-fba6-7c96-bcdd-877b46020b84",
 				AccountID:      "01968142-fba1-7399-88e9-0d69f1ecf1d3",
 				AssetCode:      "BRL",
-				Available:      decimal.NewFromFloat(10000),
+				Available:      decimal.NewFromFloat(100), // 10000 / 10^2 = 100 (auto-unscaled)
 				OnHold:         decimal.NewFromFloat(0),
 				Version:        1,
 				AccountType:    "external",
@@ -487,7 +683,7 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				ID:             "01968143-6677-7d4a-ad4b-0b0c8ae366fb",
 				AccountID:      "01968143-666c-7e4d-b127-bc5ac9af3058",
 				AssetCode:      "BRL",
-				Available:      decimal.NewFromFloat(10000000000000000),
+				Available:      decimal.NewFromFloat(100), // 1e16 / 10^14 = 100 (auto-unscaled)
 				OnHold:         decimal.NewFromFloat(0),
 				Version:        1,
 				AccountType:    "creditCard",
@@ -514,8 +710,8 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				ID:             "01968142-fba6-7c96-bcdd-877b46020b84",
 				AccountID:      "01968142-fba1-7399-88e9-0d69f1ecf1d3",
 				AssetCode:      "BRL",
-				Available:      decimal.NewFromFloat(5000),
-				OnHold:         decimal.NewFromFloat(1000),
+				Available:      decimal.NewFromFloat(50), // 5000 / 10^2 = 50 (auto-unscaled)
+				OnHold:         decimal.NewFromFloat(10), // 1000 / 10^2 = 10 (auto-unscaled)
 				Version:        1,
 				AccountType:    "external",
 				AllowSending:   1,
@@ -541,7 +737,7 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				ID:             "01968142-fba6-7c96-bcdd-877b46020b84",
 				AccountID:      "01968142-fba1-7399-88e9-0d69f1ecf1d3",
 				AssetCode:      "BRL",
-				Available:      decimal.NewFromFloat(-10000),
+				Available:      decimal.NewFromFloat(-100), // -10000 / 10^2 = -100 (auto-unscaled)
 				OnHold:         decimal.NewFromFloat(0),
 				Version:        1,
 				AccountType:    "external",
@@ -568,7 +764,7 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				ID:             "01968142-fba6-7c96-bcdd-877b46020b84",
 				AccountID:      "01968142-fba1-7399-88e9-0d69f1ecf1d3",
 				AssetCode:      "BRL",
-				Available:      decimal.NewFromFloat(1500),
+				Available:      decimal.NewFromFloat(15), // 1500 / 10^2 = 15 (auto-unscaled)
 				OnHold:         decimal.NewFromFloat(0),
 				Version:        1,
 				AccountType:    "external",
@@ -636,4 +832,69 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestValidateIfBalanceExistsOnRedis_ShardResolutionFailure verifies that
+// ValidateIfBalanceExistsOnRedis fails open when shard resolution encounters
+// an error. Instead of propagating the error to the caller, it should fall
+// back to the non-sharded (legacy) Redis key and continue the lookup.
+func TestValidateIfBalanceExistsOnRedis_ShardResolutionFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	// A zero-value Router has ShardCount()==0, which triggers an error in
+	// shardrouting.ResolveBalanceShard ("invalid shard count"). This
+	// simulates a misconfigured or degraded shard router.
+	uc := &UseCase{
+		RedisRepo:   mockRedisRepo,
+		ShardRouter: &shard.Router{},
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	aliases := []string{"@alice#default", "@bob#default"}
+
+	// Prepare a valid balance payload that should be found via the legacy key.
+	balanceAlice := mmodel.BalanceRedis{
+		ID:             uuid.New().String(),
+		AccountID:      uuid.New().String(),
+		Available:      decimal.NewFromInt(500),
+		OnHold:         decimal.Zero,
+		Version:        3,
+		AccountType:    "deposit",
+		AllowSending:   1,
+		AllowReceiving: 1,
+		AssetCode:      "USD",
+	}
+	balanceAliceJSON, marshalErr := json.Marshal(balanceAlice)
+	require.NoError(t, marshalErr)
+
+	// The fail-open path should construct non-sharded (legacy) keys because
+	// the shard router's ShardCount is invalid (0). The function should NOT
+	// return an error.
+	aliceLegacyKey := utils.BalanceInternalKey(organizationID, ledgerID, "@alice#default")
+	bobLegacyKey := utils.BalanceInternalKey(organizationID, ledgerID, "@bob#default")
+
+	// @alice is found via the legacy key; @bob is a cache miss.
+	mockRedisRepo.EXPECT().Get(gomock.Any(), aliceLegacyKey).Return(string(balanceAliceJSON), nil).Times(1)
+	mockRedisRepo.EXPECT().Get(gomock.Any(), bobLegacyKey).Return("", nil).Times(1)
+
+	balances, remainingAliases, err := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, aliases)
+
+	// The function must NOT return an error -- fail-open behavior.
+	require.NoError(t, err, "shard resolution failure must not propagate as an error")
+
+	// @alice should have been found via the legacy (fallback) key.
+	require.Len(t, balances, 1, "exactly one balance should be returned")
+	assert.Equal(t, "@alice", balances[0].Alias)
+	assert.Equal(t, balanceAlice.ID, balances[0].ID)
+	assert.True(t, balances[0].Available.Equal(decimal.NewFromInt(500)))
+
+	// @bob was a cache miss, so it should appear in the remaining aliases
+	// for downstream PostgreSQL lookup.
+	require.Len(t, remainingAliases, 1)
+	assert.Equal(t, "@bob#default", remainingAliases[0])
 }

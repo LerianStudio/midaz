@@ -44,8 +44,16 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 		return nil, err
 	}
 
-	// Overlay amounts from Redis cache when available to ensure freshest values
-	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balance.Alias+"#"+balance.Key)
+	// Overlay amounts from Redis cache when available to ensure freshest values.
+	// Uses fail-open: if shard routing fails, fall back to the non-sharded key
+	// so the database data (which already succeeded) is never discarded.
+	internalKey, cacheKeyErr := uc.resolveBalanceCacheKey(ctx, organizationID, ledgerID, balance.Alias, balance.Key)
+	if cacheKeyErr != nil {
+		libOpentelemetry.HandleSpanEvent(&span, "Failed to resolve balance cache key, falling back to non-sharded key")
+		logger.Warnf("Failed to resolve balance cache key, falling back to non-sharded key: %v", cacheKeyErr)
+
+		internalKey = utils.BalanceInternalKey(organizationID, ledgerID, balance.Alias+"#"+balance.Key)
+	}
 
 	value, rerr := uc.RedisRepo.Get(ctx, internalKey)
 	if rerr != nil {

@@ -17,7 +17,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -32,6 +34,20 @@ import (
 func Int64Ptr(v int64) *int64 {
 	return &v
 }
+
+func mustMsgpackMarshal(t *testing.T, payload any) []byte {
+	t.Helper()
+
+	data, err := msgpack.Marshal(payload)
+	require.NoError(t, err)
+
+	return data
+}
+
+// NOTE: A previous helper `expectOperationNotFoundLookup` mocked OperationRepo.Find
+// with AnyTimes(), but CreateBalanceTransactionOperationsAsync never calls Find.
+// Operation idempotency is handled at the PostgreSQL level via ON CONFLICT (id) DO
+// NOTHING in CreateBatch. The dead mock was removed to avoid misleading future readers.
 
 // MockLogger is a mock implementation of logger for testing
 type MockLogger struct{}
@@ -148,7 +164,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Input:       transactionInput,
 		}
 
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
+		transactionBytes := mustMsgpackMarshal(t, transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -285,7 +301,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Input:       transactionInput,
 		}
 
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
+		transactionBytes := mustMsgpackMarshal(t, transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -389,7 +405,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Input:       transactionInput,
 		}
 
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
+		transactionBytes := mustMsgpackMarshal(t, transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -580,7 +596,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Input:       transactionInput,
 		}
 
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
+		transactionBytes := mustMsgpackMarshal(t, transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -622,22 +638,21 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		// Mock OperationRepo.Create for both operations and assert versions exist
+		// Mock OperationRepo.CreateBatch for batch insert of all operations
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), operation1).
-			DoAndReturn(func(_ context.Context, op *operation.Operation) (*operation.Operation, error) {
-				assert.NotNil(t, op.Balance.Version)
-				assert.NotNil(t, op.BalanceAfter.Version)
-				return op, nil
-			})
+			CreateBatch(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, ops []*operation.Operation) error {
+				require.Len(t, ops, 2)
+				assert.Equal(t, operation1.ID, ops[0].ID)
+				assert.Equal(t, operation2.ID, ops[1].ID)
+				require.NotNil(t, ops[0].Balance.Version)
+				require.NotNil(t, ops[0].BalanceAfter.Version)
+				require.NotNil(t, ops[1].Balance.Version)
+				require.NotNil(t, ops[1].BalanceAfter.Version)
 
-		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), operation2).
-			DoAndReturn(func(_ context.Context, op *operation.Operation) (*operation.Operation, error) {
-				assert.NotNil(t, op.Balance.Version)
-				assert.NotNil(t, op.BalanceAfter.Version)
-				return op, nil
-			})
+				return nil
+			}).
+			Times(1)
 
 		// Mock MetadataRepo.Create for operation metadata
 		mockMetadataRepo.EXPECT().
@@ -772,7 +787,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Input:       transactionInput,
 		}
 
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
+		transactionBytes := mustMsgpackMarshal(t, transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -810,21 +825,21 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		// Mock OperationRepo.Create to return an error for the first operation
-		operationError := errors.New("failed to create operation")
+		// Mock OperationRepo.CreateBatch to return an error
+		operationError := errors.New("batch insert failed")
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(nil, operationError).
+			CreateBatch(gomock.Any(), gomock.Any()).
+			Return(operationError).
 			Times(1)
 
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to create operation")
+		assert.Contains(t, err.Error(), "batch insert failed")
 	})
 
-	t.Run("error_duplicate_operation", func(t *testing.T) {
+	t.Run("error_batch_insert_database_failure", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -933,7 +948,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Input:       transactionInput,
 		}
 
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
+		transactionBytes := mustMsgpackMarshal(t, transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -971,41 +986,17 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		// Mock OperationRepo.Create to return a duplicate key error for the first operation
-		pgErr := &pgconn.PgError{Code: "23505"}
+		// Mock OperationRepo.CreateBatch to return a database connection error
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(nil, pgErr).
+			CreateBatch(gomock.Any(), gomock.Any()).
+			Return(errors.New("database connection refused")).
 			Times(1)
-
-		// Mock OperationRepo.Create for the second operation
-		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(operation2, nil).
-			Times(1)
-
-		// Mock MetadataRepo.Create for operation metadata (only for second operation)
-		mockMetadataRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
-
-		// Mock RabbitMQRepo.ProducerDefault for transaction events (goroutine will still be called)
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil, nil).
-			AnyTimes()
-
-		// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
-		mockRedisRepo.EXPECT().
-			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
-			Return(nil).
-			AnyTimes()
 
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.NoError(t, err) // Duplicate key errors are handled gracefully
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "database connection refused")
 	})
 
 	t.Run("error_creating_operation_metadata", func(t *testing.T) {
@@ -1096,7 +1087,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Input:       transactionInput,
 		}
 
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
+		transactionBytes := mustMsgpackMarshal(t, transactionQueue)
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -1134,10 +1125,10 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		// Mock OperationRepo.Create for the operation
+		// Mock OperationRepo.CreateBatch for batch insert of the operation
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(operation1, nil).
+			CreateBatch(gomock.Any(), gomock.Any()).
+			Return(nil).
 			Times(1)
 
 		// Mock MetadataRepo.Create for operation metadata to return an error
@@ -1269,7 +1260,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		Input:       transactionInput,
 	}
 
-	transactionBytes, _ := msgpack.Marshal(transactionQueue)
+	transactionBytes := mustMsgpackMarshal(t, transactionQueue)
 	queueData := []mmodel.QueueData{
 		{
 			ID:    uuid.New(),
@@ -1317,8 +1308,9 @@ func TestCreateBTOAsync(t *testing.T) {
 		Return(nil).
 		AnyTimes()
 
-	// Call the method - this should not panic
-	uc.CreateBTOSync(ctx, queue)
+	// Call the method - this should not panic and should succeed
+	err := uc.CreateBTOSync(ctx, queue)
+	require.NoError(t, err)
 }
 
 func TestUpdateTransactionBackupOperations(t *testing.T) {
@@ -1458,4 +1450,121 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 		// Should not panic, just log and return
 		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-3", []*operation.Operation{})
 	})
+
+	t.Run("updates_preflight_shard_and_legacy_backup", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		uc := &UseCase{
+			RedisRepo:   mockRedisRepo,
+			ShardRouter: shard.NewRouter(2),
+		}
+
+		ctx := context.Background()
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New().String()
+
+		backupJSON := `{"header_id":"req-1","transaction_id":"` + transactionID + `","organization_id":"` + organizationID.String() + `","ledger_id":"` + ledgerID.String() + `","ttl":"2026-01-01T00:00:00Z","transaction_status":"CREATED","transaction_date":"2026-01-01T00:00:00Z"}`
+
+		// Only 2 reads: pre-flight shard (deterministic FNV hash) + legacy key
+		mockRedisRepo.EXPECT().
+			ReadMessageFromQueue(gomock.Any(), gomock.Any()).
+			Return([]byte(backupJSON), nil).
+			Times(2)
+
+		mockRedisRepo.EXPECT().
+			AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).
+			Times(2)
+
+		uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID, []*operation.Operation{{ID: "op-1"}})
+	})
+}
+
+func TestValidateOperationsNotNil(t *testing.T) {
+	t.Run("returns error when operation is nil", func(t *testing.T) {
+		ops := []*operation.Operation{{ID: "op-1"}, nil}
+
+		err := validateOperationsNotNil(ops)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "nil operation")
+	})
+
+	t.Run("returns nil when all entries are valid", func(t *testing.T) {
+		ops := []*operation.Operation{{ID: "op-1"}, {ID: "op-2"}}
+
+		err := validateOperationsNotNil(ops)
+
+		require.NoError(t, err)
+	})
+
+	t.Run("returns nil for empty input", func(t *testing.T) {
+		err := validateOperationsNotNil([]*operation.Operation{})
+
+		require.NoError(t, err)
+	})
+}
+
+func TestCreateBalanceTransactionOperationsAsync_RejectsEmptyQueueData(t *testing.T) {
+	uc := &UseCase{}
+
+	err := uc.CreateBalanceTransactionOperationsAsync(context.Background(), mmodel.Queue{
+		OrganizationID: uuid.New(),
+		LedgerID:       uuid.New(),
+		QueueData:      []mmodel.QueueData{},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty queue data")
+}
+
+func TestCreateBalanceTransactionOperationsAsync_RejectsNilTransaction(t *testing.T) {
+	uc := &UseCase{}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: nil,
+		Validate:    &pkgTransaction.Responses{},
+		Balances:    []*mmodel.Balance{},
+		Input:       &pkgTransaction.Transaction{},
+	}
+
+	msg := mustMsgpackMarshal(t, payload)
+
+	err := uc.CreateBalanceTransactionOperationsAsync(context.Background(), mmodel.Queue{
+		OrganizationID: uuid.New(),
+		LedgerID:       uuid.New(),
+		QueueData: []mmodel.QueueData{
+			{ID: uuid.New(), Value: msg},
+		},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "transaction is nil")
+}
+
+func TestCreateBalanceTransactionOperationsAsync_RejectsNilValidate(t *testing.T) {
+	uc := &UseCase{}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{Status: transaction.Status{Code: constant.CREATED}},
+		Validate:    nil,
+		Balances:    []*mmodel.Balance{},
+		Input:       &pkgTransaction.Transaction{},
+	}
+
+	msg := mustMsgpackMarshal(t, payload)
+
+	err := uc.CreateBalanceTransactionOperationsAsync(context.Background(), mmodel.Queue{
+		OrganizationID: uuid.New(),
+		LedgerID:       uuid.New(),
+		QueueData: []mmodel.QueueData{
+			{ID: uuid.New(), Value: msg},
+		},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "validate is nil")
 }

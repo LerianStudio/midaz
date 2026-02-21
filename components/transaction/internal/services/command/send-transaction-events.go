@@ -51,13 +51,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 		Payload:        payload,
 	}
 
-	var key strings.Builder
-
-	key.WriteString(Source)
-	key.WriteString(".")
-	key.WriteString(EventType)
-	key.WriteString(".")
-	key.WriteString(tran.Status.Code)
+	key := Source + "." + EventType + "." + tran.Status.Code
 
 	logger.Infof("Sending transaction events to key: %s", key)
 
@@ -71,7 +65,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
 		ctxSendTransactionEvents,
 		os.Getenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE"),
-		key.String(),
+		key,
 		message,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(&spanTransactionEvents, "Failed to send transaction events to exchange", err)

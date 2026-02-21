@@ -34,7 +34,7 @@ func TestIntegration_FilterStaleBalances_CacheNewerVersion_FiltersBalance(t *tes
 	ctx := context.Background()
 
 	conn := redistestutil.CreateConnection(t, container.Addr)
-	redisRepo, err := redis.NewConsumerRedis(conn, false)
+	redisRepo, err := redis.NewConsumerRedis(conn, false, nil)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	uc := &UseCase{
@@ -91,7 +91,7 @@ func TestIntegration_FilterStaleBalances_CacheOlderVersion_IncludesBalance(t *te
 	ctx := context.Background()
 
 	conn := redistestutil.CreateConnection(t, container.Addr)
-	redisRepo, err := redis.NewConsumerRedis(conn, false)
+	redisRepo, err := redis.NewConsumerRedis(conn, false, nil)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	uc := &UseCase{
@@ -150,7 +150,7 @@ func TestIntegration_FilterStaleBalances_CacheMiss_IncludesBalance(t *testing.T)
 	ctx := context.Background()
 
 	conn := redistestutil.CreateConnection(t, container.Addr)
-	redisRepo, err := redis.NewConsumerRedis(conn, false)
+	redisRepo, err := redis.NewConsumerRedis(conn, false, nil)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	uc := &UseCase{
@@ -189,7 +189,7 @@ func TestIntegration_FilterStaleBalances_MultipleBalances_FiltersOnlyStale(t *te
 	ctx := context.Background()
 
 	conn := redistestutil.CreateConnection(t, container.Addr)
-	redisRepo, err := redis.NewConsumerRedis(conn, false)
+	redisRepo, err := redis.NewConsumerRedis(conn, false, nil)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	uc := &UseCase{
@@ -219,7 +219,8 @@ func TestIntegration_FilterStaleBalances_MultipleBalances_FiltersOnlyStale(t *te
 		AllowReceiving: 1,
 		Key:            "key1",
 	}
-	data1, _ := json.Marshal(cached1)
+	data1, err := json.Marshal(cached1)
+	require.NoError(t, err)
 	require.NoError(t, container.Client.Set(ctx, internalKey1, data1, 0).Err())
 
 	// Balance 2: cache version 3 < update version 8 → included
@@ -238,7 +239,8 @@ func TestIntegration_FilterStaleBalances_MultipleBalances_FiltersOnlyStale(t *te
 		AllowReceiving: 1,
 		Key:            "key2",
 	}
-	data2, _ := json.Marshal(cached2)
+	data2, err := json.Marshal(cached2)
+	require.NoError(t, err)
 	require.NoError(t, container.Client.Set(ctx, internalKey2, data2, 0).Err())
 
 	// Balance 3: no cache entry → included (fail-open)

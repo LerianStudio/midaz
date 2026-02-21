@@ -20,6 +20,11 @@ import (
 // GetAllBalances methods responsible to get all balances from a database.
 // This method is used to get all balances from a database and return them in a cursor pagination format.
 // It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
+//
+// NOTE: When Redis sharding is enabled, external accounts may return multiple
+// balance entries (one per shard, e.g., @external/USD#shard_0, @external/USD#shard_1).
+// Each entry represents the external account's balance partition on that shard.
+// Callers requiring a unified view should aggregate these entries client-side.
 func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -44,7 +49,17 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 	balanceCacheKeys := make([]string, len(balances))
 
 	for i, b := range balances {
-		balanceCacheKeys[i] = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
+		cacheKey, cacheKeyErr := uc.resolveBalanceCacheKey(ctx, organizationID, ledgerID, b.Alias, b.Key)
+		if cacheKeyErr != nil {
+			// Fail-open: if shard routing fails, fall back to the non-sharded key
+			// so the database data (which already succeeded) is never discarded.
+			libOpentelemetry.HandleSpanEvent(&span, "Failed to resolve balance cache key, falling back to non-sharded key")
+			logger.Warnf("Failed to resolve balance cache key, falling back to non-sharded key: %v", cacheKeyErr)
+
+			cacheKey = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
+		}
+
+		balanceCacheKeys[i] = cacheKey
 	}
 
 	balanceCacheValues, err := uc.RedisRepo.MGet(ctx, balanceCacheKeys)
@@ -101,7 +116,17 @@ func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, le
 
 	balanceCacheKeys := make([]string, len(balances))
 	for i, b := range balances {
-		balanceCacheKeys[i] = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
+		cacheKey, cacheKeyErr := uc.resolveBalanceCacheKey(ctx, organizationID, ledgerID, b.Alias, b.Key)
+		if cacheKeyErr != nil {
+			// Fail-open: if shard routing fails, fall back to the non-sharded key
+			// so the database data (which already succeeded) is never discarded.
+			libOpentelemetry.HandleSpanEvent(&span, "Failed to resolve balance cache key, falling back to non-sharded key")
+			logger.Warnf("Failed to resolve balance cache key, falling back to non-sharded key: %v", cacheKeyErr)
+
+			cacheKey = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
+		}
+
+		balanceCacheKeys[i] = cacheKey
 	}
 
 	balanceCacheValues, err := uc.RedisRepo.MGet(ctx, balanceCacheKeys)

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"reflect"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -43,6 +45,22 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 			return err
 		}
+	}
+
+	if len(data.QueueData) == 0 {
+		return fmt.Errorf("invalid queue payload: empty queue data")
+	}
+
+	if t.Transaction == nil {
+		return fmt.Errorf("invalid transaction payload: transaction is nil")
+	}
+
+	if t.Validate == nil {
+		return fmt.Errorf("invalid transaction payload: validate is nil")
+	}
+
+	if t.Transaction.Status.Code == constant.PENDING && t.Input == nil {
+		return fmt.Errorf("invalid transaction payload: pending transaction input is nil")
 	}
 
 	if t.Transaction.Status.Code != constant.NOTED {
@@ -85,32 +103,34 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		return err
 	}
 
-	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
+	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operations_batch")
 	defer spanCreateOperation.End()
 
-	logger.Infof("Trying to create new operations")
+	logger.Infof("Trying to create %d operations (batch insert)", len(tran.Operations))
 
-	for _, oper := range tran.Operations {
-		_, err = uc.OperationRepo.Create(ctxProcessOperation, oper)
+	if err := validateOperationsNotNil(tran.Operations); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Invalid operations payload", err)
+
+		logger.Errorf("Invalid operations payload: %v", err)
+
+		return err
+	}
+
+	// Batch insert all operations in a single multi-row INSERT statement.
+	// Duplicates are silently skipped via ON CONFLICT DO NOTHING.
+	if len(tran.Operations) > 0 {
+		err = uc.OperationRepo.CreateBatch(ctxProcessOperation, tran.Operations)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-				msg := fmt.Sprintf("Skipping to create operation, operation already exists: %v", oper.ID)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to batch create operations", err)
 
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, msg, err)
+			logger.Errorf("Failed to batch create operations: %v", err)
 
-				logger.Warnf(msg)
-
-				continue
-			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create operation", err)
-
-				logger.Errorf("Error creating operation: %v", err)
-
-				return err
-			}
+			return err
 		}
+	}
 
+	// Create metadata for each operation (MongoDB — separate from PG batch)
+	for _, oper := range tran.Operations {
 		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to create metadata on operation", err)
@@ -121,11 +141,33 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
+	// Fire-and-forget goroutines for post-commit side effects.
+	// Concurrency is bounded by the upstream consumer: RabbitMQ workers are
+	// limited by RABBITMQ_NUMBERS_OF_WORKERS (default 5) and prefetch
+	// (workers * RABBITMQ_NUMBERS_OF_PREFETCH, default 10), so the maximum
+	// number of in-flight goroutines per side effect equals the prefetch
+	// window. An explicit semaphore is unnecessary here.
 	go uc.SendTransactionEvents(ctx, tran)
 
 	logger.Infof("Backup queue: cleaning up transaction %s after successful processing", tran.ID)
 
+	// touchedShards is not passed because the async payload
+	// (TransactionProcessingPayload) does not carry shard IDs — they were
+	// resolved during the original sync Redis Lua execution and are not
+	// serialized into the RabbitMQ message. RemoveTransactionFromRedisQueue
+	// computes the pre-flight shard deterministically using the same FNV hash
+	// as SendTransactionToRedisQueue, so only 1 shard + legacy key is cleaned.
 	go uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
+
+	return nil
+}
+
+func validateOperationsNotNil(operations []*operation.Operation) error {
+	for i, op := range operations {
+		if op == nil {
+			return fmt.Errorf("nil operation at index %d", i)
+		}
+	}
 
 	return nil
 }
@@ -139,6 +181,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 
 	tran := t.Transaction
 	tran.Body = pkgTransaction.Transaction{}
+	pendingValidate := t.Validate != nil && t.Validate.Pending
 
 	switch tran.Status.Code {
 	case constant.CREATED:
@@ -150,6 +193,10 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 
 		tran.Status = status
 	case constant.PENDING:
+		if t.Input == nil {
+			return nil, fmt.Errorf("invalid transaction payload: pending transaction input is nil")
+		}
+
 		tran.Body = *t.Input
 	}
 
@@ -157,7 +204,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-			if t.Validate.Pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
+			if pendingValidate && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
 				_, err = uc.UpdateTransactionStatus(ctx, tran)
 				if err != nil {
 					libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateTransaction, "Failed to update transaction", err)
@@ -193,6 +240,10 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, collection, &meta); err != nil {
+			if mongo.IsDuplicateKeyError(err) {
+				return nil
+			}
+
 			logger.Errorf("Error into creating %s metadata: %v", collection, err)
 
 			return err
@@ -219,21 +270,75 @@ func (uc *UseCase) CreateBTOSync(ctx context.Context, data mmodel.Queue) error {
 	return nil
 }
 
-// RemoveTransactionFromRedisQueue func that remove transaction from redis queue
-func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID, transactionID string) {
-	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
+// preFlightShard computes the deterministic shard index for a transaction's
+// pre-flight backup using the same FNV hash as SendTransactionToRedisQueue.
+func preFlightShard(transactionID string, shardCount int) int {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(transactionID))
 
-	if err := uc.RedisRepo.RemoveMessageFromQueue(ctx, transactionKey); err != nil {
-		logger.Warnf("Backup queue: failed to remove transaction %s: %s", transactionKey, err.Error())
+	return int(h.Sum32()) % shardCount
+}
+
+// RemoveTransactionFromRedisQueue removes backup entries for a transaction.
+// When sharding is enabled and touchedShards is provided, only cleans those
+// specific shard backup queues plus the legacy key. When touchedShards is
+// empty (or sharding is disabled), computes the pre-flight shard using the
+// same FNV hash as SendTransactionToRedisQueue and only cleans that shard
+// plus the legacy key, avoiding an O(N) iteration over all shards.
+func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger libLog.Logger, organizationID, ledgerID uuid.UUID, transactionID string, touchedShards ...int) {
+	if uc.ShardRouter != nil {
+		shards := touchedShards
+		if len(shards) == 0 {
+			// No hint provided: compute the pre-flight shard deterministically
+			// (same FNV hash as SendTransactionToRedisQueue) instead of iterating
+			// all shards. This reduces Redis HDEL calls from N to 1.
+			shards = []int{preFlightShard(transactionID, uc.ShardRouter.ShardCount())}
+		}
+
+		for _, shardID := range shards {
+			shardKey := utils.TransactionShardKey(shardID, organizationID, ledgerID, transactionID)
+			if err := uc.RedisRepo.RemoveMessageFromQueue(ctx, shardKey); err != nil {
+				logger.Warnf("Backup queue: failed to remove shard %d key %s: %v", shardID, shardKey, err)
+			} else {
+				logger.Infof("Backup queue: removed transaction from shard %d with key %s", shardID, shardKey)
+			}
+		}
+
+		legacyKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
+		if err := uc.RedisRepo.RemoveMessageFromQueue(ctx, legacyKey); err != nil {
+			logger.Warnf("Backup queue: failed to remove legacy key %s: %v", legacyKey, err)
+		} else {
+			logger.Infof("Backup queue: removed legacy transaction key %s", legacyKey)
+		}
 	} else {
-		logger.Infof("Backup queue: transaction removed successfully from backup_queue:{transactions} with key %s", transactionKey)
+		transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
+
+		if err := uc.RedisRepo.RemoveMessageFromQueue(ctx, transactionKey); err != nil {
+			logger.Warnf("Backup queue: failed to remove transaction %s: %s", transactionKey, err.Error())
+		} else {
+			logger.Infof("Backup queue: transaction removed with key %s", transactionKey)
+		}
 	}
 }
 
-// SendTransactionToRedisQueue func that send transaction to redis queue
+// SendTransactionToRedisQueue writes a pre-flight transaction backup to Redis.
+// When sharding is enabled, uses shard 0 as the control shard for pre-flight
+// backups. The Lua script writes its own per-shard backups during execution.
 func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string, transactionDate time.Time) error {
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
-	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+
+	var transactionKey string
+
+	if uc.ShardRouter != nil {
+		// Distribute pre-flight backups across shards using a deterministic hash of
+		// the transaction ID. The same transaction always maps to the same shard
+		// (idempotency is preserved), but different transactions spread load evenly
+		// across all shards instead of funnelling everything through shard 0.
+		shard := preFlightShard(transactionID.String(), uc.ShardRouter.ShardCount())
+		transactionKey = utils.TransactionShardKey(shard, organizationID, ledgerID, transactionID.String())
+	} else {
+		transactionKey = utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
+	}
 
 	utils.SanitizeAccountAliases(&transactionInput)
 
@@ -279,41 +384,71 @@ func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organi
 	ctx, span := tracer.Start(ctx, "command.update_transaction_backup_operations")
 	defer span.End()
 
-	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
+	// Update the backup entry for this transaction. When sharding is enabled,
+	// the pre-flight backup lives on the deterministic FNV-hashed shard (same
+	// logic as SendTransactionToRedisQueue), so we only need to check that
+	// shard plus the legacy key -- not all N shards.
+	candidateKeys := make([]string, 0, 2)
 
-	raw, err := uc.RedisRepo.ReadMessageFromQueue(ctx, transactionKey)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to read transaction backup for operations update", err)
-		logger.Warnf("Failed to read transaction backup for operations update: %v", err)
-
-		return
+	if uc.ShardRouter != nil {
+		shard := preFlightShard(transactionID, uc.ShardRouter.ShardCount())
+		candidateKeys = append(candidateKeys, utils.TransactionShardKey(shard, organizationID, ledgerID, transactionID))
+		candidateKeys = append(candidateKeys, utils.TransactionInternalKey(organizationID, ledgerID, transactionID))
+	} else {
+		candidateKeys = append(candidateKeys, utils.TransactionInternalKey(organizationID, ledgerID, transactionID))
 	}
 
 	var queue mmodel.TransactionRedisQueue
-	if err := json.Unmarshal(raw, &queue); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal transaction backup for operations update", err)
-		logger.Warnf("Failed to unmarshal transaction backup for operations update: %v", err)
-
-		return
-	}
 
 	redisOps := make([]mmodel.OperationRedis, 0, len(operations))
 	for _, op := range operations {
 		redisOps = append(redisOps, op.ToRedis())
 	}
 
-	queue.Operations = redisOps
+	updatedCount := 0
 
-	updated, err := json.Marshal(queue)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to marshal updated transaction backup", err)
-		logger.Warnf("Failed to marshal updated transaction backup: %v", err)
+	var lastErr error
 
-		return
+	for _, transactionKey := range candidateKeys {
+		raw, readErr := uc.RedisRepo.ReadMessageFromQueue(ctx, transactionKey)
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+
+		if err := json.Unmarshal(raw, &queue); err != nil {
+			lastErr = err
+			logger.Warnf("Failed to unmarshal transaction backup for key %s: %v", transactionKey, err)
+
+			continue
+		}
+
+		queue.Operations = redisOps
+
+		updated, err := json.Marshal(queue)
+		if err != nil {
+			lastErr = err
+			logger.Warnf("Failed to marshal updated transaction backup for key %s: %v", transactionKey, err)
+
+			continue
+		}
+
+		if err := uc.RedisRepo.AddMessageToQueue(ctx, transactionKey, updated); err != nil {
+			lastErr = err
+			logger.Warnf("Failed to write updated transaction backup for key %s: %v", transactionKey, err)
+
+			continue
+		}
+
+		updatedCount++
 	}
 
-	if err := uc.RedisRepo.AddMessageToQueue(ctx, transactionKey, updated); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to write updated transaction backup with operations", err)
-		logger.Warnf("Failed to write updated transaction backup with operations: %v", err)
+	if updatedCount == 0 {
+		if lastErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to update transaction backup operations on any key", lastErr)
+			logger.Warnf("Failed to update transaction backup operations for keys %v: %v", candidateKeys, lastErr)
+		} else {
+			logger.Warnf("No candidate backup keys found for transaction backup operations update")
+		}
 	}
 }

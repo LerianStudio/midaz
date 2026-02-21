@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -32,6 +33,28 @@ type testData struct {
 	validate         *pkgTransaction.Responses
 	balances         []*mmodel.Balance
 	tran             *transaction.Transaction
+}
+
+type stubAuthorizerPublisher struct {
+	enabled        bool
+	publishErr     error
+	publishCalls   int
+	lastExchange   string
+	lastRoutingKey string
+	lastPayload    []byte
+}
+
+func (s *stubAuthorizerPublisher) Enabled() bool {
+	return s.enabled
+}
+
+func (s *stubAuthorizerPublisher) PublishBalanceOperations(_ context.Context, exchange, routingKey string, payload []byte, _ map[string]string) error {
+	s.publishCalls++
+	s.lastExchange = exchange
+	s.lastRoutingKey = routingKey
+	s.lastPayload = payload
+
+	return s.publishErr
 }
 
 // createTestData creates common test data for transaction write tests
@@ -117,6 +140,19 @@ func setupMocksForFallback(
 	tran *transaction.Transaction,
 	organizationID, ledgerID uuid.UUID,
 ) {
+	setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, nil, tran, organizationID, ledgerID)
+}
+
+func setupMocksForFallbackWithOperation(
+	mockBalanceRepo *balance.MockRepository,
+	mockTransactionRepo *transaction.MockRepository,
+	mockMetadataRepo *mongodb.MockRepository,
+	mockRabbitMQRepo *rabbitmq.MockProducerRepository,
+	mockRedisRepo *redis.MockRedisRepository,
+	mockOperationRepo *operation.MockRepository,
+	tran *transaction.Transaction,
+	organizationID, ledgerID uuid.UUID,
+) {
 	// Mock RedisRepo.ListBalanceByKey for stale balance check
 	mockRedisRepo.EXPECT().
 		ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
@@ -139,6 +175,14 @@ func setupMocksForFallback(
 		Return(tran, nil).
 		AnyTimes()
 
+	// Mock OperationRepo.CreateBatch
+	if mockOperationRepo != nil {
+		mockOperationRepo.EXPECT().
+			CreateBatch(gomock.Any(), gomock.Any()).
+			Return(nil).
+			AnyTimes()
+	}
+
 	// Mock MetadataRepo.Create for transaction metadata
 	mockMetadataRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -160,12 +204,7 @@ func setupMocksForFallback(
 
 // TestWriteTransaction tests the routing logic that decides between async and sync execution
 func TestWriteTransaction(t *testing.T) {
-	t.Run("routes_to_async_when_env_true", func(t *testing.T) {
-		// Set env var to enable async mode
-		t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
-		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "test-exchange")
-		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test-key")
-
+	t.Run("routes_to_async_when_flag_true", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -173,8 +212,11 @@ func TestWriteTransaction(t *testing.T) {
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		uc := &UseCase{
-			RabbitMQRepo: mockRabbitMQRepo,
-			RedisRepo:    mockRedisRepo,
+			RabbitMQRepo:                    mockRabbitMQRepo,
+			RedisRepo:                       mockRedisRepo,
+			RabbitMQBalanceOperationExchange: "test-exchange",
+			RabbitMQBalanceOperationKey:      "test-key",
+			TransactionAsync:                true,
 		}
 
 		ctx := context.Background()
@@ -193,12 +235,7 @@ func TestWriteTransaction(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("routes_to_async_when_env_TRUE_uppercase", func(t *testing.T) {
-		// Test case-insensitivity of env var
-		t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "TRUE")
-		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "test-exchange")
-		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test-key")
-
+	t.Run("routes_to_async_when_flag_set", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -206,8 +243,11 @@ func TestWriteTransaction(t *testing.T) {
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		uc := &UseCase{
-			RabbitMQRepo: mockRabbitMQRepo,
-			RedisRepo:    mockRedisRepo,
+			RabbitMQRepo:                    mockRabbitMQRepo,
+			RedisRepo:                       mockRedisRepo,
+			RabbitMQBalanceOperationExchange: "test-exchange",
+			RabbitMQBalanceOperationKey:      "test-key",
+			TransactionAsync:                true,
 		}
 
 		ctx := context.Background()
@@ -226,9 +266,7 @@ func TestWriteTransaction(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("routes_to_sync_when_env_false", func(t *testing.T) {
-		// Set env var to disable async mode
-		t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+	t.Run("routes_to_sync_when_flag_false", func(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -238,6 +276,7 @@ func TestWriteTransaction(t *testing.T) {
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		mockOperationRepo := operation.NewMockRepository(ctrl)
 
 		ctx := context.Background()
 		organizationID := uuid.New()
@@ -250,18 +289,19 @@ func TestWriteTransaction(t *testing.T) {
 			MetadataRepo:    mockMetadataRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
 			RedisRepo:       mockRedisRepo,
+			OperationRepo:   mockOperationRepo,
 		}
 
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
-		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
 
-	t.Run("routes_to_sync_when_env_unset", func(t *testing.T) {
-		// Do not set RABBITMQ_TRANSACTION_ASYNC - should default to sync
+	t.Run("routes_to_sync_when_flag_default", func(t *testing.T) {
+		// TransactionAsync defaults to false - should route to sync
 
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -271,6 +311,7 @@ func TestWriteTransaction(t *testing.T) {
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		mockOperationRepo := operation.NewMockRepository(ctrl)
 
 		ctx := context.Background()
 		organizationID := uuid.New()
@@ -283,19 +324,19 @@ func TestWriteTransaction(t *testing.T) {
 			MetadataRepo:    mockMetadataRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
 			RedisRepo:       mockRedisRepo,
+			OperationRepo:   mockOperationRepo,
 		}
 
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
-		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
 	})
 
-	t.Run("routes_to_sync_when_env_invalid_value", func(t *testing.T) {
-		// Set env var to an invalid value - should default to sync
-		t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "yes")
+	t.Run("routes_to_sync_when_flag_false_explicitly", func(t *testing.T) {
+		// TransactionAsync is explicitly false - should route to sync
 
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -305,6 +346,7 @@ func TestWriteTransaction(t *testing.T) {
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		mockOperationRepo := operation.NewMockRepository(ctrl)
 
 		ctx := context.Background()
 		organizationID := uuid.New()
@@ -317,10 +359,11 @@ func TestWriteTransaction(t *testing.T) {
 			MetadataRepo:    mockMetadataRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
 			RedisRepo:       mockRedisRepo,
+			OperationRepo:   mockOperationRepo,
 		}
 
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
-		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
@@ -330,10 +373,71 @@ func TestWriteTransaction(t *testing.T) {
 
 // TestWriteTransactionAsync tests the async queue publishing with fallback behavior
 func TestWriteTransactionAsync(t *testing.T) {
-	t.Run("success_publishes_to_queue", func(t *testing.T) {
-		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "test-exchange")
-		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test-key")
+	t.Run("authorizer_enabled_publishes_without_local_rabbitmq", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		authorizer := &stubAuthorizerPublisher{enabled: true}
+
+		uc := &UseCase{
+			RabbitMQRepo:                    mockRabbitMQRepo,
+			RedisRepo:                       mockRedisRepo,
+			Authorizer:                      authorizer,
+			RabbitMQBalanceOperationExchange: "test-exchange",
+			RabbitMQBalanceOperationKey:      "test-key",
+		}
+
+		ctx := context.Background()
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		td := createTestData(organizationID, ledgerID)
+
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+
+		assert.NoError(t, err)
+		assert.Equal(t, 1, authorizer.publishCalls)
+		assert.Equal(t, "test-exchange", authorizer.lastExchange)
+		assert.Equal(t, "test-key", authorizer.lastRoutingKey)
+		assert.NotEmpty(t, authorizer.lastPayload)
+	})
+
+	t.Run("authorizer_publish_fails_fallback_to_local_rabbitmq", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		authorizer := &stubAuthorizerPublisher{enabled: true, publishErr: errors.New("authorizer unavailable")}
+
+		uc := &UseCase{
+			RabbitMQRepo:                    mockRabbitMQRepo,
+			RedisRepo:                       mockRedisRepo,
+			Authorizer:                      authorizer,
+			RabbitMQBalanceOperationExchange: "test-exchange",
+			RabbitMQBalanceOperationKey:      "test-key",
+		}
+
+		ctx := context.Background()
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		td := createTestData(organizationID, ledgerID)
+
+		mockRabbitMQRepo.EXPECT().
+			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
+			Return(nil, nil).
+			Times(1)
+
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+
+		assert.NoError(t, err)
+		assert.Equal(t, 1, authorizer.publishCalls)
+	})
+
+	t.Run("success_publishes_to_queue", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -341,8 +445,10 @@ func TestWriteTransactionAsync(t *testing.T) {
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		uc := &UseCase{
-			RabbitMQRepo: mockRabbitMQRepo,
-			RedisRepo:    mockRedisRepo,
+			RabbitMQRepo:                    mockRabbitMQRepo,
+			RedisRepo:                       mockRedisRepo,
+			RabbitMQBalanceOperationExchange: "test-exchange",
+			RabbitMQBalanceOperationKey:      "test-key",
 		}
 
 		ctx := context.Background()
@@ -362,9 +468,6 @@ func TestWriteTransactionAsync(t *testing.T) {
 	})
 
 	t.Run("rabbitmq_fails_fallback_to_db_succeeds", func(t *testing.T) {
-		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "test-exchange")
-		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test-key")
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -373,6 +476,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		mockOperationRepo := operation.NewMockRepository(ctrl)
 
 		ctx := context.Background()
 		organizationID := uuid.New()
@@ -380,11 +484,14 @@ func TestWriteTransactionAsync(t *testing.T) {
 		td := createTestData(organizationID, ledgerID)
 
 		uc := &UseCase{
-			BalanceRepo:     mockBalanceRepo,
-			TransactionRepo: mockTransactionRepo,
-			MetadataRepo:    mockMetadataRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
-			RedisRepo:       mockRedisRepo,
+			BalanceRepo:                     mockBalanceRepo,
+			TransactionRepo:                 mockTransactionRepo,
+			MetadataRepo:                    mockMetadataRepo,
+			RabbitMQRepo:                    mockRabbitMQRepo,
+			RedisRepo:                       mockRedisRepo,
+			OperationRepo:                   mockOperationRepo,
+			RabbitMQBalanceOperationExchange: "test-exchange",
+			RabbitMQBalanceOperationKey:      "test-key",
 		}
 
 		// RabbitMQ producer fails - triggers fallback
@@ -394,7 +501,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 			Times(1)
 
 		// Setup mocks for fallback path (CreateBalanceTransactionOperationsAsync)
-		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
 
 		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
@@ -403,9 +510,6 @@ func TestWriteTransactionAsync(t *testing.T) {
 	})
 
 	t.Run("rabbitmq_fails_fallback_to_db_fails", func(t *testing.T) {
-		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "test-exchange")
-		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test-key")
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -421,11 +525,13 @@ func TestWriteTransactionAsync(t *testing.T) {
 		td := createTestData(organizationID, ledgerID)
 
 		uc := &UseCase{
-			BalanceRepo:     mockBalanceRepo,
-			TransactionRepo: mockTransactionRepo,
-			MetadataRepo:    mockMetadataRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
-			RedisRepo:       mockRedisRepo,
+			BalanceRepo:                     mockBalanceRepo,
+			TransactionRepo:                 mockTransactionRepo,
+			MetadataRepo:                    mockMetadataRepo,
+			RabbitMQRepo:                    mockRabbitMQRepo,
+			RedisRepo:                       mockRedisRepo,
+			RabbitMQBalanceOperationExchange: "test-exchange",
+			RabbitMQBalanceOperationKey:      "test-key",
 		}
 
 		// RabbitMQ producer fails - triggers fallback
@@ -457,11 +563,8 @@ func TestWriteTransactionAsync(t *testing.T) {
 		assert.Contains(t, err.Error(), "database connection failed")
 	})
 
-	t.Run("success_with_empty_env_vars", func(t *testing.T) {
-		// Test behavior when exchange and key env vars are empty
-		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "")
-		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "")
-
+	t.Run("success_with_empty_config_values", func(t *testing.T) {
+		// Test behavior when exchange and key config values are empty
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -469,8 +572,10 @@ func TestWriteTransactionAsync(t *testing.T) {
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		uc := &UseCase{
-			RabbitMQRepo: mockRabbitMQRepo,
-			RedisRepo:    mockRedisRepo,
+			RabbitMQRepo:                    mockRabbitMQRepo,
+			RedisRepo:                       mockRedisRepo,
+			RabbitMQBalanceOperationExchange: "",
+			RabbitMQBalanceOperationKey:      "",
 		}
 
 		ctx := context.Background()
@@ -501,6 +606,7 @@ func TestWriteTransactionSync(t *testing.T) {
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		mockOperationRepo := operation.NewMockRepository(ctrl)
 
 		ctx := context.Background()
 		organizationID := uuid.New()
@@ -513,10 +619,11 @@ func TestWriteTransactionSync(t *testing.T) {
 			MetadataRepo:    mockMetadataRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
 			RedisRepo:       mockRedisRepo,
+			OperationRepo:   mockOperationRepo,
 		}
 
 		// Setup mocks for CreateBalanceTransactionOperationsAsync
-		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
 
 		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
@@ -628,6 +735,7 @@ func TestWriteTransactionSync(t *testing.T) {
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		mockOperationRepo := operation.NewMockRepository(ctrl)
 
 		ctx := context.Background()
 		organizationID := uuid.New()
@@ -675,6 +783,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			MetadataRepo:    mockMetadataRepo,
 			RabbitMQRepo:    mockRabbitMQRepo,
 			RedisRepo:       mockRedisRepo,
+			OperationRepo:   mockOperationRepo,
 		}
 
 		// Mock RedisRepo.ListBalanceByKey for stale balance check
@@ -693,6 +802,12 @@ func TestWriteTransactionSync(t *testing.T) {
 		mockTransactionRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
 			Return(tran, nil).
+			AnyTimes()
+
+		// Mock OperationRepo.CreateBatch
+		mockOperationRepo.EXPECT().
+			CreateBatch(gomock.Any(), gomock.Any()).
+			Return(nil).
 			AnyTimes()
 
 		// Mock MetadataRepo.Create
@@ -716,5 +831,86 @@ func TestWriteTransactionSync(t *testing.T) {
 		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, balances, tran)
 
 		assert.NoError(t, err)
+	})
+}
+
+// TestResolveBTORoutingKey_Distribution verifies that multiple transaction IDs
+// distribute across different shards (not all to the same one), and that
+// edge cases like a zero-value router are handled correctly.
+func TestResolveBTORoutingKey_Distribution(t *testing.T) {
+	t.Parallel()
+
+	baseKey := "balance.transaction.operation"
+
+	t.Run("different_txids_distribute_across_shards", func(t *testing.T) {
+		t.Parallel()
+
+		router := shard.NewRouter(8)
+
+		// Generate enough UUIDs to statistically guarantee at least 2 different shards.
+		// With 8 shards and 100 random UUIDs, the probability of all mapping to the
+		// same shard is (1/8)^99 -- essentially zero.
+		routingKeys := make(map[string]struct{})
+
+		for range 100 {
+			txID := uuid.New()
+			key := resolveBTORoutingKey(baseKey, txID, router, true)
+			routingKeys[key] = struct{}{}
+		}
+
+		assert.Greater(t, len(routingKeys), 1, "100 random UUIDs must produce at least 2 distinct routing keys across 8 shards")
+	})
+
+	t.Run("zero_value_router_returns_base_key", func(t *testing.T) {
+		t.Parallel()
+
+		// A zero-value Router has ShardCount()==0, which makes
+		// IsShardedBTOQueueEnabled return false.
+		router := &shard.Router{}
+		txID := uuid.New()
+		result := resolveBTORoutingKey(baseKey, txID, router, true)
+		assert.Equal(t, baseKey, result, "zero-value router (ShardCount=0) must return base key")
+	})
+
+	t.Run("shard_key_format_is_correct", func(t *testing.T) {
+		t.Parallel()
+
+		router := shard.NewRouter(8)
+		txID := uuid.New()
+		result := resolveBTORoutingKey(baseKey, txID, router, true)
+
+		assert.NotEqual(t, baseKey, result, "sharded routing key must differ from base key")
+		assert.Contains(t, result, baseKey+".", "sharded key must start with base key plus dot separator")
+		assert.Contains(t, result, "shard_", "sharded key must contain shard_ prefix")
+	})
+}
+
+// TestIsShardedBTOQueueEnabled tests the guard function that determines
+// whether sharded BTO queues should be used.
+func TestIsShardedBTOQueueEnabled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil_router_disabled", func(t *testing.T) {
+		t.Parallel()
+
+		assert.False(t, IsShardedBTOQueueEnabled(nil, true))
+	})
+
+	t.Run("zero_shard_count_disabled", func(t *testing.T) {
+		t.Parallel()
+
+		assert.False(t, IsShardedBTOQueueEnabled(&shard.Router{}, true))
+	})
+
+	t.Run("valid_router_flag_false_disabled", func(t *testing.T) {
+		t.Parallel()
+
+		assert.False(t, IsShardedBTOQueueEnabled(shard.NewRouter(8), false))
+	})
+
+	t.Run("valid_router_flag_true_enabled", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, IsShardedBTOQueueEnabled(shard.NewRouter(8), true))
 	})
 }

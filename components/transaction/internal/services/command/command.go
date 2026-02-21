@@ -16,7 +16,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 )
 
 // Compile-time interface verification.
@@ -53,6 +55,35 @@ type UseCase struct {
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
+
+	// ShardRouter maps account aliases to Redis Cluster shard IDs (Phase 2A).
+	// When nil, sharding is disabled and legacy {transactions} hash tags are used.
+	ShardRouter *shard.Router
+
+	// ShardManager provides Phase 2B dynamic shard routing/migration controls.
+	// When nil, routing falls back to static hash-based ShardRouter behavior.
+	ShardManager *internalsharding.Manager
+
+	// Authorizer owns async BTO publishing when enabled.
+	Authorizer AuthorizerPublisher
+
+	// RabbitMQBalanceOperationExchange is the exchange name for async balance-transaction-operation messages.
+	// Injected from config to avoid direct os.Getenv calls in the service layer.
+	RabbitMQBalanceOperationExchange string
+
+	// RabbitMQBalanceOperationKey is the routing key for async balance-transaction-operation messages.
+	// Injected from config to avoid direct os.Getenv calls in the service layer.
+	RabbitMQBalanceOperationKey string
+
+	// TransactionAsync controls whether transactions are written asynchronously via RabbitMQ
+	// or synchronously via direct DB writes. Resolved once at startup from
+	// RABBITMQ_TRANSACTION_ASYNC to avoid per-request os.Getenv overhead.
+	TransactionAsync bool
+
+	// ShardedBTOQueuesEnabled controls whether balance-transaction-operation messages
+	// are routed to per-shard queues. Resolved once at startup from
+	// RABBITMQ_TRANSACTION_BALANCE_OPERATION_SHARDED to avoid per-request os.Getenv overhead.
+	ShardedBTOQueuesEnabled bool
 }
 
 // CheckHealth returns nil for unified mode (in-process calls don't need health checks).

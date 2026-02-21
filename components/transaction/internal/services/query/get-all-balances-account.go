@@ -44,7 +44,17 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 	balanceCacheKeys := make([]string, len(balance))
 
 	for i, b := range balance {
-		balanceCacheKeys[i] = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
+		cacheKey, cacheKeyErr := uc.resolveBalanceCacheKey(ctx, organizationID, ledgerID, b.Alias, b.Key)
+		if cacheKeyErr != nil {
+			// Fail-open: if shard routing fails, fall back to the non-sharded key
+			// so the database data (which already succeeded) is never discarded.
+			libOpentelemetry.HandleSpanEvent(&span, "Failed to resolve balance cache key, falling back to non-sharded key")
+			logger.Warnf("Failed to resolve balance cache key, falling back to non-sharded key: %v", cacheKeyErr)
+
+			cacheKey = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
+		}
+
+		balanceCacheKeys[i] = cacheKey
 	}
 
 	balanceCacheValues, err := uc.RedisRepo.MGet(ctx, balanceCacheKeys)

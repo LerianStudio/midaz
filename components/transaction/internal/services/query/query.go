@@ -14,6 +14,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 )
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementations.
@@ -44,4 +46,16 @@ type UseCase struct {
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
+
+	// ShardRouter maps account aliases to Redis Cluster shard IDs (Phase 2A).
+	// When nil, sharding is disabled and legacy {transactions} hash tags are used.
+	ShardRouter *shard.Router
+
+	// ShardManager provides Phase 2B dynamic shard routing/migration controls.
+	// When nil, routing falls back to static hash-based ShardRouter behavior.
+	ShardManager *internalsharding.Manager
+
+	// Authorizer provides optional external balance authorization over gRPC.
+	// When nil or disabled, Redis Lua remains the active authorization path.
+	Authorizer Authorizer
 }

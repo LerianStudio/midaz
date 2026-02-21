@@ -17,10 +17,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -119,7 +121,8 @@ func TestGetAllBalances(t *testing.T) {
 			OnHold:    decimal.NewFromInt(777),
 			Version:   5,
 		}
-		data, _ := json.Marshal(cached)
+		data, marshalErr := json.Marshal(cached)
+		require.NoError(t, marshalErr)
 
 		mockRedisRepo.
 			EXPECT().
@@ -135,6 +138,56 @@ func TestGetAllBalances(t *testing.T) {
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(999)))
 		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(777)))
 		assert.Equal(t, int64(5), res[0].Version)
+	})
+
+	t.Run("SuccessWithCacheOverlayUsesShardKeyWhenShardRouterConfigured", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		uc := UseCase{
+			BalanceRepo: mockBalanceRepo,
+			RedisRepo:   mockRedisRepo,
+			ShardRouter: shard.NewRouter(8),
+		}
+
+		bal := &mmodel.Balance{
+			ID:        uuid.New().String(),
+			Alias:     "@alias-shard",
+			Key:       "k-shard",
+			AssetCode: "BRL",
+			Available: decimal.NewFromInt(10),
+			OnHold:    decimal.NewFromInt(1),
+		}
+
+		mockBalanceRepo.
+			EXPECT().
+			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
+			Return([]*mmodel.Balance{bal}, mockCur, nil).
+			Times(1)
+
+		shardID := uc.ShardRouter.Resolve(bal.Alias)
+		shardKey := utils.BalanceShardKey(shardID, organizationID, ledgerID, bal.Alias+"#"+bal.Key)
+		cached := mmodel.BalanceRedis{Available: decimal.NewFromInt(321), OnHold: decimal.NewFromInt(123), Version: 8}
+		data, marshalErr := json.Marshal(cached)
+		require.NoError(t, marshalErr)
+
+		mockRedisRepo.
+			EXPECT().
+			MGet(gomock.Any(), []string{shardKey}).
+			Return(map[string]string{shardKey: string(data)}, nil).
+			Times(1)
+
+		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
+
+		assert.NoError(t, err)
+		assert.Len(t, res, 1)
+		assert.Equal(t, mockCur, cur)
+		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(321)))
+		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(123)))
+		assert.Equal(t, int64(8), res[0].Version)
 	})
 
 	t.Run("RedisErrorShouldNotFail", func(t *testing.T) {
@@ -683,7 +736,8 @@ func TestGetAllBalances(t *testing.T) {
 			k := utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
 			keys = append(keys, k)
 			cached := mmodel.BalanceRedis{Available: decimal.NewFromInt(int64(i)), OnHold: decimal.NewFromInt(int64(i % 7)), Version: int64(i)}
-			data, _ := json.Marshal(cached)
+			data, marshalErr := json.Marshal(cached)
+			require.NoError(t, marshalErr)
 			redisMap[k] = string(data)
 		}
 
@@ -885,7 +939,8 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 
 		key := utils.BalanceInternalKey(organizationID, ledgerID, alias+"#default")
 		cached := mmodel.BalanceRedis{Available: decimal.NewFromInt(999), OnHold: decimal.NewFromInt(777), Version: 12}
-		data, _ := json.Marshal(cached)
+		data, marshalErr := json.Marshal(cached)
+		require.NoError(t, marshalErr)
 
 		mockRedisRepo.
 			EXPECT().
@@ -900,6 +955,58 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(999)))
 		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(777)))
 		assert.Equal(t, int64(12), res[0].Version)
+	})
+
+	t.Run("SuccessWithCacheOverlayUsesShardKeyWhenShardRouterConfigured", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		uc := &UseCase{
+			BalanceRepo: mockBalanceRepo,
+			RedisRepo:   mockRedisRepo,
+			ShardRouter: shard.NewRouter(8),
+		}
+
+		balances := []*mmodel.Balance{
+			{
+				ID:        "account-id-shard",
+				AccountID: "account-id-shard",
+				Alias:     alias,
+				Key:       "default",
+				AssetCode: "BRL",
+				Available: decimal.NewFromInt(1),
+				OnHold:    decimal.NewFromInt(1),
+			},
+		}
+
+		mockBalanceRepo.
+			EXPECT().
+			ListByAliases(gomock.Any(), organizationID, ledgerID, []string{alias}).
+			Return(balances, nil).
+			Times(1)
+
+		shardID := uc.ShardRouter.Resolve(alias)
+		shardKey := utils.BalanceShardKey(shardID, organizationID, ledgerID, alias+"#default")
+		cached := mmodel.BalanceRedis{Available: decimal.NewFromInt(444), OnHold: decimal.NewFromInt(222), Version: 21}
+		data, marshalErr := json.Marshal(cached)
+		require.NoError(t, marshalErr)
+
+		mockRedisRepo.
+			EXPECT().
+			MGet(gomock.Any(), []string{shardKey}).
+			Return(map[string]string{shardKey: string(data)}, nil).
+			Times(1)
+
+		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
+
+		assert.NoError(t, err)
+		assert.Len(t, res, 1)
+		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(444)))
+		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(222)))
+		assert.Equal(t, int64(21), res[0].Version)
 	})
 
 	t.Run("RedisErrorShouldNotFail", func(t *testing.T) {
@@ -1048,7 +1155,8 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 		k1 := utils.BalanceInternalKey(organizationID, ledgerID, alias+"#default")
 		// No entry for k2 to simulate partial overlay
 		cached := mmodel.BalanceRedis{Available: decimal.NewFromInt(42), OnHold: decimal.Zero, Version: 9}
-		data, _ := json.Marshal(cached)
+		data, marshalErr := json.Marshal(cached)
+		require.NoError(t, marshalErr)
 
 		mockRedisRepo.
 			EXPECT().
