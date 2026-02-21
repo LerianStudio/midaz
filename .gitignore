@@ -14,6 +14,7 @@ CLAUDE.md
 .run/transaction.run.xml
 .ring/
 docs/ring*/
+docs/codereview/
 
 # OS generated files
 .DS_Store
@@ -46,3 +47,12 @@ cert/
 
 # Security scan reports
 *.sarif
+
+# CodeGraph
+.codegraph/
+
+# Planning docs
+PLAN.md
+
+# K6 benchmark scripts
+tests/k6/
