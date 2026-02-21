@@ -7,6 +7,7 @@ package rabbitmq
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -327,6 +328,7 @@ func TestStartWorker_HeaderIDExtraction(t *testing.T) {
 	tests := []struct {
 		name          string
 		headers       amqp.Table
+		expectedID    string
 		expectNewUUID bool
 	}{
 		{
@@ -334,7 +336,30 @@ func TestStartWorker_HeaderIDExtraction(t *testing.T) {
 			headers: amqp.Table{
 				libConstants.HeaderID: "existing-uuid-123",
 			},
+			expectedID:    "existing-uuid-123",
 			expectNewUUID: false,
+		},
+		{
+			name: "trims_existing_midaz_id",
+			headers: amqp.Table{
+				libConstants.HeaderID: "  trimmed-id  ",
+			},
+			expectedID:    "trimmed-id",
+			expectNewUUID: false,
+		},
+		{
+			name: "generates_new_uuid_when_header_not_string",
+			headers: amqp.Table{
+				libConstants.HeaderID: 123,
+			},
+			expectNewUUID: true,
+		},
+		{
+			name: "generates_new_uuid_when_header_empty",
+			headers: amqp.Table{
+				libConstants.HeaderID: "   ",
+			},
+			expectNewUUID: true,
 		},
 		{
 			name:          "generates_new_uuid_when_missing",
@@ -353,22 +378,21 @@ func TestStartWorker_HeaderIDExtraction(t *testing.T) {
 			t.Parallel()
 
 			// Test the header extraction logic directly
-			var midazID any
-			var found bool
-
-			if tt.headers != nil {
-				midazID, found = tt.headers[libConstants.HeaderID]
-			}
-
-			if !found {
-				midazID = libCommons.GenerateUUIDv7().String()
+			midazID := libCommons.GenerateUUIDv7().String()
+			if rawID, found := tt.headers[libConstants.HeaderID]; found {
+				if parsedID, ok := rawID.(string); ok {
+					parsedID = strings.TrimSpace(parsedID)
+					if parsedID != "" {
+						midazID = parsedID
+					}
+				}
 			}
 
 			// Verify result
 			assert.NotEmpty(t, midazID)
 
 			if !tt.expectNewUUID {
-				assert.Equal(t, "existing-uuid-123", midazID)
+				assert.Equal(t, tt.expectedID, midazID)
 			}
 		})
 	}

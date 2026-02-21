@@ -180,6 +180,11 @@ func setupConsumerInfra(t *testing.T, numWorkers, prefetch int) *consumerTestInf
 
 	// Create consumer routes
 	consumer := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
+	t.Cleanup(func() {
+		if consumer != nil {
+			consumer.Stop()
+		}
+	})
 
 	// Create producer for publishing test messages
 	producer, err := NewProducerRabbitMQ(conn)
@@ -230,6 +235,11 @@ func setupConsumerChaosInfra(t *testing.T, numWorkers, prefetch int) *consumerCh
 
 	// Create consumer routes
 	consumer := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
+	t.Cleanup(func() {
+		if consumer != nil {
+			consumer.Stop()
+		}
+	})
 
 	// Create producer for publishing test messages
 	producer, err := NewProducerRabbitMQ(conn)
@@ -308,6 +318,11 @@ func setupConsumerNetworkChaosInfra(t *testing.T, numWorkers, prefetch int) *con
 
 	// Create consumer through proxy
 	proxyConsumer := NewConsumerRoutes(proxyConn, numWorkers, prefetch, logger, telemetry)
+	t.Cleanup(func() {
+		if proxyConsumer != nil {
+			proxyConsumer.Stop()
+		}
+	})
 
 	// Create producer through proxy
 	proxyProducer, err := NewProducerRabbitMQ(proxyConn)
@@ -416,6 +431,32 @@ func publishTestMessageDirect(t *testing.T, channel *amqp.Channel, exchange, rou
 	require.NoError(t, err, "direct publish should succeed")
 }
 
+func waitForConsumerSubscription(t *testing.T, channel *amqp.Channel, queue string, timeout time.Duration) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		if channel == nil || channel.IsClosed() {
+			return false
+		}
+
+		stats, err := channel.QueueInspect(queue)
+		if err != nil {
+			return false
+		}
+
+		return stats.Consumers > 0
+	}, timeout, 100*time.Millisecond, "consumer should subscribe to queue %s", queue)
+}
+
+func toDeliveryCounts(ids []string) map[string]int {
+	counts := make(map[string]int, len(ids))
+	for _, id := range ids {
+		counts[id]++
+	}
+
+	return counts
+}
+
 // =============================================================================
 // INTEGRATION TESTS - BASIC OPERATIONS
 // =============================================================================
@@ -475,8 +516,7 @@ func TestIntegration_Consumer_BasicMessageConsumption(t *testing.T) {
 	err := infra.consumer.RunConsumers()
 	require.NoError(t, err, "RunConsumers should succeed")
 
-	// Give consumer time to start
-	time.Sleep(500 * time.Millisecond)
+	waitForConsumerSubscription(t, infra.rmqContainer.Channel, infra.queue, 10*time.Second)
 
 	// Publish test messages
 	numMessages := 5
@@ -497,7 +537,19 @@ func TestIntegration_Consumer_BasicMessageConsumption(t *testing.T) {
 	// Verify all messages were received
 	receivedMu.Lock()
 	assert.Len(t, receivedMessages, numMessages, "should receive all published messages")
+
+	receivedIDs := make([]string, 0, len(receivedMessages))
+	for _, msg := range receivedMessages {
+		receivedIDs = append(receivedIDs, msg.ID)
+	}
 	receivedMu.Unlock()
+
+	assert.ElementsMatch(t, publishedIDs, receivedIDs, "published and received IDs must match exactly")
+
+	receivedCounts := toDeliveryCounts(receivedIDs)
+	for _, count := range receivedCounts {
+		assert.Equal(t, 1, count, "each message should be delivered exactly once in steady state")
+	}
 
 	// Verify queue is empty (messages were acknowledged)
 	time.Sleep(500 * time.Millisecond)
@@ -551,8 +603,7 @@ func TestIntegration_Consumer_HandlerErrorCausesNack(t *testing.T) {
 	err := infra.consumer.RunConsumers()
 	require.NoError(t, err, "RunConsumers should succeed")
 
-	// Give consumer time to start
-	time.Sleep(500 * time.Millisecond)
+	waitForConsumerSubscription(t, infra.rmqContainer.Channel, infra.queue, 10*time.Second)
 
 	// Publish a single test message
 	msgID := publishTestMessage(t, ctx, infra.producer, infra.exchange, infra.routingKey, "Test message for retry")
@@ -623,8 +674,7 @@ func TestIntegration_Consumer_MultipleWorkers(t *testing.T) {
 	err := infra.consumer.RunConsumers()
 	require.NoError(t, err, "RunConsumers should succeed")
 
-	// Give consumer time to start
-	time.Sleep(500 * time.Millisecond)
+	waitForConsumerSubscription(t, infra.rmqContainer.Channel, infra.queue, 10*time.Second)
 
 	// Publish messages rapidly
 	for i := 0; i < numMessages; i++ {
@@ -672,6 +722,8 @@ func TestIntegration_Consumer_ReconnectionOnChannelClose(t *testing.T) {
 	var receivedMu sync.Mutex
 	phase1Messages := make([]string, 0)
 	phase2Messages := make([]string, 0)
+	phase1Published := make([]string, 0, 3)
+	phase2Published := make([]string, 0, 3)
 	currentPhase := 1
 
 	// Register handler
@@ -697,13 +749,12 @@ func TestIntegration_Consumer_ReconnectionOnChannelClose(t *testing.T) {
 	err := infra.consumer.RunConsumers()
 	require.NoError(t, err, "RunConsumers should succeed")
 
-	// Give consumer time to start
-	time.Sleep(500 * time.Millisecond)
+	waitForConsumerSubscription(t, infra.rmqContainer.Channel, infra.queue, 10*time.Second)
 
 	// Phase 1: Publish and consume messages
 	t.Log("Phase 1: Publishing messages before channel close")
 	for i := 0; i < 3; i++ {
-		publishTestMessage(t, ctx, infra.producer, infra.exchange, infra.routingKey, "Phase 1 message")
+		phase1Published = append(phase1Published, publishTestMessage(t, ctx, infra.producer, infra.exchange, infra.routingKey, "Phase 1 message"))
 	}
 
 	require.Eventually(t, func() bool {
@@ -724,7 +775,7 @@ func TestIntegration_Consumer_ReconnectionOnChannelClose(t *testing.T) {
 	// Close the connection to force reconnection
 	// Note: We're using the connection's Close method which will trigger NotifyClose
 	if infra.conn.Connection != nil {
-		_ = infra.conn.Connection.Close()
+		require.NoError(t, infra.conn.Connection.Close())
 	}
 
 	// Wait for consumer to reconnect using condition-based polling
@@ -759,6 +810,7 @@ func TestIntegration_Consumer_ReconnectionOnChannelClose(t *testing.T) {
 			Timestamp: time.Now(),
 			Data:      "Phase 2 message",
 		}
+		phase2Published = append(phase2Published, msg.ID)
 		publishTestMessageDirect(t, infra.rmqContainer.Channel, infra.exchange, infra.routingKey, msg)
 	}
 
@@ -771,7 +823,17 @@ func TestIntegration_Consumer_ReconnectionOnChannelClose(t *testing.T) {
 
 	receivedMu.Lock()
 	t.Logf("Phase 2: Received %d messages after reconnection", len(phase2Messages))
+	phase1Counts := toDeliveryCounts(phase1Messages)
+	phase2Counts := toDeliveryCounts(phase2Messages)
 	receivedMu.Unlock()
+
+	for _, id := range phase1Published {
+		assert.GreaterOrEqual(t, phase1Counts[id], 1, "phase 1 message %s should be consumed", id)
+	}
+
+	for _, id := range phase2Published {
+		assert.GreaterOrEqual(t, phase2Counts[id], 1, "phase 2 message %s should be consumed", id)
+	}
 
 	t.Log("Integration test passed: consumer reconnects after channel close")
 }
@@ -822,8 +884,7 @@ func TestIntegration_Consumer_QoSRespected(t *testing.T) {
 	err := infra.consumer.RunConsumers()
 	require.NoError(t, err, "RunConsumers should succeed")
 
-	// Give consumer time to start
-	time.Sleep(500 * time.Millisecond)
+	waitForConsumerSubscription(t, infra.rmqContainer.Channel, infra.queue, 10*time.Second)
 
 	// Publish more messages than prefetch allows
 	numMessages := 6
@@ -894,8 +955,7 @@ func TestIntegration_Chaos_Consumer_NetworkLatency(t *testing.T) {
 	err := infra.proxyConsumer.RunConsumers()
 	require.NoError(t, err, "RunConsumers should succeed")
 
-	// Give consumer time to start
-	time.Sleep(1 * time.Second)
+	waitForConsumerSubscription(t, infra.rmqContainer.Channel, infra.queue, 10*time.Second)
 
 	// Phase 1: Normal operation - publish messages directly to queue
 	t.Log("Phase 1: Publishing messages without latency")
@@ -984,6 +1044,8 @@ func TestIntegration_Chaos_Consumer_ContainerRestart(t *testing.T) {
 	// Track received messages
 	var receivedMu sync.Mutex
 	receivedMessages := make([]string, 0)
+	preRestartPublished := make([]string, 0, 3)
+	postRestartPublished := make([]string, 0, 3)
 
 	// Register handler
 	infra.consumer.Register(infra.queue, func(ctx context.Context, body []byte) error {
@@ -1004,14 +1066,15 @@ func TestIntegration_Chaos_Consumer_ContainerRestart(t *testing.T) {
 	err := infra.consumer.RunConsumers()
 	require.NoError(t, err, "RunConsumers should succeed")
 
-	// Give consumer time to start
-	time.Sleep(1 * time.Second)
+	waitForConsumerSubscription(t, infra.rmqContainer.Channel, infra.queue, 10*time.Second)
 
 	// Phase 1: Consume messages before restart
 	t.Log("Phase 1: Publishing messages before container restart")
 	for i := 0; i < 3; i++ {
-		publishTestMessage(t, ctx, infra.producer, infra.exchange, infra.routingKey,
-			fmt.Sprintf("Pre-restart message %d", i+1))
+		preRestartPublished = append(preRestartPublished,
+			publishTestMessage(t, ctx, infra.producer, infra.exchange, infra.routingKey,
+				fmt.Sprintf("Pre-restart message %d", i+1)),
+		)
 	}
 
 	require.Eventually(t, func() bool {
@@ -1061,6 +1124,7 @@ func TestIntegration_Chaos_Consumer_ContainerRestart(t *testing.T) {
 			Timestamp: time.Now(),
 			Data:      fmt.Sprintf("Post-restart message %d", i+1),
 		}
+		postRestartPublished = append(postRestartPublished, msg.ID)
 		publishTestMessageDirect(t, infra.rmqContainer.Channel, infra.exchange, infra.routingKey, msg)
 	}
 
@@ -1073,7 +1137,16 @@ func TestIntegration_Chaos_Consumer_ContainerRestart(t *testing.T) {
 
 	receivedMu.Lock()
 	t.Logf("Total messages received: %d (pre-restart: %d)", len(receivedMessages), preRestartCount)
+	allReceivedCounts := toDeliveryCounts(receivedMessages)
 	receivedMu.Unlock()
+
+	for _, id := range preRestartPublished {
+		assert.GreaterOrEqual(t, allReceivedCounts[id], 1, "pre-restart message %s should be consumed", id)
+	}
+
+	for _, id := range postRestartPublished {
+		assert.GreaterOrEqual(t, allReceivedCounts[id], 1, "post-restart message %s should be consumed", id)
+	}
 
 	t.Log("Chaos test passed: consumer recovers after container restart")
 }
