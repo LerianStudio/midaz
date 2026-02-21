@@ -153,6 +153,7 @@ var (
 	ErrInvalidTimestamp                         = errors.New("0139")
 	ErrNoBalanceDataAtTimestamp                 = errors.New("0140")
 	ErrMissingRequiredQueryParameter            = errors.New("0141")
+	ErrPrecisionOverflow                        = errors.New("0142")
 )
 
 // List of CRM errors.

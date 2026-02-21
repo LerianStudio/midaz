@@ -295,10 +295,10 @@ func TestGetUint32FromIntWithDefault(t *testing.T) {
 			expected:     15,
 		},
 		{
-			name:         "returns value when zero",
+			name:         "returns default when zero",
 			value:        0,
 			defaultValue: 10,
-			expected:     0,
+			expected:     10,
 		},
 		{
 			name:         "returns default when negative",
@@ -454,4 +454,38 @@ func TestGetDurationSecondsWithDefault(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestIsTruthyString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{name: "true literal", input: "true", expected: true},
+		{name: "numeric one", input: "1", expected: true},
+		{name: "yes literal", input: "yes", expected: true},
+		{name: "trim and case", input: "  YeS  ", expected: true},
+		{name: "false literal", input: "false", expected: false},
+		{name: "numeric zero", input: "0", expected: false},
+		{name: "empty", input: "", expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected, IsTruthyString(tt.input))
+		})
+	}
+}
+
+func TestIsEnvTruthy(t *testing.T) {
+	t.Setenv("TEST_ENV_TRUTHY", " yes ")
+	assert.True(t, IsEnvTruthy("TEST_ENV_TRUTHY"))
+
+	t.Setenv("TEST_ENV_TRUTHY", "no")
+	assert.False(t, IsEnvTruthy("TEST_ENV_TRUTHY"))
 }

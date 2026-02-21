@@ -104,10 +104,12 @@ require (
 
 require (
 	github.com/Shopify/toxiproxy/v2 v2.12.0
+	github.com/alicebob/miniredis/v2 v2.36.1
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.40.0
 	go.uber.org/goleak v1.3.0
+	golang.org/x/sync v0.19.0
 )
 
 require (
@@ -150,10 +152,10 @@ require (
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.47.0 // indirect
 	golang.org/x/exp v0.0.0-20260112195511-716be5621a96 // indirect
-	golang.org/x/sync v0.19.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

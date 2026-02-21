@@ -385,6 +385,48 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 			wantErr:    true,
 			errContain: "",
 		},
+		{
+			name:       "scale=2 fiat unscaling (USD cents)",
+			input:      `{"id":"bal-s1","accountId":"acc-s1","assetCode":"USD","available":150050,"onHold":25025,"version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"key":"default","alias":"@fiat","scale":2}`,
+			wantAvail:  decimal.RequireFromString("1500.50"),
+			wantOnHold: decimal.RequireFromString("250.25"),
+			wantErr:    false,
+		},
+		{
+			name:       "scale=8 crypto unscaling (BTC satoshis)",
+			input:      `{"id":"bal-s2","accountId":"acc-s2","assetCode":"BTC","available":1,"onHold":0,"version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"key":"default","alias":"@btc","scale":8}`,
+			wantAvail:  decimal.RequireFromString("0.00000001"),
+			wantOnHold: decimal.RequireFromString("0"),
+			wantErr:    false,
+		},
+		{
+			name:       "scale=0 legacy no unscaling",
+			input:      `{"id":"bal-s3","accountId":"acc-s3","assetCode":"USD","available":1500,"onHold":0,"version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"key":"default","alias":"@legacy","scale":0}`,
+			wantAvail:  decimal.NewFromInt(1500),
+			wantOnHold: decimal.NewFromInt(0),
+			wantErr:    false,
+		},
+		{
+			name:       "scale=2 negative available unscaling",
+			input:      `{"id":"bal-s4","accountId":"acc-s4","assetCode":"USD","available":-50025,"onHold":10050,"version":3,"accountType":"external","allowSending":1,"allowReceiving":1,"key":"default","alias":"@negative","scale":2}`,
+			wantAvail:  decimal.RequireFromString("-500.25"),
+			wantOnHold: decimal.RequireFromString("100.50"),
+			wantErr:    false,
+		},
+		{
+			name:       "scale=2 zero values unscaling",
+			input:      `{"id":"bal-s5","accountId":"acc-s5","assetCode":"USD","available":0,"onHold":0,"version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"key":"default","alias":"@zero","scale":2}`,
+			wantAvail:  decimal.RequireFromString("0"),
+			wantOnHold: decimal.RequireFromString("0"),
+			wantErr:    false,
+		},
+		{
+			name:       "scale absent (omitempty) legacy format",
+			input:      `{"id":"bal-s6","accountId":"acc-s6","assetCode":"USD","available":"2500.99","onHold":"100.01","version":2,"accountType":"checking","allowSending":1,"allowReceiving":1,"key":"reserve","alias":"@noscale"}`,
+			wantAvail:  decimal.RequireFromString("2500.99"),
+			wantOnHold: decimal.RequireFromString("100.01"),
+			wantErr:    false,
+		},
 	}
 
 	for _, tt := range tests {

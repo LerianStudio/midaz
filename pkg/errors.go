@@ -1225,6 +1225,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "No Balance Data at Date",
 			Message:    "No balance data is available at the specified date.",
 		},
+		constant.ErrPrecisionOverflow: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrPrecisionOverflow.Error(),
+			Title:      "Precision Overflow",
+			Message:    "The transaction amount exceeds the maximum supported precision (2^53). Please reduce the amount or use a smaller scale.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

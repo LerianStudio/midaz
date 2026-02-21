@@ -142,7 +142,25 @@ func (ft FromTo) SplitAlias() string {
 	return ft.AccountAlias
 }
 
-// SplitAliasWithKey extracts the substring after the '#' character from the provided alias or returns the alias if '#' is not present.
+// SplitAliasWithKey extracts the substring after the first '#' character from the
+// provided alias string, or returns the original string if '#' is not present.
+//
+// The expected input is the concatenated format produced by FromTo.ConcatAlias,
+// which encodes a numeric index prefix, an account alias, and a balance key
+// separated by '#' characters: "index#alias#balanceKey".
+//
+// This function strips the numeric index prefix and returns "alias#balanceKey",
+// which is the canonical alias-with-key format used for balance lookups.
+//
+// Examples:
+//
+//	SplitAliasWithKey("0#@account1#default")     => "@account1#default"
+//	SplitAliasWithKey("3#@external/USD#shard_2") => "@external/USD#shard_2"
+//	SplitAliasWithKey("@account1")               => "@account1" (no '#' found, returned as-is)
+//
+// NOTE: This function differs from shard.SplitAliasAndBalanceKey, which expects
+// the "alias#balanceKey" format (without the numeric index prefix) and returns
+// the alias and balance key as two separate values.
 func SplitAliasWithKey(alias string) string {
 	if idx := strings.Index(alias, "#"); idx != -1 {
 		return alias[idx+1:]

@@ -6,8 +6,22 @@ package utils
 
 import (
 	"math"
+	"os"
+	"strings"
 	"time"
 )
+
+// IsTruthyString normalizes and evaluates common truthy string values.
+func IsTruthyString(value string) bool {
+	raw := strings.ToLower(strings.TrimSpace(value))
+
+	return raw == "1" || raw == "true" || raw == "yes"
+}
+
+// IsEnvTruthy reads an env var and evaluates it using IsTruthyString.
+func IsEnvTruthy(envName string) bool {
+	return IsTruthyString(os.Getenv(envName))
+}
 
 // EnvFallback returns the prefixed value if not empty, otherwise returns the fallback value.
 // This is useful for supporting both prefixed env vars (e.g., DB_ONBOARDING_HOST) with
@@ -58,11 +72,17 @@ func GetDurationWithDefault(value, defaultValue time.Duration) time.Duration {
 	return defaultValue
 }
 
-// GetUint32FromIntWithDefault converts an int to uint32, returning the default if value is invalid.
-// Returns the default if value is negative or exceeds uint32 max range.
-// This is useful when reading config from env vars that only support int types.
+// GetUint32FromIntWithDefault converts an int to uint32, returning defaultValue when the
+// conversion is not meaningful. Specifically:
+//   - values <= 0 (including zero) return defaultValue — zero is intentionally treated as
+//     "not configured" for configuration knobs where a zero setting has no practical meaning
+//     (e.g., worker counts, pool sizes, shard counts).
+//   - values that exceed math.MaxUint32 return defaultValue to prevent truncation.
+//
+// This is useful when reading config from env vars that are parsed as int but need to
+// be stored as uint32.
 func GetUint32FromIntWithDefault(value int, defaultValue uint32) uint32 {
-	if value >= 0 && value <= math.MaxUint32 {
+	if value > 0 && value <= math.MaxUint32 {
 		return uint32(value)
 	}
 

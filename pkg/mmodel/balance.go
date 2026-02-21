@@ -375,6 +375,12 @@ type BalanceRedis struct {
 
 	// Unique key for the balance
 	Key string `json:"key"`
+
+	// Scale is the number of decimal places used when storing Available/OnHold
+	// as pre-scaled integers in Redis. When Scale > 0, Available and OnHold
+	// represent scaled integers (e.g., Scale=2: 150050 means 1500.50).
+	// When Scale == 0 or absent, values are unscaled decimals (legacy format).
+	Scale int32 `json:"scale,omitempty"`
 }
 
 // UnmarshalJSON is a custom unmarshal function for BalanceRedis
@@ -460,6 +466,25 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		b.Key = constant.DefaultBalanceKey
 	}
 
+	// RELEASE NOTE: The Scale field creates a serialization format difference between
+	// v1 (unscaled decimals) and v2 (scaled integers with Scale > 0). Requires blue-green
+	// deployment (not rolling update). Old pods will misinterpret v2-encoded balances
+	// (scaled integers read as real amounts).
+
+	// If Scale > 0, Available and OnHold are pre-scaled integers from v2 Lua.
+	// Convert back to real decimal values so all consumers get correct amounts
+	// without needing to know about the scaling.
+	if b.Scale > 0 {
+		// Round to nearest integer to handle float64 representation artifacts
+		// from JSON number deserialization, then shift decimal point.
+		b.Available = b.Available.Round(0).Shift(-b.Scale)
+		b.OnHold = b.OnHold.Round(0).Shift(-b.Scale)
+		// Reset Scale to 0 so that re-marshaling and re-unmarshaling this struct
+		// does not apply the unscaling a second time, which would silently corrupt
+		// monetary values (e.g. $1500.50 → $15.005 on a second round-trip).
+		b.Scale = 0
+	}
+
 	return nil
 }
 
@@ -490,6 +515,11 @@ type BalanceOperation struct {
 	Alias       string
 	Amount      pkgTransaction.Amount
 	InternalKey string
+
+	// ShardID is the target Redis Cluster shard for this operation (Phase 2A).
+	// Set by the shard router during transaction processing.
+	// When sharding is disabled, this is always 0.
+	ShardID int
 }
 
 // TransactionRedisQueue represents a transaction queue for cache-aside
