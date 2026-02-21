@@ -9,12 +9,22 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/api"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
 // WithSwaggerEnvConfig sets the Swagger configuration for the API documentation from environment variables if they are set.
 func WithSwaggerEnvConfig() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if !utils.SwaggerEnabled() {
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+
+		token := utils.SwaggerRequestToken(c)
+		if !utils.SwaggerTokenAuthorized(token) {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
+
 		envVars := map[string]*string{
 			"SWAGGER_TITLE":       &api.SwaggerInfoonboarding.Title,
 			"SWAGGER_DESCRIPTION": &api.SwaggerInfoonboarding.Description,
@@ -36,7 +46,10 @@ func WithSwaggerEnvConfig() fiber.Handler {
 		}
 
 		if schemes := os.Getenv("SWAGGER_SCHEMES"); schemes != "" {
-			api.SwaggerInfoonboarding.Schemes = []string{schemes}
+			parsed := utils.ParseCommaSeparated(schemes)
+			if len(parsed) > 0 {
+				api.SwaggerInfoonboarding.Schemes = parsed
+			}
 		}
 
 		return c.Next()

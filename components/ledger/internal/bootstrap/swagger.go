@@ -11,6 +11,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/ledger/api"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -21,7 +22,17 @@ var swaggerConfigOnce sync.Once
 // initialization without data races on the global api.SwaggerInfo.
 func WithSwaggerEnvConfig() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if !utils.SwaggerEnabled() {
+			return c.SendStatus(fiber.StatusNotFound)
+		}
+
+		token := utils.SwaggerRequestToken(c)
+		if !utils.SwaggerTokenAuthorized(token) {
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
+
 		swaggerConfigOnce.Do(initSwaggerFromEnv)
+
 		return c.Next()
 	}
 }

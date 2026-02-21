@@ -5,6 +5,8 @@
 package in
 
 import (
+	"time"
+
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
@@ -12,6 +14,7 @@ import (
 	_ "github.com/LerianStudio/midaz/v3/components/onboarding/api"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
@@ -26,6 +29,13 @@ const (
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
+		ReadTimeout:           30 * time.Second,
+		WriteTimeout:          30 * time.Second,
+		IdleTimeout:           120 * time.Second,
+		BodyLimit:             4 * 1024 * 1024, // 4MB
+		ReadBufferSize:        8192,
+		WriteBufferSize:       8192,
+		Concurrency:           256 * 1024,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
 			return libHTTP.HandleFiberError(ctx, err)
 		},
@@ -34,7 +44,14 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
 
 	f.Use(tlMid.WithTelemetry(tl))
-	f.Use(cors.New())
+	f.Use(cors.New(cors.Config{
+		AllowOrigins:  utils.CORSAllowedOrigins(),
+		AllowMethods:  "GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD",
+		AllowHeaders:  "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-Swagger-Token",
+		ExposeHeaders: "X-Request-Id",
+		MaxAge:        300,
+	}))
+	f.Use(utils.SecurityHeadersMiddleware)
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
 
 	// Register all routes
@@ -47,7 +64,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Get("/version", libHTTP.Version)
 
 	// Doc
-	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
+	f.Get("/swagger/*", utils.SwaggerRateLimitMiddleware(), WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
 		fiberSwagger.InstanceName("onboarding"),
 	))
 
