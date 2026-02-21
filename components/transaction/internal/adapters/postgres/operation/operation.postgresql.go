@@ -32,6 +32,7 @@ import (
 //go:generate mockgen --destination=operation.postgresql_mock.go --package=operation . Repository
 type Repository interface {
 	Create(ctx context.Context, operation *Operation) (*Operation, error)
+	CreateBatch(ctx context.Context, operations []*Operation) error
 	FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
 	FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, operationType *string, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*Operation, error)
@@ -49,6 +50,13 @@ type OperationPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
 	tableName  string
 }
+
+const (
+	// operationColumnsCount is the number of columns in the operations INSERT.
+	operationColumnsCount = 26
+	// maxOperationBatchSize is the maximum operations per batch chunk.
+	maxOperationBatchSize = constant.MaxPGParams / operationColumnsCount
+)
 
 var operationColumnList = []string{
 	"id",
@@ -211,6 +219,160 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 	}
 
 	return record.ToEntity(), nil
+}
+
+// CreateBatch inserts multiple operations in a single multi-row INSERT statement.
+// This replaces the per-operation INSERT loop, reducing N round-trips to PostgreSQL
+// to a single statement. Duplicates are silently skipped via ON CONFLICT DO NOTHING.
+//
+// All chunks execute within a single database transaction so the entire batch is
+// atomic — either all operations are inserted or none are.
+func (r *OperationPostgreSQLRepository) CreateBatch(ctx context.Context, operations []*Operation) (err error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.create_operations_batch")
+	defer span.End()
+
+	if len(operations) == 0 {
+		return nil
+	}
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return err
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to begin transaction", err)
+
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			rollbackErr := tx.Rollback()
+			if rollbackErr != nil {
+				libOpentelemetry.HandleSpanError(&span, "Failed to rollback", rollbackErr)
+
+				logger.Errorf("err on rollback: %v", rollbackErr)
+			}
+		} else {
+			commitErr := tx.Commit()
+			if commitErr != nil {
+				libOpentelemetry.HandleSpanError(&span, "Failed to commit", commitErr)
+
+				logger.Errorf("err on commit: %v", commitErr)
+				err = commitErr
+			}
+		}
+	}()
+
+	// Process operations in chunks to stay within PostgreSQL's 65535 parameter limit.
+	// Each operation uses 26 params, so max batch is 65535/26 = 2520 operations per chunk.
+	// All chunks execute within the SAME transaction, so the entire batch is atomic.
+	var totalRowsAffected int64
+
+	for chunkStart := 0; chunkStart < len(operations); chunkStart += maxOperationBatchSize {
+		chunkEnd := chunkStart + maxOperationBatchSize
+		if chunkEnd > len(operations) {
+			chunkEnd = len(operations)
+		}
+
+		chunk := operations[chunkStart:chunkEnd]
+
+		insert := squirrel.
+			Insert(r.tableName).
+			Columns(operationColumnList...).
+			PlaceholderFormat(squirrel.Dollar).
+			Suffix("ON CONFLICT (id) DO NOTHING")
+
+		hasRows := false
+
+		for _, op := range chunk {
+			if op == nil {
+				continue
+			}
+
+			record := &OperationPostgreSQLModel{}
+			record.FromEntity(op)
+
+			insert = insert.Values(
+				record.ID,
+				record.TransactionID,
+				record.Description,
+				record.Type,
+				record.AssetCode,
+				record.Amount,
+				record.AvailableBalance,
+				record.OnHoldBalance,
+				record.AvailableBalanceAfter,
+				record.OnHoldBalanceAfter,
+				record.Status,
+				record.StatusDescription,
+				record.AccountID,
+				record.AccountAlias,
+				record.BalanceID,
+				record.ChartOfAccounts,
+				record.OrganizationID,
+				record.LedgerID,
+				record.CreatedAt,
+				record.UpdatedAt,
+				record.DeletedAt,
+				record.Route,
+				record.BalanceAffected,
+				record.BalanceKey,
+				record.VersionBalance,
+				record.VersionBalanceAfter,
+			)
+
+			hasRows = true
+		}
+
+		// Skip chunk if all entries were nil
+		if !hasRows {
+			continue
+		}
+
+		query, args, err := insert.ToSql()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to build batch insert query", err)
+
+			logger.Errorf("Failed to build batch insert query (chunk %d-%d): %v", chunkStart, chunkEnd, err)
+
+			return err
+		}
+
+		result, err := tx.ExecContext(ctx, query, args...)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to execute batch insert", err)
+
+			logger.Errorf("Failed to execute batch insert (chunk %d-%d): %v", chunkStart, chunkEnd, err)
+
+			return err
+		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+			return err
+		}
+
+		totalRowsAffected += rowsAffected
+	}
+
+	if totalRowsAffected < int64(len(operations)) {
+		logger.Warnf("Batch operation insert: %d/%d rows inserted (duplicates skipped)", totalRowsAffected, len(operations))
+	} else {
+		logger.Infof("Batch operation insert: %d/%d rows inserted", totalRowsAffected, len(operations))
+	}
+
+	return nil
 }
 
 // FindAll retrieves Operations entities from the database.

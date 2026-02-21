@@ -686,6 +686,160 @@ func TestOperation_ToRedis(t *testing.T) {
 	})
 }
 
+// TestOperationPostgreSQLModel_FromEntity_DefaultBalanceKey verifies that FromEntity
+// substitutes the constant.DefaultBalanceKey ("default") when the entity's BalanceKey
+// field is empty.  This is important for CreateBatch correctness because every row
+// in the batch INSERT must carry a non-empty balance_key value — the column has a
+// database default, but squirrel sends an explicit value for every column, so an empty
+// string would be written as-is without this substitution logic.
+func TestOperationPostgreSQLModel_FromEntity_DefaultBalanceKey(t *testing.T) {
+	t.Run("substitutes_default_when_balance_key_empty", func(t *testing.T) {
+		entity := &Operation{
+			ID:              "op-default-key",
+			TransactionID:   "tx-default-key",
+			Type:            "DEBIT",
+			AssetCode:       "BRL",
+			Status:          Status{Code: "ACTIVE"},
+			AccountID:       "acc-default",
+			BalanceID:       "bal-default",
+			OrganizationID:  "org-default",
+			LedgerID:        "ledger-default",
+			BalanceKey:      "", // explicitly empty — should trigger substitution
+			BalanceAffected: true,
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+		}
+
+		var model OperationPostgreSQLModel
+		model.FromEntity(entity)
+
+		assert.Equal(t, "default", model.BalanceKey,
+			"BalanceKey should be substituted with 'default' when entity.BalanceKey is empty")
+	})
+
+	t.Run("preserves_custom_balance_key_unchanged", func(t *testing.T) {
+		entity := &Operation{
+			ID:              "op-custom-key",
+			TransactionID:   "tx-custom-key",
+			Type:            "CREDIT",
+			AssetCode:       "USD",
+			Status:          Status{Code: "ACTIVE"},
+			AccountID:       "acc-custom",
+			BalanceID:       "bal-custom",
+			OrganizationID:  "org-custom",
+			LedgerID:        "ledger-custom",
+			BalanceKey:      "USD:freeze", // custom key — must NOT be overwritten
+			BalanceAffected: true,
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+		}
+
+		var model OperationPostgreSQLModel
+		model.FromEntity(entity)
+
+		assert.Equal(t, "USD:freeze", model.BalanceKey,
+			"Custom BalanceKey should be preserved as-is")
+	})
+}
+
+// TestOperationPointInTimeModel_ToEntity verifies that the lightweight
+// OperationPointInTimeModel correctly maps to an Operation entity.
+// This model is used by FindLastOperationBeforeTimestamp and
+// FindLastOperationsForAccountBeforeTimestamp for index-only scan efficiency.
+func TestOperationPointInTimeModel_ToEntity(t *testing.T) {
+	t.Run("maps_all_point_in_time_fields", func(t *testing.T) {
+		availAfter := decimal.NewFromFloat(3500.00)
+		onHoldAfter := decimal.NewFromFloat(200.00)
+		versionAfter := int64(5)
+		now := time.Now()
+
+		model := &OperationPointInTimeModel{
+			ID:                    "op-pit-123",
+			BalanceID:             "bal-pit-456",
+			AccountID:             "acc-pit-789",
+			AssetCode:             "BRL",
+			BalanceKey:            "USD:freeze",
+			AvailableBalanceAfter: &availAfter,
+			OnHoldBalanceAfter:    &onHoldAfter,
+			VersionBalanceAfter:   &versionAfter,
+			CreatedAt:             now,
+		}
+
+		entity := model.ToEntity()
+
+		require.NotNil(t, entity)
+		assert.Equal(t, model.ID, entity.ID)
+		assert.Equal(t, model.BalanceID, entity.BalanceID)
+		assert.Equal(t, model.AccountID, entity.AccountID)
+		assert.Equal(t, model.AssetCode, entity.AssetCode)
+		assert.Equal(t, model.BalanceKey, entity.BalanceKey)
+		require.NotNil(t, entity.BalanceAfter.Available)
+		assert.True(t, availAfter.Equal(*entity.BalanceAfter.Available))
+		require.NotNil(t, entity.BalanceAfter.OnHold)
+		assert.True(t, onHoldAfter.Equal(*entity.BalanceAfter.OnHold))
+		require.NotNil(t, entity.BalanceAfter.Version)
+		assert.Equal(t, versionAfter, *entity.BalanceAfter.Version)
+		assert.Equal(t, model.CreatedAt, entity.CreatedAt)
+	})
+
+	t.Run("maps_nil_balance_pointers_correctly", func(t *testing.T) {
+		now := time.Now()
+
+		model := &OperationPointInTimeModel{
+			ID:                    "op-pit-nil",
+			BalanceID:             "bal-pit-nil",
+			AccountID:             "acc-pit-nil",
+			AssetCode:             "USD",
+			BalanceKey:            "default",
+			AvailableBalanceAfter: nil,
+			OnHoldBalanceAfter:    nil,
+			VersionBalanceAfter:   nil,
+			CreatedAt:             now,
+		}
+
+		entity := model.ToEntity()
+
+		require.NotNil(t, entity)
+		assert.Nil(t, entity.BalanceAfter.Available,
+			"nil AvailableBalanceAfter should produce nil BalanceAfter.Available")
+		assert.Nil(t, entity.BalanceAfter.OnHold,
+			"nil OnHoldBalanceAfter should produce nil BalanceAfter.OnHold")
+		assert.Nil(t, entity.BalanceAfter.Version,
+			"nil VersionBalanceAfter should produce nil BalanceAfter.Version")
+	})
+
+	t.Run("does_not_populate_non_point_in_time_fields", func(t *testing.T) {
+		// OperationPointInTimeModel is a deliberately minimal struct.
+		// ToEntity must leave fields like TransactionID, Description, Type,
+		// Amount, Balance (before), Status, and OrganizationID at their zero values
+		// to avoid leaking garbage into callers that only care about point-in-time balance.
+		availAfter := decimal.NewFromFloat(1000.00)
+		versionAfter := int64(3)
+
+		model := &OperationPointInTimeModel{
+			ID:                    "op-pit-sparse",
+			BalanceID:             "bal-pit-sparse",
+			AccountID:             "acc-pit-sparse",
+			AssetCode:             "EUR",
+			BalanceKey:            "default",
+			AvailableBalanceAfter: &availAfter,
+			VersionBalanceAfter:   &versionAfter,
+			CreatedAt:             time.Now(),
+		}
+
+		entity := model.ToEntity()
+
+		require.NotNil(t, entity)
+		assert.Empty(t, entity.TransactionID, "TransactionID should be zero for point-in-time entity")
+		assert.Empty(t, entity.Description, "Description should be zero for point-in-time entity")
+		assert.Empty(t, entity.Type, "Type should be zero for point-in-time entity")
+		assert.Nil(t, entity.Amount.Value, "Amount.Value should be nil for point-in-time entity")
+		assert.Nil(t, entity.Balance.Available, "Balance.Available should be nil for point-in-time entity")
+		assert.Empty(t, entity.Status.Code, "Status.Code should be zero for point-in-time entity")
+		assert.Empty(t, entity.OrganizationID, "OrganizationID should be zero for point-in-time entity")
+	})
+}
+
 func TestOperationFromRedis(t *testing.T) {
 	t.Run("roundtrip_preserves_all_fields", func(t *testing.T) {
 		amount := decimal.NewFromFloat(1500.00)

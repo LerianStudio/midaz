@@ -8,6 +8,7 @@ package balance
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -1432,5 +1433,129 @@ func TestIntegration_BalancesUpdate_BatchUpdate_AllSucceed(t *testing.T) {
 		expectedAvailable := decimal.NewFromInt(int64(500 + i*100))
 		assert.True(t, found.Available.Equal(expectedAvailable), "balance %d should be updated", i)
 		assert.Equal(t, int64(1), found.Version, "balance %d version should be 1", i)
+	}
+}
+
+func TestIntegration_BalancesUpdate_Boundary_ExactMaxBatchSize(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	ctx := context.Background()
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	updates := buildBalanceUpdates(maxBalanceBatchSize)
+	seedBalancesForUpdates(t, container, orgID, ledgerID, updates)
+
+	err := repo.BalancesUpdate(ctx, orgID, ledgerID, updates)
+	require.NoError(t, err, "BalancesUpdate should handle exact max batch size")
+
+	assertUpdatesPersisted(t, repo, ctx, orgID, ledgerID, updates, []int{0, len(updates) / 2, len(updates) - 1})
+}
+
+func TestIntegration_BalancesUpdate_Boundary_MaxPlusOneUsesMultipleChunks(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	ctx := context.Background()
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	updates := buildBalanceUpdates(maxBalanceBatchSize + 1)
+	seedBalancesForUpdates(t, container, orgID, ledgerID, updates)
+
+	err := repo.BalancesUpdate(ctx, orgID, ledgerID, updates)
+	require.NoError(t, err, "BalancesUpdate should split max+1 into multiple chunks")
+
+	boundaryIndex := maxBalanceBatchSize
+	assertUpdatesPersisted(t, repo, ctx, orgID, ledgerID, updates, []int{0, maxBalanceBatchSize - 1, boundaryIndex, len(updates) - 1})
+}
+
+func TestIntegration_BalancesUpdate_MultiChunkFailureRollsBackAll(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	ctx := context.Background()
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+
+	params := pgtestutil.DefaultBalanceParams()
+	params.Alias = "@rollback-target"
+	params.Available = decimal.NewFromInt(1000)
+	params.OnHold = decimal.NewFromInt(20)
+	realBalanceID := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
+
+	before, err := repo.Find(ctx, orgID, ledgerID, realBalanceID)
+	require.NoError(t, err)
+
+	updates := buildBalanceUpdates(maxBalanceBatchSize + 1)
+	updates[0] = &mmodel.Balance{
+		ID:        realBalanceID.String(),
+		Available: decimal.NewFromInt(7777),
+		OnHold:    decimal.NewFromInt(77),
+		Version:   before.Version + 5,
+	}
+	updates[len(updates)-1] = &mmodel.Balance{
+		ID:        "not-a-uuid",
+		Available: decimal.NewFromInt(1),
+		OnHold:    decimal.Zero,
+		Version:   1,
+	}
+
+	err = repo.BalancesUpdate(ctx, orgID, ledgerID, updates)
+	require.Error(t, err, "invalid UUID in later chunk should fail the batch")
+
+	after, err := repo.Find(ctx, orgID, ledgerID, realBalanceID)
+	require.NoError(t, err)
+	assert.True(t, after.Available.Equal(before.Available), "first chunk update must rollback on later chunk failure")
+	assert.True(t, after.OnHold.Equal(before.OnHold), "on-hold must rollback on later chunk failure")
+	assert.Equal(t, before.Version, after.Version, "version must rollback on later chunk failure")
+}
+
+func buildBalanceUpdates(count int) []*mmodel.Balance {
+	updates := make([]*mmodel.Balance, count)
+	for i := 0; i < count; i++ {
+		updates[i] = &mmodel.Balance{
+			ID:        libCommons.GenerateUUIDv7().String(),
+			Available: decimal.NewFromInt(int64(1000 + i)),
+			OnHold:    decimal.NewFromInt(int64(i % 7)),
+			Version:   int64(i + 1),
+		}
+	}
+
+	return updates
+}
+
+func seedBalancesForUpdates(t *testing.T, container *pgtestutil.ContainerResult, orgID, ledgerID uuid.UUID, updates []*mmodel.Balance) {
+	t.Helper()
+
+	now := time.Now().Truncate(time.Microsecond)
+
+	for i, update := range updates {
+		accountID := createTestAccountID()
+		alias := fmt.Sprintf("@boundary-seed-%d", i)
+		_, err := container.DB.Exec(`
+			INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		`, update.ID, orgID, ledgerID, accountID, alias, "default", "USD",
+			decimal.NewFromInt(10), decimal.NewFromInt(1), int64(0), "deposit", true, true, now, now)
+		require.NoError(t, err, "failed to seed balance for update index %d", i)
+	}
+}
+
+func assertUpdatesPersisted(t *testing.T, repo *BalancePostgreSQLRepository, ctx context.Context, orgID, ledgerID uuid.UUID, updates []*mmodel.Balance, indices []int) {
+	t.Helper()
+
+	for _, idx := range indices {
+		update := updates[idx]
+		balanceID := uuid.MustParse(update.ID)
+
+		persisted, err := repo.Find(ctx, orgID, ledgerID, balanceID)
+		require.NoError(t, err, "failed to fetch persisted balance at index %d", idx)
+
+		assert.True(t, persisted.Available.Equal(update.Available), "available should match update at index %d", idx)
+		assert.True(t, persisted.OnHold.Equal(update.OnHold), "on_hold should match update at index %d", idx)
+		assert.Equal(t, update.Version, persisted.Version, "version should match update at index %d", idx)
 	}
 }

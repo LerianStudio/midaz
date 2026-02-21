@@ -73,6 +73,20 @@ func (mr *MockRepositoryMockRecorder) Create(ctx, balance any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), ctx, balance)
 }
 
+// CreateIfNotExists mocks base method.
+func (m *MockRepository) CreateIfNotExists(ctx context.Context, balance *mmodel.Balance) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateIfNotExists", ctx, balance)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateIfNotExists indicates an expected call of CreateIfNotExists.
+func (mr *MockRepositoryMockRecorder) CreateIfNotExists(ctx, balance any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateIfNotExists", reflect.TypeOf((*MockRepository)(nil).CreateIfNotExists), ctx, balance)
+}
+
 // Delete mocks base method.
 func (m *MockRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	m.ctrl.T.Helper()

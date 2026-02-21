@@ -1254,13 +1254,16 @@ func TestIntegration_OperationRepository_DecimalPrecision_Preserved(t *testing.T
 	ctx := context.Background()
 
 	// Large precision values
-	largeAmount, _ := decimal.NewFromString("123456789012345678901234567890.123456789012345678901234567890")
-	largeAvailable, _ := decimal.NewFromString("987654321098765432109876543210.987654321098765432109876543210")
+	largeAmount, err := decimal.NewFromString("123456789012345678901234567890.123456789012345678901234567890")
+	require.NoError(t, err)
+
+	largeAvailable, err := decimal.NewFromString("987654321098765432109876543210.987654321098765432109876543210")
+	require.NoError(t, err)
 
 	opID := libCommons.GenerateUUIDv7()
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := container.DB.Exec(`
+	_, err = container.DB.Exec(`
 		INSERT INTO operation (
 			id, transaction_id, description, type, asset_code, amount,
 			available_balance, on_hold_balance, available_balance_after, on_hold_balance_after,
@@ -1294,6 +1297,369 @@ func TestIntegration_OperationRepository_DecimalPrecision_Preserved(t *testing.T
 }
 
 // ============================================================================
+// CreateBatch Tests
+// ============================================================================
+
+func TestIntegration_OperationRepository_CreateBatch_InsertsAllOperations(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	amount := decimal.NewFromInt(100)
+	availableBefore := decimal.NewFromInt(1000)
+	onHoldBefore := decimal.Zero
+	availableAfter := decimal.NewFromInt(900)
+	onHoldAfter := decimal.Zero
+	versionBefore := int64(1)
+	versionAfter := int64(2)
+
+	// Build a batch of 3 operations for the same transaction
+	ops := make([]*Operation, 3)
+	for i := 0; i < 3; i++ {
+		ops[i] = &Operation{
+			ID:            libCommons.GenerateUUIDv7().String(),
+			TransactionID: ids.TransactionID.String(),
+			Description:   fmt.Sprintf("Batch operation %d", i),
+			Type:          "DEBIT",
+			AssetCode:     "USD",
+			Amount:        Amount{Value: &amount},
+			Balance: Balance{
+				Available: &availableBefore,
+				OnHold:    &onHoldBefore,
+				Version:   &versionBefore,
+			},
+			BalanceAfter: Balance{
+				Available: &availableAfter,
+				OnHold:    &onHoldAfter,
+				Version:   &versionAfter,
+			},
+			Status:          Status{Code: "APPROVED"},
+			AccountID:       ids.AccountID.String(),
+			AccountAlias:    "@test-account",
+			BalanceID:       ids.BalanceID.String(),
+			OrganizationID:  ids.OrgID.String(),
+			LedgerID:        ids.LedgerID.String(),
+			BalanceAffected: true,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+	}
+
+	// Act
+	err := repo.CreateBatch(ctx, ops)
+
+	// Assert
+	require.NoError(t, err, "CreateBatch should not return error")
+
+	// Verify all operations are retrievable
+	for _, op := range ops {
+		opID, parseErr := uuid.Parse(op.ID)
+		require.NoError(t, parseErr)
+
+		found, findErr := repo.Find(ctx, ids.OrgID, ids.LedgerID, ids.TransactionID, opID)
+		require.NoError(t, findErr, "each inserted operation should be findable")
+		require.NotNil(t, found)
+		assert.Equal(t, op.ID, found.ID)
+		assert.Equal(t, "DEBIT", found.Type)
+		assert.Equal(t, "APPROVED", found.Status.Code)
+		assert.True(t, found.BalanceAffected)
+	}
+}
+
+func TestIntegration_OperationRepository_CreateBatch_EmptySliceReturnsNil(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	ctx := context.Background()
+
+	// Act
+	err := repo.CreateBatch(ctx, []*Operation{})
+
+	// Assert
+	require.NoError(t, err, "CreateBatch with empty slice should return nil error")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_NilElementsAreSkipped(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	amount := decimal.NewFromInt(100)
+	availableBefore := decimal.NewFromInt(1000)
+	onHoldBefore := decimal.Zero
+	availableAfter := decimal.NewFromInt(900)
+	onHoldAfter := decimal.Zero
+	versionBefore := int64(1)
+	versionAfter := int64(2)
+
+	validOp := &Operation{
+		ID:            libCommons.GenerateUUIDv7().String(),
+		TransactionID: ids.TransactionID.String(),
+		Description:   "Valid operation amid nils",
+		Type:          "CREDIT",
+		AssetCode:     "USD",
+		Amount:        Amount{Value: &amount},
+		Balance: Balance{
+			Available: &availableBefore,
+			OnHold:    &onHoldBefore,
+			Version:   &versionBefore,
+		},
+		BalanceAfter: Balance{
+			Available: &availableAfter,
+			OnHold:    &onHoldAfter,
+			Version:   &versionAfter,
+		},
+		Status:          Status{Code: "APPROVED"},
+		AccountID:       ids.AccountID.String(),
+		AccountAlias:    "@test-account",
+		BalanceID:       ids.BalanceID.String(),
+		OrganizationID:  ids.OrgID.String(),
+		LedgerID:        ids.LedgerID.String(),
+		BalanceAffected: true,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+
+	// Slice with nil sentinels surrounding the single valid operation
+	ops := []*Operation{nil, validOp, nil}
+
+	// Act
+	err := repo.CreateBatch(ctx, ops)
+
+	// Assert
+	require.NoError(t, err, "CreateBatch should not error when nil elements are present")
+
+	opID, err := uuid.Parse(validOp.ID)
+	require.NoError(t, err)
+
+	found, findErr := repo.Find(ctx, ids.OrgID, ids.LedgerID, ids.TransactionID, opID)
+	require.NoError(t, findErr, "the valid operation should still be inserted")
+	require.NotNil(t, found)
+	assert.Equal(t, validOp.ID, found.ID)
+}
+
+func TestIntegration_OperationRepository_CreateBatch_AllNilSliceReturnsNil(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	ctx := context.Background()
+
+	// A non-empty slice containing only nil pointers should behave like an empty batch.
+	ops := []*Operation{nil, nil, nil}
+
+	// Act
+	err := repo.CreateBatch(ctx, ops)
+
+	// Assert
+	require.NoError(t, err, "CreateBatch with all-nil slice should return nil error (no rows to insert)")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_DuplicatesSkippedSilently(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	amount := decimal.NewFromInt(100)
+	availableBefore := decimal.NewFromInt(1000)
+	onHoldBefore := decimal.Zero
+	availableAfter := decimal.NewFromInt(900)
+	onHoldAfter := decimal.Zero
+	versionBefore := int64(1)
+	versionAfter := int64(2)
+
+	opID := libCommons.GenerateUUIDv7().String()
+
+	op := &Operation{
+		ID:            opID,
+		TransactionID: ids.TransactionID.String(),
+		Description:   "Original description",
+		Type:          "DEBIT",
+		AssetCode:     "USD",
+		Amount:        Amount{Value: &amount},
+		Balance: Balance{
+			Available: &availableBefore,
+			OnHold:    &onHoldBefore,
+			Version:   &versionBefore,
+		},
+		BalanceAfter: Balance{
+			Available: &availableAfter,
+			OnHold:    &onHoldAfter,
+			Version:   &versionAfter,
+		},
+		Status:          Status{Code: "APPROVED"},
+		AccountID:       ids.AccountID.String(),
+		AccountAlias:    "@test-account",
+		BalanceID:       ids.BalanceID.String(),
+		OrganizationID:  ids.OrgID.String(),
+		LedgerID:        ids.LedgerID.String(),
+		BalanceAffected: true,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+
+	// First insert — must succeed
+	err := repo.CreateBatch(ctx, []*Operation{op})
+	require.NoError(t, err, "first CreateBatch should succeed")
+
+	// Second insert with same ID — ON CONFLICT DO NOTHING means no error
+	duplicate := *op
+	duplicate.Description = "Modified description (should be ignored)"
+
+	err = repo.CreateBatch(ctx, []*Operation{&duplicate})
+	require.NoError(t, err, "duplicate CreateBatch should not return error (ON CONFLICT DO NOTHING)")
+
+	// Verify original data is preserved (the duplicate was silently ignored)
+	parsedID, err := uuid.Parse(opID)
+	require.NoError(t, err)
+
+	found, findErr := repo.Find(ctx, ids.OrgID, ids.LedgerID, ids.TransactionID, parsedID)
+	require.NoError(t, findErr)
+	assert.Equal(t, "Original description", found.Description,
+		"original description should be preserved after duplicate insert attempt")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_DefaultBalanceKeyApplied(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	amount := decimal.NewFromInt(100)
+	availableBefore := decimal.NewFromInt(1000)
+	onHoldBefore := decimal.Zero
+	availableAfter := decimal.NewFromInt(900)
+	onHoldAfter := decimal.Zero
+	versionBefore := int64(1)
+	versionAfter := int64(2)
+
+	op := &Operation{
+		ID:            libCommons.GenerateUUIDv7().String(),
+		TransactionID: ids.TransactionID.String(),
+		Description:   "Default balance key test",
+		Type:          "DEBIT",
+		AssetCode:     "USD",
+		Amount:        Amount{Value: &amount},
+		Balance: Balance{
+			Available: &availableBefore,
+			OnHold:    &onHoldBefore,
+			Version:   &versionBefore,
+		},
+		BalanceAfter: Balance{
+			Available: &availableAfter,
+			OnHold:    &onHoldAfter,
+			Version:   &versionAfter,
+		},
+		Status:          Status{Code: "APPROVED"},
+		AccountID:       ids.AccountID.String(),
+		AccountAlias:    "@test-account",
+		BalanceID:       ids.BalanceID.String(),
+		OrganizationID:  ids.OrgID.String(),
+		LedgerID:        ids.LedgerID.String(),
+		BalanceKey:      "", // Empty — FromEntity must substitute "default"
+		BalanceAffected: true,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+
+	// Act
+	err := repo.CreateBatch(ctx, []*Operation{op})
+	require.NoError(t, err)
+
+	// Assert: the row must be stored with balance_key = "default"
+	parsedID, err := uuid.Parse(op.ID)
+	require.NoError(t, err)
+
+	found, findErr := repo.Find(ctx, ids.OrgID, ids.LedgerID, ids.TransactionID, parsedID)
+	require.NoError(t, findErr)
+	assert.Equal(t, "default", found.BalanceKey,
+		"empty BalanceKey on entity should be stored as 'default' in the database")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_Boundary_ExactMaxBatchSize(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	ops := buildOperationBatch(ids, now, maxOperationBatchSize)
+
+	err := repo.CreateBatch(ctx, ops)
+	require.NoError(t, err, "CreateBatch should handle exact max batch size in one chunk")
+
+	var rowCount int
+	err = container.DB.QueryRow(
+		`SELECT COUNT(*) FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND transaction_id = $3`,
+		ids.OrgID,
+		ids.LedgerID,
+		ids.TransactionID,
+	).Scan(&rowCount)
+	require.NoError(t, err)
+	assert.Equal(t, maxOperationBatchSize, rowCount)
+}
+
+func TestIntegration_OperationRepository_CreateBatch_Boundary_MaxPlusOneUsesMultipleChunks(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	ops := buildOperationBatch(ids, now, maxOperationBatchSize+1)
+
+	err := repo.CreateBatch(ctx, ops)
+	require.NoError(t, err, "CreateBatch should split max+1 into multiple chunks")
+
+	var rowCount int
+	err = container.DB.QueryRow(
+		`SELECT COUNT(*) FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND transaction_id = $3`,
+		ids.OrgID,
+		ids.LedgerID,
+		ids.TransactionID,
+	).Scan(&rowCount)
+	require.NoError(t, err)
+	assert.Equal(t, maxOperationBatchSize+1, rowCount)
+}
+
+func TestIntegration_OperationRepository_CreateBatch_MultiChunkFailureRollsBackAll(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	ops := buildOperationBatch(ids, now, maxOperationBatchSize+1)
+	ops[len(ops)-1].TransactionID = "not-a-uuid"
+
+	err := repo.CreateBatch(ctx, ops)
+	require.Error(t, err, "invalid UUID in later chunk should fail the batch")
+
+	var rowCount int
+	err = container.DB.QueryRow(
+		`SELECT COUNT(*) FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND transaction_id = $3`,
+		ids.OrgID,
+		ids.LedgerID,
+		ids.TransactionID,
+	).Scan(&rowCount)
+	require.NoError(t, err)
+	assert.Zero(t, rowCount, "first chunk inserts must rollback when later chunk fails")
+}
+
+// ============================================================================
 // Helpers
 // ============================================================================
 
@@ -1304,4 +1670,47 @@ func defaultPagination() http.Pagination {
 		StartDate: time.Now().AddDate(-1, 0, 0), // 1 year ago
 		EndDate:   time.Now().AddDate(0, 0, 1),  // 1 day ahead
 	}
+}
+
+func buildOperationBatch(ids testIDs, now time.Time, count int) []*Operation {
+	amount := decimal.NewFromInt(100)
+	availableBefore := decimal.NewFromInt(1000)
+	onHoldBefore := decimal.Zero
+	availableAfter := decimal.NewFromInt(900)
+	onHoldAfter := decimal.Zero
+	versionBefore := int64(1)
+	versionAfter := int64(2)
+
+	ops := make([]*Operation, count)
+	for i := 0; i < count; i++ {
+		ops[i] = &Operation{
+			ID:            libCommons.GenerateUUIDv7().String(),
+			TransactionID: ids.TransactionID.String(),
+			Description:   fmt.Sprintf("Boundary batch operation %d", i),
+			Type:          "DEBIT",
+			AssetCode:     "USD",
+			Amount:        Amount{Value: &amount},
+			Balance: Balance{
+				Available: &availableBefore,
+				OnHold:    &onHoldBefore,
+				Version:   &versionBefore,
+			},
+			BalanceAfter: Balance{
+				Available: &availableAfter,
+				OnHold:    &onHoldAfter,
+				Version:   &versionAfter,
+			},
+			Status:          Status{Code: "APPROVED"},
+			AccountID:       ids.AccountID.String(),
+			AccountAlias:    "@test-account",
+			BalanceID:       ids.BalanceID.String(),
+			OrganizationID:  ids.OrgID.String(),
+			LedgerID:        ids.LedgerID.String(),
+			BalanceAffected: true,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+	}
+
+	return ops
 }
