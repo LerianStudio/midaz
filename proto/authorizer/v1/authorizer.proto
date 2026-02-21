@@ -1,0 +1,96 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package authorizer.v1;
+
+option go_package = "github.com/LerianStudio/midaz/v3/proto/authorizer/v1;authorizerv1";
+
+service BalanceAuthorizer {
+  rpc Authorize(AuthorizeRequest) returns (AuthorizeResponse);
+  rpc AuthorizeStream(stream AuthorizeRequest) returns (stream AuthorizeResponse);
+  rpc LoadBalances(LoadBalancesRequest) returns (LoadBalancesResponse);
+  rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse);
+  rpc PublishBalanceOperations(PublishBalanceOperationsRequest) returns (PublishBalanceOperationsResponse);
+}
+
+message AuthorizeRequest {
+  string transaction_id = 1;
+  string organization_id = 2;
+  string ledger_id = 3;
+  bool pending = 4;
+  string transaction_status = 5;
+  repeated BalanceOperation operations = 6;
+  map<string, string> metadata = 7;
+}
+
+message BalanceOperation {
+  string operation_alias = 1;
+  string account_alias = 2;
+  string balance_key = 3;
+  string asset_code = 4;
+  string operation = 5;
+  int64 amount = 6;
+  int32 scale = 7;
+  bool is_external = 8;
+}
+
+message AuthorizeResponse {
+  bool authorized = 1;
+  string rejection_code = 2;
+  string rejection_message = 3;
+  repeated BalanceSnapshot balances = 4;
+}
+
+message BalanceSnapshot {
+  string operation_alias = 1;
+  string account_alias = 2;
+  string balance_key = 3;
+  string balance_id = 4;
+  string account_id = 5;
+  string asset_code = 6;
+  string account_type = 7;
+  bool allow_sending = 8;
+  bool allow_receiving = 9;
+  int64 available = 10;
+  int64 on_hold = 11;
+  int32 scale = 12;
+  uint64 version = 13;
+}
+
+message LoadBalancesRequest {
+  string organization_id = 1;
+  string ledger_id = 2;
+  repeated int32 shard_ids = 3;
+}
+
+message LoadBalancesResponse {
+  int64 balances_loaded = 1;
+  int64 shards_loaded = 2;
+}
+
+message GetBalanceRequest {
+  string organization_id = 1;
+  string ledger_id = 2;
+  string account_alias = 3;
+  string balance_key = 4;
+}
+
+message GetBalanceResponse {
+  BalanceSnapshot balance = 1;
+}
+
+message PublishBalanceOperationsRequest {
+  string exchange = 1;
+  string routing_key = 2;
+  bytes payload = 3;
+  string content_type = 4;
+  map<string, string> headers = 5;
+}
+
+message PublishBalanceOperationsResponse {
+  bool published = 1;
+  string message = 2;
+}
