@@ -391,7 +391,10 @@ func TestUpdateLedgerSettings_NullValueInSettings(t *testing.T) {
 	assert.Nil(t, settings["keyToRemove"], "null key should have nil value")
 }
 
-func TestUpdateLedgerSettings_DeeplyNestedMerge(t *testing.T) {
+func TestUpdateLedgerSettings_NestedObjectPassedToRepository(t *testing.T) {
+	// This test verifies that the service layer correctly passes nested objects
+	// to the repository without modification. The actual merge behavior is tested
+	// in integration tests (ledger.postgresql_integration_test.go).
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -406,31 +409,149 @@ func TestUpdateLedgerSettings_DeeplyNestedMerge(t *testing.T) {
 	ctx := context.Background()
 	orgID := uuid.New()
 	ledgerID := uuid.New()
-	// Test deeply nested update
+
+	// Input with nested structure (3+ levels)
 	inputSettings := map[string]any{
-		"accounting": map[string]any{
-			"newValidation": false,
+		"level1": map[string]any{
+			"level2": map[string]any{
+				"level3": map[string]any{
+					"deep": "value",
+				},
+			},
 		},
 	}
-	// Note: PostgreSQL || performs shallow merge at top level only
-	// Nested objects are replaced entirely, not merged
-	// This test documents the expected behavior per TRD Section 5.4
-	mergedSettings := map[string]any{
-		"accounting": map[string]any{
-			"newValidation": false,
+
+	// The repository returns the merged result
+	// Nested objects are REPLACED entirely, not deep-merged.
+	expectedResult := map[string]any{
+		"level1": map[string]any{
+			"level2": map[string]any{
+				"level3": map[string]any{
+					"deep": "value",
+				},
+			},
 		},
 	}
 
 	mockLedgerRepo.EXPECT().
 		UpdateSettings(gomock.Any(), orgID, ledgerID, inputSettings).
-		Return(mergedSettings, nil)
+		Return(expectedResult, nil)
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
 	require.NoError(t, err)
-	assert.Equal(t, mergedSettings, settings)
-	// Verify nested structure is present
-	accounting, ok := settings["accounting"].(map[string]any)
-	require.True(t, ok, "accounting should be a map")
-	assert.Equal(t, false, accounting["newValidation"])
+	assert.Equal(t, expectedResult, settings)
+}
+
+func TestUpdateLedgerSettings_SpecialCharacterKeys(t *testing.T) {
+	// Test that special characters in keys are passed through correctly
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		LedgerRepo: mockLedgerRepo,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	inputSettings := map[string]any{
+		"key.with.dots":   "value1",
+		"key-with-dashes": "value2",
+		"key with spaces": "value3",
+		"unicode_キー":      "value4",
+	}
+
+	mockLedgerRepo.EXPECT().
+		UpdateSettings(gomock.Any(), orgID, ledgerID, inputSettings).
+		Return(inputSettings, nil)
+
+	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
+
+	require.NoError(t, err)
+	assert.Equal(t, "value1", settings["key.with.dots"])
+	assert.Equal(t, "value2", settings["key-with-dashes"])
+	assert.Equal(t, "value3", settings["key with spaces"])
+	assert.Equal(t, "value4", settings["unicode_キー"])
+}
+
+func TestUpdateLedgerSettings_EmptyNestedObject(t *testing.T) {
+	// Test that empty nested objects are handled correctly
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		LedgerRepo: mockLedgerRepo,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	inputSettings := map[string]any{
+		"emptyConfig": map[string]any{},
+	}
+
+	mockLedgerRepo.EXPECT().
+		UpdateSettings(gomock.Any(), orgID, ledgerID, inputSettings).
+		Return(inputSettings, nil)
+
+	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
+
+	require.NoError(t, err)
+	emptyConfig, ok := settings["emptyConfig"].(map[string]any)
+	require.True(t, ok, "emptyConfig should be a map")
+	assert.Empty(t, emptyConfig, "emptyConfig should be empty")
+}
+
+func TestUpdateLedgerSettings_ArrayValues(t *testing.T) {
+	// Test that array values are passed through correctly
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		LedgerRepo: mockLedgerRepo,
+	}
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	inputSettings := map[string]any{
+		"stringArray": []any{"a", "b", "c"},
+		"mixedArray":  []any{"string", 123, true, nil},
+		"objectArray": []any{
+			map[string]any{"name": "first"},
+			map[string]any{"name": "second"},
+		},
+	}
+
+	mockLedgerRepo.EXPECT().
+		UpdateSettings(gomock.Any(), orgID, ledgerID, inputSettings).
+		Return(inputSettings, nil)
+
+	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
+
+	require.NoError(t, err)
+
+	stringArray, ok := settings["stringArray"].([]any)
+	require.True(t, ok, "stringArray should be an array")
+	assert.Len(t, stringArray, 3)
+
+	objectArray, ok := settings["objectArray"].([]any)
+	require.True(t, ok, "objectArray should be an array")
+	assert.Len(t, objectArray, 2)
 }

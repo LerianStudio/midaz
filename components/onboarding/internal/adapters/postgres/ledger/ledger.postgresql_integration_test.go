@@ -476,3 +476,430 @@ func TestIntegration_LedgerRepository_UpdateSettings_ExcludesSoftDeleted(t *test
 	require.Error(t, err, "UpdateSettings should fail for soft-deleted ledger")
 	assert.Nil(t, result)
 }
+
+// ============================================================================
+// UpdateSettings Edge Cases - Nested JSON Behavior Tests
+// These tests verify actual PostgreSQL || operator behavior with nested JSON
+// ============================================================================
+
+func TestIntegration_LedgerRepository_UpdateSettings_NestedObjectReplacement(t *testing.T) {
+	// This test verifies that PostgreSQL || performs SHALLOW merge.
+	// Nested objects are REPLACED entirely, not deep-merged.
+	// Per TRD Section 5.4: "Nested objects are REPLACED entirely, not deep-merged"
+
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Set initial settings with nested structure
+	initialSettings := map[string]any{
+		"accounting": map[string]any{
+			"validateAccountType": true,
+			"validateRoutes":      true,
+			"maxRetries":          3,
+		},
+		"reporting": map[string]any{
+			"enabled": true,
+		},
+	}
+	pgtestutil.SetLedgerSettings(t, container.DB, ledgerID, initialSettings)
+
+	// Update with partial nested object - only validateAccountType
+	newSettings := map[string]any{
+		"accounting": map[string]any{
+			"validateAccountType": false,
+		},
+	}
+
+	ctx := context.Background()
+
+	// Act
+	result, err := repo.UpdateSettings(ctx, orgID, ledgerID, newSettings)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// CRITICAL: Verify shallow merge behavior
+	// The "accounting" object should be REPLACED entirely, losing validateRoutes and maxRetries
+	accounting, ok := result["accounting"].(map[string]any)
+	require.True(t, ok, "accounting should be a map")
+
+	assert.Equal(t, false, accounting["validateAccountType"], "validateAccountType should be updated")
+	assert.NotContains(t, accounting, "validateRoutes", "validateRoutes should be LOST (shallow merge)")
+	assert.NotContains(t, accounting, "maxRetries", "maxRetries should be LOST (shallow merge)")
+
+	// Top-level keys not in update should be preserved
+	reporting, ok := result["reporting"].(map[string]any)
+	require.True(t, ok, "reporting should be preserved")
+	assert.Equal(t, true, reporting["enabled"], "reporting.enabled should be preserved")
+}
+
+func TestIntegration_LedgerRepository_UpdateSettings_DeeplyNestedThreeLevels(t *testing.T) {
+	// Test behavior with 3+ levels of nesting
+
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Set initial settings with 3 levels of nesting
+	initialSettings := map[string]any{
+		"level1": map[string]any{
+			"level2": map[string]any{
+				"level3": map[string]any{
+					"deep":  "original",
+					"keep":  "this",
+					"other": "value",
+				},
+			},
+			"siblingKey": "preserve",
+		},
+	}
+	pgtestutil.SetLedgerSettings(t, container.DB, ledgerID, initialSettings)
+
+	// Update deeply nested value
+	newSettings := map[string]any{
+		"level1": map[string]any{
+			"level2": map[string]any{
+				"level3": map[string]any{
+					"deep": "updated",
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+
+	// Act
+	result, err := repo.UpdateSettings(ctx, orgID, ledgerID, newSettings)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Navigate to verify
+	level1, ok := result["level1"].(map[string]any)
+	require.True(t, ok, "level1 should be a map")
+
+	// siblingKey should be LOST (shallow merge replaces level1)
+	assert.NotContains(t, level1, "siblingKey", "siblingKey should be LOST (shallow merge at top level)")
+
+	level2, ok := level1["level2"].(map[string]any)
+	require.True(t, ok, "level2 should be a map")
+
+	level3, ok := level2["level3"].(map[string]any)
+	require.True(t, ok, "level3 should be a map")
+
+	assert.Equal(t, "updated", level3["deep"], "deep should be updated")
+	assert.NotContains(t, level3, "keep", "keep should be LOST (nested replacement)")
+	assert.NotContains(t, level3, "other", "other should be LOST (nested replacement)")
+}
+
+func TestIntegration_LedgerRepository_UpdateSettings_TypeMismatchObjectToScalar(t *testing.T) {
+	// Test what happens when a nested object is replaced with a scalar
+
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Set initial settings with nested object
+	initialSettings := map[string]any{
+		"config": map[string]any{
+			"nested": true,
+			"value":  123,
+		},
+	}
+	pgtestutil.SetLedgerSettings(t, container.DB, ledgerID, initialSettings)
+
+	// Replace object with scalar
+	newSettings := map[string]any{
+		"config": "now_a_string",
+	}
+
+	ctx := context.Background()
+
+	// Act
+	result, err := repo.UpdateSettings(ctx, orgID, ledgerID, newSettings)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// config should now be a string, not a map
+	configValue, ok := result["config"].(string)
+	require.True(t, ok, "config should now be a string")
+	assert.Equal(t, "now_a_string", configValue)
+}
+
+func TestIntegration_LedgerRepository_UpdateSettings_TypeMismatchScalarToObject(t *testing.T) {
+	// Test what happens when a scalar is replaced with a nested object
+
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Set initial settings with scalar
+	initialSettings := map[string]any{
+		"config": "simple_string",
+	}
+	pgtestutil.SetLedgerSettings(t, container.DB, ledgerID, initialSettings)
+
+	// Replace scalar with object
+	newSettings := map[string]any{
+		"config": map[string]any{
+			"now":    "nested",
+			"object": true,
+		},
+	}
+
+	ctx := context.Background()
+
+	// Act
+	result, err := repo.UpdateSettings(ctx, orgID, ledgerID, newSettings)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// config should now be an object
+	configMap, ok := result["config"].(map[string]any)
+	require.True(t, ok, "config should now be a map")
+	assert.Equal(t, "nested", configMap["now"])
+	assert.Equal(t, true, configMap["object"])
+}
+
+func TestIntegration_LedgerRepository_UpdateSettings_SpecialCharactersInKeys(t *testing.T) {
+	// Test that special characters in JSON keys are handled correctly
+
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Settings with special characters in keys
+	newSettings := map[string]any{
+		"key.with.dots":     "value1",
+		"key-with-dashes":   "value2",
+		"key_with_under":    "value3",
+		"key with spaces":   "value4",
+		"key:with:colons":   "value5",
+		"unicode_キー":        "value6",
+		"emoji_🔑":           "value7",
+		"123_numeric_start": "value8",
+	}
+
+	ctx := context.Background()
+
+	// Act
+	result, err := repo.UpdateSettings(ctx, orgID, ledgerID, newSettings)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Verify all special keys are stored and retrieved correctly
+	assert.Equal(t, "value1", result["key.with.dots"])
+	assert.Equal(t, "value2", result["key-with-dashes"])
+	assert.Equal(t, "value3", result["key_with_under"])
+	assert.Equal(t, "value4", result["key with spaces"])
+	assert.Equal(t, "value5", result["key:with:colons"])
+	assert.Equal(t, "value6", result["unicode_キー"])
+	assert.Equal(t, "value7", result["emoji_🔑"])
+	assert.Equal(t, "value8", result["123_numeric_start"])
+}
+
+func TestIntegration_LedgerRepository_UpdateSettings_EmptyNestedObject(t *testing.T) {
+	// Test that empty nested objects are handled correctly
+
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Set initial settings
+	initialSettings := map[string]any{
+		"config": map[string]any{
+			"hasValues": true,
+		},
+	}
+	pgtestutil.SetLedgerSettings(t, container.DB, ledgerID, initialSettings)
+
+	// Update with empty nested object
+	newSettings := map[string]any{
+		"config":    map[string]any{}, // Empty object
+		"newConfig": map[string]any{}, // New empty object
+	}
+
+	ctx := context.Background()
+
+	// Act
+	result, err := repo.UpdateSettings(ctx, orgID, ledgerID, newSettings)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// config should be replaced with empty object
+	configMap, ok := result["config"].(map[string]any)
+	require.True(t, ok, "config should be a map")
+	assert.Empty(t, configMap, "config should be empty (replaced with empty object)")
+
+	// newConfig should exist as empty object
+	newConfigMap, ok := result["newConfig"].(map[string]any)
+	require.True(t, ok, "newConfig should be a map")
+	assert.Empty(t, newConfigMap, "newConfig should be empty")
+}
+
+func TestIntegration_LedgerRepository_UpdateSettings_NullValueSetsNotRemoves(t *testing.T) {
+	// Test that setting a key to null sets the value to JSON null, not removes the key
+	// Per updated TRD: "Setting a key to null sets the value to JSON null (does NOT remove the key)"
+
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Set initial settings
+	initialSettings := map[string]any{
+		"keyToNull": "originalValue",
+		"keyToKeep": "keepThis",
+		"nestedNull": map[string]any{
+			"inner": "value",
+		},
+	}
+	pgtestutil.SetLedgerSettings(t, container.DB, ledgerID, initialSettings)
+
+	// Set keys to null
+	newSettings := map[string]any{
+		"keyToNull":  nil,
+		"nestedNull": nil,
+	}
+
+	ctx := context.Background()
+
+	// Act
+	result, err := repo.UpdateSettings(ctx, orgID, ledgerID, newSettings)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Keys should EXIST with null value, not be removed
+	assert.Contains(t, result, "keyToNull", "keyToNull should exist in result")
+	assert.Nil(t, result["keyToNull"], "keyToNull should be nil/null")
+
+	assert.Contains(t, result, "nestedNull", "nestedNull should exist in result")
+	assert.Nil(t, result["nestedNull"], "nestedNull should be nil/null")
+
+	// keyToKeep should still exist
+	assert.Equal(t, "keepThis", result["keyToKeep"], "keyToKeep should be preserved")
+}
+
+func TestIntegration_LedgerRepository_UpdateSettings_ArrayValues(t *testing.T) {
+	// Test that array values are handled correctly
+
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Settings with array values
+	newSettings := map[string]any{
+		"simpleArray":  []any{"a", "b", "c"},
+		"numberArray":  []any{1, 2, 3},
+		"mixedArray":   []any{"string", 123, true, nil},
+		"nestedArrays": []any{[]any{1, 2}, []any{3, 4}},
+		"arrayOfObjects": []any{
+			map[string]any{"name": "first"},
+			map[string]any{"name": "second"},
+		},
+	}
+
+	ctx := context.Background()
+
+	// Act
+	result, err := repo.UpdateSettings(ctx, orgID, ledgerID, newSettings)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Verify arrays are stored and retrieved correctly
+	simpleArray, ok := result["simpleArray"].([]any)
+	require.True(t, ok, "simpleArray should be an array")
+	assert.Len(t, simpleArray, 3)
+	assert.Equal(t, "a", simpleArray[0])
+
+	arrayOfObjects, ok := result["arrayOfObjects"].([]any)
+	require.True(t, ok, "arrayOfObjects should be an array")
+	assert.Len(t, arrayOfObjects, 2)
+
+	firstObj, ok := arrayOfObjects[0].(map[string]any)
+	require.True(t, ok, "first element should be a map")
+	assert.Equal(t, "first", firstObj["name"])
+}
+
+func TestIntegration_LedgerRepository_UpdateSettings_LargeNestedStructure(t *testing.T) {
+	// Test with a moderately large nested structure to verify performance/correctness
+
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	// Build a structure with many keys at multiple levels
+	newSettings := make(map[string]any)
+	for i := 0; i < 50; i++ {
+		key := "key_" + string(rune('a'+i%26)) + "_" + string(rune('0'+i/26))
+		newSettings[key] = map[string]any{
+			"value":  i,
+			"nested": map[string]any{"deep": true},
+		}
+	}
+
+	ctx := context.Background()
+
+	// Act
+	result, err := repo.UpdateSettings(ctx, orgID, ledgerID, newSettings)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Len(t, result, 50, "should have 50 top-level keys")
+
+	// Verify one of the nested structures
+	key0, ok := result["key_a_0"].(map[string]any)
+	require.True(t, ok, "key_a_0 should be a map")
+	assert.Equal(t, float64(0), key0["value"]) // JSON numbers come back as float64
+}

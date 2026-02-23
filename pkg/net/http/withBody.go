@@ -557,14 +557,33 @@ func fieldsRequired(myMap pkg.FieldValidations) pkg.FieldValidations {
 	return result
 }
 
+// JSON validation limits to prevent DoS attacks via deeply nested or large payloads.
+const (
+	// MaxJSONNestingDepth is the maximum allowed nesting depth for JSON payloads.
+	// Prevents stack overflow from deeply nested structures.
+	MaxJSONNestingDepth = 10
+
+	// MaxJSONKeyCount is the maximum allowed total number of keys in a JSON payload.
+	// Prevents resource exhaustion from payloads with many small keys.
+	MaxJSONKeyCount = 100
+)
+
+// validationState tracks the current state during recursive JSON validation.
+type validationState struct {
+	depth    int
+	keyCount int
+}
+
 // validateNoNullBytes walks through the struct payload and ensures no string value contains a null byte (\x00).
+// Also enforces nesting depth and key count limits to prevent DoS attacks.
 // Returns a map of invalid field names to error messages when violations are found.
 func validateNoNullBytes(s any) pkg.FieldValidations {
 	out := make(pkg.FieldValidations)
+	state := &validationState{}
 
 	rv := reflect.ValueOf(s)
 
-	collectNullByteViolations(rv, "", out)
+	collectNullByteViolations(rv, "", out, state)
 
 	if len(out) == 0 {
 		return nil
@@ -574,22 +593,35 @@ func validateNoNullBytes(s any) pkg.FieldValidations {
 }
 
 // collectNullByteViolations recursively traverses values and records fields that contain null bytes.
-func collectNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+// Also checks for nesting depth and key count limits.
+func collectNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldValidations, state *validationState) {
 	if !rv.IsValid() {
+		return
+	}
+
+	// Check nesting depth limit
+	if state.depth > MaxJSONNestingDepth {
+		out["_depth"] = "JSON nesting depth exceeds maximum allowed (10 levels)"
+		return
+	}
+
+	// Check key count limit
+	if state.keyCount > MaxJSONKeyCount {
+		out["_keyCount"] = "JSON key count exceeds maximum allowed (100 keys)"
 		return
 	}
 
 	switch rv.Kind() {
 	case reflect.Ptr:
-		collectNullBytesFromPtr(rv, jsonPath, out)
+		collectNullBytesFromPtr(rv, jsonPath, out, state)
 	case reflect.Struct:
-		collectNullBytesFromStruct(rv, out)
+		collectNullBytesFromStruct(rv, out, state)
 	case reflect.Slice, reflect.Array:
-		collectNullBytesFromSliceOrArray(rv, jsonPath, out)
+		collectNullBytesFromSliceOrArray(rv, jsonPath, out, state)
 	case reflect.Map:
-		collectNullBytesFromMap(rv, jsonPath, out)
+		collectNullBytesFromMap(rv, jsonPath, out, state)
 	case reflect.Interface:
-		collectNullBytesFromInterface(rv, jsonPath, out)
+		collectNullBytesFromInterface(rv, jsonPath, out, state)
 	case reflect.String:
 		collectNullBytesFromString(rv, jsonPath, out)
 	default:
@@ -598,16 +630,16 @@ func collectNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldV
 }
 
 // collectNullBytesFromPtr handles pointer values by dereferencing and recursing.
-func collectNullBytesFromPtr(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+func collectNullBytesFromPtr(rv reflect.Value, jsonPath string, out pkg.FieldValidations, state *validationState) {
 	if rv.IsNil() {
 		return
 	}
 
-	collectNullByteViolations(rv.Elem(), jsonPath, out)
+	collectNullByteViolations(rv.Elem(), jsonPath, out, state)
 }
 
 // collectNullBytesFromStruct iterates over exported struct fields and recurses into each.
-func collectNullBytesFromStruct(rv reflect.Value, out pkg.FieldValidations) {
+func collectNullBytesFromStruct(rv reflect.Value, out pkg.FieldValidations, state *validationState) {
 	rt := rv.Type()
 
 	for i := 0; i < rv.NumField(); i++ {
@@ -623,27 +655,42 @@ func collectNullBytesFromStruct(rv reflect.Value, out pkg.FieldValidations) {
 			continue
 		}
 
-		collectNullByteViolations(rv.Field(i), name, out)
+		collectNullByteViolations(rv.Field(i), name, out, state)
 	}
 }
 
 // collectNullBytesFromSliceOrArray iterates over slice/array elements and recurses into each.
-func collectNullBytesFromSliceOrArray(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+func collectNullBytesFromSliceOrArray(rv reflect.Value, jsonPath string, out pkg.FieldValidations, state *validationState) {
 	for i := 0; i < rv.Len(); i++ {
-		collectNullByteViolations(rv.Index(i), jsonPath, out)
+		collectNullByteViolations(rv.Index(i), jsonPath, out, state)
 	}
 }
 
 // collectNullBytesFromMap iterates over map entries, building key paths for string keys.
-func collectNullBytesFromMap(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+// Increments depth and key count for DoS protection.
+func collectNullBytesFromMap(rv reflect.Value, jsonPath string, out pkg.FieldValidations, state *validationState) {
+	// Increment depth when entering a map (nested object)
+	state.depth++
+
+	defer func() { state.depth-- }()
+
 	iter := rv.MapRange()
 
 	for iter.Next() {
+		// Increment key count for each key in the map
+		state.keyCount++
+
+		// Early exit if key count exceeded
+		if state.keyCount > MaxJSONKeyCount {
+			out["_keyCount"] = "JSON key count exceeds maximum allowed (100 keys)"
+			return
+		}
+
 		k := iter.Key()
 		v := iter.Value()
 		keyPath := buildMapKeyPath(k, jsonPath)
 
-		collectNullByteViolations(v, keyPath, out)
+		collectNullByteViolations(v, keyPath, out, state)
 	}
 }
 
@@ -661,12 +708,12 @@ func buildMapKeyPath(k reflect.Value, jsonPath string) string {
 }
 
 // collectNullBytesFromInterface handles interface values by unwrapping and recursing.
-func collectNullBytesFromInterface(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+func collectNullBytesFromInterface(rv reflect.Value, jsonPath string, out pkg.FieldValidations, state *validationState) {
 	if rv.IsNil() {
 		return
 	}
 
-	collectNullByteViolations(rv.Elem(), jsonPath, out)
+	collectNullByteViolations(rv.Elem(), jsonPath, out, state)
 }
 
 // collectNullBytesFromString checks if a string contains a null byte and records the violation.

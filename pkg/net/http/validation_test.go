@@ -6,6 +6,7 @@ package http
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -178,4 +179,156 @@ func TestCollectNullByteViolations_MapWithNullBytes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateStruct_JSONNestingDepthLimit(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		input   any
+		wantErr bool
+		errKey  string
+	}{
+		{
+			name:    "nesting depth 10 (at limit) passes",
+			input:   buildNestedMap(10),
+			wantErr: false,
+		},
+		{
+			name:    "nesting depth 11 (exceeds limit) fails",
+			input:   buildNestedMap(11),
+			wantErr: true,
+			errKey:  "_depth",
+		},
+		{
+			name:    "nesting depth 15 (deeply exceeds limit) fails",
+			input:   buildNestedMap(15),
+			wantErr: true,
+			errKey:  "_depth",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateStruct(tc.input)
+
+			if tc.wantErr {
+				require.Error(t, err, "expected validation error for nesting depth")
+
+				var vErr pkg.ValidationKnownFieldsError
+				require.True(t, errors.As(err, &vErr), "expected ValidationKnownFieldsError type, got %T", err)
+				_, hasField := vErr.Fields[tc.errKey]
+				require.True(t, hasField, "expected field %q in validation errors, got fields: %v", tc.errKey, vErr.Fields)
+			} else {
+				require.NoError(t, err, "expected no validation error for depth within limit")
+			}
+		})
+	}
+}
+
+func TestValidateStruct_JSONKeyCountLimit(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		input   any
+		wantErr bool
+		errKey  string
+	}{
+		{
+			name:    "key count 100 (at limit) passes",
+			input:   buildFlatMap(100),
+			wantErr: false,
+		},
+		{
+			name:    "key count 101 (exceeds limit) fails",
+			input:   buildFlatMap(101),
+			wantErr: true,
+			errKey:  "_keyCount",
+		},
+		{
+			name:    "key count 150 (deeply exceeds limit) fails",
+			input:   buildFlatMap(150),
+			wantErr: true,
+			errKey:  "_keyCount",
+		},
+		{
+			name:    "nested key count exceeds limit",
+			input:   buildNestedMapWithKeys(5, 25), // 5 levels * ~25 keys each > 100
+			wantErr: true,
+			errKey:  "_keyCount",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateStruct(tc.input)
+
+			if tc.wantErr {
+				require.Error(t, err, "expected validation error for key count")
+
+				var vErr pkg.ValidationKnownFieldsError
+				require.True(t, errors.As(err, &vErr), "expected ValidationKnownFieldsError type, got %T", err)
+				_, hasField := vErr.Fields[tc.errKey]
+				require.True(t, hasField, "expected field %q in validation errors, got fields: %v", tc.errKey, vErr.Fields)
+			} else {
+				require.NoError(t, err, "expected no validation error for key count within limit")
+			}
+		})
+	}
+}
+
+// buildNestedMap creates a map with the specified nesting depth.
+// depth=1 means a flat map, depth=2 means one level of nesting, etc.
+// Each level has a single key "level" pointing to the next level.
+func buildNestedMap(depth int) map[string]any {
+	if depth <= 1 {
+		return map[string]any{"value": "leaf"}
+	}
+
+	result := map[string]any{"value": "leaf"}
+
+	for i := 1; i < depth; i++ {
+		result = map[string]any{
+			"level": result,
+		}
+	}
+
+	return result
+}
+
+// buildFlatMap creates a flat map with the specified number of keys.
+func buildFlatMap(keyCount int) map[string]any {
+	result := make(map[string]any, keyCount)
+
+	for i := 0; i < keyCount; i++ {
+		result["key"+strconv.Itoa(i)] = "value"
+	}
+
+	return result
+}
+
+// buildNestedMapWithKeys creates a nested map with multiple keys at each level.
+func buildNestedMapWithKeys(depth, keysPerLevel int) map[string]any {
+	if depth <= 0 {
+		return map[string]any{"leaf": "value"}
+	}
+
+	result := make(map[string]any, keysPerLevel)
+
+	for i := 0; i < keysPerLevel; i++ {
+		if i == 0 && depth > 1 {
+			// First key has nested content
+			result["nested"+strconv.Itoa(i)] = buildNestedMapWithKeys(depth-1, keysPerLevel)
+		} else {
+			result["key"+strconv.Itoa(i)] = "value"
+		}
+	}
+
+	return result
 }
