@@ -110,7 +110,7 @@ components/{service}/
 │   │   ├── postgres/         # PostgreSQL repositories
 │   │   ├── mongodb/          # MongoDB repositories
 │   │   ├── redis/            # Cache layer
-│   │   └── rabbitmq/         # Message queue
+│   │   └── redpanda/         # Message broker adapters
 │   ├── services/
 │   │   ├── command/          # Write operations (CQRS)
 │   │   └── query/            # Read operations (CQRS)
@@ -146,11 +146,11 @@ components/{service}/
 | `transaction` | 3001 (HTTP), 3011 (gRPC) | Double-entry accounting, balances, operations, asset rates | Hexagonal + CQRS |
 | `ledger` | 3002 | Unified mode composing onboarding + transaction | Composition layer |
 | `crm` | 4003 | Customer/holder management, aliases | Hexagonal (flat services) |
-| `infra` | - | Docker infrastructure (PostgreSQL, MongoDB, Redis, RabbitMQ) | Infrastructure-only |
+| `infra` | - | Docker infrastructure (PostgreSQL, MongoDB, Redis, Redpanda) | Infrastructure-only |
 
 ### Component Capabilities Matrix
 
-| Component | PostgreSQL | MongoDB | Redis | RabbitMQ | gRPC In | gRPC Out | Migrations |
+| Component | PostgreSQL | MongoDB | Redis | Redpanda | gRPC In | gRPC Out | Migrations |
 |-----------|------------|---------|-------|----------|---------|----------|------------|
 | onboarding | Yes | Yes (metadata) | Yes (cache) | No | Yes | Yes (to transaction) | 16 files |
 | transaction | Yes | Yes (metadata) | Yes (cache/sync) | Yes (async balance) | Yes | No | 34 files |
@@ -948,16 +948,26 @@ type Config struct {
 - Configurable worker pool size
 - Can be disabled for testing or specific deployments
 
-### RabbitMQ Consumer (Transaction Component)
+### Redpanda Consumer (Transaction Component)
 
-Multi-queue consumer for async balance creation:
+Multi-topic consumer for async balance processing:
 
 ```go
-routes := rabbitmq.NewConsumerRoutes(connection, 
-    cfg.RabbitMQNumbersOfWorkers, 
-    cfg.RabbitMQNumbersOfPrefetch, 
-    logger, telemetry)
+routes := redpanda.NewConsumerRoutes(
+    brokers,
+    cfg.RedpandaConsumerGroup,
+    cfg.RedpandaNumbersOfWorkers,
+    cfg.RedpandaFetchMaxBytes,
+    logger,
+    telemetry,
+)
 multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
+
+// Ordering semantics:
+// - Per-partition ordering is guaranteed by Redpanda.
+// - Midaz uses transaction ID as partition key for async balance operations,
+//   guaranteeing in-order retries and processing for the same transaction.
+// - Global ordering across different transaction IDs is intentionally not guaranteed.
 ```
 
 ---

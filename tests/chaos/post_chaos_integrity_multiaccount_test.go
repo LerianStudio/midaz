@@ -6,7 +6,6 @@ package chaos
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -38,7 +37,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 	var org struct {
 		ID string `json:"id"`
 	}
-	_ = json.Unmarshal(body, &org)
+	mustUnmarshalJSON(t, body, &org)
 
 	code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers", org.ID), headers, map[string]any{"name": "L-int"})
 	if err != nil || code != 201 {
@@ -47,7 +46,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 	var ledger struct {
 		ID string `json:"id"`
 	}
-	_ = json.Unmarshal(body, &ledger)
+	mustUnmarshalJSON(t, body, &ledger)
 	if err := h.CreateUSDAsset(ctx, onboard, org.ID, ledger.ID, headers); err != nil {
 		t.Fatalf("asset: %v", err)
 	}
@@ -61,7 +60,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 	var accA struct {
 		ID string `json:"id"`
 	}
-	_ = json.Unmarshal(body, &accA)
+	mustUnmarshalJSON(t, body, &accA)
 	code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers/%s/accounts", org.ID, ledger.ID), headers, map[string]any{"name": "B", "assetCode": "USD", "type": "deposit", "alias": aliasB})
 	if err != nil || code != 201 {
 		t.Fatalf("create B: %d %s", code, string(body))
@@ -69,7 +68,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 	var accB struct {
 		ID string `json:"id"`
 	}
-	_ = json.Unmarshal(body, &accB)
+	mustUnmarshalJSON(t, body, &accB)
 	if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, accA.ID, headers); err != nil {
 		t.Fatalf("ensure default A: %v", err)
 	}
@@ -104,7 +103,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 			var m struct {
 				ID string `json:"id"`
 			}
-			_ = json.Unmarshal(b, &m)
+			mustUnmarshalJSON(t, b, &m)
 			if m.ID != "" {
 				accepted = append(accepted, acc{Kind: "inflowA", ID: m.ID})
 			}
@@ -129,7 +128,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 			var m struct {
 				ID string `json:"id"`
 			}
-			_ = json.Unmarshal(b, &m)
+			mustUnmarshalJSON(t, b, &m)
 			if m.ID != "" {
 				accepted = append(accepted, acc{Kind: "transferAB", ID: m.ID})
 			}
@@ -148,7 +147,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 			var m struct {
 				ID string `json:"id"`
 			}
-			_ = json.Unmarshal(b, &m)
+			mustUnmarshalJSON(t, b, &m)
 			if m.ID != "" {
 				accepted = append(accepted, acc{Kind: "outflowA", ID: m.ID})
 			}
@@ -164,7 +163,7 @@ func TestChaos_PostChaosIntegrity_MultiAccount(t *testing.T) {
 			var m struct {
 				ID string `json:"id"`
 			}
-			_ = json.Unmarshal(b, &m)
+			mustUnmarshalJSON(t, b, &m)
 			if m.ID != "" {
 				accepted = append(accepted, acc{Kind: "outflowB", ID: m.ID})
 			}

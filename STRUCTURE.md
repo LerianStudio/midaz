@@ -24,7 +24,7 @@ MIDAZ
  |   |   |---   artifacts
  |   |   |---   grafana
  |   |   |---   postgres
- |   |   |---   rabbitmq
+ |   |   |---   redpanda
  |   |   |   |---   etc
  |   |---   ledger
  |   |   |---   api
@@ -55,7 +55,7 @@ MIDAZ
  |   |   |   |   |   |---   organization
  |   |   |   |   |   |---   portfolio
  |   |   |   |   |   |---   segment
- |   |   |   |   |---   rabbitmq
+ |   |   |   |   |---   redpanda
  |   |   |   |   |---   redis
  |   |   |   |---   bootstrap
  |   |   |   |---   services
@@ -78,7 +78,7 @@ MIDAZ
  |   |   |   |   |   |---   balance
  |   |   |   |   |   |---   operation
  |   |   |   |   |   |---   transaction
- |   |   |   |   |---   rabbitmq
+ |   |   |   |   |---   redpanda
  |   |   |   |   |---   redis
  |   |   |   |---   bootstrap
  |   |   |   |---   services

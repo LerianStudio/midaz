@@ -6,7 +6,6 @@ package chaos
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -42,7 +41,7 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
 	var org struct {
 		ID string `json:"id"`
 	}
-	_ = json.Unmarshal(body, &org)
+	mustUnmarshalJSON(t, body, &org)
 	code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers", org.ID), headers, map[string]any{"name": "L"})
 	if err != nil || code != 201 {
 		t.Fatalf("create ledger: %d %s", code, string(body))
@@ -50,7 +49,7 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
 	var ledger struct {
 		ID string `json:"id"`
 	}
-	_ = json.Unmarshal(body, &ledger)
+	mustUnmarshalJSON(t, body, &ledger)
 	if err := h.CreateUSDAsset(ctx, onboard, org.ID, ledger.ID, headers); err != nil {
 		t.Fatalf("asset: %v", err)
 	}
@@ -62,7 +61,7 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
 	var acc struct {
 		ID string `json:"id"`
 	}
-	_ = json.Unmarshal(body, &acc)
+	mustUnmarshalJSON(t, body, &acc)
 	if err := h.EnsureDefaultBalanceRecord(ctx, trans, org.ID, ledger.ID, acc.ID, headers); err != nil {
 		t.Fatalf("ensure default: %v", err)
 	}
@@ -96,7 +95,7 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
 				var m struct {
 					ID string `json:"id"`
 				}
-				_ = json.Unmarshal(b, &m)
+				mustUnmarshalJSON(t, b, &m)
 				mu.Lock()
 				inSucc++
 				if m.ID != "" {
@@ -121,7 +120,7 @@ func TestChaos_PostgresRestart_DuringWrites(t *testing.T) {
 				var m struct {
 					ID string `json:"id"`
 				}
-				_ = json.Unmarshal(b, &m)
+				mustUnmarshalJSON(t, b, &m)
 				mu.Lock()
 				outSucc++
 				if m.ID != "" {

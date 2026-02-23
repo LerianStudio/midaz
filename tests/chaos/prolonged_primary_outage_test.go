@@ -6,7 +6,6 @@ package chaos
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -34,7 +33,7 @@ func TestChaos_ProlongedPrimaryOutage_GracefulRecovery(t *testing.T) {
 	var org struct {
 		ID string `json:"id"`
 	}
-	_ = json.Unmarshal(body, &org)
+	mustUnmarshalJSON(t, body, &org)
 
 	// Stop primary for ~12 seconds
 	if err := h.DockerAction("stop", "midaz-postgres-primary"); err != nil {

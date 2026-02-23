@@ -72,7 +72,7 @@ Typical Midaz deployments have 1-3 ledgers. Ledger-based sharding gives 1-3 shar
      +--------------------+----------------------------+
                           |
      +--------------------v----------------------------+
-     |         RabbitMQ (per-shard queues)              |
+     |   Redpanda (topic partitions per shard)          |
      |                                                  |
      |  transaction_bto.shard_0  (10 workers)          |
      |  transaction_bto.shard_1  (10 workers)          |
@@ -215,7 +215,7 @@ Total migration time: ~10-15ms per account. Invisible at HTTP level.
 | 1.1c | Scale factor config per asset | Foundation | 2d |
 | 1.2 | Redis pool size (10->200) | Immediate concurrency unlock | 0.5d |
 | 1.3 | PG batch writes (CTE + multi-row) | 5-10x PG write throughput | 5d |
-| 1.4 | RabbitMQ workers (5->50) | 10x consumer throughput | 0.5d |
+| 1.4 | Redpanda consumers (5->50) | 10x consumer throughput | 0.5d |
 | 1.5 | PgBouncer + connection pool fix | Prevents connection exhaustion | 2d |
 | 1.6 | HTTP server tuning (Fiber config) | Prevents timeout/resource issues | 1d |
 
@@ -229,7 +229,7 @@ Total migration time: ~10-15ms per account. Invisible at HTTP level.
 | 2A.4 | Per-shard Lua script | Enable parallel Lua execution | 5d | **DONE** |
 | 2A.5 | Cross-shard orchestrator | Enable cross-shard transactions | 5d | **DONE** |
 | 2A.6 | PG table partitioning | PG write scalability | 2d | Pending |
-| 2A.7 | RabbitMQ per-shard queues | Consumer scalability | 3d | Pending |
+| 2A.7 | Redpanda per-shard partitions | Consumer scalability | 3d | Pending |
 | 2A.8 | Horizontal scaling infra | Multi-instance deployment | 3d | Pending |
 
 ### Phase 2B: Dynamic Migration + Load Balancer (Weeks 7-10)
@@ -258,7 +258,7 @@ Total migration time: ~10-15ms per account. Invisible at HTTP level.
 | Redis Lua calls/sec | ~5K | ~20-30K | ~160-240K | Same | ~200-300K |
 | Same-shard % | 100% (1) | 100% (1) | ~65% | ~70%+ | Same |
 | PG writes/sec | ~5-10K | ~30-50K | ~50-100K | Same | ~200K+ |
-| RabbitMQ msg/sec | ~5-10K | ~20-30K | ~80-160K | Same | ~100-200K |
+| Redpanda msg/sec | ~5-10K | ~20-30K | ~80-160K | Same | ~100-200K |
 | **End-to-end TPS** | **~3-5K** | **~10-15K** | **~30-50K** | **~50K+** | **~50-100K+** |
 
 ## Risk Matrix

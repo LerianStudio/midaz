@@ -6,7 +6,6 @@ package chaos
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -34,7 +33,7 @@ func TestChaos_ReplicaFlapping_ReadsContinue(t *testing.T) {
 	var org struct {
 		ID string `json:"id"`
 	}
-	_ = json.Unmarshal(body, &org)
+	mustUnmarshalJSON(t, body, &org)
 	for i := 0; i < 2; i++ {
 		_, _, _ = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers", org.ID), headers, map[string]any{"name": fmt.Sprintf("L-%d", i)})
 	}

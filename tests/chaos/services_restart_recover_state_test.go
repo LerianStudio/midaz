@@ -6,7 +6,6 @@ package chaos
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -33,7 +32,7 @@ func TestChaos_ServicesRestart_RecoverState(t *testing.T) {
 	var org struct {
 		ID string `json:"id"`
 	}
-	_ = json.Unmarshal(body, &org)
+	mustUnmarshalJSON(t, body, &org)
 
 	// Restart onboarding and wait for health
 	if err := h.RestartWithWait("midaz-onboarding", 5*time.Second); err != nil {

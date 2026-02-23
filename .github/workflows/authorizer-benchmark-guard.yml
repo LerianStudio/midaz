@@ -1,0 +1,67 @@
+name: Authorizer Benchmark Guard
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - release-candidate
+      - main
+    paths:
+      - components/authorizer/**
+      - go.mod
+      - go.sum
+
+jobs:
+  benchmark-guard:
+    name: Authorizer benchmarks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run authorizer tests
+        run: go test ./components/authorizer/...
+
+      - name: Run benchmark smoke
+        run: |
+          go test ./components/authorizer/tests -run '^$' -bench 'BenchmarkAuthorize(SingleOp|ParallelSameShard|ParallelCrossShard)$' -benchmem -benchtime=1000x | tee benchmark.out
+
+      - name: Enforce allocations guardrail
+        run: |
+          python - <<'PY'
+          import re
+          import sys
+
+          limits = {
+              "BenchmarkAuthorizeSingleOp": 14,
+              "BenchmarkAuthorizeParallelSameShard": 14,
+              "BenchmarkAuthorizeParallelCrossShard": 20,
+          }
+
+          text = open("benchmark.out", "r", encoding="utf-8").read()
+          failed = False
+
+          for benchmark, max_allocs in limits.items():
+              pattern = re.compile(rf"{benchmark}-\d+\s+\d+\s+[0-9.]+\s+ns/op\s+\d+\s+B/op\s+(\d+)\s+allocs/op")
+              match = pattern.search(text)
+              if not match:
+                  print(f"ERROR: benchmark result not found for {benchmark}")
+                  failed = True
+                  continue
+
+              allocs = int(match.group(1))
+              if allocs > max_allocs:
+                  print(f"ERROR: {benchmark} allocs/op={allocs} exceeded max={max_allocs}")
+                  failed = True
+              else:
+                  print(f"OK: {benchmark} allocs/op={allocs} (max={max_allocs})")
+
+          if failed:
+              sys.exit(1)
+          PY

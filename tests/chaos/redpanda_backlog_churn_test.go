@@ -6,7 +6,6 @@ package chaos
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
@@ -16,10 +15,10 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// Pause/unpause RabbitMQ amid transaction posts; API remains 2xx; final balances reflect successes.
-func TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions(t *testing.T) {
+// Pause/unpause Redpanda amid transaction posts; API remains 2xx; final balances reflect successes.
+func TestChaos_Redpanda_BacklogChurn_AcceptsTransactions(t *testing.T) {
 	shouldRunChaos(t)
-	defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-rabbitmq"}, "RabbitMQ_BacklogChurn_AcceptsTransactions")()
+	defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-redpanda"}, "Redpanda_BacklogChurn_AcceptsTransactions")()
 
 	env := h.LoadEnvironment()
 	ctx := context.Background()
@@ -28,14 +27,14 @@ func TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions(t *testing.T) {
 	headers := h.AuthHeaders(h.RandHex(8))
 
 	// Setup org/ledger/asset/account & seed 10
-	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload("RMQ Backlog "+h.RandString(5), h.RandString(12)))
+	code, body, err := onboard.Request(ctx, "POST", "/v1/organizations", headers, h.OrgPayload("Redpanda Backlog "+h.RandString(5), h.RandString(12)))
 	if err != nil || code != 201 {
 		t.Fatalf("create org: %d %s", code, string(body))
 	}
 	var org struct {
 		ID string `json:"id"`
 	}
-	_ = json.Unmarshal(body, &org)
+	mustUnmarshalJSON(t, body, &org)
 	code, body, err = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers", org.ID), headers, map[string]any{"name": "L-rb"})
 	if err != nil || code != 201 {
 		t.Fatalf("create ledger: %d %s", code, string(body))
@@ -43,7 +42,7 @@ func TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions(t *testing.T) {
 	var ledger struct {
 		ID string `json:"id"`
 	}
-	_ = json.Unmarshal(body, &ledger)
+	mustUnmarshalJSON(t, body, &ledger)
 	if err := h.CreateUSDAsset(ctx, onboard, org.ID, ledger.ID, headers); err != nil {
 		t.Fatalf("asset: %v", err)
 	}
@@ -87,10 +86,10 @@ func TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions(t *testing.T) {
 	go worker()
 	go worker()
 
-	// Pause RMQ for ~2s, then unpause; continue traffic briefly
-	if err := h.DockerAction("pause", "midaz-rabbitmq"); err == nil {
+	// Pause Redpanda for ~2s, then unpause; continue traffic briefly
+	if err := h.DockerAction("pause", "midaz-redpanda"); err == nil {
 		time.Sleep(2 * time.Second)
-		_ = h.DockerAction("unpause", "midaz-rabbitmq")
+		_ = h.DockerAction("unpause", "midaz-redpanda")
 	}
 	time.Sleep(3 * time.Second)
 	close(stop)
@@ -99,6 +98,6 @@ func TestChaos_RabbitMQ_BacklogChurn_AcceptsTransactions(t *testing.T) {
 	// Verify final equals 10 + succ
 	exp := decimal.NewFromInt(10).Add(decimal.NewFromInt(int64(succ)))
 	if _, err := h.WaitForAvailableSumByAlias(ctx, trans, org.ID, ledger.ID, alias, "USD", headers, exp, 20*time.Second); err != nil {
-		t.Fatalf("final wait after RMQ backlog/churn: %v (succ=%d)", err, succ)
+		t.Fatalf("final wait after Redpanda backlog/churn: %v (succ=%d)", err, succ)
 	}
 }

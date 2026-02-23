@@ -1,6 +1,6 @@
 # Midaz Test Suites
 
-This directory hosts black-box test suites for the Midaz stack when running locally via Docker Compose. The tests target the HTTP APIs of the onboarding and transaction services and exercise the system end-to-end against the local infrastructure (PostgreSQL, MongoDB, Valkey, RabbitMQ, OTEL LGTM).
+This directory hosts black-box test suites for the Midaz stack when running locally via Docker Compose. The tests target the HTTP APIs of the onboarding and transaction services and exercise the system end-to-end against the local infrastructure (PostgreSQL, MongoDB, Valkey, Redpanda, OTEL LGTM).
 
 Suites:
 
@@ -34,4 +34,4 @@ Notes:
 
 - Many initial tests are placeholders with `t.Skip` to stage the structure; they will be implemented iteratively.
 - See `tests/helpers` and `tests/fixtures` for shared utilities and sample payloads.
-
+- Migration note (RabbitMQ -> Redpanda): if your local `.env` files predate this migration, regenerate from each component's `.env.example` and remove any `RABBITMQ_*` variables.

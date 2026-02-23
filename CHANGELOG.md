@@ -3993,7 +3993,7 @@ This changelog is designed to clearly communicate the improvements and updates i
 This release of midaz introduces a more robust transaction processing system, enhancing reliability and performance. Users will experience improved error handling and system observability, ensuring smoother operations under varying loads.
 
 ### ✨ Features
-- **Refactored Transaction Processing**: The system now supports both synchronous and asynchronous execution, improving transaction reliability and efficiency. This is especially beneficial for applications requiring high availability. Users can configure this feature using the new `RABBITMQ_TRANSACTION_ASYNC` environment variable.
+- **Refactored Transaction Processing**: The system now supports both synchronous and asynchronous execution, improving transaction reliability and efficiency. This is especially beneficial for applications requiring high availability. Users can configure this feature using the `TRANSACTION_ASYNC` environment variable.
 
 ### 🐛 Bug Fixes
 - **Accurate Balance Retrieval**: Resolved issues in the `get-balances` functionality, ensuring users receive correct balance information consistently.

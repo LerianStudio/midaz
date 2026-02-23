@@ -66,13 +66,13 @@ Lerian Midaz implements a comprehensive financial hierarchy:
    - Handles complex n:n transactions with double-entry accounting
    - Supports multiple transaction creation methods (JSON, DSL, templates)
    - Asset rate management and balance tracking with optimistic concurrency
-   - Event-driven architecture using RabbitMQ for transaction lifecycle
+   - Event-driven architecture using Redpanda (Kafka-compatible) for transaction lifecycle
 
 3. **Infrastructure Layer**: Containerized infrastructure services.
 
    - PostgreSQL with primary-replica setup for high availability
    - MongoDB replica set for metadata storage
-   - RabbitMQ for message queuing with predefined exchanges
+   - Redpanda for durable log-based messaging with topic partitioning
    - Valkey for caching and message passing
    - Grafana/OpenTelemetry for comprehensive monitoring
 

@@ -5,7 +5,7 @@
 # Infrastructure adapters (tested via integration tests)
 *.postgresql.go
 *.mongodb.go
-*.rabbitmq.go
+*.redpanda.go
 *.redis.go
 
 # Auto-generated mocks
