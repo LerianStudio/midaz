@@ -1225,6 +1225,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "No Balance Data at Date",
 			Message:    "No balance data is available at the specified date.",
 		},
+		constant.ErrPayloadTooLarge: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrPayloadTooLarge.Error(),
+			Title:      "Payload Too Large",
+			Message:    "The request payload exceeds the maximum allowed size of 64KB.",
+		},
 		constant.ErrJSONNestingDepthExceeded: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrJSONNestingDepthExceeded.Error(),

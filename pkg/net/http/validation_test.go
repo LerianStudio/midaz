@@ -185,10 +185,10 @@ func TestValidateStruct_JSONNestingDepthLimit(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name    string
-		input   any
-		wantErr bool
-		errKey  string
+		name     string
+		input    any
+		wantErr  bool
+		wantCode string
 	}{
 		{
 			name:    "nesting depth 10 (at limit) passes",
@@ -196,16 +196,16 @@ func TestValidateStruct_JSONNestingDepthLimit(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "nesting depth 11 (exceeds limit) fails",
-			input:   buildNestedMap(11),
-			wantErr: true,
-			errKey:  "_depth",
+			name:     "nesting depth 11 (exceeds limit) fails",
+			input:    buildNestedMap(11),
+			wantErr:  true,
+			wantCode: "0143",
 		},
 		{
-			name:    "nesting depth 15 (deeply exceeds limit) fails",
-			input:   buildNestedMap(15),
-			wantErr: true,
-			errKey:  "_depth",
+			name:     "nesting depth 15 (deeply exceeds limit) fails",
+			input:    buildNestedMap(15),
+			wantErr:  true,
+			wantCode: "0143",
 		},
 	}
 
@@ -218,10 +218,9 @@ func TestValidateStruct_JSONNestingDepthLimit(t *testing.T) {
 			if tc.wantErr {
 				require.Error(t, err, "expected validation error for nesting depth")
 
-				var vErr pkg.ValidationKnownFieldsError
-				require.True(t, errors.As(err, &vErr), "expected ValidationKnownFieldsError type, got %T", err)
-				_, hasField := vErr.Fields[tc.errKey]
-				require.True(t, hasField, "expected field %q in validation errors, got fields: %v", tc.errKey, vErr.Fields)
+				var vErr pkg.ValidationError
+				require.True(t, errors.As(err, &vErr), "expected ValidationError type, got %T", err)
+				require.Equal(t, tc.wantCode, vErr.Code, "expected error code %q, got %q", tc.wantCode, vErr.Code)
 			} else {
 				require.NoError(t, err, "expected no validation error for depth within limit")
 			}
@@ -233,10 +232,10 @@ func TestValidateStruct_JSONKeyCountLimit(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name    string
-		input   any
-		wantErr bool
-		errKey  string
+		name     string
+		input    any
+		wantErr  bool
+		wantCode string
 	}{
 		{
 			name:    "key count 100 (at limit) passes",
@@ -244,22 +243,22 @@ func TestValidateStruct_JSONKeyCountLimit(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "key count 101 (exceeds limit) fails",
-			input:   buildFlatMap(101),
-			wantErr: true,
-			errKey:  "_keyCount",
+			name:     "key count 101 (exceeds limit) fails",
+			input:    buildFlatMap(101),
+			wantErr:  true,
+			wantCode: "0144",
 		},
 		{
-			name:    "key count 150 (deeply exceeds limit) fails",
-			input:   buildFlatMap(150),
-			wantErr: true,
-			errKey:  "_keyCount",
+			name:     "key count 150 (deeply exceeds limit) fails",
+			input:    buildFlatMap(150),
+			wantErr:  true,
+			wantCode: "0144",
 		},
 		{
-			name:    "nested key count exceeds limit",
-			input:   buildNestedMapWithKeys(5, 25), // 5 levels * ~25 keys each > 100
-			wantErr: true,
-			errKey:  "_keyCount",
+			name:     "nested key count exceeds limit",
+			input:    buildNestedMapWithKeys(5, 25), // 5 levels * ~25 keys each > 100
+			wantErr:  true,
+			wantCode: "0144",
 		},
 	}
 
@@ -272,10 +271,9 @@ func TestValidateStruct_JSONKeyCountLimit(t *testing.T) {
 			if tc.wantErr {
 				require.Error(t, err, "expected validation error for key count")
 
-				var vErr pkg.ValidationKnownFieldsError
-				require.True(t, errors.As(err, &vErr), "expected ValidationKnownFieldsError type, got %T", err)
-				_, hasField := vErr.Fields[tc.errKey]
-				require.True(t, hasField, "expected field %q in validation errors, got fields: %v", tc.errKey, vErr.Fields)
+				var vErr pkg.ValidationError
+				require.True(t, errors.As(err, &vErr), "expected ValidationError type, got %T", err)
+				require.Equal(t, tc.wantCode, vErr.Code, "expected error code %q, got %q", tc.wantCode, vErr.Code)
 			} else {
 				require.NoError(t, err, "expected no validation error for key count within limit")
 			}

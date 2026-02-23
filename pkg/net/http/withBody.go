@@ -154,6 +154,16 @@ func ValidateStruct(s any) error {
 	// Generic null-byte validation across all string fields in the payload
 	// This runs for all types including maps and structs
 	if violations := validateNoNullBytes(s); len(violations) > 0 {
+		// Check for JSON structure violations first (return specific business errors)
+		if _, hasDepthViolation := violations["_depth"]; hasDepthViolation {
+			return pkg.ValidateBusinessError(cn.ErrJSONNestingDepthExceeded, "settings")
+		}
+
+		if _, hasKeyCountViolation := violations["_keyCount"]; hasKeyCountViolation {
+			return pkg.ValidateBusinessError(cn.ErrJSONKeyCountExceeded, "settings")
+		}
+
+		// For other violations (null bytes), return field validation error
 		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
 	}
 
