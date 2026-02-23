@@ -30,7 +30,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	ctxSendBTOQueue, spanSendBTOQueue := tracer.Start(ctx, "command.send_bto_execute_async")
 	defer spanSendBTOQueue.End()
 
-	queueData := make([]mmodel.QueueData, 0)
+	queueData := make([]mmodel.QueueData, 0, 1)
 
 	value := transaction.TransactionQueue{
 		Validate:    validate,
@@ -104,7 +104,7 @@ func (uc *UseCase) CreateBTOExecuteSync(ctx context.Context, organizationID, led
 	ctxSendBTODirect, spanSendBTODirect := tracer.Start(ctx, "command.create_bto_execute_sync")
 	defer spanSendBTODirect.End()
 
-	queueData := make([]mmodel.QueueData, 0)
+	queueData := make([]mmodel.QueueData, 0, 1)
 
 	value := transaction.TransactionQueue{
 		Validate:    validate,

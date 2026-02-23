@@ -253,6 +253,11 @@ type BalanceRedis struct {
 	// maxLength: 256
 	Alias string `json:"alias" example:"@person1" maxLength:"256"`
 
+	// Unique key for the balance (defaults to "default" if not provided)
+	// example: default
+	// maxLength: 100
+	Key string `json:"key" example:"default" maxLength:"100"`
+
 	// Account that holds this balance
 	AccountID string `json:"accountId"`
 
@@ -276,9 +281,6 @@ type BalanceRedis struct {
 
 	// Whether the account can receive funds (1=true, 0=false)
 	AllowReceiving int `json:"allowReceiving"`
-
-	// Unique key for the balance
-	Key string `json:"key"`
 }
 
 // UnmarshalJSON is a custom unmarshal function for BalanceRedis

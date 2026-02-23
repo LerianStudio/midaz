@@ -350,7 +350,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger:                 logger,
 	}
 
-	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection, logger)
 
 	useCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,

@@ -146,6 +146,7 @@ var (
 	ErrMetadataIndexCreationFailed              = errors.New("0136")
 	ErrMetadataIndexDeletionForbidden           = errors.New("0137")
 	ErrInvalidEntityName                        = errors.New("0138")
+	ErrTransactionBackupCacheRetrievalFailed    = errors.New("0139")
 )
 
 // List of CRM errors.

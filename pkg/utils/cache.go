@@ -147,3 +147,25 @@ func RedisConsumerLockKey(organizationID, ledgerID uuid.UUID, transactionID stri
 
 	return builder.String()
 }
+
+// WriteBehindTransactionKey returns a key with the following format to be used on redis cluster:
+// "wb_transaction:{organizationID:ledgerID:transactionID}"
+// This key is used to store transaction data in the write-behind cache before persistence.
+// The transactionID is included inside the hash tag so keys distribute evenly across Redis Cluster
+// slots. Co-location via {orgID:ledgerID} is not needed here because write-behind keys are always
+// accessed individually (SET/GET/DEL), never in multi-key operations.
+func WriteBehindTransactionKey(organizationID, ledgerID uuid.UUID, transactionID string) string {
+	var builder strings.Builder
+
+	builder.WriteString("wb_transaction")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(transactionID)
+	builder.WriteString(endKey)
+
+	return builder.String()
+}

@@ -100,7 +100,7 @@ jobs:
       # Install semantic-release plugins
     - name: Install missing plugin @semantic-release/exec
       run: npm install --save-dev @semantic-release/exec
-
+      
     # Run semantic-release to determine version and create release
     - name: Semantic Release
       uses: cycjimmy/semantic-release-action@v4
@@ -108,7 +108,6 @@ jobs:
       with:
         ci: false
         semantic_version: 23.0.8
-        config_file: ${{ steps.releaserc.outputs.path }}
         extra_plugins: |
           conventional-changelog-conventionalcommits@v7.0.2
           @saithodev/semantic-release-backmerge

@@ -311,20 +311,36 @@ local function main()
             return redis.error_reply("0018")
         end
 
-        balance.Alias = alias
-        table.insert(returnBalances, cloneBalance(balance))
+        -- Only update balance and increment version if there was an actual change.
+        -- This prevents version gaps when destinations are processed during PENDING
+        -- transactions (CREDIT + PENDING has no effect, so no version increment).
+        local hasChange = (result ~= balance.Available) or (resultOnHold ~= balance.OnHold)
 
-        balance.Available = result
-        balance.OnHold = resultOnHold
-        balance.Version = balance.Version + 1
+        if hasChange then
+            balance.Alias = alias
+            table.insert(returnBalances, cloneBalance(balance))
 
-        redisBalance = cjson.encode(balance)
-        redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
+            balance.Available = result
+            balance.OnHold = resultOnHold
+            balance.Version = balance.Version + 1
 
-        -- Only schedule balance sync if enabled (scheduleSync == 1)
-        if scheduleSync == 1 then
-            redis.call("ZADD", scheduleKey, dueAt, redisBalanceKey)
+            redisBalance = cjson.encode(balance)
+            redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
+
+            -- Only schedule balance sync if enabled (scheduleSync == 1)
+            if scheduleSync == 1 then
+                redis.call("ZADD", scheduleKey, dueAt, redisBalanceKey)
+            end
         end
+    end
+
+    -- Handle empty array case: cjson encodes {} as object, but Go expects array
+    -- When no changes occurred, use cjson.decode("[]") to get proper array type
+    -- for both the transaction hash and the return value
+    if #returnBalances == 0 then
+        local emptyArray = cjson.decode("[]")
+        updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray)
+        return "[]"
     end
 
     updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances)
