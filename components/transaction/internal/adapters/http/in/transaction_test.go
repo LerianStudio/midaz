@@ -41,11 +41,11 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			name:        "success returns 200 with transaction",
 			queryParams: "",
 			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
-				// Redis cache miss (empty string = not found)
+				// Write-behind cache miss
 				redisRepo.EXPECT().
-					Get(gomock.Any(), gomock.Any()).
-					Return("", nil).
-					Times(1)
+					GetBytes(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("cache miss")).
+					AnyTimes()
 				amount := decimal.NewFromInt(1000)
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
@@ -91,11 +91,11 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			name:        "not found returns 404",
 			queryParams: "",
 			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
-				// Redis cache miss (empty string = not found)
+				// Write-behind cache miss
 				redisRepo.EXPECT().
-					Get(gomock.Any(), gomock.Any()).
-					Return("", nil).
-					Times(1)
+					GetBytes(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("cache miss")).
+					AnyTimes()
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(nil, pkg.EntityNotFoundError{
@@ -120,11 +120,11 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			name:        "repository error returns 500",
 			queryParams: "",
 			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
-				// Redis cache miss (empty string = not found)
+				// Write-behind cache miss
 				redisRepo.EXPECT().
-					Get(gomock.Any(), gomock.Any()).
-					Return("", nil).
-					Times(1)
+					GetBytes(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("cache miss")).
+					AnyTimes()
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
 					Return(nil, pkg.InternalServerError{
@@ -148,11 +148,11 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			name:        "metadata error returns 500",
 			queryParams: "",
 			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
-				// Redis cache miss (empty string = not found)
+				// Write-behind cache miss
 				redisRepo.EXPECT().
-					Get(gomock.Any(), gomock.Any()).
-					Return("", nil).
-					Times(1)
+					GetBytes(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("cache miss")).
+					AnyTimes()
 				amount := decimal.NewFromInt(1000)
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
@@ -190,11 +190,11 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			name:        "operations error returns 500",
 			queryParams: "",
 			setupMocks: func(transactionRepo *transaction.MockRepository, operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionID uuid.UUID) {
-				// Redis cache miss (empty string = not found)
+				// Write-behind cache miss
 				redisRepo.EXPECT().
-					Get(gomock.Any(), gomock.Any()).
-					Return("", nil).
-					Times(1)
+					GetBytes(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("cache miss")).
+					AnyTimes()
 				amount := decimal.NewFromInt(1000)
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
@@ -372,10 +372,17 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 				Return(nil).
 				Times(1)
 
+			// Write-behind cache miss (fall through to Postgres Find)
+			mockRedisRepo.EXPECT().
+				GetBytes(gomock.Any(), gomock.Any()).
+				Return(nil, errors.New("cache miss")).
+				AnyTimes()
+
 			queryUC := &query.UseCase{
 				TransactionRepo: mockTransactionRepo,
 				OperationRepo:   mockOperationRepo,
 				MetadataRepo:    mockMetadataRepo,
+				RedisRepo:       mockRedisRepo,
 			}
 			commandUC := &command.UseCase{
 				RedisRepo: mockRedisRepo,
@@ -1740,10 +1747,17 @@ func TestCancelTransaction(t *testing.T) {
 			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 			tt.setupMocks(mockTransactionRepo, mockMetadataRepo, mockOperationRepo, mockRedisRepo, orgID, ledgerID, transactionID)
 
+			// Write-behind cache miss (fall through to Postgres Find)
+			mockRedisRepo.EXPECT().
+				GetBytes(gomock.Any(), gomock.Any()).
+				Return(nil, errors.New("cache miss")).
+				AnyTimes()
+
 			queryUC := &query.UseCase{
 				TransactionRepo: mockTransactionRepo,
 				MetadataRepo:    mockMetadataRepo,
 				OperationRepo:   mockOperationRepo,
+				RedisRepo:       mockRedisRepo,
 			}
 			commandUC := &command.UseCase{
 				RedisRepo: mockRedisRepo,

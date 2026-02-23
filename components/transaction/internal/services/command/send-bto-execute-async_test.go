@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -152,6 +153,12 @@ func setupMocksForFallback(
 		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
 		Return(nil).
 		AnyTimes()
+
+	// Mock RedisRepo.Del for removing transaction from write-behind cache
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
 }
 
 // TestTransactionExecute tests the routing logic that decides between async and sync execution
@@ -253,6 +260,9 @@ func TestTransactionExecute(t *testing.T) {
 
 		err := uc.TransactionExecute(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
+		// Allow background goroutines (DeleteWriteBehindTransaction) to complete before ctrl.Finish
+		time.Sleep(100 * time.Millisecond)
+
 		assert.NoError(t, err)
 	})
 
@@ -319,6 +329,9 @@ func TestTransactionExecute(t *testing.T) {
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
 		err := uc.TransactionExecute(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
+
+		// Allow background goroutines (DeleteWriteBehindTransaction) to complete before ctrl.Finish
+		time.Sleep(100 * time.Millisecond)
 
 		assert.NoError(t, err)
 	})
@@ -516,6 +529,9 @@ func TestCreateBTOExecuteSync(t *testing.T) {
 
 		err := uc.CreateBTOExecuteSync(ctx, organizationID, ledgerID, td.parseDSL, td.validate, td.balances, td.tran)
 
+		// Allow background goroutines (DeleteWriteBehindTransaction) to complete before ctrl.Finish
+		time.Sleep(100 * time.Millisecond)
+
 		assert.NoError(t, err)
 	})
 
@@ -709,7 +725,16 @@ func TestCreateBTOExecuteSync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
+		// Mock RedisRepo.Del for removing transaction from write-behind cache
+		mockRedisRepo.EXPECT().
+			Del(gomock.Any(), gomock.Any()).
+			Return(nil).
+			AnyTimes()
+
 		err := uc.CreateBTOExecuteSync(ctx, organizationID, ledgerID, parseDSL, validate, balances, tran)
+
+		// Allow background goroutines (DeleteWriteBehindTransaction) to complete before ctrl.Finish
+		time.Sleep(100 * time.Millisecond)
 
 		assert.NoError(t, err)
 	})
