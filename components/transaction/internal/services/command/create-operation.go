@@ -26,7 +26,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 
 	var operations []*operation.Operation
 
-	var fromTo []pkgTransaction.FromTo
+	fromTo := make([]pkgTransaction.FromTo, 0, len(dsl.Send.Source.From)+len(dsl.Send.Distribute.To))
 
 	fromTo = append(fromTo, dsl.Send.Source.From...)
 	fromTo = append(fromTo, dsl.Send.Distribute.To...)

@@ -25,6 +25,7 @@ func (uc *UseCase) DeleteWriteBehindTransaction(ctx context.Context, organizatio
 	if err := uc.RedisRepo.Del(ctx, key); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to remove transaction from write-behind cache", err)
 		logger.Warnf("Failed to remove transaction from write-behind cache: %v", err)
+
 		return
 	}
 

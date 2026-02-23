@@ -743,9 +743,9 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 	for _, balance := range balances {
 		ctxBalance, spanUpdate := tracer.Start(ctx, "postgres.update_balance")
 
-		var updates []string
+		updates := make([]string, 0, 4)
 
-		var args []any
+		args := make([]any, 0, 8)
 
 		updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
 		args = append(args, balance.Available)

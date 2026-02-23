@@ -62,10 +62,6 @@ type Repository interface {
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 }
 
-// accountColumns defines the explicit column list for account table queries.
-// This ensures backward compatibility when new columns are added in future versions.
-const accountColumns = "id, name, parent_account_id, entity_id, asset_code, organization_id, ledger_id, portfolio_id, segment_id, status, status_description, alias, type, created_at, updated_at, deleted_at, blocked"
-
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
 type AccountPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
@@ -811,6 +807,30 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 	return accounts, nil
 }
 
+// applyNullableFields applies nullable field updates (segmentId, entityId, portfolioId)
+// supporting RFC 7396 JSON Merge Patch null semantics.
+func applyNullableFields(builder squirrel.UpdateBuilder, acc *mmodel.Account, record *AccountPostgreSQLModel) squirrel.UpdateBuilder {
+	if !libCommons.IsNilOrEmpty(acc.SegmentID) {
+		builder = builder.Set("segment_id", record.SegmentID)
+	} else if slices.Contains(acc.NullFields, "segmentId") {
+		builder = builder.Set("segment_id", nil)
+	}
+
+	if !libCommons.IsNilOrEmpty(acc.EntityID) {
+		builder = builder.Set("entity_id", record.EntityID)
+	} else if slices.Contains(acc.NullFields, "entityId") {
+		builder = builder.Set("entity_id", nil)
+	}
+
+	if !libCommons.IsNilOrEmpty(acc.PortfolioID) {
+		builder = builder.Set("portfolio_id", record.PortfolioID)
+	} else if slices.Contains(acc.NullFields, "portfolioId") {
+		builder = builder.Set("portfolio_id", nil)
+	}
+
+	return builder
+}
+
 // Update an Account entity into Postgresql and returns the Account updated.
 func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -849,23 +869,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		builder = builder.Set("blocked", *acc.Blocked)
 	}
 
-	if !libCommons.IsNilOrEmpty(acc.SegmentID) {
-		builder = builder.Set("segment_id", record.SegmentID)
-	} else if slices.Contains(acc.NullFields, "segmentId") {
-		builder = builder.Set("segment_id", nil)
-	}
-
-	if !libCommons.IsNilOrEmpty(acc.EntityID) {
-		builder = builder.Set("entity_id", record.EntityID)
-	} else if slices.Contains(acc.NullFields, "entityId") {
-		builder = builder.Set("entity_id", nil)
-	}
-
-	if !libCommons.IsNilOrEmpty(acc.PortfolioID) {
-		builder = builder.Set("portfolio_id", record.PortfolioID)
-	} else if slices.Contains(acc.NullFields, "portfolioId") {
-		builder = builder.Set("portfolio_id", nil)
-	}
+	builder = applyNullableFields(builder, acc, record)
 
 	record.UpdatedAt = time.Now()
 	builder = builder.Set("updated_at", record.UpdatedAt)

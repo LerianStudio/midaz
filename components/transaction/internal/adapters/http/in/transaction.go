@@ -1048,6 +1048,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, parserDSL pkg
 	// already have the final status. The original status is restored before the HTTP response
 	// to preserve the current API contract (clients see CREATED).
 	originalStatus := tran.Status
+
 	if transactionStatus == constant.CREATED {
 		approved := constant.APPROVED
 		tran.Status = transaction.Status{Code: approved, Description: &approved}

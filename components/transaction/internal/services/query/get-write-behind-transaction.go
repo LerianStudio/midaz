@@ -28,6 +28,7 @@ func (uc *UseCase) GetWriteBehindTransaction(ctx context.Context, organizationID
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction not found in write-behind cache", err)
 		logger.Infof("Transaction not found in write-behind cache: %s", key)
+
 		return nil, err
 	}
 
@@ -36,6 +37,7 @@ func (uc *UseCase) GetWriteBehindTransaction(ctx context.Context, organizationID
 	if err := msgpack.Unmarshal(data, &tran); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal transaction from write-behind cache", err)
 		logger.Warnf("Failed to unmarshal transaction from write-behind cache: %v", err)
+
 		return nil, err
 	}
 

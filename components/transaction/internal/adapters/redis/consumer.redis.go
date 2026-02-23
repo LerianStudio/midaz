@@ -251,6 +251,15 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	return rds.Incr(ctx, key).Val()
 }
 
+// boolToInt converts a boolean to an integer (0 or 1) for Redis Lua script arguments.
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+
+	return 0
+}
+
 func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -276,16 +285,6 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 	args := []any{}
 
 	for _, blcs := range balancesOperation {
-		allowSending := 0
-		if blcs.Balance.AllowSending {
-			allowSending = 1
-		}
-
-		allowReceiving := 0
-		if blcs.Balance.AllowReceiving {
-			allowReceiving = 1
-		}
-
 		args = append(args,
 			blcs.InternalKey,
 			isPending,
@@ -298,8 +297,8 @@ func (rr *RedisConsumerRepository) AddSumBalancesRedis(ctx context.Context, orga
 			blcs.Balance.OnHold.String(),
 			strconv.FormatInt(blcs.Balance.Version, 10),
 			blcs.Balance.AccountType,
-			allowSending,
-			allowReceiving,
+			boolToInt(blcs.Balance.AllowSending),
+			boolToInt(blcs.Balance.AllowReceiving),
 			blcs.Balance.AssetCode,
 			blcs.Balance.AccountID,
 			blcs.Balance.Key,

@@ -80,13 +80,6 @@ type Repository interface {
 // This ensures backward compatibility when new columns are added in future versions.
 const transactionColumns = "id, parent_transaction_id, description, status, status_description, amount, asset_code, chart_of_accounts_group_name, ledger_id, organization_id, body, created_at, updated_at, deleted_at, route"
 
-// operationColumnsForJoin defines the explicit column list for operation table when used in JOINs.
-// This ensures backward compatibility when new columns are added in future versions.
-const operationColumnsForJoin = "o.id, o.transaction_id, o.description, o.type, o.asset_code, o.amount, o.available_balance, o.on_hold_balance, o.available_balance_after, o.on_hold_balance_after, o.status, o.status_description, o.account_id, o.account_alias, o.balance_id, o.chart_of_accounts, o.organization_id, o.ledger_id, o.created_at, o.updated_at, o.deleted_at, o.route, o.balance_affected, o.balance_key, o.balance_version_before, o.balance_version_after"
-
-// transactionColumnsAliased defines the explicit column list for transaction table with alias prefix.
-const transactionColumnsAliased = "t.id, t.parent_transaction_id, t.description, t.status, t.status_description, t.amount, t.asset_code, t.chart_of_accounts_group_name, t.ledger_id, t.organization_id, t.body, t.created_at, t.updated_at, t.deleted_at, t.route"
-
 // TransactionPostgreSQLRepository is a Postgresql-specific implementation of the TransactionRepository.
 type TransactionPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection

@@ -30,6 +30,7 @@ func (uc *UseCase) CreateWriteBehindTransaction(ctx context.Context, organizatio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to marshal transaction for write-behind cache", err)
 		logger.Warnf("Failed to marshal transaction for write-behind cache: %v", err)
+
 		return
 	}
 
@@ -39,6 +40,7 @@ func (uc *UseCase) CreateWriteBehindTransaction(ctx context.Context, organizatio
 	if err := uc.RedisRepo.SetBytes(ctx, key, data, time.Duration(86400)); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to store transaction in write-behind cache", err)
 		logger.Warnf("Failed to store transaction in write-behind cache: %v", err)
+
 		return
 	}
 

@@ -781,7 +781,7 @@ type CreateTransactionInflowSwaggerModel struct {
 
 // InflowFromDSL converts an entity InflowFromDSL to a pkgTransaction.Transaction
 func (c *CreateTransactionInflowInput) InflowFromDSL() *pkgTransaction.Transaction {
-	listFrom := make([]pkgTransaction.FromTo, 0)
+	listFrom := make([]pkgTransaction.FromTo, 0, 1)
 
 	from := pkgTransaction.FromTo{
 		IsFrom:       true,
@@ -992,7 +992,7 @@ type CreateTransactionOutflowSwaggerModel struct {
 
 // OutflowFromDSL converts an entity OutflowFromDSL to a pkgTransaction.Transaction
 func (c *CreateTransactionOutflowInput) OutflowFromDSL() *pkgTransaction.Transaction {
-	listTo := make([]pkgTransaction.FromTo, 0)
+	listTo := make([]pkgTransaction.FromTo, 0, 1)
 
 	to := pkgTransaction.FromTo{
 		IsFrom:       false,
