@@ -93,11 +93,11 @@ func TestService_GetRunnables_ReturnsAllComponents(t *testing.T) {
 
 	// Create stub runnables for transaction (without gRPC, as in unified mode)
 	txFiberRunnable := &StubRunnable{name: "tx-fiber"}
-	txRabbitRunnable := &StubRunnable{name: "tx-rabbit"}
+	txBrokerRunnable := &StubRunnable{name: "tx-broker"}
 	txRedisRunnable := &StubRunnable{name: "tx-redis"}
 	transactionRunnables := []mbootstrap.RunnableConfig{
 		{Name: "Transaction Fiber Server", Runnable: txFiberRunnable},
-		{Name: "Transaction RabbitMQ Consumer", Runnable: txRabbitRunnable},
+		{Name: "Transaction Broker Consumer", Runnable: txBrokerRunnable},
 		{Name: "Transaction Redis Consumer", Runnable: txRedisRunnable},
 	}
 
@@ -124,7 +124,7 @@ func TestService_GetRunnables_ReturnsAllComponents(t *testing.T) {
 	// Verify specific runnable names
 	assert.Equal(t, "Onboarding Server", onboardingResult[0].Name)
 	assert.Equal(t, "Transaction Fiber Server", transactionResult[0].Name)
-	assert.Equal(t, "Transaction RabbitMQ Consumer", transactionResult[1].Name)
+	assert.Equal(t, "Transaction Broker Consumer", transactionResult[1].Name)
 	assert.Equal(t, "Transaction Redis Consumer", transactionResult[2].Name)
 }
 

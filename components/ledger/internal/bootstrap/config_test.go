@@ -35,6 +35,12 @@ func TestInitServers_ErrorHandling(t *testing.T) {
 		service, err = InitServers()
 	})
 
+	if service != nil {
+		t.Cleanup(func() {
+			require.NoError(t, service.Close())
+		})
+	}
+
 	require.Nil(t, service)
 	require.Error(t, err)
 	assert.NotEmpty(t, err.Error())

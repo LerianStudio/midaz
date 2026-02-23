@@ -5,6 +5,9 @@
 package bootstrap
 
 import (
+	"errors"
+	"sync"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -20,11 +23,13 @@ type Service struct {
 	UnifiedServer      *UnifiedServer
 	Logger             libLog.Logger
 	Telemetry          *libOpentelemetry.Telemetry
+	closeOnce          sync.Once
+	closeErr           error
 }
 
 // Run starts the unified ledger service with all APIs on a single port.
 // The UnifiedServer consolidates all HTTP routes from onboarding and transaction.
-// Non-HTTP runnables (RabbitMQ, Redis consumers, workers) are started separately.
+// Non-HTTP runnables (broker consumer, Redis consumers, workers) are started separately.
 func (s *Service) Run() {
 	s.Logger.Info("Running unified ledger service with single-port mode")
 
@@ -35,7 +40,7 @@ func (s *Service) Run() {
 	}
 
 	// Add non-HTTP runnables from transaction service
-	// (RabbitMQ consumer, Redis consumer, Balance Sync Worker)
+	// (broker consumer, Redis consumer, Balance Sync Worker)
 	transactionRunnables := s.TransactionService.GetRunnables()
 	for _, r := range transactionRunnables {
 		// Skip the individual Fiber server as we use the UnifiedServer instead
@@ -45,6 +50,10 @@ func (s *Service) Run() {
 	}
 
 	libCommons.NewLauncher(launcherOpts...).Run()
+
+	if err := s.Close(); err != nil {
+		s.Logger.Warnf("Unified ledger shutdown encountered errors: %v", err)
+	}
 }
 
 // GetRunnables returns all runnable components for the unified ledger.
@@ -63,4 +72,35 @@ func (s *Service) GetRunnables() []mbootstrap.RunnableConfig {
 	}
 
 	return runnables
+}
+
+// Close releases external resources created by the composed services.
+func (s *Service) Close() error {
+	if s == nil {
+		return nil
+	}
+
+	s.closeOnce.Do(func() {
+		var closeErrs []error
+
+		if closer, ok := any(s.TransactionService).(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				closeErrs = append(closeErrs, err)
+			}
+		}
+
+		if closer, ok := any(s.OnboardingService).(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				closeErrs = append(closeErrs, err)
+			}
+		}
+
+		if s.Telemetry != nil {
+			s.Telemetry.ShutdownTelemetry()
+		}
+
+		s.closeErr = errors.Join(closeErrs...)
+	})
+
+	return s.closeErr
 }

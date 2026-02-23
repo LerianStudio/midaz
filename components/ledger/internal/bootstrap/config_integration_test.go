@@ -25,7 +25,7 @@ type TestContainers struct {
 	PostgreSQL testcontainers.Container
 	MongoDB    testcontainers.Container
 	Redis      testcontainers.Container
-	RabbitMQ   testcontainers.Container
+	Redpanda   testcontainers.Container
 }
 
 // ContainerAddresses holds the connection addresses for all containers.
@@ -42,10 +42,8 @@ type ContainerAddresses struct {
 	RedisHost string
 	RedisPort string
 
-	// RabbitMQ
-	RabbitMQHost     string
-	RabbitMQPort     string
-	RabbitMQMgmtPort string
+	// Redpanda
+	RedpandaBrokers string
 }
 
 // setupAllContainers starts all required containers for ledger integration tests.
@@ -78,13 +76,11 @@ func setupAllContainers(t *testing.T) (*TestContainers, *ContainerAddresses, fun
 	addresses.RedisPort = redisPort
 	cleanupFuncs = append(cleanupFuncs, redisCleanup)
 
-	// RabbitMQ
-	rabbitContainer, rabbitHost, rabbitPort, rabbitMgmtPort, rabbitCleanup := setupRabbitMQContainer(t, ctx)
-	containers.RabbitMQ = rabbitContainer
-	addresses.RabbitMQHost = rabbitHost
-	addresses.RabbitMQPort = rabbitPort
-	addresses.RabbitMQMgmtPort = rabbitMgmtPort
-	cleanupFuncs = append(cleanupFuncs, rabbitCleanup)
+	// Redpanda
+	redpandaContainer, redpandaBrokers, redpandaCleanup := setupRedpandaContainer(t, ctx)
+	containers.Redpanda = redpandaContainer
+	addresses.RedpandaBrokers = redpandaBrokers
+	cleanupFuncs = append(cleanupFuncs, redpandaCleanup)
 
 	cleanup := func() {
 		// Cleanup in reverse order
@@ -201,48 +197,46 @@ func setupRedisContainer(t *testing.T, ctx context.Context) (testcontainers.Cont
 	return container, host, port.Port(), cleanup
 }
 
-func setupRabbitMQContainer(t *testing.T, ctx context.Context) (testcontainers.Container, string, string, string, func()) {
+func setupRedpandaContainer(t *testing.T, ctx context.Context) (testcontainers.Container, string, func()) {
 	t.Helper()
 
 	req := testcontainers.ContainerRequest{
-		Image:        "rabbitmq:4.1.3-management-alpine",
-		ExposedPorts: []string{"5672/tcp", "15672/tcp"},
-		Env: map[string]string{
-			"RABBITMQ_DEFAULT_USER": "test",
-			"RABBITMQ_DEFAULT_PASS": "test",
+		Image:        "docker.redpanda.com/redpandadata/redpanda:latest",
+		ExposedPorts: []string{"9092/tcp"},
+		Cmd: []string{
+			"redpanda",
+			"start",
+			"--overprovisioned",
+			"--smp", "1",
+			"--memory", "1G",
+			"--reserve-memory", "0M",
+			"--check=false",
+			"--node-id", "0",
+			"--kafka-addr", "PLAINTEXT://0.0.0.0:9092",
+			"--advertise-kafka-addr", "PLAINTEXT://localhost:9092",
 		},
-		// Wait for both server startup AND management plugin to be ready
-		WaitingFor: wait.ForAll(
-			wait.ForLog("Server startup complete").WithStartupTimeout(120*time.Second),
-			wait.ForHTTP("/api/health/checks/alarms").
-				WithPort("15672/tcp").
-				WithBasicAuth("test", "test").
-				WithStartupTimeout(60*time.Second),
-		),
+		WaitingFor: wait.ForLog("Successfully started Redpanda!").WithStartupTimeout(180 * time.Second),
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
 	})
-	require.NoError(t, err, "failed to start RabbitMQ container")
+	require.NoError(t, err, "failed to start Redpanda container")
 
 	host, err := container.Host(ctx)
-	require.NoError(t, err, "failed to get RabbitMQ container host")
+	require.NoError(t, err, "failed to get Redpanda container host")
 
-	amqpPort, err := container.MappedPort(ctx, "5672")
-	require.NoError(t, err, "failed to get RabbitMQ AMQP port")
-
-	mgmtPort, err := container.MappedPort(ctx, "15672")
-	require.NoError(t, err, "failed to get RabbitMQ management port")
+	kafkaPort, err := container.MappedPort(ctx, "9092")
+	require.NoError(t, err, "failed to get Redpanda Kafka port")
 
 	cleanup := func() {
 		if err := container.Terminate(ctx); err != nil {
-			t.Logf("failed to terminate RabbitMQ container: %v", err)
+			t.Logf("failed to terminate Redpanda container: %v", err)
 		}
 	}
 
-	return container, host, amqpPort.Port(), mgmtPort.Port(), cleanup
+	return container, fmt.Sprintf("%s:%s", host, kafkaPort.Port()), cleanup
 }
 
 // findProjectRoot finds the project root by looking for go.mod
@@ -323,18 +317,13 @@ func setEnvFromContainers(t *testing.T, addresses *ContainerAddresses) {
 	// Redis
 	t.Setenv("REDIS_HOST", fmt.Sprintf("%s:%s", addresses.RedisHost, addresses.RedisPort))
 
-	// RabbitMQ
-	t.Setenv("RABBITMQ_HOST", addresses.RabbitMQHost)
-	t.Setenv("RABBITMQ_PORT_HOST", addresses.RabbitMQPort)
-	t.Setenv("RABBITMQ_PORT_AMQP", "5672")
-	t.Setenv("RABBITMQ_URI", "amqp")
-	t.Setenv("RABBITMQ_DEFAULT_USER", "test")
-	t.Setenv("RABBITMQ_DEFAULT_PASS", "test")
-	t.Setenv("RABBITMQ_CONSUMER_USER", "test")
-	t.Setenv("RABBITMQ_CONSUMER_PASS", "test")
-	t.Setenv("RABBITMQ_BALANCE_CREATE_QUEUE", "balance_create_test")
-	// RabbitMQ Management API health check URL base (lib-commons appends /api/health/checks/alarms)
-	t.Setenv("RABBITMQ_HEALTH_CHECK_URL", fmt.Sprintf("http://%s:%s", addresses.RabbitMQHost, addresses.RabbitMQMgmtPort))
+	// Redpanda
+	t.Setenv("REDPANDA_BROKERS", addresses.RedpandaBrokers)
+	t.Setenv("REDPANDA_BALANCE_CREATE_TOPIC", "balance_create_test")
+	t.Setenv("REDPANDA_BALANCE_OPS_TOPIC", "balance_operations_test")
+	t.Setenv("REDPANDA_EVENTS_TOPIC", "events_test")
+	t.Setenv("REDPANDA_AUDIT_TOPIC", "audit_test")
+	t.Setenv("REDPANDA_CONSUMER_GROUP", "midaz-ledger-integration")
 
 	// Server addresses for unified ledger
 	t.Setenv("SERVER_ADDRESS", ":0") // Use any available port
@@ -354,7 +343,7 @@ func setEnvFromContainers(t *testing.T, addresses *ContainerAddresses) {
 // - PostgreSQL connection for both onboarding and transaction
 // - MongoDB connection for metadata
 // - Redis connection for caching
-// - RabbitMQ connection for async processing
+// - Redpanda connection for async processing
 // - Service composition (onboarding + transaction)
 func TestIntegration_InitServers_WithAllDependencies_Succeeds(t *testing.T) {
 	if testing.Short() {
@@ -373,6 +362,11 @@ func TestIntegration_InitServers_WithAllDependencies_Succeeds(t *testing.T) {
 
 	// Act
 	service, err := InitServers()
+	if service != nil {
+		t.Cleanup(func() {
+			require.NoError(t, service.Close())
+		})
+	}
 
 	// Assert
 	require.NoError(t, err, "InitServers should succeed with all dependencies")
@@ -414,6 +408,11 @@ func TestIntegration_InitServers_BalancePortWiring(t *testing.T) {
 
 	// Act - Initialize the unified ledger service
 	service, err := InitServers()
+	if service != nil {
+		t.Cleanup(func() {
+			require.NoError(t, service.Close())
+		})
+	}
 
 	// Assert
 	require.NoError(t, err, "InitServers should succeed")
@@ -456,6 +455,9 @@ func TestIntegration_Service_Run_StartsAllServers(t *testing.T) {
 	service, err := InitServers()
 	require.NoError(t, err, "InitServers should succeed")
 	require.NotNil(t, service, "service should not be nil")
+	t.Cleanup(func() {
+		require.NoError(t, service.Close())
+	})
 
 	// Verify runnables are available from both services
 	onboardingRunnables := service.OnboardingService.GetRunnables()
@@ -468,7 +470,7 @@ func TestIntegration_Service_Run_StartsAllServers(t *testing.T) {
 		t.Logf("  - %s", r.Name)
 	}
 
-	// Transaction should have multiple runnables (HTTP, gRPC, RabbitMQ consumer, Redis consumer)
+	// Transaction should have multiple runnables (HTTP, gRPC, broker consumer, Redis consumer)
 	assert.NotEmpty(t, transactionRunnables, "transaction should have runnables")
 	t.Logf("Transaction runnables: %d", len(transactionRunnables))
 	for _, r := range transactionRunnables {

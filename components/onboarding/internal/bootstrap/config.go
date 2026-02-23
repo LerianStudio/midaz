@@ -193,6 +193,19 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
+	var cleanupFuncs []func()
+	success := false
+
+	defer func() {
+		if success {
+			return
+		}
+
+		for i := len(cleanupFuncs) - 1; i >= 0; i-- {
+			cleanupFuncs[i]()
+		}
+	}()
+
 	var logger libLog.Logger
 	if opts != nil && opts.Logger != nil {
 		logger = opts.Logger
@@ -217,6 +230,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
+
+	cleanupFuncs = append(cleanupFuncs, func() {
+		telemetry.ShutdownTelemetry()
+	})
 
 	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
 	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
@@ -253,6 +270,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MaxIdleConnections:      maxIdleConns,
 	}
 
+	cleanupFuncs = append(cleanupFuncs, func() {
+		if postgresConnection.ConnectionDB != nil {
+			if closeErr := (*postgresConnection.ConnectionDB).Close(); closeErr != nil {
+				logger.Warnf("Failed to close onboarding PostgreSQL connection during cleanup: %v", closeErr)
+			}
+		}
+	})
+
 	// Apply fallback for MongoDB prefixed env vars
 	mongoURI := envFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
 	mongoHost := envFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
@@ -283,6 +308,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MaxPoolSize:            mongoMaxPoolSize,
 	}
 
+	cleanupFuncs = append(cleanupFuncs, func() {
+		if mongoConnection.DB != nil {
+			if closeErr := mongoConnection.DB.Disconnect(context.Background()); closeErr != nil {
+				logger.Warnf("Failed to disconnect onboarding MongoDB client during cleanup: %v", closeErr)
+			}
+		}
+	})
+
 	redisConnection := &libRedis.RedisConnection{
 		Address:                      strings.Split(cfg.RedisHost, ","),
 		Password:                     cfg.RedisPassword,
@@ -307,6 +340,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
+
+	cleanupFuncs = append(cleanupFuncs, func() {
+		if closeErr := redisConnection.Close(); closeErr != nil {
+			logger.Warnf("Failed to close onboarding Redis connection during cleanup: %v", closeErr)
+		}
+	})
 
 	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection)
 	if err != nil {
@@ -442,7 +481,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 
-	return &Service{
+	service := &Service{
 		Server: serverAPI,
 		Logger: logger,
 		Ports: Ports{
@@ -456,5 +495,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		organizationHandler: organizationHandler,
 		segmentHandler:      segmentHandler,
 		accountTypeHandler:  accountTypeHandler,
-	}, nil
+		telemetry:           telemetry,
+		postgresConnection:  postgresConnection,
+		mongoConnection:     mongoConnection,
+		redisConnection:     redisConnection,
+	}
+
+	success = true
+
+	return service, nil
 }

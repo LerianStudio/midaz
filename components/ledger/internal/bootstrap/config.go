@@ -70,6 +70,19 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
+	var cleanupFuncs []func()
+	success := false
+
+	defer func() {
+		if success {
+			return
+		}
+
+		for i := len(cleanupFuncs) - 1; i >= 0; i-- {
+			cleanupFuncs[i]()
+		}
+	}()
+
 	var baseLogger libLog.Logger
 	if opts != nil && opts.Logger != nil {
 		baseLogger = opts.Logger
@@ -94,6 +107,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
+
+	cleanupFuncs = append(cleanupFuncs, func() {
+		telemetry.ShutdownTelemetry()
+	})
 
 	// Generate startup ID for tracing initialization issues
 	startupID := uuid.New().String()
@@ -135,6 +152,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize transaction module: %w", err)
 	}
 
+	cleanupFuncs = append(cleanupFuncs, func() {
+		if closer, ok := any(transactionService).(interface{ Close() error }); ok {
+			if closeErr := closer.Close(); closeErr != nil {
+				ledgerLogger.Warnf("Failed to close transaction service during cleanup: %v", closeErr)
+			}
+		}
+	})
+
 	// Get the BalancePort from transaction for in-process communication
 	// This is the transaction.UseCase itself which implements BalancePort directly
 	balancePort := transactionService.GetBalancePort()
@@ -159,6 +184,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize onboarding module: %w", err)
 	}
+
+	cleanupFuncs = append(cleanupFuncs, func() {
+		if closer, ok := any(onboardingService).(interface{ Close() error }); ok {
+			if closeErr := closer.Close(); closeErr != nil {
+				ledgerLogger.Warnf("Failed to close onboarding service during cleanup: %v", closeErr)
+			}
+		}
+	})
 
 	ledgerLogger.Info("Onboarding module initialized")
 
@@ -200,11 +233,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		"server_address", cfg.ServerAddress,
 	).Info("Unified ledger component started successfully with single-port mode")
 
-	return &Service{
+	service := &Service{
 		OnboardingService:  onboardingService,
 		TransactionService: transactionService,
 		UnifiedServer:      unifiedServer,
 		Logger:             ledgerLogger,
 		Telemetry:          telemetry,
-	}, nil
+	}
+
+	success = true
+
+	return service, nil
 }

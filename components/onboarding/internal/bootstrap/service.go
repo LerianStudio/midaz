@@ -5,9 +5,17 @@
 package bootstrap
 
 import (
+	"context"
+	"errors"
+	"sync"
+
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/gofiber/fiber/v2"
@@ -38,6 +46,13 @@ type Service struct {
 	organizationHandler *httpin.OrganizationHandler
 	segmentHandler      *httpin.SegmentHandler
 	accountTypeHandler  *httpin.AccountTypeHandler
+
+	telemetry          *libOpentelemetry.Telemetry
+	postgresConnection *libPostgres.PostgresConnection
+	mongoConnection    *libMongo.MongoConnection
+	redisConnection    *libRedis.RedisConnection
+	closeOnce          sync.Once
+	closeErr           error
 }
 
 // Run starts the application.
@@ -47,6 +62,47 @@ func (app *Service) Run() {
 		libCommons.WithLogger(app.Logger),
 		libCommons.RunApp("Fiber Server", app.Server),
 	).Run()
+
+	if err := app.Close(); err != nil {
+		app.Logger.Warnf("Onboarding service shutdown encountered errors: %v", err)
+	}
+}
+
+// Close releases external resources created during service initialization.
+func (app *Service) Close() error {
+	if app == nil {
+		return nil
+	}
+
+	app.closeOnce.Do(func() {
+		var closeErrs []error
+
+		if app.redisConnection != nil {
+			if err := app.redisConnection.Close(); err != nil {
+				closeErrs = append(closeErrs, err)
+			}
+		}
+
+		if app.postgresConnection != nil && app.postgresConnection.ConnectionDB != nil {
+			if err := (*app.postgresConnection.ConnectionDB).Close(); err != nil {
+				closeErrs = append(closeErrs, err)
+			}
+		}
+
+		if app.mongoConnection != nil && app.mongoConnection.DB != nil {
+			if err := app.mongoConnection.DB.Disconnect(context.Background()); err != nil {
+				closeErrs = append(closeErrs, err)
+			}
+		}
+
+		if app.telemetry != nil {
+			app.telemetry.ShutdownTelemetry()
+		}
+
+		app.closeErr = errors.Join(closeErrs...)
+	})
+
+	return app.closeErr
 }
 
 // GetRunnables returns all runnable components for composition in unified deployment.
