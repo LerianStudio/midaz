@@ -32,10 +32,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	telemetry, err := bootstrap.InitTelemetry(cfg, logger)
+	if err != nil {
+		logger.Errorf("Failed to initialize authorizer telemetry: %v", err)
+		_ = logger.Sync()
+		os.Exit(1)
+	}
+	defer telemetry.ShutdownTelemetry()
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := bootstrap.Run(ctx, cfg, logger); err != nil {
+	if err := bootstrap.Run(ctx, cfg, logger, telemetry); err != nil {
 		logger.Errorf("Authorizer exited with error: %v", err)
 		_ = logger.Sync()
 		os.Exit(1)

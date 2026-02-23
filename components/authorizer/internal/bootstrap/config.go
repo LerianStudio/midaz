@@ -11,34 +11,79 @@ import (
 	"strings"
 	"time"
 
+	brokerpkg "github.com/LerianStudio/midaz/v3/pkg/broker"
+	brokersecurity "github.com/LerianStudio/midaz/v3/pkg/broker/security"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // Config is the runtime configuration for the authorizer service.
 type Config struct {
+	EnvName                    string
 	GRPCAddress                string
 	ShardCount                 int
+	EnableTelemetry            bool
+	OtelServiceName            string
+	OtelLibraryName            string
+	OtelServiceVersion         string
+	OtelDeploymentEnv          string
+	OtelColExporterEndpoint    string
 	WALEnabled                 bool
 	WALPath                    string
 	WALBufferSize              int
 	WALFlushInterval           time.Duration
+	WALSyncOnAppend            bool
 	MaxConcurrentStreams       uint32
 	MaxReceiveMessageSizeBytes int
+	ReflectionEnabled          bool
 	PostgresDSN                string
-	RabbitMQEnabled            bool
-	RabbitMQURL                string
+	PostgresPoolMaxConns       int32
+	PostgresPoolMinConns       int32
+	PostgresPoolMaxConnLife    time.Duration
+	PostgresPoolMaxConnIdle    time.Duration
+	PostgresPoolHealthCheck    time.Duration
+	PostgresConnectTimeout     time.Duration
+	RedpandaEnabled            bool
+	RedpandaBrokers            []string
+	RedpandaTLSEnabled         bool
+	RedpandaTLSInsecureSkip    bool
+	RedpandaTLSCAFile          string
+	RedpandaSASLEnabled        bool
+	RedpandaSASLMechanism      string
+	RedpandaSASLUsername       string
+	RedpandaSASLPassword       string
+	RedpandaProducerLinger     time.Duration
+	RedpandaMaxBufferedRecords int
+	RedpandaRecordRetries      int
+	RedpandaDeliveryTimeout    time.Duration
+	RedpandaPublishTimeout     time.Duration
+	RedpandaBackpressurePolicy string
 }
 
 func LoadConfig() (*Config, error) {
 	grpcAddress := getenv("AUTHORIZER_GRPC_ADDRESS", ":50051")
+	envName := getenv("ENV_NAME", "development")
 	shardCount := getenvInt("AUTHORIZER_SHARD_COUNT", 8)
+	enableTelemetry := utils.IsTruthyString(getenv("ENABLE_TELEMETRY", "false"))
+	otelServiceName := getenv("OTEL_RESOURCE_SERVICE_NAME", "authorizer")
+	otelLibraryName := getenv("OTEL_LIBRARY_NAME", "midaz-authorizer")
+	otelServiceVersion := getenv("OTEL_RESOURCE_SERVICE_VERSION", "v3")
+	otelDeploymentEnv := getenv("OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT", envName)
+	otelCollectorEndpoint := getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
 	walEnabled := utils.IsTruthyString(getenv("AUTHORIZER_WAL_ENABLED", "true"))
 	walPath := getenv("AUTHORIZER_WAL_PATH", "/tmp/midaz-authorizer-wal.log")
 	walBufferSize := getenvInt("AUTHORIZER_WAL_BUFFER_SIZE", 65536)
 	walFlushIntervalMs := getenvInt("AUTHORIZER_WAL_FLUSH_INTERVAL_MS", 1)
-	maxConcurrentStreams := uint32(getenvInt("AUTHORIZER_MAX_CONCURRENT_STREAMS", 1000))
+	walSyncOnAppend := utils.IsTruthyString(getenv("AUTHORIZER_WAL_SYNC_ON_APPEND", "true"))
+	maxConcurrentStreams := utils.GetUint32FromIntWithDefault(getenvInt("AUTHORIZER_MAX_CONCURRENT_STREAMS", 1000), 1000)
 	maxReceiveBytes := getenvInt("AUTHORIZER_MAX_RECV_BYTES", 4*1024*1024)
-	rabbitEnabled := utils.IsTruthyString(getenv("AUTHORIZER_RABBITMQ_ENABLED", "true"))
+	reflectionEnabled := utils.IsTruthyString(getenv("AUTHORIZER_GRPC_REFLECTION_ENABLED", "false"))
+	postgresPoolMaxConns := getenvInt32("AUTHORIZER_DB_MAX_CONNS", 20)
+	postgresPoolMinConns := getenvInt32("AUTHORIZER_DB_MIN_CONNS", 2)
+	postgresPoolMaxConnLifeMs := getenvInt("AUTHORIZER_DB_MAX_CONN_LIFETIME_MS", int((30 * time.Minute).Milliseconds()))
+	postgresPoolMaxConnIdleMs := getenvInt("AUTHORIZER_DB_MAX_CONN_IDLE_MS", int((5 * time.Minute).Milliseconds()))
+	postgresPoolHealthCheckMs := getenvInt("AUTHORIZER_DB_HEALTHCHECK_MS", int((30 * time.Second).Milliseconds()))
+	postgresConnectTimeoutMs := getenvInt("AUTHORIZER_DB_CONNECT_TIMEOUT_MS", int((5 * time.Second).Milliseconds()))
+	redpandaEnabled := utils.IsTruthyString(getenv("AUTHORIZER_REDPANDA_ENABLED", "true"))
 
 	host := utils.EnvFallback(os.Getenv("DB_TRANSACTION_HOST"), os.Getenv("DB_HOST"))
 	port := utils.EnvFallback(os.Getenv("DB_TRANSACTION_PORT"), os.Getenv("DB_PORT"))
@@ -55,36 +100,79 @@ func LoadConfig() (*Config, error) {
 		sslMode = "disable"
 	}
 
-	postgresDSN := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", host, port, user, password, dbName, sslMode)
-
-	rabbitURL := strings.TrimSpace(os.Getenv("AUTHORIZER_RABBITMQ_URL"))
-	if rabbitURL == "" {
-		rabbitScheme := getenv("RABBITMQ_URI", "amqp")
-		rabbitHost := getenv("RABBITMQ_HOST", "127.0.0.1")
-		rabbitPort := getenv("RABBITMQ_PORT_HOST", "5672")
-		rabbitUser := getenv("RABBITMQ_DEFAULT_USER", "guest")
-		rabbitPass := getenv("RABBITMQ_DEFAULT_PASS", "guest")
-		rabbitVHost := strings.TrimSpace(os.Getenv("RABBITMQ_VHOST"))
-
-		if rabbitVHost == "/" || rabbitVHost == "" {
-			rabbitURL = fmt.Sprintf("%s://%s:%s@%s:%s/", rabbitScheme, rabbitUser, rabbitPass, rabbitHost, rabbitPort)
-		} else {
-			rabbitURL = fmt.Sprintf("%s://%s:%s@%s:%s/%s", rabbitScheme, rabbitUser, rabbitPass, rabbitHost, rabbitPort, rabbitVHost)
-		}
+	if !brokersecurity.IsNonProductionEnvironment(envName) && strings.EqualFold(strings.TrimSpace(sslMode), "disable") {
+		return nil, fmt.Errorf("DB_TRANSACTION_SSLMODE=disable is not allowed in production-like environments")
 	}
 
+	postgresDSN := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", host, port, user, password, dbName, sslMode)
+
+	redpandaBrokersRaw := strings.TrimSpace(os.Getenv("AUTHORIZER_REDPANDA_BROKERS"))
+	if redpandaBrokersRaw == "" {
+		redpandaBrokersRaw = strings.TrimSpace(os.Getenv("REDPANDA_BROKERS"))
+	}
+
+	if redpandaBrokersRaw == "" {
+		redpandaBrokersRaw = "127.0.0.1:9092"
+	}
+
+	redpandaBrokers := brokerpkg.ParseSeedBrokers(redpandaBrokersRaw)
+	redpandaTLSEnabled := utils.IsTruthyString(utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_TLS_ENABLED"), os.Getenv("REDPANDA_TLS_ENABLED")))
+	redpandaTLSInsecureSkip := utils.IsTruthyString(utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_TLS_INSECURE_SKIP_VERIFY"), os.Getenv("REDPANDA_TLS_INSECURE_SKIP_VERIFY")))
+	redpandaTLSCAFile := utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_TLS_CA_FILE"), os.Getenv("REDPANDA_TLS_CA_FILE"))
+	redpandaSASLEnabled := utils.IsTruthyString(utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_SASL_ENABLED"), os.Getenv("REDPANDA_SASL_ENABLED")))
+	redpandaSASLMechanism := utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_SASL_MECHANISM"), os.Getenv("REDPANDA_SASL_MECHANISM"))
+	if strings.TrimSpace(redpandaSASLMechanism) == "" {
+		redpandaSASLMechanism = "SCRAM-SHA-256"
+	}
+	redpandaSASLUsername := utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_SASL_USERNAME"), os.Getenv("REDPANDA_SASL_USERNAME"))
+	redpandaSASLPassword := utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_SASL_PASSWORD"), os.Getenv("REDPANDA_SASL_PASSWORD"))
+	redpandaProducerLingerMs := getenvInt("AUTHORIZER_REDPANDA_PRODUCER_LINGER_MS", 5)
+	redpandaMaxBufferedRecords := getenvInt("AUTHORIZER_REDPANDA_MAX_BUFFERED_RECORDS", 10000)
+	redpandaRecordRetries := getenvInt("AUTHORIZER_REDPANDA_RECORD_RETRIES", 3)
+	redpandaDeliveryTimeoutMs := getenvInt("AUTHORIZER_REDPANDA_DELIVERY_TIMEOUT_MS", 30000)
+	redpandaPublishTimeoutMs := getenvInt("AUTHORIZER_REDPANDA_PUBLISH_TIMEOUT_MS", 5000)
+	redpandaBackpressurePolicy := strings.ToLower(strings.TrimSpace(getenv("AUTHORIZER_REDPANDA_BACKPRESSURE_POLICY", "bounded_wait")))
+
 	return &Config{
+		EnvName:                    envName,
 		GRPCAddress:                grpcAddress,
 		ShardCount:                 shardCount,
+		EnableTelemetry:            enableTelemetry,
+		OtelServiceName:            otelServiceName,
+		OtelLibraryName:            otelLibraryName,
+		OtelServiceVersion:         otelServiceVersion,
+		OtelDeploymentEnv:          otelDeploymentEnv,
+		OtelColExporterEndpoint:    otelCollectorEndpoint,
 		WALEnabled:                 walEnabled,
 		WALPath:                    walPath,
 		WALBufferSize:              walBufferSize,
 		WALFlushInterval:           time.Duration(walFlushIntervalMs) * time.Millisecond,
+		WALSyncOnAppend:            walSyncOnAppend,
 		MaxConcurrentStreams:       maxConcurrentStreams,
 		MaxReceiveMessageSizeBytes: maxReceiveBytes,
+		ReflectionEnabled:          reflectionEnabled,
 		PostgresDSN:                postgresDSN,
-		RabbitMQEnabled:            rabbitEnabled,
-		RabbitMQURL:                rabbitURL,
+		PostgresPoolMaxConns:       postgresPoolMaxConns,
+		PostgresPoolMinConns:       postgresPoolMinConns,
+		PostgresPoolMaxConnLife:    time.Duration(postgresPoolMaxConnLifeMs) * time.Millisecond,
+		PostgresPoolMaxConnIdle:    time.Duration(postgresPoolMaxConnIdleMs) * time.Millisecond,
+		PostgresPoolHealthCheck:    time.Duration(postgresPoolHealthCheckMs) * time.Millisecond,
+		PostgresConnectTimeout:     time.Duration(postgresConnectTimeoutMs) * time.Millisecond,
+		RedpandaEnabled:            redpandaEnabled,
+		RedpandaBrokers:            redpandaBrokers,
+		RedpandaTLSEnabled:         redpandaTLSEnabled,
+		RedpandaTLSInsecureSkip:    redpandaTLSInsecureSkip,
+		RedpandaTLSCAFile:          redpandaTLSCAFile,
+		RedpandaSASLEnabled:        redpandaSASLEnabled,
+		RedpandaSASLMechanism:      redpandaSASLMechanism,
+		RedpandaSASLUsername:       redpandaSASLUsername,
+		RedpandaSASLPassword:       redpandaSASLPassword,
+		RedpandaProducerLinger:     time.Duration(redpandaProducerLingerMs) * time.Millisecond,
+		RedpandaMaxBufferedRecords: redpandaMaxBufferedRecords,
+		RedpandaRecordRetries:      redpandaRecordRetries,
+		RedpandaDeliveryTimeout:    time.Duration(redpandaDeliveryTimeoutMs) * time.Millisecond,
+		RedpandaPublishTimeout:     time.Duration(redpandaPublishTimeoutMs) * time.Millisecond,
+		RedpandaBackpressurePolicy: redpandaBackpressurePolicy,
 	}, nil
 }
 
@@ -108,4 +196,18 @@ func getenvInt(name string, fallback int) int {
 	}
 
 	return parsed
+}
+
+func getenvInt32(name string, fallback int32) int32 {
+	value := getenv(name, "")
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseInt(value, 10, 32)
+	if err != nil {
+		return fallback
+	}
+
+	return int32(parsed)
 }

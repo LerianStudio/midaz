@@ -8,11 +8,11 @@ import "context"
 
 // Message is a publish request envelope.
 type Message struct {
-	Exchange    string
-	RoutingKey  string
-	Payload     []byte
-	Headers     map[string]string
-	ContentType string
+	Topic        string
+	PartitionKey string
+	Payload      []byte
+	Headers      map[string]string
+	ContentType  string
 }
 
 // Publisher represents async publish behavior for authorized operations.
