@@ -48,6 +48,13 @@ type Writer interface {
 	Close() error
 }
 
+type Observer interface {
+	ObserveWALQueueDepth(depth int)
+	ObserveWALAppendDropped(err error)
+	ObserveWALWriteError(stage string, err error)
+	ObserveWALFsyncLatency(latency time.Duration)
+}
+
 type noopWriter struct{}
 
 // NewNoopWriter returns a writer that drops all entries.
@@ -65,19 +72,39 @@ func (noopWriter) Close() error {
 
 // RingBufferWriter batches WAL appends in-memory and flushes to disk periodically.
 type RingBufferWriter struct {
-	file   *os.File
-	writer *bufio.Writer
-	flush  *time.Ticker
+	file         *os.File
+	writer       *bufio.Writer
+	flush        *time.Ticker
+	obs          Observer
+	syncOnAppend bool
 
 	entries chan Entry
 	stop    chan struct{}
 	done    chan struct{}
 
-	mu sync.Mutex
+	mu      sync.Mutex
+	errMu   sync.RWMutex
+	lastErr error
 }
 
 // NewRingBufferWriter creates a file-backed WAL writer.
 func NewRingBufferWriter(path string, bufferSize int, flushInterval time.Duration) (*RingBufferWriter, error) {
+	return NewRingBufferWriterWithOptions(path, bufferSize, flushInterval, false, nil)
+}
+
+// NewRingBufferWriterWithObserver creates a file-backed WAL writer with observability hooks.
+func NewRingBufferWriterWithObserver(path string, bufferSize int, flushInterval time.Duration, observer Observer) (*RingBufferWriter, error) {
+	return NewRingBufferWriterWithOptions(path, bufferSize, flushInterval, false, observer)
+}
+
+// NewRingBufferWriterWithOptions creates a file-backed WAL writer with optional synchronous append semantics.
+func NewRingBufferWriterWithOptions(
+	path string,
+	bufferSize int,
+	flushInterval time.Duration,
+	syncOnAppend bool,
+	observer Observer,
+) (*RingBufferWriter, error) {
 	if path == "" {
 		return nil, fmt.Errorf("wal path cannot be empty")
 	}
@@ -90,7 +117,7 @@ func NewRingBufferWriter(path string, bufferSize int, flushInterval time.Duratio
 		flushInterval = time.Millisecond
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("create wal directory: %w", err)
 	}
 
@@ -100,12 +127,14 @@ func NewRingBufferWriter(path string, bufferSize int, flushInterval time.Duratio
 	}
 
 	r := &RingBufferWriter{
-		file:    file,
-		writer:  bufio.NewWriterSize(file, 1<<20),
-		flush:   time.NewTicker(flushInterval),
-		entries: make(chan Entry, bufferSize),
-		stop:    make(chan struct{}),
-		done:    make(chan struct{}),
+		file:         file,
+		writer:       bufio.NewWriterSize(file, 1<<20),
+		flush:        time.NewTicker(flushInterval),
+		obs:          observer,
+		syncOnAppend: syncOnAppend,
+		entries:      make(chan Entry, bufferSize),
+		stop:         make(chan struct{}),
+		done:         make(chan struct{}),
 	}
 
 	go r.run()
@@ -114,16 +143,83 @@ func NewRingBufferWriter(path string, bufferSize int, flushInterval time.Duratio
 }
 
 func (r *RingBufferWriter) Append(entry Entry) error {
+	if err := r.getError(); err != nil {
+		return err
+	}
+
+	select {
+	case <-r.stop:
+		return fmt.Errorf("wal writer is closing")
+	default:
+	}
+
 	if entry.CreatedAt.IsZero() {
 		entry.CreatedAt = time.Now().UTC()
 	}
 
+	if r.syncOnAppend {
+		return r.appendSync(entry)
+	}
+
 	select {
 	case r.entries <- entry:
+		r.observeQueueDepth(len(r.entries))
 		return nil
 	default:
-		return fmt.Errorf("wal buffer is full")
+		err := fmt.Errorf("wal buffer is full")
+		r.observeQueueDepth(len(r.entries))
+		r.observeAppendDropped(err)
+
+		return err
 	}
+}
+
+func (r *RingBufferWriter) appendSync(entry Entry) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.writer == nil || r.file == nil {
+		return fmt.Errorf("wal writer is not available")
+	}
+
+	frame, err := encodeEntryFrame(entry)
+	if err != nil {
+		r.observeWriteError("encode", err)
+		err = fmt.Errorf("encode wal entry: %w", err)
+		r.setError(err)
+
+		return err
+	}
+
+	if _, err := r.writer.Write(frame); err != nil {
+		r.observeWriteError("write", err)
+		err = fmt.Errorf("write wal frame: %w", err)
+		r.setError(err)
+
+		return err
+	}
+
+	flushStart := time.Now()
+	if err := r.writer.Flush(); err != nil {
+		r.observeWriteError("flush", err)
+		err = fmt.Errorf("flush wal writer: %w", err)
+		r.setError(err)
+
+		return err
+	}
+
+	if err := r.file.Sync(); err != nil {
+		r.observeWriteError("sync", err)
+		err = fmt.Errorf("sync wal file: %w", err)
+		r.setError(err)
+
+		return err
+	}
+
+	r.observeFsyncLatency(time.Since(flushStart))
+	r.observeQueueDepth(len(r.entries))
+
+	return nil
 }
 
 func (r *RingBufferWriter) Close() error {
@@ -139,19 +235,32 @@ func (r *RingBufferWriter) Close() error {
 
 	if r.writer != nil {
 		if err := r.writer.Flush(); err != nil {
+			r.observeWriteError("close_flush", err)
+			r.setError(fmt.Errorf("flush wal writer on close: %w", err))
+
 			return err
 		}
 	}
 
 	if r.file != nil {
+		syncStart := time.Now()
 		if err := r.file.Sync(); err != nil {
+			r.observeWriteError("close_sync", err)
+			r.setError(fmt.Errorf("sync wal file on close: %w", err))
+
 			return err
 		}
+		r.observeFsyncLatency(time.Since(syncStart))
 
-		return r.file.Close()
+		if err := r.file.Close(); err != nil {
+			r.observeWriteError("close_file", err)
+			r.setError(fmt.Errorf("close wal file: %w", err))
+
+			return err
+		}
 	}
 
-	return nil
+	return r.getError()
 }
 
 func (r *RingBufferWriter) run() {
@@ -164,6 +273,7 @@ func (r *RingBufferWriter) run() {
 			return
 		case entry := <-r.entries:
 			r.writeEntry(entry)
+			r.observeQueueDepth(len(r.entries))
 		case <-r.flush.C:
 			r.flushNow()
 		}
@@ -188,10 +298,16 @@ func (r *RingBufferWriter) writeEntry(entry Entry) {
 
 	frame, err := encodeEntryFrame(entry)
 	if err != nil {
+		r.observeWriteError("encode", err)
+		r.setError(fmt.Errorf("encode wal entry: %w", err))
+
 		return
 	}
 
-	_, _ = r.writer.Write(frame)
+	if _, err := r.writer.Write(frame); err != nil {
+		r.observeWriteError("write", err)
+		r.setError(fmt.Errorf("write wal frame: %w", err))
+	}
 }
 
 func (r *RingBufferWriter) flushNow() {
@@ -202,8 +318,80 @@ func (r *RingBufferWriter) flushNow() {
 		return
 	}
 
-	_ = r.writer.Flush()
-	_ = r.file.Sync()
+	flushStart := time.Now()
+	if err := r.writer.Flush(); err != nil {
+		r.observeWriteError("flush", err)
+		r.setError(fmt.Errorf("flush wal writer: %w", err))
+
+		return
+	}
+
+	if err := r.file.Sync(); err != nil {
+		r.observeWriteError("sync", err)
+		r.setError(fmt.Errorf("sync wal file: %w", err))
+
+		return
+	}
+
+	r.observeFsyncLatency(time.Since(flushStart))
+}
+
+func (r *RingBufferWriter) setError(err error) {
+	if err == nil {
+		return
+	}
+
+	r.errMu.Lock()
+	defer r.errMu.Unlock()
+
+	if r.lastErr != nil {
+		return
+	}
+
+	r.lastErr = err
+}
+
+func (r *RingBufferWriter) getError() error {
+	r.errMu.RLock()
+	defer r.errMu.RUnlock()
+
+	if r.lastErr == nil {
+		return nil
+	}
+
+	return r.lastErr
+}
+
+func (r *RingBufferWriter) observeQueueDepth(depth int) {
+	if r == nil || r.obs == nil {
+		return
+	}
+
+	r.obs.ObserveWALQueueDepth(depth)
+}
+
+func (r *RingBufferWriter) observeAppendDropped(err error) {
+	if r == nil || r.obs == nil {
+		return
+	}
+
+	r.obs.ObserveWALAppendDropped(err)
+}
+
+func (r *RingBufferWriter) observeWriteError(stage string, err error) {
+	if r == nil || r.obs == nil {
+		return
+	}
+
+	r.obs.ObserveWALWriteError(stage, err)
+}
+
+func (r *RingBufferWriter) observeFsyncLatency(latency time.Duration) {
+	if r == nil || r.obs == nil {
+		return
+	}
+
+	r.obs.ObserveWALFsyncLatency(latency)
 }
 
 func encodeEntryFrame(entry Entry) ([]byte, error) {

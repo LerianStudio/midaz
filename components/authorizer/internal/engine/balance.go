@@ -5,8 +5,6 @@
 package engine
 
 import (
-	"fmt"
-
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
@@ -34,7 +32,7 @@ func balanceLookupKey(organizationID, ledgerID, alias, balanceKey string) string
 		balanceKey = constant.DefaultBalanceKey
 	}
 
-	return fmt.Sprintf("%s:%s:%s:%s", organizationID, ledgerID, alias, balanceKey)
+	return organizationID + ":" + ledgerID + ":" + alias + ":" + balanceKey
 }
 
 func (b *Balance) clone() *Balance {

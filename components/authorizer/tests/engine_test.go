@@ -17,6 +17,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type failingWALWriter struct{}
+
+func (failingWALWriter) Append(_ wal.Entry) error {
+	return errors.New("wal append failed")
+}
+
+func (failingWALWriter) Close() error {
+	return nil
+}
+
 func TestAuthorizeSingleDebitCredit(t *testing.T) {
 	e := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
 	e.UpsertBalances([]*engine.Balance{
@@ -335,4 +345,42 @@ func TestAuthorizeExternalCreditCannotBecomePositive(t *testing.T) {
 	external, ok := e.GetBalance("org", "ledger", "@external/BRL", shard.ExternalBalanceKey(0))
 	require.True(t, ok)
 	require.Equal(t, int64(-100), external.Available)
+}
+
+func TestAuthorizeFailClosedWhenWALAppendFails(t *testing.T) {
+	e := engine.New(shard.NewRouter(8), failingWALWriter{})
+	e.UpsertBalances([]*engine.Balance{
+		{
+			ID:             "b1",
+			OrganizationID: "org",
+			LedgerID:       "ledger",
+			AccountAlias:   "@alice",
+			BalanceKey:     constant.DefaultBalanceKey,
+			AssetCode:      "BRL",
+			Available:      10000,
+			Scale:          2,
+			Version:        1,
+			AllowSending:   true,
+			AllowReceiving: true,
+		},
+	})
+
+	resp, err := e.Authorize(&authorizerv1.AuthorizeRequest{
+		TransactionId:     "tx-fail-closed",
+		OrganizationId:    "org",
+		LedgerId:          "ledger",
+		Pending:           false,
+		TransactionStatus: constant.CREATED,
+		Operations: []*authorizerv1.BalanceOperation{
+			{OperationAlias: "0#@alice#default", AccountAlias: "@alice", BalanceKey: "default", Amount: 100, Scale: 2, Operation: constant.DEBIT},
+		},
+	})
+
+	require.Error(t, err)
+	require.Nil(t, resp)
+
+	balance, ok := e.GetBalance("org", "ledger", "@alice", "default")
+	require.True(t, ok)
+	require.Equal(t, int64(10000), balance.Available)
+	require.Equal(t, uint64(1), balance.Version)
 }

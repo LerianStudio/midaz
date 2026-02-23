@@ -8,7 +8,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/engine"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -19,7 +21,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const queryBalances = `
+const queryBalancesBase = `
 SELECT
   id,
   organization_id,
@@ -43,12 +45,32 @@ type PostgresLoader struct {
 	router *shard.Router
 }
 
+type PoolConfig struct {
+	MaxConns          int32
+	MinConns          int32
+	MaxConnLifetime   time.Duration
+	MaxConnIdleTime   time.Duration
+	HealthCheckPeriod time.Duration
+	ConnectTimeout    time.Duration
+}
+
 func NewPostgresLoader(ctx context.Context, dsn string, router *shard.Router) (*PostgresLoader, error) {
+	return NewPostgresLoaderWithConfig(ctx, dsn, router, PoolConfig{})
+}
+
+func NewPostgresLoaderWithConfig(ctx context.Context, dsn string, router *shard.Router, poolConfig PoolConfig) (*PostgresLoader, error) {
 	if router == nil {
 		router = shard.NewRouter(shard.DefaultShardCount)
 	}
 
-	pool, err := pgxpool.New(ctx, dsn)
+	parsed, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("parse postgres dsn: %w", err)
+	}
+
+	applyPoolConfig(parsed, poolConfig)
+
+	pool, err := pgxpool.NewWithConfig(ctx, parsed)
 	if err != nil {
 		return nil, fmt.Errorf("connect postgres: %w", err)
 	}
@@ -67,7 +89,20 @@ func (l *PostgresLoader) LoadBalances(ctx context.Context, organizationID, ledge
 		return nil, fmt.Errorf("postgres loader is not initialized")
 	}
 
-	rows, err := l.pool.Query(ctx, queryBalances)
+	query := queryBalancesBase
+	args := make([]any, 0, 2)
+
+	if organizationID != "" {
+		args = append(args, organizationID)
+		query += " AND organization_id = $" + strconv.Itoa(len(args))
+	}
+
+	if ledgerID != "" {
+		args = append(args, ledgerID)
+		query += " AND ledger_id = $" + strconv.Itoa(len(args))
+	}
+
+	rows, err := l.pool.Query(ctx, query, args...)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
@@ -118,14 +153,6 @@ func (l *PostgresLoader) LoadBalances(ctx context.Context, organizationID, ledge
 			&allowReceiving,
 		); err != nil {
 			return nil, err
-		}
-
-		if organizationID != "" && organizationID != org {
-			continue
-		}
-
-		if ledgerID != "" && ledgerID != ledger {
-			continue
 		}
 
 		if balanceKey == "" {
@@ -192,4 +219,38 @@ func (l *PostgresLoader) LoadBalances(ctx context.Context, organizationID, ledge
 	}
 
 	return balances, nil
+}
+
+func applyPoolConfig(config *pgxpool.Config, poolConfig PoolConfig) {
+	if config == nil {
+		return
+	}
+
+	if poolConfig.MaxConns > 0 {
+		config.MaxConns = poolConfig.MaxConns
+	}
+
+	if poolConfig.MinConns > 0 {
+		config.MinConns = poolConfig.MinConns
+	}
+
+	if config.MaxConns > 0 && config.MinConns > config.MaxConns {
+		config.MinConns = config.MaxConns
+	}
+
+	if poolConfig.MaxConnLifetime > 0 {
+		config.MaxConnLifetime = poolConfig.MaxConnLifetime
+	}
+
+	if poolConfig.MaxConnIdleTime > 0 {
+		config.MaxConnIdleTime = poolConfig.MaxConnIdleTime
+	}
+
+	if poolConfig.HealthCheckPeriod > 0 {
+		config.HealthCheckPeriod = poolConfig.HealthCheckPeriod
+	}
+
+	if poolConfig.ConnectTimeout > 0 {
+		config.ConnConfig.ConnectTimeout = poolConfig.ConnectTimeout
+	}
 }

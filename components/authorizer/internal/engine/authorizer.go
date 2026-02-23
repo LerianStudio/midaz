@@ -6,10 +6,12 @@ package engine
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/wal"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -28,8 +30,14 @@ const (
 )
 
 type shardWorker struct {
-	mu       sync.Mutex
+	mu       sync.RWMutex
 	balances map[string]*Balance
+}
+
+type Observer interface {
+	ObserveAuthorizeLockWait(shardCount int, wait time.Duration)
+	ObserveAuthorizeLockHold(shardCount int, hold time.Duration)
+	ObserveWALAppendFailure(err error)
 }
 
 // Engine provides in-memory transaction authorization with shard-ordered locking.
@@ -37,6 +45,7 @@ type Engine struct {
 	router  *shard.Router
 	workers []*shardWorker
 	wal     wal.Writer
+	observe Observer
 	loaded  atomic.Int64
 }
 
@@ -68,6 +77,14 @@ func (e *Engine) SetWALWriter(writer wal.Writer) {
 	}
 
 	e.wal = writer
+}
+
+func (e *Engine) SetObserver(observer Observer) {
+	if e == nil {
+		return
+	}
+
+	e.observe = observer
 }
 
 func (e *Engine) ShardCount() int {
@@ -137,8 +154,8 @@ func (e *Engine) GetBalance(organizationID, ledgerID, accountAlias, balanceKey s
 	worker := e.workers[workerID]
 	lookupKey := balanceLookupKey(organizationID, ledgerID, accountAlias, balanceKey)
 
-	worker.mu.Lock()
-	defer worker.mu.Unlock()
+	worker.mu.RLock()
+	defer worker.mu.RUnlock()
 
 	balance, ok := worker.balances[lookupKey]
 	if !ok {
@@ -148,22 +165,48 @@ func (e *Engine) GetBalance(organizationID, ledgerID, accountAlias, balanceKey s
 	return balance.clone(), true
 }
 
+func (e *Engine) CountShardsForOperations(ops []*authorizerv1.BalanceOperation) int {
+	if e == nil || e.router == nil || len(ops) == 0 {
+		return 0
+	}
+
+	normalized := normalizeExternalOperations(ops, e.router)
+	if len(normalized) == 0 {
+		return 0
+	}
+
+	shards := make(map[int]struct{}, len(normalized))
+	for _, op := range normalized {
+		if op == nil {
+			continue
+		}
+
+		workerID := e.router.ResolveBalance(op.GetAccountAlias(), op.GetBalanceKey())
+		shards[workerID] = struct{}{}
+	}
+
+	return len(shards)
+}
+
 type preparedOperation struct {
-	op              *authorizerv1.BalanceOperation
-	lookupKey       string
-	workerID        int
-	balance         *Balance
-	preAvail        int64
-	preHold         int64
-	postAvail       int64
-	postHold        int64
-	preVersion      uint64
-	hasChange       bool
-	canonicalAlias  string
-	canonicalKey    string
-	transactionOp   string
-	transactionType string
-	amount          int64
+	lookupKey      string
+	balance        *Balance
+	operationAlias string
+	canonicalAlias string
+	canonicalKey   string
+	balanceID      string
+	accountID      string
+	assetCode      string
+	accountType    string
+	allowSending   bool
+	allowReceiving bool
+	scale          int32
+	preVersion     uint64
+	preAvail       int64
+	preHold        int64
+	postAvail      int64
+	postHold       int64
+	hasChange      bool
 }
 
 func (e *Engine) Authorize(req *authorizerv1.AuthorizeRequest) (*authorizerv1.AuthorizeResponse, error) {
@@ -180,9 +223,17 @@ func (e *Engine) authorize(req *authorizerv1.AuthorizeRequest, persistWAL bool) 
 	}
 
 	normalized := normalizeExternalOperations(req.Operations, e.router)
+	organizationID := req.GetOrganizationId()
+	ledgerID := req.GetLedgerId()
+	pending := req.GetPending()
+	transactionStatus := req.GetTransactionStatus()
 
 	shards := make(map[int]struct{}, len(normalized))
 	for _, op := range normalized {
+		if op == nil {
+			continue
+		}
+
 		workerID := e.router.ResolveBalance(op.GetAccountAlias(), op.GetBalanceKey())
 		shards[workerID] = struct{}{}
 	}
@@ -193,19 +244,45 @@ func (e *Engine) authorize(req *authorizerv1.AuthorizeRequest, persistWAL bool) 
 	}
 	sort.Ints(orderedShards)
 
+	var lockWaitTotal time.Duration
 	for _, workerID := range orderedShards {
+		lockStart := time.Now()
 		e.workers[workerID].mu.Lock()
+		lockWaitTotal += time.Since(lockStart)
 	}
-	defer func() {
+
+	if e.observe != nil {
+		e.observe.ObserveAuthorizeLockWait(len(orderedShards), lockWaitTotal)
+	}
+
+	lockHoldStart := time.Now()
+	locksReleased := false
+	releaseLocks := func() {
+		if locksReleased {
+			return
+		}
+
+		if e.observe != nil {
+			e.observe.ObserveAuthorizeLockHold(len(orderedShards), time.Since(lockHoldStart))
+		}
+
 		for i := len(orderedShards) - 1; i >= 0; i-- {
 			e.workers[orderedShards[i]].mu.Unlock()
 		}
-	}()
+
+		locksReleased = true
+	}
+	defer releaseLocks()
 
 	prepared := make([]preparedOperation, 0, len(normalized))
-	staged := make(map[string]*Balance, len(normalized))
+	staged := make(map[*Balance]*Balance, len(normalized))
+	changedOperations := 0
 
 	for _, op := range normalized {
+		if op == nil {
+			continue
+		}
+
 		balanceKey := op.GetBalanceKey()
 		if balanceKey == "" {
 			balanceKey = constant.DefaultBalanceKey
@@ -213,7 +290,7 @@ func (e *Engine) authorize(req *authorizerv1.AuthorizeRequest, persistWAL bool) 
 
 		canonicalAlias := op.GetAccountAlias()
 		workerID := e.router.ResolveBalance(canonicalAlias, balanceKey)
-		lookupKey := balanceLookupKey(req.GetOrganizationId(), req.GetLedgerId(), canonicalAlias, balanceKey)
+		lookupKey := balanceLookupKey(organizationID, ledgerID, canonicalAlias, balanceKey)
 
 		actualBalance, ok := e.workers[workerID].balances[lookupKey]
 		if !ok {
@@ -224,10 +301,10 @@ func (e *Engine) authorize(req *authorizerv1.AuthorizeRequest, persistWAL bool) 
 			}, nil
 		}
 
-		workingBalance, ok := staged[lookupKey]
+		workingBalance, ok := staged[actualBalance]
 		if !ok {
 			workingBalance = actualBalance.clone()
-			staged[lookupKey] = workingBalance
+			staged[actualBalance] = workingBalance
 		}
 
 		amount, err := rescaleAmount(op.GetAmount(), op.GetScale(), workingBalance.Scale)
@@ -244,8 +321,8 @@ func (e *Engine) authorize(req *authorizerv1.AuthorizeRequest, persistWAL bool) 
 		postAvail, postHold := applyOperation(
 			preAvail,
 			preHold,
-			req.GetPending(),
-			req.GetTransactionStatus(),
+			pending,
+			transactionStatus,
 			op.GetOperation(),
 			amount,
 		)
@@ -268,24 +345,75 @@ func (e *Engine) authorize(req *authorizerv1.AuthorizeRequest, persistWAL bool) 
 
 		workingBalance.Available = postAvail
 		workingBalance.OnHold = postHold
+		hasChange := preAvail != postAvail || preHold != postHold
+		if hasChange {
+			changedOperations++
+		}
 
 		prepared = append(prepared, preparedOperation{
-			op:             op,
 			lookupKey:      lookupKey,
-			workerID:       workerID,
 			balance:        actualBalance,
+			operationAlias: op.GetOperationAlias(),
+			canonicalAlias: canonicalAlias,
+			canonicalKey:   balanceKey,
+			balanceID:      actualBalance.ID,
+			accountID:      actualBalance.AccountID,
+			assetCode:      actualBalance.AssetCode,
+			accountType:    actualBalance.AccountType,
+			allowSending:   actualBalance.AllowSending,
+			allowReceiving: actualBalance.AllowReceiving,
+			scale:          actualBalance.Scale,
 			preVersion:     actualBalance.Version,
 			preAvail:       preAvail,
 			preHold:        preHold,
 			postAvail:      postAvail,
 			postHold:       postHold,
-			hasChange:      preAvail != postAvail || preHold != postHold,
-			canonicalAlias: canonicalAlias,
-			canonicalKey:   balanceKey,
-			amount:         amount,
+			hasChange:      hasChange,
 		})
 	}
 
+	if persistWAL && changedOperations > 0 {
+		mutations := buildWALMutations(prepared)
+
+		err := e.wal.Append(wal.Entry{
+			TransactionID:     req.GetTransactionId(),
+			OrganizationID:    organizationID,
+			LedgerID:          ledgerID,
+			Pending:           pending,
+			TransactionStatus: transactionStatus,
+			Operations:        normalized,
+			Mutations:         mutations,
+		})
+		if err != nil {
+			if e.observe != nil {
+				e.observe.ObserveWALAppendFailure(err)
+			}
+
+			return nil, fmt.Errorf("append wal entry: %w", err)
+		}
+	}
+
+	for _, op := range prepared {
+		if !op.hasChange {
+			continue
+		}
+
+		op.balance.Available = op.postAvail
+		op.balance.OnHold = op.postHold
+		op.balance.Version++
+	}
+
+	releaseLocks()
+
+	snapshots := buildAuthorizeSnapshots(prepared)
+
+	return &authorizerv1.AuthorizeResponse{
+		Authorized: true,
+		Balances:   snapshots,
+	}, nil
+}
+
+func buildAuthorizeSnapshots(prepared []preparedOperation) []*authorizerv1.BalanceSnapshot {
 	snapshots := make([]*authorizerv1.BalanceSnapshot, 0, len(prepared))
 
 	for _, op := range prepared {
@@ -293,45 +421,27 @@ func (e *Engine) authorize(req *authorizerv1.AuthorizeRequest, persistWAL bool) 
 			continue
 		}
 
+		// BalanceSnapshot intentionally reports pre-mutation state for idempotent,
+		// deterministic replay and client-side reconciliation against the original
+		// authorization baseline.
 		snapshots = append(snapshots, &authorizerv1.BalanceSnapshot{
-			OperationAlias: op.op.GetOperationAlias(),
+			OperationAlias: op.operationAlias,
 			AccountAlias:   op.canonicalAlias,
 			BalanceKey:     op.canonicalKey,
-			BalanceId:      op.balance.ID,
-			AccountId:      op.balance.AccountID,
-			AssetCode:      op.balance.AssetCode,
-			AccountType:    op.balance.AccountType,
-			AllowSending:   op.balance.AllowSending,
-			AllowReceiving: op.balance.AllowReceiving,
+			BalanceId:      op.balanceID,
+			AccountId:      op.accountID,
+			AssetCode:      op.assetCode,
+			AccountType:    op.accountType,
+			AllowSending:   op.allowSending,
+			AllowReceiving: op.allowReceiving,
 			Available:      op.preAvail,
 			OnHold:         op.preHold,
-			Scale:          op.balance.Scale,
-			Version:        op.balance.Version,
-		})
-
-		op.balance.Available = op.postAvail
-		op.balance.OnHold = op.postHold
-		op.balance.Version++
-	}
-
-	if persistWAL && len(snapshots) > 0 {
-		mutations := buildWALMutations(prepared)
-
-		_ = e.wal.Append(wal.Entry{
-			TransactionID:     req.GetTransactionId(),
-			OrganizationID:    req.GetOrganizationId(),
-			LedgerID:          req.GetLedgerId(),
-			Pending:           req.GetPending(),
-			TransactionStatus: req.GetTransactionStatus(),
-			Operations:        normalized,
-			Mutations:         mutations,
+			Scale:          op.scale,
+			Version:        op.preVersion,
 		})
 	}
 
-	return &authorizerv1.AuthorizeResponse{
-		Authorized: true,
-		Balances:   snapshots,
-	}, nil
+	return snapshots
 }
 
 func buildWALMutations(operations []preparedOperation) []wal.BalanceMutation {
