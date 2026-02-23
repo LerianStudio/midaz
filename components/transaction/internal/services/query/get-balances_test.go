@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -31,12 +30,10 @@ func TestGetBalances(t *testing.T) {
 
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 
 	uc := &UseCase{
-		BalanceRepo:  mockBalanceRepo,
-		RedisRepo:    mockRedisRepo,
-		RabbitMQRepo: mockRabbitMQRepo,
+		BalanceRepo: mockBalanceRepo,
+		RedisRepo:   mockRedisRepo,
 	}
 
 	ctx := context.Background()

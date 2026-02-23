@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -76,11 +75,9 @@ func TestGetBalancesUsesAuthorizerWhenEnabled(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 
 	uc := &UseCase{
-		RedisRepo:    mockRedisRepo,
-		RabbitMQRepo: mockRabbitMQRepo,
+		RedisRepo: mockRedisRepo,
 		Authorizer: &stubAuthorizer{
 			enabled: true,
 			authorizeResponses: []*authorizerv1.AuthorizeResponse{

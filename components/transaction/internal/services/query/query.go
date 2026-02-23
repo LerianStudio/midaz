@@ -12,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
@@ -40,9 +39,6 @@ type UseCase struct {
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo mongodb.Repository
-
-	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
-	RabbitMQRepo rabbitmq.ProducerRepository
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository

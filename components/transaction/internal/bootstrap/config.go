@@ -7,7 +7,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -18,7 +18,6 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
@@ -31,11 +30,13 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
+	brokerpkg "github.com/LerianStudio/midaz/v3/pkg/broker"
+	brokersecurity "github.com/LerianStudio/midaz/v3/pkg/broker/security"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -55,25 +56,18 @@ func initLogger(opts *Options) (libLog.Logger, error) {
 	return libZap.InitializeLoggerWithError()
 }
 
-// buildRabbitMQConnectionString constructs an AMQP connection string with optional vhost.
-func buildRabbitMQConnectionString(uri, user, pass, host, port, vhost string) string {
-	u := &url.URL{
-		Scheme: uri,
-		User:   url.UserPassword(user, pass),
-		Host:   fmt.Sprintf("%s:%s", host, port),
-	}
-	if vhost != "" {
-		u.RawPath = "/" + url.PathEscape(vhost)
-		u.Path = "/" + vhost
-	}
-
-	return u.String()
-}
-
 func resolveCircuitBreakerStateListener(
 	opts *Options,
 	metricStateListener libCircuitBreaker.StateChangeListener,
 ) libCircuitBreaker.StateChangeListener {
+	if metricStateListener == nil {
+		if opts != nil {
+			return opts.CircuitBreakerStateListener
+		}
+
+		return nil
+	}
+
 	if opts != nil && opts.CircuitBreakerStateListener != nil {
 		return &compositeStateListener{
 			listeners: []libCircuitBreaker.StateChangeListener{
@@ -86,8 +80,8 @@ func resolveCircuitBreakerStateListener(
 	return metricStateListener
 }
 
-func resolveRabbitMQOperationTimeout(rawTimeout string) time.Duration {
-	operationTimeout := rabbitmq.DefaultOperationTimeout
+func resolveBrokerOperationTimeout(rawTimeout string) time.Duration {
+	operationTimeout := redpanda.DefaultOperationTimeout
 
 	if rawTimeout != "" {
 		if parsed, err := time.ParseDuration(rawTimeout); err == nil && parsed > 0 {
@@ -96,6 +90,18 @@ func resolveRabbitMQOperationTimeout(rawTimeout string) time.Duration {
 	}
 
 	return operationTimeout
+}
+
+func enforcePostgresSSLMode(envName, sslMode, envVar string) error {
+	if brokersecurity.IsNonProductionEnvironment(envName) {
+		return nil
+	}
+
+	if !strings.EqualFold(strings.TrimSpace(sslMode), "disable") {
+		return nil
+	}
+
+	return fmt.Errorf("%s=disable is not allowed in production-like environments", envVar)
 }
 
 func newBalanceSyncWorker(
@@ -146,73 +152,96 @@ func initShardRouting(
 	return shardRouter, shardManager
 }
 
-// rabbitMQProducerResult holds the outputs of RabbitMQ producer + circuit breaker initialization.
-type rabbitMQProducerResult struct {
-	producer              rabbitmq.ProducerRepository
+// brokerProducerResult holds the outputs of producer + circuit breaker initialization.
+type brokerProducerResult struct {
+	producer              redpanda.ProducerRepository
 	circuitBreakerManager *CircuitBreakerManager
 }
 
-// initRabbitMQProducerWithCircuitBreaker creates the RabbitMQ producer and wraps it with a circuit breaker.
-func initRabbitMQProducerWithCircuitBreaker(
+// initProducerWithCircuitBreaker creates the producer and wraps it with a circuit breaker.
+func initProducerWithCircuitBreaker(
 	cfg *Config,
 	opts *Options,
 	logger libLog.Logger,
-	rabbitMQConnection *libRabbitmq.RabbitMQConnection,
+	brokers []string,
 	telemetry *libOpentelemetry.Telemetry,
-) (*rabbitMQProducerResult, error) {
-	rawProducerRabbitMQ, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create RabbitMQ producer: %w", err)
+) (*brokerProducerResult, error) {
+	linger := time.Duration(cfg.RedpandaProducerLingerMS) * time.Millisecond
+	securityConfig := redpanda.ClientSecurityConfig{
+		TLSEnabled:            cfg.RedpandaTLSEnabled,
+		TLSInsecureSkipVerify: cfg.RedpandaTLSInsecureSkipVerify,
+		TLSCAFile:             cfg.RedpandaTLSCAFile,
+		SASLEnabled:           cfg.RedpandaSASLEnabled,
+		SASLMechanism:         cfg.RedpandaSASLMechanism,
+		SASLUsername:          cfg.RedpandaSASLUsername,
+		SASLPassword:          cfg.RedpandaSASLPassword,
 	}
 
-	metricStateListener, err := rabbitmq.NewMetricStateListener(telemetry.MetricsFactory)
+	rawProducer, err := redpanda.NewProducerRedpandaWithSecurity(
+		brokers,
+		linger,
+		cfg.RedpandaMaxBufferedRecords,
+		cfg.TransactionAsync,
+		securityConfig,
+	)
 	if err != nil {
-		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
-			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
-		}
+		return nil, fmt.Errorf("failed to create Redpanda producer: %w", err)
+	}
 
-		return nil, fmt.Errorf("failed to create metric state listener: %w", err)
+	var metricStateListener libCircuitBreaker.StateChangeListener
+	if telemetry != nil && telemetry.MetricsFactory != nil {
+		metricStateListener, err = redpanda.NewMetricStateListener(telemetry.MetricsFactory)
+		if err != nil {
+			if closeErr := rawProducer.Close(); closeErr != nil {
+				logger.Warnf("Failed to close producer during cleanup: %v", closeErr)
+			}
+
+			return nil, fmt.Errorf("failed to create metric state listener: %w", err)
+		}
+	} else {
+		logger.Warn("Telemetry metrics factory unavailable; circuit breaker metrics listener disabled")
 	}
 
 	stateListener := resolveCircuitBreakerStateListener(opts, metricStateListener)
-	operationTimeout := resolveRabbitMQOperationTimeout(cfg.RabbitMQOperationTimeout)
+	operationTimeout := resolveBrokerOperationTimeout(cfg.BrokerOperationTimeout)
 
-	cbConfig := rabbitmq.CircuitBreakerConfig{
-		ConsecutiveFailures: utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerConsecutiveFailures, 15),
-		FailureRatio:        utils.GetFloat64FromIntPercentWithDefault(cfg.RabbitMQCircuitBreakerFailureRatio, 0.5),
-		Interval:            utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerInterval, 2*time.Minute),
-		MaxRequests:         utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerMaxRequests, 3),
-		MinRequests:         utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerMinRequests, 10),
-		Timeout:             utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerTimeout, 30*time.Second),
-		HealthCheckInterval: utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckInterval, 30*time.Second),
-		HealthCheckTimeout:  utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckTimeout, 10*time.Second),
+	cbConfig := redpanda.CircuitBreakerConfig{
+		ConsecutiveFailures: utils.GetUint32FromIntWithDefault(cfg.BrokerCircuitBreakerConsecutiveFailures, 15),
+		FailureRatio:        utils.GetFloat64FromIntPercentWithDefault(cfg.BrokerCircuitBreakerFailureRatio, 0.5),
+		Interval:            utils.GetDurationSecondsWithDefault(cfg.BrokerCircuitBreakerInterval, 2*time.Minute),
+		MaxRequests:         utils.GetUint32FromIntWithDefault(cfg.BrokerCircuitBreakerMaxRequests, 3),
+		MinRequests:         utils.GetUint32FromIntWithDefault(cfg.BrokerCircuitBreakerMinRequests, 10),
+		Timeout:             utils.GetDurationSecondsWithDefault(cfg.BrokerCircuitBreakerTimeout, 30*time.Second),
+		HealthCheckInterval: utils.GetDurationSecondsWithDefault(cfg.BrokerCircuitBreakerHealthCheckInterval, 30*time.Second),
 		OperationTimeout:    operationTimeout,
 	}
 
-	circuitBreakerManager, err := NewCircuitBreakerManager(logger, rabbitMQConnection, cbConfig, stateListener)
+	circuitBreakerManager, err := NewCircuitBreakerManager(logger, cbConfig, stateListener)
 	if err != nil {
-		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
-			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
+		if closeErr := rawProducer.Close(); closeErr != nil {
+			logger.Warnf("Failed to close producer during cleanup: %v", closeErr)
 		}
 
 		return nil, fmt.Errorf("failed to create circuit breaker manager: %w", err)
 	}
 
-	producerRepo, err := rabbitmq.NewCircuitBreakerProducer(
-		rawProducerRabbitMQ,
+	circuitBreakerManager.SetHealthChecker(rawProducer)
+
+	producerRepo, err := redpanda.NewCircuitBreakerProducer(
+		rawProducer,
 		circuitBreakerManager.Manager,
 		logger,
 		cbConfig.OperationTimeout,
 	)
 	if err != nil {
-		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
-			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
+		if closeErr := rawProducer.Close(); closeErr != nil {
+			logger.Warnf("Failed to close producer during cleanup: %v", closeErr)
 		}
 
 		return nil, fmt.Errorf("failed to create circuit breaker producer: %w", err)
 	}
 
-	return &rabbitMQProducerResult{
+	return &brokerProducerResult{
 		producer:              producerRepo,
 		circuitBreakerManager: circuitBreakerManager,
 	}, nil
@@ -271,8 +300,9 @@ func newShardRebalanceWorker(
 // Config is the top level configuration struct for the entire application.
 // Supports prefixed env vars (DB_TRANSACTION_*) with fallback to non-prefixed (DB_*) for backward compatibility.
 type Config struct {
-	EnvName  string `env:"ENV_NAME"`
+	EnvName  string `env:"ENV_NAME" default:"development"`
 	LogLevel string `env:"LOG_LEVEL"`
+	Version  string `env:"VERSION" default:"v3"`
 
 	// Server address - prefixed for unified ledger deployment
 	PrefixedServerAddress string `env:"SERVER_ADDRESS_TRANSACTION"`
@@ -342,21 +372,26 @@ type Config struct {
 	CasdoorApplicationName              string `env:"CASDOOR_APPLICATION_NAME"`
 	CasdoorModelName                    string `env:"CASDOOR_MODEL_NAME"`
 	JWKAddress                          string `env:"CASDOOR_JWK_ADDRESS"`
-	RabbitURI                           string `env:"RABBITMQ_URI"`
-	RabbitMQHost                        string `env:"RABBITMQ_HOST"`
-	RabbitMQPortHost                    string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP                    string `env:"RABBITMQ_PORT_AMQP"`
-	RabbitMQUser                        string `env:"RABBITMQ_DEFAULT_USER"`
-	RabbitMQPass                        string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQConsumerUser                string `env:"RABBITMQ_CONSUMER_USER"`
-	RabbitMQConsumerPass                string `env:"RABBITMQ_CONSUMER_PASS"`
-	RabbitMQVHost                       string `env:"RABBITMQ_VHOST"`
-	RabbitMQBalanceCreateQueue          string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
-	RabbitMQBalanceOperationExchange    string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"`
-	RabbitMQBalanceOperationKey         string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"`
-	RabbitMQNumbersOfWorkers            int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
-	RabbitMQNumbersOfPrefetch           int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
-	RabbitMQHealthCheckURL              string `env:"RABBITMQ_HEALTH_CHECK_URL"`
+	RedpandaBrokers                     string `env:"REDPANDA_BROKERS" default:"127.0.0.1:9092"`
+	RedpandaBalanceCreateTopic          string `env:"REDPANDA_BALANCE_CREATE_TOPIC" default:"ledger.balance.create"`
+	RedpandaBalanceOperationsTopic      string `env:"REDPANDA_BALANCE_OPS_TOPIC" default:"ledger.balance.operations"`
+	RedpandaEventsTopic                 string `env:"REDPANDA_EVENTS_TOPIC" default:"ledger.transaction.events"`
+	RedpandaAuditTopic                  string `env:"REDPANDA_AUDIT_TOPIC" default:"ledger.audit.log"`
+	RedpandaConsumerGroup               string `env:"REDPANDA_CONSUMER_GROUP" default:"midaz-balance-projector"`
+	RedpandaNumbersOfWorkers            int    `env:"REDPANDA_NUMBERS_OF_WORKERS" default:"5"`
+	RedpandaFetchMaxBytes               int    `env:"REDPANDA_FETCH_MAX_BYTES" default:"50000000"`
+	RedpandaMaxRetryAttempts            int    `env:"REDPANDA_MAX_RETRY_ATTEMPTS" default:"3"`
+	RedpandaProducerLingerMS            int    `env:"REDPANDA_PRODUCER_LINGER_MS" default:"5"`
+	RedpandaMaxBufferedRecords          int    `env:"REDPANDA_MAX_BUFFERED_RECORDS" default:"10000"`
+	RedpandaTLSEnabled                  bool   `env:"REDPANDA_TLS_ENABLED" default:"false"`
+	RedpandaTLSInsecureSkipVerify       bool   `env:"REDPANDA_TLS_INSECURE_SKIP_VERIFY" default:"false"`
+	RedpandaTLSCAFile                   string `env:"REDPANDA_TLS_CA_FILE"`
+	RedpandaSASLEnabled                 bool   `env:"REDPANDA_SASL_ENABLED" default:"false"`
+	RedpandaSASLMechanism               string `env:"REDPANDA_SASL_MECHANISM" default:"SCRAM-SHA-256"`
+	RedpandaSASLUsername                string `env:"REDPANDA_SASL_USERNAME"`
+	RedpandaSASLPassword                string `env:"REDPANDA_SASL_PASSWORD"`
+	TransactionEventsEnabled            bool   `env:"TRANSACTION_EVENTS_ENABLED" default:"true"`
+	AuditLogEnabled                     bool   `env:"AUDIT_LOG_ENABLED" default:"true"`
 	OtelServiceName                     string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName                     string `env:"OTEL_LIBRARY_NAME"`
 	OtelServiceVersion                  string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
@@ -403,32 +438,24 @@ type Config struct {
 	ShardRebalanceIsolationSharePercent int    `env:"SHARD_REBALANCE_ISOLATION_SHARE_PERCENT" default:"70"`
 	ShardRebalanceIsolationMinLoad      int64  `env:"SHARD_REBALANCE_ISOLATION_MIN_LOAD" default:"250"`
 
-	// Transaction async mode - when true, transactions are published to RabbitMQ for async processing.
+	// Transaction async mode - when true, transactions are published to Redpanda for async processing.
 	// Resolved once at startup and injected into UseCase to avoid per-request os.Getenv overhead.
-	RabbitMQTransactionAsync bool `env:"RABBITMQ_TRANSACTION_ASYNC" default:"false"`
-
-	// Sharded BTO queues - when true (with active shard router), routes BTO messages to per-shard queues.
-	// Resolved once at startup and injected into UseCase to avoid per-request os.Getenv overhead.
-	RabbitMQTransactionBalanceOperationSharded bool `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_SHARDED" default:"false"`
+	TransactionAsync bool `env:"TRANSACTION_ASYNC" default:"false"`
 
 	// Redis Cluster sharding (Phase 2A)
 	// Set REDIS_SHARD_COUNT > 0 to enable per-shard Lua execution.
 	// Default 0 = sharding disabled (legacy single-slot mode).
 	RedisShardCount int `env:"REDIS_SHARD_COUNT" default:"0"`
 
-	// Circuit Breaker configuration for RabbitMQ
-	// Protects against RabbitMQ outages by failing fast when broker is unavailable
-	RabbitMQCircuitBreakerConsecutiveFailures int `env:"RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES" default:"15"`
-	RabbitMQCircuitBreakerFailureRatio        int `env:"RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO" default:"50"` // Stored as percentage (e.g., 50 for 0.5)
-	RabbitMQCircuitBreakerInterval            int `env:"RABBITMQ_CIRCUIT_BREAKER_INTERVAL" default:"120"`     // Stored in seconds
-	RabbitMQCircuitBreakerMaxRequests         int `env:"RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS" default:"3"`
-	RabbitMQCircuitBreakerMinRequests         int `env:"RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS" default:"10"`
-	RabbitMQCircuitBreakerTimeout             int `env:"RABBITMQ_CIRCUIT_BREAKER_TIMEOUT" default:"30"` // Stored in seconds
-	// Health Check configuration for circuit breaker recovery
-	RabbitMQCircuitBreakerHealthCheckInterval int `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_INTERVAL" default:"30"` // Stored in seconds
-	RabbitMQCircuitBreakerHealthCheckTimeout  int `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_TIMEOUT" default:"10"`  // Stored in seconds
-	// Operation timeout for RabbitMQ connection and publish operations (e.g., "5s", "3s")
-	RabbitMQOperationTimeout string `env:"RABBITMQ_OPERATION_TIMEOUT"`
+	// Circuit Breaker configuration for producer
+	BrokerCircuitBreakerConsecutiveFailures int    `env:"BROKER_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES" default:"15"`
+	BrokerCircuitBreakerFailureRatio        int    `env:"BROKER_CIRCUIT_BREAKER_FAILURE_RATIO" default:"50"`
+	BrokerCircuitBreakerInterval            int    `env:"BROKER_CIRCUIT_BREAKER_INTERVAL" default:"120"`
+	BrokerCircuitBreakerMaxRequests         int    `env:"BROKER_CIRCUIT_BREAKER_MAX_REQUESTS" default:"3"`
+	BrokerCircuitBreakerMinRequests         int    `env:"BROKER_CIRCUIT_BREAKER_MIN_REQUESTS" default:"10"`
+	BrokerCircuitBreakerTimeout             int    `env:"BROKER_CIRCUIT_BREAKER_TIMEOUT" default:"30"`
+	BrokerCircuitBreakerHealthCheckInterval int    `env:"BROKER_CIRCUIT_BREAKER_HEALTH_CHECK_INTERVAL" default:"30"`
+	BrokerOperationTimeout                  string `env:"BROKER_OPERATION_TIMEOUT" default:"3s"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -455,9 +482,44 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
+	var cleanupFuncs []func()
+	success := false
+
+	defer func() {
+		if success {
+			return
+		}
+
+		for i := len(cleanupFuncs) - 1; i >= 0; i-- {
+			cleanupFuncs[i]()
+		}
+	}()
+
 	logger, err := initLogger(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
+	}
+
+	warnings, err := brokersecurity.ValidateRuntimeConfig(brokersecurity.RuntimeConfig{
+		Environment:           cfg.EnvName,
+		TLSEnabled:            cfg.RedpandaTLSEnabled,
+		TLSInsecureSkipVerify: cfg.RedpandaTLSInsecureSkipVerify,
+		SASLEnabled:           cfg.RedpandaSASLEnabled,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, warning := range warnings {
+		logger.Warnf("Redpanda security warning: %s (ENV_NAME=%s)", warning, cfg.EnvName)
+	}
+
+	deprecatedBrokerEnvs := brokerpkg.DeprecatedBrokerEnvVariables(os.Environ())
+	if len(deprecatedBrokerEnvs) > 0 {
+		logger.Warnf(
+			"Deprecated broker environment variables detected (ignored by this version): %s. Regenerate .env from .env.example and remove deprecated entries.",
+			strings.Join(deprecatedBrokerEnvs, ", "),
+		)
 	}
 
 	// BalanceSyncWorkerEnabled defaults to true via struct tag
@@ -480,20 +542,38 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
 
+	cleanupFuncs = append(cleanupFuncs, func() {
+		telemetry.ShutdownTelemetry()
+	})
+
 	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
 	dbHost := utils.EnvFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
 	dbUser := utils.EnvFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
 	dbPassword := utils.EnvFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
 	dbName := utils.EnvFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
 	dbPort := utils.EnvFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
-	dbSSLMode := utils.EnvFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
+	dbSSLMode := strings.TrimSpace(utils.EnvFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode))
+	if dbSSLMode == "" {
+		dbSSLMode = "disable"
+	}
+
+	if err := enforcePostgresSSLMode(cfg.EnvName, dbSSLMode, "DB_TRANSACTION_SSLMODE"); err != nil {
+		return nil, err
+	}
 
 	dbReplicaHost := utils.EnvFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
 	dbReplicaUser := utils.EnvFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
 	dbReplicaPassword := utils.EnvFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
 	dbReplicaName := utils.EnvFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
 	dbReplicaPort := utils.EnvFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
-	dbReplicaSSLMode := utils.EnvFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
+	dbReplicaSSLMode := strings.TrimSpace(utils.EnvFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode))
+	if dbReplicaSSLMode == "" {
+		dbReplicaSSLMode = dbSSLMode
+	}
+
+	if err := enforcePostgresSSLMode(cfg.EnvName, dbReplicaSSLMode, "DB_TRANSACTION_REPLICA_SSLMODE"); err != nil {
+		return nil, err
+	}
 
 	maxOpenConns := utils.EnvFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
 	maxIdleConns := utils.EnvFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
@@ -514,6 +594,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MaxOpenConnections:      maxOpenConns,
 		MaxIdleConnections:      maxIdleConns,
 	}
+
+	cleanupFuncs = append(cleanupFuncs, func() {
+		if postgresConnection.ConnectionDB != nil {
+			if closeErr := (*postgresConnection.ConnectionDB).Close(); closeErr != nil {
+				logger.Warnf("Failed to close transaction PostgreSQL connection during cleanup: %v", closeErr)
+			}
+		}
+	})
 
 	// Apply fallback for MongoDB prefixed env vars
 	mongoURI := utils.EnvFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
@@ -545,6 +633,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MaxPoolSize:            mongoMaxPoolSize,
 	}
 
+	cleanupFuncs = append(cleanupFuncs, func() {
+		if mongoConnection.DB != nil {
+			if closeErr := mongoConnection.DB.Disconnect(context.Background()); closeErr != nil {
+				logger.Warnf("Failed to disconnect transaction MongoDB client during cleanup: %v", closeErr)
+			}
+		}
+	})
+
 	redisConnection := &libRedis.RedisConnection{
 		Address:                      strings.Split(cfg.RedisHost, ","),
 		Password:                     cfg.RedisPassword,
@@ -569,6 +665,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
+
+	cleanupFuncs = append(cleanupFuncs, func() {
+		if closeErr := redisConnection.Close(); closeErr != nil {
+			logger.Warnf("Failed to close transaction Redis connection during cleanup: %v", closeErr)
+		}
+	})
 
 	shardRouter, shardManager := initShardRouting(cfg, logger, redisConnection)
 
@@ -603,46 +705,48 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	}
 
-	rabbitSource := buildRabbitMQConnectionString(
-		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
+	seedBrokers := redpanda.ParseSeedBrokers(cfg.RedpandaBrokers)
 
-	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQUser,
-		Pass:                   cfg.RabbitMQPass,
-		VHost:                  cfg.RabbitMQVHost,
-		Queue:                  cfg.RabbitMQBalanceCreateQueue,
-		Logger:                 logger,
-	}
-
-	// Initialize RabbitMQ producer with circuit breaker protection
-	rmqResult, err := initRabbitMQProducerWithCircuitBreaker(cfg, opts, logger, rabbitMQConnection, telemetry)
+	producerResult, err := initProducerWithCircuitBreaker(cfg, opts, logger, seedBrokers, telemetry)
 	if err != nil {
 		return nil, err
 	}
 
-	producerRabbitMQRepository := rmqResult.producer
-	circuitBreakerManager := rmqResult.circuitBreakerManager
+	cleanupFuncs = append(cleanupFuncs, func() {
+		if producerResult.circuitBreakerManager != nil {
+			producerResult.circuitBreakerManager.Stop()
+		}
+
+		if producerResult.producer != nil {
+			if closeErr := producerResult.producer.Close(); closeErr != nil {
+				logger.Warnf("Failed to close transaction producer during cleanup: %v", closeErr)
+			}
+		}
+	})
+
+	producerRepository := producerResult.producer
+	circuitBreakerManager := producerResult.circuitBreakerManager
 
 	useCase := &command.UseCase{
-		TransactionRepo:                 transactionPostgreSQLRepository,
-		OperationRepo:                   operationPostgreSQLRepository,
-		AssetRateRepo:                   assetRatePostgreSQLRepository,
-		BalanceRepo:                     balancePostgreSQLRepository,
-		OperationRouteRepo:              operationRoutePostgreSQLRepository,
-		TransactionRouteRepo:            transactionRoutePostgreSQLRepository,
-		MetadataRepo:                    metadataMongoDBRepository,
-		RabbitMQRepo:                    producerRabbitMQRepository,
-		RedisRepo:                       redisConsumerRepository,
-		ShardRouter:                     shardRouter,
-		ShardManager:                    shardManager,
-		RabbitMQBalanceOperationExchange: cfg.RabbitMQBalanceOperationExchange,
-		RabbitMQBalanceOperationKey:      cfg.RabbitMQBalanceOperationKey,
-		TransactionAsync:                cfg.RabbitMQTransactionAsync,
-		ShardedBTOQueuesEnabled:         cfg.RabbitMQTransactionBalanceOperationSharded,
+		TransactionRepo:        transactionPostgreSQLRepository,
+		OperationRepo:          operationPostgreSQLRepository,
+		AssetRateRepo:          assetRatePostgreSQLRepository,
+		BalanceRepo:            balancePostgreSQLRepository,
+		OperationRouteRepo:     operationRoutePostgreSQLRepository,
+		TransactionRouteRepo:   transactionRoutePostgreSQLRepository,
+		MetadataRepo:           metadataMongoDBRepository,
+		BrokerRepo:             producerRepository,
+		RedisRepo:              redisConsumerRepository,
+		ShardRouter:            shardRouter,
+		ShardManager:           shardManager,
+		BalanceOperationsTopic: cfg.RedpandaBalanceOperationsTopic,
+		BalanceCreateTopic:     cfg.RedpandaBalanceCreateTopic,
+		EventsTopic:            cfg.RedpandaEventsTopic,
+		EventsEnabled:          cfg.TransactionEventsEnabled,
+		AuditTopic:             cfg.RedpandaAuditTopic,
+		AuditLogEnabled:        cfg.AuditLogEnabled,
+		TransactionAsync:       cfg.TransactionAsync,
+		Version:                cfg.Version,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -653,7 +757,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
 		RedisRepo:            redisConsumerRepository,
 		ShardRouter:          shardRouter,
 		ShardManager:         shardManager,
@@ -671,14 +774,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger,
 	)
 	if err != nil {
-		circuitBreakerManager.Stop()
-
-		if closeErr := rmqResult.producer.Close(); closeErr != nil {
-			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
-		}
-
 		return nil, fmt.Errorf("failed to initialize authorizer client: %w", err)
 	}
+
+	cleanupFuncs = append(cleanupFuncs, func() {
+		if closeErr := authorizerClient.Close(); closeErr != nil {
+			logger.Warnf("Failed to close transaction authorizer connection during cleanup: %v", closeErr)
+		}
+	})
 
 	queryUseCase.Authorizer = authorizerClient
 	useCase.Authorizer = authorizerClient
@@ -713,22 +816,24 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:   queryUseCase,
 	}
 
-	rabbitConsumerSource := buildRabbitMQConnectionString(
-		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
-
-	rabbitMQConsumerConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitConsumerSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQConsumerUser,
-		Pass:                   cfg.RabbitMQConsumerPass,
-		VHost:                  cfg.RabbitMQVHost,
-		Queue:                  cfg.RabbitMQBalanceCreateQueue,
-		Logger:                 logger,
-	}
-
-	routes := rabbitmq.NewConsumerRoutes(rabbitMQConsumerConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
+	routes := redpanda.NewConsumerRoutesWithSecurity(
+		seedBrokers,
+		cfg.RedpandaConsumerGroup,
+		cfg.RedpandaNumbersOfWorkers,
+		cfg.RedpandaFetchMaxBytes,
+		logger,
+		telemetry,
+		redpanda.ClientSecurityConfig{
+			TLSEnabled:            cfg.RedpandaTLSEnabled,
+			TLSInsecureSkipVerify: cfg.RedpandaTLSInsecureSkipVerify,
+			TLSCAFile:             cfg.RedpandaTLSCAFile,
+			SASLEnabled:           cfg.RedpandaSASLEnabled,
+			SASLMechanism:         cfg.RedpandaSASLMechanism,
+			SASLUsername:          cfg.RedpandaSASLUsername,
+			SASLPassword:          cfg.RedpandaSASLPassword,
+		},
+		cfg.RedpandaMaxRetryAttempts,
+	)
 
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
@@ -753,7 +858,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	shardRebalanceWorker := newShardRebalanceWorker(cfg, logger, shardManager, shardRouter, shardRebalanceWorkerEnabled)
 	resolvedShardRebalanceWorkerEnabled := shardRebalanceWorker != nil
 
-	return &Service{
+	service := &Service{
 		Server:                      server,
 		ServerGRPC:                  serverGRPC,
 		MultiQueueConsumer:          multiQueueConsumer,
@@ -776,7 +881,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		balanceHandler:          balanceHandler,
 		operationRouteHandler:   operationRouteHandler,
 		transactionRouteHandler: transactionRouteHandler,
-	}, nil
+		brokerProducer:          producerResult.producer,
+		telemetry:               telemetry,
+		postgresConnection:      postgresConnection,
+		mongoConnection:         mongoConnection,
+		redisConnection:         redisConnection,
+	}
+
+	success = true
+
+	return service, nil
 }
 
 // compositeStateListener fans out state change notifications to multiple listeners.

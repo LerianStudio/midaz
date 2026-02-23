@@ -8,7 +8,6 @@ import (
 	"context"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/shardrouting"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
@@ -35,16 +34,3 @@ func (uc *UseCase) resolveBalanceShard(ctx context.Context, organizationID, ledg
 
 	return shardrouting.ResolveBalanceShard(ctx, uc.ShardRouter, uc.ShardManager, organizationID, ledgerID, alias, balanceKey)
 }
-
-// IsShardedBTOQueueEnabled checks if sharded balance-transaction-operation queues are enabled.
-// Requires an active shard router with shard count > 0 and the shardedEnabled flag to be true.
-// The shardedEnabled flag is resolved once at startup from RABBITMQ_TRANSACTION_BALANCE_OPERATION_SHARDED
-// and stored in UseCase.ShardedBTOQueuesEnabled to avoid per-request os.Getenv overhead.
-func IsShardedBTOQueueEnabled(router *shard.Router, shardedEnabled bool) bool {
-	if router == nil || router.ShardCount() <= 0 {
-		return false
-	}
-
-	return shardedEnabled
-}
-

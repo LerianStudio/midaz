@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"encoding/json"
-	"os"
-	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -25,8 +23,18 @@ const (
 func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.Transaction) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	if !isTransactionEventEnabled() {
-		logger.Infof("Transaction event not enabled. RABBITMQ_TRANSACTION_EVENTS_ENABLED='%s'", os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED"))
+	if !uc.EventsEnabled {
+		logger.Info("Transaction events are disabled")
+		return
+	}
+
+	if tran == nil {
+		logger.Errorf("Failed to send transaction event: transaction payload is nil")
+		return
+	}
+
+	if uc.BrokerRepo == nil {
+		logger.Errorf("Failed to send transaction event: broker repository is not configured")
 		return
 	}
 
@@ -38,6 +46,8 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 		libOpentelemetry.HandleSpanError(&spanTransactionEvents, "Failed to marshal transaction to JSON string", err)
 
 		logger.Errorf("Failed to marshal transaction to JSON string: %s", err.Error())
+
+		return
 	}
 
 	event := mmodel.Event{
@@ -45,36 +55,36 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 		EventType:      EventType,
 		Action:         tran.Status.Code,
 		TimeStamp:      time.Now(),
-		Version:        os.Getenv("VERSION"),
+		Version:        uc.Version,
 		OrganizationID: tran.OrganizationID,
 		LedgerID:       tran.LedgerID,
 		Payload:        payload,
 	}
 
-	key := Source + "." + EventType + "." + tran.Status.Code
+	key := tran.ID
+	if key == "" {
+		key = Source + "." + EventType + "." + tran.Status.Code
+	}
 
 	logger.Infof("Sending transaction events to key: %s", key)
 
 	message, err := json.Marshal(event)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanTransactionEvents, "Failed to marshal exchange message struct", err)
+		libOpentelemetry.HandleSpanError(&spanTransactionEvents, "Failed to marshal event message struct", err)
 
-		logger.Errorf("Failed to marshal exchange message struct")
+		logger.Errorf("Failed to marshal event message struct")
+
+		return
 	}
 
-	if _, err := uc.RabbitMQRepo.ProducerDefault(
+	if _, err := uc.BrokerRepo.ProducerDefault(
 		ctxSendTransactionEvents,
-		os.Getenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE"),
+		uc.EventsTopic,
 		key,
 		message,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&spanTransactionEvents, "Failed to send transaction events to exchange", err)
+		libOpentelemetry.HandleSpanError(&spanTransactionEvents, "Failed to send transaction events to topic", err)
 
 		logger.Errorf("Failed to send message: %s", err.Error())
 	}
-}
-
-func isTransactionEventEnabled() bool {
-	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")))
-	return envValue != "false"
 }

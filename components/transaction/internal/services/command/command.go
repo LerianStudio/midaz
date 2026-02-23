@@ -14,8 +14,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
@@ -50,8 +50,8 @@ type UseCase struct {
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo mongodb.Repository
 
-	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
-	RabbitMQRepo rabbitmq.ProducerRepository
+	// BrokerRepo provides an abstraction on top of the message broker producer.
+	BrokerRepo redpanda.ProducerRepository
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
@@ -67,23 +67,29 @@ type UseCase struct {
 	// Authorizer owns async BTO publishing when enabled.
 	Authorizer AuthorizerPublisher
 
-	// RabbitMQBalanceOperationExchange is the exchange name for async balance-transaction-operation messages.
-	// Injected from config to avoid direct os.Getenv calls in the service layer.
-	RabbitMQBalanceOperationExchange string
+	// BalanceOperationsTopic is the topic for async balance-transaction-operation messages.
+	BalanceOperationsTopic string
 
-	// RabbitMQBalanceOperationKey is the routing key for async balance-transaction-operation messages.
-	// Injected from config to avoid direct os.Getenv calls in the service layer.
-	RabbitMQBalanceOperationKey string
+	// BalanceCreateTopic is the topic for balance create events.
+	BalanceCreateTopic string
 
-	// TransactionAsync controls whether transactions are written asynchronously via RabbitMQ
+	// EventsTopic is the topic for transaction events.
+	EventsTopic string
+	// EventsEnabled controls transaction event publication.
+	EventsEnabled bool
+
+	// AuditTopic is the topic for transaction audit logs.
+	AuditTopic string
+	// AuditLogEnabled controls transaction audit publication.
+	AuditLogEnabled bool
+
+	// TransactionAsync controls whether transactions are written asynchronously via broker
 	// or synchronously via direct DB writes. Resolved once at startup from
-	// RABBITMQ_TRANSACTION_ASYNC to avoid per-request os.Getenv overhead.
+	// TRANSACTION_ASYNC to avoid per-request os.Getenv overhead.
 	TransactionAsync bool
 
-	// ShardedBTOQueuesEnabled controls whether balance-transaction-operation messages
-	// are routed to per-shard queues. Resolved once at startup from
-	// RABBITMQ_TRANSACTION_BALANCE_OPERATION_SHARDED to avoid per-request os.Getenv overhead.
-	ShardedBTOQueuesEnabled bool
+	// Version is emitted in transaction events and resolved once at startup.
+	Version string
 }
 
 // CheckHealth returns nil for unified mode (in-process calls don't need health checks).

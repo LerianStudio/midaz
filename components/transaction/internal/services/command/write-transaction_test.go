@@ -13,10 +13,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -36,22 +35,22 @@ type testData struct {
 }
 
 type stubAuthorizerPublisher struct {
-	enabled        bool
-	publishErr     error
-	publishCalls   int
-	lastExchange   string
-	lastRoutingKey string
-	lastPayload    []byte
+	enabled          bool
+	publishErr       error
+	publishCalls     int
+	lastTopic        string
+	lastPartitionKey string
+	lastPayload      []byte
 }
 
 func (s *stubAuthorizerPublisher) Enabled() bool {
 	return s.enabled
 }
 
-func (s *stubAuthorizerPublisher) PublishBalanceOperations(_ context.Context, exchange, routingKey string, payload []byte, _ map[string]string) error {
+func (s *stubAuthorizerPublisher) PublishBalanceOperations(_ context.Context, topic, partitionKey string, payload []byte, _ map[string]string) error {
 	s.publishCalls++
-	s.lastExchange = exchange
-	s.lastRoutingKey = routingKey
+	s.lastTopic = topic
+	s.lastPartitionKey = partitionKey
 	s.lastPayload = payload
 
 	return s.publishErr
@@ -130,24 +129,24 @@ func createTestData(organizationID, ledgerID uuid.UUID) *testData {
 }
 
 // setupMocksForFallback sets up all mocks needed for CreateBalanceTransactionOperationsAsync
-// which is called as a fallback when RabbitMQ fails
+// which is called as a fallback when broker publishing fails
 func setupMocksForFallback(
 	mockBalanceRepo *balance.MockRepository,
 	mockTransactionRepo *transaction.MockRepository,
 	mockMetadataRepo *mongodb.MockRepository,
-	mockRabbitMQRepo *rabbitmq.MockProducerRepository,
+	mockBrokerRepo *redpanda.MockProducerRepository,
 	mockRedisRepo *redis.MockRedisRepository,
 	tran *transaction.Transaction,
 	organizationID, ledgerID uuid.UUID,
 ) {
-	setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, nil, tran, organizationID, ledgerID)
+	setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockBrokerRepo, mockRedisRepo, nil, tran, organizationID, ledgerID)
 }
 
 func setupMocksForFallbackWithOperation(
 	mockBalanceRepo *balance.MockRepository,
 	mockTransactionRepo *transaction.MockRepository,
 	mockMetadataRepo *mongodb.MockRepository,
-	mockRabbitMQRepo *rabbitmq.MockProducerRepository,
+	mockBrokerRepo *redpanda.MockProducerRepository,
 	mockRedisRepo *redis.MockRedisRepository,
 	mockOperationRepo *operation.MockRepository,
 	tran *transaction.Transaction,
@@ -189,8 +188,8 @@ func setupMocksForFallbackWithOperation(
 		Return(nil).
 		AnyTimes()
 
-	// Mock RabbitMQRepo.ProducerDefault for transaction events (called by SendTransactionEvents)
-	mockRabbitMQRepo.EXPECT().
+	// Mock BrokerRepo.ProducerDefault for transaction events (called by SendTransactionEvents)
+	mockBrokerRepo.EXPECT().
 		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, nil).
 		AnyTimes()
@@ -208,15 +207,14 @@ func TestWriteTransaction(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		uc := &UseCase{
-			RabbitMQRepo:                    mockRabbitMQRepo,
-			RedisRepo:                       mockRedisRepo,
-			RabbitMQBalanceOperationExchange: "test-exchange",
-			RabbitMQBalanceOperationKey:      "test-key",
-			TransactionAsync:                true,
+			BrokerRepo:             mockBrokerRepo,
+			RedisRepo:              mockRedisRepo,
+			BalanceOperationsTopic: "test-topic",
+			TransactionAsync:       true,
 		}
 
 		ctx := context.Background()
@@ -224,9 +222,9 @@ func TestWriteTransaction(t *testing.T) {
 		ledgerID := uuid.New()
 		td := createTestData(organizationID, ledgerID)
 
-		// Expect RabbitMQ producer to be called (async path) with context-aware method
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
+		// Expect broker producer to be called (async path) with context-aware method
+		mockBrokerRepo.EXPECT().
+			ProducerDefaultWithContext(gomock.Any(), "test-topic", td.transactionID, gomock.Any()).
 			Return(nil, nil).
 			Times(1)
 
@@ -239,15 +237,14 @@ func TestWriteTransaction(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		uc := &UseCase{
-			RabbitMQRepo:                    mockRabbitMQRepo,
-			RedisRepo:                       mockRedisRepo,
-			RabbitMQBalanceOperationExchange: "test-exchange",
-			RabbitMQBalanceOperationKey:      "test-key",
-			TransactionAsync:                true,
+			BrokerRepo:             mockBrokerRepo,
+			RedisRepo:              mockRedisRepo,
+			BalanceOperationsTopic: "test-topic",
+			TransactionAsync:       true,
 		}
 
 		ctx := context.Background()
@@ -255,9 +252,9 @@ func TestWriteTransaction(t *testing.T) {
 		ledgerID := uuid.New()
 		td := createTestData(organizationID, ledgerID)
 
-		// Expect RabbitMQ producer to be called (async path) with context-aware method
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
+		// Expect broker producer to be called (async path) with context-aware method
+		mockBrokerRepo.EXPECT().
+			ProducerDefaultWithContext(gomock.Any(), "test-topic", td.transactionID, gomock.Any()).
 			Return(nil, nil).
 			Times(1)
 
@@ -274,7 +271,7 @@ func TestWriteTransaction(t *testing.T) {
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockTransactionRepo := transaction.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 
@@ -287,13 +284,13 @@ func TestWriteTransaction(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			TransactionRepo: mockTransactionRepo,
 			MetadataRepo:    mockMetadataRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
+			BrokerRepo:      mockBrokerRepo,
 			RedisRepo:       mockRedisRepo,
 			OperationRepo:   mockOperationRepo,
 		}
 
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
-		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockBrokerRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
@@ -309,7 +306,7 @@ func TestWriteTransaction(t *testing.T) {
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockTransactionRepo := transaction.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 
@@ -322,13 +319,13 @@ func TestWriteTransaction(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			TransactionRepo: mockTransactionRepo,
 			MetadataRepo:    mockMetadataRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
+			BrokerRepo:      mockBrokerRepo,
 			RedisRepo:       mockRedisRepo,
 			OperationRepo:   mockOperationRepo,
 		}
 
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
-		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockBrokerRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
@@ -344,7 +341,7 @@ func TestWriteTransaction(t *testing.T) {
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockTransactionRepo := transaction.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 
@@ -357,13 +354,13 @@ func TestWriteTransaction(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			TransactionRepo: mockTransactionRepo,
 			MetadataRepo:    mockMetadataRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
+			BrokerRepo:      mockBrokerRepo,
 			RedisRepo:       mockRedisRepo,
 			OperationRepo:   mockOperationRepo,
 		}
 
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
-		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockBrokerRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
@@ -373,21 +370,20 @@ func TestWriteTransaction(t *testing.T) {
 
 // TestWriteTransactionAsync tests the async queue publishing with fallback behavior
 func TestWriteTransactionAsync(t *testing.T) {
-	t.Run("authorizer_enabled_publishes_without_local_rabbitmq", func(t *testing.T) {
+	t.Run("authorizer_enabled_publishes_without_local_broker", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		authorizer := &stubAuthorizerPublisher{enabled: true}
 
 		uc := &UseCase{
-			RabbitMQRepo:                    mockRabbitMQRepo,
-			RedisRepo:                       mockRedisRepo,
-			Authorizer:                      authorizer,
-			RabbitMQBalanceOperationExchange: "test-exchange",
-			RabbitMQBalanceOperationKey:      "test-key",
+			BrokerRepo:             mockBrokerRepo,
+			RedisRepo:              mockRedisRepo,
+			Authorizer:             authorizer,
+			BalanceOperationsTopic: "test-topic",
 		}
 
 		ctx := context.Background()
@@ -399,26 +395,25 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, 1, authorizer.publishCalls)
-		assert.Equal(t, "test-exchange", authorizer.lastExchange)
-		assert.Equal(t, "test-key", authorizer.lastRoutingKey)
+		assert.Equal(t, "test-topic", authorizer.lastTopic)
+		assert.Equal(t, td.transactionID, authorizer.lastPartitionKey)
 		assert.NotEmpty(t, authorizer.lastPayload)
 	})
 
-	t.Run("authorizer_publish_fails_fallback_to_local_rabbitmq", func(t *testing.T) {
+	t.Run("authorizer_publish_fails_fallback_to_local_broker", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		authorizer := &stubAuthorizerPublisher{enabled: true, publishErr: errors.New("authorizer unavailable")}
 
 		uc := &UseCase{
-			RabbitMQRepo:                    mockRabbitMQRepo,
-			RedisRepo:                       mockRedisRepo,
-			Authorizer:                      authorizer,
-			RabbitMQBalanceOperationExchange: "test-exchange",
-			RabbitMQBalanceOperationKey:      "test-key",
+			BrokerRepo:             mockBrokerRepo,
+			RedisRepo:              mockRedisRepo,
+			Authorizer:             authorizer,
+			BalanceOperationsTopic: "test-topic",
 		}
 
 		ctx := context.Background()
@@ -426,8 +421,8 @@ func TestWriteTransactionAsync(t *testing.T) {
 		ledgerID := uuid.New()
 		td := createTestData(organizationID, ledgerID)
 
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
+		mockBrokerRepo.EXPECT().
+			ProducerDefaultWithContext(gomock.Any(), "test-topic", td.transactionID, gomock.Any()).
 			Return(nil, nil).
 			Times(1)
 
@@ -441,14 +436,13 @@ func TestWriteTransactionAsync(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		uc := &UseCase{
-			RabbitMQRepo:                    mockRabbitMQRepo,
-			RedisRepo:                       mockRedisRepo,
-			RabbitMQBalanceOperationExchange: "test-exchange",
-			RabbitMQBalanceOperationKey:      "test-key",
+			BrokerRepo:             mockBrokerRepo,
+			RedisRepo:              mockRedisRepo,
+			BalanceOperationsTopic: "test-topic",
 		}
 
 		ctx := context.Background()
@@ -456,9 +450,9 @@ func TestWriteTransactionAsync(t *testing.T) {
 		ledgerID := uuid.New()
 		td := createTestData(organizationID, ledgerID)
 
-		// Expect RabbitMQ producer to be called with correct exchange and key
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
+		// Expect broker producer to be called with correct topic and key
+		mockBrokerRepo.EXPECT().
+			ProducerDefaultWithContext(gomock.Any(), "test-topic", td.transactionID, gomock.Any()).
 			Return(nil, nil).
 			Times(1)
 
@@ -467,14 +461,14 @@ func TestWriteTransactionAsync(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("rabbitmq_fails_fallback_to_db_succeeds", func(t *testing.T) {
+	t.Run("broker_fails_fallback_to_db_succeeds", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockTransactionRepo := transaction.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 
@@ -484,24 +478,23 @@ func TestWriteTransactionAsync(t *testing.T) {
 		td := createTestData(organizationID, ledgerID)
 
 		uc := &UseCase{
-			BalanceRepo:                     mockBalanceRepo,
-			TransactionRepo:                 mockTransactionRepo,
-			MetadataRepo:                    mockMetadataRepo,
-			RabbitMQRepo:                    mockRabbitMQRepo,
-			RedisRepo:                       mockRedisRepo,
-			OperationRepo:                   mockOperationRepo,
-			RabbitMQBalanceOperationExchange: "test-exchange",
-			RabbitMQBalanceOperationKey:      "test-key",
+			BalanceRepo:            mockBalanceRepo,
+			TransactionRepo:        mockTransactionRepo,
+			MetadataRepo:           mockMetadataRepo,
+			BrokerRepo:             mockBrokerRepo,
+			RedisRepo:              mockRedisRepo,
+			OperationRepo:          mockOperationRepo,
+			BalanceOperationsTopic: "test-topic",
 		}
 
-		// RabbitMQ producer fails - triggers fallback
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
-			Return(nil, errors.New("rabbitmq connection failed")).
+		// Broker producer fails - triggers fallback
+		mockBrokerRepo.EXPECT().
+			ProducerDefaultWithContext(gomock.Any(), "test-topic", td.transactionID, gomock.Any()).
+			Return(nil, errors.New("broker connection failed")).
 			Times(1)
 
 		// Setup mocks for fallback path (CreateBalanceTransactionOperationsAsync)
-		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockBrokerRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
 
 		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
@@ -509,14 +502,14 @@ func TestWriteTransactionAsync(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("rabbitmq_fails_fallback_to_db_fails", func(t *testing.T) {
+	t.Run("broker_fails_fallback_to_db_fails", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockTransactionRepo := transaction.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		ctx := context.Background()
@@ -525,19 +518,18 @@ func TestWriteTransactionAsync(t *testing.T) {
 		td := createTestData(organizationID, ledgerID)
 
 		uc := &UseCase{
-			BalanceRepo:                     mockBalanceRepo,
-			TransactionRepo:                 mockTransactionRepo,
-			MetadataRepo:                    mockMetadataRepo,
-			RabbitMQRepo:                    mockRabbitMQRepo,
-			RedisRepo:                       mockRedisRepo,
-			RabbitMQBalanceOperationExchange: "test-exchange",
-			RabbitMQBalanceOperationKey:      "test-key",
+			BalanceRepo:            mockBalanceRepo,
+			TransactionRepo:        mockTransactionRepo,
+			MetadataRepo:           mockMetadataRepo,
+			BrokerRepo:             mockBrokerRepo,
+			RedisRepo:              mockRedisRepo,
+			BalanceOperationsTopic: "test-topic",
 		}
 
-		// RabbitMQ producer fails - triggers fallback
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefaultWithContext(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
-			Return(nil, errors.New("rabbitmq connection failed")).
+		// Broker producer fails - triggers fallback
+		mockBrokerRepo.EXPECT().
+			ProducerDefaultWithContext(gomock.Any(), "test-topic", td.transactionID, gomock.Any()).
+			Return(nil, errors.New("broker connection failed")).
 			Times(1)
 
 		// Mock RedisRepo.ListBalanceByKey for stale balance check
@@ -564,18 +556,17 @@ func TestWriteTransactionAsync(t *testing.T) {
 	})
 
 	t.Run("success_with_empty_config_values", func(t *testing.T) {
-		// Test behavior when exchange and key config values are empty
+		// Test behavior when topic and partition key config values are empty
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		uc := &UseCase{
-			RabbitMQRepo:                    mockRabbitMQRepo,
-			RedisRepo:                       mockRedisRepo,
-			RabbitMQBalanceOperationExchange: "",
-			RabbitMQBalanceOperationKey:      "",
+			BrokerRepo:             mockBrokerRepo,
+			RedisRepo:              mockRedisRepo,
+			BalanceOperationsTopic: "",
 		}
 
 		ctx := context.Background()
@@ -583,9 +574,9 @@ func TestWriteTransactionAsync(t *testing.T) {
 		ledgerID := uuid.New()
 		td := createTestData(organizationID, ledgerID)
 
-		// Expect RabbitMQ producer to be called with empty exchange and key
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefaultWithContext(gomock.Any(), "", "", gomock.Any()).
+		// Expect broker producer to be called with empty topic and transaction key
+		mockBrokerRepo.EXPECT().
+			ProducerDefaultWithContext(gomock.Any(), "", td.transactionID, gomock.Any()).
 			Return(nil, nil).
 			Times(1)
 
@@ -604,7 +595,7 @@ func TestWriteTransactionSync(t *testing.T) {
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockTransactionRepo := transaction.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 
@@ -617,13 +608,13 @@ func TestWriteTransactionSync(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			TransactionRepo: mockTransactionRepo,
 			MetadataRepo:    mockMetadataRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
+			BrokerRepo:      mockBrokerRepo,
 			RedisRepo:       mockRedisRepo,
 			OperationRepo:   mockOperationRepo,
 		}
 
 		// Setup mocks for CreateBalanceTransactionOperationsAsync
-		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockBrokerRepo, mockRedisRepo, mockOperationRepo, td.tran, organizationID, ledgerID)
 
 		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
@@ -637,7 +628,7 @@ func TestWriteTransactionSync(t *testing.T) {
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockTransactionRepo := transaction.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		ctx := context.Background()
@@ -649,7 +640,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			TransactionRepo: mockTransactionRepo,
 			MetadataRepo:    mockMetadataRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
+			BrokerRepo:      mockBrokerRepo,
 			RedisRepo:       mockRedisRepo,
 		}
 
@@ -682,7 +673,7 @@ func TestWriteTransactionSync(t *testing.T) {
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockTransactionRepo := transaction.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		ctx := context.Background()
@@ -694,7 +685,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			TransactionRepo: mockTransactionRepo,
 			MetadataRepo:    mockMetadataRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
+			BrokerRepo:      mockBrokerRepo,
 			RedisRepo:       mockRedisRepo,
 		}
 
@@ -733,7 +724,7 @@ func TestWriteTransactionSync(t *testing.T) {
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockTransactionRepo := transaction.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 		mockOperationRepo := operation.NewMockRepository(ctrl)
 
@@ -781,7 +772,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			BalanceRepo:     mockBalanceRepo,
 			TransactionRepo: mockTransactionRepo,
 			MetadataRepo:    mockMetadataRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
+			BrokerRepo:      mockBrokerRepo,
 			RedisRepo:       mockRedisRepo,
 			OperationRepo:   mockOperationRepo,
 		}
@@ -816,8 +807,8 @@ func TestWriteTransactionSync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
-		// Mock RabbitMQRepo.ProducerDefault for transaction events
-		mockRabbitMQRepo.EXPECT().
+		// Mock BrokerRepo.ProducerDefault for transaction events
+		mockBrokerRepo.EXPECT().
 			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil, nil).
 			AnyTimes()
@@ -831,86 +822,5 @@ func TestWriteTransactionSync(t *testing.T) {
 		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, balances, tran)
 
 		assert.NoError(t, err)
-	})
-}
-
-// TestResolveBTORoutingKey_Distribution verifies that multiple transaction IDs
-// distribute across different shards (not all to the same one), and that
-// edge cases like a zero-value router are handled correctly.
-func TestResolveBTORoutingKey_Distribution(t *testing.T) {
-	t.Parallel()
-
-	baseKey := "balance.transaction.operation"
-
-	t.Run("different_txids_distribute_across_shards", func(t *testing.T) {
-		t.Parallel()
-
-		router := shard.NewRouter(8)
-
-		// Generate enough UUIDs to statistically guarantee at least 2 different shards.
-		// With 8 shards and 100 random UUIDs, the probability of all mapping to the
-		// same shard is (1/8)^99 -- essentially zero.
-		routingKeys := make(map[string]struct{})
-
-		for range 100 {
-			txID := uuid.New()
-			key := resolveBTORoutingKey(baseKey, txID, router, true)
-			routingKeys[key] = struct{}{}
-		}
-
-		assert.Greater(t, len(routingKeys), 1, "100 random UUIDs must produce at least 2 distinct routing keys across 8 shards")
-	})
-
-	t.Run("zero_value_router_returns_base_key", func(t *testing.T) {
-		t.Parallel()
-
-		// A zero-value Router has ShardCount()==0, which makes
-		// IsShardedBTOQueueEnabled return false.
-		router := &shard.Router{}
-		txID := uuid.New()
-		result := resolveBTORoutingKey(baseKey, txID, router, true)
-		assert.Equal(t, baseKey, result, "zero-value router (ShardCount=0) must return base key")
-	})
-
-	t.Run("shard_key_format_is_correct", func(t *testing.T) {
-		t.Parallel()
-
-		router := shard.NewRouter(8)
-		txID := uuid.New()
-		result := resolveBTORoutingKey(baseKey, txID, router, true)
-
-		assert.NotEqual(t, baseKey, result, "sharded routing key must differ from base key")
-		assert.Contains(t, result, baseKey+".", "sharded key must start with base key plus dot separator")
-		assert.Contains(t, result, "shard_", "sharded key must contain shard_ prefix")
-	})
-}
-
-// TestIsShardedBTOQueueEnabled tests the guard function that determines
-// whether sharded BTO queues should be used.
-func TestIsShardedBTOQueueEnabled(t *testing.T) {
-	t.Parallel()
-
-	t.Run("nil_router_disabled", func(t *testing.T) {
-		t.Parallel()
-
-		assert.False(t, IsShardedBTOQueueEnabled(nil, true))
-	})
-
-	t.Run("zero_shard_count_disabled", func(t *testing.T) {
-		t.Parallel()
-
-		assert.False(t, IsShardedBTOQueueEnabled(&shard.Router{}, true))
-	})
-
-	t.Run("valid_router_flag_false_disabled", func(t *testing.T) {
-		t.Parallel()
-
-		assert.False(t, IsShardedBTOQueueEnabled(shard.NewRouter(8), false))
-	})
-
-	t.Run("valid_router_flag_true_enabled", func(t *testing.T) {
-		t.Parallel()
-
-		assert.True(t, IsShardedBTOQueueEnabled(shard.NewRouter(8), true))
 	})
 }

@@ -21,16 +21,17 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -39,8 +40,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
 	postgrestestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
-	rabbitmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	redpandatestutil "github.com/LerianStudio/midaz/v3/tests/utils/redpanda"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -55,6 +56,8 @@ type testInfra struct {
 	mongoContainer *mongotestutil.ContainerResult
 	redisContainer *redistestutil.ContainerResult
 	pgConn         *libPostgres.PostgresConnection
+	mongoConn      *libMongo.MongoConnection
+	redisConn      *libRedis.RedisConnection
 	redisRepo      redis.RedisRepository
 	metadataRepo   mongodb.Repository
 	handler        *TransactionHandler
@@ -67,8 +70,8 @@ type testInfra struct {
 func setupTestInfra(t *testing.T) *testInfra {
 	t.Helper()
 
-	// Disable async RabbitMQ features (no RabbitMQ container in this test)
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
+	// Disable async broker events for synchronous integration setup.
+	t.Setenv("TRANSACTION_EVENTS_ENABLED", "false")
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 
 	infra := &testInfra{}
@@ -93,17 +96,17 @@ func setupTestInfra(t *testing.T) *testInfra {
 	}
 
 	// Create MongoDB connection
-	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
+	infra.mongoConn = mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
 
 	// Create Redis connection
-	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	infra.redisConn = redistestutil.CreateConnection(t, infra.redisContainer.Addr)
 
 	// Create repositories
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
-	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
-	redisRepo, err := redis.NewConsumerRedis(redisConn, false, nil)
+	metadataRepo := mongodb.NewMetadataMongoDBRepository(infra.mongoConn)
+	redisRepo, err := redis.NewConsumerRedis(infra.redisConn, false, nil)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	// Store repositories for test assertions
@@ -141,7 +144,37 @@ func setupTestInfra(t *testing.T) *testInfra {
 	infra.app = fiber.New()
 	infra.setupRoutes()
 
+	t.Cleanup(func() {
+		cleanupSyncTestInfra(t, infra)
+	})
+
 	return infra
+}
+
+func cleanupSyncTestInfra(t *testing.T, infra *testInfra) {
+	t.Helper()
+
+	if infra == nil {
+		return
+	}
+
+	if infra.redisConn != nil {
+		if err := infra.redisConn.Close(); err != nil {
+			t.Logf("failed to close Redis connection: %v", err)
+		}
+	}
+
+	if infra.pgConn != nil && infra.pgConn.ConnectionDB != nil {
+		if err := (*infra.pgConn.ConnectionDB).Close(); err != nil {
+			t.Logf("failed to close PostgreSQL connection: %v", err)
+		}
+	}
+
+	if infra.mongoConn != nil && infra.mongoConn.DB != nil {
+		if err := infra.mongoConn.DB.Disconnect(context.Background()); err != nil {
+			t.Logf("failed to disconnect MongoDB client: %v", err)
+		}
+	}
 }
 
 // setupRoutes registers handler routes on the Fiber app.
@@ -466,38 +499,39 @@ func TestIntegration_TransactionHandler_CreateTransactionJSON_Sync(t *testing.T)
 }
 
 // testAsyncInfra holds all test infrastructure components for async transaction tests.
-// It extends testInfra with RabbitMQ container and consumer.
+// It extends testInfra with Redpanda container and consumer.
 type testAsyncInfra struct {
-	pgContainer          *postgrestestutil.ContainerResult
-	mongoContainer       *mongotestutil.ContainerResult
-	redisContainer       *redistestutil.ContainerResult
-	rabbitmqContainer    *rabbitmqtestutil.ContainerResult
-	pgConn               *libPostgres.PostgresConnection
-	redisRepo            redis.RedisRepository
-	handler              *TransactionHandler
-	commandUC            *command.UseCase
-	consumerRoutes       *rabbitmq.ConsumerRoutes
-	consumerRabbitMQConn *libRabbitmq.RabbitMQConnection // Separate connection for consumer (to close on cleanup)
-	app                  *fiber.App
-	orgID                uuid.UUID
-	ledgerID             uuid.UUID
+	pgContainer       *postgrestestutil.ContainerResult
+	mongoContainer    *mongotestutil.ContainerResult
+	redisContainer    *redistestutil.ContainerResult
+	redpandaContainer *redpandatestutil.ContainerResult
+	pgConn            *libPostgres.PostgresConnection
+	mongoConn         *libMongo.MongoConnection
+	redisConn         *libRedis.RedisConnection
+	redisRepo         redis.RedisRepository
+	handler           *TransactionHandler
+	commandUC         *command.UseCase
+	consumerRoutes    *redpanda.ConsumerRoutes
+	app               *fiber.App
+	orgID             uuid.UUID
+	ledgerID          uuid.UUID
 }
 
 // testMultiQueueConsumer is a test-local version of the consumer to avoid import cycles.
 type testMultiQueueConsumer struct {
-	consumerRoutes *rabbitmq.ConsumerRoutes
+	consumerRoutes *redpanda.ConsumerRoutes
 	useCase        *command.UseCase
 }
 
 // newTestMultiQueueConsumer creates a new test consumer instance.
-func newTestMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *command.UseCase) *testMultiQueueConsumer {
+func newTestMultiQueueConsumer(routes *redpanda.ConsumerRoutes, useCase *command.UseCase) *testMultiQueueConsumer {
 	consumer := &testMultiQueueConsumer{
 		consumerRoutes: routes,
 		useCase:        useCase,
 	}
 
-	// Register handlers for each queue (mirrors bootstrap.NewMultiQueueConsumer)
-	routes.Register(os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"), consumer.handlerBTOQueue)
+	// Register handlers for each topic (mirrors bootstrap.NewMultiQueueConsumer)
+	routes.Register(os.Getenv("REDPANDA_BALANCE_OPS_TOPIC"), consumer.handlerBTOQueue)
 
 	return consumer
 }
@@ -538,7 +572,7 @@ func (mq *testMultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []by
 	return nil
 }
 
-// setupAsyncTestInfra initializes all containers including RabbitMQ and creates the handler with async support.
+// setupAsyncTestInfra initializes all containers including Redpanda and creates the handler with async support.
 func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	t.Helper()
 
@@ -548,50 +582,27 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	infra.pgContainer = postgrestestutil.SetupContainer(t)
 	infra.mongoContainer = mongotestutil.SetupContainer(t)
 	infra.redisContainer = redistestutil.SetupContainer(t)
-	infra.rabbitmqContainer = rabbitmqtestutil.SetupContainer(t)
+	infra.redpandaContainer = redpandatestutil.SetupContainer(t)
 
-	// Register cleanup for consumer connection
-	// NOTE: Consumer connection must be closed BEFORE containers to avoid reconnection errors.
-	// The consumer has an infinite retry loop with exponential backoff (designed for production resilience),
-	// so some "connection reset" logs may still appear during cleanup - this is expected behavior.
-	// Container cleanup is handled automatically by SetupContainer via t.Cleanup().
+	// Register cleanup for consumer routes.
 	t.Cleanup(func() {
 		if infra.consumerRoutes != nil {
 			infra.consumerRoutes.Stop()
 		}
-
-		// Close the consumer's RabbitMQ channel and connection first to signal goroutines to stop.
-		// The consumer watches for channel closure via NotifyClose, then enters retry mode.
-		if infra.consumerRabbitMQConn != nil {
-			if infra.consumerRabbitMQConn.Channel != nil {
-				require.NoError(t, infra.consumerRabbitMQConn.Channel.Close())
-			}
-			if infra.consumerRabbitMQConn.Connection != nil {
-				require.NoError(t, infra.consumerRabbitMQConn.Connection.Close())
-			}
-			// Allow consumer goroutines to observe cancellation and connection close.
-			time.Sleep(50 * time.Millisecond)
-		}
+		// Allow consumer goroutines to observe cancellation.
+		time.Sleep(50 * time.Millisecond)
 	})
 
-	// Set RabbitMQ environment variables for async mode
-	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
-	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "test.transaction.exchange")
-	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test.transaction.key")
-	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE", "test.transaction.queue")
-	t.Setenv("RABBITMQ_BALANCE_CREATE_QUEUE", "test.balance.create.queue")
-
-	// Build RabbitMQ health check URL (base URL, lib-commons appends the path)
-	rabbitHealthCheckURL := "http://" + infra.rabbitmqContainer.Host + ":" + infra.rabbitmqContainer.MgmtPort
-	t.Setenv("RABBITMQ_HEALTH_CHECK_URL", rabbitHealthCheckURL)
+	// Set Redpanda environment variables for async mode
+	t.Setenv("TRANSACTION_ASYNC", "true")
+	t.Setenv("REDPANDA_BALANCE_OPS_TOPIC", "test.transaction.topic")
 
 	// Disable other async features we don't need for this test
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
+	t.Setenv("TRANSACTION_EVENTS_ENABLED", "false")
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 
-	// Setup RabbitMQ exchange and queue
-	rabbitmqtestutil.SetupExchange(t, infra.rabbitmqContainer.Channel, "test.transaction.exchange", "direct")
-	rabbitmqtestutil.SetupQueue(t, infra.rabbitmqContainer.Channel, "test.transaction.queue", "test.transaction.exchange", "test.transaction.key")
+	// Setup Redpanda topics
+	redpandatestutil.SetupTopics(t, infra.redpandaContainer, "test.transaction.topic")
 
 	// Create PostgreSQL connection following lib-commons pattern
 	logger := libZap.InitializeLogger()
@@ -608,36 +619,29 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	}
 
 	// Create MongoDB connection
-	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
+	infra.mongoConn = mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
 
 	// Create Redis connection
-	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	infra.redisConn = redistestutil.CreateConnection(t, infra.redisContainer.Addr)
 
 	// Create repositories
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
-	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
-	redisRepo, err := redis.NewConsumerRedis(redisConn, false, nil)
+	metadataRepo := mongodb.NewMetadataMongoDBRepository(infra.mongoConn)
+	redisRepo, err := redis.NewConsumerRedis(infra.redisConn, false, nil)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	// Store Redis repository for test assertions
 	infra.redisRepo = redisRepo
 
-	// Create RabbitMQ producer connection
-	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: infra.rabbitmqContainer.URI,
-		HealthCheckURL:         rabbitHealthCheckURL,
-		Host:                   infra.rabbitmqContainer.Host,
-		Port:                   infra.rabbitmqContainer.AMQPPort,
-		User:                   rabbitmqtestutil.DefaultUser,
-		Pass:                   rabbitmqtestutil.DefaultPassword,
-		Logger:                 logger,
-	}
-	producerRepo, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-	require.NoError(t, err, "failed to create RabbitMQ producer")
+	producerRepo, err := redpanda.NewProducerRedpanda(infra.redpandaContainer.Brokers, 0, 0, true)
+	require.NoError(t, err, "failed to create Redpanda producer")
+	t.Cleanup(func() {
+		require.NoError(t, producerRepo.Close())
+	})
 
-	// Create use cases with RabbitMQ producer
+	// Create use cases with Redpanda producer
 	queryUC := &query.UseCase{
 		TransactionRepo: transactionRepo,
 		OperationRepo:   operationRepo,
@@ -646,16 +650,14 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 		RedisRepo:       redisRepo,
 	}
 	infra.commandUC = &command.UseCase{
-		TransactionRepo:                  transactionRepo,
-		OperationRepo:                    operationRepo,
-		BalanceRepo:                      balanceRepo,
-		MetadataRepo:                     metadataRepo,
-		RedisRepo:                        redisRepo,
-		RabbitMQRepo:                     producerRepo,
-		RabbitMQBalanceOperationExchange: "test.transaction.exchange",
-		RabbitMQBalanceOperationKey:      "test.transaction.key",
-		TransactionAsync:                 true,
-		ShardedBTOQueuesEnabled:          false,
+		TransactionRepo:        transactionRepo,
+		OperationRepo:          operationRepo,
+		BalanceRepo:            balanceRepo,
+		MetadataRepo:           metadataRepo,
+		RedisRepo:              redisRepo,
+		BrokerRepo:             producerRepo,
+		BalanceOperationsTopic: "test.transaction.topic",
+		TransactionAsync:       true,
 	}
 
 	// Create handler
@@ -672,18 +674,6 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	infra.app = fiber.New()
 	infra.setupRoutes()
 
-	// Create RabbitMQ consumer connection (separate connection for consumer)
-	// Store it in infra so we can close it during cleanup before container termination
-	infra.consumerRabbitMQConn = &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: infra.rabbitmqContainer.URI,
-		HealthCheckURL:         rabbitHealthCheckURL,
-		Host:                   infra.rabbitmqContainer.Host,
-		Port:                   infra.rabbitmqContainer.AMQPPort,
-		User:                   rabbitmqtestutil.DefaultUser,
-		Pass:                   rabbitmqtestutil.DefaultPassword,
-		Logger:                 logger,
-	}
-
 	// Initialize telemetry for consumer
 	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
 		LibraryName:     "test",
@@ -694,9 +684,44 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	})
 
 	// Create consumer routes (used by newTestMultiQueueConsumer during test execution)
-	infra.consumerRoutes = rabbitmq.NewConsumerRoutes(infra.consumerRabbitMQConn, 1, 1, logger, telemetry)
+	infra.consumerRoutes = redpanda.NewConsumerRoutes(infra.redpandaContainer.Brokers, "transaction-test-group", 1, 1*1024*1024, logger, telemetry)
+
+	t.Cleanup(func() {
+		cleanupAsyncTestInfra(t, infra)
+	})
 
 	return infra
+}
+
+func cleanupAsyncTestInfra(t *testing.T, infra *testAsyncInfra) {
+	t.Helper()
+
+	if infra == nil {
+		return
+	}
+
+	if infra.consumerRoutes != nil {
+		infra.consumerRoutes.Stop()
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	if infra.redisConn != nil {
+		if err := infra.redisConn.Close(); err != nil {
+			t.Logf("failed to close Redis connection: %v", err)
+		}
+	}
+
+	if infra.pgConn != nil && infra.pgConn.ConnectionDB != nil {
+		if err := (*infra.pgConn.ConnectionDB).Close(); err != nil {
+			t.Logf("failed to close PostgreSQL connection: %v", err)
+		}
+	}
+
+	if infra.mongoConn != nil && infra.mongoConn.DB != nil {
+		if err := infra.mongoConn.DB.Disconnect(context.Background()); err != nil {
+			t.Logf("failed to disconnect MongoDB client: %v", err)
+		}
+	}
 }
 
 // setupRoutes registers handler routes on the Fiber app for async infra.
@@ -802,7 +827,7 @@ func waitForOperations(t *testing.T, db *sql.DB, transactionID uuid.UUID, expect
 // 4. GetBalances retrieves balances (Redis cache -> PostgreSQL fallback)
 // 5. BuildOperations creates Operation objects with DEBIT/CREDIT types
 // 6. WriteTransaction -> WriteTransactionAsync (since TransactionAsync=true)
-// 7. Message is sent to RabbitMQ queue
+// 7. Message is sent to Redpanda topic
 // 8. Returns HTTP 201 with transaction in CREATED status (immediate response)
 // 9. Consumer processes the message and updates status to APPROVED
 // 10. Balances are updated in the database
@@ -1020,7 +1045,7 @@ func TestIntegration_TransactionHandler_PendingTransaction_CreateAndCommit(t *te
 	infra := setupTestInfra(t)
 
 	// Ensure sync mode is enabled
-	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+	t.Setenv("TRANSACTION_ASYNC", "false")
 
 	// Use fake account IDs (account table is in onboarding component)
 	sourceAccountID := libCommons.GenerateUUIDv7()
@@ -1251,7 +1276,7 @@ func TestIntegration_TransactionHandler_CommitOnNonPending_Returns4xx(t *testing
 	infra := setupTestInfra(t)
 
 	// Ensure sync mode is enabled
-	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+	t.Setenv("TRANSACTION_ASYNC", "false")
 
 	sourceAccountID := libCommons.GenerateUUIDv7()
 	destAccountID := libCommons.GenerateUUIDv7()
@@ -1343,7 +1368,7 @@ func TestIntegration_TransactionHandler_RevertOnPending_Returns4xx(t *testing.T)
 	infra := setupTestInfra(t)
 
 	// Ensure sync mode is enabled
-	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+	t.Setenv("TRANSACTION_ASYNC", "false")
 
 	sourceAccountID := libCommons.GenerateUUIDv7()
 	destAccountID := libCommons.GenerateUUIDv7()
@@ -1444,7 +1469,7 @@ func TestIntegration_TransactionHandler_PendingTransaction_Revert(t *testing.T) 
 	infra := setupTestInfra(t)
 
 	// Ensure sync mode is enabled
-	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+	t.Setenv("TRANSACTION_ASYNC", "false")
 
 	sourceAccountID := libCommons.GenerateUUIDv7()
 	destAccountID := libCommons.GenerateUUIDv7()
@@ -1626,7 +1651,7 @@ func TestIntegration_TransactionHandler_CancelPendingTransaction(t *testing.T) {
 	infra := setupTestInfra(t)
 
 	// Ensure sync mode is enabled
-	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+	t.Setenv("TRANSACTION_ASYNC", "false")
 
 	sourceAccountID := libCommons.GenerateUUIDv7()
 	destAccountID := libCommons.GenerateUUIDv7()
@@ -1791,7 +1816,7 @@ func TestIntegration_TransactionHandler_CancelOnNonPending_Returns4xx(t *testing
 	infra := setupTestInfra(t)
 
 	// Ensure sync mode is enabled
-	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+	t.Setenv("TRANSACTION_ASYNC", "false")
 
 	sourceAccountID := libCommons.GenerateUUIDv7()
 	destAccountID := libCommons.GenerateUUIDv7()
@@ -1898,7 +1923,7 @@ func TestIntegration_TransactionHandler_ConcurrentMixedTransactions(t *testing.T
 	infra := setupTestInfra(t)
 
 	// Ensure sync mode is enabled
-	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+	t.Setenv("TRANSACTION_ASYNC", "false")
 
 	// Use fake account ID (account table is in onboarding component)
 	accountID := libCommons.GenerateUUIDv7()
@@ -2342,7 +2367,7 @@ func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 func TestIntegration_Property_Transaction_Amounts(t *testing.T) {
 	// Arrange
 	infra := setupTestInfra(t)
-	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+	t.Setenv("TRANSACTION_ASYNC", "false")
 
 	sourceAccountID := libCommons.GenerateUUIDv7()
 	destAccountID := libCommons.GenerateUUIDv7()
@@ -2430,7 +2455,7 @@ func TestIntegration_Property_Transaction_Amounts(t *testing.T) {
 func TestIntegration_Property_Protocol_RapidFire(t *testing.T) {
 	// Arrange
 	infra := setupTestInfra(t)
-	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+	t.Setenv("TRANSACTION_ASYNC", "false")
 
 	sourceAccountID := libCommons.GenerateUUIDv7()
 	destAccountID := libCommons.GenerateUUIDv7()
@@ -2523,7 +2548,7 @@ func TestIntegration_Property_Protocol_RapidFire(t *testing.T) {
 func TestIntegration_Property_Protocol_Idempotency(t *testing.T) {
 	// Arrange
 	infra := setupTestInfra(t)
-	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+	t.Setenv("TRANSACTION_ASYNC", "false")
 
 	sourceAccountID := libCommons.GenerateUUIDv7()
 	destAccountID := libCommons.GenerateUUIDv7()

@@ -8,69 +8,62 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-// MultiQueueConsumer represents a multi-queue consumer.
+// MultiQueueConsumer represents a multi-topic consumer.
 type MultiQueueConsumer struct {
-	consumerRoutes *rabbitmq.ConsumerRoutes
+	consumerRoutes *redpanda.ConsumerRoutes
 	UseCase        *command.UseCase
 }
 
 // NewMultiQueueConsumer create a new instance of MultiQueueConsumer.
-func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *command.UseCase) *MultiQueueConsumer {
+func NewMultiQueueConsumer(routes *redpanda.ConsumerRoutes, useCase *command.UseCase) *MultiQueueConsumer {
 	consumer := &MultiQueueConsumer{
 		consumerRoutes: routes,
 		UseCase:        useCase,
 	}
 
-	// Registry handlers for each queue
-	routes.Register(os.Getenv("RABBITMQ_BALANCE_CREATE_QUEUE"), consumer.handlerBalanceCreateQueue)
-
-	btoQueue := os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE")
-	if btoQueue == "" {
-		fmt.Fprintln(os.Stderr, "WARNING: RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE is empty; no BTO queue consumers will be registered")
+	if routes == nil || useCase == nil {
+		return consumer
 	}
 
-	for _, queueName := range resolveBTOQueueNames(btoQueue, useCase) {
-		routes.Register(queueName, consumer.handlerBTOQueue)
+	if useCase.BalanceCreateTopic != "" {
+		routes.Register(useCase.BalanceCreateTopic, consumer.handlerBalanceCreateQueue)
+	}
+
+	if useCase.BalanceOperationsTopic != "" {
+		routes.Register(useCase.BalanceOperationsTopic, consumer.handlerBTOQueue)
 	}
 
 	return consumer
 }
 
-func resolveBTOQueueNames(baseQueue string, useCase *command.UseCase) []string {
-	if baseQueue == "" {
-		return nil
-	}
-
-	queueNames := []string{baseQueue}
-
-	if useCase == nil || !command.IsShardedBTOQueueEnabled(useCase.ShardRouter, useCase.ShardedBTOQueuesEnabled) {
-		return queueNames
-	}
-
-	for shardID := 0; shardID < useCase.ShardRouter.ShardCount(); shardID++ {
-		queueNames = append(queueNames, fmt.Sprintf("%s.shard_%d", baseQueue, shardID))
-	}
-
-	return queueNames
-}
-
-// Run starts consumers for all registered queues.
+// Run starts consumers for all registered topics.
 func (mq *MultiQueueConsumer) Run(l *libCommons.Launcher) error {
+	if mq == nil {
+		return fmt.Errorf("multi queue consumer is nil")
+	}
+
+	if mq.consumerRoutes == nil {
+		return fmt.Errorf("consumer routes are not configured")
+	}
+
 	return mq.consumerRoutes.RunConsumers()
 }
 
 // handlerBalanceCreateQueue processes messages from the audit queue, unmarshal the JSON, and creates balances on database.
 func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, body []byte) error {
+	if mq == nil || mq.UseCase == nil {
+		return fmt.Errorf("consumer use case is not configured")
+	}
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_create_queue")
@@ -105,6 +98,10 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 
 // handlerBTOQueue processes messages from the balance fifo queue, unmarshal the JSON, and update balances on database.
 func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) error {
+	if mq == nil || mq.UseCase == nil {
+		return fmt.Errorf("consumer use case is not configured")
+	}
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update")
@@ -124,9 +121,12 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 	}
 
 	if len(message.QueueData) == 0 {
+		err := fmt.Errorf("invalid queue payload: empty queue data")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Empty queue data in balance_retry_queue_fifo message", err)
+
 		logger.Warn("Empty queue data in balance_retry_queue_fifo message")
 
-		return nil
+		return err
 	}
 
 	logger.Infof("Transaction message consumed: %s", message.QueueData[0].ID)

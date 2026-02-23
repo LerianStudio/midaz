@@ -9,21 +9,19 @@ import (
 	"errors"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 )
 
 var (
 	// ErrNilLogger indicates that the logger parameter is nil.
 	ErrNilLogger = errors.New("logger cannot be nil")
-	// ErrNilRabbitConn indicates that the RabbitMQ connection parameter is nil.
-	ErrNilRabbitConn = errors.New("rabbitConn cannot be nil")
 	// ErrInvalidFailureRatio indicates that FailureRatio is outside valid bounds (0.0-1.0).
 	ErrInvalidFailureRatio = errors.New("failure_ratio must be between 0.0 and 1.0")
 	// ErrInvalidConsecutiveFailures indicates that ConsecutiveFailures must be greater than 0.
@@ -38,39 +36,37 @@ var (
 	ErrInvalidMinRequests = errors.New("min_requests must be greater than 0 when failure_ratio is configured")
 )
 
-const (
-	// DefaultHealthCheckInterval is the default interval for health checker runs.
-	DefaultHealthCheckInterval = 30 * time.Second
-	// DefaultHealthCheckTimeout is the default timeout for each health check operation.
-	DefaultHealthCheckTimeout = 10 * time.Second
-)
+const defaultHealthCheckInterval = 30 * time.Second
 
-// CircuitBreakerManager manages the circuit breaker infrastructure for RabbitMQ.
-// It coordinates the circuit breaker manager and health checker lifecycle.
-type CircuitBreakerManager struct {
-	Manager       libCircuitBreaker.Manager
-	HealthChecker libCircuitBreaker.HealthChecker
-	logger        libLog.Logger
+// CircuitBreakerHealthChecker defines the health signal required for active recovery probes.
+type CircuitBreakerHealthChecker interface {
+	CheckHealth() bool
 }
 
-// NewCircuitBreakerManager creates a new circuit breaker manager with health checking.
-// The stateListener parameter is optional - pass nil if you don't need state change notifications.
+// CircuitBreakerManager manages circuit breaker infrastructure for broker producer.
+type CircuitBreakerManager struct {
+	Manager libCircuitBreaker.Manager
+	logger  libLog.Logger
+
+	healthChecker CircuitBreakerHealthChecker
+	probeInterval time.Duration
+
+	probeMu      sync.Mutex
+	probeRunning bool
+	probeCancel  context.CancelFunc
+	probeWG      sync.WaitGroup
+}
+
+// NewCircuitBreakerManager creates a new circuit breaker manager.
 func NewCircuitBreakerManager(
 	logger libLog.Logger,
-	rabbitConn *libRabbitmq.RabbitMQConnection,
-	cbConfig rabbitmq.CircuitBreakerConfig,
+	cbConfig redpanda.CircuitBreakerConfig,
 	stateListener libCircuitBreaker.StateChangeListener,
 ) (*CircuitBreakerManager, error) {
-	// Validate required parameters
 	if logger == nil {
 		return nil, ErrNilLogger
 	}
 
-	if rabbitConn == nil {
-		return nil, ErrNilRabbitConn
-	}
-
-	// Validate circuit breaker configuration bounds
 	if cbConfig.FailureRatio < 0 || cbConfig.FailureRatio > 1.0 {
 		return nil, ErrInvalidFailureRatio
 	}
@@ -91,80 +87,126 @@ func NewCircuitBreakerManager(
 		return nil, ErrInvalidInterval
 	}
 
-	// MinRequests must be > 0 when FailureRatio is configured to ensure meaningful ratio calculation
 	if cbConfig.FailureRatio > 0 && cbConfig.MinRequests == 0 {
 		return nil, ErrInvalidMinRequests
 	}
 
-	// Create circuit breaker manager
 	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager.GetOrCreate(redpanda.CircuitBreakerServiceName, redpanda.ProducerCircuitBreakerConfig(cbConfig))
 
-	// Initialize circuit breaker for RabbitMQ with provided config
-	cbManager.GetOrCreate(rabbitmq.CircuitBreakerServiceName, rabbitmq.RabbitMQCircuitBreakerConfig(cbConfig))
-
-	// Register state change listener if provided
 	if stateListener != nil {
 		cbManager.RegisterStateChangeListener(stateListener)
 	}
 
-	// Determine health check interval and timeout (use config values or defaults)
-	healthCheckInterval := cbConfig.HealthCheckInterval
-	if healthCheckInterval == 0 {
-		healthCheckInterval = DefaultHealthCheckInterval
+	probeInterval := cbConfig.HealthCheckInterval
+	if probeInterval <= 0 {
+		probeInterval = defaultHealthCheckInterval
 	}
-
-	healthCheckTimeout := cbConfig.HealthCheckTimeout
-	if healthCheckTimeout == 0 {
-		healthCheckTimeout = DefaultHealthCheckTimeout
-	}
-
-	// Create underlying health checker
-	underlyingHealthChecker, err := libCircuitBreaker.NewHealthCheckerWithValidation(
-		cbManager,
-		healthCheckInterval,
-		healthCheckTimeout,
-		logger,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Wrap with state-aware health checker that starts/stops based on circuit state
-	// Pass cbManager so it can detect when circuits are reset (lib-commons Reset() doesn't trigger listeners)
-	stateAwareHealthChecker, err := rabbitmq.NewStateAwareHealthChecker(underlyingHealthChecker, cbManager, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	// Register RabbitMQ health check function
-	healthCheckFn := rabbitmq.NewRabbitMQHealthCheckFunc(rabbitConn)
-	stateAwareHealthChecker.Register(rabbitmq.CircuitBreakerServiceName, healthCheckFn)
-
-	// Register state-aware health checker as state change listener
-	// This enables dynamic start/stop based on circuit state
-	cbManager.RegisterStateChangeListener(stateAwareHealthChecker)
 
 	return &CircuitBreakerManager{
 		Manager:       cbManager,
-		HealthChecker: stateAwareHealthChecker,
 		logger:        logger,
+		probeInterval: probeInterval,
 	}, nil
 }
 
-// Start begins the health checker background process.
+// SetHealthChecker injects the active probe health checker used for hybrid recovery.
+func (cbm *CircuitBreakerManager) SetHealthChecker(checker CircuitBreakerHealthChecker) {
+	if cbm == nil {
+		return
+	}
+
+	cbm.probeMu.Lock()
+	defer cbm.probeMu.Unlock()
+
+	cbm.healthChecker = checker
+}
+
+// Start begins manager lifecycle.
 func (cbm *CircuitBreakerManager) Start() {
-	cbm.logger.Info("Starting circuit breaker manager")
-	cbm.HealthChecker.Start()
+	if cbm == nil {
+		return
+	}
+
+	cbm.probeMu.Lock()
+	if cbm.probeRunning {
+		cbm.probeMu.Unlock()
+		return
+	}
+
+	healthChecker := cbm.healthChecker
+	interval := cbm.probeInterval
+	if interval <= 0 {
+		interval = defaultHealthCheckInterval
+	}
+
+	if healthChecker == nil {
+		cbm.probeMu.Unlock()
+		cbm.logger.Info("Starting circuit breaker manager in passive recovery mode (active health probe disabled)")
+		return
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cbm.probeCancel = cancel
+	cbm.probeRunning = true
+	cbm.probeWG.Add(1)
+	cbm.probeMu.Unlock()
+
+	cbm.logger.Infof("Starting circuit breaker manager with hybrid recovery (probe interval=%s)", interval)
+
+	go cbm.runHealthProbeLoop(ctx, interval)
 }
 
-// Stop gracefully stops the health checker.
+// Stop gracefully stops manager lifecycle.
 func (cbm *CircuitBreakerManager) Stop() {
+	if cbm == nil {
+		return
+	}
+
+	cbm.probeMu.Lock()
+	cancel := cbm.probeCancel
+	wasRunning := cbm.probeRunning
+	cbm.probeCancel = nil
+	cbm.probeRunning = false
+	cbm.probeMu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+
+	if wasRunning {
+		cbm.probeWG.Wait()
+	}
+
 	cbm.logger.Info("Stopping circuit breaker manager")
-	cbm.HealthChecker.Stop()
 }
 
-// CircuitBreakerRunnable wraps CircuitBreakerManager to implement the Runnable interface
-// for integration with the launcher in unified ledger mode.
+func (cbm *CircuitBreakerManager) runHealthProbeLoop(ctx context.Context, interval time.Duration) {
+	defer cbm.probeWG.Done()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if cbm.Manager.GetState(redpanda.CircuitBreakerServiceName) != libCircuitBreaker.StateOpen {
+				continue
+			}
+
+			if cbm.healthChecker == nil || !cbm.healthChecker.CheckHealth() {
+				continue
+			}
+
+			cbm.logger.Infof("Circuit breaker active probe recovered service=%s; resetting breaker", redpanda.CircuitBreakerServiceName)
+			cbm.Manager.Reset(redpanda.CircuitBreakerServiceName)
+		}
+	}
+}
+
+// CircuitBreakerRunnable wraps CircuitBreakerManager to implement the Runnable interface.
 type CircuitBreakerRunnable struct {
 	manager *CircuitBreakerManager
 }
@@ -175,10 +217,8 @@ func NewCircuitBreakerRunnable(manager *CircuitBreakerManager) *CircuitBreakerRu
 }
 
 // Run implements the Runnable interface for integration with libCommons.Launcher.
-// It starts the health checker and blocks until the process receives a shutdown signal.
 func (r *CircuitBreakerRunnable) Run(_ *libCommons.Launcher) error {
 	if r.manager == nil {
-		// Silently return - manager may be nil in test scenarios or when circuit breaker is disabled
 		return nil
 	}
 
@@ -186,10 +226,7 @@ func (r *CircuitBreakerRunnable) Run(_ *libCommons.Launcher) error {
 	defer stop()
 
 	r.manager.Start()
-
-	// Wait for shutdown signal
 	<-ctx.Done()
-
 	r.manager.Stop()
 
 	return nil

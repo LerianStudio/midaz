@@ -6,65 +6,132 @@ package command
 
 import (
 	"context"
-	"os"
+	"errors"
 	"testing"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
 )
 
 func TestSendTransactionEvents(t *testing.T) {
-	// Save original env vars to restore after test
-	originalExchange := os.Getenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE")
-	originalEventsEnabled := os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")
-	originalVersion := os.Getenv("VERSION")
-
-	// Set test env vars
-	os.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", "test-events-exchange")
-	os.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "true")
-	os.Setenv("VERSION", "1.0.0")
-
-	// Restore env vars after test
-	defer func() {
-		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", originalExchange)
-		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", originalEventsEnabled)
-		os.Setenv("VERSION", originalVersion)
-	}()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	// Create mock repositories
-	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
-
-	// Create the UseCase instance
-	uc := &UseCase{
-		RabbitMQRepo: mockRabbitMQRepo,
-	}
-
-	// Test data
 	ctx := context.Background()
 
-	description := constant.APPROVED
-	status := transaction.Status{
-		Code:        description,
-		Description: &description,
-	}
+	t.Run("publishes approved event", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	assetCode := "BRL"
+		tran := testEventTransaction(constant.APPROVED)
 
+		brokerRepo := redpanda.NewMockProducerRepository(ctrl)
+		brokerRepo.EXPECT().
+			ProducerDefault(gomock.Any(), "test-events-topic", tran.ID, gomock.Any()).
+			Return(nil, nil).
+			Times(1)
+
+		uc := &UseCase{BrokerRepo: brokerRepo, EventsTopic: "test-events-topic", EventsEnabled: true}
+		uc.SendTransactionEvents(ctx, tran)
+	})
+
+	t.Run("does not publish when disabled", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		brokerRepo := redpanda.NewMockProducerRepository(ctrl)
+		uc := &UseCase{BrokerRepo: brokerRepo, EventsTopic: "test-events-topic", EventsEnabled: false}
+
+		uc.SendTransactionEvents(ctx, testEventTransaction(constant.APPROVED))
+	})
+
+	t.Run("does not panic when broker repo is nil", func(t *testing.T) {
+		uc := &UseCase{BrokerRepo: nil, EventsTopic: "test-events-topic", EventsEnabled: true}
+		uc.SendTransactionEvents(ctx, testEventTransaction(constant.APPROVED))
+	})
+
+	t.Run("publishes with canceled action key", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		tran := testEventTransaction(constant.CANCELED)
+
+		brokerRepo := redpanda.NewMockProducerRepository(ctrl)
+		brokerRepo.EXPECT().
+			ProducerDefault(gomock.Any(), "test-events-topic", tran.ID, gomock.Any()).
+			Return(nil, nil).
+			Times(1)
+
+		uc := &UseCase{BrokerRepo: brokerRepo, EventsTopic: "test-events-topic", EventsEnabled: true}
+		uc.SendTransactionEvents(ctx, tran)
+	})
+
+	t.Run("handles broker publish error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		tran := testEventTransaction(constant.APPROVED)
+
+		brokerRepo := redpanda.NewMockProducerRepository(ctrl)
+		brokerRepo.EXPECT().
+			ProducerDefault(gomock.Any(), "test-events-topic", tran.ID, gomock.Any()).
+			Return(nil, errors.New("publish failed")).
+			Times(1)
+
+		uc := &UseCase{BrokerRepo: brokerRepo, EventsTopic: "test-events-topic", EventsEnabled: true}
+		uc.SendTransactionEvents(ctx, tran)
+	})
+
+	t.Run("does not publish when transaction marshal fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		brokerRepo := redpanda.NewMockProducerRepository(ctrl)
+		uc := &UseCase{BrokerRepo: brokerRepo, EventsTopic: "test-events-topic", EventsEnabled: true}
+
+		badTran := *testEventTransaction(constant.APPROVED)
+		badTran.Metadata = map[string]any{"invalid": func() {}}
+
+		uc.SendTransactionEvents(ctx, &badTran)
+	})
+
+	t.Run("does not publish nil transaction", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		brokerRepo := redpanda.NewMockProducerRepository(ctrl)
+		uc := &UseCase{BrokerRepo: brokerRepo, EventsTopic: "test-events-topic", EventsEnabled: true}
+
+		uc.SendTransactionEvents(ctx, nil)
+	})
+
+	t.Run("falls back to status key when transaction id is empty", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		tran := testEventTransaction(constant.APPROVED)
+		tran.ID = ""
+
+		brokerRepo := redpanda.NewMockProducerRepository(ctrl)
+		brokerRepo.EXPECT().
+			ProducerDefault(gomock.Any(), "test-events-topic", "midaz.transaction.APPROVED", gomock.Any()).
+			Return(nil, nil).
+			Times(1)
+
+		uc := &UseCase{BrokerRepo: brokerRepo, EventsTopic: "test-events-topic", EventsEnabled: true}
+		uc.SendTransactionEvents(ctx, tran)
+	})
+}
+
+func testEventTransaction(statusCode string) *transaction.Transaction {
+	description := statusCode
+	status := transaction.Status{Code: statusCode, Description: &description}
+	amount := decimal.NewFromInt(100)
 	parentTransactionID := libCommons.GenerateUUIDv7().String()
 
-	amount := decimal.NewFromInt(100)
-
-	chartOfAccountsGroupName := "ChartOfAccountsGroupName"
-
-	tran := &transaction.Transaction{
+	return &transaction.Transaction{
 		ID:                       libCommons.GenerateUUIDv7().String(),
 		ParentTransactionID:      &parentTransactionID,
 		OrganizationID:           libCommons.GenerateUUIDv7().String(),
@@ -72,106 +139,9 @@ func TestSendTransactionEvents(t *testing.T) {
 		Description:              description,
 		Status:                   status,
 		Amount:                   &amount,
-		AssetCode:                assetCode,
-		ChartOfAccountsGroupName: chartOfAccountsGroupName,
+		AssetCode:                "BRL",
+		ChartOfAccountsGroupName: "ChartOfAccountsGroupName",
 		CreatedAt:                time.Now(),
 		UpdatedAt:                time.Now(),
 	}
-
-	t.Run("success with events approved", func(t *testing.T) {
-		// Set environment variables for the test
-		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", "test-events-exchange")
-		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "true")
-		os.Setenv("VERSION", "1.0.0")
-		// Ensure we clean up after the test
-		defer func() {
-			os.Unsetenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE")
-			os.Unsetenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")
-			os.Unsetenv("VERSION")
-		}()
-
-		// Mock RabbitMQRepo.ProducerDefault with the environment variable values
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-events-exchange", "midaz.transaction.APPROVED", gomock.Any()).
-			Return(nil, nil).
-			Times(1)
-
-		// Call the method
-		uc.SendTransactionEvents(ctx, tran)
-
-		// No assertions needed as the function doesn't return anything
-		// The test passes if the mock expectations are met
-	})
-
-	t.Run("events disabled", func(t *testing.T) {
-		// Disable transaction events
-		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
-
-		// No expectations for RabbitMQRepo as it shouldn't be called
-
-		// Call the method
-		uc.SendTransactionEvents(ctx, tran)
-
-		// No assertions needed as the function doesn't return anything
-		// The test passes if no mock expectations are called
-	})
-
-	t.Run("events enabled by default", func(t *testing.T) {
-		// Unset RABBITMQ_TRANSACTION_EVENTS_ENABLED to test default behavior
-		os.Unsetenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")
-
-		// Set exchange environment variable
-		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", "test-events-exchange")
-		os.Setenv("VERSION", "1.0.0")
-		// Ensure we clean up after the test
-		defer func() {
-			os.Unsetenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE")
-			os.Unsetenv("VERSION")
-		}()
-
-		// Mock RabbitMQRepo.ProducerDefault
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-events-exchange", "midaz.transaction.APPROVED", gomock.Any()).
-			Return(nil, nil).
-			Times(1)
-
-		// Call the method
-		uc.SendTransactionEvents(ctx, tran)
-
-		// No assertions needed as the function doesn't return anything
-		// The test passes if the mock expectations are met
-	})
-
-	t.Run("with different action", func(t *testing.T) {
-		// Set environment variables for the test
-		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE", "test-events-exchange")
-		os.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "true")
-		os.Setenv("VERSION", "1.0.0")
-		// Ensure we clean up after the test
-		defer func() {
-			os.Unsetenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE")
-			os.Unsetenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")
-			os.Unsetenv("VERSION")
-		}()
-
-		description = constant.CANCELED
-		status = transaction.Status{
-			Code:        description,
-			Description: &description,
-		}
-
-		tran.Status = status
-
-		// Mock RabbitMQRepo.ProducerDefault with different action
-		mockRabbitMQRepo.EXPECT().
-			ProducerDefault(gomock.Any(), "test-events-exchange", "midaz.transaction.CANCELED", gomock.Any()).
-			Return(nil, nil).
-			Times(1)
-
-		// Call the method with different action
-		uc.SendTransactionEvents(ctx, tran)
-
-		// No assertions needed as the function doesn't return anything
-		// The test passes if the mock expectations are met
-	})
 }

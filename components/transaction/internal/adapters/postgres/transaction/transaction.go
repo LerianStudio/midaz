@@ -576,7 +576,7 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 // TransactionProcessingPayload contains all data needed to process a transaction
 // via message queue (create balances, transaction record, and operations).
 //
-// This struct is serialized via msgpack to RabbitMQ. The msgpack tags preserve
+// This struct is serialized via msgpack to the broker. The msgpack tags preserve
 // backward compatibility with messages serialized before the rename.
 //
 // @Description Container for transaction data exchanged via message queues.

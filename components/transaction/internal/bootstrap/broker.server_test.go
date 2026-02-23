@@ -15,7 +15,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -194,7 +193,7 @@ func TestHandlerBalanceCreateQueue(t *testing.T) {
 		err := consumer.handlerBalanceCreateQueue(ctx, invalidBody)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid")
+		assert.Contains(t, err.Error(), "invalid character")
 		assert.False(t, stub.createCalled, "Create should not be called on unmarshal error")
 	})
 
@@ -349,7 +348,7 @@ func TestHandlerBTOQueue(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("empty_queue_data_is_ignored", func(t *testing.T) {
+	t.Run("empty_queue_data_returns_error", func(t *testing.T) {
 		t.Parallel()
 
 		consumer := &MultiQueueConsumer{
@@ -366,7 +365,8 @@ func TestHandlerBTOQueue(t *testing.T) {
 		require.NoError(t, err)
 
 		err = consumer.handlerBTOQueue(ctx, body)
-		require.NoError(t, err)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "empty queue data")
 	})
 }
 
@@ -386,36 +386,16 @@ func TestMultiQueueConsumer_StructFields(t *testing.T) {
 	assert.Equal(t, uc, consumer.UseCase)
 }
 
-func TestResolveBTOQueueNames(t *testing.T) {
-	t.Run("empty base queue returns nil", func(t *testing.T) {
-		queueNames := resolveBTOQueueNames("", &command.UseCase{ShardRouter: shard.NewRouter(8), ShardedBTOQueuesEnabled: true})
+func TestMultiQueueConsumer_Run_ValidatesConfiguration(t *testing.T) {
+	t.Parallel()
 
-		assert.Nil(t, queueNames)
-	})
+	var nilConsumer *MultiQueueConsumer
+	err := nilConsumer.Run(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "multi queue consumer is nil")
 
-	t.Run("sharding disabled keeps legacy queue only", func(t *testing.T) {
-		queueNames := resolveBTOQueueNames("transaction.bto.queue", &command.UseCase{ShardRouter: shard.NewRouter(8), ShardedBTOQueuesEnabled: false})
-
-		assert.Equal(t, []string{"transaction.bto.queue"}, queueNames)
-	})
-
-	t.Run("sharding enabled with nil router keeps legacy queue only", func(t *testing.T) {
-		queueNames := resolveBTOQueueNames("transaction.bto.queue", &command.UseCase{ShardedBTOQueuesEnabled: true})
-
-		assert.Equal(t, []string{"transaction.bto.queue"}, queueNames)
-	})
-
-	t.Run("sharding enabled returns legacy plus all shard queues", func(t *testing.T) {
-		queueNames := resolveBTOQueueNames("transaction.bto.queue", &command.UseCase{ShardRouter: shard.NewRouter(3), ShardedBTOQueuesEnabled: true})
-
-		assert.Equal(t,
-			[]string{
-				"transaction.bto.queue",
-				"transaction.bto.queue.shard_0",
-				"transaction.bto.queue.shard_1",
-				"transaction.bto.queue.shard_2",
-			},
-			queueNames,
-		)
-	})
+	consumer := &MultiQueueConsumer{}
+	err = consumer.Run(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "consumer routes are not configured")
 }

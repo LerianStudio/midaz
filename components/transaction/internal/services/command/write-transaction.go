@@ -6,25 +6,21 @@ package command
 
 import (
 	"context"
-	"strconv"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-// RELEASE NOTE: TransactionAsync, RabbitMQBalanceOperationExchange, and
-// RabbitMQBalanceOperationKey are now resolved once at startup (not per-request).
+// RELEASE NOTE: TransactionAsync and BalanceOperationsTopic are resolved once at startup (not per-request).
 // Changing these env vars requires a pod restart to take effect.
 
-// WriteTransaction routes the transaction to sync or async execution
-// based on the TransactionAsync field (resolved once at startup from RABBITMQ_TRANSACTION_ASYNC).
+// WriteTransaction routes the transaction to sync or async execution.
 func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	if uc.TransactionAsync {
 		return uc.WriteTransactionAsync(ctx, organizationID, ledgerID, transactionInput, validate, blc, tran)
@@ -33,7 +29,7 @@ func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerI
 	return uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, blc, tran)
 }
 
-// WriteTransactionAsync publishes the transaction payload to RabbitMQ
+// WriteTransactionAsync publishes the transaction payload to Redpanda
 // for asynchronous processing. Falls back to direct DB write if queue fails.
 func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	logger, tracer, reqID, _ := libCommons.NewTrackingFromContext(ctx)
@@ -72,15 +68,21 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 
 	message, err := msgpack.Marshal(queueMessage)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to marshal exchange message struct", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to marshal broker message struct", err)
 
-		logger.Errorf("Failed to marshal exchange message struct")
+		logger.Errorf("Failed to marshal broker message struct")
 
 		return err
 	}
 
-	exchange := uc.RabbitMQBalanceOperationExchange
-	routingKey := resolveBTORoutingKey(uc.RabbitMQBalanceOperationKey, tran.IDtoUUID(), uc.ShardRouter, uc.ShardedBTOQueuesEnabled)
+	topic := uc.BalanceOperationsTopic
+	// Ordering contract for async processing:
+	// - We use transaction ID as partition key, so all retries/updates for the same
+	//   transaction are ordered within a single partition.
+	// - Ordering across different transaction IDs is intentionally not guaranteed.
+	// - Cross-transaction correctness relies on idempotent writes and optimistic
+	//   concurrency in downstream balance persistence.
+	partitionKey := tran.IDtoUUID().String()
 
 	if uc.Authorizer != nil && uc.Authorizer.Enabled() {
 		headers := map[string]string{}
@@ -88,22 +90,22 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 			headers[libConstants.HeaderID] = reqID
 		}
 
-		publishErr := uc.Authorizer.PublishBalanceOperations(ctx, exchange, routingKey, message, headers)
+		publishErr := uc.Authorizer.PublishBalanceOperations(ctx, topic, partitionKey, message, headers)
 		if publishErr == nil {
 			logger.Infof("Transaction sent successfully via authorizer publisher: %s", tran.ID)
 			return nil
 		}
 
-		logger.Warnf("Failed to publish via authorizer for transaction %s: %v. Falling back to local RabbitMQ producer", tran.ID, publishErr)
+		logger.Warnf("Failed to publish via authorizer for transaction %s: %v. Falling back to local broker producer", tran.ID, publishErr)
 	}
 
 	// ProducerDefaultWithContext handles scoped timeout internally.
 	// If it fails, we fall back to direct DB write using the original context
 	// which still has remaining HTTP timeout.
-	if _, err := uc.RabbitMQRepo.ProducerDefaultWithContext(
+	if _, err := uc.BrokerRepo.ProducerDefaultWithContext(
 		ctx,
-		exchange,
-		routingKey,
+		topic,
+		partitionKey,
 		message,
 	); err != nil {
 		logger.Warnf("Failed to send message to queue: %s", err.Error())
@@ -125,19 +127,9 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 		return nil
 	}
 
-	logger.Infof("Transaction send successfully to queue: %s", tran.ID)
+	logger.Infof("Transaction sent successfully to broker topic=%s id=%s", topic, tran.ID)
 
 	return nil
-}
-
-func resolveBTORoutingKey(baseKey string, transactionID uuid.UUID, shardRouter *shard.Router, shardedEnabled bool) string {
-	if !IsShardedBTOQueueEnabled(shardRouter, shardedEnabled) {
-		return baseKey
-	}
-
-	shardID := shardRouter.Resolve(transactionID.String())
-
-	return baseKey + ".shard_" + strconv.Itoa(shardID)
 }
 
 // WriteTransactionSync performs direct database writes for balance updates,

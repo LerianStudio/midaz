@@ -5,11 +5,18 @@
 package bootstrap
 
 import (
+	"context"
+	"errors"
 	"io"
+	"sync"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	httpin "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/gofiber/fiber/v2"
@@ -46,6 +53,16 @@ type Service struct {
 	// authorizerCloser closes the authorizer gRPC connection on shutdown.
 	authorizerCloser io.Closer
 
+	// brokerProducer closes producer client resources on shutdown.
+	brokerProducer io.Closer
+
+	telemetry          *libOpentelemetry.Telemetry
+	postgresConnection *libPostgres.PostgresConnection
+	mongoConnection    *libMongo.MongoConnection
+	redisConnection    *libRedis.RedisConnection
+	closeOnce          sync.Once
+	closeErr           error
+
 	// Route registration dependencies (for unified ledger mode)
 	auth                    *middleware.AuthClient
 	transactionHandler      *httpin.TransactionHandler
@@ -67,7 +84,7 @@ func (app *Service) Run() {
 	opts := []libCommons.LauncherOption{
 		libCommons.WithLogger(app.Logger),
 		libCommons.RunApp("Fiber Service", app.Server),
-		libCommons.RunApp("RabbitMQ Consumer", app.MultiQueueConsumer),
+		libCommons.RunApp("Broker Consumer", app.MultiQueueConsumer),
 		libCommons.RunApp("Redis Queue Consumer", app.RedisQueueConsumer),
 		libCommons.RunApp("gRPC Server", app.ServerGRPC),
 	}
@@ -82,17 +99,66 @@ func (app *Service) Run() {
 
 	libCommons.NewLauncher(opts...).Run()
 
-	// Stop circuit breaker health checker on shutdown
-	if app.CircuitBreakerManager != nil {
-		app.CircuitBreakerManager.Stop() //nolint:staticcheck // QF1008: explicit field access for clarity
+	if err := app.Close(); err != nil {
+		app.Logger.Warnf("Transaction service shutdown encountered errors: %v", err)
+	}
+}
+
+// Close releases external resources created during service initialization.
+func (app *Service) Close() error {
+	if app == nil {
+		return nil
 	}
 
-	// Close authorizer gRPC connection on shutdown
-	if app.authorizerCloser != nil {
-		if err := app.authorizerCloser.Close(); err != nil {
-			app.Warnf("Failed to close authorizer gRPC connection: %v", err)
+	app.closeOnce.Do(func() {
+		var closeErrs []error
+
+		if app.CircuitBreakerManager != nil {
+			app.CircuitBreakerManager.Stop()
 		}
-	}
+
+		if app.MultiQueueConsumer != nil && app.MultiQueueConsumer.consumerRoutes != nil {
+			app.MultiQueueConsumer.consumerRoutes.Stop()
+		}
+
+		if app.authorizerCloser != nil {
+			if err := app.authorizerCloser.Close(); err != nil {
+				closeErrs = append(closeErrs, err)
+			}
+		}
+
+		if app.brokerProducer != nil {
+			if err := app.brokerProducer.Close(); err != nil {
+				closeErrs = append(closeErrs, err)
+			}
+		}
+
+		if app.redisConnection != nil {
+			if err := app.redisConnection.Close(); err != nil {
+				closeErrs = append(closeErrs, err)
+			}
+		}
+
+		if app.postgresConnection != nil && app.postgresConnection.ConnectionDB != nil {
+			if err := (*app.postgresConnection.ConnectionDB).Close(); err != nil {
+				closeErrs = append(closeErrs, err)
+			}
+		}
+
+		if app.mongoConnection != nil && app.mongoConnection.DB != nil {
+			if err := app.mongoConnection.DB.Disconnect(context.Background()); err != nil {
+				closeErrs = append(closeErrs, err)
+			}
+		}
+
+		if app.telemetry != nil {
+			app.telemetry.ShutdownTelemetry()
+		}
+
+		app.closeErr = errors.Join(closeErrs...)
+	})
+
+	return app.closeErr
 }
 
 // GetRunnables returns all runnable components for composition in unified deployment.
@@ -107,7 +173,7 @@ func (app *Service) GetRunnables() []mbootstrap.RunnableConfig {
 func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.RunnableConfig {
 	runnables := []mbootstrap.RunnableConfig{
 		{Name: "Transaction Fiber Server", Runnable: app.Server},
-		{Name: "Transaction RabbitMQ Consumer", Runnable: app.MultiQueueConsumer},
+		{Name: "Transaction Broker Consumer", Runnable: app.MultiQueueConsumer},
 		{Name: "Transaction Redis Consumer", Runnable: app.RedisQueueConsumer},
 	}
 

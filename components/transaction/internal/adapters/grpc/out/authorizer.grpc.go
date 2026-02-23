@@ -153,17 +153,17 @@ func (a *AuthorizerGRPCRepository) LoadBalances(ctx context.Context, req *author
 	return nil, lastErr
 }
 
-func (a *AuthorizerGRPCRepository) PublishBalanceOperations(ctx context.Context, exchange, routingKey string, payload []byte, headers map[string]string) error {
+func (a *AuthorizerGRPCRepository) PublishBalanceOperations(ctx context.Context, topic, partitionKey string, payload []byte, headers map[string]string) error {
 	if !a.Enabled() {
 		return fmt.Errorf("authorizer gRPC client is disabled")
 	}
 
 	req := &authorizerv1.PublishBalanceOperationsRequest{
-		Exchange:    exchange,
-		RoutingKey:  routingKey,
-		Payload:     payload,
-		ContentType: "application/msgpack",
-		Headers:     headers,
+		Topic:        topic,
+		PartitionKey: partitionKey,
+		Payload:      payload,
+		ContentType:  "application/msgpack",
+		Headers:      headers,
 	}
 
 	var lastErr error

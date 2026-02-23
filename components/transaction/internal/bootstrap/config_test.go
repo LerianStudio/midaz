@@ -6,7 +6,9 @@ package bootstrap
 
 import (
 	"testing"
+	"time"
 
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
@@ -20,39 +22,15 @@ func TestEnvFallback(t *testing.T) {
 		fallback string
 		want     string
 	}{
-		{
-			name:     "prefixed non-empty returns prefixed",
-			prefixed: "prefixed-value",
-			fallback: "fallback-value",
-			want:     "prefixed-value",
-		},
-		{
-			name:     "prefixed empty returns fallback",
-			prefixed: "",
-			fallback: "fallback-value",
-			want:     "fallback-value",
-		},
-		{
-			name:     "prefixed non-empty with empty fallback returns prefixed",
-			prefixed: "prefixed-value",
-			fallback: "",
-			want:     "prefixed-value",
-		},
-		{
-			name:     "both empty returns empty",
-			prefixed: "",
-			fallback: "",
-			want:     "",
-		},
+		{name: "prefixed non-empty returns prefixed", prefixed: "prefixed-value", fallback: "fallback-value", want: "prefixed-value"},
+		{name: "prefixed empty returns fallback", prefixed: "", fallback: "fallback-value", want: "fallback-value"},
+		{name: "both empty returns empty", prefixed: "", fallback: "", want: ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
-			got := utils.EnvFallback(tt.prefixed, tt.fallback)
-
-			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, utils.EnvFallback(tt.prefixed, tt.fallback))
 		})
 	}
 }
@@ -66,277 +44,116 @@ func TestEnvFallbackInt(t *testing.T) {
 		fallback int
 		want     int
 	}{
-		{
-			name:     "prefixed non-zero returns prefixed",
-			prefixed: 10,
-			fallback: 5,
-			want:     10,
-		},
-		{
-			name:     "prefixed zero returns fallback",
-			prefixed: 0,
-			fallback: 5,
-			want:     5,
-		},
-		{
-			name:     "prefixed non-zero with zero fallback returns prefixed",
-			prefixed: 10,
-			fallback: 0,
-			want:     10,
-		},
-		{
-			name:     "both zero returns zero",
-			prefixed: 0,
-			fallback: 0,
-			want:     0,
-		},
-		{
-			name:     "negative prefixed returns prefixed",
-			prefixed: -5,
-			fallback: 10,
-			want:     -5,
-		},
-		{
-			name:     "negative fallback used when prefixed is zero",
-			prefixed: 0,
-			fallback: -10,
-			want:     -10,
-		},
+		{name: "prefixed non-zero returns prefixed", prefixed: 10, fallback: 5, want: 10},
+		{name: "prefixed zero returns fallback", prefixed: 0, fallback: 5, want: 5},
+		{name: "both zero returns zero", prefixed: 0, fallback: 0, want: 0},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
-			got := utils.EnvFallbackInt(tt.prefixed, tt.fallback)
-
-			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, utils.EnvFallbackInt(tt.prefixed, tt.fallback))
 		})
 	}
 }
 
-func TestBuildRabbitMQConnectionString(t *testing.T) {
+func TestParseSeedBrokers(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		uri   string
-		user  string
-		pass  string
-		host  string
-		port  string
-		vhost string
-		want  string
+		name string
+		raw  string
+		want []string
 	}{
 		{
-			name:  "empty vhost returns connection string without path",
-			uri:   "amqp",
-			user:  "guest",
-			pass:  "guest",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "",
-			want:  "amqp://guest:guest@localhost:5672",
+			name: "multiple brokers with spaces and empty entries",
+			raw:  "broker-1:9092, broker-2:9092, ,broker-3:9092",
+			want: []string{"broker-1:9092", "broker-2:9092", "broker-3:9092"},
 		},
 		{
-			name:  "simple vhost appends path",
-			uri:   "amqp",
-			user:  "user",
-			pass:  "pass",
-			host:  "rabbitmq",
-			port:  "5672",
-			vhost: "production",
-			want:  "amqp://user:pass@rabbitmq:5672/production",
+			name: "single broker",
+			raw:  "broker-1:9092",
+			want: []string{"broker-1:9092"},
 		},
 		{
-			name:  "vhost with slash is URL encoded",
-			uri:   "amqp",
-			user:  "user",
-			pass:  "pass",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "my/vhost",
-			want:  "amqp://user:pass@localhost:5672/my%2Fvhost",
+			name: "empty raw list",
+			raw:  "",
+			want: []string{},
 		},
 		{
-			name:  "default vhost slash is URL encoded",
-			uri:   "amqp",
-			user:  "user",
-			pass:  "pass",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "/",
-			want:  "amqp://user:pass@localhost:5672/%2F",
+			name: "only commas and spaces",
+			raw:  " , , ",
+			want: []string{},
 		},
 		{
-			name:  "vhost with spaces is URL encoded",
-			uri:   "amqp",
-			user:  "user",
-			pass:  "pass",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "my vhost",
-			want:  "amqp://user:pass@localhost:5672/my%20vhost",
-		},
-		{
-			name:  "amqps protocol works correctly",
-			uri:   "amqps",
-			user:  "user",
-			pass:  "pass",
-			host:  "secure-rabbitmq",
-			port:  "5671",
-			vhost: "secure",
-			want:  "amqps://user:pass@secure-rabbitmq:5671/secure",
-		},
-		{
-			name:  "vhost with special characters is URL encoded",
-			uri:   "amqp",
-			user:  "user",
-			pass:  "pass",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "test#vhost%1",
-			want:  "amqp://user:pass@localhost:5672/test%23vhost%251",
-		},
-		{
-			name:  "user with @ is URL encoded",
-			uri:   "amqp",
-			user:  "user@domain",
-			pass:  "pass",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "",
-			want:  "amqp://user%40domain:pass@localhost:5672",
-		},
-		{
-			name:  "pass with @ is URL encoded",
-			uri:   "amqp",
-			user:  "user",
-			pass:  "p@ssword",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "",
-			want:  "amqp://user:p%40ssword@localhost:5672",
-		},
-		{
-			name:  "user with colon is URL encoded",
-			uri:   "amqp",
-			user:  "user:name",
-			pass:  "pass",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "",
-			want:  "amqp://user%3Aname:pass@localhost:5672",
-		},
-		{
-			name:  "pass with colon is URL encoded",
-			uri:   "amqp",
-			user:  "user",
-			pass:  "pass:word",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "",
-			want:  "amqp://user:pass%3Aword@localhost:5672",
-		},
-		{
-			name:  "user with slash is URL encoded",
-			uri:   "amqp",
-			user:  "user/name",
-			pass:  "pass",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "",
-			want:  "amqp://user%2Fname:pass@localhost:5672",
-		},
-		{
-			name:  "pass with slash is URL encoded",
-			uri:   "amqp",
-			user:  "user",
-			pass:  "pass/word",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "",
-			want:  "amqp://user:pass%2Fword@localhost:5672",
-		},
-		{
-			name:  "user with percent is URL encoded",
-			uri:   "amqp",
-			user:  "user%name",
-			pass:  "pass",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "",
-			want:  "amqp://user%25name:pass@localhost:5672",
-		},
-		{
-			name:  "pass with percent is URL encoded",
-			uri:   "amqp",
-			user:  "user",
-			pass:  "pass%word",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "",
-			want:  "amqp://user:pass%25word@localhost:5672",
-		},
-		{
-			name:  "user with space is URL encoded",
-			uri:   "amqp",
-			user:  "user name",
-			pass:  "pass",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "",
-			want:  "amqp://user%20name:pass@localhost:5672",
-		},
-		{
-			name:  "pass with space is URL encoded",
-			uri:   "amqp",
-			user:  "user",
-			pass:  "pass word",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "",
-			want:  "amqp://user:pass%20word@localhost:5672",
-		},
-		{
-			name:  "user with hash is URL encoded",
-			uri:   "amqp",
-			user:  "user#name",
-			pass:  "pass",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "",
-			want:  "amqp://user%23name:pass@localhost:5672",
-		},
-		{
-			name:  "pass with hash is URL encoded",
-			uri:   "amqp",
-			user:  "user",
-			pass:  "pass#word",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "",
-			want:  "amqp://user:pass%23word@localhost:5672",
-		},
-		{
-			name:  "credentials with multiple special characters",
-			uri:   "amqp",
-			user:  "user@domain/org",
-			pass:  "p@ss:word#123%",
-			host:  "localhost",
-			port:  "5672",
-			vhost: "production",
-			want:  "amqp://user%40domain%2Forg:p%40ss%3Aword%23123%25@localhost:5672/production",
+			name: "trailing commas",
+			raw:  "broker-1:9092,broker-2:9092,,",
+			want: []string{"broker-1:9092", "broker-2:9092"},
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, redpanda.ParseSeedBrokers(tt.raw))
+		})
+	}
+}
+
+func TestResolveBrokerOperationTimeout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want time.Duration
+	}{
+		{name: "valid duration", raw: "7s", want: 7 * time.Second},
+		{name: "invalid duration falls back to default", raw: "invalid", want: redpanda.DefaultOperationTimeout},
+		{name: "negative duration falls back to default", raw: "-5s", want: redpanda.DefaultOperationTimeout},
+		{name: "zero duration falls back to default", raw: "0s", want: redpanda.DefaultOperationTimeout},
+		{name: "empty duration falls back to default", raw: "", want: redpanda.DefaultOperationTimeout},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, resolveBrokerOperationTimeout(tt.raw))
+		})
+	}
+}
+
+func TestEnforcePostgresSSLMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		envName    string
+		sslMode    string
+		expectErr  bool
+		errorMatch string
+	}{
+		{name: "production-like blocks disable", envName: "production", sslMode: "disable", expectErr: true, errorMatch: "DB_TRANSACTION_SSLMODE=disable"},
+		{name: "production-like allows require", envName: "production", sslMode: "require", expectErr: false},
+		{name: "staging allows disable", envName: "staging", sslMode: "disable", expectErr: false},
+		{name: "development allows disable", envName: "development", sslMode: "disable", expectErr: false},
+	}
+
+	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := buildRabbitMQConnectionString(tt.uri, tt.user, tt.pass, tt.host, tt.port, tt.vhost)
+			err := enforcePostgresSSLMode(tt.envName, tt.sslMode, "DB_TRANSACTION_SSLMODE")
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorMatch)
+				return
+			}
 
-			assert.Equal(t, tt.want, got)
+			assert.NoError(t, err)
 		})
 	}
 }

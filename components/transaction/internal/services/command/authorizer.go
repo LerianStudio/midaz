@@ -9,5 +9,5 @@ import "context"
 // AuthorizerPublisher encapsulates outbound publishing ownership when authorizer is enabled.
 type AuthorizerPublisher interface {
 	Enabled() bool
-	PublishBalanceOperations(ctx context.Context, exchange, routingKey string, payload []byte, headers map[string]string) error
+	PublishBalanceOperations(ctx context.Context, topic, partitionKey string, payload []byte, headers map[string]string) error
 }

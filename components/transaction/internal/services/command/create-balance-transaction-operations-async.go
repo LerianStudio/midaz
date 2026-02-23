@@ -34,21 +34,24 @@ import (
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	var t transaction.TransactionProcessingPayload
-
-	for _, item := range data.QueueData {
-		logger.Infof("Unmarshal account ID: %v", item.ID.String())
-
-		err := msgpack.Unmarshal(item.Value, &t)
-		if err != nil {
-			logger.Errorf("failed to unmarshal response: %v", err.Error())
-
-			return err
-		}
-	}
-
 	if len(data.QueueData) == 0 {
 		return fmt.Errorf("invalid queue payload: empty queue data")
+	}
+
+	if len(data.QueueData) > 1 {
+		return fmt.Errorf("invalid queue payload: expected exactly 1 queue data item, got %d", len(data.QueueData))
+	}
+
+	var t transaction.TransactionProcessingPayload
+
+	item := data.QueueData[0]
+	logger.Infof("Unmarshal account ID: %v", item.ID.String())
+
+	err := msgpack.Unmarshal(item.Value, &t)
+	if err != nil {
+		logger.Errorf("failed to unmarshal response: %v", err.Error())
+
+		return err
 	}
 
 	if t.Transaction == nil {
@@ -63,7 +66,12 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		return fmt.Errorf("invalid transaction payload: pending transaction input is nil")
 	}
 
+	// NOTED transactions do not mutate balances, so balance payload is optional.
 	if t.Transaction.Status.Code != constant.NOTED {
+		if err := validateBalancesNotNil(t.Balances); err != nil {
+			return err
+		}
+
 		ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
 		defer spanUpdateBalances.End()
 
@@ -142,22 +150,32 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	}
 
 	// Fire-and-forget goroutines for post-commit side effects.
-	// Concurrency is bounded by the upstream consumer: RabbitMQ workers are
-	// limited by RABBITMQ_NUMBERS_OF_WORKERS (default 5) and prefetch
-	// (workers * RABBITMQ_NUMBERS_OF_PREFETCH, default 10), so the maximum
-	// number of in-flight goroutines per side effect equals the prefetch
-	// window. An explicit semaphore is unnecessary here.
-	go uc.SendTransactionEvents(ctx, tran)
+	// Use a detached context so request cancellation does not drop side effects
+	// after the main transaction was already persisted.
+	// Concurrency is bounded by upstream consumer workers and partitioning,
+	// so the maximum concurrent goroutines here remains controlled.
+	// An explicit semaphore is unnecessary for this stage.
+	go func() {
+		sideEffectCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+
+		uc.SendTransactionEvents(sideEffectCtx, tran)
+	}()
 
 	logger.Infof("Backup queue: cleaning up transaction %s after successful processing", tran.ID)
 
 	// touchedShards is not passed because the async payload
 	// (TransactionProcessingPayload) does not carry shard IDs — they were
 	// resolved during the original sync Redis Lua execution and are not
-	// serialized into the RabbitMQ message. RemoveTransactionFromRedisQueue
+	// serialized into the broker message. RemoveTransactionFromRedisQueue
 	// computes the pre-flight shard deterministically using the same FNV hash
 	// as SendTransactionToRedisQueue, so only 1 shard + legacy key is cleaned.
-	go uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
+	go func() {
+		sideEffectCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+
+		uc.RemoveTransactionFromRedisQueue(sideEffectCtx, logger, data.OrganizationID, data.LedgerID, tran.ID)
+	}()
 
 	return nil
 }
@@ -166,6 +184,20 @@ func validateOperationsNotNil(operations []*operation.Operation) error {
 	for i, op := range operations {
 		if op == nil {
 			return fmt.Errorf("nil operation at index %d", i)
+		}
+	}
+
+	return nil
+}
+
+func validateBalancesNotNil(balances []*mmodel.Balance) error {
+	if balances == nil {
+		return fmt.Errorf("invalid transaction payload: balances is nil")
+	}
+
+	for i, balance := range balances {
+		if balance == nil {
+			return fmt.Errorf("invalid transaction payload: nil balance at index %d", i)
 		}
 	}
 
@@ -402,6 +434,11 @@ func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organi
 
 	redisOps := make([]mmodel.OperationRedis, 0, len(operations))
 	for _, op := range operations {
+		if op == nil {
+			logger.Warn("Skipping nil operation while updating transaction backup operations")
+			continue
+		}
+
 		redisOps = append(redisOps, op.ToRedis())
 	}
 

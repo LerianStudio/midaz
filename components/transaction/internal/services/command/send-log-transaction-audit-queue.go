@@ -7,8 +7,6 @@ package command
 import (
 	"context"
 	"encoding/json"
-	"os"
-	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -26,8 +24,13 @@ import (
 func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations []*operation.Operation, organizationID, ledgerID, transactionID uuid.UUID) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	if !isAuditLogEnabled() {
-		logger.Infof("Audit logging not enabled. AUDIT_LOG_ENABLED='%s'", os.Getenv("AUDIT_LOG_ENABLED"))
+	if !uc.AuditLogEnabled {
+		logger.Info("Audit logging is disabled")
+		return
+	}
+
+	if uc.BrokerRepo == nil {
+		logger.Errorf("Failed to send audit message: broker repository is not configured")
 		return
 	}
 
@@ -36,16 +39,30 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 
 	queueData := make([]mmodel.QueueData, 0)
 
-	for _, o := range operations {
+	for i, o := range operations {
+		if o == nil {
+			logger.Errorf("Invalid audit operation payload: nil operation at index %d", i)
+			return
+		}
+
 		oLog := o.ToLog()
 
 		marshal, err := json.Marshal(oLog)
 		if err != nil {
-			logger.Fatalf("Failed to marshal operation to JSON string: %s", err.Error())
+			libOpentelemetry.HandleSpanError(&spanLogTransaction, "Failed to marshal operation to JSON string", err)
+			logger.Errorf("Failed to marshal operation to JSON string: %s", err.Error())
+			return
+		}
+
+		opID, err := uuid.Parse(o.ID)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&spanLogTransaction, "Invalid operation UUID for audit payload", err)
+			logger.Errorf("Invalid operation UUID for audit payload: %s", err.Error())
+			return
 		}
 
 		queueData = append(queueData, mmodel.QueueData{
-			ID:    uuid.MustParse(o.ID),
+			ID:    opID,
 			Value: marshal,
 		})
 	}
@@ -59,22 +76,19 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 
 	message, err := json.Marshal(queueMessage)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanLogTransaction, "Failed to marshal exchange message struct", err)
+		libOpentelemetry.HandleSpanError(&spanLogTransaction, "Failed to marshal audit message struct", err)
 
-		logger.Errorf("Failed to marshal exchange message struct")
+		logger.Errorf("Failed to marshal audit message struct")
+
+		return
 	}
 
-	if _, err := uc.RabbitMQRepo.ProducerDefault(
+	if _, err := uc.BrokerRepo.ProducerDefault(
 		ctxLogTransaction,
-		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
-		os.Getenv("RABBITMQ_AUDIT_KEY"),
+		uc.AuditTopic,
+		transactionID.String(),
 		message,
 	); err != nil {
-		logger.Fatalf("Failed to send message: %s", err.Error())
+		logger.Errorf("Failed to send audit message: %s", err.Error())
 	}
-}
-
-func isAuditLogEnabled() bool {
-	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("AUDIT_LOG_ENABLED")))
-	return envValue != "false"
 }
