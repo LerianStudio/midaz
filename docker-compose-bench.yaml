@@ -3,9 +3,9 @@ services:
     image: postgres:16-alpine
     container_name: midaz-bench-postgres
     environment:
-      POSTGRES_USER: midaz
-      POSTGRES_PASSWORD: lerian
-      POSTGRES_DB: transaction
+      POSTGRES_USER: ${BENCH_DB_USER:-midaz}
+      POSTGRES_PASSWORD: ${BENCH_DB_PASSWORD:-lerian}
+      POSTGRES_DB: ${BENCH_DB_TRANSACTION_NAME:-transaction}
     command:
       - postgres
       - -c
@@ -15,23 +15,34 @@ services:
     volumes:
       - ./scripts/compose/init-postgres-bench.sql:/docker-entrypoint-initdb.d/init-postgres-bench.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U midaz -d transaction"]
+      test: ["CMD-SHELL", "pg_isready -U ${BENCH_DB_USER:-midaz} -d ${BENCH_DB_TRANSACTION_NAME:-transaction}"]
       interval: 5s
       timeout: 3s
       retries: 20
 
-  rabbitmq:
-    image: rabbitmq:3.13-management
-    container_name: midaz-bench-rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: transaction
-      RABBITMQ_DEFAULT_PASS: lerian
-      RABBITMQ_DEFAULT_VHOST: /
-      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: '-rabbitmq_management load_definitions "/etc/rabbitmq/definitions.json"'
-    volumes:
-      - ./components/infra/rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json:ro
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: midaz-bench-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp
+      - "2"
+      - --memory
+      - 4G
+      - --reserve-memory
+      - 0M
+      - --overprovisioned
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:9092
+    ports:
+      - "9092:9092"
+      - "127.0.0.1:9644:9644"
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      test: ["CMD", "rpk", "cluster", "health"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -70,23 +81,18 @@ services:
       AUTHORIZER_SHARD_COUNT: "8"
       AUTHORIZER_MAX_CONCURRENT_STREAMS: "10000"
       AUTHORIZER_WAL_ENABLED: "false"
-      AUTHORIZER_RABBITMQ_ENABLED: "true"
+      AUTHORIZER_REDPANDA_ENABLED: "true"
+      AUTHORIZER_REDPANDA_BROKERS: redpanda:9092
       DB_TRANSACTION_HOST: postgres
       DB_TRANSACTION_PORT: "5432"
-      DB_TRANSACTION_USER: midaz
-      DB_TRANSACTION_PASSWORD: lerian
-      DB_TRANSACTION_NAME: transaction
+      DB_TRANSACTION_USER: ${BENCH_DB_USER:-midaz}
+      DB_TRANSACTION_PASSWORD: ${BENCH_DB_PASSWORD:-lerian}
+      DB_TRANSACTION_NAME: ${BENCH_DB_TRANSACTION_NAME:-transaction}
       DB_TRANSACTION_SSLMODE: disable
-      RABBITMQ_URI: amqp
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT_HOST: "5672"
-      RABBITMQ_DEFAULT_USER: transaction
-      RABBITMQ_DEFAULT_PASS: lerian
-      RABBITMQ_VHOST: /
     depends_on:
       postgres:
         condition: service_healthy
-      rabbitmq:
+      redpanda:
         condition: service_healthy
 
   ledger-1:
@@ -99,26 +105,26 @@ services:
       PLUGIN_AUTH_ENABLED: "false"
       DB_ONBOARDING_HOST: postgres
       DB_ONBOARDING_PORT: "5432"
-      DB_ONBOARDING_USER: midaz
-      DB_ONBOARDING_PASSWORD: lerian
-      DB_ONBOARDING_NAME: onboarding
+      DB_ONBOARDING_USER: ${BENCH_DB_USER:-midaz}
+      DB_ONBOARDING_PASSWORD: ${BENCH_DB_PASSWORD:-lerian}
+      DB_ONBOARDING_NAME: ${BENCH_DB_ONBOARDING_NAME:-onboarding}
       DB_ONBOARDING_REPLICA_HOST: postgres
       DB_ONBOARDING_REPLICA_PORT: "5432"
-      DB_ONBOARDING_REPLICA_USER: midaz
-      DB_ONBOARDING_REPLICA_PASSWORD: lerian
-      DB_ONBOARDING_REPLICA_NAME: onboarding
+      DB_ONBOARDING_REPLICA_USER: ${BENCH_DB_USER:-midaz}
+      DB_ONBOARDING_REPLICA_PASSWORD: ${BENCH_DB_PASSWORD:-lerian}
+      DB_ONBOARDING_REPLICA_NAME: ${BENCH_DB_ONBOARDING_NAME:-onboarding}
       DB_ONBOARDING_MAX_OPEN_CONNS: "120"
       DB_ONBOARDING_MAX_IDLE_CONNS: "60"
       DB_TRANSACTION_HOST: postgres
       DB_TRANSACTION_PORT: "5432"
-      DB_TRANSACTION_USER: midaz
-      DB_TRANSACTION_PASSWORD: lerian
-      DB_TRANSACTION_NAME: transaction
+      DB_TRANSACTION_USER: ${BENCH_DB_USER:-midaz}
+      DB_TRANSACTION_PASSWORD: ${BENCH_DB_PASSWORD:-lerian}
+      DB_TRANSACTION_NAME: ${BENCH_DB_TRANSACTION_NAME:-transaction}
       DB_TRANSACTION_REPLICA_HOST: postgres
       DB_TRANSACTION_REPLICA_PORT: "5432"
-      DB_TRANSACTION_REPLICA_USER: midaz
-      DB_TRANSACTION_REPLICA_PASSWORD: lerian
-      DB_TRANSACTION_REPLICA_NAME: transaction
+      DB_TRANSACTION_REPLICA_USER: ${BENCH_DB_USER:-midaz}
+      DB_TRANSACTION_REPLICA_PASSWORD: ${BENCH_DB_PASSWORD:-lerian}
+      DB_TRANSACTION_REPLICA_NAME: ${BENCH_DB_TRANSACTION_NAME:-transaction}
       DB_TRANSACTION_MAX_OPEN_CONNS: "320"
       DB_TRANSACTION_MAX_IDLE_CONNS: "160"
       MONGO_ONBOARDING_URI: mongodb
@@ -142,24 +148,18 @@ services:
       REDIS_READ_TIMEOUT: "10"
       REDIS_WRITE_TIMEOUT: "10"
       REDIS_POOL_TIMEOUT: "5"
-      RABBITMQ_URI: amqp
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT_HOST: "5672"
-      RABBITMQ_PORT_AMQP: "15672"
-      RABBITMQ_HEALTH_CHECK_URL: http://rabbitmq:15672
-      RABBITMQ_DEFAULT_USER: transaction
-      RABBITMQ_DEFAULT_PASS: lerian
-      RABBITMQ_CONSUMER_USER: transaction
-      RABBITMQ_CONSUMER_PASS: lerian
-      RABBITMQ_BALANCE_CREATE_QUEUE: transaction.balance_create.queue
-      RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE: transaction.transaction_balance_operation.exchange
-      RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY: transaction.transaction_balance_operation.key
-      RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE: transaction.transaction_balance_operation.queue
-      RABBITMQ_TRANSACTION_BALANCE_OPERATION_SHARDED: "false"
-      RABBITMQ_TRANSACTION_EVENTS_EXCHANGE: transaction.transaction_events.exchange
-      RABBITMQ_TRANSACTION_ASYNC: "true"
-      RABBITMQ_NUMBERS_OF_PREFETCH: "400"
-      RABBITMQ_NUMBERS_OF_WORKERS: "120"
+      REDPANDA_BROKERS: redpanda:9092
+      REDPANDA_BALANCE_CREATE_TOPIC: ledger.balance.create
+      REDPANDA_BALANCE_OPS_TOPIC: ledger.balance.operations
+      REDPANDA_EVENTS_TOPIC: ledger.transaction.events
+      REDPANDA_AUDIT_TOPIC: ledger.audit.log
+      REDPANDA_CONSUMER_GROUP: midaz-balance-projector
+      REDPANDA_NUMBERS_OF_WORKERS: "120"
+      REDPANDA_FETCH_MAX_BYTES: "50000000"
+      REDPANDA_PRODUCER_LINGER_MS: "5"
+      REDPANDA_MAX_BUFFERED_RECORDS: "10000"
+      TRANSACTION_ASYNC: "true"
+      TRANSACTION_EVENTS_ENABLED: "false"
       BALANCE_SYNC_WORKER_ENABLED: "false"
       REDIS_SHARD_COUNT: "8"
       SHARD_REBALANCE_WORKER_ENABLED: "false"
@@ -173,7 +173,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      rabbitmq:
+      redpanda:
         condition: service_healthy
       dragonfly:
         condition: service_healthy
@@ -192,7 +192,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      rabbitmq:
+      redpanda:
         condition: service_healthy
       dragonfly:
         condition: service_healthy
@@ -211,7 +211,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      rabbitmq:
+      redpanda:
         condition: service_healthy
       dragonfly:
         condition: service_healthy
@@ -230,7 +230,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      rabbitmq:
+      redpanda:
         condition: service_healthy
       dragonfly:
         condition: service_healthy

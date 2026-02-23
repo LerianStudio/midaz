@@ -151,8 +151,8 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${OTEL_LGTM_ADMIN_PASSWORD}
     ports:
       - ${OTEL_LGTM_EXTERNAL_PORT}:${OTEL_LGTM_INTERNAL_PORT}
-      - ${OTEL_LGTM_RECEIVER_GRPC_PORT}:${OTEL_LGTM_RECEIVER_GRPC_PORT}
-      - ${OTEL_LGTM_RECEIVER_HTTP_PORT}:${OTEL_LGTM_RECEIVER_HTTP_PORT}
+      - ${OTEL_LGTM_RECEIVER_GRPC_PORT:-4317}:4317
+      - ${OTEL_LGTM_RECEIVER_HTTP_PORT:-4318}:4318
     volumes:
       - ./grafana/otelcol-config.yaml:/otel-lgtm/otelcol-config.yaml:ro
       - ./grafana/run-grafana.sh:/otel-lgtm/run-grafana.sh
@@ -160,21 +160,48 @@ services:
     networks:
       - infra-network
 
-  midaz-rabbitmq:
-    image: rabbitmq:4.1.3-management-alpine
-    container_name: midaz-rabbitmq
+  midaz-redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: midaz-redpanda
     restart: always
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    command:
+      - redpanda
+      - start
+      - --smp
+      - "2"
+      - --memory
+      - 4G
+      - --reserve-memory
+      - 0M
+      - --overprovisioned
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://midaz-redpanda:9092
     ports:
-      - ${RABBITMQ_PORT_HOST}:${RABBITMQ_PORT_HOST}
-      - ${RABBITMQ_PORT_AMQP}:${RABBITMQ_PORT_AMQP}
+      - ${REDPANDA_PORT_HOST:-9092}:9092
+      - 127.0.0.1:${REDPANDA_ADMIN_PORT:-9644}:9644
     volumes:
-      - ./rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json
-      - ./rabbitmq/etc/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
-      - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
-      - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
+      - ~/.docker-conf/redpanda/data/:/var/lib/redpanda/data
+    networks:
+      - infra-network
+
+  midaz-redpanda-init:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: midaz-redpanda-init
+    depends_on:
+      - midaz-redpanda
+    entrypoint:
+      [
+        "sh",
+        "-c",
+        "until rpk cluster health --brokers midaz-redpanda:9092 >/dev/null 2>&1; do sleep 1; done; sh /scripts/create-topics.sh",
+      ]
+    environment:
+      REDPANDA_BROKER: midaz-redpanda:9092
+    volumes:
+      - ./redpanda/create-topics.sh:/scripts/create-topics.sh:ro
     networks:
       - infra-network
 
