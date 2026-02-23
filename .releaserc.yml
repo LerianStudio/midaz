@@ -42,8 +42,6 @@ plugins:
     failComment: false
     labels: []
 
-  - path: "@semantic-release/exec"
-
 branches:
   - name: main
   - name: develop
