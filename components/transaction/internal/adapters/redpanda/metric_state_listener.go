@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package rabbitmq
+package redpanda
 
 import (
 	"context"
@@ -17,8 +17,7 @@ import (
 // ErrNilMetricsFactory indicates that the metrics factory parameter is nil.
 var ErrNilMetricsFactory = errors.New("metrics factory cannot be nil")
 
-// MetricStateListener implements StateChangeListener to update Prometheus metrics
-// when circuit breaker state changes.
+// MetricStateListener implements StateChangeListener to update metrics on state changes.
 type MetricStateListener struct {
 	factory *metrics.MetricsFactory
 }
@@ -29,14 +28,11 @@ func NewMetricStateListener(factory *metrics.MetricsFactory) (*MetricStateListen
 		return nil, ErrNilMetricsFactory
 	}
 
-	return &MetricStateListener{
-		factory: factory,
-	}, nil
+	return &MetricStateListener{factory: factory}, nil
 }
 
 // OnStateChange updates the circuit_breaker_state gauge metric when state transitions.
-// Values: 0=closed, 1=open, 2=half-open
-func (m *MetricStateListener) OnStateChange(serviceName string, from, to libCircuitBreaker.State) {
+func (m *MetricStateListener) OnStateChange(serviceName string, _, to libCircuitBreaker.State) {
 	value := stateToMetricValue(to)
 
 	m.factory.Gauge(utils.CircuitBreakerState).
@@ -44,7 +40,6 @@ func (m *MetricStateListener) OnStateChange(serviceName string, from, to libCirc
 		Set(context.Background(), value)
 }
 
-// stateToMetricValue converts circuit breaker state to metric value.
 func stateToMetricValue(state libCircuitBreaker.State) int64 {
 	switch state {
 	case libCircuitBreaker.StateClosed:
