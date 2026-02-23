@@ -92,13 +92,13 @@ func getHealthCheckTimeout() time.Duration {
 
 	timeout, err := time.ParseDuration(timeoutStr)
 	if err != nil {
-		log.Printf("Warning: invalid GRPC_HEALTH_CHECK_TIMEOUT value %q, using default %v", timeoutStr, defaultHealthCheckTimeout)
+		log.Printf("Warning: invalid GRPC_HEALTH_CHECK_TIMEOUT value %q, using default %v", timeoutStr, defaultHealthCheckTimeout) // #nosec G706 -- %q escapes control characters
 
 		return defaultHealthCheckTimeout
 	}
 
 	if timeout <= 0 {
-		log.Printf("Warning: non-positive GRPC_HEALTH_CHECK_TIMEOUT value %q, using default %v", timeoutStr, defaultHealthCheckTimeout)
+		log.Printf("Warning: non-positive GRPC_HEALTH_CHECK_TIMEOUT value %q, using default %v", timeoutStr, defaultHealthCheckTimeout) // #nosec G706 -- %q escapes control characters
 
 		return defaultHealthCheckTimeout
 	}
