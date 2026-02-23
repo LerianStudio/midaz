@@ -651,8 +651,8 @@ func (x *GetBalanceResponse) GetBalance() *BalanceSnapshot {
 
 type PublishBalanceOperationsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Exchange      string                 `protobuf:"bytes,1,opt,name=exchange,proto3" json:"exchange,omitempty"`
-	RoutingKey    string                 `protobuf:"bytes,2,opt,name=routing_key,json=routingKey,proto3" json:"routing_key,omitempty"`
+	Topic         string                 `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
+	PartitionKey  string                 `protobuf:"bytes,2,opt,name=partition_key,json=partitionKey,proto3" json:"partition_key,omitempty"`
 	Payload       []byte                 `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
 	ContentType   string                 `protobuf:"bytes,4,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
 	Headers       map[string]string      `protobuf:"bytes,5,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -690,16 +690,16 @@ func (*PublishBalanceOperationsRequest) Descriptor() ([]byte, []int) {
 	return file_proto_authorizer_v1_authorizer_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *PublishBalanceOperationsRequest) GetExchange() string {
+func (x *PublishBalanceOperationsRequest) GetTopic() string {
 	if x != nil {
-		return x.Exchange
+		return x.Topic
 	}
 	return ""
 }
 
-func (x *PublishBalanceOperationsRequest) GetRoutingKey() string {
+func (x *PublishBalanceOperationsRequest) GetPartitionKey() string {
 	if x != nil {
-		return x.RoutingKey
+		return x.PartitionKey
 	}
 	return ""
 }
@@ -847,11 +847,10 @@ const file_proto_authorizer_v1_authorizer_proto_rawDesc = "" +
 	"\vbalance_key\x18\x04 \x01(\tR\n" +
 	"balanceKey\"N\n" +
 	"\x12GetBalanceResponse\x128\n" +
-	"\abalance\x18\x01 \x01(\v2\x1e.authorizer.v1.BalanceSnapshotR\abalance\"\xae\x02\n" +
-	"\x1fPublishBalanceOperationsRequest\x12\x1a\n" +
-	"\bexchange\x18\x01 \x01(\tR\bexchange\x12\x1f\n" +
-	"\vrouting_key\x18\x02 \x01(\tR\n" +
-	"routingKey\x12\x18\n" +
+	"\abalance\x18\x01 \x01(\v2\x1e.authorizer.v1.BalanceSnapshotR\abalance\"\xac\x02\n" +
+	"\x1fPublishBalanceOperationsRequest\x12\x14\n" +
+	"\x05topic\x18\x01 \x01(\tR\x05topic\x12#\n" +
+	"\rpartition_key\x18\x02 \x01(\tR\fpartitionKey\x12\x18\n" +
 	"\apayload\x18\x03 \x01(\fR\apayload\x12!\n" +
 	"\fcontent_type\x18\x04 \x01(\tR\vcontentType\x12U\n" +
 	"\aheaders\x18\x05 \x03(\v2;.authorizer.v1.PublishBalanceOperationsRequest.HeadersEntryR\aheaders\x1a:\n" +

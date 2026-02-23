@@ -83,8 +83,8 @@ message GetBalanceResponse {
 }
 
 message PublishBalanceOperationsRequest {
-  string exchange = 1;
-  string routing_key = 2;
+  string topic = 1;
+  string partition_key = 2;
   bytes payload = 3;
   string content_type = 4;
   map<string, string> headers = 5;
