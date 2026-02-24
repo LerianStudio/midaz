@@ -80,6 +80,10 @@ type Repository interface {
 	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 }
 
+// transactionColumns defines the explicit column list for transaction table queries.
+// This ensures backward compatibility when new columns are added in future versions.
+const transactionColumns = "id, parent_transaction_id, description, status, status_description, amount, asset_code, chart_of_accounts_group_name, ledger_id, organization_id, body, created_at, updated_at, deleted_at, route"
+
 // TransactionPostgreSQLRepository is a Postgresql-specific implementation of the TransactionRepository.
 type TransactionPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
@@ -333,10 +337,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 	var transactions []*Transaction
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
-	defer spanQuery.End()
-
-	listByIDs := squirrel.Select(transactionColumnList...).
+	findAll := squirrel.Select(transactionColumns).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
@@ -345,14 +346,17 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
-	query, args, err := listByIDs.ToSql()
+	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
 		logger.Errorf("Failed to build query: %v", err)
 
 		return nil, err
 	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
+	defer spanQuery.End()
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -434,14 +438,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		return nil, err
 	}
 
-	transaction := &TransactionPostgreSQLModel{}
-
-	var body *string
-
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
-	defer spanQuery.End()
-
-	find := squirrel.Select(transactionColumnList...).
+	findOne := squirrel.Select(transactionColumns).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
@@ -449,14 +446,21 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		Where(squirrel.Eq{"deleted_at": nil}).
 		PlaceholderFormat(squirrel.Dollar)
 
-	query, args, err := find.ToSql()
+	query, args, err := findOne.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
 		logger.Errorf("Failed to build query: %v", err)
 
 		return nil, err
 	}
+
+	transaction := &TransactionPostgreSQLModel{}
+
+	var body *string
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+	defer spanQuery.End()
 
 	row := db.QueryRowContext(ctx, query, args...)
 
@@ -524,14 +528,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		return nil, err
 	}
 
-	transaction := &TransactionPostgreSQLModel{}
-
-	var body *string
-
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
-	defer spanQuery.End()
-
-	findByParent := squirrel.Select(transactionColumnList...).
+	findOne := squirrel.Select(transactionColumns).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
@@ -539,14 +536,21 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		Where(squirrel.Eq{"deleted_at": nil}).
 		PlaceholderFormat(squirrel.Dollar)
 
-	query, args, err := findByParent.ToSql()
+	query, args, err := findOne.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
 		logger.Errorf("Failed to build query: %v", err)
 
 		return nil, err
 	}
+
+	transaction := &TransactionPostgreSQLModel{}
+
+	var body *string
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+	defer spanQuery.End()
 
 	row := db.QueryRowContext(ctx, query, args...)
 

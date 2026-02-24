@@ -255,6 +255,15 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	return rds.Incr(ctx, key).Val()
 }
 
+// boolToInt converts a boolean to an integer (0 or 1) for Redis Lua script arguments.
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+
+	return 0
+}
+
 func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -280,16 +289,6 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	args := []any{}
 
 	for _, blcs := range balancesOperation {
-		allowSending := 0
-		if blcs.Balance.AllowSending {
-			allowSending = 1
-		}
-
-		allowReceiving := 0
-		if blcs.Balance.AllowReceiving {
-			allowReceiving = 1
-		}
-
 		args = append(args,
 			blcs.InternalKey,
 			isPending,
@@ -304,8 +303,8 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 			blcs.Balance.AccountType,
 			blcs.Balance.AccountID,
 			blcs.Balance.AssetCode,
-			allowSending,
-			allowReceiving,
+			boolToInt(blcs.Balance.AllowSending),
+			boolToInt(blcs.Balance.AllowReceiving),
 			blcs.Balance.Key,
 		)
 
@@ -350,6 +349,12 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 			err := pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanScript, "Failed run lua script on redis", err)
+
+			return nil, err
+		} else if strings.Contains(err.Error(), constant.ErrTransactionBackupCacheRetrievalFailed.Error()) {
+			err := pkg.ValidateBusinessError(constant.ErrTransactionBackupCacheRetrievalFailed, "validateBalance")
+
+			libOpentelemetry.HandleSpanError(&spanScript, "Failed run lua script on redis", err)
 
 			return nil, err
 		}

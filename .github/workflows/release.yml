@@ -7,7 +7,15 @@ on:
       - release-candidate
       - main
     paths-ignore:
-      - '.github/workflows/**'
+      - '.gitignore'
+      - '**/*.env'   # Ignores all .env files
+      - '*.env'      # Ignores .env files in the root directory
+      - '**/*.md'    # Ignores all .md files
+      - '*.md'       # Ignores .md files in the root directory
+      - '**/*.txt'   # Ignores all .env files
+      - '*.txt'      # Ignores .env files in the root directory
+      - '.github/workflows/**' # Ignores all GitHub Actions workflows
+    tags-ignore: ['**']
 
 permissions:
   contents: write

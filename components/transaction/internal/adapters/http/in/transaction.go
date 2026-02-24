@@ -336,13 +336,16 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	_, span := tracer.Start(ctx, "handler.commit_transaction")
 	defer span.End()
 
-	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
+		tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
 
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+			logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
 
-		return http.WithError(c, err)
+			return http.WithError(c, err)
+		}
 	}
 
 	return handler.commitOrCancelTransaction(c, tran, constant.APPROVED)
@@ -380,13 +383,16 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 	_, span := tracer.Start(ctx, "handler.cancel_transaction")
 	defer span.End()
 
-	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
+		tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
 
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+			logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
 
-		return http.WithError(c, err)
+			return http.WithError(c, err)
+		}
 	}
 
 	return handler.commitOrCancelTransaction(c, tran, constant.CANCELED)
@@ -583,11 +589,11 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	transactionID := c.Locals("transaction_id").(uuid.UUID)
 
-	// Try to get transaction from idempotency cache first
-	if cachedTran, found := handler.Query.GetTransactionFromIdempotencyCache(ctx, organizationID, ledgerID, transactionID); found {
+	// Try to get transaction from write-behind cache (operations already embedded)
+	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID); wbErr == nil {
 		c.Set("X-Cache-Hit", "true")
 
-		return http.OK(c, cachedTran)
+		return http.OK(c, wbTran)
 	}
 
 	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
@@ -930,7 +936,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	hash := libCommons.HashSHA256(ts)
 	key, ttl := http.GetIdempotencyKeyAndTTL(c)
 
-	value, err := handler.Command.CreateOrCheckIdempotencyKey(ctxIdempotency, organizationID, ledgerID, key, hash, ttl)
+	value, internalKey, err := handler.Command.CreateOrCheckIdempotencyKey(ctxIdempotency, organizationID, ledgerID, key, hash, ttl)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanIdempotency, "Error on create or check redis idempotency key", err)
 		spanIdempotency.End()
@@ -965,14 +971,14 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
 
-		_ = handler.Command.RedisRepo.Del(ctx, key)
+		_ = handler.Command.RedisRepo.Del(ctx, *internalKey)
 
 		return http.WithError(c, err)
 	}
 
 	ctxSendTransactionToRedisQueue, spanSendTransactionToRedisQueue := tracer.Start(ctx, "handler.create_transaction.send_transaction_to_redis_queue")
 
-	err = handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, transactionInput, validate, transactionStatus, transactionDate)
+	err = handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, transactionInput, validate, transactionStatus, transactionDate, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendTransactionToRedisQueue, "Failed to send transaction to backup cache", err)
 
@@ -981,7 +987,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		// Only delete idempotency key if marshal failed
 		// If Redis is down, Del would also fail
 		if errors.Is(err, constant.ErrTransactionBackupCacheMarshalFailed) {
-			_ = handler.Command.RedisRepo.Del(ctxSendTransactionToRedisQueue, key)
+			_ = handler.Command.RedisRepo.Del(ctxSendTransactionToRedisQueue, *internalKey)
 		}
 
 		spanSendTransactionToRedisQueue.End()
@@ -999,7 +1005,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 		logger.Errorf("Failed to get balances: %v", err.Error())
 
-		_ = handler.Command.RedisRepo.Del(ctx, key)
+		_ = handler.Command.RedisRepo.Del(ctx, *internalKey)
 
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, transactionID.String())
 		spanGetBalances.End()
@@ -1057,6 +1063,18 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	handler.Command.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID.String(), operations)
 
+	// Promote status to APPROVED for write-behind and RabbitMQ so the cache and consumer
+	// already have the final status. The original status is restored before the HTTP response
+	// to preserve the current API contract (clients see CREATED).
+	originalStatus := tran.Status
+
+	if transactionStatus == constant.CREATED {
+		approved := constant.APPROVED
+		tran.Status = transaction.Status{Code: approved, Description: &approved}
+	}
+
+	handler.Command.CreateWriteBehindTransaction(ctx, organizationID, ledgerID, tran, transactionInput)
+
 	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &transactionInput, validate, balances, tran)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
@@ -1068,11 +1086,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		return http.WithError(c, err)
 	}
 
+	tran.Status = originalStatus
+
 	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
-
-	handler.Command.SetTransactionIdempotencyMapping(ctx, organizationID, ledgerID, tran.ID, key, 5)
 
 	return http.Created(c, tran)
 }
@@ -1202,6 +1220,17 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
+	// Send commit/cancel transaction to Redis backup queue for recovery
+	ctxBackup, spanBackup := tracer.Start(ctx, "handler.commit_or_cancel_transaction.send_to_redis_queue")
+
+	if backupErr := handler.Command.SendTransactionToRedisQueue(ctxBackup, organizationID, ledgerID, tran.IDtoUUID(), transactionInput, validate, transactionStatus, time.Now(), preBalances); backupErr != nil {
+		libOpentelemetry.HandleSpanError(&spanBackup, "Failed to send transaction to backup cache", backupErr)
+
+		logger.Warnf("Failed to send commit/cancel transaction to backup cache: %v", backupErr)
+	}
+
+	spanBackup.End()
+
 	// immediately update transaction status if application is configured to persist transaction asynchronously
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
 		_, err = handler.Command.UpdateTransactionStatus(ctx, tran)
@@ -1224,6 +1253,10 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	}
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
+
+	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
+		go handler.Command.UpdateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran)
+	}
 
 	return http.Created(c, tran)
 }

@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -156,6 +157,12 @@ func setupMocksForFallback(
 		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
 		Return(nil).
 		AnyTimes()
+
+	// Mock RedisRepo.Del for removing transaction from write-behind cache
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
 }
 
 // TestWriteTransaction tests the routing logic that decides between async and sync execution
@@ -257,6 +264,9 @@ func TestWriteTransaction(t *testing.T) {
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
+		// Allow background goroutines (DeleteWriteBehindTransaction) to complete before ctrl.Finish
+		time.Sleep(100 * time.Millisecond)
+
 		assert.NoError(t, err)
 	})
 
@@ -323,6 +333,9 @@ func TestWriteTransaction(t *testing.T) {
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+
+		// Allow background goroutines (DeleteWriteBehindTransaction) to complete before ctrl.Finish
+		time.Sleep(100 * time.Millisecond)
 
 		assert.NoError(t, err)
 	})
@@ -520,6 +533,9 @@ func TestWriteTransactionSync(t *testing.T) {
 
 		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
+		// Allow background goroutines (DeleteWriteBehindTransaction) to complete before ctrl.Finish
+		time.Sleep(100 * time.Millisecond)
+
 		assert.NoError(t, err)
 	})
 
@@ -714,6 +730,9 @@ func TestWriteTransactionSync(t *testing.T) {
 			AnyTimes()
 
 		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, balances, tran)
+
+		// Allow background goroutines (DeleteWriteBehindTransaction) to complete before ctrl.Finish
+		time.Sleep(100 * time.Millisecond)
 
 		assert.NoError(t, err)
 	})
