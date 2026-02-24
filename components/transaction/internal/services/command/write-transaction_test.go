@@ -729,6 +729,12 @@ func TestWriteTransactionSync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
+		// Mock RedisRepo.Del for removing transaction from write-behind cache
+		mockRedisRepo.EXPECT().
+			Del(gomock.Any(), gomock.Any()).
+			Return(nil).
+			AnyTimes()
+
 		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, balances, tran)
 
 		// Allow background goroutines (DeleteWriteBehindTransaction) to complete before ctrl.Finish

@@ -933,9 +933,15 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 	transactionID := uuid.New()
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	// Mock: Write-behind cache miss (fall through to Postgres Find)
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("cache miss")).
+		AnyTimes()
 
 	// Mock: Transaction lookup returns error
-	// GetTransactionByID calls TransactionRepo.Find directly (no Redis cache)
 	mockTransactionRepo.EXPECT().
 		Find(gomock.Any(), orgID, ledgerID, transactionID).
 		Return(nil, pkg.EntityNotFoundError{
@@ -948,6 +954,7 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 
 	queryUC := &query.UseCase{
 		TransactionRepo: mockTransactionRepo,
+		RedisRepo:       mockRedisRepo,
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
@@ -1038,6 +1045,12 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 		Return(nil, nil).
 		Times(1)
 
+	// Mock: Write-behind cache miss (fall through to Postgres Find)
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("cache miss")).
+		AnyTimes()
+
 	// Mock: Redis lock acquisition fails with error
 	mockRedisRepo.EXPECT().
 		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -1051,6 +1064,7 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 	queryUC := &query.UseCase{
 		TransactionRepo: mockTransactionRepo,
 		MetadataRepo:    mockMetadataRepo,
+		RedisRepo:       mockRedisRepo,
 	}
 	commandUC := &command.UseCase{
 		RedisRepo: mockRedisRepo,
@@ -1143,6 +1157,12 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 		Return(nil, nil).
 		Times(1)
 
+	// Mock: Write-behind cache miss (fall through to Postgres Find)
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("cache miss")).
+		AnyTimes()
+
 	// Mock: Redis lock NOT acquired (returns false, nil) - transaction already being processed
 	mockRedisRepo.EXPECT().
 		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -1152,6 +1172,7 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	queryUC := &query.UseCase{
 		TransactionRepo: mockTransactionRepo,
 		MetadataRepo:    mockMetadataRepo,
+		RedisRepo:       mockRedisRepo,
 	}
 	commandUC := &command.UseCase{
 		RedisRepo: mockRedisRepo,
