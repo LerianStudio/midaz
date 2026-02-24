@@ -127,6 +127,8 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	go uc.RemoveTransactionFromRedisQueue(ctx, logger, data.OrganizationID, data.LedgerID, tran.ID)
 
+	go uc.DeleteWriteBehindTransaction(ctx, data.OrganizationID, data.LedgerID, tran.ID)
+
 	return nil
 }
 
@@ -230,12 +232,47 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 	}
 }
 
-// SendTransactionToRedisQueue func that send transaction to redis queue
-func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string, transactionDate time.Time) error {
+// SendTransactionToRedisQueue func that send transaction to redis queue.
+// When balances is non-nil (e.g. commit/cancel flows), the snapshot is included
+// directly in the backup message so the Redis consumer can retry without relying
+// on the Lua script to populate them.
+func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string, transactionDate time.Time, balances []*mmodel.Balance) error {
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
 	utils.SanitizeAccountAliases(&transactionInput)
+
+	var balanceRedis []mmodel.BalanceRedis
+
+	if balances != nil {
+		balanceRedis = make([]mmodel.BalanceRedis, 0, len(balances))
+
+		for _, b := range balances {
+			allowSending := 0
+			if b.AllowSending {
+				allowSending = 1
+			}
+
+			allowReceiving := 0
+			if b.AllowReceiving {
+				allowReceiving = 1
+			}
+
+			balanceRedis = append(balanceRedis, mmodel.BalanceRedis{
+				ID:             b.ID,
+				Alias:          b.Alias,
+				Key:            b.Key,
+				AccountID:      b.AccountID,
+				AssetCode:      b.AssetCode,
+				Available:      b.Available,
+				OnHold:         b.OnHold,
+				Version:        b.Version,
+				AccountType:    b.AccountType,
+				AllowSending:   allowSending,
+				AllowReceiving: allowReceiving,
+			})
+		}
+	}
 
 	queue := mmodel.TransactionRedisQueue{
 		HeaderID:          reqId,
@@ -243,6 +280,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		LedgerID:          ledgerID,
 		TransactionID:     transactionID,
 		TransactionInput:  transactionInput,
+		Balances:          balanceRedis,
 		TTL:               time.Now(),
 		Validate:          validate,
 		TransactionStatus: transactionStatus,

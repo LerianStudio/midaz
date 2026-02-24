@@ -143,7 +143,12 @@ type UpdateAccountInput struct {
 	// required: false
 	// example: {"department": "Global Treasury", "purpose": "Primary Operations", "region": "Global"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-} //	@name	UpdateAccountInput
+
+	// NullFields tracks fields explicitly set to null in the request.
+	// Used internally to enable RFC 7396 JSON Merge Patch semantics.
+	// Hidden from JSON serialization.
+	NullFields []string `json:"-"`
+} // @name UpdateAccountInput
 
 // Account is a struct designed to encapsulate response payload data.
 //
@@ -251,6 +256,11 @@ type Account struct {
 	// Custom key-value pairs for extending the account information
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
 	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// NullFields tracks fields explicitly set to null in the request.
+	// Used internally to enable RFC 7396 JSON Merge Patch semantics.
+	// Hidden from JSON serialization.
+	NullFields []string `json:"-"`
 } //	@name	Account
 
 // IDtoUUID converts the account's string ID to a UUID object

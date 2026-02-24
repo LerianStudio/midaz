@@ -107,7 +107,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		ConnectionStringSource: mongoSource,
 		Database:               cfg.MongoDBName,
 		Logger:                 logger,
-		MaxPoolSize:            uint64(cfg.MaxPoolSize),
+		MaxPoolSize:            uint64(cfg.MaxPoolSize), // #nosec G115 -- guarded by <= 0 check above
 	}
 
 	dataSecurity := &libCrypto.Crypto{

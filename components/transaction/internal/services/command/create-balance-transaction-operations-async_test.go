@@ -202,6 +202,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
+		// Mock RedisRepo.Del for removing transaction from write-behind cache
+		mockRedisRepo.EXPECT().
+			Del(gomock.Any(), gomock.Any()).
+			Return(nil).
+			AnyTimes()
+
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -440,6 +446,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
+		// Mock RedisRepo.Del for removing transaction from write-behind cache
+		mockRedisRepo.EXPECT().
+			Del(gomock.Any(), gomock.Any()).
+			Return(nil).
+			AnyTimes()
+
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.NoError(t, err) // Duplicate key errors are handled gracefully
@@ -654,6 +666,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
 		mockRedisRepo.EXPECT().
 			RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+			Return(nil).
+			AnyTimes()
+
+		// Mock RedisRepo.Del for removing transaction from write-behind cache
+		mockRedisRepo.EXPECT().
+			Del(gomock.Any(), gomock.Any()).
 			Return(nil).
 			AnyTimes()
 
@@ -1002,6 +1020,12 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
+		// Mock RedisRepo.Del for removing transaction from write-behind cache
+		mockRedisRepo.EXPECT().
+			Del(gomock.Any(), gomock.Any()).
+			Return(nil).
+			AnyTimes()
+
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
@@ -1314,6 +1338,12 @@ func TestCreateBTOAsync(t *testing.T) {
 	// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
 	mockRedisRepo.EXPECT().
 		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	// Mock RedisRepo.Del for removing transaction from write-behind cache
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), gomock.Any()).
 		Return(nil).
 		AnyTimes()
 
