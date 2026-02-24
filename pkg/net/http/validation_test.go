@@ -199,13 +199,13 @@ func TestValidateStruct_JSONNestingDepthLimit(t *testing.T) {
 			name:     "nesting depth 11 (exceeds limit) fails",
 			input:    buildNestedMap(11),
 			wantErr:  true,
-			wantCode: "0143",
+			wantCode: "0144",
 		},
 		{
 			name:     "nesting depth 15 (deeply exceeds limit) fails",
 			input:    buildNestedMap(15),
 			wantErr:  true,
-			wantCode: "0143",
+			wantCode: "0144",
 		},
 	}
 
@@ -246,19 +246,19 @@ func TestValidateStruct_JSONKeyCountLimit(t *testing.T) {
 			name:     "key count 101 (exceeds limit) fails",
 			input:    buildFlatMap(101),
 			wantErr:  true,
-			wantCode: "0144",
+			wantCode: "0145",
 		},
 		{
 			name:     "key count 150 (deeply exceeds limit) fails",
 			input:    buildFlatMap(150),
 			wantErr:  true,
-			wantCode: "0144",
+			wantCode: "0145",
 		},
 		{
 			name:     "nested key count exceeds limit",
 			input:    buildNestedMapWithKeys(5, 25), // 5 levels * ~25 keys each > 100
 			wantErr:  true,
-			wantCode: "0144",
+			wantCode: "0145",
 		},
 	}
 

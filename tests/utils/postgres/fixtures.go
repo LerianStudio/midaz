@@ -20,10 +20,11 @@ import (
 
 // OrganizationParams holds parameters for creating a test organization.
 type OrganizationParams struct {
-	LegalName     string
-	LegalDocument string
-	Status        string
-	DeletedAt     *time.Time
+	LegalName       string
+	LegalDocument   string
+	DoingBusinessAs *string
+	Status          string
+	DeletedAt       *time.Time
 }
 
 // DefaultOrganizationParams returns default parameters for creating a test organization.
@@ -49,9 +50,9 @@ func CreateTestOrganizationWithParams(t *testing.T, db *sql.DB, params Organizat
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := db.Exec(`
-		INSERT INTO organization (id, legal_name, legal_document, address, status, created_at, updated_at, deleted_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`, id, params.LegalName, params.LegalDocument, `{"city":"Test"}`, params.Status, now, now, params.DeletedAt)
+		INSERT INTO organization (id, legal_name, legal_document, doing_business_as, address, status, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, id, params.LegalName, params.LegalDocument, params.DoingBusinessAs, `{"city":"Test"}`, params.Status, now, now, params.DeletedAt)
 	require.NoError(t, err, "failed to create test organization")
 
 	return id

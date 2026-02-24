@@ -49,7 +49,7 @@ func TestGetAllOrganizations(t *testing.T) {
 			mockSetup: func() {
 				validUUID := uuid.New()
 				mockOrganizationRepo.EXPECT().
-					FindAll(gomock.Any(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), filter.ToOffsetPagination(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Organization{
 						{ID: validUUID.String(), LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}},
 					}, nil)
@@ -72,7 +72,7 @@ func TestGetAllOrganizations(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockOrganizationRepo.EXPECT().
-					FindAll(gomock.Any(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), filter.ToOffsetPagination(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:      true,
@@ -87,7 +87,7 @@ func TestGetAllOrganizations(t *testing.T) {
 			mockSetup: func() {
 				validUUID := uuid.New()
 				mockOrganizationRepo.EXPECT().
-					FindAll(gomock.Any(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), filter.ToOffsetPagination(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Organization{
 						{ID: validUUID.String(), LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}},
 					}, nil)

@@ -28,7 +28,7 @@ func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID uuid.UUID, 
 
 	logger.Infof("Retrieving ledgers")
 
-	ledgers, err := uc.LedgerRepo.FindAll(ctx, organizationID, filter.ToOffsetPagination())
+	ledgers, err := uc.LedgerRepo.FindAll(ctx, organizationID, filter.ToOffsetPagination(), filter.Name)
 	if err != nil {
 		logger.Errorf("Error getting ledgers on repo: %v", err)
 

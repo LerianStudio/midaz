@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -690,4 +691,180 @@ func TestGetUUIDFromLocals_DifferentKeys(t *testing.T) {
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestEscapeSearchMetacharacters_NoSpecialChars(t *testing.T) {
+	result := EscapeSearchMetacharacters("Lerian Financial")
+	assert.Equal(t, "Lerian Financial", result)
+}
+
+func TestEscapeSearchMetacharacters_Percent(t *testing.T) {
+	result := EscapeSearchMetacharacters("100% Match")
+	assert.Equal(t, `100\% Match`, result)
+}
+
+func TestEscapeSearchMetacharacters_Underscore(t *testing.T) {
+	result := EscapeSearchMetacharacters("test_name")
+	assert.Equal(t, `test\_name`, result)
+}
+
+func TestEscapeSearchMetacharacters_Backslash(t *testing.T) {
+	result := EscapeSearchMetacharacters(`path\to\file`)
+	assert.Equal(t, `path\\to\\file`, result)
+}
+
+func TestEscapeSearchMetacharacters_AllSpecialChars(t *testing.T) {
+	result := EscapeSearchMetacharacters(`100% Match_Test\Path`)
+	assert.Equal(t, `100\% Match\_Test\\Path`, result)
+}
+
+func TestEscapeSearchMetacharacters_EmptyString(t *testing.T) {
+	result := EscapeSearchMetacharacters("")
+	assert.Equal(t, "", result)
+}
+
+func TestEscapeSearchMetacharacters_OnlyPercent(t *testing.T) {
+	result := EscapeSearchMetacharacters("%")
+	assert.Equal(t, `\%`, result)
+}
+
+func TestEscapeSearchMetacharacters_OnlyUnderscore(t *testing.T) {
+	result := EscapeSearchMetacharacters("_")
+	assert.Equal(t, `\_`, result)
+}
+
+func TestEscapeSearchMetacharacters_MultiplePercents(t *testing.T) {
+	result := EscapeSearchMetacharacters("%%")
+	assert.Equal(t, `\%\%`, result)
+}
+
+func TestValidateParameters_WithName(t *testing.T) {
+	params := map[string]string{
+		"name": "BRL Ledger",
+	}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result.Name)
+	assert.Equal(t, "BRL Ledger", *result.Name)
+}
+
+func TestValidateParameters_WithLegalName(t *testing.T) {
+	params := map[string]string{
+		"legal_name": "Lerian Financial",
+	}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result.LegalName)
+	assert.Equal(t, "Lerian Financial", *result.LegalName)
+}
+
+func TestValidateParameters_WithDoingBusinessAs(t *testing.T) {
+	params := map[string]string{
+		"doing_business_as": "Lerian FS",
+	}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result.DoingBusinessAs)
+	assert.Equal(t, "Lerian FS", *result.DoingBusinessAs)
+}
+
+func TestValidateParameters_NameTooLong(t *testing.T) {
+	longName := strings.Repeat("a", 257)
+	params := map[string]string{
+		"name": longName,
+	}
+
+	result, err := ValidateParameters(params)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestValidateParameters_LegalNameTooLong(t *testing.T) {
+	longName := strings.Repeat("a", 257)
+	params := map[string]string{
+		"legal_name": longName,
+	}
+
+	result, err := ValidateParameters(params)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestValidateParameters_DoingBusinessAsTooLong(t *testing.T) {
+	longName := strings.Repeat("a", 257)
+	params := map[string]string{
+		"doing_business_as": longName,
+	}
+
+	result, err := ValidateParameters(params)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestValidateParameters_NameExactly256Chars(t *testing.T) {
+	name := strings.Repeat("a", 256)
+	params := map[string]string{
+		"name": name,
+	}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result.Name)
+	assert.Equal(t, name, *result.Name)
+}
+
+func TestValidateParameters_NameSingleChar(t *testing.T) {
+	params := map[string]string{
+		"name": "A",
+	}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result.Name)
+	assert.Equal(t, "A", *result.Name)
+}
+
+func TestValidateParameters_NameWithWhitespaceOnly(t *testing.T) {
+	params := map[string]string{
+		"name": "   ",
+	}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.Nil(t, result.Name)
+}
+
+func TestValidateParameters_NameTrimmed(t *testing.T) {
+	params := map[string]string{
+		"name": "  BRL  ",
+	}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result.Name)
+	assert.Equal(t, "BRL", *result.Name)
+}
+
+func TestValidateParameters_SearchFieldsNilByDefault(t *testing.T) {
+	params := make(map[string]string)
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.Nil(t, result.Name)
+	assert.Nil(t, result.LegalName)
+	assert.Nil(t, result.DoingBusinessAs)
 }

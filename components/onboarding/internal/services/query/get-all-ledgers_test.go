@@ -48,7 +48,7 @@ func TestGetAllLedgers(t *testing.T) {
 			name: "success - ledgers retrieved with metadata",
 			setupMocks: func() {
 				mockLedgerRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, filter.ToOffsetPagination(), gomock.Any()).
 					Return([]*mmodel.Ledger{
 						{ID: "ledger1"},
 						{ID: "ledger2"},
@@ -73,7 +73,7 @@ func TestGetAllLedgers(t *testing.T) {
 			name: "failure - ledgers not found",
 			setupMocks: func() {
 				mockLedgerRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, filter.ToOffsetPagination(), gomock.Any()).
 					Return(nil, errors.New("No ledgers were found in the search. Please review the search criteria and try again.")).
 					Times(1)
 			},
@@ -84,7 +84,7 @@ func TestGetAllLedgers(t *testing.T) {
 			name: "failure - repository error retrieving ledgers",
 			setupMocks: func() {
 				mockLedgerRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, filter.ToOffsetPagination(), gomock.Any()).
 					Return(nil, errors.New("failed to retrieve ledgers")).
 					Times(1)
 			},
@@ -95,7 +95,7 @@ func TestGetAllLedgers(t *testing.T) {
 			name: "failure - metadata retrieval error",
 			setupMocks: func() {
 				mockLedgerRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, filter.ToOffsetPagination(), gomock.Any()).
 					Return([]*mmodel.Ledger{
 						{ID: "ledger1"},
 						{ID: "ledger2"},

@@ -186,12 +186,14 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Param			page			query		int																		false	"Page number for pagination"					default(1)	minimum(1)
 //	@Param			start_date		query		string																	false	"Filter organizations created on or after this date (format: YYYY-MM-DD)"
 //	@Param			end_date		query		string																	false	"Filter organizations created on or before this date (format: YYYY-MM-DD)"
-//	@Param			sort_order		query		string																	false	"Sort direction for results based on creation date"	Enums(asc,desc)
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Organization,page=int,limit=int}	"Successfully retrieved organizations list"
-//	@Failure		400				{object}	mmodel.Error															"Invalid query parameters"
-//	@Failure		401				{object}	mmodel.Error															"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error															"Forbidden access"
-//	@Failure		500				{object}	mmodel.Error															"Internal server error"
+//	@Param			sort_order			query		string																	false	"Sort direction for results based on creation date"	Enums(asc,desc)
+//	@Param			legal_name			query		string																	false	"Filter organizations by legal name (case-insensitive, prefix match)"	maxLength(256)
+//	@Param			doing_business_as	query		string																	false	"Filter organizations by doing business as name (case-insensitive, prefix match)"	maxLength(256)
+//	@Success		200					{object}	libPostgres.Pagination{items=[]mmodel.Organization,page=int,limit=int}	"Successfully retrieved organizations list"
+//	@Failure		400					{object}	mmodel.Error															"Invalid query parameters"
+//	@Failure		401					{object}	mmodel.Error															"Unauthorized access"
+//	@Failure		403					{object}	mmodel.Error															"Forbidden access"
+//	@Failure		500					{object}	mmodel.Error															"Internal server error"
 //	@Router			/v1/organizations [get]
 func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -224,6 +226,14 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
+		if headerParams.HasNameFilters() {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, reflect.TypeOf(mmodel.Organization{}).Name(), "metadata cannot be combined with name filters (legal_name, doing_business_as)")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters: metadata and name filters are mutually exclusive", err)
+
+			return http.WithError(c, err)
+		}
+
 		logger.Infof("Initiating retrieval of all Organizations by metadata")
 
 		organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, *headerParams)

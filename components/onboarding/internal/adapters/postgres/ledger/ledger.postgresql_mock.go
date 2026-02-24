@@ -103,18 +103,18 @@ func (mr *MockRepositoryMockRecorder) Find(ctx, organizationID, id any) *gomock.
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination) ([]*mmodel.Ledger, error) {
+func (m *MockRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination, name *string) ([]*mmodel.Ledger, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindAll", ctx, organizationID, filter)
+	ret := m.ctrl.Call(m, "FindAll", ctx, organizationID, filter, name)
 	ret0, _ := ret[0].([]*mmodel.Ledger)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindAll indicates an expected call of FindAll.
-func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, filter any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, filter, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, organizationID, filter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, organizationID, filter, name)
 }
 
 // FindByName mocks base method.
