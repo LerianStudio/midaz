@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
@@ -74,7 +78,7 @@ func TestUpdateWriteBehindTransaction_SetBytesError(t *testing.T) {
 	uc.UpdateWriteBehindTransaction(context.Background(), organizationID, ledgerID, tran)
 }
 
-func TestUpdateWriteBehindTransaction_StatusAndOperationsUpdated(t *testing.T) {
+func TestUpdateWriteBehindTransaction_StatusUpdated(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
