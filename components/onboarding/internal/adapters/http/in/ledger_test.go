@@ -515,7 +515,7 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			queryParams: "",
 			setupMocks: func(ledgerRepo *ledger.MockRepository, metadataRepo *mongodb.MockRepository, orgID uuid.UUID) {
 				ledgerRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, gomock.Any()).
+					FindAll(gomock.Any(), orgID, gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Ledger{}, nil).
 					Times(1)
 			},
@@ -543,7 +543,7 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 				ledger2ID := uuid.New().String()
 
 				ledgerRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, gomock.Any()).
+					FindAll(gomock.Any(), orgID, gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Ledger{
 						{
 							ID:             ledger1ID,
@@ -704,7 +704,7 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			queryParams: "",
 			setupMocks: func(ledgerRepo *ledger.MockRepository, metadataRepo *mongodb.MockRepository, orgID uuid.UUID) {
 				ledgerRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, gomock.Any()).
+					FindAll(gomock.Any(), orgID, gomock.Any(), gomock.Any()).
 					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
