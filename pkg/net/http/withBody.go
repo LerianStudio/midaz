@@ -156,11 +156,11 @@ func ValidateStruct(s any) error {
 	if violations := validateNoNullBytes(s); len(violations) > 0 {
 		// Check for JSON structure violations first (return specific business errors)
 		if _, hasDepthViolation := violations["_depth"]; hasDepthViolation {
-			return pkg.ValidateBusinessError(cn.ErrJSONNestingDepthExceeded, "settings")
+			return pkg.ValidateBusinessError(cn.ErrJSONNestingDepthExceeded, "request")
 		}
 
 		if _, hasKeyCountViolation := violations["_keyCount"]; hasKeyCountViolation {
-			return pkg.ValidateBusinessError(cn.ErrJSONKeyCountExceeded, "settings")
+			return pkg.ValidateBusinessError(cn.ErrJSONKeyCountExceeded, "request")
 		}
 
 		// For other violations (null bytes), return field validation error

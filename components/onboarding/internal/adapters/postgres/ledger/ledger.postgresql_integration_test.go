@@ -485,7 +485,6 @@ func TestIntegration_LedgerRepository_UpdateSettings_ExcludesSoftDeleted(t *test
 func TestIntegration_LedgerRepository_UpdateSettings_NestedObjectReplacement(t *testing.T) {
 	// This test verifies that PostgreSQL || performs SHALLOW merge.
 	// Nested objects are REPLACED entirely, not deep-merged.
-	// Per TRD Section 5.4: "Nested objects are REPLACED entirely, not deep-merged"
 
 	// Arrange
 	container := pgtestutil.SetupContainer(t)
@@ -774,7 +773,6 @@ func TestIntegration_LedgerRepository_UpdateSettings_EmptyNestedObject(t *testin
 
 func TestIntegration_LedgerRepository_UpdateSettings_NullValueSetsNotRemoves(t *testing.T) {
 	// Test that setting a key to null sets the value to JSON null, not removes the key
-	// Per updated TRD: "Setting a key to null sets the value to JSON null (does NOT remove the key)"
 
 	// Arrange
 	container := pgtestutil.SetupContainer(t)

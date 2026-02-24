@@ -21,6 +21,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // LedgerHandler struct contains a ledger use case for managing ledger related operations.
@@ -404,6 +405,11 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 	if !ok {
 		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "id"))
 	}
+
+	span.SetAttributes(
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", id.String()),
+	)
 
 	logger.Infof("Retrieving settings for Ledger with ID: %s", id.String())
 

@@ -397,7 +397,7 @@ func TestGetLedgerSettings_CustomCacheTTL(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	// Custom TTL of 10 minutes instead of default 5 minutes
-	customTTL := 10 * DefaultSettingsCacheTTL
+	customTTL := 2 * DefaultSettingsCacheTTL
 
 	uc := &UseCase{
 		LedgerRepo:       mockLedgerRepo,

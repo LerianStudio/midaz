@@ -154,9 +154,13 @@ func (app *Service) GetRouteRegistrar() func(*fiber.App) {
 // This is called after initialization in unified ledger mode to wire the onboarding
 // SettingsPort to transaction, resolving the circular dependency between components.
 func (app *Service) SetSettingsPort(port mbootstrap.SettingsPort) {
-	if app.useCase != nil {
-		app.useCase.SetSettingsPort(port)
+	if app.useCase == nil {
+		app.Warn("SetSettingsPort called but useCase is nil - settings port not wired")
+
+		return
 	}
+
+	app.useCase.SetSettingsPort(port)
 }
 
 // Ensure Service implements mbootstrap.Service interface at compile time

@@ -22,7 +22,7 @@ const (
 	routingName = "routing"
 )
 
-// SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB as per TRD).
+// SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
 
 // NewRouter register NewRouter routes to the Server.

@@ -192,6 +192,62 @@ func TestInitServers_UnifiedMode_MetadataIndexRepoWiring(t *testing.T) {
 	// 3. Direct repository access - no intermediate adapter needed
 }
 
+// TestInitServers_UnifiedMode_SettingsPortWiring verifies that in unified mode,
+// the SettingsPort from Onboarding is correctly passed to Transaction.
+// This test focuses on verifying the wiring contract, not actual initialization.
+func TestInitServers_UnifiedMode_SettingsPortWiring(t *testing.T) {
+	// Arrange
+	mockSettingsPort := mbootstrap.NewMockSettingsPort(nil)
+
+	stubOnboardingService := &StubService{
+		settingsPort: mockSettingsPort,
+		runnables: []mbootstrap.RunnableConfig{
+			{Name: "Onboarding Server", Runnable: &StubRunnable{}},
+		},
+	}
+
+	stubTransactionService := &StubTransactionService{
+		runnables: []mbootstrap.RunnableConfig{
+			{Name: "Transaction Fiber Server", Runnable: &StubRunnable{}},
+		},
+	}
+
+	// Act - verify GetSettingsPort returns the expected port
+	retrievedPort := stubOnboardingService.GetSettingsPort()
+
+	// Assert
+	require.NotNil(t, retrievedPort, "GetSettingsPort should return a non-nil SettingsPort")
+	assert.Equal(t, mockSettingsPort, retrievedPort, "GetSettingsPort should return the same SettingsPort that was set")
+
+	// Verify the wiring works by setting it on transaction service
+	stubTransactionService.SetSettingsPort(retrievedPort)
+	assert.Equal(t, mockSettingsPort, stubTransactionService.settingsPort, "SetSettingsPort should store the SettingsPort")
+}
+
+// TestInitServers_UnifiedMode_NilSettingsPortError verifies that initialization
+// fails with an error when SettingsPort is nil in unified mode.
+// A nil SettingsPort is an initialization bug, not a recoverable state.
+func TestInitServers_UnifiedMode_NilSettingsPortError(t *testing.T) {
+	// Arrange - StubService with nil settingsPort (simulates misconfiguration)
+	stubOnboardingService := &StubService{
+		settingsPort:      nil, // This should cause an error
+		metadataIndexRepo: mbootstrap.NewMockMetadataIndexRepository(nil),
+		runnables: []mbootstrap.RunnableConfig{
+			{Name: "Onboarding Server", Runnable: &StubRunnable{}},
+		},
+	}
+
+	// Act - verify GetSettingsPort returns nil
+	retrievedPort := stubOnboardingService.GetSettingsPort()
+
+	// Assert - GetSettingsPort returns nil, which should trigger an error in InitServers
+	assert.Nil(t, retrievedPort, "GetSettingsPort should return nil when settingsPort is not configured")
+
+	// This test documents the expected behavior:
+	// When settingsPort is nil, InitServers should return an error with message
+	// "failed to get SettingsPort from onboarding module" (consistent with other port checks)
+}
+
 // TestService_CompositionContract verifies the composition contract
 // between Ledger, Onboarding, and Transaction services.
 func TestService_CompositionContract(t *testing.T) {

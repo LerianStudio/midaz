@@ -649,7 +649,7 @@ func (r *LedgerPostgreSQLRepository) GetSettings(ctx context.Context, organizati
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.get_settings.query")
 
-	query := `SELECT COALESCE(settings, '{}') FROM ledger WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL`
+	query := `SELECT settings FROM ledger WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL`
 
 	row := db.QueryRowContext(ctx, query, organizationID, ledgerID)
 
@@ -714,7 +714,6 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 	ctx, spanExec := tracer.Start(ctx, "postgres.update_settings.exec")
 
 	// Use JSONB merge operator (||) to merge new settings with existing.
-	// COALESCE handles the case where settings is NULL.
 	//
 	// NOTE: PostgreSQL || performs SHALLOW merge at top level only.
 	// Nested objects are replaced entirely, not deep-merged.
@@ -726,7 +725,7 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 	// To update nested keys, clients must read-modify-write the nested object.
 	query := `
 		UPDATE ledger
-		SET settings = COALESCE(settings, '{}') || $1::jsonb, updated_at = now()
+		SET settings = settings || $1::jsonb, updated_at = now()
 		WHERE organization_id = $2 AND id = $3 AND deleted_at IS NULL
 		RETURNING settings
 	`

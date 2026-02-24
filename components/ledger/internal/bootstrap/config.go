@@ -172,13 +172,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// This resolves the circular dependency: transaction is initialized first (for BalancePort),
 	// then onboarding (with BalancePort), then SettingsPort is wired back to transaction.
 	settingsPort := onboardingService.GetSettingsPort()
-	if settingsPort != nil {
-		transactionService.SetSettingsPort(settingsPort)
-
-		ledgerLogger.Info("SettingsPort wired from onboarding to transaction for in-process settings queries")
-	} else {
-		ledgerLogger.Warn("SettingsPort not available from onboarding - ledger settings queries will not work in unified mode")
+	if settingsPort == nil {
+		return nil, fmt.Errorf("failed to get SettingsPort from onboarding module")
 	}
+
+	transactionService.SetSettingsPort(settingsPort)
+
+	ledgerLogger.Info("SettingsPort wired from onboarding to transaction for in-process settings queries")
 
 	ledgerLogger.Info("Both metadata index repositories available for settings routes")
 

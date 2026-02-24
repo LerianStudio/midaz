@@ -368,7 +368,6 @@ func TestUpdateLedgerSettings_NullValueInSettings(t *testing.T) {
 	ctx := context.Background()
 	orgID := uuid.New()
 	ledgerID := uuid.New()
-	// Per TRD: "To remove a key, set it to null explicitly"
 	inputSettings := map[string]any{
 		"keyToRemove": nil,
 	}

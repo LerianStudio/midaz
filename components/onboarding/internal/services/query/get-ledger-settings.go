@@ -93,27 +93,24 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 
 	// Populate cache for future reads
 	if uc.RedisRepo != nil {
-		_, cacheSpan := tracer.Start(ctx, "cache.set_ledger_settings")
+		cacheCtx, cacheSpan := tracer.Start(ctx, "cache.set_ledger_settings")
+		defer cacheSpan.End()
 
 		settingsJSON, err := json.Marshal(settings)
 		if err != nil {
 			logger.Warnf("Failed to marshal settings for cache: %v", err)
-
-			cacheSpan.End()
 		} else {
-			if err := uc.RedisRepo.Set(ctx, cacheKey, string(settingsJSON), uc.getSettingsCacheTTL()); err != nil {
+			if err := uc.RedisRepo.Set(cacheCtx, cacheKey, string(settingsJSON), uc.getSettingsCacheTTL()); err != nil {
 				libOpentelemetry.HandleSpanError(&cacheSpan, "Failed to cache ledger settings", err)
 
 				logger.Warnf("Failed to cache ledger settings: %v", err)
 			} else {
 				logger.Debugf("Cached ledger settings: %s", ledgerID.String())
 			}
-
-			cacheSpan.End()
 		}
 	}
 
-	logger.Infof("Successfully retrieved settings for ledger: %s", ledgerID.String())
+	logger.Debugf("Successfully retrieved settings for ledger: %s", ledgerID.String())
 
 	return settings, nil
 }

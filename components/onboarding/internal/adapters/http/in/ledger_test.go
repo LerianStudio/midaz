@@ -1074,8 +1074,9 @@ func TestHandler_GetLedgerSettings(t *testing.T) {
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
-				assert.Contains(t, result, "accounting", "response should contain accounting key")
-				accounting := result["accounting"].(map[string]any)
+				require.Contains(t, result, "accounting", "response should contain accounting key")
+				accounting, ok := result["accounting"].(map[string]any)
+				require.True(t, ok, "accounting should be a map")
 				assert.Equal(t, true, accounting["validateAccountType"])
 			},
 		},

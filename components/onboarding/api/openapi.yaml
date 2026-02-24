@@ -881,7 +881,9 @@ paths:
       description: Updates the configuration settings for a specific ledger. New settings
         are merged at TOP LEVEL only (shallow merge). Nested objects are REPLACED
         entirely, not deep-merged. To update a nested key, you must send the complete
-        nested object. Set a key to null to remove it.
+        nested object. Set a key to null to remove it. Server-side validation limits
+        apply - maximum payload size of 64KB, maximum 100 top-level keys, and maximum
+        nesting depth of 10 levels.
       parameters:
       - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
@@ -911,7 +913,6 @@ paths:
           application/json:
             schema:
               additionalProperties: true
-              maxLength: 65536
               type: object
         description: Settings to merge with existing settings
         required: true
