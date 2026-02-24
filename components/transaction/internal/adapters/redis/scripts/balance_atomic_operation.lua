@@ -377,15 +377,6 @@ local function main()
         return "[]"
     end
 
-    -- Handle empty array case: cjson encodes {} as object, but Go expects array
-    -- When no changes occurred, use cjson.decode("[]") to get proper array type
-    -- for both the transaction hash and the return value
-    if #returnBalances == 0 then
-        local emptyArray = cjson.decode("[]")
-        updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray)
-        return "[]"
-    end
-
     updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances)
 
     local returnBalancesEncoded = cjson.encode(returnBalances)
