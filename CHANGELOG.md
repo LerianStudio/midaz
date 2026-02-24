@@ -1,3 +1,91 @@
+## [v3.5.2] - 2026-02-24
+
+### ✨ Features
+- add idempotency cache retrieval for transactions with unit tests
+- implement idempotency key mapping for transactions and add caching mechanism
+
+### 🐛 Bug Fixes
+- update release version
+- update version
+- suppress gosec G706 false positive on sanitized log input
+- remove no-op semantic-release/exec plugin entry
+- linting
+- add write-behind cache mock expectations to existing transaction tests
+- update deps
+- remove filterStaleBalances to prevent silent balance update drops
+- add redis backup queue for commit/cancel transactions and correct consumer fromTo logic for canceled status
+- prevent balance version increment when no actual balance change occurs in Lua script
+- replace broken itoa helper with strconv.Itoa for multi-digit support
+- remove unused validateTransactionExists function from Redis Lua script
+- return updated balance atomically via RETURNING instead of separate read-after-write
+- go.sum
+- update sqlmock expectations to include balance version columns
+- loop through all state transitions in CheckHealth to handle cold-start connections
+- adjust semantic release flow
+- releaserc
+- remove write-behind lookup from RevertTransaction to prevent FK violations
+- remove publisher confirms
+- skip write-behind update in sync mode to prevent orphaned Redis entries
+- fix: add TTL safety nets and correct write-behind cache lifecycle
+- add SetNX revert lock with write-behind-first lookup to prevent duplicate reversals
+- remove idempotency reverse lookup in favor of write-behind cache
+- promote transaction status to APPROVED before write-behind and queue
+- resolve async transaction 404 by implementing write-behind cache
+- implement NullFields tracking in account updates to support JSON Merge Patch semantics
+- race condition, test and remove panic from rabbit initialization
+- update RabbitMQ producer to handle publish confirmations and improve idempotency key management
+- update version to 3.3.14
+- define explicit column lists for account and operation queries to ensure backward compatibility
+- update hotfix version to 3.3.13
+- implement account alias sanitization in transaction processing and add utility function for alias cleanup
+- simplify GitHub Actions workflow by removing hotfix branch triggers and updating tag handling
+- update hotfix version from 3.3.11 to 3.3.12 in .releaserc.yml and comment out transaction validation in Lua script
+- remove trailing newline at end of Dockerfile for consistent formatting
+- change release type for feat from minor to patch in .releaserc.yml
+- update application version from 3.3.10 to 3.3.11 in .env.example
+- add missing newline at end of Dockerfile for proper formatting
+- update hotfix version from 3.3.10 to 3.3.11 in .releaserc.yml
+- enhance balance key handling in Redis consumer to ensure default key is used when not specified
+- update group size in Lua script and add balance key handling in Redis consumer
+- remove trailing newline in Dockerfile for cleaner formatting
+- update lib-commons dependency to v2.3.1 in go.mod and go.sum
+- update CronTimeToRun and MessageTimeOfLife constants in Redis consumer for improved processing efficiency
+- remove handleReturns method and update message publishing parameters in RabbitMQ producer
+- implement distributed lock mechanism in Redis consumer to prevent duplicate transaction processing across pods
+- add default balance key handling in operation model and update balance structure in Redis consumer
+- reduce CronTimeToRun and MessageTimeOfLife constants in Redis consumer to improve responsiveness
+- add logging and handle unroutable messages in RabbitMQ producer
+- change ContentType to application/octet-stream for msgpack binary payload in RabbitMQ producer
+- update lib-commons dependency to v2.3.1 and update go.sum
+- add transaction validation in Lua script and enhance error handling in Redis consumer
+- enhance error handling for transaction backup cache operations
+- add complexity comment
+- initialize operations slice for new transactions in PostgreSQL repository
+- simplify logging for duplicate operation and transaction inserts
+- refactor operation scanning in transaction retrieval to improve handling of nullable fields
+- handle nil operation ID in transaction retrieval to prevent nil pointer dereference
+- handle unique constraint violations for operation and transaction inserts
+- update hotfix branch version to 3.3.10
+- add panic recovery and nil validation for transaction messages in Redis consumer
+- remove lock deletion on transaction errors after balance retrieval
+- update hotfix branch version to 3.3.9
+- remove pending transaction lock after errors only
+- update next version to 15.5.7 and react to 19.1.2
+- update releaserc.yml to version 3.3.8
+- update next version to 15.5.7 and react to 19.1.2
+- correct comment wording in transaction handler for clarity
+- update hotfix branch configuration in release settings
+- update version
+
+### 🔧 Maintenance
+- Update GitHub Actions workflow to ignore workflow files and remove trigger from hotfix branches.
+- update release configuration to remove hotfix branch and rename to maintenance branch
+- Update CHANGELOG
+- configuring pipe to trigger build on hotfix branches
+- configuring pipe to trigger build on hotfix branches
+- configuring pipe to trigger build on hotfix branches
+
+
 ## [v3.5.1] - 2026-01-19
 
 ### 🐛 Bug Fixes
