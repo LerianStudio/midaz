@@ -147,6 +147,7 @@ var (
 	ErrMetadataIndexDeletionForbidden           = errors.New("0137")
 	ErrInvalidEntityName                        = errors.New("0138")
 	ErrServiceSuspended                         = errors.New("0139")
+	ErrTenantConfigRateLimited                  = errors.New("0140")
 )
 
 // List of CRM errors.

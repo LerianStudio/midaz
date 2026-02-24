@@ -1195,6 +1195,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "gRPC Service Unavailable",
 			Message:    "The balance service is temporarily unavailable. Please try again later.",
 		},
+		constant.ErrTenantConfigRateLimited: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrTenantConfigRateLimited.Error(),
+			Title:      "Tenant Configuration Rate Limited",
+			Message:    "The tenant configuration service is temporarily rate limited. Too many concurrent requests for this tenant. Please retry after a brief delay.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
