@@ -14,6 +14,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v3/commons/server"
 	tenantmanager "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager"
+	"github.com/bxcodec/dbresolver/v2"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -29,6 +30,19 @@ import (
 // RouteRegistrar is a function that registers routes to an existing Fiber app.
 // Each module (onboarding, transaction) implements this to register its routes.
 type RouteRegistrar func(app *fiber.App)
+
+// transactionPaths defines URL path segments that belong to the transaction module.
+var transactionPaths = []string{
+	"/transactions",
+	"/operations",
+	"/balances",
+	"/asset-rates",
+	"/operation-routes",
+	"/transaction-routes",
+}
+
+// publicPaths defines endpoints that bypass tenant middleware.
+var publicPaths = []string{"/health", "/version", "/swagger"}
 
 // UnifiedServer consolidates all HTTP APIs (onboarding + transaction) in a single Fiber server.
 // This enables the unified ledger mode where all routes are accessible on a single port.
@@ -72,35 +86,13 @@ func NewDualPoolMiddleware(pools *MultiTenantPools, consumerTrigger mbootstrap.C
 // the tenant-specific database connection into the request context.
 func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 	path := c.Path()
-	method := c.Method()
 
-	m.logger.Infof("[WithTenantDB] START - Method: %s, Path: %s", method, path)
-
-	// Skip public endpoints that don't require tenant context
 	if m.isPublicPath(path) {
-		m.logger.Infof("[WithTenantDB] Skipping public path: %s", path)
 		return c.Next()
 	}
 
-	m.logger.Infof("[WithTenantDB] Path requires tenant context: %s", path)
-
-	// Select the appropriate pool based on the request path
 	pool := m.selectPool(path)
-	poolName := m.getPoolName(path)
-
-	m.logger.Infof("[WithTenantDB] Selected pool: %s (pool is nil: %v)", poolName, pool == nil)
-
-	if pool == nil {
-		m.logger.Warn("[WithTenantDB] No pool available for path, passing through")
-		return c.Next()
-	}
-
-	isMultiTenant := pool.IsMultiTenant()
-	m.logger.Infof("[WithTenantDB] Pool %s IsMultiTenant: %v", poolName, isMultiTenant)
-
-	// Single-tenant mode: pass through if pool is not multi-tenant
-	if !isMultiTenant {
-		m.logger.Infof("[WithTenantDB] Pool %s is single-tenant mode, passing through", poolName)
+	if pool == nil || !pool.IsMultiTenant() {
 		return c.Next()
 	}
 
@@ -110,14 +102,12 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "middleware.dual_pool.with_tenant_db")
 	defer span.End()
 
-	logger.Infof("[WithTenantDB] Multi-tenant mode active for path: %s", path)
-
-	// Extract tenant ID from JWT token
-	// In multi-tenant mode, tenantId is REQUIRED - no fallback to default connection
+	// Extract tenant ID from JWT
 	tenantID, err := m.extractTenantIDFromToken(c)
 	if err != nil {
-		logger.Errorf("[WithTenantDB] Failed to extract tenant ID from token: %v", err)
+		logger.Errorf("Failed to extract tenant ID: %v", err)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to extract tenant ID", err)
+
 		return midazHTTP.WithError(c, pkg.UnauthorizedError{
 			Code:    constant.ErrInvalidToken.Error(),
 			Title:   "Unauthorized",
@@ -125,93 +115,25 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 		})
 	}
 
-	logger.Infof("[WithTenantDB] Extracted tenant ID: %s for path: %s", tenantID, path)
-
-	// Store tenant ID in context using lib-commons tenantmanager context function
 	ctx = tenantmanager.ContextWithTenantID(ctx, tenantID)
-	logger.Infof("[WithTenantDB] Set tenant ID in context: %s", tenantID)
 
-	// Lazy mode trigger: ensure RabbitMQ consumer is active for this tenant.
-	// In multi-tenant lazy mode, consumers are not started until the first request
-	// arrives for a tenant. This call is a no-op if the consumer is already running.
+	// Lazy mode: ensure RabbitMQ consumer is active for this tenant
 	if m.consumerTrigger != nil {
 		m.consumerTrigger.EnsureConsumerStarted(ctx, tenantID)
-		logger.Infof("[WithTenantDB] Ensured consumer started for tenant: %s", tenantID)
 	}
 
-	// Get tenant-specific connection from the selected pool
+	// Resolve tenant-specific PostgreSQL connection
 	conn, err := pool.GetConnection(ctx, tenantID)
 	if err != nil {
-		logger.Errorf("[WithTenantDB] Failed to get PostgreSQL connection for tenant %s: %v", tenantID, err)
+		logger.Errorf("Failed to get PostgreSQL connection for tenant %s: %v", tenantID, err)
 		libOpentelemetry.HandleSpanError(&span, "Failed to get tenant connection", err)
 
-		if errors.Is(err, tenantmanager.ErrTenantNotFound) {
-			return midazHTTP.WithError(c, pkg.EntityNotFoundError{
-				Code:    constant.ErrEntityNotFound.Error(),
-				Title:   "Not Found",
-				Message: "tenant not found",
-			})
-		}
-
-		if errors.Is(err, tenantmanager.ErrManagerClosed) {
-			return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
-				Code:    constant.ErrGRPCServiceUnavailable.Error(),
-				Title:   "Service Unavailable",
-				Message: "service temporarily unavailable",
-			})
-		}
-
-		if errors.Is(err, tenantmanager.ErrServiceNotConfigured) {
-			return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
-				Code:    constant.ErrGRPCServiceUnavailable.Error(),
-				Title:   "Service Unavailable",
-				Message: "database service not configured for tenant",
-			})
-		}
-
-		errMsg := err.Error()
-
-		if strings.Contains(errMsg, "schema mode requires") {
-			return midazHTTP.WithError(c, pkg.UnprocessableOperationError{
-				Code:    constant.ErrGRPCServiceUnavailable.Error(),
-				Title:   "Unprocessable Entity",
-				Message: "invalid schema configuration for tenant database",
-			})
-		}
-
-		if strings.Contains(errMsg, "failed to connect") {
-			return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
-				Code:    constant.ErrGRPCServiceUnavailable.Error(),
-				Title:   "Service Unavailable",
-				Message: "database connection unavailable for tenant",
-			})
-		}
-
-		var suspErr *tenantmanager.TenantSuspendedError
-		if errors.As(err, &suspErr) {
-			logger.Errorf("[WithTenantDB] Tenant %s service is suspended (status: %s)", tenantID, suspErr.Status)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Tenant service is suspended", err)
-
-			return midazHTTP.WithError(c, pkg.ForbiddenError{
-				Code:    constant.ErrServiceSuspended.Error(),
-				Title:   "Service Suspended",
-				Message: fmt.Sprintf("tenant service is %s", suspErr.Status),
-			})
-		}
-
-		return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
-			Code:    constant.ErrGRPCServiceUnavailable.Error(),
-			Title:   "Service Unavailable",
-			Message: "failed to establish database connection for tenant",
-		})
+		return m.mapConnectionError(c, err, tenantID)
 	}
 
-	logger.Infof("[WithTenantDB] Got PostgreSQL connection for tenant: %s", tenantID)
-
-	// Get the dbresolver.DB interface from the connection
 	db, err := conn.GetDB()
 	if err != nil {
-		logger.Errorf("[WithTenantDB] Failed to get DB interface for tenant %s: %v", tenantID, err)
+		logger.Errorf("Failed to get DB interface for tenant %s: %v", tenantID, err)
 		libOpentelemetry.HandleSpanError(&span, "Failed to get DB interface", err)
 
 		return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
@@ -221,105 +143,150 @@ func (m *DualPoolMiddleware) WithTenantDB(c *fiber.Ctx) error {
 		})
 	}
 
-	// Store module-specific connection in context using tenantmanager's context functions
-	// This ensures repositories can find the tenant connection via module-specific getters
-	// CRITICAL: Set BOTH module connections for in-process calls between modules
-	if m.isTransactionPath(path) {
-		// Primary: Transaction path - set transaction connection
-		ctx = tenantmanager.ContextWithModulePGConnection(ctx, constant.ModuleTransaction, db)
-		logger.Infof("[WithTenantDB] Set Transaction PostgreSQL connection in context for tenant: %s", tenantID)
+	// Inject module-specific PostgreSQL connections (primary + cross-module for in-process calls)
+	ctx = m.injectModuleConnections(ctx, path, tenantID, db, logger)
 
-		// Secondary: Also get and set onboarding connection for in-process calls FROM transaction TO onboarding
-		if m.onboardingPool != nil && m.onboardingPool.IsMultiTenant() {
-			onboardingConn, onboardingErr := m.onboardingPool.GetConnection(ctx, tenantID)
-			if onboardingErr == nil {
-				onboardingDB, dbErr := onboardingConn.GetDB()
-				if dbErr == nil && onboardingDB != nil {
-					ctx = tenantmanager.ContextWithModulePGConnection(ctx, constant.ModuleOnboarding, onboardingDB)
-					logger.Infof("[WithTenantDB] Also set Onboarding PostgreSQL connection in context for tenant: %s (for in-process calls)", tenantID)
-				}
-			}
-		}
-	} else {
-		// Primary: Onboarding path - set onboarding connection
-		ctx = tenantmanager.ContextWithModulePGConnection(ctx, constant.ModuleOnboarding, db)
-		logger.Infof("[WithTenantDB] Set Onboarding PostgreSQL connection in context for tenant: %s", tenantID)
-
-		// Secondary: Also get and set transaction connection for in-process calls FROM onboarding TO transaction
-		if m.transactionPool != nil && m.transactionPool.IsMultiTenant() {
-			transactionConn, transactionErr := m.transactionPool.GetConnection(ctx, tenantID)
-			if transactionErr == nil {
-				transactionDB, dbErr := transactionConn.GetDB()
-				if dbErr == nil && transactionDB != nil {
-					ctx = tenantmanager.ContextWithModulePGConnection(ctx, constant.ModuleTransaction, transactionDB)
-					logger.Infof("[WithTenantDB] Also set Transaction PostgreSQL connection in context for tenant: %s (for in-process calls)", tenantID)
-				}
-			}
-		}
-	}
-
-	// Handle MongoDB if pool is configured
+	// Inject MongoDB connection if pool is configured
 	mongoPool := m.selectMongoPool(path)
-	mongoPoolIsNil := mongoPool == nil
-
-	logger.Infof("[WithTenantDB] MongoDB pool for path %s: isNil=%v", path, mongoPoolIsNil)
-
 	if mongoPool != nil {
-		logger.Infof("[WithTenantDB] Getting MongoDB connection for tenant: %s", tenantID)
+		var mongoErr error
 
-		mongoDB, mongoErr := mongoPool.GetDatabaseForTenant(ctx, tenantID)
+		ctx, mongoErr = m.injectMongoConnection(c, ctx, mongoPool, tenantID, &span, logger)
 		if mongoErr != nil {
-			logger.Errorf("[WithTenantDB] Failed to get tenant MongoDB connection for tenant %s: %v", tenantID, mongoErr)
-			libOpentelemetry.HandleSpanError(&span, "Failed to get tenant MongoDB connection", mongoErr)
-
-			var suspErr *tenantmanager.TenantSuspendedError
-			if errors.As(mongoErr, &suspErr) {
-				logger.Errorf("[WithTenantDB] Tenant %s MongoDB service is suspended (status: %s)", tenantID, suspErr.Status)
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Tenant MongoDB service is suspended", mongoErr)
-
-				return midazHTTP.WithError(c, pkg.ForbiddenError{
-					Code:    constant.ErrServiceSuspended.Error(),
-					Title:   "Service Suspended",
-					Message: fmt.Sprintf("tenant service is %s", suspErr.Status),
-				})
-			}
-
-			return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
-				Code:    constant.ErrGRPCServiceUnavailable.Error(),
-				Title:   "Service Unavailable",
-				Message: "MongoDB connection unavailable for tenant",
-			})
+			return mongoErr
 		}
-
-		ctx = tenantmanager.ContextWithTenantMongo(ctx, mongoDB)
-		logger.Infof("[WithTenantDB] Set MongoDB connection in context for tenant: %s (pool: %s, db: %s)", tenantID, poolName, mongoDB.Name())
-	} else {
-		logger.Warnf("[WithTenantDB] MongoDB pool is nil for path %s - MongoDB connection will NOT be set in context", path)
 	}
 
 	c.SetUserContext(ctx)
-
-	logger.Infof("[WithTenantDB] COMPLETE - Set user context for tenant: %s (pool: %s)", tenantID, poolName)
+	logger.Infof("Tenant context resolved: tenant=%s pool=%s", tenantID, m.getPoolName(path))
 
 	return c.Next()
 }
 
+// mapConnectionError translates tenant connection errors into appropriate HTTP responses.
+func (m *DualPoolMiddleware) mapConnectionError(c *fiber.Ctx, err error, tenantID string) error {
+	if errors.Is(err, tenantmanager.ErrTenantNotFound) {
+		return midazHTTP.WithError(c, pkg.EntityNotFoundError{
+			Code:    constant.ErrEntityNotFound.Error(),
+			Title:   "Not Found",
+			Message: "tenant not found",
+		})
+	}
+
+	if errors.Is(err, tenantmanager.ErrManagerClosed) {
+		return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
+			Code:    constant.ErrGRPCServiceUnavailable.Error(),
+			Title:   "Service Unavailable",
+			Message: "service temporarily unavailable",
+		})
+	}
+
+	if errors.Is(err, tenantmanager.ErrServiceNotConfigured) {
+		return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
+			Code:    constant.ErrGRPCServiceUnavailable.Error(),
+			Title:   "Service Unavailable",
+			Message: "database service not configured for tenant",
+		})
+	}
+
+	var suspErr *tenantmanager.TenantSuspendedError
+	if errors.As(err, &suspErr) {
+		return midazHTTP.WithError(c, pkg.ForbiddenError{
+			Code:    constant.ErrServiceSuspended.Error(),
+			Title:   "Service Suspended",
+			Message: fmt.Sprintf("tenant service is %s", suspErr.Status),
+		})
+	}
+
+	errMsg := err.Error()
+
+	if strings.Contains(errMsg, "schema mode requires") {
+		return midazHTTP.WithError(c, pkg.UnprocessableOperationError{
+			Code:    constant.ErrGRPCServiceUnavailable.Error(),
+			Title:   "Unprocessable Entity",
+			Message: "invalid schema configuration for tenant database",
+		})
+	}
+
+	if strings.Contains(errMsg, "failed to connect") {
+		return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
+			Code:    constant.ErrGRPCServiceUnavailable.Error(),
+			Title:   "Service Unavailable",
+			Message: "database connection unavailable for tenant",
+		})
+	}
+
+	return midazHTTP.WithError(c, pkg.ServiceUnavailableError{
+		Code:    constant.ErrGRPCServiceUnavailable.Error(),
+		Title:   "Service Unavailable",
+		Message: "failed to establish database connection for tenant",
+	})
+}
+
+// injectModuleConnections sets both the primary and cross-module PostgreSQL connections in context.
+// In unified ledger mode, both onboarding and transaction connections must be available
+// for in-process calls between modules.
+func (m *DualPoolMiddleware) injectModuleConnections(ctx context.Context, path, tenantID string, primaryDB dbresolver.DB, logger libLog.Logger) context.Context {
+	if m.isTransactionPath(path) {
+		ctx = tenantmanager.ContextWithModulePGConnection(ctx, constant.ModuleTransaction, primaryDB)
+		ctx = m.injectCrossModuleConnection(ctx, m.onboardingPool, constant.ModuleOnboarding, tenantID, logger)
+	} else {
+		ctx = tenantmanager.ContextWithModulePGConnection(ctx, constant.ModuleOnboarding, primaryDB)
+		ctx = m.injectCrossModuleConnection(ctx, m.transactionPool, constant.ModuleTransaction, tenantID, logger)
+	}
+
+	return ctx
+}
+
+// injectCrossModuleConnection resolves and injects a secondary module's connection for in-process calls.
+func (m *DualPoolMiddleware) injectCrossModuleConnection(ctx context.Context, pool *tenantmanager.TenantConnectionManager, module, tenantID string, logger libLog.Logger) context.Context {
+	if pool == nil || !pool.IsMultiTenant() {
+		return ctx
+	}
+
+	conn, err := pool.GetConnection(ctx, tenantID)
+	if err != nil {
+		logger.Debugf("Could not resolve cross-module connection for %s tenant %s: %v", module, tenantID, err)
+		return ctx
+	}
+
+	db, err := conn.GetDB()
+	if err != nil || db == nil {
+		logger.Debugf("Could not get DB interface for cross-module %s tenant %s: %v", module, tenantID, err)
+		return ctx
+	}
+
+	return tenantmanager.ContextWithModulePGConnection(ctx, module, db)
+}
+
+// injectMongoConnection resolves and injects the tenant-specific MongoDB connection into context.
+func (m *DualPoolMiddleware) injectMongoConnection(c *fiber.Ctx, ctx context.Context, mongoPool *tenantmanager.MongoManager, tenantID string, span *trace.Span, logger libLog.Logger) (context.Context, error) {
+	mongoDB, err := mongoPool.GetDatabaseForTenant(ctx, tenantID)
+	if err != nil {
+		logger.Errorf("Failed to get MongoDB connection for tenant %s: %v", tenantID, err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get tenant MongoDB connection", err)
+
+		var suspErr *tenantmanager.TenantSuspendedError
+		if errors.As(err, &suspErr) {
+			return ctx, midazHTTP.WithError(c, pkg.ForbiddenError{
+				Code:    constant.ErrServiceSuspended.Error(),
+				Title:   "Service Suspended",
+				Message: fmt.Sprintf("tenant service is %s", suspErr.Status),
+			})
+		}
+
+		return ctx, midazHTTP.WithError(c, pkg.ServiceUnavailableError{
+			Code:    constant.ErrGRPCServiceUnavailable.Error(),
+			Title:   "Service Unavailable",
+			Message: "MongoDB connection unavailable for tenant",
+		})
+	}
+
+	return tenantmanager.ContextWithTenantMongo(ctx, mongoDB), nil
+}
+
 // selectPool determines which PostgreSQL pool to use based on the request path.
-// Onboarding routes: /v1/organizations, /v1/organizations/:org/ledgers,
-//
-//	/v1/organizations/:org/ledgers/:ledger/accounts,
-//	/v1/organizations/:org/ledgers/:ledger/assets,
-//	/v1/organizations/:org/ledgers/:ledger/portfolios,
-//	/v1/organizations/:org/ledgers/:ledger/segments,
-//	/v1/organizations/:org/ledgers/:ledger/account-types
-//
-// Transaction routes: /v1/organizations/:org/ledgers/:ledger/transactions,
-//
-//	/v1/organizations/:org/ledgers/:ledger/operations,
-//	/v1/organizations/:org/ledgers/:ledger/balances,
-//	/v1/organizations/:org/ledgers/:ledger/asset-rates,
-//	/v1/organizations/:org/ledgers/:ledger/operation-routes,
-//	/v1/organizations/:org/ledgers/:ledger/transaction-routes
+// Transaction paths are defined by the package-level transactionPaths var; all others use the onboarding pool.
 func (m *DualPoolMiddleware) selectPool(path string) *tenantmanager.TenantConnectionManager {
 	if m.isTransactionPath(path) {
 		return m.transactionPool
@@ -329,8 +296,7 @@ func (m *DualPoolMiddleware) selectPool(path string) *tenantmanager.TenantConnec
 }
 
 // selectMongoPool determines which MongoDB pool to use based on the request path.
-// Uses the same path-based routing logic as selectPool.
-// Returns nil if no MongoDB pool is configured for the selected path.
+// Mirrors selectPool routing logic; returns nil if no MongoDB pool is configured.
 func (m *DualPoolMiddleware) selectMongoPool(path string) *tenantmanager.MongoManager {
 	if m.isTransactionPath(path) {
 		return m.transactionMongoPool
@@ -339,18 +305,8 @@ func (m *DualPoolMiddleware) selectMongoPool(path string) *tenantmanager.MongoMa
 	return m.onboardingMongoPool
 }
 
-// isTransactionPath checks if the path belongs to transaction module.
+// isTransactionPath checks if the path belongs to the transaction module.
 func (m *DualPoolMiddleware) isTransactionPath(path string) bool {
-	// Transaction module paths (under ledger context)
-	transactionPaths := []string{
-		"/transactions",
-		"/operations",
-		"/balances",
-		"/asset-rates",
-		"/operation-routes",
-		"/transaction-routes",
-	}
-
 	for _, tp := range transactionPaths {
 		if strings.Contains(path, tp) {
 			return true
@@ -370,12 +326,6 @@ func (m *DualPoolMiddleware) getPoolName(path string) string {
 
 // isPublicPath checks if the path is a public endpoint that doesn't require tenant context.
 func (m *DualPoolMiddleware) isPublicPath(path string) bool {
-	publicPaths := []string{
-		"/health",
-		"/version",
-		"/swagger",
-	}
-
 	for _, pp := range publicPaths {
 		if path == pp || strings.HasPrefix(path, pp) {
 			return true
@@ -411,21 +361,6 @@ func (m *DualPoolMiddleware) extractTenantIDFromToken(c *fiber.Ctx) (string, err
 	}
 
 	return tenantID, nil
-}
-
-// GetTenantConnection retrieves the tenant database connection from the context.
-// Deprecated: Use tenantmanager.GetTenantPGConnectionFromContext() directly instead.
-// This function returns nil since we no longer store the full PostgresConnection in context.
-// Repositories should use tenantmanager.GetPostgresForTenant() to get database connections.
-func GetTenantConnection(ctx context.Context) interface{} {
-	return tenantmanager.GetTenantPGConnectionFromContext(ctx)
-}
-
-// GetTenantID retrieves the tenant ID from the context.
-// Deprecated: Use tenantmanager.GetTenantIDFromContext() directly instead.
-// Returns empty string if no tenant ID is set.
-func GetTenantID(ctx context.Context) string {
-	return tenantmanager.GetTenantIDFromContext(ctx)
 }
 
 // handleUnifiedServerError is a custom error handler that extends the default Fiber error handling
@@ -553,4 +488,17 @@ func (s *UnifiedServer) Run(l *libCommons.Launcher) error {
 // ServerAddress returns the server address for logging/debugging purposes.
 func (s *UnifiedServer) ServerAddress() string {
 	return s.serverAddress
+}
+
+// GetTenantConnection retrieves the tenant PostgreSQL connection from the context.
+// Delegates to tenantmanager.GetTenantPGConnectionFromContext.
+func GetTenantConnection(ctx context.Context) interface{} {
+	return tenantmanager.GetTenantPGConnectionFromContext(ctx)
+}
+
+// GetTenantID retrieves the tenant ID from the context.
+// Deprecated: Use tenantmanager.GetTenantIDFromContext() directly instead.
+// Returns empty string if no tenant ID is set.
+func GetTenantID(ctx context.Context) string {
+	return tenantmanager.GetTenantIDFromContext(ctx)
 }
