@@ -80,9 +80,8 @@ type Repository interface {
 	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 }
 
-// transactionColumns defines the explicit column list for transaction table queries.
-// This ensures backward compatibility when new columns are added in future versions.
-const transactionColumns = "id, parent_transaction_id, description, status, status_description, amount, asset_code, chart_of_accounts_group_name, ledger_id, organization_id, body, created_at, updated_at, deleted_at, route"
+// transactionColumns is derived from transactionColumnList for use with squirrel.Select.
+var transactionColumns = strings.Join(transactionColumnList, ", ")
 
 // TransactionPostgreSQLRepository is a Postgresql-specific implementation of the TransactionRepository.
 type TransactionPostgreSQLRepository struct {

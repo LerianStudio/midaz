@@ -44,10 +44,6 @@ type Repository interface {
 	FindLastOperationsForAccountBeforeTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
 }
 
-// operationColumns defines the explicit column list for operation table queries.
-// This ensures backward compatibility when new columns are added in future versions.
-const operationColumns = "id, transaction_id, description, type, asset_code, amount, available_balance, on_hold_balance, available_balance_after, on_hold_balance_after, status, status_description, account_id, account_alias, balance_id, chart_of_accounts, organization_id, ledger_id, created_at, updated_at, deleted_at, route, balance_affected, balance_key, balance_version_before, balance_version_after"
-
 // OperationPostgreSQLRepository is a Postgresql-specific implementation of the OperationRepository.
 type OperationPostgreSQLRepository struct {
 	connection *libPostgres.PostgresConnection
@@ -82,6 +78,9 @@ var operationColumnList = []string{
 	"balance_version_before",
 	"balance_version_after",
 }
+
+// operationColumns is derived from operationColumnList for use with squirrel.Select.
+var operationColumns = strings.Join(operationColumnList, ", ")
 
 // operationPointInTimeColumns contains only the columns needed for point-in-time balance queries.
 // This reduced column list enables PostgreSQL to use Index-Only Scan with the covering index
