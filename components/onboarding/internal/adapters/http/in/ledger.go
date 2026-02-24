@@ -439,7 +439,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 // UpdateLedgerSettings updates the settings for a specific ledger using merge semantics.
 //
 //	@Summary		Update ledger settings
-//	@Description	Updates the configuration settings for a specific ledger. New settings are merged at TOP LEVEL only (shallow merge). Nested objects are REPLACED entirely, not deep-merged. To update a nested key, you must send the complete nested object. Set a key to null to remove it.
+//	@Description	Updates the configuration settings for a specific ledger. New settings are merged at TOP LEVEL only (shallow merge) using PostgreSQL JSONB merge semantics (||). Nested objects are REPLACED entirely, not deep-merged. To update a nested key, you must send the complete nested object. Setting a key to null stores a JSON null value; keys are retained, not removed. Key removal requires explicit deletion (e.g., JSONB - 'key') which is not performed by this endpoint.
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
