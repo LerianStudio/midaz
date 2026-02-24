@@ -7,6 +7,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -126,9 +127,22 @@ func WithBody(s any, h DecodeHandlerFunc) fiber.Handler {
 
 // WithBodyLimit returns a middleware that limits the request body size.
 // If the body exceeds the limit, it returns a 400 Bad Request error.
+//
+// NOTE: For a true hard limit that rejects oversized payloads before buffering,
+// configure fiber.Config{BodyLimit: <bytes>} at app construction. This middleware
+// serves as a secondary guard and checks Content-Length first to avoid buffering
+// oversized requests when the header is present.
 func WithBodyLimit(maxBytes int) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		if len(c.Body()) > maxBytes {
+		// Check Content-Length header first to avoid buffering oversized requests
+		contentLength := c.Request().Header.ContentLength()
+		if contentLength > maxBytes {
+			return BadRequest(c, pkg.ValidateBusinessError(cn.ErrPayloadTooLarge, "request"))
+		}
+
+		// Fallback: check actual body size for requests without Content-Length
+		// (e.g., chunked transfer encoding)
+		if contentLength <= 0 && len(c.Body()) > maxBytes {
 			return BadRequest(c, pkg.ValidateBusinessError(cn.ErrPayloadTooLarge, "request"))
 		}
 
@@ -612,13 +626,13 @@ func collectNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldV
 
 	// Check nesting depth limit
 	if state.depth > MaxJSONNestingDepth {
-		out["_depth"] = "JSON nesting depth exceeds maximum allowed (10 levels)"
+		out["_depth"] = fmt.Sprintf("JSON nesting depth exceeds maximum allowed (%d levels)", MaxJSONNestingDepth)
 		return
 	}
 
 	// Check key count limit
 	if state.keyCount > MaxJSONKeyCount {
-		out["_keyCount"] = "JSON key count exceeds maximum allowed (100 keys)"
+		out["_keyCount"] = fmt.Sprintf("JSON key count exceeds maximum allowed (%d keys)", MaxJSONKeyCount)
 		return
 	}
 
@@ -693,7 +707,7 @@ func collectNullBytesFromMap(rv reflect.Value, jsonPath string, out pkg.FieldVal
 
 		// Early exit if key count exceeded
 		if state.keyCount > MaxJSONKeyCount {
-			out["_keyCount"] = "JSON key count exceeds maximum allowed (100 keys)"
+			out["_keyCount"] = fmt.Sprintf("JSON key count exceeds maximum allowed (%d keys)", MaxJSONKeyCount)
 			return
 		}
 

@@ -708,6 +708,12 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 		return nil, err
 	}
 
+	// Normalize nil settings to empty map to prevent json.Marshal producing "null"
+	// which would overwrite existing JSONB settings
+	if settings == nil {
+		settings = map[string]any{}
+	}
+
 	settingsJSON, err := json.Marshal(settings)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to marshal settings", err)
