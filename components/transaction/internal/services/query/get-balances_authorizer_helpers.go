@@ -65,6 +65,10 @@ func convertAuthorizerSnapshots(
 	balances := make([]*mmodel.Balance, 0, len(snapshots))
 
 	for _, snap := range snapshots {
+		if snap == nil {
+			continue
+		}
+
 		available := pkgTransaction.IntToDecimal(snap.GetAvailable(), snap.GetScale())
 		onHold := pkgTransaction.IntToDecimal(snap.GetOnHold(), snap.GetScale())
 

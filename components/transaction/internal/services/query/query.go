@@ -5,6 +5,8 @@
 package query
 
 import (
+	"time"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -14,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
+	"github.com/LerianStudio/midaz/v3/pkg/fence"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 )
 
@@ -54,4 +57,31 @@ type UseCase struct {
 	// Authorizer provides optional external balance authorization over gRPC.
 	// When nil or disabled, Redis Lua remains the active authorization path.
 	Authorizer Authorizer
+
+	// LagChecker validates whether Redpanda consumer lag is zero for a shard
+	// partition before falling back to PostgreSQL on Redis / authorizer misses.
+	LagChecker fence.ConsumerLagChecker
+
+	// ConsumerLagFenceEnabled toggles stale-balance fencing.
+	ConsumerLagFenceEnabled bool
+
+	// BalanceOperationsTopic is the Redpanda topic used for async balance
+	// operations, required to compute per-partition lag.
+	BalanceOperationsTopic string
+
+	// StaleBalanceRecoverer replays lagged Redpanda records to reconstruct
+	// fresh in-memory balances before falling back to PostgreSQL / authorizer load.
+	StaleBalanceRecoverer StaleBalanceRecoverer
+
+	// BalanceCacheTTL controls Redis TTL for balances cached by query flows
+	// (authorizer snapshots and stale-balance recovery). Zero means no expiration.
+	BalanceCacheTTL time.Duration
+}
+
+func (uc *UseCase) balanceCacheTTL() time.Duration {
+	if uc == nil || uc.BalanceCacheTTL <= 0 {
+		return 0
+	}
+
+	return uc.BalanceCacheTTL
 }

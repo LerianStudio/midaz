@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -18,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -77,7 +79,8 @@ func TestGetBalancesUsesAuthorizerWhenEnabled(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
-		RedisRepo: mockRedisRepo,
+		RedisRepo:       mockRedisRepo,
+		BalanceCacheTTL: 30 * time.Second,
 		Authorizer: &stubAuthorizer{
 			enabled: true,
 			authorizeResponses: []*authorizerv1.AuthorizeResponse{
@@ -125,8 +128,8 @@ func TestGetBalancesUsesAuthorizerWhenEnabled(t *testing.T) {
 
 	mockRedisRepo.EXPECT().Get(gomock.Any(), keyAlice).Return(string(aliceRedis), nil).Times(1)
 	mockRedisRepo.EXPECT().Get(gomock.Any(), keyBob).Return(string(bobRedis), nil).Times(1)
-	mockRedisRepo.EXPECT().Set(gomock.Any(), keyAlice, gomock.Any(), gomock.Any()).Return(nil).Times(1)
-	mockRedisRepo.EXPECT().Set(gomock.Any(), keyBob, gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	mockRedisRepo.EXPECT().Set(gomock.Any(), keyAlice, gomock.Any(), 30*time.Second).Return(nil).Times(1)
+	mockRedisRepo.EXPECT().Set(gomock.Any(), keyBob, gomock.Any(), 30*time.Second).Return(nil).Times(1)
 
 	balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
 	require.NoError(t, err)
@@ -226,4 +229,321 @@ func TestProcessAuthorizerAtomicOperation_RetryOnBalanceNotFound(t *testing.T) {
 	require.Equal(t, organizationID.String(), stub.lastLoadRequest.GetOrganizationId())
 	require.Equal(t, ledgerID.String(), stub.lastLoadRequest.GetLedgerId())
 	require.NotEmpty(t, stub.lastLoadRequest.GetShardIds())
+}
+
+func TestProcessAuthorizerAtomicOperation_LagFenceEnabledBlocksStaleAuthorizerLoad(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	balance := &mmodel.Balance{
+		ID:             "balance-1",
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		AccountID:      "account-1",
+		Alias:          "@alice",
+		Key:            "default",
+		AssetCode:      "USD",
+		Available:      decimal.NewFromInt(100),
+		OnHold:         decimal.Zero,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+	}
+
+	operationAlias := "0#@alice#default"
+	balanceOperations := []mmodel.BalanceOperation{{
+		Alias:   operationAlias,
+		Balance: balance,
+		Amount: pkgTransaction.Amount{
+			Asset:     "USD",
+			Value:     decimal.NewFromInt(10),
+			Operation: constant.DEBIT,
+		},
+	}}
+
+	router := shard.NewRouter(8)
+	partition := int32(router.ResolveBalance("@alice", "default"))
+
+	stub := &stubAuthorizer{
+		enabled: true,
+		authorizeResponses: []*authorizerv1.AuthorizeResponse{
+			{Authorized: false, RejectionCode: "BALANCE_NOT_FOUND"},
+		},
+	}
+
+	lagChecker := &stubLagChecker{caughtUpByPartition: map[int32]bool{partition: false}}
+
+	uc := &UseCase{
+		Authorizer:              stub,
+		ShardRouter:             router,
+		LagChecker:              lagChecker,
+		ConsumerLagFenceEnabled: true,
+		BalanceOperationsTopic:  "ledger.balance.operations",
+	}
+
+	_, err := uc.processAuthorizerAtomicOperation(
+		context.Background(),
+		organizationID,
+		ledgerID,
+		transactionID,
+		constant.CREATED,
+		false,
+		balanceOperations,
+		map[string]*mmodel.Balance{operationAlias: balance},
+	)
+	require.Error(t, err)
+
+	var serviceUnavailableErr pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &serviceUnavailableErr)
+	require.Equal(t, constant.ErrConsumerLagStaleBalance.Error(), serviceUnavailableErr.Code)
+	require.Equal(t, 1, stub.authorizeCalls)
+	require.Equal(t, 0, stub.loadCalls)
+	require.Equal(t, 1, lagChecker.calls)
+}
+
+func TestProcessAuthorizerAtomicOperation_LagFenceEnabledAndCaughtUpRetriesSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	balance := &mmodel.Balance{
+		ID:             "balance-1",
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		AccountID:      "account-1",
+		Alias:          "@alice",
+		Key:            "default",
+		AssetCode:      "USD",
+		Available:      decimal.NewFromInt(100),
+		OnHold:         decimal.Zero,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+	}
+
+	operationAlias := "0#@alice#default"
+	balanceOperations := []mmodel.BalanceOperation{{
+		Alias:   operationAlias,
+		Balance: balance,
+		Amount: pkgTransaction.Amount{
+			Asset:     "USD",
+			Value:     decimal.NewFromInt(10),
+			Operation: constant.DEBIT,
+		},
+	}}
+
+	router := shard.NewRouter(8)
+	partition := int32(router.ResolveBalance("@alice", "default"))
+
+	stub := &stubAuthorizer{
+		enabled: true,
+		authorizeResponses: []*authorizerv1.AuthorizeResponse{
+			{Authorized: false, RejectionCode: "BALANCE_NOT_FOUND"},
+			{
+				Authorized: true,
+				Balances: []*authorizerv1.BalanceSnapshot{{
+					OperationAlias: operationAlias,
+					AccountAlias:   "@alice",
+					BalanceKey:     "default",
+					BalanceId:      "balance-1",
+					AccountId:      "account-1",
+					AssetCode:      "USD",
+					AccountType:    "deposit",
+					AllowSending:   true,
+					AllowReceiving: true,
+					Available:      9000,
+					OnHold:         0,
+					Scale:          2,
+					Version:        2,
+				}},
+			},
+		},
+	}
+
+	lagChecker := &stubLagChecker{caughtUpByPartition: map[int32]bool{partition: true}}
+
+	uc := &UseCase{
+		Authorizer:              stub,
+		ShardRouter:             router,
+		LagChecker:              lagChecker,
+		ConsumerLagFenceEnabled: true,
+		BalanceOperationsTopic:  "ledger.balance.operations",
+	}
+
+	newBalances, err := uc.processAuthorizerAtomicOperation(
+		context.Background(),
+		organizationID,
+		ledgerID,
+		transactionID,
+		constant.CREATED,
+		false,
+		balanceOperations,
+		map[string]*mmodel.Balance{operationAlias: balance},
+	)
+	require.NoError(t, err)
+	require.Len(t, newBalances, 1)
+	require.Equal(t, 2, stub.authorizeCalls)
+	require.Equal(t, 1, stub.loadCalls)
+	require.Equal(t, 1, lagChecker.calls)
+}
+
+func TestProcessAuthorizerAtomicOperation_LagFenceDisabledIgnoresLag(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	balance := &mmodel.Balance{
+		ID:             "balance-1",
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		AccountID:      "account-1",
+		Alias:          "@alice",
+		Key:            "default",
+		AssetCode:      "USD",
+		Available:      decimal.NewFromInt(100),
+		OnHold:         decimal.Zero,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+	}
+
+	operationAlias := "0#@alice#default"
+	balanceOperations := []mmodel.BalanceOperation{{
+		Alias:   operationAlias,
+		Balance: balance,
+		Amount: pkgTransaction.Amount{
+			Asset:     "USD",
+			Value:     decimal.NewFromInt(10),
+			Operation: constant.DEBIT,
+		},
+	}}
+
+	router := shard.NewRouter(8)
+	partition := int32(router.ResolveBalance("@alice", "default"))
+
+	stub := &stubAuthorizer{
+		enabled: true,
+		authorizeResponses: []*authorizerv1.AuthorizeResponse{
+			{Authorized: false, RejectionCode: "BALANCE_NOT_FOUND"},
+			{
+				Authorized: true,
+				Balances: []*authorizerv1.BalanceSnapshot{{
+					OperationAlias: operationAlias,
+					AccountAlias:   "@alice",
+					BalanceKey:     "default",
+					BalanceId:      "balance-1",
+					AccountId:      "account-1",
+					AssetCode:      "USD",
+					AccountType:    "deposit",
+					AllowSending:   true,
+					AllowReceiving: true,
+					Available:      9000,
+					OnHold:         0,
+					Scale:          2,
+					Version:        2,
+				}},
+			},
+		},
+	}
+
+	lagChecker := &stubLagChecker{caughtUpByPartition: map[int32]bool{partition: false}}
+
+	uc := &UseCase{
+		Authorizer:              stub,
+		ShardRouter:             router,
+		LagChecker:              lagChecker,
+		ConsumerLagFenceEnabled: false,
+		BalanceOperationsTopic:  "ledger.balance.operations",
+	}
+
+	newBalances, err := uc.processAuthorizerAtomicOperation(
+		context.Background(),
+		organizationID,
+		ledgerID,
+		transactionID,
+		constant.CREATED,
+		false,
+		balanceOperations,
+		map[string]*mmodel.Balance{operationAlias: balance},
+	)
+	require.NoError(t, err)
+	require.Len(t, newBalances, 1)
+	require.Equal(t, 2, stub.authorizeCalls)
+	require.Equal(t, 1, stub.loadCalls)
+	require.Equal(t, 0, lagChecker.calls)
+}
+
+func TestCacheAuthorizerBalances_SkipsNilBalances(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	uc := &UseCase{
+		RedisRepo:       mockRedisRepo,
+		BalanceCacheTTL: 20 * time.Second,
+	}
+
+	balanceOps := []mmodel.BalanceOperation{{
+		Alias:       "0#@alice#default",
+		InternalKey: "balance:key:alice",
+	}}
+
+	balance := &mmodel.Balance{
+		ID:             "balance-1",
+		AccountID:      "account-1",
+		Alias:          "0#@alice#default",
+		Key:            "default",
+		AssetCode:      "USD",
+		Available:      decimal.NewFromInt(10),
+		OnHold:         decimal.Zero,
+		Version:        1,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+	}
+
+	mockRedisRepo.EXPECT().
+		Set(gomock.Any(), "balance:key:alice", gomock.Any(), 20*time.Second).
+		Return(nil).
+		Times(1)
+
+	uc.cacheAuthorizerBalances(context.Background(), balanceOps, []*mmodel.Balance{nil, balance})
+}
+
+func TestConvertAuthorizerSnapshots_SkipsNilEntries(t *testing.T) {
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	result := convertAuthorizerSnapshots(
+		[]*authorizerv1.BalanceSnapshot{
+			nil,
+			{
+				OperationAlias: "0#@alice#default",
+				BalanceKey:     "default",
+				BalanceId:      "balance-1",
+				AccountId:      "account-1",
+				AssetCode:      "USD",
+				Available:      9000,
+				OnHold:         0,
+				Scale:          2,
+				Version:        2,
+				AllowSending:   true,
+				AllowReceiving: true,
+				AccountType:    "deposit",
+			},
+		},
+		organizationID,
+		ledgerID,
+		map[string]*mmodel.Balance{},
+	)
+
+	require.Len(t, result, 1)
+	assert.Equal(t, "0#@alice#default", result[0].Alias)
 }

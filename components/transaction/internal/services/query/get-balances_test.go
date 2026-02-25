@@ -8,10 +8,13 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
@@ -23,6 +26,75 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
+
+type stubLagChecker struct {
+	mu                  sync.Mutex
+	caughtUpByPartition map[int32]bool
+	calls               int
+}
+
+type stubStaleBalanceRecoverer struct {
+	recovered map[string]*mmodel.Balance
+	err       error
+	calls     int
+}
+
+func (s *stubStaleBalanceRecoverer) RecoverLaggedAliases(
+	_ context.Context,
+	_ string,
+	_, _ uuid.UUID,
+	_ map[int32][]string,
+) (map[string]*mmodel.Balance, error) {
+	if s == nil {
+		return map[string]*mmodel.Balance{}, nil
+	}
+
+	s.calls++
+
+	if s.err != nil {
+		return nil, s.err
+	}
+
+	return s.recovered, nil
+}
+
+func (s *stubLagChecker) PartitionLag(_ context.Context, _ string, partition int32) (int64, error) {
+	if s == nil {
+		return 0, nil
+	}
+
+	if s.caughtUpByPartition[partition] {
+		return 0, nil
+	}
+
+	return 1, nil
+}
+
+func (s *stubLagChecker) IsPartitionCaughtUp(_ context.Context, _ string, partition int32) bool {
+	if s == nil {
+		return true
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.calls++
+	caughtUp, ok := s.caughtUpByPartition[partition]
+	if !ok {
+		return true
+	}
+
+	return caughtUp
+}
+
+func TestGetBalances_ReturnsErrorWhenValidateIsNil(t *testing.T) {
+	uc := &UseCase{}
+
+	_, err := uc.GetBalances(context.Background(), uuid.New(), uuid.New(), uuid.New(), nil, nil, constant.CREATED)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "validate is nil")
+}
 
 func TestGetBalances(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -309,6 +381,213 @@ func TestGetBalances(t *testing.T) {
 	})
 }
 
+func TestGetBalancesConsumerLagFence(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	validate := &pkgTransaction.Responses{
+		Aliases: []string{"@alice#default"},
+		From: map[string]pkgTransaction.Amount{
+			"0#@alice#default": {
+				Asset:     "USD",
+				Value:     decimal.NewFromInt(10),
+				Operation: constant.DEBIT,
+			},
+		},
+		To: map[string]pkgTransaction.Amount{},
+	}
+
+	t.Run("fence enabled and lag > 0 blocks postgres fallback", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		router := shard.NewRouter(8)
+		partition := int32(router.ResolveBalance("@alice", "default"))
+		lagChecker := &stubLagChecker{caughtUpByPartition: map[int32]bool{partition: false}}
+
+		uc := &UseCase{
+			BalanceRepo:             mockBalanceRepo,
+			RedisRepo:               mockRedisRepo,
+			ShardRouter:             router,
+			LagChecker:              lagChecker,
+			ConsumerLagFenceEnabled: true,
+			BalanceOperationsTopic:  "ledger.balance.operations",
+		}
+
+		cacheKey := utils.BalanceShardKey(int(partition), organizationID, ledgerID, "@alice#default")
+		mockRedisRepo.EXPECT().Get(gomock.Any(), cacheKey).Return("", nil).Times(1)
+
+		_, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
+		require.Error(t, err)
+
+		var serviceUnavailableErr pkg.ServiceUnavailableError
+		require.ErrorAs(t, err, &serviceUnavailableErr)
+		require.Equal(t, constant.ErrConsumerLagStaleBalance.Error(), serviceUnavailableErr.Code)
+		require.Equal(t, 1, lagChecker.calls)
+	})
+
+	t.Run("fence enabled and lag > 0 replays and recovers balances", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		router := shard.NewRouter(8)
+		partition := int32(router.ResolveBalance("@alice", "default"))
+		lagChecker := &stubLagChecker{caughtUpByPartition: map[int32]bool{partition: false}}
+
+		recoveredBalance := &mmodel.Balance{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "@alice",
+			Key:            "default",
+			Available:      decimal.NewFromInt(90),
+			OnHold:         decimal.Zero,
+			Version:        2,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			AssetCode:      "USD",
+		}
+
+		recoverer := &stubStaleBalanceRecoverer{
+			recovered: map[string]*mmodel.Balance{
+				"@alice#default": recoveredBalance,
+			},
+		}
+
+		uc := &UseCase{
+			BalanceRepo:             mockBalanceRepo,
+			RedisRepo:               mockRedisRepo,
+			ShardRouter:             router,
+			LagChecker:              lagChecker,
+			ConsumerLagFenceEnabled: true,
+			BalanceOperationsTopic:  "ledger.balance.operations",
+			StaleBalanceRecoverer:   recoverer,
+			BalanceCacheTTL:         45 * time.Second,
+		}
+
+		cacheKey := utils.BalanceShardKey(int(partition), organizationID, ledgerID, "@alice#default")
+		mockRedisRepo.EXPECT().Get(gomock.Any(), cacheKey).Return("", nil).Times(1)
+		mockRedisRepo.EXPECT().Set(gomock.Any(), cacheKey, gomock.Any(), 45*time.Second).Return(nil).Times(1)
+		mockRedisRepo.EXPECT().ProcessBalanceAtomicOperation(gomock.Any(), organizationID, ledgerID, gomock.Any(), constant.CREATED, false, gomock.Any()).Return([]*mmodel.Balance{recoveredBalance}, nil).Times(1)
+
+		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
+		require.NoError(t, err)
+		require.Len(t, balances, 1)
+		require.Equal(t, "@alice", balances[0].Alias)
+		require.Equal(t, 1, recoverer.calls)
+		require.Equal(t, 1, lagChecker.calls)
+	})
+
+	t.Run("fence enabled and lag == 0 allows postgres fallback", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		router := shard.NewRouter(8)
+		partition := int32(router.ResolveBalance("@alice", "default"))
+		lagChecker := &stubLagChecker{caughtUpByPartition: map[int32]bool{partition: true}}
+
+		uc := &UseCase{
+			BalanceRepo:             mockBalanceRepo,
+			RedisRepo:               mockRedisRepo,
+			ShardRouter:             router,
+			LagChecker:              lagChecker,
+			ConsumerLagFenceEnabled: true,
+			BalanceOperationsTopic:  "ledger.balance.operations",
+		}
+
+		cacheKey := utils.BalanceShardKey(int(partition), organizationID, ledgerID, "@alice#default")
+		mockRedisRepo.EXPECT().Get(gomock.Any(), cacheKey).Return("", nil).Times(1)
+
+		databaseBalance := &mmodel.Balance{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "@alice",
+			Key:            "default",
+			Available:      decimal.NewFromInt(100),
+			OnHold:         decimal.Zero,
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			AssetCode:      "USD",
+		}
+
+		mockBalanceRepo.EXPECT().ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, []string{"@alice#default"}).Return([]*mmodel.Balance{databaseBalance}, nil).Times(1)
+		mockRedisRepo.EXPECT().ProcessBalanceAtomicOperation(gomock.Any(), organizationID, ledgerID, gomock.Any(), constant.CREATED, false, gomock.Any()).Return([]*mmodel.Balance{databaseBalance}, nil).Times(1)
+
+		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
+		require.NoError(t, err)
+		require.Len(t, balances, 1)
+		require.Equal(t, "@alice", balances[0].Alias)
+		require.Equal(t, 1, lagChecker.calls)
+	})
+
+	t.Run("fence disabled skips lag check and proceeds", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		router := shard.NewRouter(8)
+		partition := int32(router.ResolveBalance("@alice", "default"))
+		lagChecker := &stubLagChecker{caughtUpByPartition: map[int32]bool{partition: false}}
+
+		uc := &UseCase{
+			BalanceRepo:             mockBalanceRepo,
+			RedisRepo:               mockRedisRepo,
+			ShardRouter:             router,
+			LagChecker:              lagChecker,
+			ConsumerLagFenceEnabled: false,
+			BalanceOperationsTopic:  "ledger.balance.operations",
+		}
+
+		cacheKey := utils.BalanceShardKey(int(partition), organizationID, ledgerID, "@alice#default")
+		mockRedisRepo.EXPECT().Get(gomock.Any(), cacheKey).Return("", nil).Times(1)
+
+		databaseBalance := &mmodel.Balance{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "@alice",
+			Key:            "default",
+			Available:      decimal.NewFromInt(100),
+			OnHold:         decimal.Zero,
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			AssetCode:      "USD",
+		}
+
+		mockBalanceRepo.EXPECT().ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, []string{"@alice#default"}).Return([]*mmodel.Balance{databaseBalance}, nil).Times(1)
+		mockRedisRepo.EXPECT().ProcessBalanceAtomicOperation(gomock.Any(), organizationID, ledgerID, gomock.Any(), constant.CREATED, false, gomock.Any()).Return([]*mmodel.Balance{databaseBalance}, nil).Times(1)
+
+		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
+		require.NoError(t, err)
+		require.Len(t, balances, 1)
+		require.Equal(t, 0, lagChecker.calls)
+	})
+}
+
 func TestGetAccountAndLock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -374,6 +653,24 @@ func TestGetAccountAndLock(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Len(t, lockedBalances, 1)
+	})
+
+	t.Run("returns error when validate is nil", func(t *testing.T) {
+		balances := []*mmodel.Balance{{Alias: "alias1", Key: "default"}}
+
+		_, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, uuid.New(), nil, nil, balances, constant.CREATED)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "validate is nil")
+	})
+
+	t.Run("returns error when balances contain nil", func(t *testing.T) {
+		validate := &pkgTransaction.Responses{From: map[string]pkgTransaction.Amount{}, To: map[string]pkgTransaction.Amount{}}
+
+		_, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, uuid.New(), nil, validate, []*mmodel.Balance{nil}, constant.CREATED)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "nil balance")
 	})
 }
 

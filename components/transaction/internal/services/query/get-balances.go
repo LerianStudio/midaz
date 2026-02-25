@@ -30,6 +30,14 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 	ctx, span := tracer.Start(ctx, "usecase.get_balances")
 	defer span.End()
 
+	if validate == nil {
+		err := fmt.Errorf("invalid transaction payload: validate is nil")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate payload", err)
+		logger.Error("Failed to validate payload", err)
+
+		return nil, err
+	}
+
 	balances := make([]*mmodel.Balance, 0)
 
 	balancesRedis, aliases, err := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, validate.Aliases)
@@ -46,6 +54,31 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 	}
 
 	if len(aliases) > 0 {
+		recoveredBalances, remainingAliases, recoveryErr := uc.recoverLaggedBalancesForAliases(ctx, organizationID, ledgerID, aliases)
+		if recoveryErr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to replay lagged balance operations", recoveryErr)
+
+			logger.Error("Failed to replay lagged balance operations", recoveryErr.Error())
+
+			return nil, recoveryErr
+		}
+
+		if len(recoveredBalances) > 0 {
+			balances = append(balances, recoveredBalances...)
+		}
+
+		aliases = remainingAliases
+	}
+
+	if len(aliases) > 0 {
+		if err := uc.ensureConsumerLagFenceForAliases(ctx, organizationID, ledgerID, aliases); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Consumer lag fence blocked stale balance recovery", err)
+
+			logger.Error("Consumer lag fence blocked stale balance recovery", err.Error())
+
+			return nil, err
+		}
+
 		if err := uc.ensureExternalPreSplitBalances(ctx, organizationID, ledgerID, aliases); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to ensure external pre-split balances", err)
 
@@ -161,8 +194,23 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	ctx, span := tracer.Start(ctx, "usecase.get_account_and_lock")
 	defer span.End()
 
-	balanceOperations := make([]mmodel.BalanceOperation, 0)
-	mapBalances := make(map[string]*mmodel.Balance)
+	if validate == nil {
+		err := fmt.Errorf("invalid transaction payload: validate is nil")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate payload", err)
+		logger.Error("Failed to validate payload", err)
+
+		return nil, err
+	}
+
+	for i, balance := range balances {
+		if balance == nil {
+			err := fmt.Errorf("invalid transaction payload: nil balance at index %d", i)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate payload", err)
+			logger.Error("Failed to validate payload", err)
+
+			return nil, err
+		}
+	}
 
 	guardAliases := make([]string, 0, len(balances))
 	for _, balance := range balances {
@@ -177,64 +225,20 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
-	for _, balance := range balances {
-		aliasKey := balance.Alias + "#" + balance.Key
+	balanceOperations, mapBalances, err := uc.buildBalanceOperations(ctx, organizationID, ledgerID, balances, validate)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to build balance operations", err)
 
-		// Generate shard-aware or legacy Redis key based on router availability
-		var internalKey string
+		logger.Error("Failed to build balance operations", err)
 
-		var shardID int
-
-		if uc.ShardRouter != nil {
-			resolvedShardID, shardErr := uc.resolveBalanceShard(ctx, organizationID, ledgerID, balance.Alias, balance.Key)
-			if shardErr != nil {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to resolve balance shard", shardErr)
-
-				logger.Error("Failed to resolve balance shard", shardErr)
-
-				return nil, shardErr
-			}
-
-			shardID = resolvedShardID
-			internalKey = utils.BalanceShardKey(shardID, organizationID, ledgerID, aliasKey)
-		} else {
-			internalKey = utils.BalanceInternalKey(organizationID, ledgerID, aliasKey)
-		}
-
-		for k, v := range validate.From {
-			if pkgTransaction.SplitAliasWithKey(k) == aliasKey {
-				mapBalances[k] = balance
-
-				balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
-					Balance:     balance,
-					Alias:       k,
-					Amount:      v,
-					InternalKey: internalKey,
-					ShardID:     shardID,
-				})
-			}
-		}
-
-		for k, v := range validate.To {
-			if pkgTransaction.SplitAliasWithKey(k) == aliasKey {
-				mapBalances[k] = balance
-
-				balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
-					Balance:     balance,
-					Alias:       k,
-					Amount:      v,
-					InternalKey: internalKey,
-					ShardID:     shardID,
-				})
-			}
-		}
+		return nil, err
 	}
 
 	sort.Slice(balanceOperations, func(i, j int) bool {
 		return balanceOperations[i].InternalKey < balanceOperations[j].InternalKey
 	})
 
-	err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, balanceOperations, validate)
+	err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, balanceOperations, validate)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate accounting rules", err)
 
@@ -297,6 +301,69 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	}
 
 	return newBalances, nil
+}
+
+// buildBalanceOperations maps balances to their corresponding operations from the validate
+// response, resolving shard-aware Redis keys for each balance.
+func (uc *UseCase) buildBalanceOperations(
+	ctx context.Context,
+	organizationID, ledgerID uuid.UUID,
+	balances []*mmodel.Balance,
+	validate *pkgTransaction.Responses,
+) ([]mmodel.BalanceOperation, map[string]*mmodel.Balance, error) {
+	balanceOperations := make([]mmodel.BalanceOperation, 0)
+	mapBalances := make(map[string]*mmodel.Balance)
+
+	for _, balance := range balances {
+		aliasKey := balance.Alias + "#" + balance.Key
+
+		// Generate shard-aware or legacy Redis key based on router availability
+		var internalKey string
+
+		var shardID int
+
+		if uc.ShardRouter != nil {
+			resolvedShardID, shardErr := uc.resolveBalanceShard(ctx, organizationID, ledgerID, balance.Alias, balance.Key)
+			if shardErr != nil {
+				return nil, nil, shardErr
+			}
+
+			shardID = resolvedShardID
+			internalKey = utils.BalanceShardKey(shardID, organizationID, ledgerID, aliasKey)
+		} else {
+			internalKey = utils.BalanceInternalKey(organizationID, ledgerID, aliasKey)
+		}
+
+		for k, v := range validate.From {
+			if pkgTransaction.SplitAliasWithKey(k) == aliasKey {
+				mapBalances[k] = balance
+
+				balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
+					Balance:     balance,
+					Alias:       k,
+					Amount:      v,
+					InternalKey: internalKey,
+					ShardID:     shardID,
+				})
+			}
+		}
+
+		for k, v := range validate.To {
+			if pkgTransaction.SplitAliasWithKey(k) == aliasKey {
+				mapBalances[k] = balance
+
+				balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
+					Balance:     balance,
+					Alias:       k,
+					Amount:      v,
+					InternalKey: internalKey,
+					ShardID:     shardID,
+				})
+			}
+		}
+	}
+
+	return balanceOperations, mapBalances, nil
 }
 
 func (uc *UseCase) ensureExternalPreSplitBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) error {

@@ -7,7 +7,9 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"sort"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -74,6 +76,10 @@ func (uc *UseCase) processAuthorizerAtomicOperation(
 
 	if !resp.GetAuthorized() && resp.GetRejectionCode() == authorizerRejectionBalanceNotFound {
 		if err := uc.loadAuthorizerBalancesForOperations(ctx, organizationID, ledgerID, balanceOperations); err != nil {
+			if isConsumerLagStaleBalanceError(err) {
+				return nil, err
+			}
+
 			return nil, pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer")
 		}
 
@@ -115,7 +121,12 @@ func (uc *UseCase) loadAuthorizerBalancesForOperations(
 				balanceKey = constant.DefaultBalanceKey
 			}
 
-			shardID := int32(uc.ShardRouter.ResolveBalance(op.Balance.Alias, balanceKey))
+			resolved := uc.ShardRouter.ResolveBalance(op.Balance.Alias, balanceKey)
+			if resolved > math.MaxInt32 {
+				resolved = 0
+			}
+
+			shardID := int32(resolved)
 			uniqueShardIDs[shardID] = struct{}{}
 		}
 
@@ -128,6 +139,10 @@ func (uc *UseCase) loadAuthorizerBalancesForOperations(
 		})
 	}
 
+	if err := uc.ensureConsumerLagFenceForPartitions(ctx, shardIDs); err != nil {
+		return err
+	}
+
 	_, err := uc.Authorizer.LoadBalances(ctx, &authorizerv1.LoadBalancesRequest{
 		OrganizationId: organizationID.String(),
 		LedgerId:       ledgerID.String(),
@@ -135,6 +150,16 @@ func (uc *UseCase) loadAuthorizerBalancesForOperations(
 	})
 
 	return err
+}
+
+func isConsumerLagStaleBalanceError(err error) bool {
+	var serviceUnavailableErr pkg.ServiceUnavailableError
+
+	if !errors.As(err, &serviceUnavailableErr) {
+		return false
+	}
+
+	return serviceUnavailableErr.Code == constant.ErrConsumerLagStaleBalance.Error()
 }
 
 // cacheAuthorizerBalances writes the authorizer-returned balance snapshots back
@@ -154,8 +179,13 @@ func (uc *UseCase) cacheAuthorizerBalances(
 	}
 
 	logger, _, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled // only logger is needed in this helper
+	cacheTTL := uc.balanceCacheTTL()
 
 	for _, balance := range balances {
+		if balance == nil {
+			continue
+		}
+
 		internalKey, ok := keyByOperationAlias[balance.Alias]
 		if !ok {
 			continue
@@ -167,7 +197,7 @@ func (uc *UseCase) cacheAuthorizerBalances(
 			continue
 		}
 
-		if cacheErr := uc.RedisRepo.Set(ctx, internalKey, string(payload), 0); cacheErr != nil {
+		if cacheErr := uc.RedisRepo.Set(ctx, internalKey, string(payload), cacheTTL); cacheErr != nil {
 			logger.Warnf("Failed to cache authorizer balance on redis for %s: %v", balance.Alias, cacheErr)
 		}
 	}
@@ -176,29 +206,11 @@ func (uc *UseCase) cacheAuthorizerBalances(
 // balanceToRedis converts a Balance into its BalanceRedis representation that
 // is stored in the Redis cache.
 func balanceToRedis(b *mmodel.Balance) mmodel.BalanceRedis {
-	allowSending := 0
-	if b.AllowSending {
-		allowSending = 1
+	if b == nil {
+		return mmodel.BalanceRedis{}
 	}
 
-	allowReceiving := 0
-	if b.AllowReceiving {
-		allowReceiving = 1
-	}
-
-	return mmodel.BalanceRedis{
-		ID:             b.ID,
-		Alias:          pkgTransaction.SplitAliasWithKey(b.Alias),
-		AccountID:      b.AccountID,
-		AssetCode:      b.AssetCode,
-		Available:      b.Available,
-		OnHold:         b.OnHold,
-		Version:        b.Version,
-		AccountType:    b.AccountType,
-		AllowSending:   allowSending,
-		AllowReceiving: allowReceiving,
-		Key:            b.Key,
-	}
+	return mmodel.ToBalanceRedis(b, pkgTransaction.SplitAliasWithKey(b.Alias))
 }
 
 func mapAuthorizerRejection(rejectionCode string) error {
