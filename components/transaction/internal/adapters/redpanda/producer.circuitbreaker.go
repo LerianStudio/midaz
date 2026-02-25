@@ -82,7 +82,6 @@ func (p *CircuitBreakerProducer) ProducerDefaultWithContext(ctx context.Context,
 	return p.executeWithCircuit(func() (any, error) {
 		return p.underlying.ProducerDefaultWithContext(scopedCtx, topic, key, message)
 	})
-
 }
 
 func (p *CircuitBreakerProducer) executeWithCircuit(operation func() (any, error)) (*string, error) {

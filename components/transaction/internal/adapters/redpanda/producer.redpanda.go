@@ -7,6 +7,8 @@ package redpanda
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,6 +51,26 @@ func NewProducerRedpandaWithSecurity(
 	transactionAsync bool,
 	securityConfig ClientSecurityConfig,
 ) (*ProducerRedpandaRepository, error) {
+	return NewProducerRedpandaWithSecurityAndShardPartitioning(
+		brokers,
+		linger,
+		maxBufferedRecords,
+		transactionAsync,
+		securityConfig,
+		0,
+	)
+}
+
+// NewProducerRedpandaWithSecurityAndShardPartitioning creates a producer backed
+// by franz-go with optional TLS/SASL and optional shard-aware partitioning.
+func NewProducerRedpandaWithSecurityAndShardPartitioning(
+	brokers []string,
+	linger time.Duration,
+	maxBufferedRecords int,
+	transactionAsync bool,
+	securityConfig ClientSecurityConfig,
+	shardCount int,
+) (*ProducerRedpandaRepository, error) {
 	if len(brokers) == 0 {
 		return nil, fmt.Errorf("at least one redpanda broker is required")
 	}
@@ -70,6 +92,10 @@ func NewProducerRedpandaWithSecurity(
 		kgo.RecordDeliveryTimeout(defaultRecordDeliveryTimeout),
 	}
 
+	if shardCount > 0 {
+		options = append(options, kgo.RecordPartitioner(&ShardPartitioner{shardCount: shardCount}))
+	}
+
 	securityOptions, err := BuildSecurityOptions(securityConfig)
 	if err != nil {
 		return nil, fmt.Errorf("invalid redpanda security configuration: %w", err)
@@ -86,6 +112,52 @@ func NewProducerRedpandaWithSecurity(
 		client:           client,
 		transactionAsync: transactionAsync,
 	}, nil
+}
+
+// ShardPartitioner routes records to specific partitions when the record key is
+// a numeric shard ID ("0", "1", ...). Non-numeric keys fall back to hash-based
+// partitioning.
+type ShardPartitioner struct {
+	shardCount int
+}
+
+func (p *ShardPartitioner) ForTopic(topic string) kgo.TopicPartitioner {
+	return &shardTopicPartitioner{topic: topic, shardCount: p.shardCount}
+}
+
+type shardTopicPartitioner struct {
+	topic      string
+	shardCount int
+}
+
+func (tp *shardTopicPartitioner) RequiresConsistency(_ *kgo.Record) bool { return true }
+
+func (tp *shardTopicPartitioner) Partition(record *kgo.Record, partitions int) int {
+	if partitions <= 0 {
+		return 0
+	}
+
+	if record == nil || record.Key == nil {
+		return 0
+	}
+
+	shardID, err := strconv.Atoi(string(record.Key))
+	if err == nil && shardID >= 0 && (tp.shardCount <= 0 || shardID < tp.shardCount) {
+		return shardID % partitions
+	}
+
+	return hashPartition(record.Key, partitions)
+}
+
+func hashPartition(key []byte, partitions int) int {
+	if partitions <= 0 {
+		return 0
+	}
+
+	h := fnv.New32a()
+	_, _ = h.Write(key)
+
+	return int(uint64(h.Sum32()) % uint64(partitions))
 }
 
 // CheckHealth checks broker connectivity.
@@ -146,6 +218,7 @@ func (p *ProducerRedpandaRepository) produceSync(ctx context.Context, topic, key
 	if err := p.client.ProduceSync(ctx, record).FirstErr(); err != nil {
 		logger.Errorf("Failed to publish message topic=%s key=%s err=%v", topic, key, err)
 		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message", err)
+
 		return nil, err
 	}
 

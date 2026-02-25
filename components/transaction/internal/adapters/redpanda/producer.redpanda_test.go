@@ -105,3 +105,43 @@ func TestProducerRedpandaRepository_Close_NilReceiver(t *testing.T) {
 	var repo *ProducerRedpandaRepository
 	assert.NoError(t, repo.Close())
 }
+
+func TestShardPartitioner_Partition_UsesNumericShardID(t *testing.T) {
+	topicPartitioner := (&ShardPartitioner{shardCount: 8}).ForTopic("ledger.balance.operations")
+
+	partition := topicPartitioner.Partition(&kgo.Record{Key: []byte("3")}, 8)
+	assert.Equal(t, 3, partition)
+}
+
+func TestShardPartitioner_Partition_FallsBackToHashForInvalidOrOutOfRangeKeys(t *testing.T) {
+	topicPartitioner := (&ShardPartitioner{shardCount: 8}).ForTopic("ledger.balance.operations")
+
+	record := &kgo.Record{Key: []byte("invalid")}
+	assert.Equal(t, hashPartition(record.Key, 8), topicPartitioner.Partition(record, 8))
+
+	outOfRange := &kgo.Record{Key: []byte("99")}
+	assert.Equal(t, hashPartition(outOfRange.Key, 8), topicPartitioner.Partition(outOfRange, 8))
+}
+
+func TestShardTopicPartitioner_Partition_HandlesZeroPartitions(t *testing.T) {
+	topicPartitioner := (&ShardPartitioner{shardCount: 8}).ForTopic("ledger.balance.operations")
+
+	partition := topicPartitioner.Partition(&kgo.Record{Key: []byte("1")}, 0)
+	assert.Equal(t, 0, partition)
+}
+
+func TestHashPartition_HandlesEdgeCases(t *testing.T) {
+	assert.Equal(t, 0, hashPartition([]byte("key"), 0))
+	assert.GreaterOrEqual(t, hashPartition([]byte("key"), 8), 0)
+	assert.Less(t, hashPartition([]byte("key"), 8), 8)
+}
+
+func TestShardTopicPartitioner_Partition_DeterministicForSameKey(t *testing.T) {
+	topicPartitioner := (&ShardPartitioner{shardCount: 8}).ForTopic("ledger.balance.operations")
+	record := &kgo.Record{Key: []byte("@same-alias")}
+
+	first := topicPartitioner.Partition(record, 8)
+	for i := 0; i < 100; i++ {
+		assert.Equal(t, first, topicPartitioner.Partition(record, 8))
+	}
+}
