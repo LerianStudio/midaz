@@ -6,10 +6,12 @@ package query
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/stretchr/testify/assert"
@@ -148,109 +150,6 @@ func TestExtractStringSlice(t *testing.T) {
 	})
 }
 
-func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
-
-	uc := &UseCase{
-		RedisRepo: mockRedisRepo,
-	}
-
-	ctx := context.Background()
-
-	t.Run("Returns nil when organization:ledger not in TRANSACTION_ROUTE_VALIDATION env var", func(t *testing.T) {
-		differentOrg := libCommons.GenerateUUIDv7()
-		differentLedger := libCommons.GenerateUUIDv7()
-		t.Setenv("TRANSACTION_ROUTE_VALIDATION", differentOrg.String()+":"+differentLedger.String())
-
-		operations := []mmodel.BalanceOperation{
-			{
-				Alias: "test-alias",
-				Balance: &mmodel.Balance{
-					AccountType: "asset",
-				},
-			},
-		}
-
-		validate := &pkgTransaction.Responses{
-			TransactionRoute: transactionRouteID.String(),
-		}
-
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
-
-		assert.NoError(t, err)
-	})
-
-	t.Run("Returns error when transaction route is empty", func(t *testing.T) {
-		t.Setenv("TRANSACTION_ROUTE_VALIDATION", organizationID.String()+":"+ledgerID.String())
-
-		operations := []mmodel.BalanceOperation{
-			{
-				Alias: "test-alias",
-				Balance: &mmodel.Balance{
-					AccountType: "asset",
-				},
-			},
-		}
-
-		validate := &pkgTransaction.Responses{
-			TransactionRoute: "",
-		}
-
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
-
-		assert.Error(t, err)
-	})
-
-	t.Run("Returns error when transaction route ID is invalid", func(t *testing.T) {
-		t.Setenv("TRANSACTION_ROUTE_VALIDATION", organizationID.String()+":"+ledgerID.String())
-
-		operations := []mmodel.BalanceOperation{
-			{
-				Alias: "test-alias",
-				Balance: &mmodel.Balance{
-					AccountType: "asset",
-				},
-			},
-		}
-
-		validate := &pkgTransaction.Responses{
-			TransactionRoute: "invalid-uuid-format",
-		}
-
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
-
-		assert.Error(t, err)
-	})
-
-	t.Run("Empty TRANSACTION_ROUTE_VALIDATION environment variable", func(t *testing.T) {
-		t.Setenv("TRANSACTION_ROUTE_VALIDATION", "")
-
-		operations := []mmodel.BalanceOperation{
-			{
-				Alias: "test-alias",
-				Balance: &mmodel.Balance{
-					AccountType: "asset",
-				},
-			},
-		}
-
-		validate := &pkgTransaction.Responses{
-			TransactionRoute: transactionRouteID.String(),
-		}
-
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
-
-		assert.NoError(t, err)
-	})
-}
-
 func TestUniqueValues(t *testing.T) {
 	t.Run("Empty map returns 0", func(t *testing.T) {
 		result := uniqueValues(map[string]string{})
@@ -278,5 +177,170 @@ func TestUniqueValues(t *testing.T) {
 			"key3": "value3",
 		})
 		assert.Equal(t, 3, result)
+	})
+}
+
+func TestValidateAccountingRules_WithSettings(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	transactionRouteID := libCommons.GenerateUUIDv7()
+
+	ctx := context.Background()
+
+	t.Run("Returns nil when validateRoutes is false (default)", func(t *testing.T) {
+		mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
+		mockSettingsPort.EXPECT().
+			GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+			Return(map[string]any{
+				"accounting": map[string]any{
+					"validateRoutes": false,
+				},
+			}, nil)
+
+		uc := &UseCase{
+			RedisRepo:    mockRedisRepo,
+			SettingsPort: mockSettingsPort,
+		}
+
+		operations := []mmodel.BalanceOperation{
+			{
+				Alias: "test-alias",
+				Balance: &mmodel.Balance{
+					AccountType: "asset",
+				},
+			},
+		}
+
+		validate := &pkgTransaction.Responses{
+			TransactionRoute: transactionRouteID.String(),
+		}
+
+		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("Returns nil when SettingsPort is nil (backwards compatible)", func(t *testing.T) {
+		uc := &UseCase{
+			RedisRepo:    mockRedisRepo,
+			SettingsPort: nil,
+		}
+
+		operations := []mmodel.BalanceOperation{
+			{
+				Alias: "test-alias",
+				Balance: &mmodel.Balance{
+					AccountType: "asset",
+				},
+			},
+		}
+
+		validate := &pkgTransaction.Responses{
+			TransactionRoute: transactionRouteID.String(),
+		}
+
+		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("Returns error when validateRoutes is true and transaction route is empty", func(t *testing.T) {
+		mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
+		mockSettingsPort.EXPECT().
+			GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+			Return(map[string]any{
+				"accounting": map[string]any{
+					"validateRoutes": true,
+				},
+			}, nil)
+
+		uc := &UseCase{
+			RedisRepo:    mockRedisRepo,
+			SettingsPort: mockSettingsPort,
+		}
+
+		operations := []mmodel.BalanceOperation{
+			{
+				Alias: "test-alias",
+				Balance: &mmodel.Balance{
+					AccountType: "asset",
+				},
+			},
+		}
+
+		validate := &pkgTransaction.Responses{
+			TransactionRoute: "",
+		}
+
+		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
+
+		assert.Error(t, err)
+	})
+
+	t.Run("Returns error when validateRoutes is true and transaction route ID is invalid", func(t *testing.T) {
+		mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
+		mockSettingsPort.EXPECT().
+			GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+			Return(map[string]any{
+				"accounting": map[string]any{
+					"validateRoutes": true,
+				},
+			}, nil)
+
+		uc := &UseCase{
+			RedisRepo:    mockRedisRepo,
+			SettingsPort: mockSettingsPort,
+		}
+
+		operations := []mmodel.BalanceOperation{
+			{
+				Alias: "test-alias",
+				Balance: &mmodel.Balance{
+					AccountType: "asset",
+				},
+			},
+		}
+
+		validate := &pkgTransaction.Responses{
+			TransactionRoute: "invalid-uuid-format",
+		}
+
+		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
+
+		assert.Error(t, err)
+	})
+
+	t.Run("Returns nil when settings fetch fails (graceful degradation)", func(t *testing.T) {
+		mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
+		mockSettingsPort.EXPECT().
+			GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+			Return(nil, errors.New("connection error"))
+
+		uc := &UseCase{
+			RedisRepo:    mockRedisRepo,
+			SettingsPort: mockSettingsPort,
+		}
+
+		operations := []mmodel.BalanceOperation{
+			{
+				Alias: "test-alias",
+				Balance: &mmodel.Balance{
+					AccountType: "asset",
+				},
+			},
+		}
+
+		validate := &pkgTransaction.Responses{
+			TransactionRoute: transactionRouteID.String(),
+		}
+
+		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
+
+		assert.NoError(t, err, "must return nil when settings fetch fails (graceful degradation)")
 	})
 }

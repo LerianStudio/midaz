@@ -494,6 +494,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MetadataRepo:         metadataMongoDBRepository,
 		RabbitMQRepo:         producerRabbitMQRepository,
 		RedisRepo:            redisConsumerRepository,
+		SettingsPort:         settingsPort,
 	}
 
 	transactionHandler := &in.TransactionHandler{
