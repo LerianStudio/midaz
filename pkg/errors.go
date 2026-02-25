@@ -1073,7 +1073,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidDatetimeFormat.Error(),
 			Title:      "Invalid Datetime Format Error",
-			Message:    fmt.Sprintf("The '%v' parameter is in the incorrect format. Please use the '%v' format and try again.", args...),
+			Message:    formatInvalidDatetimeMessage(args...),
 		},
 		constant.ErrHolderNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -1207,6 +1207,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "gRPC Service Unavailable",
 			Message:    "The balance service is temporarily unavailable. Please try again later.",
 		},
+		constant.ErrConsumerLagStaleBalance: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrConsumerLagStaleBalance.Error(),
+			Title:      "Balance Synchronization In Progress",
+			Message:    "Balance state is being synchronized. Please retry.",
+		},
 		constant.ErrMissingRequiredQueryParameter: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrMissingRequiredQueryParameter.Error(),
@@ -1238,6 +1244,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 	}
 
 	return err
+}
+
+func formatInvalidDatetimeMessage(args ...interface{}) string {
+	if len(args) >= 2 {
+		return fmt.Sprintf(
+			"The '%v' parameter is in the incorrect format. Please use the '%v' format and try again.",
+			args[0],
+			args[1],
+		)
+	}
+
+	return "The datetime parameter is in the incorrect format. Please use the 'yyyy-mm-dd or yyyy-mm-dd hh:mm:ss' format and try again."
 }
 
 func HandleKnownBusinessValidationErrors(err error) error {

@@ -214,6 +214,14 @@ func TestUnauthorizedError_Error(t *testing.T) {
 	}
 }
 
+func TestValidateBusinessError_InvalidDatetimeFormatHandlesMissingArgs(t *testing.T) {
+	err := ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", "start_date")
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), constant.ErrInvalidDatetimeFormat.Error())
+	assert.Contains(t, err.Error(), "yyyy-mm-dd")
+}
+
 func TestForbiddenError_Error(t *testing.T) {
 	tests := []struct {
 		name     string

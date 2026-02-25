@@ -146,7 +146,7 @@ func OperateBalances(amount Amount, balance Balance) (Balance, error) {
 	case amount.Operation == constant.ONHOLD && amount.TransactionType == constant.PENDING:
 		total = balance.Available.Sub(amount.Value)
 		totalOnHold = balance.OnHold.Add(amount.Value)
-	case amount.Operation == constant.RELEASE && amount.TransactionType == constant.CANCELED:
+	case amount.Operation == constant.RELEASE && (amount.TransactionType == constant.CANCELED || amount.TransactionType == constant.APPROVED):
 		totalOnHold = balance.OnHold.Sub(amount.Value)
 		total = balance.Available.Add(amount.Value)
 	case amount.Operation == constant.DEBIT && amount.TransactionType == constant.APPROVED:

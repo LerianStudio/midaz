@@ -544,6 +544,23 @@ func TestOperateBalances(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "release operation - APPROVED (restores available, releases hold)",
+			amount: Amount{
+				Value:           decimal.NewFromInt(20),
+				Operation:       constant.RELEASE,
+				TransactionType: constant.APPROVED,
+			},
+			balance: Balance{
+				Available: decimal.NewFromInt(100),
+				OnHold:    decimal.NewFromInt(30),
+			},
+			expected: Balance{
+				Available: decimal.NewFromInt(120),
+				OnHold:    decimal.NewFromInt(10),
+			},
+			expectError: false,
+		},
+		{
 			name: "onhold operation - PENDING (moves to hold)",
 			amount: Amount{
 				Value:           decimal.NewFromInt(30),
