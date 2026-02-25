@@ -6,8 +6,6 @@ package command
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"reflect"
 	"strings"
 	"time"
@@ -17,58 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/jackc/pgx/v5/pgconn"
 )
-
-func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "command.create_balance")
-	defer span.End()
-
-	logger.Infof("Initializing the create balance for account id: %v", data.AccountID)
-
-	for _, item := range data.QueueData {
-		logger.Infof("Unmarshal account ID: %v", item.ID.String())
-
-		var account mmodel.Account
-
-		err := json.Unmarshal(item.Value, &account)
-		if err != nil {
-			logger.Errorf("failed to unmarshal response: %v", err.Error())
-
-			return err
-		}
-
-		balance := &mmodel.Balance{
-			ID:             libCommons.GenerateUUIDv7().String(),
-			Alias:          *account.Alias,
-			OrganizationID: account.OrganizationID,
-			LedgerID:       account.LedgerID,
-			AccountID:      account.ID,
-			AssetCode:      account.AssetCode,
-			AccountType:    account.Type,
-			AllowSending:   true,
-			AllowReceiving: true,
-			CreatedAt:      time.Now(),
-			UpdatedAt:      time.Now(),
-		}
-
-		err = uc.BalanceRepo.Create(ctx, balance)
-		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-				logger.Infof("Balance already exists: %v", balance.ID)
-			} else {
-				logger.Errorf("Error creating balance on repo: %v", err)
-
-				return err
-			}
-		}
-	}
-
-	return nil
-}
 
 // CreateBalanceSync creates a new balance synchronously using the request-supplied properties.
 // If key != "default", it validates that the default balance exists and that the account type allows additional balances.

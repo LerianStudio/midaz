@@ -332,7 +332,6 @@ func setEnvFromContainers(t *testing.T, addresses *ContainerAddresses) {
 	t.Setenv("RABBITMQ_DEFAULT_PASS", "test")
 	t.Setenv("RABBITMQ_CONSUMER_USER", "test")
 	t.Setenv("RABBITMQ_CONSUMER_PASS", "test")
-	t.Setenv("RABBITMQ_BALANCE_CREATE_QUEUE", "balance_create_test")
 	// RabbitMQ Management API health check URL base (lib-commons appends /api/health/checks/alarms)
 	t.Setenv("RABBITMQ_HEALTH_CHECK_URL", fmt.Sprintf("http://%s:%s", addresses.RabbitMQHost, addresses.RabbitMQMgmtPort))
 
