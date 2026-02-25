@@ -6,7 +6,7 @@ toolchain go1.25.6
 
 require (
 	github.com/LerianStudio/lib-auth/v2 v2.5.0-beta.5
-	github.com/LerianStudio/lib-commons/v3 v3.0.0-beta.6
+	github.com/LerianStudio/lib-commons/v3 v3.0.0-beta.8
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/go-playground/locales v0.14.1
@@ -31,7 +31,7 @@ require (
 	google.golang.org/protobuf v1.36.11
 )
 
-require github.com/bxcodec/dbresolver/v2 v2.2.1
+require github.com/bxcodec/dbresolver/v2 v2.2.1 // indirect
 
 require (
 	github.com/Shopify/toxiproxy/v2 v2.12.0
@@ -175,5 +175,3 @@ require (
 	golang.org/x/sys v0.40.0 // indirect
 	gopkg.in/go-playground/validator.v9 v9.31.0
 )
-
-replace github.com/LerianStudio/lib-commons/v3 => ../lib-commons
