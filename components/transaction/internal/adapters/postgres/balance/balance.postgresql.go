@@ -778,6 +778,95 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 	return balances, nil
 }
 
+// ListExternalByOrganizationLedger returns all non-deleted external balances for
+// a specific organization and ledger.
+func (r *BalancePostgreSQLRepository) ListExternalByOrganizationLedger(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*mmodel.Balance, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_external_balances")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return nil, err
+	}
+
+	query := squirrel.Select(balanceColumnList...).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Like{"alias": "@external/%"}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("alias ASC", "key ASC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	sqlQuery, args, err := query.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to execute query", err)
+
+		logger.Errorf("Failed to execute query: %v", err)
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	balances := make([]*mmodel.Balance, 0)
+
+	for rows.Next() {
+		var balance BalancePostgreSQLModel
+
+		if err := rows.Scan(
+			&balance.ID,
+			&balance.OrganizationID,
+			&balance.LedgerID,
+			&balance.AccountID,
+			&balance.Alias,
+			&balance.AssetCode,
+			&balance.Available,
+			&balance.OnHold,
+			&balance.Version,
+			&balance.AccountType,
+			&balance.AllowSending,
+			&balance.AllowReceiving,
+			&balance.CreatedAt,
+			&balance.UpdatedAt,
+			&balance.DeletedAt,
+			&balance.Key,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+			logger.Errorf("Failed to scan row: %v", err)
+
+			return nil, err
+		}
+
+		balances = append(balances, balance.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+
+		logger.Errorf("Failed to iterate rows: %v", err)
+
+		return nil, err
+	}
+
+	return balances, nil
+}
+
 // ListByAliasesWithKeys list Balances entity from the database using the provided alias#key pairs.
 func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -974,6 +1063,37 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 	// Unreachable: the loop always returns from within (either success or error).
 	// This explicit error makes intent clear and guards against future refactors.
 	return fmt.Errorf("batch balance update: exhausted %d retries", balanceUpdateMaxRetries)
+}
+
+// BalancesUpdateWithTx updates balances using an existing SQL transaction.
+// This is used by consumer micro-batching to persist a whole flush in a single
+// database transaction across balances, transactions, and operations.
+func (r *BalancePostgreSQLRepository) BalancesUpdateWithTx(ctx context.Context, tx balanceUpdateTx, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "postgres.update_balances_batch.with_tx")
+	defer span.End()
+
+	if tx == nil || len(balances) == 0 {
+		return nil
+	}
+
+	normalizedBalances := normalizeBalancesForUpdate(balances, logger)
+	if len(normalizedBalances) == 0 {
+		return nil
+	}
+
+	totalRowsAffected, err := r.executeBatchBalanceUpdateTx(ctx, tx, tracer, organizationID, ledgerID, normalizedBalances)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to execute batch balance update", err)
+		logger.Errorf("Failed to execute batch balance update (with tx): %v", err)
+
+		return err
+	}
+
+	logBatchBalanceUpdateResult(logger, totalRowsAffected, normalizedBalances)
+
+	return nil
 }
 
 // rollbackTx performs a transaction rollback and logs any rollback error.
@@ -1441,7 +1561,17 @@ func (r *BalancePostgreSQLRepository) ExistsByAccountIDAndKey(ctx context.Contex
 		return false, err
 	}
 
-	row := db.QueryRowContext(ctx, query, args...)
+	primaryDBs := db.PrimaryDBs()
+
+	var row *sql.Row
+
+	if len(primaryDBs) > 0 && primaryDBs[0] != nil {
+		// Force primary read to guarantee read-after-write consistency
+		// for balance existence checks used in synchronous creation flows.
+		row = primaryDBs[0].QueryRowContext(ctx, query, args...)
+	} else {
+		row = db.QueryRowContext(ctx, query, args...)
+	}
 
 	spanQuery.End()
 

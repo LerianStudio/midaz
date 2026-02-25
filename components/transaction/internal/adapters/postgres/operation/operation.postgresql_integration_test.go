@@ -1527,6 +1527,113 @@ func TestIntegration_OperationRepository_CreateBatch_DuplicatesSkippedSilently(t
 		"original description should be preserved after duplicate insert attempt")
 }
 
+func TestIntegration_OperationRepository_CreateBatch_IdempotentByIDAndLedgerID(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	idsA := createTestDependencies(t, container)
+	idsB := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	amount := decimal.NewFromInt(100)
+	availableBefore := decimal.NewFromInt(1000)
+	onHoldBefore := decimal.Zero
+	availableAfter := decimal.NewFromInt(900)
+	onHoldAfter := decimal.Zero
+	versionBefore := int64(1)
+	versionAfter := int64(2)
+
+	opID := libCommons.GenerateUUIDv7().String()
+
+	opLedgerA := &Operation{
+		ID:            opID,
+		TransactionID: idsA.TransactionID.String(),
+		Description:   "Ledger A description",
+		Type:          "DEBIT",
+		AssetCode:     "USD",
+		Amount:        Amount{Value: &amount},
+		Balance: Balance{
+			Available: &availableBefore,
+			OnHold:    &onHoldBefore,
+			Version:   &versionBefore,
+		},
+		BalanceAfter: Balance{
+			Available: &availableAfter,
+			OnHold:    &onHoldAfter,
+			Version:   &versionAfter,
+		},
+		Status:          Status{Code: "APPROVED"},
+		AccountID:       idsA.AccountID.String(),
+		AccountAlias:    "@test-account-a",
+		BalanceID:       idsA.BalanceID.String(),
+		OrganizationID:  idsA.OrgID.String(),
+		LedgerID:        idsA.LedgerID.String(),
+		BalanceAffected: true,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+
+	opLedgerB := &Operation{
+		ID:            opID,
+		TransactionID: idsB.TransactionID.String(),
+		Description:   "Ledger B description",
+		Type:          "DEBIT",
+		AssetCode:     "USD",
+		Amount:        Amount{Value: &amount},
+		Balance: Balance{
+			Available: &availableBefore,
+			OnHold:    &onHoldBefore,
+			Version:   &versionBefore,
+		},
+		BalanceAfter: Balance{
+			Available: &availableAfter,
+			OnHold:    &onHoldAfter,
+			Version:   &versionAfter,
+		},
+		Status:          Status{Code: "APPROVED"},
+		AccountID:       idsB.AccountID.String(),
+		AccountAlias:    "@test-account-b",
+		BalanceID:       idsB.BalanceID.String(),
+		OrganizationID:  idsB.OrgID.String(),
+		LedgerID:        idsB.LedgerID.String(),
+		BalanceAffected: true,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+
+	err := repo.CreateBatch(ctx, []*Operation{opLedgerA, opLedgerB})
+	require.NoError(t, err, "same operation id across different ledgers should insert both rows")
+
+	var rowCount int
+	err = container.DB.QueryRow(`SELECT COUNT(*) FROM operation WHERE id = $1`, opID).Scan(&rowCount)
+	require.NoError(t, err)
+	assert.Equal(t, 2, rowCount, "same id must be allowed across different ledger_id partitions")
+
+	dupLedgerA := *opLedgerA
+	dupLedgerA.Description = "Ledger A duplicate should be ignored"
+	dupLedgerB := *opLedgerB
+	dupLedgerB.Description = "Ledger B duplicate should be ignored"
+
+	err = repo.CreateBatch(ctx, []*Operation{&dupLedgerA, &dupLedgerB})
+	require.NoError(t, err, "duplicate rows by (id, ledger_id) should be skipped idempotently")
+
+	err = container.DB.QueryRow(`SELECT COUNT(*) FROM operation WHERE id = $1`, opID).Scan(&rowCount)
+	require.NoError(t, err)
+	assert.Equal(t, 2, rowCount, "duplicate insert should not create extra rows")
+
+	parsedID, err := uuid.Parse(opID)
+	require.NoError(t, err)
+
+	foundA, err := repo.Find(ctx, idsA.OrgID, idsA.LedgerID, idsA.TransactionID, parsedID)
+	require.NoError(t, err)
+	assert.Equal(t, "Ledger A description", foundA.Description, "original ledger A row must remain unchanged")
+
+	foundB, err := repo.Find(ctx, idsB.OrgID, idsB.LedgerID, idsB.TransactionID, parsedID)
+	require.NoError(t, err)
+	assert.Equal(t, "Ledger B description", foundB.Description, "original ledger B row must remain unchanged")
+}
+
 func TestIntegration_OperationRepository_CreateBatch_DefaultBalanceKeyApplied(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)

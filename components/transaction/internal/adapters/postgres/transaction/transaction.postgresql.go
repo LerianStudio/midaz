@@ -48,6 +48,11 @@ var transactionColumnList = []string{
 	"route",
 }
 
+const (
+	transactionColumnsCount = 15
+	maxTransactionBatchSize = constant.MaxPGParams / transactionColumnsCount
+)
+
 var transactionColumnListPrefixed = []string{
 	"t.id",
 	"t.parent_transaction_id",
@@ -64,6 +69,17 @@ var transactionColumnListPrefixed = []string{
 	"t.updated_at",
 	"t.deleted_at",
 	"t.route",
+}
+
+type transactionBatchExecTx interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+type transactionBatchTx interface {
+	transactionBatchExecTx
+	Commit() error
+	Rollback() error
 }
 
 // Repository provides an interface for operations related to transaction template entities.
@@ -177,6 +193,136 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	}
 
 	return record.ToEntity(), nil
+}
+
+// CreateBatch inserts multiple transactions in a single transaction using
+// multi-row INSERT statements chunked by PostgreSQL parameter limits.
+func (r *TransactionPostgreSQLRepository) CreateBatch(ctx context.Context, transactions []*Transaction) (err error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.create_transactions_batch")
+	defer span.End()
+
+	if len(transactions) == 0 {
+		return nil
+	}
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return err
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to begin transaction", err)
+
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				libOpentelemetry.HandleSpanError(&span, "Failed to rollback", rollbackErr)
+				logger.Errorf("err on rollback: %v", rollbackErr)
+			}
+
+			return
+		}
+
+		if commitErr := tx.Commit(); commitErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to commit", commitErr)
+			logger.Errorf("err on commit: %v", commitErr)
+			err = commitErr
+		}
+	}()
+
+	if err := r.CreateBatchWithTx(ctx, tx, transactions); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to execute batch insert", err)
+		logger.Errorf("Failed to execute batch insert: %v", err)
+
+		return err
+	}
+
+	return nil
+}
+
+// BeginTx starts a SQL transaction on the transaction repository connection.
+func (r *TransactionPostgreSQLRepository) BeginTx(ctx context.Context) (transactionBatchTx, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	return db.BeginTx(ctx, nil)
+}
+
+// CreateBatchWithTx inserts transactions using an existing SQL transaction.
+func (r *TransactionPostgreSQLRepository) CreateBatchWithTx(ctx context.Context, tx transactionBatchExecTx, transactions []*Transaction) error {
+	if tx == nil || len(transactions) == 0 {
+		return nil
+	}
+
+	for chunkStart := 0; chunkStart < len(transactions); chunkStart += maxTransactionBatchSize {
+		chunkEnd := chunkStart + maxTransactionBatchSize
+		if chunkEnd > len(transactions) {
+			chunkEnd = len(transactions)
+		}
+
+		insert := squirrel.Insert(r.tableName).
+			Columns(transactionColumnList...).
+			PlaceholderFormat(squirrel.Dollar).
+			Suffix("ON CONFLICT DO NOTHING")
+
+		hasRows := false
+
+		for _, tran := range transactions[chunkStart:chunkEnd] {
+			if tran == nil {
+				continue
+			}
+
+			record := &TransactionPostgreSQLModel{}
+			record.FromEntity(tran)
+
+			insert = insert.Values(
+				record.ID,
+				record.ParentTransactionID,
+				record.Description,
+				record.Status,
+				record.StatusDescription,
+				record.Amount,
+				record.AssetCode,
+				record.ChartOfAccountsGroupName,
+				record.LedgerID,
+				record.OrganizationID,
+				record.Body,
+				record.CreatedAt,
+				record.UpdatedAt,
+				record.DeletedAt,
+				record.Route,
+			)
+
+			hasRows = true
+		}
+
+		if !hasRows {
+			continue
+		}
+
+		query, args, buildErr := insert.ToSql()
+		if buildErr != nil {
+			return buildErr
+		}
+
+		if _, execErr := tx.ExecContext(ctx, query, args...); execErr != nil {
+			return execErr
+		}
+	}
+
+	return nil
 }
 
 // FindAll retrieves Transactions entities from the database.
