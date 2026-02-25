@@ -45,6 +45,18 @@ func (mr *MockConsumerRepositoryMockRecorder) Register(topicName, handler any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockConsumerRepository)(nil).Register), topicName, handler)
 }
 
+// RegisterBatch mocks base method.
+func (m *MockConsumerRepository) RegisterBatch(topicName string, handler BatchQueueHandlerFunc) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "RegisterBatch", topicName, handler)
+}
+
+// RegisterBatch indicates an expected call of RegisterBatch.
+func (mr *MockConsumerRepositoryMockRecorder) RegisterBatch(topicName, handler any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterBatch", reflect.TypeOf((*MockConsumerRepository)(nil).RegisterBatch), topicName, handler)
+}
+
 // RunConsumers mocks base method.
 func (m *MockConsumerRepository) RunConsumers() error {
 	m.ctrl.T.Helper()
