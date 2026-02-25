@@ -20,6 +20,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
@@ -217,6 +218,13 @@ type Options struct {
 	// for querying ledger settings. Optional - if not provided, settings functionality
 	// will not be available.
 	SettingsPort mbootstrap.SettingsPort
+
+	// TODO(multi-tenant): These fields are accepted for forward-compatibility but not yet
+	// consumed by this module. They will be wired in subsequent PRs.
+	MultiTenantEnabled bool
+	TenantClient       *tmclient.Client
+	TenantServiceName  string
+	TenantEnvironment  string
 }
 
 // InitServers initiate http and grpc servers.

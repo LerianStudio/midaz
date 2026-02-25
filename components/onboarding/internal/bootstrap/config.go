@@ -17,6 +17,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
@@ -180,6 +181,13 @@ type Options struct {
 	// Required when UnifiedMode is true.
 	// This is typically the transaction.UseCase which implements mbootstrap.BalancePort.
 	BalancePort mbootstrap.BalancePort
+
+	// TODO(multi-tenant): These fields are accepted for forward-compatibility but not yet
+	// consumed by this module. They will be wired in subsequent PRs.
+	MultiTenantEnabled bool
+	TenantClient       *tmclient.Client
+	TenantServiceName  string
+	TenantEnvironment  string
 }
 
 // InitServers initiate http and grpc servers using default gRPC communication.
