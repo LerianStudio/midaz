@@ -75,12 +75,28 @@ local function rescaleValue(value, fromScale, toScale)
     return result, false
 end
 
-local function cloneBalance(tbl)
-    local copy = {}
-    for k, v in pairs(tbl) do
-        copy[k] = v
+local function toLegacyAmount(value, scale)
+    if scale == nil or scale <= 0 then
+        return value
     end
-    return copy
+
+    return value / (10 ^ scale)
+end
+
+local function toLegacyBalance(balance, scale)
+    return {
+        id = balance.ID,
+        alias = balance.Alias,
+        accountId = balance.AccountID,
+        assetCode = balance.AssetCode,
+        available = toLegacyAmount(balance.Available, scale),
+        onHold = toLegacyAmount(balance.OnHold, scale),
+        version = balance.Version,
+        accountType = balance.AccountType,
+        allowSending = balance.AllowSending,
+        allowReceiving = balance.AllowReceiving,
+        key = balance.Key,
+    }
 end
 
 local function updateTransactionHash(transactionBackupQueue, transactionKey, balances)
@@ -168,16 +184,19 @@ local function main()
             AllowSending = tonumber(ARGV[i + 13]),
             AllowReceiving = tonumber(ARGV[i + 14]),
             Key = ARGV[i + 15],
-            Scale = scale,
         }
 
-        local redisBalance = cjson.encode(balance)
+        balance.Alias = alias
+
+        local redisBalance = cjson.encode(toLegacyBalance(balance, scale))
+        local rollbackValue = redisBalance
         local ok = redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl, "NX")
         if not ok then
             local currentBalance = redis.call("GET", redisBalanceKey)
             if not currentBalance then
                 return redis.error_reply("0061")
             end
+            rollbackValue = currentBalance
             balance = cjson.decode(currentBalance)
             local currentScale = tonumber(balance.Scale)
             if currentScale == nil then
@@ -249,12 +268,10 @@ local function main()
             balance.allowReceiving = nil
             balance.key = nil
             balance.scale = nil
-
-            balance.Scale = scale
         end
 
         if not rollbackBalances[redisBalanceKey] then
-            rollbackBalances[redisBalanceKey] = cjson.encode(balance)
+            rollbackBalances[redisBalanceKey] = rollbackValue
         end
 
         -- Native integer arithmetic — the entire point of v2.
@@ -361,14 +378,13 @@ local function main()
 
         if hasChange then
             balance.Alias = alias
-            table.insert(returnBalances, cloneBalance(balance))
+            table.insert(returnBalances, toLegacyBalance(balance, scale))
 
             balance.Available = avail
             balance.OnHold = hold
             balance.Version = balance.Version + 1
-            balance.Scale = scale
 
-            redisBalance = cjson.encode(balance)
+            redisBalance = cjson.encode(toLegacyBalance(balance, scale))
             redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
 
             -- Only schedule balance sync if enabled (scheduleSync == 1)

@@ -41,6 +41,9 @@ var getBalancesNearExpirationLua string
 //go:embed scripts/unschedule_synced_balance.lua
 var unscheduleSyncedBalanceLua string
 
+//go:embed scripts/idempotency_check.lua
+var idempotencyCheckLua string
+
 const TransactionBackupQueue = "backup_queue:{transactions}"
 
 const crossShardExecutionTimeout = 5 * time.Second
@@ -97,6 +100,13 @@ type RedisConsumerRepository struct {
 	shardRouter *shard.Router
 }
 
+// ExternalPreSplitCoverage reports how many pre-split shards were found for an
+// external alias during Redis pre-warming.
+type ExternalPreSplitCoverage struct {
+	CoveredShards  int
+	ExpectedShards int
+}
+
 // NewConsumerRedis returns a new instance of RedisRepository using the given Redis connection.
 // The balanceSyncEnabled parameter controls whether balance keys are scheduled for sync.
 // When false, the ZADD to the balance sync schedule is skipped in the Lua script.
@@ -128,9 +138,11 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 		return err
 	}
 
-	logger.Infof("value of ttl: %v", ttl*time.Second)
+	normalizedTTL := normalizeRedisTTL(ttl)
 
-	err = rds.Set(ctx, key, value, ttl*time.Second).Err()
+	logger.Debugf("value of ttl: %v", normalizedTTL)
+
+	err = rds.Set(ctx, key, value, normalizedTTL).Err()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set on redis", err)
 
@@ -138,6 +150,145 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	}
 
 	return nil
+}
+
+// PreWarmExternalBalances writes external balances to Redis cache in a single
+// pipeline and reports shard coverage per external alias.
+func (rr *RedisConsumerRepository) PreWarmExternalBalances(
+	ctx context.Context,
+	organizationID, ledgerID uuid.UUID,
+	balances []*mmodel.Balance,
+	ttl time.Duration,
+) (map[string]ExternalPreSplitCoverage, error) {
+	if len(balances) == 0 {
+		return map[string]ExternalPreSplitCoverage{}, nil
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	pipe := rds.Pipeline()
+	normalizedTTL := normalizeRedisTTL(ttl)
+
+	expectedShards := rr.activeShardCount()
+	if expectedShards <= 0 {
+		expectedShards = shard.DefaultShardCount
+	}
+
+	coverageSet := make(map[string]map[int]struct{})
+
+	for _, b := range balances {
+		if b == nil || !shard.IsExternal(b.Alias) {
+			continue
+		}
+
+		balanceKey := b.Key
+		if balanceKey == "" {
+			balanceKey = constant.DefaultBalanceKey
+		}
+
+		aliasWithKey := b.Alias + "#" + balanceKey
+
+		redisKey := utils.BalanceInternalKey(organizationID, ledgerID, aliasWithKey)
+
+		if rr.shardingEnabled && rr.shardRouter != nil {
+			shardID := rr.shardRouter.ResolveBalance(b.Alias, balanceKey)
+			redisKey = utils.BalanceShardKey(shardID, organizationID, ledgerID, aliasWithKey)
+		}
+
+		if shardID, ok := shard.ParseExternalBalanceShardID(balanceKey); ok {
+			if coverageSet[b.Alias] == nil {
+				coverageSet[b.Alias] = make(map[int]struct{})
+			}
+
+			coverageSet[b.Alias][shardID] = struct{}{}
+		}
+
+		payload, marshalErr := json.Marshal(mmodel.ToBalanceRedis(b, b.Alias))
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
+
+		pipe.Set(ctx, redisKey, payload, normalizedTTL)
+	}
+
+	if _, err := pipe.Exec(ctx); err != nil {
+		return nil, err
+	}
+
+	coverage := make(map[string]ExternalPreSplitCoverage, len(coverageSet))
+	for alias, shards := range coverageSet {
+		coverage[alias] = ExternalPreSplitCoverage{
+			CoveredShards:  len(shards),
+			ExpectedShards: expectedShards,
+		}
+	}
+
+	return coverage, nil
+}
+
+// SetPipeline performs multiple SET operations in a single Redis pipeline round-trip.
+func (rr *RedisConsumerRepository) SetPipeline(ctx context.Context, keys, values []string, ttls []time.Duration) error {
+	if len(keys) != len(values) || len(keys) != len(ttls) {
+		return fmt.Errorf("set pipeline: keys, values and ttls must have equal length")
+	}
+
+	if len(keys) == 0 {
+		return nil
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	pipe := rds.Pipeline()
+	for i := range keys {
+		pipe.Set(ctx, keys[i], values[i], normalizeRedisTTL(ttls[i]))
+	}
+
+	_, err = pipe.Exec(ctx)
+
+	return err
+}
+
+// CheckOrAcquireIdempotencyKey atomically checks idempotency key content and
+// acquires the lock when absent. It returns:
+//   - existingValue: cached response for duplicate requests (empty if lock-only)
+//   - acquired: true when lock was acquired for a new request
+func (rr *RedisConsumerRepository) CheckOrAcquireIdempotencyKey(ctx context.Context, key string, ttl time.Duration) (existingValue string, acquired bool, err error) {
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return "", false, err
+	}
+
+	ttlSeconds := normalizeRedisTTLSeconds(ttl)
+
+	script := redis.NewScript(idempotencyCheckLua)
+
+	result, err := script.Run(ctx, rds, []string{key}, ttlSeconds).Result()
+	if isRedisNilError(err) {
+		return "", true, nil
+	}
+
+	if err != nil {
+		return "", false, err
+	}
+
+	if result == nil {
+		return "", true, nil
+	}
+
+	switch typed := result.(type) {
+	case string:
+		return typed, false, nil
+	case []byte:
+		return string(typed), false, nil
+	default:
+		return fmt.Sprint(result), false, nil
+	}
 }
 
 func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
@@ -153,9 +304,11 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 		return false, err
 	}
 
-	logger.Infof("value of ttl: %v", ttl*time.Second)
+	normalizedTTL := normalizeRedisTTL(ttl)
 
-	isLocked, err := rds.SetNX(ctx, key, value, ttl*time.Second).Result()
+	logger.Debugf("SetNX TTL: %v", normalizedTTL)
+
+	isLocked, err := rds.SetNX(ctx, key, value, normalizedTTL).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set nx on redis", err)
 
@@ -181,15 +334,13 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	}
 
 	val, err := rds.Get(ctx, key).Result()
-	if err != nil && !errors.Is(err, redis.Nil) {
+	if err != nil && !isRedisNilError(err) {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get on redis", err)
 
 		logger.Errorf("Failed to get on redis: %v", err)
 
 		return "", err
 	}
-
-	logger.Infof("value : %v", val)
 
 	return val, nil
 }
@@ -476,9 +627,9 @@ func (rr *RedisConsumerRepository) processShardedAtomicOperation(
 //  2. Phase 1 — Execute all debit-bearing shards in parallel. This includes:
 //     - Debit-only shards: execute their debit/on_hold operations
 //     - Mixed shards (both debit and credit ops): execute ALL their operations
-//       (debits + credits) atomically in a single Lua call. The Lua script
-//       processes the entire operation list for the shard, so credits on a
-//       mixed shard run in Phase 1, not Phase 2.
+//     (debits + credits) atomically in a single Lua call. The Lua script
+//     processes the entire operation list for the shard, so credits on a
+//     mixed shard run in Phase 1, not Phase 2.
 //  3. If any debit-bearing shard fails → compensate all successful shards (reverse operations)
 //  4. Phase 2 — Execute credit-only shards in parallel (always succeed — no balance check)
 //  5. If any credit-only shard fails (Redis error) → compensate all debit-bearing shards, return error
@@ -980,9 +1131,11 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 		return err
 	}
 
-	logger.Infof("Setting binary data with TTL: %v", ttl*time.Second)
+	normalizedTTL := normalizeRedisTTL(ttl)
 
-	err = rds.Set(ctx, key, value, ttl*time.Second).Err()
+	logger.Infof("Setting binary data with TTL: %v", normalizedTTL)
+
+	err = rds.Set(ctx, key, value, normalizedTTL).Err()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set bytes on redis", err)
 
@@ -1112,7 +1265,7 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 		if err != nil {
 			logger.Warnf("Failed to hgetall on %s: %v", queueKey, err)
 
-			if !errors.Is(err, redis.Nil) {
+			if !isRedisNilError(err) {
 				shardErrors = append(shardErrors, fmt.Errorf("%s: %w", queueKey, err))
 			}
 
@@ -1258,7 +1411,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 
 		res, err := script.Run(ctx, rds, []string{t.scheduleKey}, remaining, int64(balanceSyncWarnBeforeSeconds), t.lockPrefix).Result()
 		if err != nil {
-			if !errors.Is(err, redis.Nil) {
+			if !isRedisNilError(err) {
 				logger.Warnf("Failed to run get_balances_near_expiration.lua on %s: %v", t.scheduleKey, err)
 				shardErrors = append(shardErrors, fmt.Errorf("%s: %w", t.scheduleKey, err))
 			}
@@ -1290,6 +1443,14 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	}
 
 	return out, nil
+}
+
+func isRedisNilError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, redis.Nil)
 }
 
 // RemoveBalanceSyncKey removes a single scheduled member from the ZSET.
@@ -1388,6 +1549,37 @@ func parseLuaStringArray(res any) []string {
 	default:
 		return nil
 	}
+}
+
+// normalizeRedisTTL preserves explicit duration semantics.
+// Non-positive values are normalized to 0 (no expiration).
+func normalizeRedisTTL(ttl time.Duration) time.Duration {
+	if ttl <= 0 {
+		return 0
+	}
+
+	return ttl
+}
+
+// normalizeRedisTTLSeconds converts a duration to seconds for Redis EXPIRE commands.
+// Returns a minimum of 1 second to avoid immediate key expiration.
+// A zero or negative duration is treated as "use minimum TTL" rather than "no expiry",
+// because callers of this function always need a positive TTL for EXPIRE semantics.
+func normalizeRedisTTLSeconds(ttl time.Duration) int64 {
+	if ttl <= 0 {
+		return 1
+	}
+
+	seconds := int64(ttl / time.Second)
+	if ttl%time.Second != 0 {
+		seconds++
+	}
+
+	if seconds <= 0 {
+		return 1
+	}
+
+	return seconds
 }
 
 func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error) {
