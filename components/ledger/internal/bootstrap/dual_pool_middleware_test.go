@@ -12,14 +12,17 @@ import (
 	"testing"
 
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	tenantmanager "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager"
+	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/middleware"
+	tmpg "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// mockConsumerTrigger implements mbootstrap.ConsumerTrigger for testing.
+// mockConsumerTrigger implements tmmiddleware.ConsumerTrigger for testing.
 // It records which tenant IDs had their consumers triggered.
 type mockConsumerTrigger struct {
 	mu        sync.Mutex
@@ -54,158 +57,29 @@ func createMockJWT(claims map[string]interface{}) string {
 	return header + "." + payload + "." + signature
 }
 
-func TestDualPoolMiddleware_SelectPool(t *testing.T) {
+func TestMultiPoolMiddleware_RouteMatching(t *testing.T) {
 	logger := libZap.InitializeLogger()
 
 	// Create pools with default connections (single-tenant mode)
-	onboardingPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "onboarding", logger)
-	transactionPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "transaction", logger)
+	onboardingPool := tmpg.NewManager(nil, "ledger", tmpg.WithModule("onboarding"), tmpg.WithLogger(logger))
+	transactionPool := tmpg.NewManager(nil, "ledger", tmpg.WithModule("transaction"), tmpg.WithLogger(logger))
 
-	middleware := &DualPoolMiddleware{
-		onboardingPool:  onboardingPool,
-		transactionPool: transactionPool,
-		logger:          logger,
-	}
+	mid := tmmiddleware.NewMultiPoolMiddleware(
+		tmmiddleware.WithRoute(transactionPaths, "transaction", transactionPool, nil),
+		tmmiddleware.WithDefaultRoute("onboarding", onboardingPool, nil),
+		tmmiddleware.WithPublicPaths(publicPaths...),
+		tmmiddleware.WithMultiPoolLogger(logger),
+	)
 
-	tests := []struct {
-		name         string
-		path         string
-		expectedPool string
-	}{
-		// Onboarding paths
-		{
-			name:         "organizations path routes to onboarding",
-			path:         "/v1/organizations",
-			expectedPool: "onboarding",
-		},
-		{
-			name:         "organizations with ID routes to onboarding",
-			path:         "/v1/organizations/123",
-			expectedPool: "onboarding",
-		},
-		{
-			name:         "ledgers path routes to onboarding",
-			path:         "/v1/organizations/123/ledgers",
-			expectedPool: "onboarding",
-		},
-		{
-			name:         "ledgers with ID routes to onboarding",
-			path:         "/v1/organizations/123/ledgers/456",
-			expectedPool: "onboarding",
-		},
-		{
-			name:         "accounts path routes to onboarding",
-			path:         "/v1/organizations/123/ledgers/456/accounts",
-			expectedPool: "onboarding",
-		},
-		{
-			name:         "assets path routes to onboarding",
-			path:         "/v1/organizations/123/ledgers/456/assets",
-			expectedPool: "onboarding",
-		},
-		{
-			name:         "portfolios path routes to onboarding",
-			path:         "/v1/organizations/123/ledgers/456/portfolios",
-			expectedPool: "onboarding",
-		},
-		{
-			name:         "segments path routes to onboarding",
-			path:         "/v1/organizations/123/ledgers/456/segments",
-			expectedPool: "onboarding",
-		},
-		{
-			name:         "account-types path routes to onboarding",
-			path:         "/v1/organizations/123/ledgers/456/account-types",
-			expectedPool: "onboarding",
-		},
-
-		// Transaction paths
-		{
-			name:         "transactions path routes to transaction",
-			path:         "/v1/organizations/123/ledgers/456/transactions",
-			expectedPool: "transaction",
-		},
-		{
-			name:         "transactions DSL path routes to transaction",
-			path:         "/v1/organizations/123/ledgers/456/transactions/dsl",
-			expectedPool: "transaction",
-		},
-		{
-			name:         "transactions JSON path routes to transaction",
-			path:         "/v1/organizations/123/ledgers/456/transactions/json",
-			expectedPool: "transaction",
-		},
-		{
-			name:         "operations path routes to transaction",
-			path:         "/v1/organizations/123/ledgers/456/accounts/789/operations",
-			expectedPool: "transaction",
-		},
-		{
-			name:         "balances path routes to transaction",
-			path:         "/v1/organizations/123/ledgers/456/balances",
-			expectedPool: "transaction",
-		},
-		{
-			name:         "balances by account routes to transaction",
-			path:         "/v1/organizations/123/ledgers/456/accounts/789/balances",
-			expectedPool: "transaction",
-		},
-		{
-			name:         "asset-rates path routes to transaction",
-			path:         "/v1/organizations/123/ledgers/456/asset-rates",
-			expectedPool: "transaction",
-		},
-		{
-			name:         "operation-routes path routes to transaction",
-			path:         "/v1/organizations/123/ledgers/456/operation-routes",
-			expectedPool: "transaction",
-		},
-		{
-			name:         "transaction-routes path routes to transaction",
-			path:         "/v1/organizations/123/ledgers/456/transaction-routes",
-			expectedPool: "transaction",
-		},
-
-		// Health/utility paths default to onboarding
-		{
-			name:         "health path routes to onboarding (default)",
-			path:         "/health",
-			expectedPool: "onboarding",
-		},
-		{
-			name:         "version path routes to onboarding (default)",
-			path:         "/version",
-			expectedPool: "onboarding",
-		},
-		{
-			name:         "swagger path routes to onboarding (default)",
-			path:         "/swagger/index.html",
-			expectedPool: "onboarding",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			pool := middleware.selectPool(tc.path)
-			poolName := middleware.getPoolName(tc.path)
-
-			assert.NotNil(t, pool, "Pool should not be nil")
-			assert.Equal(t, tc.expectedPool, poolName, "Pool name should match expected")
-		})
-	}
+	// The middleware should not be enabled since pools have no TM client (single-tenant)
+	assert.False(t, mid.Enabled(), "Middleware should not be enabled in single-tenant mode")
 }
 
-func TestDualPoolMiddleware_IsTransactionPath(t *testing.T) {
-	logger := libZap.InitializeLogger()
-
-	middleware := &DualPoolMiddleware{
-		logger: logger,
-	}
-
+func TestMultiPoolMiddleware_IsTransactionPath(t *testing.T) {
 	tests := []struct {
-		name           string
-		path           string
-		isTransaction  bool
+		name          string
+		path          string
+		isTransaction bool
 	}{
 		// Transaction paths
 		{"transactions", "/v1/organizations/123/ledgers/456/transactions", true},
@@ -232,28 +106,28 @@ func TestDualPoolMiddleware_IsTransactionPath(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := middleware.isTransactionPath(tc.path)
+			result := isTransactionPath(tc.path)
 			assert.Equal(t, tc.isTransaction, result, "isTransactionPath should return expected value for path: %s", tc.path)
 		})
 	}
 }
 
-func TestDualPoolMiddleware_SingleTenantMode(t *testing.T) {
+func TestMultiPoolMiddleware_SingleTenantMode(t *testing.T) {
 	logger := libZap.InitializeLogger()
 
 	// Create pools without Tenant Manager client (single-tenant mode)
-	onboardingPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "onboarding", logger)
-	transactionPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "transaction", logger)
+	onboardingPool := tmpg.NewManager(nil, "ledger", tmpg.WithModule("onboarding"), tmpg.WithLogger(logger))
+	transactionPool := tmpg.NewManager(nil, "ledger", tmpg.WithModule("transaction"), tmpg.WithLogger(logger))
 
-	pools := &MultiTenantPools{
-		OnboardingPool:  onboardingPool,
-		TransactionPool: transactionPool,
-	}
-
-	middleware := NewDualPoolMiddleware(pools, nil, logger)
+	mid := tmmiddleware.NewMultiPoolMiddleware(
+		tmmiddleware.WithRoute(transactionPaths, "transaction", transactionPool, nil),
+		tmmiddleware.WithDefaultRoute("onboarding", onboardingPool, nil),
+		tmmiddleware.WithPublicPaths(publicPaths...),
+		tmmiddleware.WithMultiPoolLogger(logger),
+	)
 
 	app := fiber.New()
-	app.Use(middleware.WithTenantDB)
+	app.Use(mid.WithTenantDB)
 	app.Get("/v1/organizations", func(c *fiber.Ctx) error {
 		return c.SendString("OK")
 	})
@@ -278,33 +152,33 @@ func TestDualPoolMiddleware_SingleTenantMode(t *testing.T) {
 	})
 }
 
-func TestDualPoolMiddleware_WithDefaultConnection(t *testing.T) {
+func TestMultiPoolMiddleware_WithDefaultConnection(t *testing.T) {
 	logger := libZap.InitializeLogger()
 
 	// Create pools with default connections
-	onboardingPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "onboarding", logger)
+	onboardingPool := tmpg.NewManager(nil, "ledger", tmpg.WithModule("onboarding"), tmpg.WithLogger(logger))
 	onboardingDefaultConn := &libPostgres.PostgresConnection{
 		ConnectionStringPrimary: "host=onboarding-db",
 		Logger:                  logger,
 	}
 	onboardingPool.WithDefaultConnection(onboardingDefaultConn)
 
-	transactionPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "transaction", logger)
+	transactionPool := tmpg.NewManager(nil, "ledger", tmpg.WithModule("transaction"), tmpg.WithLogger(logger))
 	transactionDefaultConn := &libPostgres.PostgresConnection{
 		ConnectionStringPrimary: "host=transaction-db",
 		Logger:                  logger,
 	}
 	transactionPool.WithDefaultConnection(transactionDefaultConn)
 
-	pools := &MultiTenantPools{
-		OnboardingPool:  onboardingPool,
-		TransactionPool: transactionPool,
-	}
-
-	middleware := NewDualPoolMiddleware(pools, nil, logger)
+	mid := tmmiddleware.NewMultiPoolMiddleware(
+		tmmiddleware.WithRoute(transactionPaths, "transaction", transactionPool, nil),
+		tmmiddleware.WithDefaultRoute("onboarding", onboardingPool, nil),
+		tmmiddleware.WithPublicPaths(publicPaths...),
+		tmmiddleware.WithMultiPoolLogger(logger),
+	)
 
 	app := fiber.New()
-	app.Use(middleware.WithTenantDB)
+	app.Use(mid.WithTenantDB)
 	app.Get("/v1/organizations", func(c *fiber.Ctx) error {
 		return c.SendString("OK")
 	})
@@ -318,90 +192,36 @@ func TestDualPoolMiddleware_WithDefaultConnection(t *testing.T) {
 	})
 }
 
-func TestGetTenantConnection(t *testing.T) {
-	// GetTenantConnection now delegates to tenantmanager.GetTenantPGConnectionFromContext()
-	// which returns dbresolver.DB, not *libPostgres.PostgresConnection
-
-	t.Run("returns nil when not set", func(t *testing.T) {
-		ctx := context.Background()
-
-		result := GetTenantConnection(ctx)
-
-		assert.Nil(t, result)
-	})
-}
-
-func TestGetTenantID(t *testing.T) {
-	// GetTenantID now delegates to tenantmanager.GetTenantIDFromContext()
-
-	t.Run("returns tenant ID when set using tenantmanager context", func(t *testing.T) {
-		ctx := tenantmanager.ContextWithTenantID(context.Background(), "tenant-123")
-
-		result := GetTenantID(ctx)
-
-		assert.Equal(t, "tenant-123", result)
-	})
-
-	t.Run("returns empty string when not set", func(t *testing.T) {
-		ctx := context.Background()
-
-		result := GetTenantID(ctx)
-
-		assert.Equal(t, "", result)
-	})
-}
-
-func TestNewDualPoolMiddleware(t *testing.T) {
+func TestMultiPoolMiddleware_Construction(t *testing.T) {
 	logger := libZap.InitializeLogger()
 
-	onboardingPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "onboarding", logger)
-	transactionPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "transaction", logger)
-
-	pools := &MultiTenantPools{
-		OnboardingPool:  onboardingPool,
-		TransactionPool: transactionPool,
-	}
+	onboardingPool := tmpg.NewManager(nil, "ledger", tmpg.WithModule("onboarding"), tmpg.WithLogger(logger))
+	transactionPool := tmpg.NewManager(nil, "ledger", tmpg.WithModule("transaction"), tmpg.WithLogger(logger))
 
 	t.Run("without consumer trigger", func(t *testing.T) {
-		middleware := NewDualPoolMiddleware(pools, nil, logger)
+		mid := tmmiddleware.NewMultiPoolMiddleware(
+			tmmiddleware.WithRoute(transactionPaths, "transaction", transactionPool, nil),
+			tmmiddleware.WithDefaultRoute("onboarding", onboardingPool, nil),
+			tmmiddleware.WithPublicPaths(publicPaths...),
+			tmmiddleware.WithMultiPoolLogger(logger),
+		)
 
-		assert.NotNil(t, middleware)
-		assert.Equal(t, onboardingPool, middleware.onboardingPool)
-		assert.Equal(t, transactionPool, middleware.transactionPool)
-		assert.Nil(t, middleware.consumerTrigger)
-		assert.NotNil(t, middleware.logger)
+		assert.NotNil(t, mid)
+		assert.False(t, mid.Enabled(), "Should not be enabled without TM client")
 	})
 
 	t.Run("with consumer trigger", func(t *testing.T) {
 		trigger := &mockConsumerTrigger{}
-		middleware := NewDualPoolMiddleware(pools, trigger, logger)
+		mid := tmmiddleware.NewMultiPoolMiddleware(
+			tmmiddleware.WithRoute(transactionPaths, "transaction", transactionPool, nil),
+			tmmiddleware.WithDefaultRoute("onboarding", onboardingPool, nil),
+			tmmiddleware.WithPublicPaths(publicPaths...),
+			tmmiddleware.WithConsumerTrigger(trigger),
+			tmmiddleware.WithMultiPoolLogger(logger),
+		)
 
-		assert.NotNil(t, middleware)
-		assert.Equal(t, onboardingPool, middleware.onboardingPool)
-		assert.Equal(t, transactionPool, middleware.transactionPool)
-		assert.Equal(t, trigger, middleware.consumerTrigger)
-		assert.NotNil(t, middleware.logger)
-	})
-}
-
-func TestMultiTenantPools_Structure(t *testing.T) {
-	logger := libZap.InitializeLogger()
-
-	onboardingPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "onboarding", logger)
-	transactionPool := tenantmanager.NewTenantConnectionManager(nil, "ledger", "transaction", logger)
-
-	pools := &MultiTenantPools{
-		OnboardingPool:  onboardingPool,
-		TransactionPool: transactionPool,
-	}
-
-	t.Run("contains both pools", func(t *testing.T) {
-		assert.NotNil(t, pools.OnboardingPool)
-		assert.NotNil(t, pools.TransactionPool)
-	})
-
-	t.Run("pools are independent", func(t *testing.T) {
-		assert.NotEqual(t, pools.OnboardingPool, pools.TransactionPool)
+		assert.NotNil(t, mid)
+		assert.False(t, mid.Enabled(), "Should not be enabled without TM client")
 	})
 }
 
@@ -422,26 +242,22 @@ func newMockTenantManagerServer(handler func(tenantID, service string) (int, int
 	}))
 }
 
-// newMultiTenantMiddleware creates a DualPoolMiddleware configured for multi-tenant mode
+// newMultiTenantMultiPoolMiddleware creates a MultiPoolMiddleware configured for multi-tenant mode
 // by providing a real Tenant Manager client pointed at the given mock server URL.
-func newMultiTenantMiddleware(mockServerURL string, logger interface {
-	Infof(format string, args ...interface{})
-	Errorf(format string, args ...interface{})
-	Warnf(format string, args ...interface{})
-	Warn(args ...interface{})
-	Info(args ...interface{})
-}) *DualPoolMiddleware {
+func newMultiTenantMultiPoolMiddleware(mockServerURL string) *tmmiddleware.MultiPoolMiddleware {
 	zapLogger := libZap.InitializeLogger()
-	client := tenantmanager.NewClient(mockServerURL, zapLogger)
+	client := tmclient.NewClient(mockServerURL, zapLogger)
 
-	onboardingPool := tenantmanager.NewTenantConnectionManager(client, "ledger", "onboarding", zapLogger)
-	transactionPool := tenantmanager.NewTenantConnectionManager(client, "ledger", "transaction", zapLogger)
+	onboardingPool := tmpg.NewManager(client, "ledger", tmpg.WithModule("onboarding"), tmpg.WithLogger(zapLogger))
+	transactionPool := tmpg.NewManager(client, "ledger", tmpg.WithModule("transaction"), tmpg.WithLogger(zapLogger))
 
-	return &DualPoolMiddleware{
-		onboardingPool:  onboardingPool,
-		transactionPool: transactionPool,
-		logger:          zapLogger,
-	}
+	return tmmiddleware.NewMultiPoolMiddleware(
+		tmmiddleware.WithRoute(transactionPaths, "transaction", transactionPool, nil),
+		tmmiddleware.WithDefaultRoute("onboarding", onboardingPool, nil),
+		tmmiddleware.WithPublicPaths(publicPaths...),
+		tmmiddleware.WithErrorMapper(midazTenantErrorMapper),
+		tmmiddleware.WithMultiPoolLogger(zapLogger),
+	)
 }
 
 // parseErrorResponse reads and parses the error response body from a Fiber test response.
@@ -460,45 +276,39 @@ func parseErrorResponse(t *testing.T, resp *http.Response) map[string]interface{
 }
 
 func TestWithTenantDB_Returns401WhenJWTMissingTenantID(t *testing.T) {
-	logger := libZap.InitializeLogger()
 	mockServer := newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
-		return http.StatusOK, tenantmanager.TenantConfig{}
+		return http.StatusOK, tmcore.TenantConfig{}
 	})
 	defer mockServer.Close()
 
-	middleware := newMultiTenantMiddleware(mockServer.URL, logger)
+	mid := newMultiTenantMultiPoolMiddleware(mockServer.URL)
 
 	tests := []struct {
-		name    string
-		token   string
-		message string
+		name  string
+		token string
 	}{
 		{
-			name:    "no authorization header",
-			token:   "",
-			message: "tenantId claim is required in JWT token for multi-tenant mode",
+			name:  "no authorization header",
+			token: "",
 		},
 		{
-			name:    "JWT without tenantId claim",
-			token:   createMockJWT(map[string]interface{}{"sub": "user-1"}),
-			message: "tenantId claim is required in JWT token for multi-tenant mode",
+			name:  "JWT without tenantId claim",
+			token: createMockJWT(map[string]interface{}{"sub": "user-1"}),
 		},
 		{
-			name:    "JWT with empty tenantId claim",
-			token:   createMockJWT(map[string]interface{}{"tenantId": ""}),
-			message: "tenantId claim is required in JWT token for multi-tenant mode",
+			name:  "JWT with empty tenantId claim",
+			token: createMockJWT(map[string]interface{}{"tenantId": ""}),
 		},
 		{
-			name:    "JWT with non-string tenantId claim",
-			token:   createMockJWT(map[string]interface{}{"tenantId": 12345}),
-			message: "tenantId claim is required in JWT token for multi-tenant mode",
+			name:  "JWT with non-string tenantId claim",
+			token: createMockJWT(map[string]interface{}{"tenantId": 12345}),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			app := fiber.New()
-			app.Use(middleware.WithTenantDB)
+			app.Use(mid.WithTenantDB)
 			app.Get("/v1/organizations", func(c *fiber.Ctx) error {
 				return c.SendString("OK")
 			})
@@ -515,22 +325,21 @@ func TestWithTenantDB_Returns401WhenJWTMissingTenantID(t *testing.T) {
 			body := parseErrorResponse(t, resp)
 			assert.Equal(t, "0042", body["code"])
 			assert.Equal(t, "Unauthorized", body["title"])
-			assert.Equal(t, tt.message, body["message"])
+			assert.Equal(t, "tenantId claim is required in JWT token for multi-tenant mode", body["message"])
 		})
 	}
 }
 
 func TestWithTenantDB_Returns404WhenTenantNotFound(t *testing.T) {
-	logger := libZap.InitializeLogger()
 	mockServer := newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
 		return http.StatusNotFound, map[string]string{"error": "not found"}
 	})
 	defer mockServer.Close()
 
-	middleware := newMultiTenantMiddleware(mockServer.URL, logger)
+	mid := newMultiTenantMultiPoolMiddleware(mockServer.URL)
 
 	app := fiber.New()
-	app.Use(middleware.WithTenantDB)
+	app.Use(mid.WithTenantDB)
 	app.Get("/v1/organizations", func(c *fiber.Ctx) error {
 		return c.SendString("OK")
 	})
@@ -550,19 +359,30 @@ func TestWithTenantDB_Returns404WhenTenantNotFound(t *testing.T) {
 }
 
 func TestWithTenantDB_Returns503WhenManagerClosed(t *testing.T) {
-	logger := libZap.InitializeLogger()
+	zapLogger := libZap.InitializeLogger()
 	mockServer := newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
-		return http.StatusOK, tenantmanager.TenantConfig{}
+		return http.StatusOK, tmcore.TenantConfig{}
 	})
 	defer mockServer.Close()
 
-	middleware := newMultiTenantMiddleware(mockServer.URL, logger)
+	client := tmclient.NewClient(mockServer.URL, zapLogger)
+	onboardingPool := tmpg.NewManager(client, "ledger", tmpg.WithModule("onboarding"), tmpg.WithLogger(zapLogger))
+	transactionPool := tmpg.NewManager(client, "ledger", tmpg.WithModule("transaction"), tmpg.WithLogger(zapLogger))
 
-	err := middleware.onboardingPool.Close()
+	// Close the onboarding pool to trigger ErrManagerClosed
+	err := onboardingPool.Close(context.Background())
 	require.NoError(t, err)
 
+	mid := tmmiddleware.NewMultiPoolMiddleware(
+		tmmiddleware.WithRoute(transactionPaths, "transaction", transactionPool, nil),
+		tmmiddleware.WithDefaultRoute("onboarding", onboardingPool, nil),
+		tmmiddleware.WithPublicPaths(publicPaths...),
+		tmmiddleware.WithErrorMapper(midazTenantErrorMapper),
+		tmmiddleware.WithMultiPoolLogger(zapLogger),
+	)
+
 	app := fiber.New()
-	app.Use(middleware.WithTenantDB)
+	app.Use(mid.WithTenantDB)
 	app.Get("/v1/organizations", func(c *fiber.Ctx) error {
 		return c.SendString("OK")
 	})
@@ -582,21 +402,20 @@ func TestWithTenantDB_Returns503WhenManagerClosed(t *testing.T) {
 }
 
 func TestWithTenantDB_Returns503WhenServiceNotConfigured(t *testing.T) {
-	logger := libZap.InitializeLogger()
 	mockServer := newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
-		return http.StatusOK, tenantmanager.TenantConfig{
+		return http.StatusOK, tmcore.TenantConfig{
 			ID:            tenantID,
 			TenantSlug:    "test-tenant",
 			IsolationMode: "isolated",
-			Databases:     map[string]tenantmanager.DatabaseConfig{},
+			Databases:     map[string]tmcore.DatabaseConfig{},
 		}
 	})
 	defer mockServer.Close()
 
-	middleware := newMultiTenantMiddleware(mockServer.URL, logger)
+	mid := newMultiTenantMultiPoolMiddleware(mockServer.URL)
 
 	app := fiber.New()
-	app.Use(middleware.WithTenantDB)
+	app.Use(mid.WithTenantDB)
 	app.Get("/v1/organizations", func(c *fiber.Ctx) error {
 		return c.SendString("OK")
 	})
@@ -616,15 +435,14 @@ func TestWithTenantDB_Returns503WhenServiceNotConfigured(t *testing.T) {
 }
 
 func TestWithTenantDB_Returns422WhenSchemaConfigInvalid(t *testing.T) {
-	logger := libZap.InitializeLogger()
 	mockServer := newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
-		return http.StatusOK, tenantmanager.TenantConfig{
+		return http.StatusOK, tmcore.TenantConfig{
 			ID:            tenantID,
 			TenantSlug:    "test-tenant",
 			IsolationMode: "schema",
-			Databases: map[string]tenantmanager.DatabaseConfig{
+			Databases: map[string]tmcore.DatabaseConfig{
 				"onboarding": {
-					PostgreSQL: &tenantmanager.PostgreSQLConfig{
+					PostgreSQL: &tmcore.PostgreSQLConfig{
 						Host:     "localhost",
 						Port:     5432,
 						Database: "midaz",
@@ -638,10 +456,10 @@ func TestWithTenantDB_Returns422WhenSchemaConfigInvalid(t *testing.T) {
 	})
 	defer mockServer.Close()
 
-	middleware := newMultiTenantMiddleware(mockServer.URL, logger)
+	mid := newMultiTenantMultiPoolMiddleware(mockServer.URL)
 
 	app := fiber.New()
-	app.Use(middleware.WithTenantDB)
+	app.Use(mid.WithTenantDB)
 	app.Get("/v1/organizations", func(c *fiber.Ctx) error {
 		return c.SendString("OK")
 	})
@@ -661,15 +479,14 @@ func TestWithTenantDB_Returns422WhenSchemaConfigInvalid(t *testing.T) {
 }
 
 func TestWithTenantDB_Returns503WhenConnectionFails(t *testing.T) {
-	logger := libZap.InitializeLogger()
 	mockServer := newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
-		return http.StatusOK, tenantmanager.TenantConfig{
+		return http.StatusOK, tmcore.TenantConfig{
 			ID:            tenantID,
 			TenantSlug:    "test-tenant",
 			IsolationMode: "isolated",
-			Databases: map[string]tenantmanager.DatabaseConfig{
+			Databases: map[string]tmcore.DatabaseConfig{
 				"onboarding": {
-					PostgreSQL: &tenantmanager.PostgreSQLConfig{
+					PostgreSQL: &tmcore.PostgreSQLConfig{
 						Host:     "unreachable-host-that-does-not-exist.invalid",
 						Port:     5432,
 						Database: "midaz",
@@ -682,10 +499,10 @@ func TestWithTenantDB_Returns503WhenConnectionFails(t *testing.T) {
 	})
 	defer mockServer.Close()
 
-	middleware := newMultiTenantMiddleware(mockServer.URL, logger)
+	mid := newMultiTenantMultiPoolMiddleware(mockServer.URL)
 
 	app := fiber.New()
-	app.Use(middleware.WithTenantDB)
+	app.Use(mid.WithTenantDB)
 	app.Get("/v1/organizations", func(c *fiber.Ctx) error {
 		return c.SendString("OK")
 	})
@@ -707,14 +524,13 @@ func TestWithTenantDB_Returns503WhenConnectionFails(t *testing.T) {
 }
 
 func TestWithTenantDB_Returns503WhenDBInterfaceUnavailable(t *testing.T) {
-	// The DB interface unavailable path (lines 172-181 of unified-server.go) requires
-	// GetConnection to succeed but GetDB to fail. Since PostgresManager stores connections
-	// in an unexported map and GetDB calls PostgresConnection.GetDB() which needs a real
-	// database, we validate this error path by testing the response format directly.
-	// This ensures the error response contract is correct regardless of the internal flow.
+	// The DB interface unavailable path requires GetConnection to succeed but GetDB to fail.
+	// Since PostgresManager stores connections in an unexported map and GetDB calls
+	// PostgresConnection.GetDB() which needs a real database, we validate this error path
+	// by testing the response format directly.
 	app := fiber.New()
 	app.Use(func(c *fiber.Ctx) error {
-		// Replicate the exact response from WithTenantDB lines 176-180
+		// Replicate the exact response from the error mapper
 		return c.Status(http.StatusServiceUnavailable).JSON(fiber.Map{
 			"code":    "0130",
 			"title":   "Service Unavailable",
@@ -737,40 +553,12 @@ func TestWithTenantDB_Returns503WhenDBInterfaceUnavailable(t *testing.T) {
 }
 
 func TestWithTenantDB_Returns503WhenMongoUnavailable(t *testing.T) {
-	mongoMockServer := newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
-		return http.StatusNotFound, map[string]string{"error": "not found"}
-	})
-	defer mongoMockServer.Close()
-
-	// PostgreSQL mock returns valid config so PG connection part can proceed
-	pgMockServer := newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
-		return http.StatusOK, tenantmanager.TenantConfig{
-			ID:            tenantID,
-			TenantSlug:    "test-tenant",
-			IsolationMode: "isolated",
-			Databases: map[string]tenantmanager.DatabaseConfig{
-				"onboarding": {
-					PostgreSQL: &tenantmanager.PostgreSQLConfig{
-						Host:     "localhost",
-						Port:     5432,
-						Database: "midaz",
-						Username: "test",
-						Password: "test",
-					},
-				},
-			},
-		}
-	})
-	defer pgMockServer.Close()
-
-	// Since the MongoDB GetDatabaseForTenant calls client.GetTenantConfig which will
-	// return a "tenant not found" error, we simulate this in a controlled way.
 	// The full middleware requires a PG connection to succeed first, which requires
 	// a real database. Instead, we test the MongoDB error path in isolation.
 	app := fiber.New()
 	app.Use(func(c *fiber.Ctx) error {
-		// Simulate the MongoDB error path from WithTenantDB (lines 230-238)
-		mongoErr := fmt.Errorf("failed to get tenant config: %w", tenantmanager.ErrTenantNotFound)
+		// Simulate the MongoDB error path
+		mongoErr := fmt.Errorf("failed to get tenant config: %w", tmcore.ErrTenantNotFound)
 		if mongoErr != nil {
 			return c.Status(http.StatusServiceUnavailable).JSON(fiber.Map{
 				"code":    "0130",
@@ -796,7 +584,6 @@ func TestWithTenantDB_Returns503WhenMongoUnavailable(t *testing.T) {
 }
 
 func TestWithTenantDB_Returns503WhenConnectionGenericError(t *testing.T) {
-	logger := libZap.InitializeLogger()
 	mockServer := newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
 		return http.StatusInternalServerError, map[string]string{
 			"error": "internal server error",
@@ -804,10 +591,10 @@ func TestWithTenantDB_Returns503WhenConnectionGenericError(t *testing.T) {
 	})
 	defer mockServer.Close()
 
-	middleware := newMultiTenantMiddleware(mockServer.URL, logger)
+	mid := newMultiTenantMultiPoolMiddleware(mockServer.URL)
 
 	app := fiber.New()
-	app.Use(middleware.WithTenantDB)
+	app.Use(mid.WithTenantDB)
 	app.Get("/v1/organizations", func(c *fiber.Ctx) error {
 		return c.SendString("OK")
 	})
@@ -827,13 +614,12 @@ func TestWithTenantDB_Returns503WhenConnectionGenericError(t *testing.T) {
 }
 
 func TestWithTenantDB_SkipsPublicPaths(t *testing.T) {
-	logger := libZap.InitializeLogger()
 	mockServer := newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
-		return http.StatusOK, tenantmanager.TenantConfig{}
+		return http.StatusOK, tmcore.TenantConfig{}
 	})
 	defer mockServer.Close()
 
-	middleware := newMultiTenantMiddleware(mockServer.URL, logger)
+	mid := newMultiTenantMultiPoolMiddleware(mockServer.URL)
 
 	tests := []struct {
 		name string
@@ -847,7 +633,7 @@ func TestWithTenantDB_SkipsPublicPaths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			app := fiber.New()
-			app.Use(middleware.WithTenantDB)
+			app.Use(mid.WithTenantDB)
 			app.Get(tt.path, func(c *fiber.Ctx) error {
 				return c.SendString("OK")
 			})
@@ -865,7 +651,7 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 	tests := []struct {
 		name           string
 		setupServer    func() *httptest.Server
-		setupPool      func(mockURL string) *DualPoolMiddleware
+		setupPool      func(mockURL string) *tmmiddleware.MultiPoolMiddleware
 		token          string
 		path           string
 		expectedStatus int
@@ -876,11 +662,11 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 			name: "returns 401 when JWT has no tenantId",
 			setupServer: func() *httptest.Server {
 				return newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
-					return http.StatusOK, tenantmanager.TenantConfig{}
+					return http.StatusOK, tmcore.TenantConfig{}
 				})
 			},
-			setupPool: func(mockURL string) *DualPoolMiddleware {
-				return newMultiTenantMiddleware(mockURL, libZap.InitializeLogger())
+			setupPool: func(mockURL string) *tmmiddleware.MultiPoolMiddleware {
+				return newMultiTenantMultiPoolMiddleware(mockURL)
 			},
 			token:          createMockJWT(map[string]interface{}{"sub": "user-1"}),
 			path:           "/v1/organizations",
@@ -895,8 +681,8 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 					return http.StatusNotFound, map[string]string{"error": "not found"}
 				})
 			},
-			setupPool: func(mockURL string) *DualPoolMiddleware {
-				return newMultiTenantMiddleware(mockURL, libZap.InitializeLogger())
+			setupPool: func(mockURL string) *tmmiddleware.MultiPoolMiddleware {
+				return newMultiTenantMultiPoolMiddleware(mockURL)
 			},
 			token:          createMockJWT(map[string]interface{}{"tenantId": "missing-tenant"}),
 			path:           "/v1/organizations",
@@ -908,13 +694,22 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 			name: "returns 503 when manager closed",
 			setupServer: func() *httptest.Server {
 				return newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
-					return http.StatusOK, tenantmanager.TenantConfig{}
+					return http.StatusOK, tmcore.TenantConfig{}
 				})
 			},
-			setupPool: func(mockURL string) *DualPoolMiddleware {
-				m := newMultiTenantMiddleware(mockURL, libZap.InitializeLogger())
-				_ = m.onboardingPool.Close()
-				return m
+			setupPool: func(mockURL string) *tmmiddleware.MultiPoolMiddleware {
+				zapLogger := libZap.InitializeLogger()
+				client := tmclient.NewClient(mockURL, zapLogger)
+				onboardingPool := tmpg.NewManager(client, "ledger", tmpg.WithModule("onboarding"), tmpg.WithLogger(zapLogger))
+				transactionPool := tmpg.NewManager(client, "ledger", tmpg.WithModule("transaction"), tmpg.WithLogger(zapLogger))
+				_ = onboardingPool.Close(context.Background())
+				return tmmiddleware.NewMultiPoolMiddleware(
+					tmmiddleware.WithRoute(transactionPaths, "transaction", transactionPool, nil),
+					tmmiddleware.WithDefaultRoute("onboarding", onboardingPool, nil),
+					tmmiddleware.WithPublicPaths(publicPaths...),
+					tmmiddleware.WithErrorMapper(midazTenantErrorMapper),
+					tmmiddleware.WithMultiPoolLogger(zapLogger),
+				)
 			},
 			token:          createMockJWT(map[string]interface{}{"tenantId": "tenant-1"}),
 			path:           "/v1/organizations",
@@ -926,16 +721,16 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 			name: "returns 503 when service not configured",
 			setupServer: func() *httptest.Server {
 				return newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
-					return http.StatusOK, tenantmanager.TenantConfig{
+					return http.StatusOK, tmcore.TenantConfig{
 						ID:            tenantID,
 						TenantSlug:    "test",
 						IsolationMode: "isolated",
-						Databases:     map[string]tenantmanager.DatabaseConfig{},
+						Databases:     map[string]tmcore.DatabaseConfig{},
 					}
 				})
 			},
-			setupPool: func(mockURL string) *DualPoolMiddleware {
-				return newMultiTenantMiddleware(mockURL, libZap.InitializeLogger())
+			setupPool: func(mockURL string) *tmmiddleware.MultiPoolMiddleware {
+				return newMultiTenantMultiPoolMiddleware(mockURL)
 			},
 			token:          createMockJWT(map[string]interface{}{"tenantId": "tenant-no-config"}),
 			path:           "/v1/organizations",
@@ -947,13 +742,13 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 			name: "returns 422 when schema config invalid",
 			setupServer: func() *httptest.Server {
 				return newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
-					return http.StatusOK, tenantmanager.TenantConfig{
+					return http.StatusOK, tmcore.TenantConfig{
 						ID:            tenantID,
 						TenantSlug:    "test",
 						IsolationMode: "schema",
-						Databases: map[string]tenantmanager.DatabaseConfig{
+						Databases: map[string]tmcore.DatabaseConfig{
 							"onboarding": {
-								PostgreSQL: &tenantmanager.PostgreSQLConfig{
+								PostgreSQL: &tmcore.PostgreSQLConfig{
 									Host:     "localhost",
 									Port:     5432,
 									Database: "midaz",
@@ -965,8 +760,8 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 					}
 				})
 			},
-			setupPool: func(mockURL string) *DualPoolMiddleware {
-				return newMultiTenantMiddleware(mockURL, libZap.InitializeLogger())
+			setupPool: func(mockURL string) *tmmiddleware.MultiPoolMiddleware {
+				return newMultiTenantMultiPoolMiddleware(mockURL)
 			},
 			token:          createMockJWT(map[string]interface{}{"tenantId": "tenant-bad-schema"}),
 			path:           "/v1/organizations",
@@ -981,8 +776,8 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 					return http.StatusInternalServerError, map[string]string{"error": "internal"}
 				})
 			},
-			setupPool: func(mockURL string) *DualPoolMiddleware {
-				return newMultiTenantMiddleware(mockURL, libZap.InitializeLogger())
+			setupPool: func(mockURL string) *tmmiddleware.MultiPoolMiddleware {
+				return newMultiTenantMultiPoolMiddleware(mockURL)
 			},
 			token:          createMockJWT(map[string]interface{}{"tenantId": "tenant-err"}),
 			path:           "/v1/organizations",
@@ -997,8 +792,8 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 					return http.StatusNotFound, map[string]string{"error": "not found"}
 				})
 			},
-			setupPool: func(mockURL string) *DualPoolMiddleware {
-				return newMultiTenantMiddleware(mockURL, libZap.InitializeLogger())
+			setupPool: func(mockURL string) *tmmiddleware.MultiPoolMiddleware {
+				return newMultiTenantMultiPoolMiddleware(mockURL)
 			},
 			token:          createMockJWT(map[string]interface{}{"tenantId": "missing-tenant"}),
 			path:           "/v1/organizations/123/ledgers/456/transactions",
@@ -1010,13 +805,22 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 			name: "returns 503 for transaction path when manager closed",
 			setupServer: func() *httptest.Server {
 				return newMockTenantManagerServer(func(tenantID, service string) (int, interface{}) {
-					return http.StatusOK, tenantmanager.TenantConfig{}
+					return http.StatusOK, tmcore.TenantConfig{}
 				})
 			},
-			setupPool: func(mockURL string) *DualPoolMiddleware {
-				m := newMultiTenantMiddleware(mockURL, libZap.InitializeLogger())
-				_ = m.transactionPool.Close()
-				return m
+			setupPool: func(mockURL string) *tmmiddleware.MultiPoolMiddleware {
+				zapLogger := libZap.InitializeLogger()
+				client := tmclient.NewClient(mockURL, zapLogger)
+				onboardingPool := tmpg.NewManager(client, "ledger", tmpg.WithModule("onboarding"), tmpg.WithLogger(zapLogger))
+				transactionPool := tmpg.NewManager(client, "ledger", tmpg.WithModule("transaction"), tmpg.WithLogger(zapLogger))
+				_ = transactionPool.Close(context.Background())
+				return tmmiddleware.NewMultiPoolMiddleware(
+					tmmiddleware.WithRoute(transactionPaths, "transaction", transactionPool, nil),
+					tmmiddleware.WithDefaultRoute("onboarding", onboardingPool, nil),
+					tmmiddleware.WithPublicPaths(publicPaths...),
+					tmmiddleware.WithErrorMapper(midazTenantErrorMapper),
+					tmmiddleware.WithMultiPoolLogger(zapLogger),
+				)
 			},
 			token:          createMockJWT(map[string]interface{}{"tenantId": "tenant-1"}),
 			path:           "/v1/organizations/123/ledgers/456/transactions",
@@ -1031,10 +835,10 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 			mockServer := tt.setupServer()
 			defer mockServer.Close()
 
-			middleware := tt.setupPool(mockServer.URL)
+			mid := tt.setupPool(mockServer.URL)
 
 			app := fiber.New()
-			app.Use(middleware.WithTenantDB)
+			app.Use(mid.WithTenantDB)
 			app.Get("/v1/organizations", func(c *fiber.Ctx) error {
 				return c.SendString("OK")
 			})
@@ -1058,17 +862,16 @@ func TestWithTenantDB_ErrorHandling_TableDriven(t *testing.T) {
 	}
 }
 
-func TestWithTenantDB_NilPoolPassesThrough(t *testing.T) {
+func TestWithTenantDB_NilMiddlewarePassesThrough(t *testing.T) {
 	logger := libZap.InitializeLogger()
 
-	middleware := &DualPoolMiddleware{
-		onboardingPool:  nil,
-		transactionPool: nil,
-		logger:          logger,
-	}
+	// Create middleware with nil pools - should pass through
+	mid := tmmiddleware.NewMultiPoolMiddleware(
+		tmmiddleware.WithMultiPoolLogger(logger),
+	)
 
 	app := fiber.New()
-	app.Use(middleware.WithTenantDB)
+	app.Use(mid.WithTenantDB)
 	app.Get("/v1/organizations", func(c *fiber.Ctx) error {
 		return c.SendString("OK")
 	})
@@ -1079,105 +882,133 @@ func TestWithTenantDB_NilPoolPassesThrough(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
-func TestExtractTenantIDFromToken(t *testing.T) {
-	logger := libZap.InitializeLogger()
-
-	middleware := &DualPoolMiddleware{
-		logger: logger,
-	}
-
+func TestMidazTenantErrorMapper(t *testing.T) {
 	tests := []struct {
-		name        string
-		authHeader  string
-		expectError bool
-		expectedID  string
+		name           string
+		err            error
+		tenantID       string
+		expectedStatus int
+		expectedCode   string
+		expectedTitle  string
+		expectedMsg    string
 	}{
 		{
-			name:        "valid JWT with tenantId",
-			authHeader:  "Bearer " + createMockJWT(map[string]interface{}{"tenantId": "tenant-abc"}),
-			expectError: false,
-			expectedID:  "tenant-abc",
+			name:           "missing authorization token",
+			err:            fmt.Errorf("authorization token is required"),
+			tenantID:       "",
+			expectedStatus: http.StatusUnauthorized,
+			expectedCode:   "0042",
+			expectedTitle:  "Unauthorized",
+			expectedMsg:    "tenantId claim is required in JWT token for multi-tenant mode",
 		},
 		{
-			name:        "no authorization header",
-			authHeader:  "",
-			expectError: true,
+			name:           "failed to parse authorization token",
+			err:            fmt.Errorf("failed to parse authorization token: invalid"),
+			tenantID:       "",
+			expectedStatus: http.StatusUnauthorized,
+			expectedCode:   "0042",
+			expectedTitle:  "Unauthorized",
+			expectedMsg:    "tenantId claim is required in JWT token for multi-tenant mode",
 		},
 		{
-			name:        "JWT without tenantId claim",
-			authHeader:  "Bearer " + createMockJWT(map[string]interface{}{"sub": "user-1"}),
-			expectError: true,
+			name:           "missing tenantId in JWT",
+			err:            fmt.Errorf("tenantId is required in JWT token"),
+			tenantID:       "",
+			expectedStatus: http.StatusUnauthorized,
+			expectedCode:   "0042",
+			expectedTitle:  "Unauthorized",
+			expectedMsg:    "tenantId claim is required in JWT token for multi-tenant mode",
 		},
 		{
-			name:        "JWT with empty tenantId",
-			authHeader:  "Bearer " + createMockJWT(map[string]interface{}{"tenantId": ""}),
-			expectError: true,
+			name:           "invalid JWT claims",
+			err:            fmt.Errorf("JWT claims are not in expected format"),
+			tenantID:       "",
+			expectedStatus: http.StatusUnauthorized,
+			expectedCode:   "0042",
+			expectedTitle:  "Unauthorized",
+			expectedMsg:    "tenantId claim is required in JWT token for multi-tenant mode",
 		},
 		{
-			name:        "JWT with numeric tenantId",
-			authHeader:  "Bearer " + createMockJWT(map[string]interface{}{"tenantId": 42}),
-			expectError: true,
+			name:           "tenant not found",
+			err:            tmcore.ErrTenantNotFound,
+			tenantID:       "t1",
+			expectedStatus: http.StatusNotFound,
+			expectedCode:   "0007",
+			expectedTitle:  "Not Found",
+			expectedMsg:    "tenant not found",
 		},
 		{
-			name:        "malformed token",
-			authHeader:  "Bearer not-a-valid-jwt",
-			expectError: true,
+			name:           "manager closed",
+			err:            tmcore.ErrManagerClosed,
+			tenantID:       "t1",
+			expectedStatus: http.StatusServiceUnavailable,
+			expectedCode:   "0130",
+			expectedTitle:  "Service Unavailable",
+			expectedMsg:    "service temporarily unavailable",
+		},
+		{
+			name:           "service not configured",
+			err:            tmcore.ErrServiceNotConfigured,
+			tenantID:       "t1",
+			expectedStatus: http.StatusServiceUnavailable,
+			expectedCode:   "0130",
+			expectedTitle:  "Service Unavailable",
+			expectedMsg:    "database service not configured for tenant",
+		},
+		{
+			name:           "tenant suspended",
+			err:            &tmcore.TenantSuspendedError{TenantID: "t1", Status: "suspended"},
+			tenantID:       "t1",
+			expectedStatus: http.StatusForbidden,
+			expectedCode:   "0139",
+			expectedTitle:  "Service Suspended",
+			expectedMsg:    "tenant service is suspended",
+		},
+		{
+			name:           "schema config error",
+			err:            fmt.Errorf("schema mode requires a valid schema name"),
+			tenantID:       "t1",
+			expectedStatus: http.StatusUnprocessableEntity,
+			expectedCode:   "0130",
+			expectedTitle:  "Unprocessable Entity",
+			expectedMsg:    "invalid schema configuration for tenant database",
+		},
+		{
+			name:           "connection failure",
+			err:            fmt.Errorf("failed to connect to database"),
+			tenantID:       "t1",
+			expectedStatus: http.StatusServiceUnavailable,
+			expectedCode:   "0130",
+			expectedTitle:  "Service Unavailable",
+			expectedMsg:    "database connection unavailable for tenant",
+		},
+		{
+			name:           "generic error",
+			err:            fmt.Errorf("some unexpected error"),
+			tenantID:       "t1",
+			expectedStatus: http.StatusServiceUnavailable,
+			expectedCode:   "0130",
+			expectedTitle:  "Service Unavailable",
+			expectedMsg:    "failed to establish database connection for tenant",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			app := fiber.New()
-			var extractedID string
-			var extractErr error
-
 			app.Get("/test", func(c *fiber.Ctx) error {
-				extractedID, extractErr = middleware.extractTenantIDFromToken(c)
-				return c.SendString("OK")
+				return midazTenantErrorMapper(c, tt.err, tt.tenantID)
 			})
 
 			req := httptest.NewRequest("GET", "/test", nil)
-			if tt.authHeader != "" {
-				req.Header.Set("Authorization", tt.authHeader)
-			}
-
-			_, err := app.Test(req)
+			resp, err := app.Test(req)
 			require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
-			if tt.expectError {
-				assert.Error(t, extractErr)
-			} else {
-				assert.NoError(t, extractErr)
-				assert.Equal(t, tt.expectedID, extractedID)
-			}
-		})
-	}
-}
-
-func TestIsPublicPath(t *testing.T) {
-	logger := libZap.InitializeLogger()
-	middleware := &DualPoolMiddleware{logger: logger}
-
-	tests := []struct {
-		name     string
-		path     string
-		isPublic bool
-	}{
-		{"health exact", "/health", true},
-		{"version exact", "/version", true},
-		{"swagger root", "/swagger", true},
-		{"swagger subpath", "/swagger/index.html", true},
-		{"organizations", "/v1/organizations", false},
-		{"ledgers", "/v1/organizations/123/ledgers", false},
-		{"transactions", "/v1/organizations/123/ledgers/456/transactions", false},
-		{"root path", "/", false},
-		{"empty path", "", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := middleware.isPublicPath(tt.path)
-			assert.Equal(t, tt.isPublic, result, "isPublicPath(%q)", tt.path)
+			body := parseErrorResponse(t, resp)
+			assert.Equal(t, tt.expectedCode, body["code"])
+			assert.Equal(t, tt.expectedTitle, body["title"])
+			assert.Equal(t, tt.expectedMsg, body["message"])
 		})
 	}
 }
