@@ -51,4 +51,8 @@ type UseCase struct {
 	//   - transaction.UseCase: Direct in-process calls (unified ledger mode)
 	//   - GRPCBalanceAdapter: Network calls via gRPC (separate services mode)
 	BalancePort mbootstrap.BalancePort
+
+	// ExternalPreSplitShardCount controls how many pre-split external balances
+	// are materialized at asset creation time (keys: shard_0..shard_N-1).
+	ExternalPreSplitShardCount int
 }

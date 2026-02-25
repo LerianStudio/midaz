@@ -158,6 +158,7 @@ type Config struct {
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
 	TransactionGRPCAddress       string `env:"TRANSACTION_GRPC_ADDRESS"`
 	TransactionGRPCPort          string `env:"TRANSACTION_GRPC_PORT"`
+	ExternalPreSplitShardCount   int    `env:"EXTERNAL_PRESPLIT_SHARD_COUNT" default:"8"`
 }
 
 // Options contains optional dependencies that can be injected when running
@@ -183,6 +184,41 @@ func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
 }
 
+// resolveBalancePort determines the balance port based on deployment mode.
+// In unified mode, uses direct in-process calls. Otherwise, uses gRPC adapter.
+func resolveBalancePort(cfg *Config, opts *Options, logger libLog.Logger) (mbootstrap.BalancePort, error) {
+	if opts != nil && opts.UnifiedMode {
+		if opts.BalancePort == nil {
+			return nil, fmt.Errorf("unified mode requires BalancePort to be provided")
+		}
+
+		logger.Info("Running in UNIFIED MODE - using direct balance port (in-process calls)")
+
+		return opts.BalancePort, nil
+	}
+
+	if cfg.TransactionGRPCAddress == "" {
+		cfg.TransactionGRPCAddress = "midaz-transaction"
+
+		logger.Warn("TRANSACTION_GRPC_ADDRESS not set, using default: midaz-transaction")
+	}
+
+	if cfg.TransactionGRPCPort == "" {
+		cfg.TransactionGRPCPort = "3011"
+
+		logger.Warn("TRANSACTION_GRPC_PORT not set, using default: 3011")
+	}
+
+	grpcConnection := &mgrpc.GRPCConnection{
+		Addr:   fmt.Sprintf("%s:%s", cfg.TransactionGRPCAddress, cfg.TransactionGRPCPort),
+		Logger: logger,
+	}
+
+	logger.Info("Running in MICROSERVICES MODE - using gRPC balance adapter (network calls)")
+
+	return grpcout.NewBalanceAdapter(grpcConnection), nil
+}
+
 // InitServersWithOptions initiates http servers with optional dependency injection.
 // When opts is nil or opts.UnifiedMode is false, uses gRPC for balance operations.
 // When opts.UnifiedMode is true, uses direct in-process calls (unified ledger mode).
@@ -193,7 +229,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	var cleanupFuncs []func()
+	cleanupFuncs := make([]func(), 0, 4)
+
 	success := false
 
 	defer func() {
@@ -379,53 +416,23 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	}
 
-	// Choose balance port based on UnifiedMode:
-	// - If UnifiedMode is true, validate and use provided ports for in-process calls
-	// - Otherwise, use gRPC adapter to call the separate transaction service
-	var balancePort mbootstrap.BalancePort
-
-	if opts != nil && opts.UnifiedMode {
-		if opts.BalancePort == nil {
-			return nil, fmt.Errorf("unified mode requires BalancePort to be provided")
-		}
-
-		logger.Info("Running in UNIFIED MODE - using direct balance port (in-process calls)")
-
-		balancePort = opts.BalancePort
-	} else {
-		if cfg.TransactionGRPCAddress == "" {
-			cfg.TransactionGRPCAddress = "midaz-transaction"
-
-			logger.Warn("TRANSACTION_GRPC_ADDRESS not set, using default: midaz-transaction")
-		}
-
-		if cfg.TransactionGRPCPort == "" {
-			cfg.TransactionGRPCPort = "3011"
-
-			logger.Warn("TRANSACTION_GRPC_PORT not set, using default: 3011")
-		}
-
-		grpcConnection := &mgrpc.GRPCConnection{
-			Addr:   fmt.Sprintf("%s:%s", cfg.TransactionGRPCAddress, cfg.TransactionGRPCPort),
-			Logger: logger,
-		}
-
-		logger.Info("Running in MICROSERVICES MODE - using gRPC balance adapter (network calls)")
-
-		balancePort = grpcout.NewBalanceAdapter(grpcConnection)
+	balancePort, err := resolveBalancePort(cfg, opts, logger)
+	if err != nil {
+		return nil, err
 	}
 
 	commandUseCase := &command.UseCase{
-		OrganizationRepo: organizationPostgreSQLRepository,
-		LedgerRepo:       ledgerPostgreSQLRepository,
-		SegmentRepo:      segmentPostgreSQLRepository,
-		PortfolioRepo:    portfolioPostgreSQLRepository,
-		AccountRepo:      accountPostgreSQLRepository,
-		AssetRepo:        assetPostgreSQLRepository,
-		AccountTypeRepo:  accountTypePostgreSQLRepository,
-		MetadataRepo:     metadataMongoDBRepository,
-		RedisRepo:        redisConsumerRepository,
-		BalancePort:      balancePort,
+		OrganizationRepo:           organizationPostgreSQLRepository,
+		LedgerRepo:                 ledgerPostgreSQLRepository,
+		SegmentRepo:                segmentPostgreSQLRepository,
+		PortfolioRepo:              portfolioPostgreSQLRepository,
+		AccountRepo:                accountPostgreSQLRepository,
+		AssetRepo:                  assetPostgreSQLRepository,
+		AccountTypeRepo:            accountTypePostgreSQLRepository,
+		MetadataRepo:               metadataMongoDBRepository,
+		RedisRepo:                  redisConsumerRepository,
+		BalancePort:                balancePort,
+		ExternalPreSplitShardCount: cfg.ExternalPreSplitShardCount,
 	}
 
 	queryUseCase := &query.UseCase{

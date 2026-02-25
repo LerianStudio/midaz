@@ -233,4 +233,75 @@ func TestCreateAsset(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("failure - all external pre-split balances fail", func(t *testing.T) {
+		uc.ExternalPreSplitShardCount = 2
+		t.Cleanup(func() {
+			uc.ExternalPreSplitShardCount = 0
+		})
+
+		input := &mmodel.CreateAssetInput{
+			Name: "USD Dollar",
+			Type: "currency",
+			Code: "USD",
+		}
+
+		mockBalanceGRPC.EXPECT().
+			CheckHealth(gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		mockAssetRepo.EXPECT().
+			FindByNameOrCode(gomock.Any(), organizationID, ledgerID, "USD Dollar", "USD").
+			Return(false, nil).
+			Times(1)
+
+		mockAssetRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(&mmodel.Asset{
+				ID:        uuid.New().String(),
+				Name:      "USD Dollar",
+				Type:      "currency",
+				Code:      "USD",
+				Status:    mmodel.Status{Code: "ACTIVE"},
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}, nil).
+			Times(1)
+
+		mockAccountRepo.EXPECT().
+			ListAccountsByAlias(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+			Return(nil, nil).
+			Times(1)
+
+		createdAccountID := uuid.New().String()
+		mockAccountRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
+				out := *in
+				out.ID = createdAccountID
+				return &out, nil
+			}).
+			Times(1)
+
+		gomock.InOrder(
+			mockBalanceGRPC.EXPECT().
+				CreateBalanceSync(gomock.Any(), gomock.Any()).
+				Return(nil, nil).
+				Times(1),
+			mockBalanceGRPC.EXPECT().
+				CreateBalanceSync(gomock.Any(), gomock.Any()).
+				Return(nil, errors.New("pre-split shard failure")).
+				Times(1),
+			mockBalanceGRPC.EXPECT().
+				CreateBalanceSync(gomock.Any(), gomock.Any()).
+				Return(nil, errors.New("pre-split shard failure")).
+				Times(1),
+		)
+
+		result, err := uc.CreateAsset(ctx, organizationID, ledgerID, input, "Bearer test-token")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "could not be created")
+		assert.Nil(t, result)
+	})
 }
