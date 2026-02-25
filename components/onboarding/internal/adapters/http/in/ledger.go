@@ -407,12 +407,12 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 
 	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
 	if !ok {
-		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "organization_id"))
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "organization_id"))
 	}
 
 	id, ok := c.Locals("id").(uuid.UUID)
 	if !ok {
-		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "id"))
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "id"))
 	}
 
 	span.SetAttributes(
@@ -465,12 +465,12 @@ func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
 
 	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
 	if !ok {
-		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "organization_id"))
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "organization_id"))
 	}
 
 	id, ok := c.Locals("id").(uuid.UUID)
 	if !ok {
-		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "id"))
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "id"))
 	}
 
 	settings, ok := i.(*map[string]any)
