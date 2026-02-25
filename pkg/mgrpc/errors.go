@@ -8,8 +8,8 @@ import (
 	"context"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"

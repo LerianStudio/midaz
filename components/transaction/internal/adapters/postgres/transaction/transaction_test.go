@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"

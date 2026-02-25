@@ -10,9 +10,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/attribute"
 )

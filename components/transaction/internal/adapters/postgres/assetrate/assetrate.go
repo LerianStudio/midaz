@@ -7,7 +7,7 @@ package assetrate
 import (
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 )
 
 // AssetRatePostgreSQLModel represents the entity AssetRatePostgreSQLModel into SQL context in Database

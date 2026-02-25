@@ -5,9 +5,9 @@
 package bootstrap
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"

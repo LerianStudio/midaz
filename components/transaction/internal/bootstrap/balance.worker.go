@@ -15,9 +15,9 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"

@@ -8,9 +8,9 @@ import (
 	"context"
 	"encoding/json"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"

@@ -5,11 +5,11 @@
 package bootstrap
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v2/commons/server"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v3/commons/server"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"

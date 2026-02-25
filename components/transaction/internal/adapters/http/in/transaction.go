@@ -15,12 +15,12 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	libConstants "github.com/LerianStudio/lib-commons/v3/commons/constants"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"

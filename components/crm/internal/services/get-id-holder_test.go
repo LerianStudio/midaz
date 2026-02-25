@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"

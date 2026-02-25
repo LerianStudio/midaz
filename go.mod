@@ -5,8 +5,8 @@ go 1.25.0
 toolchain go1.25.7
 
 require (
-	github.com/LerianStudio/lib-auth/v2 v2.4.0
-	github.com/LerianStudio/lib-commons/v2 v2.9.1
+	github.com/LerianStudio/lib-auth/v2 v2.5.0-beta.5
+	github.com/LerianStudio/lib-commons/v3 v3.0.0-beta.4
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/go-playground/locales v0.14.1
@@ -114,6 +114,7 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/alicebob/miniredis/v2 v2.36.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
