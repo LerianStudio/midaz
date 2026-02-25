@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -35,7 +36,15 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 	newBalances := make([]*mmodel.Balance, 0, len(balances))
 
-	for _, balance := range balances {
+	for i, balance := range balances {
+		if balance == nil {
+			err := fmt.Errorf("invalid balance at index %d: nil", i)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
+			logger.Errorf("Failed to update balances on database: %v", err)
+
+			return err
+		}
+
 		_, spanBalance := tracer.Start(ctx, "command.update_balances_new.balance")
 
 		calculateBalances, err := pkgTransaction.OperateBalances(fromTo[balance.Alias], *balance.ToTransactionBalance())
@@ -85,6 +94,10 @@ func (uc *UseCase) filterStaleBalances(ctx context.Context, organizationID, ledg
 	result := make([]*mmodel.Balance, 0, len(balances))
 
 	for _, balance := range balances {
+		if balance == nil {
+			continue
+		}
+
 		// Extract the balance key from alias format "0#@account1#default" -> "@account1#default"
 		balanceKey := pkgTransaction.SplitAliasWithKey(balance.Alias)
 

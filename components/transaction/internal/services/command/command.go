@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"time"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
@@ -90,6 +91,15 @@ type UseCase struct {
 
 	// Version is emitted in transaction events and resolved once at startup.
 	Version string
+
+	// BatchSideEffectsTimeout is the maximum time to wait for post-commit side
+	// effects (Redis cleanup, event publishing) before the consumer worker moves
+	// on. Zero means use the default (2s).
+	BatchSideEffectsTimeout time.Duration
+
+	// IdempotencyReplayTimeout is the maximum time to poll Redis for an in-flight
+	// idempotency value before giving up. Zero means use the default (75ms).
+	IdempotencyReplayTimeout time.Duration
 }
 
 // CheckHealth returns nil for unified mode (in-process calls don't need health checks).

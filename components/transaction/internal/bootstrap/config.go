@@ -6,8 +6,12 @@ package bootstrap
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,15 +41,20 @@ import (
 	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
 	brokerpkg "github.com/LerianStudio/midaz/v3/pkg/broker"
 	brokersecurity "github.com/LerianStudio/midaz/v3/pkg/broker/security"
+	"github.com/LerianStudio/midaz/v3/pkg/fence"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/google/uuid"
+	"github.com/twmb/franz-go/pkg/kgo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const ApplicationName = "transaction"
+
+var dirtyMigrationVersionPattern = regexp.MustCompile(`(?i)dirty database version\s+(\d+)`)
 
 // initLogger initializes the logger from options or creates a new one.
 func initLogger(opts *Options) (libLog.Logger, error) {
@@ -93,7 +102,8 @@ func resolveBrokerOperationTimeout(rawTimeout string) time.Duration {
 }
 
 func enforcePostgresSSLMode(envName, sslMode, envVar string) error {
-	if brokersecurity.IsNonProductionEnvironment(envName) {
+	normalizedEnv := strings.TrimSpace(envName)
+	if normalizedEnv != "" && brokersecurity.IsNonProductionEnvironment(normalizedEnv) {
 		return nil
 	}
 
@@ -102,6 +112,159 @@ func enforcePostgresSSLMode(envName, sslMode, envVar string) error {
 	}
 
 	return fmt.Errorf("%s=disable is not allowed in production-like environments", envVar)
+}
+
+func shouldAutoRecoverDirtyMigration(envName string) bool {
+	resolved := strings.TrimSpace(envName)
+	if resolved == "" {
+		return false
+	}
+
+	return brokersecurity.IsNonProductionEnvironment(resolved)
+}
+
+func parseDirtyMigrationVersion(err error) (int64, bool) {
+	if err == nil {
+		return 0, false
+	}
+
+	matches := dirtyMigrationVersionPattern.FindStringSubmatch(err.Error())
+	if len(matches) != 2 {
+		return 0, false
+	}
+
+	version, parseErr := strconv.ParseInt(matches[1], 10, 64)
+	if parseErr != nil {
+		return 0, false
+	}
+
+	return version, true
+}
+
+func migrationRepairStatements(version int64) []string {
+	switch version {
+	case 13:
+		return []string{"DROP INDEX CONCURRENTLY IF EXISTS idx_operation_account"}
+	default:
+		return nil
+	}
+}
+
+func readMigrationState(ctx context.Context, db *sql.DB) (int64, bool, error) {
+	row := db.QueryRowContext(ctx, "SELECT version, dirty FROM schema_migrations LIMIT 1")
+
+	var (
+		version int64
+		dirty   bool
+	)
+
+	if err := row.Scan(&version, &dirty); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, false, fmt.Errorf("schema_migrations has no rows")
+		}
+
+		return 0, false, fmt.Errorf("failed to read schema_migrations: %w", err)
+	}
+
+	return version, dirty, nil
+}
+
+func recoverDirtyMigration(connectionString string, expectedVersion int64, logger libLog.Logger) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	db, err := sql.Open("pgx", connectionString)
+	if err != nil {
+		return fmt.Errorf("failed to open PostgreSQL connection for migration recovery: %w", err)
+	}
+
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			logger.Warnf("Failed to close migration recovery connection: %v", closeErr)
+		}
+	}()
+
+	if err := db.PingContext(ctx); err != nil {
+		return fmt.Errorf("failed to ping PostgreSQL for migration recovery: %w", err)
+	}
+
+	version, dirty, err := readMigrationState(ctx, db)
+	if err != nil {
+		return err
+	}
+
+	if !dirty {
+		logger.Info("PostgreSQL migration state already clean; skipping dirty migration recovery")
+		return nil
+	}
+
+	if version != expectedVersion {
+		logger.Warnf("Dirty migration version changed during recovery attempt (detected=%d current=%d)", expectedVersion, version)
+	}
+
+	for _, statement := range migrationRepairStatements(version) {
+		if _, err := db.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("failed to execute migration recovery statement %q: %w", statement, err)
+		}
+	}
+
+	targetVersion := version
+	if targetVersion > 0 {
+		targetVersion = version - 1
+	}
+
+	result, err := db.ExecContext(ctx,
+		"UPDATE schema_migrations SET version = $1, dirty = FALSE WHERE version = $2 AND dirty = TRUE",
+		targetVersion,
+		version,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to force schema_migrations to version %d: %w", targetVersion, err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to verify schema_migrations recovery update: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		logger.Warnf("schema_migrations was updated concurrently while recovering dirty version %d; continuing", version)
+
+		return nil
+	}
+
+	logger.Warnf("Recovered dirty PostgreSQL migration state from version %d to version %d", version, targetVersion)
+
+	return nil
+}
+
+func ensurePostgresConnectionReady(cfg *Config, connection *libPostgres.PostgresConnection, logger libLog.Logger) error {
+	if _, err := connection.GetDB(); err == nil {
+		return nil
+	} else {
+		version, dirty := parseDirtyMigrationVersion(err)
+		if !dirty {
+			return fmt.Errorf("failed to initialize transaction PostgreSQL connection: %w", err)
+		}
+
+		if !shouldAutoRecoverDirtyMigration(cfg.EnvName) {
+			return fmt.Errorf("dirty PostgreSQL migration detected at version %d in environment %q: %w", version, cfg.EnvName, err)
+		}
+
+		logger.Warnf("Dirty PostgreSQL migration detected at version %d. Attempting automatic recovery in environment %q", version, cfg.EnvName)
+
+		if recoveryErr := recoverDirtyMigration(connection.ConnectionStringPrimary, version, logger); recoveryErr != nil {
+			return fmt.Errorf("failed to recover dirty PostgreSQL migration version %d: %w", version, recoveryErr)
+		}
+
+		if _, retryErr := connection.GetDB(); retryErr != nil {
+			return fmt.Errorf("failed to initialize transaction PostgreSQL connection after dirty migration recovery: %w", retryErr)
+		}
+
+		logger.Infof("PostgreSQL dirty migration recovery succeeded for version %d", version)
+	}
+
+	return nil
 }
 
 func newBalanceSyncWorker(
@@ -177,12 +340,13 @@ func initProducerWithCircuitBreaker(
 		SASLPassword:          cfg.RedpandaSASLPassword,
 	}
 
-	rawProducer, err := redpanda.NewProducerRedpandaWithSecurity(
+	rawProducer, err := redpanda.NewProducerRedpandaWithSecurityAndShardPartitioning(
 		brokers,
 		linger,
 		cfg.RedpandaMaxBufferedRecords,
 		cfg.TransactionAsync,
 		securityConfig,
+		cfg.RedisShardCount,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Redpanda producer: %w", err)
@@ -247,6 +411,107 @@ func initProducerWithCircuitBreaker(
 	}, nil
 }
 
+func initConsumerLagChecker(
+	cfg *Config,
+	logger libLog.Logger,
+	brokers []string,
+) (fence.ConsumerLagChecker, func(), error) {
+	if cfg == nil || !cfg.ConsumerLagFenceEnabled {
+		return nil, nil, nil
+	}
+
+	securityConfig := redpanda.ClientSecurityConfig{
+		TLSEnabled:            cfg.RedpandaTLSEnabled,
+		TLSInsecureSkipVerify: cfg.RedpandaTLSInsecureSkipVerify,
+		TLSCAFile:             cfg.RedpandaTLSCAFile,
+		SASLEnabled:           cfg.RedpandaSASLEnabled,
+		SASLMechanism:         cfg.RedpandaSASLMechanism,
+		SASLUsername:          cfg.RedpandaSASLUsername,
+		SASLPassword:          cfg.RedpandaSASLPassword,
+	}
+
+	clientOpts := []kgo.Opt{
+		kgo.SeedBrokers(brokers...),
+	}
+
+	securityOptions, err := redpanda.BuildSecurityOptions(securityConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to configure consumer lag checker security: %w", err)
+	}
+
+	clientOpts = append(clientOpts, securityOptions...)
+
+	client, err := kgo.NewClient(clientOpts...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize consumer lag checker client: %w", err)
+	}
+
+	cacheTTL := time.Duration(cfg.ConsumerLagCacheTTLMS) * time.Millisecond
+	checker := fence.NewFranzConsumerLagCheckerWithMode(
+		client,
+		cfg.RedpandaConsumerGroup,
+		cacheTTL,
+		cfg.ConsumerLagFenceFailOpen,
+	)
+
+	logger.Infof(
+		"Consumer lag fence enabled group=%s cache_ttl=%s fail_open=%t",
+		cfg.RedpandaConsumerGroup,
+		cacheTTL,
+		cfg.ConsumerLagFenceFailOpen,
+	)
+
+	cleanup := func() {
+		client.Close()
+	}
+
+	return checker, cleanup, nil
+}
+
+func initStaleBalanceRecoverer(
+	cfg *Config,
+	logger libLog.Logger,
+	brokers []string,
+) (query.StaleBalanceRecoverer, func(), error) {
+	if cfg == nil || !cfg.ConsumerLagFenceEnabled {
+		return nil, nil, nil
+	}
+
+	securityConfig := redpanda.ClientSecurityConfig{
+		TLSEnabled:            cfg.RedpandaTLSEnabled,
+		TLSInsecureSkipVerify: cfg.RedpandaTLSInsecureSkipVerify,
+		TLSCAFile:             cfg.RedpandaTLSCAFile,
+		SASLEnabled:           cfg.RedpandaSASLEnabled,
+		SASLMechanism:         cfg.RedpandaSASLMechanism,
+		SASLUsername:          cfg.RedpandaSASLUsername,
+		SASLPassword:          cfg.RedpandaSASLPassword,
+	}
+
+	securityOptions, err := redpanda.BuildSecurityOptions(securityConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to configure stale-balance recoverer security: %w", err)
+	}
+
+	adminOptions := make([]kgo.Opt, 0, 1+len(securityOptions))
+	adminOptions = append(adminOptions, kgo.SeedBrokers(brokers...))
+	adminOptions = append(adminOptions, securityOptions...)
+
+	adminClient, err := kgo.NewClient(adminOptions...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize stale-balance recoverer admin client: %w", err)
+	}
+
+	recoverer := query.NewFranzStaleBalanceRecoverer(adminClient, brokers, securityOptions, cfg.RedpandaConsumerGroup)
+
+	logger.Infof("Stale-balance replay recoverer enabled group=%s", cfg.RedpandaConsumerGroup)
+
+	cleanup := func() {
+		adminClient.Close()
+	}
+
+	return recoverer, cleanup, nil
+}
+
 func newShardRebalanceWorker(
 	cfg *Config,
 	logger libLog.Logger,
@@ -295,6 +560,379 @@ func newShardRebalanceWorker(
 	)
 
 	return worker
+}
+
+func preWarmExternalPreSplitBalances(
+	cfg *Config,
+	logger libLog.Logger,
+	balanceRepo *balance.BalancePostgreSQLRepository,
+	redisRepo *redis.RedisConsumerRepository,
+) error {
+	if cfg == nil || !cfg.ExternalPreSplitPreWarm || balanceRepo == nil || redisRepo == nil {
+		return nil
+	}
+
+	if cfg.ExternalPreSplitOrganizationID == "" || cfg.ExternalPreSplitLedgerID == "" {
+		logger.Info("External pre-split Redis pre-warm skipped: EXTERNAL_PRESPLIT_ORGANIZATION_ID or EXTERNAL_PRESPLIT_LEDGER_ID not set")
+		return nil
+	}
+
+	organizationID, err := uuid.Parse(cfg.ExternalPreSplitOrganizationID)
+	if err != nil {
+		return fmt.Errorf("invalid EXTERNAL_PRESPLIT_ORGANIZATION_ID: %w", err)
+	}
+
+	ledgerID, err := uuid.Parse(cfg.ExternalPreSplitLedgerID)
+	if err != nil {
+		return fmt.Errorf("invalid EXTERNAL_PRESPLIT_LEDGER_ID: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	externalBalances, err := balanceRepo.ListExternalByOrganizationLedger(ctx, organizationID, ledgerID)
+	if err != nil {
+		return err
+	}
+
+	if len(externalBalances) == 0 {
+		logger.Infof("External pre-split Redis pre-warm: no external balances found for organization=%s ledger=%s", organizationID, ledgerID)
+		return nil
+	}
+
+	preWarmTTL := time.Duration(cfg.ExternalPreSplitPreWarmTTLSeconds) * time.Second
+	if preWarmTTL < 0 {
+		preWarmTTL = 0
+	}
+
+	coverageByAlias, err := redisRepo.PreWarmExternalBalances(ctx, organizationID, ledgerID, externalBalances, preWarmTTL)
+	if err != nil {
+		return err
+	}
+
+	for alias, coverage := range coverageByAlias {
+		expected := coverage.ExpectedShards
+		if cfg.ExternalPreSplitShardCount > 0 {
+			expected = cfg.ExternalPreSplitShardCount
+		}
+
+		logger.Infof("External pre-split balances: %d/%d shards covered for %s", coverage.CoveredShards, expected, alias)
+
+		if coverage.CoveredShards < expected {
+			logger.Warnf("External pre-split coverage incomplete for %s: %d/%d shard balances", alias, coverage.CoveredShards, expected)
+		}
+	}
+
+	return nil
+}
+
+// initPostgresConnection creates the PostgreSQL connection with fallback support
+// for prefixed env vars (unified ledger) and SSL mode enforcement.
+func initPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.PostgresConnection, error) {
+	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
+	dbHost := utils.EnvFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
+	dbUser := utils.EnvFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
+	dbPassword := utils.EnvFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
+	dbName := utils.EnvFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
+	dbPort := utils.EnvFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
+
+	dbSSLMode := strings.TrimSpace(utils.EnvFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode))
+	if dbSSLMode == "" {
+		dbSSLMode = "disable"
+	}
+
+	if err := enforcePostgresSSLMode(cfg.EnvName, dbSSLMode, "DB_TRANSACTION_SSLMODE"); err != nil {
+		return nil, err
+	}
+
+	dbReplicaHost := utils.EnvFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
+	dbReplicaUser := utils.EnvFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
+	dbReplicaPassword := utils.EnvFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
+	dbReplicaName := utils.EnvFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
+	dbReplicaPort := utils.EnvFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
+
+	dbReplicaSSLMode := strings.TrimSpace(utils.EnvFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode))
+	if dbReplicaSSLMode == "" {
+		dbReplicaSSLMode = dbSSLMode
+	}
+
+	if err := enforcePostgresSSLMode(cfg.EnvName, dbReplicaSSLMode, "DB_TRANSACTION_REPLICA_SSLMODE"); err != nil {
+		return nil, err
+	}
+
+	maxOpenConns := utils.EnvFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
+	maxIdleConns := utils.EnvFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
+
+	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
+
+	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		dbReplicaHost, dbReplicaUser, dbReplicaPassword, dbReplicaName, dbReplicaPort, dbReplicaSSLMode)
+
+	return &libPostgres.PostgresConnection{
+		ConnectionStringPrimary: postgreSourcePrimary,
+		ConnectionStringReplica: postgreSourceReplica,
+		PrimaryDBName:           dbName,
+		ReplicaDBName:           dbReplicaName,
+		Component:               ApplicationName,
+		Logger:                  logger,
+		MaxOpenConnections:      maxOpenConns,
+		MaxIdleConnections:      maxIdleConns,
+	}, nil
+}
+
+// initMongoConnection creates the MongoDB connection with fallback support
+// for prefixed env vars (unified ledger deployment).
+func initMongoConnection(cfg *Config, logger libLog.Logger) *libMongo.MongoConnection {
+	// Apply fallback for MongoDB prefixed env vars
+	mongoURI := utils.EnvFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
+	mongoHost := utils.EnvFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
+	mongoName := utils.EnvFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
+	mongoUser := utils.EnvFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
+	mongoPassword := utils.EnvFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
+	mongoPortRaw := utils.EnvFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
+	mongoParametersRaw := utils.EnvFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
+	mongoPoolSize := utils.EnvFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
+
+	// Extract port and parameters for MongoDB connection (handles backward compatibility)
+	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
+
+	// Build MongoDB connection string using centralized utility (ensures correct format)
+	mongoSource := libMongo.BuildConnectionString(
+		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort, mongoParameters, logger)
+
+	// Safe conversion: use uint64 with default, only assign if positive
+	var mongoMaxPoolSize uint64 = 100
+	if mongoPoolSize > 0 {
+		mongoMaxPoolSize = uint64(mongoPoolSize)
+	}
+
+	return &libMongo.MongoConnection{
+		ConnectionStringSource: mongoSource,
+		Database:               mongoName,
+		Logger:                 logger,
+		MaxPoolSize:            mongoMaxPoolSize,
+	}
+}
+
+// initRedisConnection creates the Redis connection from configuration.
+func initRedisConnection(cfg *Config, logger libLog.Logger) *libRedis.RedisConnection {
+	return &libRedis.RedisConnection{
+		Address:                      strings.Split(cfg.RedisHost, ","),
+		Password:                     cfg.RedisPassword,
+		DB:                           cfg.RedisDB,
+		Protocol:                     cfg.RedisProtocol,
+		MasterName:                   cfg.RedisMasterName,
+		UseTLS:                       cfg.RedisTLS,
+		CACert:                       cfg.RedisCACert,
+		UseGCPIAMAuth:                cfg.RedisUseGCPIAM,
+		ServiceAccount:               cfg.RedisServiceAccount,
+		GoogleApplicationCredentials: cfg.GoogleApplicationCredentials,
+		TokenLifeTime:                time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
+		RefreshDuration:              time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
+		Logger:                       logger,
+		PoolSize:                     cfg.RedisPoolSize,
+		MinIdleConns:                 cfg.RedisMinIdleConns,
+		ReadTimeout:                  time.Duration(cfg.RedisReadTimeout) * time.Second,
+		WriteTimeout:                 time.Duration(cfg.RedisWriteTimeout) * time.Second,
+		DialTimeout:                  time.Duration(cfg.RedisDialTimeout) * time.Second,
+		PoolTimeout:                  time.Duration(cfg.RedisPoolTimeout) * time.Second,
+		MaxRetries:                   cfg.RedisMaxRetries,
+		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
+		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
+	}
+}
+
+// ensureMongoIndexes creates entity_id indexes on known base collections.
+func ensureMongoIndexes(mongoConnection *libMongo.MongoConnection, logger libLog.Logger) {
+	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancelEnsureIndexes()
+
+	indexModel := mongo.IndexModel{
+		Keys: bson.D{{Key: "entity_id", Value: 1}},
+		Options: options.Index().
+			SetUnique(false),
+	}
+
+	collections := []string{"operation", "transaction", "operation_route", "transaction_route"}
+	for _, collection := range collections {
+		if err := mongoConnection.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
+			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
+		}
+	}
+}
+
+// validateBrokerSecurity validates Redpanda security configuration and logs warnings.
+func validateBrokerSecurity(cfg *Config, logger libLog.Logger) error {
+	warnings, err := brokersecurity.ValidateRuntimeConfig(brokersecurity.RuntimeConfig{
+		Environment:           cfg.EnvName,
+		TLSEnabled:            cfg.RedpandaTLSEnabled,
+		TLSInsecureSkipVerify: cfg.RedpandaTLSInsecureSkipVerify,
+		SASLEnabled:           cfg.RedpandaSASLEnabled,
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, warning := range warnings {
+		logger.Warnf("Redpanda security warning: %s (ENV_NAME=%s)", warning, cfg.EnvName)
+	}
+
+	deprecatedBrokerEnvs := brokerpkg.DeprecatedBrokerEnvVariables(os.Environ())
+	if len(deprecatedBrokerEnvs) > 0 {
+		logger.Warnf(
+			"Deprecated broker environment variables detected (ignored by this version): %s. Regenerate .env from .env.example and remove deprecated entries.",
+			strings.Join(deprecatedBrokerEnvs, ", "),
+		)
+	}
+
+	return nil
+}
+
+// brokerInfraResult holds the outputs of broker infrastructure initialization.
+type brokerInfraResult struct {
+	producer              redpanda.ProducerRepository
+	circuitBreakerManager *CircuitBreakerManager
+	consumerLagChecker    fence.ConsumerLagChecker
+	staleBalanceRecoverer query.StaleBalanceRecoverer
+	cleanupFuncs          []func()
+}
+
+// initBrokerInfrastructure initializes the Redpanda producer (with circuit breaker),
+// consumer lag checker, and stale-balance recoverer. It returns all cleanup functions
+// that the caller must invoke on shutdown.
+func initBrokerInfrastructure(
+	cfg *Config,
+	opts *Options,
+	logger libLog.Logger,
+	seedBrokers []string,
+	telemetry *libOpentelemetry.Telemetry,
+) (*brokerInfraResult, error) {
+	var cleanups []func()
+
+	producerResult, err := initProducerWithCircuitBreaker(cfg, opts, logger, seedBrokers, telemetry)
+	if err != nil {
+		return nil, err
+	}
+
+	cleanups = append(cleanups, func() {
+		if producerResult.circuitBreakerManager != nil {
+			producerResult.circuitBreakerManager.Stop()
+		}
+
+		if producerResult.producer != nil {
+			if closeErr := producerResult.producer.Close(); closeErr != nil {
+				logger.Warnf("Failed to close transaction producer during cleanup: %v", closeErr)
+			}
+		}
+	})
+
+	consumerLagChecker, consumerLagCheckerCleanup, err := initConsumerLagChecker(cfg, logger, seedBrokers)
+	if err != nil {
+		return nil, err
+	}
+
+	if consumerLagCheckerCleanup != nil {
+		cleanups = append(cleanups, consumerLagCheckerCleanup)
+	}
+
+	staleBalanceRecoverer, staleBalanceRecovererCleanup, err := initStaleBalanceRecoverer(cfg, logger, seedBrokers)
+	if err != nil {
+		return nil, err
+	}
+
+	if staleBalanceRecovererCleanup != nil {
+		cleanups = append(cleanups, staleBalanceRecovererCleanup)
+	}
+
+	return &brokerInfraResult{
+		producer:              producerResult.producer,
+		circuitBreakerManager: producerResult.circuitBreakerManager,
+		consumerLagChecker:    consumerLagChecker,
+		staleBalanceRecoverer: staleBalanceRecoverer,
+		cleanupFuncs:          cleanups,
+	}, nil
+}
+
+// resolveProtoAddress ensures ProtoAddress has a valid value, defaulting to ":3011".
+func resolveProtoAddress(cfg *Config, logger libLog.Logger) {
+	if cfg.ProtoAddress == "" || cfg.ProtoAddress == ":" {
+		cfg.ProtoAddress = ":3011"
+
+		logger.Warn("PROTO_ADDRESS not set or invalid, using default: :3011")
+	}
+}
+
+// resolveBalanceCacheTTL returns a non-negative cache TTL from configuration.
+func resolveBalanceCacheTTL(cfg *Config) time.Duration {
+	ttl := time.Duration(cfg.BalanceCacheTTLSeconds) * time.Second
+	if ttl < 0 {
+		return 0
+	}
+
+	return ttl
+}
+
+// configureConsumerRoutes creates and configures Redpanda consumer routes.
+func configureConsumerRoutes(cfg *Config, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry, seedBrokers []string) *redpanda.ConsumerRoutes {
+	routes := redpanda.NewConsumerRoutesWithSecurity(
+		seedBrokers,
+		cfg.RedpandaConsumerGroup,
+		cfg.RedpandaNumbersOfWorkers,
+		cfg.RedpandaFetchMaxBytes,
+		logger,
+		telemetry,
+		redpanda.ClientSecurityConfig{
+			TLSEnabled:            cfg.RedpandaTLSEnabled,
+			TLSInsecureSkipVerify: cfg.RedpandaTLSInsecureSkipVerify,
+			TLSCAFile:             cfg.RedpandaTLSCAFile,
+			SASLEnabled:           cfg.RedpandaSASLEnabled,
+			SASLMechanism:         cfg.RedpandaSASLMechanism,
+			SASLUsername:          cfg.RedpandaSASLUsername,
+			SASLPassword:          cfg.RedpandaSASLPassword,
+		},
+		cfg.RedpandaMaxRetryAttempts,
+	)
+
+	if cfg.RedpandaPartitionCount > 0 && cfg.RedpandaNumbersOfWorkers > cfg.RedpandaPartitionCount {
+		logger.Warnf(
+			"REDPANDA_NUMBERS_OF_WORKERS=%d exceeds REDPANDA_PARTITION_COUNT=%d; extra workers stay idle because work is partition-bound",
+			cfg.RedpandaNumbersOfWorkers,
+			cfg.RedpandaPartitionCount,
+		)
+	}
+
+	routes.SetPartitionWorkerHint(cfg.RedpandaPartitionCount)
+
+	commitInterval := time.Duration(cfg.RedpandaCommitIntervalMS) * time.Millisecond
+	if commitInterval > 0 {
+		routes.SetCommitInterval(commitInterval)
+	}
+
+	if cfg.ConsumerBackpressureEnabled && cfg.ConsumerMaxDBTPS > 0 {
+		routes.SetDBRateLimiter(cfg.ConsumerMaxDBTPS, cfg.ConsumerMaxDBBurst)
+		logger.Infof("Consumer DB backpressure enabled: max_tps=%d burst=%d", cfg.ConsumerMaxDBTPS, cfg.ConsumerMaxDBBurst)
+	}
+
+	routes.SetBatchConfig(
+		cfg.ConsumerBatchEnabled,
+		cfg.ConsumerBatchSize,
+		time.Duration(cfg.ConsumerBatchWindowMS)*time.Millisecond,
+		time.Duration(cfg.ConsumerIdleFlushMS)*time.Millisecond,
+	)
+	routes.SetBatchImmediateCommit(cfg.ConsumerBatchImmediateCommit)
+
+	if cfg.ConsumerBatchEnabled {
+		logger.Infof(
+			"Consumer micro-batching enabled: size=%d window_ms=%d idle_flush_ms=%d immediate_commit=%t",
+			cfg.ConsumerBatchSize,
+			cfg.ConsumerBatchWindowMS,
+			cfg.ConsumerIdleFlushMS,
+			cfg.ConsumerBatchImmediateCommit,
+		)
+	}
+
+	return routes
 }
 
 // Config is the top level configuration struct for the entire application.
@@ -379,6 +1017,8 @@ type Config struct {
 	RedpandaAuditTopic                  string `env:"REDPANDA_AUDIT_TOPIC" default:"ledger.audit.log"`
 	RedpandaConsumerGroup               string `env:"REDPANDA_CONSUMER_GROUP" default:"midaz-balance-projector"`
 	RedpandaNumbersOfWorkers            int    `env:"REDPANDA_NUMBERS_OF_WORKERS" default:"5"`
+	RedpandaPartitionCount              int    `env:"REDPANDA_PARTITION_COUNT" default:"8"`
+	RedpandaCommitIntervalMS            int    `env:"REDPANDA_COMMIT_INTERVAL_MS" default:"1000"`
 	RedpandaFetchMaxBytes               int    `env:"REDPANDA_FETCH_MAX_BYTES" default:"50000000"`
 	RedpandaMaxRetryAttempts            int    `env:"REDPANDA_MAX_RETRY_ATTEMPTS" default:"3"`
 	RedpandaProducerLingerMS            int    `env:"REDPANDA_PRODUCER_LINGER_MS" default:"5"`
@@ -428,6 +1068,9 @@ type Config struct {
 	AuthorizerTimeoutMS                 int    `env:"AUTHORIZER_TIMEOUT_MS" default:"100"`
 	AuthorizerUseStreaming              bool   `env:"AUTHORIZER_USE_STREAMING" default:"false"`
 	AuthorizerGRPCTLSEnabled            bool   `env:"AUTHORIZER_GRPC_TLS_ENABLED" default:"false"`
+	AuthorizerRoutingMode               string `env:"AUTHORIZER_ROUTING_MODE" default:"single"`
+	AuthorizerInstances                 string `env:"AUTHORIZER_INSTANCES" default:""`
+	AuthorizerShardRanges               string `env:"AUTHORIZER_SHARD_RANGES" default:""`
 	BalanceSyncWorkerEnabled            bool   `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
 	BalanceSyncMaxWorkers               int    `env:"BALANCE_SYNC_MAX_WORKERS"`
 	ShardRebalanceWorkerEnabled         bool   `env:"SHARD_REBALANCE_WORKER_ENABLED" default:"false"`
@@ -446,6 +1089,34 @@ type Config struct {
 	// Set REDIS_SHARD_COUNT > 0 to enable per-shard Lua execution.
 	// Default 0 = sharding disabled (legacy single-slot mode).
 	RedisShardCount int `env:"REDIS_SHARD_COUNT" default:"0"`
+
+	ConsumerBackpressureEnabled bool `env:"CONSUMER_BACKPRESSURE_ENABLED" default:"false"`
+	ConsumerMaxDBTPS            int  `env:"CONSUMER_MAX_DB_TPS" default:"0"`
+	ConsumerMaxDBBurst          int  `env:"CONSUMER_MAX_DB_BURST" default:"100"`
+	ConsumerLagFenceEnabled     bool `env:"CONSUMER_LAG_FENCE_ENABLED" default:"true"`
+	ConsumerLagFenceFailOpen    bool `env:"CONSUMER_LAG_FENCE_FAIL_OPEN" default:"true"`
+	ConsumerLagCacheTTLMS       int  `env:"CONSUMER_LAG_CACHE_TTL_MS" default:"500"`
+
+	ConsumerBatchEnabled         bool `env:"CONSUMER_BATCH_ENABLED" default:"false"`
+	ConsumerBatchSize            int  `env:"CONSUMER_BATCH_SIZE" default:"50"`
+	ConsumerBatchWindowMS        int  `env:"CONSUMER_BATCH_WINDOW_MS" default:"10"`
+	ConsumerIdleFlushMS          int  `env:"CONSUMER_IDLE_FLUSH_MS" default:"100"`
+	ConsumerBatchImmediateCommit bool `env:"CONSUMER_BATCH_IMMEDIATE_COMMIT" default:"true"`
+
+	// Timeout for post-commit side effects in batch processing (ms).
+	// After DB commit, Redis cleanup and event publishing run with this budget.
+	BatchSideEffectsTimeoutMS int `env:"BATCH_SIDE_EFFECTS_TIMEOUT_MS" default:"2000"`
+
+	// Timeout for polling an in-flight idempotency value from Redis (ms).
+	// Increase for high-TPS scenarios where 75ms is too tight.
+	IdempotencyReplayTimeoutMS int `env:"IDEMPOTENCY_REPLAY_TIMEOUT_MS" default:"200"`
+
+	ExternalPreSplitShardCount        int    `env:"EXTERNAL_PRESPLIT_SHARD_COUNT" default:"8"`
+	ExternalPreSplitPreWarm           bool   `env:"EXTERNAL_PRESPLIT_PREWARM" default:"true"`
+	ExternalPreSplitPreWarmTTLSeconds int    `env:"EXTERNAL_PRESPLIT_PREWARM_TTL_SECONDS" default:"3600"`
+	ExternalPreSplitOrganizationID    string `env:"EXTERNAL_PRESPLIT_ORGANIZATION_ID"`
+	ExternalPreSplitLedgerID          string `env:"EXTERNAL_PRESPLIT_LEDGER_ID"`
+	BalanceCacheTTLSeconds            int    `env:"BALANCE_CACHE_TTL_SECONDS" default:"0"`
 
 	// Circuit Breaker configuration for producer
 	BrokerCircuitBreakerConsecutiveFailures int    `env:"BROKER_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES" default:"15"`
@@ -482,7 +1153,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	var cleanupFuncs []func()
+	cleanupFuncs := make([]func(), 0, 8)
+
 	success := false
 
 	defer func() {
@@ -500,26 +1172,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
-	warnings, err := brokersecurity.ValidateRuntimeConfig(brokersecurity.RuntimeConfig{
-		Environment:           cfg.EnvName,
-		TLSEnabled:            cfg.RedpandaTLSEnabled,
-		TLSInsecureSkipVerify: cfg.RedpandaTLSInsecureSkipVerify,
-		SASLEnabled:           cfg.RedpandaSASLEnabled,
-	})
-	if err != nil {
+	if err := validateBrokerSecurity(cfg, logger); err != nil {
 		return nil, err
-	}
-
-	for _, warning := range warnings {
-		logger.Warnf("Redpanda security warning: %s (ENV_NAME=%s)", warning, cfg.EnvName)
-	}
-
-	deprecatedBrokerEnvs := brokerpkg.DeprecatedBrokerEnvVariables(os.Environ())
-	if len(deprecatedBrokerEnvs) > 0 {
-		logger.Warnf(
-			"Deprecated broker environment variables detected (ignored by this version): %s. Regenerate .env from .env.example and remove deprecated entries.",
-			strings.Join(deprecatedBrokerEnvs, ", "),
-		)
 	}
 
 	// BalanceSyncWorkerEnabled defaults to true via struct tag
@@ -546,53 +1200,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		telemetry.ShutdownTelemetry()
 	})
 
-	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
-	dbHost := utils.EnvFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
-	dbUser := utils.EnvFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
-	dbPassword := utils.EnvFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
-	dbName := utils.EnvFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
-	dbPort := utils.EnvFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
-	dbSSLMode := strings.TrimSpace(utils.EnvFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode))
-	if dbSSLMode == "" {
-		dbSSLMode = "disable"
-	}
-
-	if err := enforcePostgresSSLMode(cfg.EnvName, dbSSLMode, "DB_TRANSACTION_SSLMODE"); err != nil {
+	postgresConnection, err := initPostgresConnection(cfg, logger)
+	if err != nil {
 		return nil, err
 	}
 
-	dbReplicaHost := utils.EnvFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
-	dbReplicaUser := utils.EnvFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
-	dbReplicaPassword := utils.EnvFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
-	dbReplicaName := utils.EnvFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
-	dbReplicaPort := utils.EnvFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
-	dbReplicaSSLMode := strings.TrimSpace(utils.EnvFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode))
-	if dbReplicaSSLMode == "" {
-		dbReplicaSSLMode = dbSSLMode
-	}
-
-	if err := enforcePostgresSSLMode(cfg.EnvName, dbReplicaSSLMode, "DB_TRANSACTION_REPLICA_SSLMODE"); err != nil {
+	if err := ensurePostgresConnectionReady(cfg, postgresConnection, logger); err != nil {
 		return nil, err
-	}
-
-	maxOpenConns := utils.EnvFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
-	maxIdleConns := utils.EnvFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
-
-	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
-
-	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbReplicaHost, dbReplicaUser, dbReplicaPassword, dbReplicaName, dbReplicaPort, dbReplicaSSLMode)
-
-	postgresConnection := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: postgreSourcePrimary,
-		ConnectionStringReplica: postgreSourceReplica,
-		PrimaryDBName:           dbName,
-		ReplicaDBName:           dbReplicaName,
-		Component:               ApplicationName,
-		Logger:                  logger,
-		MaxOpenConnections:      maxOpenConns,
-		MaxIdleConnections:      maxIdleConns,
 	}
 
 	cleanupFuncs = append(cleanupFuncs, func() {
@@ -603,35 +1217,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	})
 
-	// Apply fallback for MongoDB prefixed env vars
-	mongoURI := utils.EnvFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
-	mongoHost := utils.EnvFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
-	mongoName := utils.EnvFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
-	mongoUser := utils.EnvFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
-	mongoPassword := utils.EnvFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
-	mongoPortRaw := utils.EnvFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
-	mongoParametersRaw := utils.EnvFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
-	mongoPoolSize := utils.EnvFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
-
-	// Extract port and parameters for MongoDB connection (handles backward compatibility)
-	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
-
-	// Build MongoDB connection string using centralized utility (ensures correct format)
-	mongoSource := libMongo.BuildConnectionString(
-		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort, mongoParameters, logger)
-
-	// Safe conversion: use uint64 with default, only assign if positive
-	var mongoMaxPoolSize uint64 = 100
-	if mongoPoolSize > 0 {
-		mongoMaxPoolSize = uint64(mongoPoolSize)
-	}
-
-	mongoConnection := &libMongo.MongoConnection{
-		ConnectionStringSource: mongoSource,
-		Database:               mongoName,
-		Logger:                 logger,
-		MaxPoolSize:            mongoMaxPoolSize,
-	}
+	mongoConnection := initMongoConnection(cfg, logger)
 
 	cleanupFuncs = append(cleanupFuncs, func() {
 		if mongoConnection.DB != nil {
@@ -641,30 +1227,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	})
 
-	redisConnection := &libRedis.RedisConnection{
-		Address:                      strings.Split(cfg.RedisHost, ","),
-		Password:                     cfg.RedisPassword,
-		DB:                           cfg.RedisDB,
-		Protocol:                     cfg.RedisProtocol,
-		MasterName:                   cfg.RedisMasterName,
-		UseTLS:                       cfg.RedisTLS,
-		CACert:                       cfg.RedisCACert,
-		UseGCPIAMAuth:                cfg.RedisUseGCPIAM,
-		ServiceAccount:               cfg.RedisServiceAccount,
-		GoogleApplicationCredentials: cfg.GoogleApplicationCredentials,
-		TokenLifeTime:                time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
-		RefreshDuration:              time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
-		Logger:                       logger,
-		PoolSize:                     cfg.RedisPoolSize,
-		MinIdleConns:                 cfg.RedisMinIdleConns,
-		ReadTimeout:                  time.Duration(cfg.RedisReadTimeout) * time.Second,
-		WriteTimeout:                 time.Duration(cfg.RedisWriteTimeout) * time.Second,
-		DialTimeout:                  time.Duration(cfg.RedisDialTimeout) * time.Second,
-		PoolTimeout:                  time.Duration(cfg.RedisPoolTimeout) * time.Second,
-		MaxRetries:                   cfg.RedisMaxRetries,
-		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
-		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
-	}
+	redisConnection := initRedisConnection(cfg, logger)
 
 	cleanupFuncs = append(cleanupFuncs, func() {
 		if closeErr := redisConnection.Close(); closeErr != nil {
@@ -688,88 +1251,74 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
-	// Ensure indexes also for known base collections on fresh installs
-	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancelEnsureIndexes()
-
-	indexModel := mongo.IndexModel{
-		Keys: bson.D{{Key: "entity_id", Value: 1}},
-		Options: options.Index().
-			SetUnique(false),
-	}
-
-	collections := []string{"operation", "transaction", "operation_route", "transaction_route"}
-	for _, collection := range collections {
-		if err := mongoConnection.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
-			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
-		}
-	}
+	ensureMongoIndexes(mongoConnection, logger)
 
 	seedBrokers := redpanda.ParseSeedBrokers(cfg.RedpandaBrokers)
 
-	producerResult, err := initProducerWithCircuitBreaker(cfg, opts, logger, seedBrokers, telemetry)
+	brokerInfra, err := initBrokerInfrastructure(cfg, opts, logger, seedBrokers, telemetry)
 	if err != nil {
 		return nil, err
 	}
 
-	cleanupFuncs = append(cleanupFuncs, func() {
-		if producerResult.circuitBreakerManager != nil {
-			producerResult.circuitBreakerManager.Stop()
-		}
-
-		if producerResult.producer != nil {
-			if closeErr := producerResult.producer.Close(); closeErr != nil {
-				logger.Warnf("Failed to close transaction producer during cleanup: %v", closeErr)
-			}
-		}
-	})
-
-	producerRepository := producerResult.producer
-	circuitBreakerManager := producerResult.circuitBreakerManager
+	cleanupFuncs = append(cleanupFuncs, brokerInfra.cleanupFuncs...)
 
 	useCase := &command.UseCase{
-		TransactionRepo:        transactionPostgreSQLRepository,
-		OperationRepo:          operationPostgreSQLRepository,
-		AssetRateRepo:          assetRatePostgreSQLRepository,
-		BalanceRepo:            balancePostgreSQLRepository,
-		OperationRouteRepo:     operationRoutePostgreSQLRepository,
-		TransactionRouteRepo:   transactionRoutePostgreSQLRepository,
-		MetadataRepo:           metadataMongoDBRepository,
-		BrokerRepo:             producerRepository,
-		RedisRepo:              redisConsumerRepository,
-		ShardRouter:            shardRouter,
-		ShardManager:           shardManager,
-		BalanceOperationsTopic: cfg.RedpandaBalanceOperationsTopic,
-		BalanceCreateTopic:     cfg.RedpandaBalanceCreateTopic,
-		EventsTopic:            cfg.RedpandaEventsTopic,
-		EventsEnabled:          cfg.TransactionEventsEnabled,
-		AuditTopic:             cfg.RedpandaAuditTopic,
-		AuditLogEnabled:        cfg.AuditLogEnabled,
-		TransactionAsync:       cfg.TransactionAsync,
-		Version:                cfg.Version,
+		TransactionRepo:          transactionPostgreSQLRepository,
+		OperationRepo:            operationPostgreSQLRepository,
+		AssetRateRepo:            assetRatePostgreSQLRepository,
+		BalanceRepo:              balancePostgreSQLRepository,
+		OperationRouteRepo:       operationRoutePostgreSQLRepository,
+		TransactionRouteRepo:     transactionRoutePostgreSQLRepository,
+		MetadataRepo:             metadataMongoDBRepository,
+		BrokerRepo:               brokerInfra.producer,
+		RedisRepo:                redisConsumerRepository,
+		ShardRouter:              shardRouter,
+		ShardManager:             shardManager,
+		BalanceOperationsTopic:   cfg.RedpandaBalanceOperationsTopic,
+		BalanceCreateTopic:       cfg.RedpandaBalanceCreateTopic,
+		EventsTopic:              cfg.RedpandaEventsTopic,
+		EventsEnabled:            cfg.TransactionEventsEnabled,
+		AuditTopic:               cfg.RedpandaAuditTopic,
+		AuditLogEnabled:          cfg.AuditLogEnabled,
+		TransactionAsync:         cfg.TransactionAsync,
+		Version:                  cfg.Version,
+		BatchSideEffectsTimeout:  time.Duration(cfg.BatchSideEffectsTimeoutMS) * time.Millisecond,
+		IdempotencyReplayTimeout: time.Duration(cfg.IdempotencyReplayTimeoutMS) * time.Millisecond,
 	}
+
+	balanceCacheTTL := resolveBalanceCacheTTL(cfg)
 
 	queryUseCase := &query.UseCase{
-		TransactionRepo:      transactionPostgreSQLRepository,
-		OperationRepo:        operationPostgreSQLRepository,
-		AssetRateRepo:        assetRatePostgreSQLRepository,
-		BalanceRepo:          balancePostgreSQLRepository,
-		OperationRouteRepo:   operationRoutePostgreSQLRepository,
-		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
-		MetadataRepo:         metadataMongoDBRepository,
-		RedisRepo:            redisConsumerRepository,
-		ShardRouter:          shardRouter,
-		ShardManager:         shardManager,
+		TransactionRepo:         transactionPostgreSQLRepository,
+		OperationRepo:           operationPostgreSQLRepository,
+		AssetRateRepo:           assetRatePostgreSQLRepository,
+		BalanceRepo:             balancePostgreSQLRepository,
+		OperationRouteRepo:      operationRoutePostgreSQLRepository,
+		TransactionRouteRepo:    transactionRoutePostgreSQLRepository,
+		MetadataRepo:            metadataMongoDBRepository,
+		RedisRepo:               redisConsumerRepository,
+		ShardRouter:             shardRouter,
+		ShardManager:            shardManager,
+		LagChecker:              brokerInfra.consumerLagChecker,
+		ConsumerLagFenceEnabled: cfg.ConsumerLagFenceEnabled,
+		BalanceOperationsTopic:  cfg.RedpandaBalanceOperationsTopic,
+		StaleBalanceRecoverer:   brokerInfra.staleBalanceRecoverer,
+		BalanceCacheTTL:         balanceCacheTTL,
 	}
 
-	authorizerClient, err := grpcOut.NewAuthorizerGRPC(
+	authorizerClient, err := grpcOut.NewAuthorizerClient(
 		grpcOut.AuthorizerConfig{
-			Enabled:    cfg.AuthorizerEnabled,
-			Host:       cfg.AuthorizerHost,
-			Port:       cfg.AuthorizerPort,
-			Timeout:    time.Duration(cfg.AuthorizerTimeoutMS) * time.Millisecond,
-			Streaming:  cfg.AuthorizerUseStreaming,
-			TLSEnabled: cfg.AuthorizerGRPCTLSEnabled,
+			Enabled:     cfg.AuthorizerEnabled,
+			Host:        cfg.AuthorizerHost,
+			Port:        cfg.AuthorizerPort,
+			Timeout:     time.Duration(cfg.AuthorizerTimeoutMS) * time.Millisecond,
+			Streaming:   cfg.AuthorizerUseStreaming,
+			TLSEnabled:  cfg.AuthorizerGRPCTLSEnabled,
+			Environment: cfg.EnvName,
+			RoutingMode: cfg.AuthorizerRoutingMode,
+			Instances:   cfg.AuthorizerInstances,
+			ShardRanges: cfg.AuthorizerShardRanges,
+			ShardCount:  cfg.RedisShardCount,
 		},
 		logger,
 	)
@@ -816,24 +1365,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:   queryUseCase,
 	}
 
-	routes := redpanda.NewConsumerRoutesWithSecurity(
-		seedBrokers,
-		cfg.RedpandaConsumerGroup,
-		cfg.RedpandaNumbersOfWorkers,
-		cfg.RedpandaFetchMaxBytes,
-		logger,
-		telemetry,
-		redpanda.ClientSecurityConfig{
-			TLSEnabled:            cfg.RedpandaTLSEnabled,
-			TLSInsecureSkipVerify: cfg.RedpandaTLSInsecureSkipVerify,
-			TLSCAFile:             cfg.RedpandaTLSCAFile,
-			SASLEnabled:           cfg.RedpandaSASLEnabled,
-			SASLMechanism:         cfg.RedpandaSASLMechanism,
-			SASLUsername:          cfg.RedpandaSASLUsername,
-			SASLPassword:          cfg.RedpandaSASLPassword,
-		},
-		cfg.RedpandaMaxRetryAttempts,
-	)
+	routes := configureConsumerRoutes(cfg, logger, telemetry, seedBrokers)
 
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
@@ -843,16 +1375,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	server := NewServer(cfg, app, logger, telemetry)
 
-	if cfg.ProtoAddress == "" || cfg.ProtoAddress == ":" {
-		cfg.ProtoAddress = ":3011"
-
-		logger.Warn("PROTO_ADDRESS not set or invalid, using default: :3011")
-	}
+	resolveProtoAddress(cfg, logger)
 
 	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, useCase, queryUseCase)
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
 
 	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
+
+	if err := preWarmExternalPreSplitBalances(cfg, logger, balancePostgreSQLRepository, redisConsumerRepository); err != nil {
+		logger.Warnf("External pre-split Redis pre-warm failed: %v", err)
+	}
 
 	balanceSyncWorker := newBalanceSyncWorker(cfg, logger, redisConnection, useCase, balanceSyncWorkerEnabled)
 	shardRebalanceWorker := newShardRebalanceWorker(cfg, logger, shardManager, shardRouter, shardRebalanceWorkerEnabled)
@@ -867,7 +1399,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalanceSyncWorkerEnabled:    balanceSyncWorkerEnabled,
 		ShardRebalanceWorker:        shardRebalanceWorker,
 		ShardRebalanceWorkerEnabled: resolvedShardRebalanceWorkerEnabled,
-		CircuitBreakerManager:       circuitBreakerManager,
+		CircuitBreakerManager:       brokerInfra.circuitBreakerManager,
 		Logger:                      logger,
 		Ports: Ports{
 			BalancePort:  useCase,
@@ -881,7 +1413,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		balanceHandler:          balanceHandler,
 		operationRouteHandler:   operationRouteHandler,
 		transactionRouteHandler: transactionRouteHandler,
-		brokerProducer:          producerResult.producer,
+		brokerProducer:          brokerInfra.producer,
 		telemetry:               telemetry,
 		postgresConnection:      postgresConnection,
 		mongoConnection:         mongoConnection,

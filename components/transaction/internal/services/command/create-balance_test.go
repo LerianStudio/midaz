@@ -14,6 +14,7 @@ import (
 	midazpkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
@@ -384,6 +385,48 @@ func TestCreateBalanceSync(t *testing.T) {
 		var validationErr midazpkg.ValidationError
 		assert.True(t, errors.As(err, &validationErr))
 		assert.Equal(t, constant.ErrAdditionalBalanceNotAllowed.Error(), validationErr.Code)
+	})
+
+	t.Run("creates external shard balance key", func(t *testing.T) {
+		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
+
+		input := mmodel.CreateBalanceInput{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			AccountID:      accountID,
+			Alias:          "@external/USD",
+			Key:            shard.ExternalBalanceKey(3),
+			AssetCode:      "USD",
+			AccountType:    constant.ExternalAccountType,
+			AllowSending:   true,
+			AllowReceiving: true,
+		}
+
+		mockBalanceRepo.EXPECT().
+			ExistsByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, constant.DefaultBalanceKey).
+			Return(true, nil).
+			Times(1)
+
+		mockBalanceRepo.EXPECT().
+			ExistsByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, shard.ExternalBalanceKey(3)).
+			Return(false, nil).
+			Times(1)
+
+		mockBalanceRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, b *mmodel.Balance) error {
+				assert.Equal(t, shard.ExternalBalanceKey(3), b.Key)
+				assert.Equal(t, constant.ExternalAccountType, b.AccountType)
+
+				return nil
+			}).
+			Times(1)
+
+		result, err := uc.CreateBalanceSync(ctx, input)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, shard.ExternalBalanceKey(3), result.Key)
 	})
 
 	t.Run("error checking key existence", func(t *testing.T) {

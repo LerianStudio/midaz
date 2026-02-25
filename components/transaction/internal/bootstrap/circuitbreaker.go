@@ -135,6 +135,7 @@ func (cbm *CircuitBreakerManager) Start() {
 	}
 
 	healthChecker := cbm.healthChecker
+
 	interval := cbm.probeInterval
 	if interval <= 0 {
 		interval = defaultHealthCheckInterval
@@ -143,6 +144,7 @@ func (cbm *CircuitBreakerManager) Start() {
 	if healthChecker == nil {
 		cbm.probeMu.Unlock()
 		cbm.logger.Info("Starting circuit breaker manager in passive recovery mode (active health probe disabled)")
+
 		return
 	}
 

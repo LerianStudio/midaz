@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -72,6 +73,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 
 // CreateBalanceSync creates a new balance synchronously using the request-supplied properties.
 // If key != "default", it validates that the default balance exists and that the account type allows additional balances.
+// External accounts may only create non-default balances when key matches the external shard format.
 // This method implements mbootstrap.BalancePort, allowing the transaction module
 // to be used directly by the onboarding module in unified ledger mode.
 func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
@@ -103,8 +105,8 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 			return nil, berr
 		}
 
-		// Validate additional balance not allowed for external account type
-		if input.AccountType == constant.ExternalAccountType {
+		// Validate additional balance rules for external account type.
+		if input.AccountType == constant.ExternalAccountType && !shard.IsExternalBalanceKey(normalizedKey) {
 			err := pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, reflect.TypeOf(mmodel.Balance{}).Name(), input.Alias)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Additional balance not allowed for external account type", err)

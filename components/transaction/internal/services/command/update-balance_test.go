@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -349,4 +350,19 @@ func TestFilterStaleBalances(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedIDs, resultIDs)
 		})
 	}
+}
+
+func TestUpdateBalances_ReturnsErrorOnNilBalance(t *testing.T) {
+	uc := &UseCase{}
+
+	err := uc.UpdateBalances(
+		context.Background(),
+		libCommons.GenerateUUIDv7(),
+		libCommons.GenerateUUIDv7(),
+		pkgTransaction.Responses{From: map[string]pkgTransaction.Amount{}, To: map[string]pkgTransaction.Amount{}},
+		[]*mmodel.Balance{nil},
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nil")
 }

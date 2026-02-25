@@ -5,6 +5,7 @@
 package bootstrap
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -156,4 +157,66 @@ func TestEnforcePostgresSSLMode(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
+}
+
+func TestShouldAutoRecoverDirtyMigration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		envName string
+		want    bool
+	}{
+		{name: "local environment", envName: "local", want: true},
+		{name: "development environment", envName: "development", want: true},
+		{name: "production environment", envName: "production", want: false},
+		{name: "empty environment", envName: "", want: false},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, shouldAutoRecoverDirtyMigration(tt.envName))
+		})
+	}
+}
+
+func TestParseDirtyMigrationVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		err   error
+		want  int64
+		found bool
+	}{
+		{name: "dirty version parsed", err: fmt.Errorf("migration failed: Dirty database version 13. Fix and force version."), want: 13, found: true},
+		{name: "wrapped dirty version parsed", err: fmt.Errorf("bootstrap failed: %w", fmt.Errorf("migration failed: Dirty database version 22. Fix and force version.")), want: 22, found: true},
+		{name: "non dirty error", err: fmt.Errorf("connection refused"), want: 0, found: false},
+		{name: "nil error", err: nil, want: 0, found: false},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			version, found := parseDirtyMigrationVersion(tt.err)
+			assert.Equal(t, tt.want, version)
+			assert.Equal(t, tt.found, found)
+		})
+	}
+}
+
+func TestMigrationRepairStatements(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t,
+		[]string{"DROP INDEX CONCURRENTLY IF EXISTS idx_operation_account"},
+		migrationRepairStatements(13),
+	)
+
+	assert.Nil(t, migrationRepairStatements(99))
 }

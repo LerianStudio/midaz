@@ -100,8 +100,57 @@ func (app *Service) Run() {
 	libCommons.NewLauncher(opts...).Run()
 
 	if err := app.Close(); err != nil {
-		app.Logger.Warnf("Transaction service shutdown encountered errors: %v", err)
+		app.Warnf("Transaction service shutdown encountered errors: %v", err)
 	}
+}
+
+// closeResources releases all external resources and returns any errors encountered.
+func (app *Service) closeResources() error {
+	var closeErrs []error
+
+	if app.CircuitBreakerManager != nil {
+		app.Stop()
+	}
+
+	if app.MultiQueueConsumer != nil && app.consumerRoutes != nil {
+		app.consumerRoutes.Stop()
+	}
+
+	if app.authorizerCloser != nil {
+		if err := app.authorizerCloser.Close(); err != nil {
+			closeErrs = append(closeErrs, err)
+		}
+	}
+
+	if app.brokerProducer != nil {
+		if err := app.brokerProducer.Close(); err != nil {
+			closeErrs = append(closeErrs, err)
+		}
+	}
+
+	if app.redisConnection != nil {
+		if err := app.redisConnection.Close(); err != nil {
+			closeErrs = append(closeErrs, err)
+		}
+	}
+
+	if app.postgresConnection != nil && app.postgresConnection.ConnectionDB != nil {
+		if err := (*app.postgresConnection.ConnectionDB).Close(); err != nil {
+			closeErrs = append(closeErrs, err)
+		}
+	}
+
+	if app.mongoConnection != nil && app.mongoConnection.DB != nil {
+		if err := app.mongoConnection.DB.Disconnect(context.Background()); err != nil {
+			closeErrs = append(closeErrs, err)
+		}
+	}
+
+	if app.telemetry != nil {
+		app.telemetry.ShutdownTelemetry()
+	}
+
+	return errors.Join(closeErrs...)
 }
 
 // Close releases external resources created during service initialization.
@@ -111,51 +160,7 @@ func (app *Service) Close() error {
 	}
 
 	app.closeOnce.Do(func() {
-		var closeErrs []error
-
-		if app.CircuitBreakerManager != nil {
-			app.CircuitBreakerManager.Stop()
-		}
-
-		if app.MultiQueueConsumer != nil && app.MultiQueueConsumer.consumerRoutes != nil {
-			app.MultiQueueConsumer.consumerRoutes.Stop()
-		}
-
-		if app.authorizerCloser != nil {
-			if err := app.authorizerCloser.Close(); err != nil {
-				closeErrs = append(closeErrs, err)
-			}
-		}
-
-		if app.brokerProducer != nil {
-			if err := app.brokerProducer.Close(); err != nil {
-				closeErrs = append(closeErrs, err)
-			}
-		}
-
-		if app.redisConnection != nil {
-			if err := app.redisConnection.Close(); err != nil {
-				closeErrs = append(closeErrs, err)
-			}
-		}
-
-		if app.postgresConnection != nil && app.postgresConnection.ConnectionDB != nil {
-			if err := (*app.postgresConnection.ConnectionDB).Close(); err != nil {
-				closeErrs = append(closeErrs, err)
-			}
-		}
-
-		if app.mongoConnection != nil && app.mongoConnection.DB != nil {
-			if err := app.mongoConnection.DB.Disconnect(context.Background()); err != nil {
-				closeErrs = append(closeErrs, err)
-			}
-		}
-
-		if app.telemetry != nil {
-			app.telemetry.ShutdownTelemetry()
-		}
-
-		app.closeErr = errors.Join(closeErrs...)
+		app.closeErr = app.closeResources()
 	})
 
 	return app.closeErr
