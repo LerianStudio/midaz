@@ -219,6 +219,48 @@ func (b *Balance) ToTransactionBalance() *pkgTransaction.Balance {
 	}
 }
 
+// ToBalanceRedis converts Balance to BalanceRedis payload used in Redis cache.
+// aliasOverride allows callers to provide a canonical alias representation.
+func ToBalanceRedis(b *Balance, aliasOverride string) BalanceRedis {
+	if b == nil {
+		return BalanceRedis{}
+	}
+
+	allowSending := 0
+	if b.AllowSending {
+		allowSending = 1
+	}
+
+	allowReceiving := 0
+	if b.AllowReceiving {
+		allowReceiving = 1
+	}
+
+	balanceAlias := aliasOverride
+	if balanceAlias == "" {
+		balanceAlias = b.Alias
+	}
+
+	balanceKey := b.Key
+	if balanceKey == "" {
+		balanceKey = constant.DefaultBalanceKey
+	}
+
+	return BalanceRedis{
+		ID:             b.ID,
+		Alias:          balanceAlias,
+		AccountID:      b.AccountID,
+		AssetCode:      b.AssetCode,
+		Available:      b.Available,
+		OnHold:         b.OnHold,
+		Version:        b.Version,
+		AccountType:    b.AccountType,
+		AllowSending:   allowSending,
+		AllowReceiving: allowReceiving,
+		Key:            balanceKey,
+	}
+}
+
 // CreateAdditionalBalance is a struct designed to encapsulate balance create request payload data.
 //
 // swagger:model CreateAdditionalBalance
@@ -466,10 +508,9 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		b.Key = constant.DefaultBalanceKey
 	}
 
-	// RELEASE NOTE: The Scale field creates a serialization format difference between
-	// v1 (unscaled decimals) and v2 (scaled integers with Scale > 0). Requires blue-green
-	// deployment (not rolling update). Old pods will misinterpret v2-encoded balances
-	// (scaled integers read as real amounts).
+	// Scale-aware decode: newer producers may still emit Scale > 0 snapshots.
+	// Consumers must decode both formats safely (legacy unscaled + scaled payloads)
+	// during rolling transitions.
 
 	// If Scale > 0, Available and OnHold are pre-scaled integers from v2 Lua.
 	// Convert back to real decimal values so all consumers get correct amounts

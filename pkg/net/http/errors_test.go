@@ -77,7 +77,9 @@ func TestWithError_EntityConflictError_Returns409(t *testing.T) {
 
 			assert.Equal(t, tt.expectedCode, resp.StatusCode)
 
-			body, _ := io.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
 			assert.Contains(t, string(body), tt.expectedBody)
 		})
 	}
@@ -103,7 +105,9 @@ func TestWithError_EntityNotFoundError_Returns404(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
 	assert.Contains(t, string(body), `"code":"0007"`)
 }
 
@@ -126,7 +130,9 @@ func TestWithError_ValidationError_Returns400(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
 	assert.Contains(t, string(body), `"code":"0099"`)
 }
 
@@ -149,7 +155,9 @@ func TestWithError_UnprocessableOperationError_Returns422(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
 	assert.Contains(t, string(body), `"code":"0018"`)
 }
 
@@ -172,7 +180,9 @@ func TestWithError_UnauthorizedError_Returns401(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
 	assert.Contains(t, string(body), `"code":"0098"`)
 }
 
@@ -195,6 +205,34 @@ func TestWithError_ForbiddenError_Returns403(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
 	assert.Contains(t, string(body), `"code":"0097"`)
+}
+
+func TestWithError_ServiceUnavailableConsumerLagStaleBalance_SetsRetryAfterHeader(t *testing.T) {
+	t.Parallel()
+
+	app := fiber.New()
+	app.Get("/test", func(c *fiber.Ctx) error {
+		return WithError(c, pkg.ServiceUnavailableError{
+			Code:    constant.ErrConsumerLagStaleBalance.Error(),
+			Title:   "Balance Synchronization In Progress",
+			Message: "Balance state is being synchronized. Please retry.",
+		})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+	assert.Equal(t, "1", resp.Header.Get("Retry-After"))
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(body), `"code":"`+constant.ErrConsumerLagStaleBalance.Error()+`"`)
 }
