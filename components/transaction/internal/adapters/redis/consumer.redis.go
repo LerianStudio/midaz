@@ -39,10 +39,16 @@ const TransactionBackupQueue = "backup_queue:{transactions}"
 // RedisRepository provides an interface for redis.
 // It defines methods for setting, getting keys, and incrementing values.
 //
+// Cache-miss convention: Get returns ("", nil) when the key does not exist.
+// Callers MUST check for empty string to detect cache miss. Do not store
+// empty strings as values; use JSON or another format that is never empty.
+//
 //go:generate mockgen --destination=consumer.redis_mock.go --package=redis . RedisRepository
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
+	// Get retrieves a value by key. Returns ("", nil) on cache miss (key not found).
+	// Returns ("", error) on connection or other errors.
 	Get(ctx context.Context, key string) (string, error)
 	MGet(ctx context.Context, keys []string) (map[string]string, error)
 	Del(ctx context.Context, key string) error
@@ -220,7 +226,9 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to del redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to connect on redis", err)
+
+		logger.Errorf("Failed to connect on redis: %v", err)
 
 		return err
 	}
@@ -229,10 +237,12 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to del on redis", err)
 
+		logger.Errorf("Failed to del on redis: %v", err)
+
 		return err
 	}
 
-	logger.Infof("value : %v", val)
+	logger.Infof("deleted keys count: %v", val)
 
 	return nil
 }

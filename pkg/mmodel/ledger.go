@@ -88,6 +88,10 @@ type Ledger struct {
 	// Custom key-value pairs for extending the ledger information
 	// example: {"department": "Finance", "currency": "USD", "region": "North America"}
 	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Dynamic configuration settings for this ledger
+	// example: {"accounting": {"validateAccountType": true}}
+	Settings map[string]any `json:"settings,omitempty"`
 } // @name Ledger
 
 // Ledgers struct designed to return a paginated list of ledgers.

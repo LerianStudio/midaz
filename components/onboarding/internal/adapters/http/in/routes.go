@@ -22,6 +22,9 @@ const (
 	routingName = "routing"
 )
 
+// SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
+const SettingsMaxPayloadSize = 64 * 1024
+
 // NewRouter register NewRouter routes to the Server.
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
@@ -73,6 +76,8 @@ func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, ah *AccountH
 	f.Patch("/v1/organizations/:organization_id/ledgers/:id", auth.Authorize(midazName, "ledgers", "patch"), http.ParseUUIDPathParameters("ledger"), http.WithBody(new(mmodel.UpdateLedgerInput), lh.UpdateLedger))
 	f.Get("/v1/organizations/:organization_id/ledgers", auth.Authorize(midazName, "ledgers", "get"), http.ParseUUIDPathParameters("ledger"), lh.GetAllLedgers)
 	f.Get("/v1/organizations/:organization_id/ledgers/:id", auth.Authorize(midazName, "ledgers", "get"), http.ParseUUIDPathParameters("ledger"), lh.GetLedgerByID)
+	f.Get("/v1/organizations/:organization_id/ledgers/:id/settings", auth.Authorize(midazName, "ledgers", "get"), http.ParseUUIDPathParameters("ledger"), lh.GetLedgerSettings)
+	f.Patch("/v1/organizations/:organization_id/ledgers/:id/settings", auth.Authorize(midazName, "ledgers", "patch"), http.ParseUUIDPathParameters("ledger"), http.WithBodyLimit(SettingsMaxPayloadSize), http.WithBody(new(map[string]any), lh.UpdateLedgerSettings))
 	f.Delete("/v1/organizations/:organization_id/ledgers/:id", auth.Authorize(midazName, "ledgers", "delete"), http.ParseUUIDPathParameters("ledger"), lh.DeleteLedgerByID)
 	f.Head("/v1/organizations/:organization_id/ledgers/metrics/count", auth.Authorize(midazName, "ledgers", "head"), http.ParseUUIDPathParameters("ledger"), lh.CountLedgers)
 

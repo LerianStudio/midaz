@@ -154,6 +154,9 @@ var (
 	ErrInvalidTimestamp                         = errors.New("0140")
 	ErrNoBalanceDataAtTimestamp                 = errors.New("0141")
 	ErrMissingRequiredQueryParameter            = errors.New("0142")
+	ErrPayloadTooLarge                          = errors.New("0143")
+	ErrJSONNestingDepthExceeded                 = errors.New("0144")
+	ErrJSONKeyCountExceeded                     = errors.New("0145")
 )
 
 // List of CRM errors.

@@ -21,6 +21,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // LedgerHandler struct contains a ledger use case for managing ledger related operations.
@@ -378,4 +379,117 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)
+}
+
+// GetLedgerSettings retrieves the settings for a specific ledger.
+//
+//	@Summary		Get ledger settings
+//	@Description	Returns the current configuration settings for a specific ledger. Returns an empty object {} if no settings have been defined.
+//	@Tags			Ledgers
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			id				path		string	true	"Ledger ID in UUID format"
+//	@Success		200				{object}	map[string]any	"Successfully retrieved ledger settings"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Ledger not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{id}/settings [get]
+func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_ledger_settings")
+	defer span.End()
+
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "organization_id"))
+	}
+
+	id, ok := c.Locals("id").(uuid.UUID)
+	if !ok {
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "id"))
+	}
+
+	span.SetAttributes(
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", id.String()),
+	)
+
+	logger.Infof("Retrieving settings for Ledger with ID: %s", id.String())
+
+	settings, err := handler.Query.GetLedgerSettings(ctx, organizationID, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get ledger settings", err)
+
+		logger.Errorf("Failed to get settings for Ledger with ID: %s, Error: %s", id.String(), err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved settings for Ledger with ID: %s", id.String())
+
+	return http.OK(c, settings)
+}
+
+// UpdateLedgerSettings updates the settings for a specific ledger using merge semantics.
+//
+//	@Summary		Update ledger settings
+//	@Description	Updates the configuration settings for a specific ledger. New settings are merged at TOP LEVEL only (shallow merge) using PostgreSQL JSONB merge semantics (||). Nested objects are REPLACED entirely, not deep-merged. To update a nested key, you must send the complete nested object. Setting a key to null stores a JSON null value; keys are retained, not removed. Key removal requires explicit deletion (e.g., JSONB - 'key') which is not performed by this endpoint.
+//	@Tags			Ledgers
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string			true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
+//	@Param			organization_id	path		string			true	"Organization ID in UUID format"
+//	@Param			id				path		string			true	"Ledger ID in UUID format"
+//	@Param			settings		body		map[string]any	true	"Settings to merge with existing settings"
+//	@Success		200				{object}	map[string]any	"Successfully updated ledger settings"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request body"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Ledger not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Router			/v1/organizations/{organization_id}/ledgers/{id}/settings [patch]
+func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_ledger_settings")
+	defer span.End()
+
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "organization_id"))
+	}
+
+	id, ok := c.Locals("id").(uuid.UUID)
+	if !ok {
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "id"))
+	}
+
+	settings, ok := i.(*map[string]any)
+	if !ok {
+		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidRequestBody, "settings"))
+	}
+
+	logger.Infof("Request to update settings for Ledger with ID: %s", id.String())
+
+	updatedSettings, err := handler.Command.UpdateLedgerSettings(ctx, organizationID, id, *settings)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update ledger settings", err)
+
+		logger.Errorf("Failed to update settings for Ledger with ID: %s, Error: %s", id.String(), err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully updated settings for Ledger with ID: %s", id.String())
+
+	return http.OK(c, updatedSettings)
 }

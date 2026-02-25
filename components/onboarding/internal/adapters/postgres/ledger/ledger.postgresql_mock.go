@@ -132,6 +132,21 @@ func (mr *MockRepositoryMockRecorder) FindByName(ctx, organizationID, name any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByName", reflect.TypeOf((*MockRepository)(nil).FindByName), ctx, organizationID, name)
 }
 
+// GetSettings mocks base method.
+func (m *MockRepository) GetSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSettings", ctx, organizationID, ledgerID)
+	ret0, _ := ret[0].(map[string]any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSettings indicates an expected call of GetSettings.
+func (mr *MockRepositoryMockRecorder) GetSettings(ctx, organizationID, ledgerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSettings", reflect.TypeOf((*MockRepository)(nil).GetSettings), ctx, organizationID, ledgerID)
+}
+
 // ListByIDs mocks base method.
 func (m *MockRepository) ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error) {
 	m.ctrl.T.Helper()
@@ -160,4 +175,19 @@ func (m *MockRepository) Update(ctx context.Context, organizationID, id uuid.UUI
 func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, id, ledger any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, id, ledger)
+}
+
+// UpdateSettings mocks base method.
+func (m *MockRepository) UpdateSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSettings", ctx, organizationID, ledgerID, settings)
+	ret0, _ := ret[0].(map[string]any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateSettings indicates an expected call of UpdateSettings.
+func (mr *MockRepositoryMockRecorder) UpdateSettings(ctx, organizationID, ledgerID, settings any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSettings", reflect.TypeOf((*MockRepository)(nil).UpdateSettings), ctx, organizationID, ledgerID, settings)
 }

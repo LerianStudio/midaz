@@ -23,6 +23,7 @@ type LedgerPostgreSQLModel struct {
 	UpdatedAt         time.Time
 	DeletedAt         sql.NullTime
 	Metadata          map[string]any
+	Settings          map[string]any
 }
 
 // ToEntity converts an LedgerPostgreSQLModel to entity.Ledger
@@ -40,6 +41,7 @@ func (t *LedgerPostgreSQLModel) ToEntity() *mmodel.Ledger {
 		CreatedAt:      t.CreatedAt,
 		UpdatedAt:      t.UpdatedAt,
 		DeletedAt:      nil,
+		Settings:       t.Settings,
 	}
 
 	if !t.DeletedAt.Time.IsZero() {
@@ -60,6 +62,7 @@ func (t *LedgerPostgreSQLModel) FromEntity(ledger *mmodel.Ledger) {
 		StatusDescription: ledger.Status.Description,
 		CreatedAt:         ledger.CreatedAt,
 		UpdatedAt:         ledger.UpdatedAt,
+		Settings:          ledger.Settings,
 	}
 
 	if ledger.DeletedAt != nil {

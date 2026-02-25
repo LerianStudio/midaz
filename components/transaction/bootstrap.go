@@ -34,6 +34,11 @@ type TransactionService interface {
 	// GetRouteRegistrar returns a function that registers transaction routes to a Fiber app.
 	// This is used by the unified ledger server to consolidate all routes on a single port.
 	GetRouteRegistrar() func(*fiber.App)
+
+	// SetSettingsPort sets the settings port for querying ledger settings.
+	// This is called after initialization in unified ledger mode to wire the onboarding
+	// SettingsPort to transaction, resolving the circular dependency between components.
+	SetSettingsPort(port mbootstrap.SettingsPort)
 }
 
 // Options configures the transaction service initialization behavior.
@@ -45,6 +50,11 @@ type Options struct {
 	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
 	// This is optional - pass nil if you don't need state change notifications.
 	CircuitBreakerStateListener libCircuitBreaker.StateChangeListener
+
+	// SettingsPort enables direct in-process communication with the onboarding module
+	// for querying ledger settings. Optional - if not provided, settings functionality
+	// will not be available.
+	SettingsPort mbootstrap.SettingsPort
 }
 
 // InitService initializes the transaction service.
@@ -77,5 +87,6 @@ func InitServiceWithOptionsOrError(opts *Options) (TransactionService, error) {
 	return bootstrap.InitServersWithOptions(&bootstrap.Options{
 		Logger:                      opts.Logger,
 		CircuitBreakerStateListener: opts.CircuitBreakerStateListener,
+		SettingsPort:                opts.SettingsPort,
 	})
 }

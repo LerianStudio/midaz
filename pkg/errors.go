@@ -1231,6 +1231,24 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "No Balance Data at Date",
 			Message:    "No balance data is available at the specified date.",
 		},
+		constant.ErrPayloadTooLarge: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrPayloadTooLarge.Error(),
+			Title:      "Payload Too Large",
+			Message:    "The request payload exceeds the maximum allowed size of 64KB.",
+		},
+		constant.ErrJSONNestingDepthExceeded: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrJSONNestingDepthExceeded.Error(),
+			Title:      "JSON Nesting Depth Exceeded",
+			Message:    "The JSON payload exceeds the maximum allowed nesting depth of 10 levels. Please flatten your data structure.",
+		},
+		constant.ErrJSONKeyCountExceeded: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrJSONKeyCountExceeded.Error(),
+			Title:      "JSON Key Count Exceeded",
+			Message:    "The JSON payload exceeds the maximum allowed number of keys (100). Please reduce the number of keys in your payload.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

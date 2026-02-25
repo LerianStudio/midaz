@@ -168,6 +168,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to get MetadataIndexPort from onboarding module")
 	}
 
+	// Wire the SettingsPort from onboarding to transaction for ledger settings queries
+	// This resolves the circular dependency: transaction is initialized first (for BalancePort),
+	// then onboarding (with BalancePort), then SettingsPort is wired back to transaction.
+	settingsPort := onboardingService.GetSettingsPort()
+	if settingsPort == nil {
+		return nil, fmt.Errorf("failed to get SettingsPort from onboarding module")
+	}
+
+	transactionService.SetSettingsPort(settingsPort)
+
+	ledgerLogger.Info("SettingsPort wired from onboarding to transaction for in-process settings queries")
+
 	ledgerLogger.Info("Both metadata index repositories available for settings routes")
 
 	// Create auth client for metadata index routes

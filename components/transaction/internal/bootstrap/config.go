@@ -34,6 +34,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.mongodb.org/mongo-driver/bson"
@@ -211,6 +212,11 @@ type Options struct {
 	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
 	// This is optional - pass nil if you don't need state change notifications.
 	CircuitBreakerStateListener libCircuitBreaker.StateChangeListener
+
+	// SettingsPort enables direct in-process communication with the onboarding module
+	// for querying ledger settings. Optional - if not provided, settings functionality
+	// will not be available.
+	SettingsPort mbootstrap.SettingsPort
 }
 
 // InitServers initiate http and grpc servers.
@@ -460,6 +466,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to create circuit breaker producer: %w", err)
 	}
 
+	var settingsPort mbootstrap.SettingsPort
+	if opts != nil && opts.SettingsPort != nil {
+		settingsPort = opts.SettingsPort
+	}
+
 	useCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,
 		OperationRepo:        operationPostgreSQLRepository,
@@ -470,6 +481,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MetadataRepo:         metadataMongoDBRepository,
 		RabbitMQRepo:         producerRabbitMQRepository,
 		RedisRepo:            redisConsumerRepository,
+		SettingsPort:         settingsPort,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -580,6 +592,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			BalancePort:  useCase,
 			MetadataPort: metadataMongoDBRepository,
 		},
+		useCase:                 useCase,
 		auth:                    auth,
 		transactionHandler:      transactionHandler,
 		operationHandler:        operationHandler,
