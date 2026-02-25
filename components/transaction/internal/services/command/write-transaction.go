@@ -6,12 +6,16 @@ package command
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
@@ -22,6 +26,10 @@ import (
 
 // WriteTransaction routes the transaction to sync or async execution.
 func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
+	if tran == nil {
+		return fmt.Errorf("transaction is nil")
+	}
+
 	if uc.TransactionAsync {
 		return uc.WriteTransactionAsync(ctx, organizationID, ledgerID, transactionInput, validate, blc, tran)
 	}
@@ -32,6 +40,10 @@ func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerI
 // WriteTransactionAsync publishes the transaction payload to Redpanda
 // for asynchronous processing. Falls back to direct DB write if queue fails.
 func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
+	if tran == nil {
+		return fmt.Errorf("transaction is nil")
+	}
+
 	logger, tracer, reqID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.write_transaction_async")
@@ -76,13 +88,14 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 	}
 
 	topic := uc.BalanceOperationsTopic
-	// Ordering contract for async processing:
-	// - We use transaction ID as partition key, so all retries/updates for the same
-	//   transaction are ordered within a single partition.
-	// - Ordering across different transaction IDs is intentionally not guaranteed.
-	// - Cross-transaction correctness relies on idempotent writes and optimistic
-	//   concurrency in downstream balance persistence.
+
 	partitionKey := tran.IDtoUUID().String()
+	if uc.ShardRouter != nil {
+		primaryAlias, primaryBalanceKey := extractPrimaryDebitRoute(tran)
+		if primaryAlias != "" {
+			partitionKey = strconv.Itoa(uc.ShardRouter.ResolveBalance(primaryAlias, primaryBalanceKey))
+		}
+	}
 
 	if uc.Authorizer != nil && uc.Authorizer.Enabled() {
 		headers := map[string]string{}
@@ -132,9 +145,57 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 	return nil
 }
 
+func extractPrimaryDebitRoute(tran *transaction.Transaction) (string, string) {
+	if tran == nil || len(tran.Operations) == 0 {
+		return "", ""
+	}
+
+	for _, op := range tran.Operations {
+		if op == nil {
+			continue
+		}
+
+		alias := shard.ExtractAccountAlias(op.AccountAlias)
+		if alias == "" {
+			continue
+		}
+
+		balanceKey := op.BalanceKey
+		if balanceKey == "" {
+			_, balanceKey = shard.SplitAliasAndBalanceKey(op.AccountAlias)
+		}
+
+		if op.Type == constant.DEBIT && !shard.IsExternal(alias) {
+			return alias, balanceKey
+		}
+	}
+
+	for _, op := range tran.Operations {
+		if op == nil {
+			continue
+		}
+
+		alias := shard.ExtractAccountAlias(op.AccountAlias)
+		if alias != "" {
+			balanceKey := op.BalanceKey
+			if balanceKey == "" {
+				_, balanceKey = shard.SplitAliasAndBalanceKey(op.AccountAlias)
+			}
+
+			return alias, balanceKey
+		}
+	}
+
+	return "", ""
+}
+
 // WriteTransactionSync performs direct database writes for balance updates,
 // transaction record creation, and operation records.
 func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
+	if tran == nil {
+		return fmt.Errorf("transaction is nil")
+	}
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.write_transaction_sync")

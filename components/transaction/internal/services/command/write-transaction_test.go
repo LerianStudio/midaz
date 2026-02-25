@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
@@ -15,7 +16,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -166,13 +169,13 @@ func setupMocksForFallbackWithOperation(
 	mockBalanceRepo.EXPECT().
 		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).
-		AnyTimes()
+		Times(1)
 
 	// Mock TransactionRepo.Create
 	mockTransactionRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any()).
 		Return(tran, nil).
-		AnyTimes()
+		Times(1)
 
 	// Mock OperationRepo.CreateBatch
 	if mockOperationRepo != nil {
@@ -204,36 +207,6 @@ func setupMocksForFallbackWithOperation(
 // TestWriteTransaction tests the routing logic that decides between async and sync execution
 func TestWriteTransaction(t *testing.T) {
 	t.Run("routes_to_async_when_flag_true", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
-		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		uc := &UseCase{
-			BrokerRepo:             mockBrokerRepo,
-			RedisRepo:              mockRedisRepo,
-			BalanceOperationsTopic: "test-topic",
-			TransactionAsync:       true,
-		}
-
-		ctx := context.Background()
-		organizationID := uuid.New()
-		ledgerID := uuid.New()
-		td := createTestData(organizationID, ledgerID)
-
-		// Expect broker producer to be called (async path) with context-aware method
-		mockBrokerRepo.EXPECT().
-			ProducerDefaultWithContext(gomock.Any(), "test-topic", td.transactionID, gomock.Any()).
-			Return(nil, nil).
-			Times(1)
-
-		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
-
-		assert.NoError(t, err)
-	})
-
-	t.Run("routes_to_async_when_flag_set", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -366,6 +339,15 @@ func TestWriteTransaction(t *testing.T) {
 
 		assert.NoError(t, err)
 	})
+
+	t.Run("returns_error_when_transaction_is_nil", func(t *testing.T) {
+		uc := &UseCase{}
+
+		err := uc.WriteTransaction(context.Background(), uuid.New(), uuid.New(), &pkgTransaction.Transaction{}, &pkgTransaction.Responses{}, nil, nil)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "transaction is nil")
+	})
 }
 
 // TestWriteTransactionAsync tests the async queue publishing with fallback behavior
@@ -398,6 +380,42 @@ func TestWriteTransactionAsync(t *testing.T) {
 		assert.Equal(t, "test-topic", authorizer.lastTopic)
 		assert.Equal(t, td.transactionID, authorizer.lastPartitionKey)
 		assert.NotEmpty(t, authorizer.lastPayload)
+	})
+
+	t.Run("uses_shard_router_resolve_balance_for_partition_key", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		authorizer := &stubAuthorizerPublisher{enabled: true}
+		router := shard.NewRouter(8)
+
+		uc := &UseCase{
+			BrokerRepo:             mockBrokerRepo,
+			RedisRepo:              mockRedisRepo,
+			Authorizer:             authorizer,
+			ShardRouter:            router,
+			BalanceOperationsTopic: "test-topic",
+		}
+
+		ctx := context.Background()
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		td := createTestData(organizationID, ledgerID)
+		td.tran.Operations = []*operation.Operation{
+			{
+				AccountAlias: "@external/USD",
+				BalanceKey:   shard.ExternalBalanceKey(3),
+				Type:         constant.DEBIT,
+			},
+		}
+
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+
+		assert.NoError(t, err)
+		assert.Equal(t, strconv.Itoa(3), authorizer.lastPartitionKey)
 	})
 
 	t.Run("authorizer_publish_fails_fallback_to_local_broker", func(t *testing.T) {
@@ -583,6 +601,39 @@ func TestWriteTransactionAsync(t *testing.T) {
 		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		assert.NoError(t, err)
+	})
+
+	t.Run("returns_error_when_msgpack_marshal_fails", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		uc := &UseCase{
+			BrokerRepo:             mockBrokerRepo,
+			RedisRepo:              mockRedisRepo,
+			BalanceOperationsTopic: "test-topic",
+		}
+
+		ctx := context.Background()
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		td := createTestData(organizationID, ledgerID)
+		td.transactionInput.Metadata = map[string]any{"unsupported": make(chan int)}
+
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+
+		assert.Error(t, err)
+	})
+
+	t.Run("returns_error_when_transaction_is_nil", func(t *testing.T) {
+		uc := &UseCase{}
+
+		err := uc.WriteTransactionAsync(context.Background(), uuid.New(), uuid.New(), &pkgTransaction.Transaction{}, &pkgTransaction.Responses{}, nil, nil)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "transaction is nil")
 	})
 }
 
@@ -822,5 +873,61 @@ func TestWriteTransactionSync(t *testing.T) {
 		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, balances, tran)
 
 		assert.NoError(t, err)
+	})
+}
+
+func TestExtractPrimaryDebitRoute(t *testing.T) {
+	t.Run("returns empty when transaction is nil", func(t *testing.T) {
+		alias, balanceKey := extractPrimaryDebitRoute(nil)
+		assert.Equal(t, "", alias)
+		assert.Equal(t, "", balanceKey)
+	})
+
+	t.Run("returns empty when operations are empty", func(t *testing.T) {
+		tran := &transaction.Transaction{}
+		alias, balanceKey := extractPrimaryDebitRoute(tran)
+		assert.Equal(t, "", alias)
+		assert.Equal(t, "", balanceKey)
+	})
+
+	t.Run("prefers internal debit alias", func(t *testing.T) {
+		tran := &transaction.Transaction{
+			Operations: []*operation.Operation{
+				{AccountAlias: "@external/USD", BalanceKey: shard.ExternalBalanceKey(3), Type: constant.DEBIT},
+				{AccountAlias: "@internal-src", BalanceKey: "default", Type: constant.DEBIT},
+				{AccountAlias: "@internal-dst", Type: constant.CREDIT},
+			},
+		}
+
+		alias, balanceKey := extractPrimaryDebitRoute(tran)
+		assert.Equal(t, "@internal-src", alias)
+		assert.Equal(t, "default", balanceKey)
+	})
+
+	t.Run("falls back to first non-empty alias for external-only operations", func(t *testing.T) {
+		tran := &transaction.Transaction{
+			Operations: []*operation.Operation{
+				{AccountAlias: "@external/USD", BalanceKey: shard.ExternalBalanceKey(5), Type: constant.DEBIT},
+				{AccountAlias: "@external/EUR", Type: constant.CREDIT},
+			},
+		}
+
+		alias, balanceKey := extractPrimaryDebitRoute(tran)
+		assert.Equal(t, "@external/USD", alias)
+		assert.Equal(t, shard.ExternalBalanceKey(5), balanceKey)
+	})
+
+	t.Run("ignores nil operations and blank aliases", func(t *testing.T) {
+		tran := &transaction.Transaction{
+			Operations: []*operation.Operation{
+				nil,
+				{AccountAlias: "", Type: constant.DEBIT},
+				{AccountAlias: "@valid", Type: constant.CREDIT},
+			},
+		}
+
+		alias, balanceKey := extractPrimaryDebitRoute(tran)
+		assert.Equal(t, "@valid", alias)
+		assert.Equal(t, constant.DefaultBalanceKey, balanceKey)
 	})
 }
