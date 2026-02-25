@@ -21,13 +21,13 @@ type Config struct {
 	EnvName                    string
 	GRPCAddress                string
 	ShardCount                 int
+	ShardIDs                   []int32
 	EnableTelemetry            bool
 	OtelServiceName            string
 	OtelLibraryName            string
 	OtelServiceVersion         string
 	OtelDeploymentEnv          string
 	OtelColExporterEndpoint    string
-	WALEnabled                 bool
 	WALPath                    string
 	WALBufferSize              int
 	WALFlushInterval           time.Duration
@@ -63,13 +63,21 @@ func LoadConfig() (*Config, error) {
 	grpcAddress := getenv("AUTHORIZER_GRPC_ADDRESS", ":50051")
 	envName := getenv("ENV_NAME", "development")
 	shardCount := getenvInt("AUTHORIZER_SHARD_COUNT", 8)
+	maxShardID := int32(shardCount - 1)
+	if shardCount <= 0 {
+		maxShardID = -1
+	}
+
+	shardIDs, err := parseInt32CSV(getenv("AUTHORIZER_SHARD_IDS", ""), maxShardID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid AUTHORIZER_SHARD_IDS: %w", err)
+	}
 	enableTelemetry := utils.IsTruthyString(getenv("ENABLE_TELEMETRY", "false"))
 	otelServiceName := getenv("OTEL_RESOURCE_SERVICE_NAME", "authorizer")
 	otelLibraryName := getenv("OTEL_LIBRARY_NAME", "midaz-authorizer")
 	otelServiceVersion := getenv("OTEL_RESOURCE_SERVICE_VERSION", "v3")
 	otelDeploymentEnv := getenv("OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT", envName)
 	otelCollectorEndpoint := getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
-	walEnabled := utils.IsTruthyString(getenv("AUTHORIZER_WAL_ENABLED", "true"))
 	walPath := getenv("AUTHORIZER_WAL_PATH", "/tmp/midaz-authorizer-wal.log")
 	walBufferSize := getenvInt("AUTHORIZER_WAL_BUFFER_SIZE", 65536)
 	walFlushIntervalMs := getenvInt("AUTHORIZER_WAL_FLUSH_INTERVAL_MS", 1)
@@ -137,13 +145,13 @@ func LoadConfig() (*Config, error) {
 		EnvName:                    envName,
 		GRPCAddress:                grpcAddress,
 		ShardCount:                 shardCount,
+		ShardIDs:                   shardIDs,
 		EnableTelemetry:            enableTelemetry,
 		OtelServiceName:            otelServiceName,
 		OtelLibraryName:            otelLibraryName,
 		OtelServiceVersion:         otelServiceVersion,
 		OtelDeploymentEnv:          otelDeploymentEnv,
 		OtelColExporterEndpoint:    otelCollectorEndpoint,
-		WALEnabled:                 walEnabled,
 		WALPath:                    walPath,
 		WALBufferSize:              walBufferSize,
 		WALFlushInterval:           time.Duration(walFlushIntervalMs) * time.Millisecond,
@@ -174,6 +182,48 @@ func LoadConfig() (*Config, error) {
 		RedpandaPublishTimeout:     time.Duration(redpandaPublishTimeoutMs) * time.Millisecond,
 		RedpandaBackpressurePolicy: redpandaBackpressurePolicy,
 	}, nil
+}
+
+func parseInt32CSV(raw string, maxValue int32) ([]int32, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(trimmed, ",")
+	out := make([]int32, 0, len(parts))
+	seen := make(map[int32]struct{}, len(parts))
+
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			continue
+		}
+
+		parsed, err := strconv.ParseInt(value, 10, 32)
+		if err != nil {
+			return nil, err
+		}
+
+		id := int32(parsed)
+		if id < 0 {
+			return nil, fmt.Errorf("shard id %d must be >= 0", id)
+		}
+
+		if maxValue >= 0 && id > maxValue {
+			return nil, fmt.Errorf("shard id %d out of range (max=%d)", id, maxValue)
+		}
+
+		if _, exists := seen[id]; exists {
+			return nil, fmt.Errorf("duplicate shard id %d", id)
+		}
+
+		seen[id] = struct{}{}
+
+		out = append(out, id)
+	}
+
+	return out, nil
 }
 
 func getenv(name, fallback string) string {

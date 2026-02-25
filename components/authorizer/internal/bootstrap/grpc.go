@@ -248,7 +248,7 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 	}
 	defer balanceLoader.Close()
 
-	initial, err := balanceLoader.LoadBalances(ctx, "", "", nil)
+	initial, err := balanceLoader.LoadBalances(ctx, "", "", cfg.ShardIDs)
 	if err != nil {
 		return err
 	}
@@ -256,10 +256,10 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 	loaded := eng.UpsertBalances(initial)
 	logger.Infof("Authorizer loaded balances from PostgreSQL: %d", loaded)
 	logger.Infof(
-		"Authorizer runtime config: grpc_address=%s shards=%d wal_enabled=%t wal_buffer_size=%d wal_flush_interval_ms=%d wal_sync_on_append=%t max_streams=%d max_recv_bytes=%d postgres_pool_max_conns=%d postgres_pool_min_conns=%d postgres_conn_lifetime_ms=%d postgres_conn_idle_ms=%d postgres_healthcheck_ms=%d redpanda_enabled=%t redpanda_backpressure_policy=%s redpanda_retries=%d redpanda_delivery_timeout_ms=%d redpanda_publish_timeout_ms=%d telemetry_enabled=%t",
+		"Authorizer runtime config: grpc_address=%s shards=%d shard_ids=%v wal_buffer_size=%d wal_flush_interval_ms=%d wal_sync_on_append=%t max_streams=%d max_recv_bytes=%d postgres_pool_max_conns=%d postgres_pool_min_conns=%d postgres_conn_lifetime_ms=%d postgres_conn_idle_ms=%d postgres_healthcheck_ms=%d redpanda_enabled=%t redpanda_backpressure_policy=%s redpanda_retries=%d redpanda_delivery_timeout_ms=%d redpanda_publish_timeout_ms=%d telemetry_enabled=%t",
 		cfg.GRPCAddress,
 		cfg.ShardCount,
-		cfg.WALEnabled,
+		cfg.ShardIDs,
 		cfg.WALBufferSize,
 		cfg.WALFlushInterval.Milliseconds(),
 		cfg.WALSyncOnAppend,
@@ -278,34 +278,34 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		cfg.EnableTelemetry,
 	)
 
-	if cfg.WALEnabled {
-		entries, err := wal.Replay(cfg.WALPath)
-		if err != nil {
-			return fmt.Errorf("replay wal: %w", err)
-		}
-
-		if err := eng.ReplayEntries(entries); err != nil {
-			return fmt.Errorf("apply wal replay: %w", err)
-		}
-
-		logger.Infof("Authorizer replayed WAL entries: %d", len(entries))
-
-		writer, err := wal.NewRingBufferWriterWithOptions(
-			cfg.WALPath,
-			cfg.WALBufferSize,
-			cfg.WALFlushInterval,
-			cfg.WALSyncOnAppend,
-			metricRecorder,
-		)
-		if err != nil {
-			return err
-		}
-
-		eng.SetWALWriter(writer)
-		defer func() {
-			_ = writer.Close()
-		}()
+	entries, err := wal.Replay(cfg.WALPath)
+	if err != nil {
+		return fmt.Errorf("replay wal: %w", err)
 	}
+
+	if err := eng.ReplayEntries(entries); err != nil {
+		return fmt.Errorf("apply wal replay: %w", err)
+	}
+
+	logger.Infof("Authorizer replayed WAL entries: %d", len(entries))
+
+	writer, err := wal.NewRingBufferWriterWithOptions(
+		cfg.WALPath,
+		cfg.WALBufferSize,
+		cfg.WALFlushInterval,
+		cfg.WALSyncOnAppend,
+		metricRecorder,
+	)
+	if err != nil {
+		return err
+	}
+
+	eng.SetWALWriter(writer)
+	defer func() {
+		if closeErr := writer.Close(); closeErr != nil {
+			logger.Warnf("Failed to close WAL writer: %v", closeErr)
+		}
+	}()
 
 	deprecatedBrokerEnvs := brokerpkg.DeprecatedBrokerEnvVariables(os.Environ())
 	if len(deprecatedBrokerEnvs) > 0 {
