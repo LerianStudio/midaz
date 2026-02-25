@@ -7,10 +7,10 @@ package bootstrap
 import (
 	"google.golang.org/grpc"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v2/commons/server"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v3/commons/server"
 )
 
 type ServerGRPC struct {

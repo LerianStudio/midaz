@@ -8,11 +8,11 @@ import (
 	"database/sql"
 	"time"
 
-	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"

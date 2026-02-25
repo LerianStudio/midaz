@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"

@@ -17,10 +17,10 @@ github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7Oputl
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/KyleBanks/depth v1.2.1 h1:5h8fQADFrWtarTdtDudMmGsC7GPbOAu6RVB3ffsVFHc=
 github.com/KyleBanks/depth v1.2.1/go.mod h1:jzSb9d0L43HxTQfT+oSA1EEp2q+ne2uh6XgeJcm8brE=
-github.com/LerianStudio/lib-auth/v2 v2.4.0 h1:ENesoLJ1v9DL1fR3F4G9qay3Upk7uqIUBIHDETEDql0=
-github.com/LerianStudio/lib-auth/v2 v2.4.0/go.mod h1:SBu9aj37eB1ogARnUY7PRKZppHt/YpMwrfcwsm6EoWU=
-github.com/LerianStudio/lib-commons/v2 v2.9.1 h1:yYufHFW5SMmp+ubgPHfOGaANmU3jyOKC3sRd/hLljLA=
-github.com/LerianStudio/lib-commons/v2 v2.9.1/go.mod h1:j4M4KX8Ib5+9uylLmtAjQWJtqP7eT8HiTBT5xPn1fx8=
+github.com/LerianStudio/lib-auth/v2 v2.5.0-beta.5 h1:Lc66Dx7uX231eINU0sPr03vo+JoM+wGVnfH36xExYV8=
+github.com/LerianStudio/lib-auth/v2 v2.5.0-beta.5/go.mod h1:SS66Sxee4QKkVNVU7y9PkTyJpacb5yxiUUzAAcqBVs4=
+github.com/LerianStudio/lib-commons/v3 v3.0.0-beta.4 h1:dmNlkdAi9m4VIkyLC0D03Yd+tE2XjjCanUfCpxTw1qQ=
+github.com/LerianStudio/lib-commons/v3 v3.0.0-beta.4/go.mod h1:eegTRzYBTMBmXew279htSmBWX0n4syWT9iTDr2ZCwNo=
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
@@ -30,8 +30,8 @@ github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578/go.mod h1:uGdko
 github.com/Shopify/toxiproxy/v2 v2.12.0 h1:d1x++lYZg/zijXPPcv7PH0MvHMzEI5aX/YuUi/Sw+yg=
 github.com/Shopify/toxiproxy/v2 v2.12.0/go.mod h1:R9Z38Pw6k2cGZWXHe7tbxjGW9azmY1KbDQJ1kd+h7Tk=
 github.com/agiledragon/gomonkey/v2 v2.3.1/go.mod h1:ap1AmDzcVOAz1YpeJ3TCzIgstoaWLA6jbbgxfB4w2iY=
-github.com/alicebob/miniredis/v2 v2.36.1 h1:Dvc5oAnNOr7BIfPn7tF269U8DvRW1dBG2D5n0WrfYMI=
-github.com/alicebob/miniredis/v2 v2.36.1/go.mod h1:TcL7YfarKPGDAthEtl5NBeHZfeUQj6OXMm/+iu5cLMM=
+github.com/alicebob/miniredis/v2 v2.35.0 h1:QwLphYqCEAo1eu1TqPRN2jgVMPBweeQcR21jeqDCONI=
+github.com/alicebob/miniredis/v2 v2.35.0/go.mod h1:TcL7YfarKPGDAthEtl5NBeHZfeUQj6OXMm/+iu5cLMM=
 github.com/andybalholm/brotli v1.0.4/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=
 github.com/andybalholm/brotli v1.2.0/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=

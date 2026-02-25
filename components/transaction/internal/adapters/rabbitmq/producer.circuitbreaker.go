@@ -9,8 +9,8 @@ import (
 	"errors"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 )
 
 var (

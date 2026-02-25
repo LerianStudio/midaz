@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
+	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
 

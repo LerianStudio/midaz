@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
 
 	"go.uber.org/mock/gomock"
 

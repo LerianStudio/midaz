@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
+	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"

@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"os"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap"
 )
 

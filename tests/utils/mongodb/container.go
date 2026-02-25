@@ -16,8 +16,8 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 
-	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
+	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"

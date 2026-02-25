@@ -15,8 +15,8 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 
-	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
+	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"

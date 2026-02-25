@@ -7,8 +7,8 @@ package testutils
 import (
 	"testing"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libCrypto "github.com/LerianStudio/lib-commons/v3/commons/crypto"
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	"github.com/stretchr/testify/require"
 )
 

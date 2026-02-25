@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
+	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"

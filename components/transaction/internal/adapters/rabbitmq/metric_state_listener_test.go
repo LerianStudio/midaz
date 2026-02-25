@@ -7,8 +7,8 @@ package rabbitmq
 import (
 	"testing"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
-	"github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
+	"github.com/LerianStudio/lib-commons/v3/commons/opentelemetry/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
