@@ -6,11 +6,13 @@ package command
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
 	"reflect"
+	"sync"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -29,6 +31,82 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.opentelemetry.io/otel/trace"
 )
+
+type transactionBatchItem struct {
+	organizationID uuid.UUID
+	ledgerID       uuid.UUID
+	payload        transaction.TransactionProcessingPayload
+}
+
+type balanceUpdateItem struct {
+	organizationID uuid.UUID
+	ledgerID       uuid.UUID
+	validate       pkgTransaction.Responses
+	balances       []*mmodel.Balance
+}
+
+type balanceBatchUpdateGroup struct {
+	organizationID uuid.UUID
+	ledgerID       uuid.UUID
+	balances       []*mmodel.Balance
+}
+
+type sqlExecQueryTx interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+type sqlBatchTx interface {
+	sqlExecQueryTx
+	Commit() error
+	Rollback() error
+}
+
+type batchTransactionRepository interface {
+	BeginTx(ctx context.Context) (sqlBatchTx, error)
+	CreateBatchWithTx(ctx context.Context, tx sqlExecQueryTx, transactions []*transaction.Transaction) error
+}
+
+type batchOperationRepository interface {
+	CreateBatchWithTx(ctx context.Context, tx interface {
+		ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	}, operations []*operation.Operation) error
+}
+
+type batchBalanceRepository interface {
+	BalancesUpdateWithTx(ctx context.Context, tx sqlExecQueryTx, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
+}
+
+type processedTransactionBatchItem struct {
+	organizationID uuid.UUID
+	ledgerID       uuid.UUID
+	transaction    *transaction.Transaction
+}
+
+// sideEffectItem holds only the immutable data needed by post-commit goroutines.
+// Deep-copied from processedTransactionBatchItem to avoid sharing mutable pointers
+// across concurrent goroutines after the batch function returns on timeout.
+type sideEffectItem struct {
+	organizationID uuid.UUID
+	ledgerID       uuid.UUID
+	transactionID  string
+	transaction    transaction.Transaction // value copy, not pointer
+}
+
+const (
+	batchSideEffectsWaitTimeout = 2 * time.Second
+	batchSideEffectsMaxWorkers  = 16
+	batchPersistMaxRetries      = 3
+	batchPersistRetryDelay      = 20 * time.Millisecond
+)
+
+func (uc *UseCase) batchSideEffectsTimeout() time.Duration {
+	if uc == nil || uc.BatchSideEffectsTimeout <= 0 {
+		return batchSideEffectsWaitTimeout
+	}
+
+	return uc.BatchSideEffectsTimeout
+}
 
 // CreateBalanceTransactionOperationsAsync func that is responsible to create all transactions at the same async.
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
@@ -54,16 +132,8 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		return err
 	}
 
-	if t.Transaction == nil {
-		return fmt.Errorf("invalid transaction payload: transaction is nil")
-	}
-
-	if t.Validate == nil {
-		return fmt.Errorf("invalid transaction payload: validate is nil")
-	}
-
-	if t.Transaction.Status.Code == constant.PENDING && t.Input == nil {
-		return fmt.Errorf("invalid transaction payload: pending transaction input is nil")
+	if err := validateTransactionProcessingPayload(&t); err != nil {
+		return err
 	}
 
 	// NOTED transactions do not mutate balances, so balance payload is optional.
@@ -180,10 +250,555 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	return nil
 }
 
+// CreateBalanceTransactionOperationsBatch processes multiple queue messages in one consumer flush.
+// It batches operation INSERTs across all payloads to reduce PostgreSQL round-trips while
+// preserving per-transaction validation and side effects.
+func (uc *UseCase) CreateBalanceTransactionOperationsBatch(ctx context.Context, queues []mmodel.Queue) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	if len(queues) == 0 {
+		return nil
+	}
+
+	txRepo, txRepoOK := uc.TransactionRepo.(batchTransactionRepository)
+	opRepo, opRepoOK := uc.OperationRepo.(batchOperationRepository)
+	balanceRepo, balanceRepoOK := uc.BalanceRepo.(batchBalanceRepository)
+
+	if !txRepoOK || !opRepoOK || !balanceRepoOK {
+		logger.Warnf(
+			"Batch optimization unavailable (requires PostgreSQL repositories). Falling back to per-item processing: tx_repo=%t op_repo=%t balance_repo=%t",
+			txRepoOK,
+			opRepoOK,
+			balanceRepoOK,
+		)
+
+		var batchErrs []error
+
+		for i, queue := range queues {
+			if err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue); err != nil {
+				batchErrs = append(batchErrs, fmt.Errorf("batch item %d failed: %w", i, err))
+			}
+		}
+
+		return errors.Join(batchErrs...)
+	}
+
+	batchItems, parseSkipped := parseBatchItems(logger, queues)
+
+	if len(batchItems) == 0 {
+		logger.Warnf("Batch: all items were invalid, nothing to process")
+		return nil
+	}
+
+	classified := classifyBatchItems(logger, batchItems)
+	skippedItems := parseSkipped + classified.skippedItems
+
+	if len(classified.transactionsToCreate) == 0 {
+		if skippedItems > 0 {
+			return fmt.Errorf("batch: all %d item(s) failed validation (dead-letter candidates)", skippedItems)
+		}
+
+		logger.Warnf("Batch: no valid transactions to persist after validation")
+
+		return nil
+	}
+
+	balanceUpdates := classified.balanceUpdates
+	transactionsToCreate := classified.transactionsToCreate
+	transactionsToStatusUpdate := classified.transactionsToStatusUpdate
+	allOperations := classified.allOperations
+	processedTransactions := classified.processedTransactions
+
+	ctxPersist, spanPersist := tracer.Start(ctx, "command.create_balance_transaction_operations_batch.persist_single_tx")
+	defer spanPersist.End()
+
+	for attempt := 1; attempt <= batchPersistMaxRetries; attempt++ {
+		err := uc.persistBatchPayloadInTx(
+			ctxPersist,
+			logger,
+			tracer,
+			txRepo,
+			balanceRepo,
+			opRepo,
+			balanceUpdates,
+			transactionsToCreate,
+			allOperations,
+		)
+		if err == nil {
+			break
+		}
+
+		if !isRetryableBatchPersistError(err) || attempt >= batchPersistMaxRetries {
+			libOpentelemetry.HandleSpanError(&spanPersist, "Failed to persist batch payload", err)
+			logger.Errorf("Failed to persist batch payload: %v", err)
+
+			return err
+		}
+
+		waitDelay := time.Duration(attempt*attempt) * batchPersistRetryDelay
+		logger.Warnf("Retrying batch persistence after transient database error (attempt %d/%d, delay=%s): %v", attempt, batchPersistMaxRetries, waitDelay, err)
+
+		select {
+		case <-ctxPersist.Done():
+			return ctxPersist.Err()
+		case <-time.After(waitDelay):
+		}
+	}
+
+	uc.runBatchPostCommit(ctx, logger, transactionsToStatusUpdate, processedTransactions, allOperations)
+
+	return nil
+}
+
+// parseBatchItems parses and validates queue messages into batch items.
+// Returns valid items and count of skipped items.
+func parseBatchItems(logger libLog.Logger, queues []mmodel.Queue) ([]transactionBatchItem, int) {
+	batchItems := make([]transactionBatchItem, 0, len(queues))
+	skippedItems := 0
+
+	for _, queue := range queues {
+		if len(queue.QueueData) == 0 {
+			logger.Errorf("Batch: skipping queue with empty queue data (organization_id=%s ledger_id=%s)", queue.OrganizationID, queue.LedgerID)
+
+			skippedItems++
+
+			continue
+		}
+
+		for _, item := range queue.QueueData {
+			var payload transaction.TransactionProcessingPayload
+
+			err := msgpack.Unmarshal(item.Value, &payload)
+			if err != nil {
+				logger.Errorf("Batch: skipping item due to unmarshal failure (item_id=%s): %v", item.ID.String(), err)
+
+				skippedItems++
+
+				continue
+			}
+
+			if err := validateTransactionProcessingPayload(&payload); err != nil {
+				logger.Errorf("Batch: skipping item due to invalid payload (item_id=%s): %v", item.ID.String(), err)
+
+				skippedItems++
+
+				continue
+			}
+
+			batchItems = append(batchItems, transactionBatchItem{
+				organizationID: queue.OrganizationID,
+				ledgerID:       queue.LedgerID,
+				payload:        payload,
+			})
+		}
+	}
+
+	if skippedItems > 0 {
+		logger.Warnf("Batch: %d item(s) skipped due to validation/unmarshal errors (dead-letter candidates)", skippedItems)
+	}
+
+	return batchItems, skippedItems
+}
+
+// batchClassification holds the categorized results of validating and classifying batch items.
+type batchClassification struct {
+	balanceUpdates             []balanceUpdateItem
+	transactionsToCreate       []*transaction.Transaction
+	transactionsToStatusUpdate []*transaction.Transaction
+	allOperations              []*operation.Operation
+	processedTransactions      []processedTransactionBatchItem
+	skippedItems               int
+}
+
+// classifyBatchItems validates and categorizes batch items for persistence.
+func classifyBatchItems(logger libLog.Logger, batchItems []transactionBatchItem) batchClassification {
+	result := batchClassification{
+		balanceUpdates:             make([]balanceUpdateItem, 0, len(batchItems)),
+		transactionsToCreate:       make([]*transaction.Transaction, 0, len(batchItems)),
+		transactionsToStatusUpdate: make([]*transaction.Transaction, 0, len(batchItems)),
+		allOperations:              make([]*operation.Operation, 0, len(batchItems)*2),
+		processedTransactions:      make([]processedTransactionBatchItem, 0, len(batchItems)),
+	}
+
+	for _, item := range batchItems {
+		payload := item.payload
+		tran := payload.Transaction
+		pendingValidate := payload.Validate != nil && payload.Validate.Pending
+
+		// Validate ALL inputs before adding to any list — ensures that if an
+		// item is skipped, its balance updates and transactions are not orphaned.
+		if tran.Status.Code != constant.NOTED {
+			if err := validateBalancesNotNil(payload.Balances); err != nil {
+				logger.Errorf("Batch: skipping transaction %s due to invalid balances (dead-letter candidate): %v", tran.ID, err)
+
+				result.skippedItems++
+
+				continue
+			}
+		}
+
+		if tran.Status.Code == constant.PENDING && payload.Input == nil {
+			logger.Errorf("Batch: skipping pending transaction %s with nil input (dead-letter candidate)", tran.ID)
+
+			result.skippedItems++
+
+			continue
+		}
+
+		if err := validateOperationsNotNil(tran.Operations); err != nil {
+			logger.Errorf("Batch: skipping transaction %s due to invalid operations (dead-letter candidate): %v", tran.ID, err)
+
+			result.skippedItems++
+
+			continue
+		}
+
+		// All validation passed — safe to add to lists.
+		if tran.Status.Code != constant.NOTED {
+			result.balanceUpdates = append(result.balanceUpdates, balanceUpdateItem{
+				organizationID: item.organizationID,
+				ledgerID:       item.ledgerID,
+				validate:       *payload.Validate,
+				balances:       payload.Balances,
+			})
+		}
+
+		tran.Body = pkgTransaction.Transaction{}
+
+		switch tran.Status.Code {
+		case constant.CREATED:
+			description := constant.APPROVED
+			tran.Status = transaction.Status{Code: description, Description: &description}
+		case constant.PENDING:
+			tran.Body = *payload.Input
+		}
+
+		if pendingValidate && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
+			result.transactionsToStatusUpdate = append(result.transactionsToStatusUpdate, tran)
+		}
+
+		result.transactionsToCreate = append(result.transactionsToCreate, tran)
+
+		if len(tran.Operations) > 0 {
+			result.allOperations = append(result.allOperations, tran.Operations...)
+		}
+
+		result.processedTransactions = append(result.processedTransactions, processedTransactionBatchItem{
+			organizationID: item.organizationID,
+			ledgerID:       item.ledgerID,
+			transaction:    tran,
+		})
+	}
+
+	if result.skippedItems > 0 {
+		logger.Warnf("Batch: total %d item(s) skipped during processing (dead-letter candidates)", result.skippedItems)
+	}
+
+	return result
+}
+
+// runBatchPostCommit executes post-commit operations: status updates, metadata persistence,
+// and async side effects (event publishing, Redis cleanup).
+func (uc *UseCase) runBatchPostCommit(
+	ctx context.Context,
+	logger libLog.Logger,
+	transactionsToStatusUpdate []*transaction.Transaction,
+	processedTransactions []processedTransactionBatchItem,
+	allOperations []*operation.Operation,
+) {
+	for _, tran := range transactionsToStatusUpdate {
+		if _, err := uc.UpdateTransactionStatus(ctx, tran); err != nil {
+			logger.Warnf("Batch post-commit: failed to update transaction status transaction_id=%s status=%s err=%v", tran.ID, tran.Status.Code, err)
+		}
+	}
+
+	for _, item := range processedTransactions {
+		if err := uc.CreateMetadataAsync(ctx, logger, item.transaction.Metadata, item.transaction.ID, reflect.TypeOf(transaction.Transaction{}).Name()); err != nil {
+			logger.Warnf("Batch post-commit: failed to create transaction metadata transaction_id=%s err=%v", item.transaction.ID, err)
+		}
+	}
+
+	for _, oper := range allOperations {
+		if err := uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name()); err != nil {
+			logger.Warnf("Batch post-commit: failed to create operation metadata operation_id=%s err=%v", oper.ID, err)
+		}
+	}
+
+	uc.runBatchSideEffects(ctx, logger, processedTransactions)
+}
+
+// runBatchSideEffects runs post-commit side effects (event publishing, Redis cleanup) concurrently.
+func (uc *UseCase) runBatchSideEffects(ctx context.Context, logger libLog.Logger, processedTransactions []processedTransactionBatchItem) {
+	if len(processedTransactions) == 0 {
+		return
+	}
+
+	workerCount := batchSideEffectsMaxWorkers
+	if len(processedTransactions) < workerCount {
+		workerCount = len(processedTransactions)
+	}
+
+	// Deep-copy transaction data into value types so goroutines don't share
+	// mutable pointers with the caller after the function returns on timeout.
+	jobs := make(chan sideEffectItem, len(processedTransactions))
+	for _, item := range processedTransactions {
+		jobs <- sideEffectItem{
+			organizationID: item.organizationID,
+			ledgerID:       item.ledgerID,
+			transactionID:  item.transaction.ID,
+			transaction:    *item.transaction, // value copy
+		}
+	}
+
+	close(jobs)
+
+	var sideEffectsWG sync.WaitGroup
+	for worker := 0; worker < workerCount; worker++ {
+		sideEffectsWG.Add(1)
+
+		go func() {
+			defer sideEffectsWG.Done()
+
+			for item := range jobs {
+				func() {
+					sideEffectCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+					defer cancel()
+
+					tran := item.transaction // local copy for the goroutine
+					uc.SendTransactionEvents(sideEffectCtx, &tran)
+					uc.RemoveTransactionFromRedisQueue(sideEffectCtx, logger, item.organizationID, item.ledgerID, item.transactionID)
+				}()
+			}
+		}()
+	}
+
+	sideEffectsDone := make(chan struct{})
+
+	go func() {
+		sideEffectsWG.Wait()
+		close(sideEffectsDone)
+	}()
+
+	select {
+	case <-sideEffectsDone:
+	case <-time.After(uc.batchSideEffectsTimeout()):
+		logger.Warnf("Batch post-commit side effects still running after %s; continuing without blocking worker", uc.batchSideEffectsTimeout())
+	}
+}
+
+func (uc *UseCase) persistBatchPayloadInTx(
+	ctx context.Context,
+	logger libLog.Logger,
+	tracer trace.Tracer,
+	txRepo batchTransactionRepository,
+	balanceRepo batchBalanceRepository,
+	opRepo batchOperationRepository,
+	balanceUpdates []balanceUpdateItem,
+	transactionsToCreate []*transaction.Transaction,
+	allOperations []*operation.Operation,
+) error {
+	dbTx, err := txRepo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	committed := false
+
+	defer func() {
+		if !committed {
+			if rbErr := dbTx.Rollback(); rbErr != nil {
+				logger.Errorf("Failed to rollback batch transaction: %v", rbErr)
+			}
+		}
+	}()
+
+	aggregatedBalanceUpdates, err := uc.buildBatchBalanceUpdates(balanceUpdates)
+	if err != nil {
+		return err
+	}
+
+	for _, updateGroup := range aggregatedBalanceUpdates {
+		ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations_batch.update_balances")
+
+		balancesToUpdate := uc.filterStaleBalances(ctxProcessBalances, updateGroup.organizationID, updateGroup.ledgerID, updateGroup.balances, logger)
+		if len(balancesToUpdate) == 0 {
+			spanUpdateBalances.End()
+			continue
+		}
+
+		err := balanceRepo.BalancesUpdateWithTx(ctxProcessBalances, dbTx, updateGroup.organizationID, updateGroup.ledgerID, balancesToUpdate)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)
+			spanUpdateBalances.End()
+
+			return err
+		}
+
+		spanUpdateBalances.End()
+	}
+
+	if err := txRepo.CreateBatchWithTx(ctx, dbTx, transactionsToCreate); err != nil {
+		return err
+	}
+
+	if len(allOperations) > 0 {
+		ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations_batch.create_operations_batch")
+
+		err := opRepo.CreateBatchWithTx(ctxProcessOperation, dbTx, allOperations)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateOperation, "Failed to batch create operations", err)
+			spanCreateOperation.End()
+
+			return err
+		}
+
+		spanCreateOperation.End()
+	}
+
+	if err := dbTx.Commit(); err != nil {
+		return err
+	}
+
+	committed = true
+
+	return nil
+}
+
+func isRetryableBatchPersistError(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+
+	return pgErr.Code == "40P01" || pgErr.Code == "40001"
+}
+
+func (uc *UseCase) buildBatchBalanceUpdates(balanceUpdates []balanceUpdateItem) ([]balanceBatchUpdateGroup, error) {
+	if len(balanceUpdates) == 0 {
+		return nil, nil
+	}
+
+	type scopedState struct {
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		balancesByID   map[string]*mmodel.Balance
+	}
+
+	states := make(map[string]*scopedState)
+
+	for _, update := range balanceUpdates {
+		scopeKey := update.organizationID.String() + "|" + update.ledgerID.String()
+
+		state, ok := states[scopeKey]
+		if !ok {
+			state = &scopedState{
+				organizationID: update.organizationID,
+				ledgerID:       update.ledgerID,
+				balancesByID:   make(map[string]*mmodel.Balance, len(update.balances)),
+			}
+			states[scopeKey] = state
+		}
+
+		fromTo := make(map[string]pkgTransaction.Amount, len(update.validate.From)+len(update.validate.To))
+		for alias, amount := range update.validate.From {
+			fromTo[alias] = amount
+		}
+
+		for alias, amount := range update.validate.To {
+			fromTo[alias] = amount
+		}
+
+		for _, current := range update.balances {
+			if current == nil {
+				continue
+			}
+
+			// Always use the accumulated state as the base when a balance was
+			// already seen in this batch. This ensures that every transaction's
+			// mutations are applied cumulatively — never skipped because of a
+			// stale version number carried from the original Redis snapshot.
+			//
+			// Previous logic compared current.Version vs existing.Version and
+			// would skip (continue) when current.Version < existing.Version,
+			// silently dropping the operation. Under 100K TPS batching, multiple
+			// transactions in the same batch frequently touch the same balance,
+			// all carrying the same snapshot version. After the first transaction
+			// increments the version, subsequent ones were being dropped.
+			baseBalance := current
+			if existing, exists := state.balancesByID[current.ID]; exists && existing != nil {
+				baseBalance = existing
+			}
+
+			updatedAmounts, err := pkgTransaction.OperateBalances(fromTo[current.Alias], *baseBalance.ToTransactionBalance())
+			if err != nil {
+				return nil, err
+			}
+
+			state.balancesByID[current.ID] = &mmodel.Balance{
+				ID:             baseBalance.ID,
+				OrganizationID: baseBalance.OrganizationID,
+				LedgerID:       baseBalance.LedgerID,
+				AccountID:      baseBalance.AccountID,
+				Alias:          baseBalance.Alias,
+				Key:            baseBalance.Key,
+				AssetCode:      baseBalance.AssetCode,
+				Available:      updatedAmounts.Available,
+				OnHold:         updatedAmounts.OnHold,
+				Version:        updatedAmounts.Version,
+				AccountType:    baseBalance.AccountType,
+				AllowSending:   baseBalance.AllowSending,
+				AllowReceiving: baseBalance.AllowReceiving,
+			}
+		}
+	}
+
+	groups := make([]balanceBatchUpdateGroup, 0, len(states))
+	for _, state := range states {
+		balances := make([]*mmodel.Balance, 0, len(state.balancesByID))
+		for _, updatedBalance := range state.balancesByID {
+			balances = append(balances, updatedBalance)
+		}
+
+		groups = append(groups, balanceBatchUpdateGroup{
+			organizationID: state.organizationID,
+			ledgerID:       state.ledgerID,
+			balances:       balances,
+		})
+	}
+
+	return groups, nil
+}
+
+func validateTransactionProcessingPayload(payload *transaction.TransactionProcessingPayload) error {
+	if payload == nil {
+		return fmt.Errorf("invalid transaction payload: payload is nil")
+	}
+
+	if payload.Transaction == nil {
+		return fmt.Errorf("invalid transaction payload: transaction is nil")
+	}
+
+	if payload.Validate == nil {
+		return fmt.Errorf("invalid transaction payload: validate is nil")
+	}
+
+	if payload.Transaction.Status.Code == constant.PENDING && payload.Input == nil {
+		return fmt.Errorf("invalid transaction payload: pending transaction input is nil")
+	}
+
+	return nil
+}
+
 func validateOperationsNotNil(operations []*operation.Operation) error {
 	for i, op := range operations {
 		if op == nil {
 			return fmt.Errorf("nil operation at index %d", i)
+		}
+
+		if op.BalanceID != "" {
+			if _, err := uuid.Parse(op.BalanceID); err != nil {
+				return fmt.Errorf("invalid balance_id at operation index %d: %w", i, err)
+			}
 		}
 	}
 
@@ -193,6 +808,10 @@ func validateOperationsNotNil(operations []*operation.Operation) error {
 func validateBalancesNotNil(balances []*mmodel.Balance) error {
 	if balances == nil {
 		return fmt.Errorf("invalid transaction payload: balances is nil")
+	}
+
+	if len(balances) == 0 {
+		return fmt.Errorf("invalid transaction payload: balances slice is empty")
 	}
 
 	for i, balance := range balances {

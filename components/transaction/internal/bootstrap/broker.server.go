@@ -40,6 +40,7 @@ func NewMultiQueueConsumer(routes *redpanda.ConsumerRoutes, useCase *command.Use
 
 	if useCase.BalanceOperationsTopic != "" {
 		routes.Register(useCase.BalanceOperationsTopic, consumer.handlerBTOQueue)
+		routes.RegisterBatch(useCase.BalanceOperationsTopic, consumer.handlerBTOQueueBatch)
 	}
 
 	return consumer
@@ -141,4 +142,36 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 	}
 
 	return nil
+}
+
+// handlerBTOQueueBatch processes batches from the balance operations topic.
+// It keeps behavior equivalent to single-message mode while enabling consumer-side
+// micro-batch scheduling (size/window/idle flush).
+func (mq *MultiQueueConsumer) handlerBTOQueueBatch(ctx context.Context, bodies [][]byte) error {
+	if mq == nil || mq.UseCase == nil {
+		return fmt.Errorf("consumer use case is not configured")
+	}
+
+	if len(bodies) == 0 {
+		return nil
+	}
+
+	batchMessages := make([]mmodel.Queue, 0, len(bodies))
+
+	for i, body := range bodies {
+		var message mmodel.Queue
+
+		err := msgpack.Unmarshal(body, &message)
+		if err != nil {
+			return fmt.Errorf("batch item %d: failed to unmarshal queue message: %w", i, err)
+		}
+
+		if len(message.QueueData) == 0 {
+			return fmt.Errorf("batch item %d: invalid queue payload: empty queue data", i)
+		}
+
+		batchMessages = append(batchMessages, message)
+	}
+
+	return mq.UseCase.CreateBalanceTransactionOperationsBatch(ctx, batchMessages)
 }

@@ -1606,3 +1606,738 @@ func TestCreateBalanceTransactionOperationsAsync_RejectsNilValidate(t *testing.T
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "validate is nil")
 }
+
+func TestCreateBalanceTransactionOperationsBatch_FallbackWrapsErrors(t *testing.T) {
+	uc := &UseCase{}
+
+	err := uc.CreateBalanceTransactionOperationsBatch(context.Background(), []mmodel.Queue{
+		{
+			OrganizationID: uuid.New(),
+			LedgerID:       uuid.New(),
+			QueueData:      []mmodel.QueueData{},
+		},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "batch item 0 failed")
+	assert.Contains(t, err.Error(), "empty queue data")
+}
+
+func TestCreateBalanceTransactionOperationsBatch_FallbackPropagatesUnmarshalError(t *testing.T) {
+	uc := &UseCase{}
+
+	err := uc.CreateBalanceTransactionOperationsBatch(context.Background(), []mmodel.Queue{
+		{
+			OrganizationID: uuid.New(),
+			LedgerID:       uuid.New(),
+			QueueData: []mmodel.QueueData{
+				{ID: uuid.New(), Value: []byte{0x01, 0x02, 0x03}},
+			},
+		},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "batch item 0 failed")
+	assert.Contains(t, err.Error(), "msgpack")
+}
+
+func TestBuildBatchBalanceUpdates_SameBalanceAcrossBatch(t *testing.T) {
+	uc := &UseCase{}
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	balanceID := uuid.New().String()
+
+	updates := []balanceUpdateItem{
+		{
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			validate: pkgTransaction.Responses{
+				From: map[string]pkgTransaction.Amount{
+					"0#@alice#default": {
+						Asset:           "USD",
+						Value:           decimal.NewFromInt(100),
+						Operation:       constant.DEBIT,
+						TransactionType: constant.CREATED,
+					},
+				},
+				To: map[string]pkgTransaction.Amount{},
+			},
+			balances: []*mmodel.Balance{
+				{
+					ID:        balanceID,
+					Alias:     "0#@alice#default",
+					Available: decimal.NewFromInt(1000),
+					OnHold:    decimal.Zero,
+					Version:   10,
+				},
+			},
+		},
+		{
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			validate: pkgTransaction.Responses{
+				From: map[string]pkgTransaction.Amount{
+					"0#@alice#default": {
+						Asset:           "USD",
+						Value:           decimal.NewFromInt(50),
+						Operation:       constant.DEBIT,
+						TransactionType: constant.CREATED,
+					},
+				},
+				To: map[string]pkgTransaction.Amount{},
+			},
+			balances: []*mmodel.Balance{
+				{
+					ID:        balanceID,
+					Alias:     "0#@alice#default",
+					Available: decimal.NewFromInt(900),
+					OnHold:    decimal.Zero,
+					Version:   11,
+				},
+			},
+		},
+	}
+
+	groups, err := uc.buildBatchBalanceUpdates(updates)
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+	require.Len(t, groups[0].balances, 1)
+
+	updated := groups[0].balances[0]
+	assert.True(t, updated.Available.Equal(decimal.NewFromInt(850)))
+	assert.Equal(t, int64(12), updated.Version)
+}
+
+func TestBuildBatchBalanceUpdates_AccumulatesOutOfOrderSnapshots(t *testing.T) {
+	// When two transactions in the same batch touch the same balance with different
+	// snapshot versions, BOTH operations must be applied cumulatively. Previously,
+	// the stale snapshot (version 10) was silently skipped because its version was
+	// less than the accumulated version (12). This caused financial data loss.
+	uc := &UseCase{}
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	balanceID := uuid.New().String()
+
+	updates := []balanceUpdateItem{
+		{
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			validate: pkgTransaction.Responses{
+				From: map[string]pkgTransaction.Amount{
+					"0#@alice#default": {
+						Asset:           "USD",
+						Value:           decimal.NewFromInt(50),
+						Operation:       constant.DEBIT,
+						TransactionType: constant.CREATED,
+					},
+				},
+				To: map[string]pkgTransaction.Amount{},
+			},
+			balances: []*mmodel.Balance{{
+				ID:        balanceID,
+				Alias:     "0#@alice#default",
+				Available: decimal.NewFromInt(900),
+				OnHold:    decimal.Zero,
+				Version:   11,
+			}},
+		},
+		{
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			validate: pkgTransaction.Responses{
+				From: map[string]pkgTransaction.Amount{
+					"0#@alice#default": {
+						Asset:           "USD",
+						Value:           decimal.NewFromInt(100),
+						Operation:       constant.DEBIT,
+						TransactionType: constant.CREATED,
+					},
+				},
+				To: map[string]pkgTransaction.Amount{},
+			},
+			balances: []*mmodel.Balance{{
+				ID:        balanceID,
+				Alias:     "0#@alice#default",
+				Available: decimal.NewFromInt(1000),
+				OnHold:    decimal.Zero,
+				Version:   10,
+			}},
+		},
+	}
+
+	groups, err := uc.buildBatchBalanceUpdates(updates)
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+	require.Len(t, groups[0].balances, 1)
+
+	// T1: debit 50 from 900 -> 850 (v11->v12)
+	// T2: debit 100 from accumulated 850 -> 750 (v12->v13)
+	// Both operations applied cumulatively.
+	updated := groups[0].balances[0]
+	assert.True(t, updated.Available.Equal(decimal.NewFromInt(750)), "expected 750 but got %s", updated.Available)
+	assert.Equal(t, int64(13), updated.Version)
+}
+
+// ---------------------------------------------------------------------------
+// Tests for CreateBalanceTransactionOperationsBatch
+// ---------------------------------------------------------------------------
+
+// TestCreateBalanceTransactionOperationsBatch_FallbackToPerItem verifies that
+// when the underlying repositories do NOT implement the batch-optimized
+// interfaces (batchTransactionRepository, batchOperationRepository,
+// batchBalanceRepository), the function gracefully falls back to calling
+// CreateBalanceTransactionOperationsAsync for each queue item individually.
+//
+// The standard gomock-generated mocks (transaction.MockRepository, etc.) only
+// satisfy the base Repository interfaces, so the type assertions in
+// CreateBalanceTransactionOperationsBatch will fail → triggering fallback.
+func TestCreateBalanceTransactionOperationsBatch_FallbackToPerItem(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		BrokerRepo:      mockBrokerRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	// Build two independent queue items that each succeed through the
+	// per-item CreateBalanceTransactionOperationsAsync path.
+	buildQueue := func(alias string) mmodel.Queue {
+		validate := &pkgTransaction.Responses{
+			Aliases: []string{alias},
+			From: map[string]pkgTransaction.Amount{
+				alias: {
+					Asset:           "USD",
+					Value:           decimal.NewFromInt(10),
+					Operation:       constant.DEBIT,
+					TransactionType: constant.CREATED,
+				},
+			},
+			To: map[string]pkgTransaction.Amount{},
+		}
+		bal := &mmodel.Balance{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          alias,
+			Available:      decimal.NewFromInt(1000),
+			OnHold:         decimal.Zero,
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			AssetCode:      "USD",
+		}
+		tran := &transaction.Transaction{
+			ID:             uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Status:         transaction.Status{Code: constant.CREATED},
+			Operations:     []*operation.Operation{},
+			Metadata:       map[string]interface{}{},
+		}
+		payload := transaction.TransactionProcessingPayload{
+			Transaction: tran,
+			Validate:    validate,
+			Balances:    []*mmodel.Balance{bal},
+			Input:       &pkgTransaction.Transaction{},
+		}
+		return mmodel.Queue{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData: []mmodel.QueueData{
+				{ID: uuid.New(), Value: mustMsgpackMarshal(t, payload)},
+			},
+		}
+	}
+
+	queues := []mmodel.Queue{
+		buildQueue("alias_a"),
+		buildQueue("alias_b"),
+	}
+
+	// Each per-item call will go through the full
+	// CreateBalanceTransactionOperationsAsync flow, so we mock the full
+	// sequence twice (once per queue item).
+	mockRedisRepo.EXPECT().
+		ListBalanceByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		AnyTimes()
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(2)
+	mockTransactionRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, tx *transaction.Transaction) (*transaction.Transaction, error) {
+			return tx, nil
+		}).
+		Times(2)
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+	mockBrokerRepo.EXPECT().
+		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		AnyTimes()
+	mockRedisRepo.EXPECT().
+		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	err := uc.CreateBalanceTransactionOperationsBatch(ctx, queues)
+	assert.NoError(t, err)
+}
+
+// TestCreateBalanceTransactionOperationsBatch_EmptyInput verifies that an empty
+// slice of queues returns nil immediately — no repo calls, no side effects.
+func TestCreateBalanceTransactionOperationsBatch_EmptyInput(t *testing.T) {
+	uc := &UseCase{}
+
+	err := uc.CreateBalanceTransactionOperationsBatch(context.Background(), []mmodel.Queue{})
+	assert.NoError(t, err)
+
+	err = uc.CreateBalanceTransactionOperationsBatch(context.Background(), nil)
+	assert.NoError(t, err)
+}
+
+// TestCreateBalanceTransactionOperationsBatch_ValidationErrors tests that
+// validation errors from malformed queue items are surfaced through the
+// fallback path (standard mocks → fallback → per-item
+// CreateBalanceTransactionOperationsAsync → validation failure).
+func TestCreateBalanceTransactionOperationsBatch_ValidationErrors(t *testing.T) {
+	t.Run("empty_queue_data_in_item", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		// Standard mocks do NOT implement batch interfaces → fallback path.
+		uc := &UseCase{
+			TransactionRepo: transaction.NewMockRepository(ctrl),
+			OperationRepo:   operation.NewMockRepository(ctrl),
+			MetadataRepo:    mongodb.NewMockRepository(ctrl),
+			BalanceRepo:     balance.NewMockRepository(ctrl),
+			BrokerRepo:      redpanda.NewMockProducerRepository(ctrl),
+			RedisRepo:       redis.NewMockRedisRepository(ctrl),
+		}
+
+		err := uc.CreateBalanceTransactionOperationsBatch(context.Background(), []mmodel.Queue{
+			{
+				OrganizationID: uuid.New(),
+				LedgerID:       uuid.New(),
+				QueueData:      []mmodel.QueueData{},
+			},
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "batch item 0 failed")
+		assert.Contains(t, err.Error(), "empty queue data")
+	})
+
+	t.Run("nil_transaction_in_payload", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		uc := &UseCase{
+			TransactionRepo: transaction.NewMockRepository(ctrl),
+			OperationRepo:   operation.NewMockRepository(ctrl),
+			MetadataRepo:    mongodb.NewMockRepository(ctrl),
+			BalanceRepo:     balance.NewMockRepository(ctrl),
+			BrokerRepo:      redpanda.NewMockProducerRepository(ctrl),
+			RedisRepo:       redis.NewMockRedisRepository(ctrl),
+		}
+
+		payload := transaction.TransactionProcessingPayload{
+			Transaction: nil,
+			Validate:    &pkgTransaction.Responses{},
+			Balances:    []*mmodel.Balance{},
+			Input:       &pkgTransaction.Transaction{},
+		}
+
+		err := uc.CreateBalanceTransactionOperationsBatch(context.Background(), []mmodel.Queue{
+			{
+				OrganizationID: uuid.New(),
+				LedgerID:       uuid.New(),
+				QueueData: []mmodel.QueueData{
+					{ID: uuid.New(), Value: mustMsgpackMarshal(t, payload)},
+				},
+			},
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "transaction is nil")
+	})
+
+	t.Run("nil_validate_in_payload", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		uc := &UseCase{
+			TransactionRepo: transaction.NewMockRepository(ctrl),
+			OperationRepo:   operation.NewMockRepository(ctrl),
+			MetadataRepo:    mongodb.NewMockRepository(ctrl),
+			BalanceRepo:     balance.NewMockRepository(ctrl),
+			BrokerRepo:      redpanda.NewMockProducerRepository(ctrl),
+			RedisRepo:       redis.NewMockRedisRepository(ctrl),
+		}
+
+		payload := transaction.TransactionProcessingPayload{
+			Transaction: &transaction.Transaction{
+				Status: transaction.Status{Code: constant.CREATED},
+			},
+			Validate: nil,
+			Balances: []*mmodel.Balance{},
+			Input:    &pkgTransaction.Transaction{},
+		}
+
+		err := uc.CreateBalanceTransactionOperationsBatch(context.Background(), []mmodel.Queue{
+			{
+				OrganizationID: uuid.New(),
+				LedgerID:       uuid.New(),
+				QueueData: []mmodel.QueueData{
+					{ID: uuid.New(), Value: mustMsgpackMarshal(t, payload)},
+				},
+			},
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "validate is nil")
+	})
+}
+
+// TestCreateBalanceTransactionOperationsBatch_BatchGrouping verifies that
+// buildBatchBalanceUpdates correctly groups balance updates by
+// organizationID|ledgerID scope. Two items targeting different org/ledger pairs
+// must produce two separate balanceBatchUpdateGroup entries.
+func TestCreateBalanceTransactionOperationsBatch_BatchGrouping(t *testing.T) {
+	uc := &UseCase{}
+
+	orgA := uuid.New()
+	ledgerA := uuid.New()
+	orgB := uuid.New()
+	ledgerB := uuid.New()
+
+	balanceA := &mmodel.Balance{
+		ID:        uuid.New().String(),
+		Alias:     "0#@alice#default",
+		Available: decimal.NewFromInt(500),
+		OnHold:    decimal.Zero,
+		Version:   1,
+	}
+
+	balanceB := &mmodel.Balance{
+		ID:        uuid.New().String(),
+		Alias:     "0#@bob#default",
+		Available: decimal.NewFromInt(300),
+		OnHold:    decimal.Zero,
+		Version:   1,
+	}
+
+	updates := []balanceUpdateItem{
+		{
+			organizationID: orgA,
+			ledgerID:       ledgerA,
+			validate: pkgTransaction.Responses{
+				From: map[string]pkgTransaction.Amount{
+					"0#@alice#default": {
+						Asset:           "USD",
+						Value:           decimal.NewFromInt(10),
+						Operation:       constant.DEBIT,
+						TransactionType: constant.CREATED,
+					},
+				},
+				To: map[string]pkgTransaction.Amount{},
+			},
+			balances: []*mmodel.Balance{balanceA},
+		},
+		{
+			organizationID: orgB,
+			ledgerID:       ledgerB,
+			validate: pkgTransaction.Responses{
+				From: map[string]pkgTransaction.Amount{
+					"0#@bob#default": {
+						Asset:           "BRL",
+						Value:           decimal.NewFromInt(20),
+						Operation:       constant.DEBIT,
+						TransactionType: constant.CREATED,
+					},
+				},
+				To: map[string]pkgTransaction.Amount{},
+			},
+			balances: []*mmodel.Balance{balanceB},
+		},
+	}
+
+	groups, err := uc.buildBatchBalanceUpdates(updates)
+	require.NoError(t, err)
+	require.Len(t, groups, 2, "expected 2 groups for 2 different org|ledger scopes")
+
+	// Build a lookup so we don't depend on map iteration order.
+	scopeMap := make(map[string]balanceBatchUpdateGroup, 2)
+	for _, g := range groups {
+		key := g.organizationID.String() + "|" + g.ledgerID.String()
+		scopeMap[key] = g
+	}
+
+	keyA := orgA.String() + "|" + ledgerA.String()
+	keyB := orgB.String() + "|" + ledgerB.String()
+
+	require.Contains(t, scopeMap, keyA, "expected group for org A | ledger A")
+	require.Contains(t, scopeMap, keyB, "expected group for org B | ledger B")
+
+	// Verify each group has exactly one balance.
+	assert.Len(t, scopeMap[keyA].balances, 1)
+	assert.Len(t, scopeMap[keyB].balances, 1)
+
+	// Verify the balance amounts were correctly debited.
+	// Alice: 500 - 10 = 490, version 1 → 2
+	assert.True(t, scopeMap[keyA].balances[0].Available.Equal(decimal.NewFromInt(490)),
+		"Alice: expected 490 but got %s", scopeMap[keyA].balances[0].Available)
+	assert.Equal(t, int64(2), scopeMap[keyA].balances[0].Version)
+
+	// Bob: 300 - 20 = 280, version 1 → 2
+	assert.True(t, scopeMap[keyB].balances[0].Available.Equal(decimal.NewFromInt(280)),
+		"Bob: expected 280 but got %s", scopeMap[keyB].balances[0].Available)
+	assert.Equal(t, int64(2), scopeMap[keyB].balances[0].Version)
+}
+
+// TestCreateBalanceTransactionOperationsBatch_CumulativeBalanceApplication is
+// the critical C-1 regression test. It verifies that when multiple
+// transactions in the same batch all touch the SAME balance — each carrying
+// the SAME Redis snapshot version — ALL mutations are applied cumulatively,
+// not dropped.
+//
+// Scenario:
+//
+//	Balance "alice" starts at Available=1000, Version=10 (the Redis snapshot).
+//	Three transactions in the batch each DEBIT 100 from "alice".
+//	All three carry version=10 because they were all read from the same
+//	Redis snapshot before the batch was assembled.
+//
+// Expected result after buildBatchBalanceUpdates:
+//
+//	Available = 1000 - 100 - 100 - 100 = 700
+//	Version   = 10 + 3 = 13 (one increment per operation)
+//
+// If the C-1 bug were present (stale snapshot skipping), only the first
+// transaction would be applied and the other two would be silently dropped,
+// resulting in Available=900, Version=11 — a catastrophic financial data loss.
+func TestCreateBalanceTransactionOperationsBatch_CumulativeBalanceApplication(t *testing.T) {
+	uc := &UseCase{}
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	balanceID := uuid.New().String()
+
+	const (
+		initialAvailable = 1000
+		debitPerTx       = 100
+		snapshotVersion  = 10
+		txCount          = 3
+	)
+
+	// Build 3 update items, all referencing the same balance at the same
+	// snapshot version — exactly what happens when the Redis Lua script
+	// returns the same balance state to multiple concurrent transactions
+	// that get batched together.
+	updates := make([]balanceUpdateItem, 0, txCount)
+	for i := 0; i < txCount; i++ {
+		updates = append(updates, balanceUpdateItem{
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			validate: pkgTransaction.Responses{
+				From: map[string]pkgTransaction.Amount{
+					"0#@alice#default": {
+						Asset:           "USD",
+						Value:           decimal.NewFromInt(debitPerTx),
+						Operation:       constant.DEBIT,
+						TransactionType: constant.CREATED,
+					},
+				},
+				To: map[string]pkgTransaction.Amount{},
+			},
+			balances: []*mmodel.Balance{
+				{
+					ID:        balanceID,
+					Alias:     "0#@alice#default",
+					Available: decimal.NewFromInt(initialAvailable),
+					OnHold:    decimal.Zero,
+					Version:   snapshotVersion,
+				},
+			},
+		})
+	}
+
+	groups, err := uc.buildBatchBalanceUpdates(updates)
+	require.NoError(t, err)
+	require.Len(t, groups, 1, "all updates target same org|ledger → 1 group")
+	require.Len(t, groups[0].balances, 1, "all updates target same balance ID → 1 balance")
+
+	updated := groups[0].balances[0]
+
+	expectedAvailable := decimal.NewFromInt(initialAvailable - (debitPerTx * txCount)) // 1000 - 300 = 700
+	expectedVersion := int64(snapshotVersion + txCount)                                // 10 + 3 = 13
+
+	assert.True(t, updated.Available.Equal(expectedAvailable),
+		"C-1 regression: expected Available=%s but got %s (all %d debits must be applied cumulatively)",
+		expectedAvailable, updated.Available, txCount)
+
+	assert.Equal(t, expectedVersion, updated.Version,
+		"C-1 regression: expected Version=%d but got %d (one version increment per debit)",
+		expectedVersion, updated.Version)
+
+	// Verify balance ID and alias are preserved from the original.
+	assert.Equal(t, balanceID, updated.ID)
+	assert.Equal(t, "0#@alice#default", updated.Alias)
+	assert.True(t, updated.OnHold.Equal(decimal.Zero), "OnHold should remain zero for DEBIT+CREATED")
+}
+
+// TestCreateBalanceTransactionOperationsBatch_CumulativeBalanceApplication_MixedDirections
+// extends the C-1 test to verify cumulative application with both debits and
+// credits hitting the same balance in a single batch.
+//
+// Scenario:
+//
+//	Balance "alice" starts at Available=1000, Version=5.
+//	T1: DEBIT  200 from alice  → Available=800,  Version=6
+//	T2: CREDIT 50  to   alice  → Available=850,  Version=7
+//	T3: DEBIT  100 from alice  → Available=750,  Version=8
+//
+// All three carry snapshot version=5 from Redis.
+func TestCreateBalanceTransactionOperationsBatch_CumulativeBalanceApplication_MixedDirections(t *testing.T) {
+	uc := &UseCase{}
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	balanceID := uuid.New().String()
+
+	const snapshotVersion = 5
+
+	updates := []balanceUpdateItem{
+		{
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			validate: pkgTransaction.Responses{
+				From: map[string]pkgTransaction.Amount{
+					"0#@alice#default": {
+						Asset:           "USD",
+						Value:           decimal.NewFromInt(200),
+						Operation:       constant.DEBIT,
+						TransactionType: constant.CREATED,
+					},
+				},
+				To: map[string]pkgTransaction.Amount{},
+			},
+			balances: []*mmodel.Balance{{
+				ID:        balanceID,
+				Alias:     "0#@alice#default",
+				Available: decimal.NewFromInt(1000),
+				OnHold:    decimal.Zero,
+				Version:   snapshotVersion,
+			}},
+		},
+		{
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			validate: pkgTransaction.Responses{
+				From: map[string]pkgTransaction.Amount{},
+				To: map[string]pkgTransaction.Amount{
+					"0#@alice#default": {
+						Asset:           "USD",
+						Value:           decimal.NewFromInt(50),
+						Operation:       constant.CREDIT,
+						TransactionType: constant.CREATED,
+					},
+				},
+			},
+			balances: []*mmodel.Balance{{
+				ID:        balanceID,
+				Alias:     "0#@alice#default",
+				Available: decimal.NewFromInt(1000),
+				OnHold:    decimal.Zero,
+				Version:   snapshotVersion,
+			}},
+		},
+		{
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			validate: pkgTransaction.Responses{
+				From: map[string]pkgTransaction.Amount{
+					"0#@alice#default": {
+						Asset:           "USD",
+						Value:           decimal.NewFromInt(100),
+						Operation:       constant.DEBIT,
+						TransactionType: constant.CREATED,
+					},
+				},
+				To: map[string]pkgTransaction.Amount{},
+			},
+			balances: []*mmodel.Balance{{
+				ID:        balanceID,
+				Alias:     "0#@alice#default",
+				Available: decimal.NewFromInt(1000),
+				OnHold:    decimal.Zero,
+				Version:   snapshotVersion,
+			}},
+		},
+	}
+
+	groups, err := uc.buildBatchBalanceUpdates(updates)
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+	require.Len(t, groups[0].balances, 1)
+
+	updated := groups[0].balances[0]
+
+	// 1000 - 200 + 50 - 100 = 750
+	assert.True(t, updated.Available.Equal(decimal.NewFromInt(750)),
+		"expected 750 but got %s", updated.Available)
+
+	// 5 + 3 operations = 8
+	assert.Equal(t, int64(8), updated.Version,
+		"expected version 8 but got %d", updated.Version)
+}
+
+// TestCreateBalanceTransactionOperationsBatch_FallbackCollectsAllErrors verifies
+// that when multiple items fail in the fallback path, ALL errors are collected
+// and joined — not just the first one.
+func TestCreateBalanceTransactionOperationsBatch_FallbackCollectsAllErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Standard mocks → fallback path.
+	uc := &UseCase{
+		TransactionRepo: transaction.NewMockRepository(ctrl),
+		OperationRepo:   operation.NewMockRepository(ctrl),
+		MetadataRepo:    mongodb.NewMockRepository(ctrl),
+		BalanceRepo:     balance.NewMockRepository(ctrl),
+		BrokerRepo:      redpanda.NewMockProducerRepository(ctrl),
+		RedisRepo:       redis.NewMockRedisRepository(ctrl),
+	}
+
+	// Two items, both with empty QueueData → both will fail validation.
+	err := uc.CreateBalanceTransactionOperationsBatch(context.Background(), []mmodel.Queue{
+		{OrganizationID: uuid.New(), LedgerID: uuid.New(), QueueData: []mmodel.QueueData{}},
+		{OrganizationID: uuid.New(), LedgerID: uuid.New(), QueueData: []mmodel.QueueData{}},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "batch item 0 failed")
+	assert.Contains(t, err.Error(), "batch item 1 failed")
+}
