@@ -152,7 +152,6 @@ type Config struct {
 	RabbitMQConsumerUser         string `env:"RABBITMQ_CONSUMER_USER"`
 	RabbitMQConsumerPass         string `env:"RABBITMQ_CONSUMER_PASS"`
 	RabbitMQVHost                string `env:"RABBITMQ_VHOST"`
-	RabbitMQBalanceCreateQueue   string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
 	RabbitMQNumbersOfWorkers     int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
 	RabbitMQNumbersOfPrefetch    int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
 	RabbitMQHealthCheckURL       string `env:"RABBITMQ_HEALTH_CHECK_URL"`
@@ -394,7 +393,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		User:                   cfg.RabbitMQUser,
 		Pass:                   cfg.RabbitMQPass,
 		VHost:                  cfg.RabbitMQVHost,
-		Queue:                  cfg.RabbitMQBalanceCreateQueue,
 		Logger:                 logger,
 	}
 
@@ -545,7 +543,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		User:                   cfg.RabbitMQConsumerUser,
 		Pass:                   cfg.RabbitMQConsumerPass,
 		VHost:                  cfg.RabbitMQVHost,
-		Queue:                  cfg.RabbitMQBalanceCreateQueue,
 		Logger:                 logger,
 	}
 
