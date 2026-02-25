@@ -20,6 +20,19 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type idempotencyLockChecker interface {
+	CheckOrAcquireIdempotencyKey(ctx context.Context, key string, ttl time.Duration) (existingValue string, acquired bool, err error)
+}
+
+type redisPipelineSetter interface {
+	SetPipeline(ctx context.Context, keys, values []string, ttls []time.Duration) error
+}
+
+const (
+	idempotencyReplayWaitTimeout = 200 * time.Millisecond
+	idempotencyReplayPollStep    = 15 * time.Millisecond
+)
+
 func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*string, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -33,6 +46,48 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	}
 
 	internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, key)
+
+	if checker, ok := uc.RedisRepo.(idempotencyLockChecker); ok {
+		existingValue, acquired, err := checker.CheckOrAcquireIdempotencyKey(ctx, internalKey, ttl)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Error to lock idempotency key on redis failed", err)
+
+			logger.Error("Error to lock idempotency key on redis failed:", err.Error())
+
+			return nil, err
+		}
+
+		if acquired {
+			return nil, nil
+		}
+
+		if !libCommons.IsNilOrEmpty(&existingValue) {
+			logger.Info("Found existing idempotency response in redis")
+
+			return &existingValue, nil
+		}
+
+		resolvedValue, waitErr := uc.waitForInFlightIdempotencyValue(ctx, internalKey)
+		if waitErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "Error waiting in-flight idempotency value", waitErr)
+
+			logger.Errorf("Error waiting in-flight idempotency value on redis: %v", waitErr)
+
+			return nil, waitErr
+		}
+
+		if resolvedValue != nil {
+			logger.Info("Resolved in-flight idempotency response from redis")
+
+			return resolvedValue, nil
+		}
+
+		err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
+
+		logger.Warn("Failed to create idempotency key because another request is still in flight")
+
+		return nil, err
+	}
 
 	success, err := uc.RedisRepo.SetNX(ctx, internalKey, "", ttl)
 	if err != nil {
@@ -54,63 +109,142 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 		}
 
 		if !libCommons.IsNilOrEmpty(&value) {
-			logger.Infof("Found value on redis with this key: %v", internalKey)
+			logger.Info("Found existing idempotency response in redis")
 
 			return &value, nil
-		} else {
-			err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
-
-			logger.Warnf("Failed, exists value on redis with this key: %v", err)
-
-			return nil, err
 		}
+
+		resolvedValue, waitErr := uc.waitForInFlightIdempotencyValue(ctx, internalKey)
+		if waitErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "Error waiting in-flight idempotency value", waitErr)
+
+			logger.Errorf("Error waiting in-flight idempotency value on redis: %v", waitErr)
+
+			return nil, waitErr
+		}
+
+		if resolvedValue != nil {
+			logger.Info("Resolved in-flight idempotency response from redis")
+
+			return resolvedValue, nil
+		}
+
+		err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
+
+		logger.Warn("Failed to create idempotency key because another request is still in flight")
+
+		return nil, err
 	}
 
 	return nil, nil
 }
 
-// SetValueOnExistingIdempotencyKey func that set value on idempotency key to return to user.
-func (uc *UseCase) SetValueOnExistingIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, t transaction.Transaction, ttl time.Duration) {
+// SetIdempotencyValueAndMapping stores the serialized idempotency response and
+// reverse transaction mapping in Redis, using a single pipeline round-trip when
+// the underlying Redis adapter supports it.
+func (uc *UseCase) SetIdempotencyValueAndMapping(
+	ctx context.Context,
+	organizationID, ledgerID uuid.UUID,
+	key, hash string,
+	t transaction.Transaction,
+	resultTTL, mappingTTL time.Duration,
+) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.set_value_idempotency_key")
+	ctx, span := tracer.Start(ctx, "command.set_idempotency_value_and_mapping")
 	defer span.End()
-
-	logger.Infof("Trying to set value on idempotency key in redis")
 
 	if key == "" {
 		key = hash
 	}
 
 	internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, key)
+	reverseKey := utils.IdempotencyReverseKey(organizationID, ledgerID, t.ID)
 
 	value, err := libCommons.StructToJSONString(t)
 	if err != nil {
-		logger.Error("Err to serialize transaction struct %v\n", err)
+		logger.Errorf("Err to serialize transaction struct %v", err)
+		return err
 	}
 
-	err = uc.RedisRepo.Set(ctx, internalKey, value, ttl)
-	if err != nil {
-		logger.Error("Error to set value on lock idempotency key on redis:", err.Error())
+	if pipeline, ok := uc.RedisRepo.(redisPipelineSetter); ok {
+		if err := pipeline.SetPipeline(
+			ctx,
+			[]string{internalKey, reverseKey},
+			[]string{value, key},
+			[]time.Duration{resultTTL, mappingTTL},
+		); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Error setting idempotency values via redis pipeline", err)
+			logger.Errorf("Error setting idempotency values via redis pipeline: %s", err.Error())
+
+			return err
+		}
+
+		return nil
 	}
+
+	var setErr error
+
+	if err := uc.RedisRepo.Set(ctx, internalKey, value, resultTTL); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Error setting idempotency value in redis", err)
+		logger.Errorf("Error setting idempotency value in redis: %s", err.Error())
+		setErr = errors.Join(setErr, err)
+	}
+
+	if err := uc.RedisRepo.Set(ctx, reverseKey, key, mappingTTL); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Error setting transaction idempotency mapping in redis", err)
+		logger.Errorf("Error setting transaction idempotency mapping in redis for transactionID %s: %s", t.ID, err.Error())
+		setErr = errors.Join(setErr, err)
+	}
+
+	return setErr
 }
 
-// SetTransactionIdempotencyMapping stores the reverse mapping from transactionID to idempotency key.
-// This allows looking up which idempotency key corresponds to a given transaction.
-func (uc *UseCase) SetTransactionIdempotencyMapping(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID, idempotencyKey string, ttl time.Duration) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+func (uc *UseCase) idempotencyReplayTimeout() time.Duration {
+	if uc.IdempotencyReplayTimeout > 0 {
+		return uc.IdempotencyReplayTimeout
+	}
 
-	ctx, span := tracer.Start(ctx, "command.set_transaction_idempotency_mapping")
-	defer span.End()
+	return idempotencyReplayWaitTimeout
+}
 
-	logger.Infof("Trying to set transaction idempotency mapping in redis for transactionID: %s", transactionID)
+func (uc *UseCase) waitForInFlightIdempotencyValue(ctx context.Context, internalKey string) (*string, error) {
+	if uc == nil || uc.RedisRepo == nil {
+		return nil, nil
+	}
 
-	reverseKey := utils.IdempotencyReverseKey(organizationID, ledgerID, transactionID)
+	waitCtx, cancel := context.WithTimeout(ctx, uc.idempotencyReplayTimeout())
+	defer cancel()
 
-	err := uc.RedisRepo.Set(ctx, reverseKey, idempotencyKey, ttl)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Error setting transaction idempotency mapping in redis", err)
+	ticker := time.NewTicker(idempotencyReplayPollStep)
+	defer ticker.Stop()
 
-		logger.Errorf("Error setting transaction idempotency mapping in redis for transactionID %s: %s", transactionID, err.Error())
+	for {
+		if waitErr := waitCtx.Err(); waitErr != nil {
+			if errors.Is(waitErr, context.DeadlineExceeded) || errors.Is(waitErr, context.Canceled) {
+				return nil, nil
+			}
+
+			return nil, waitErr
+		}
+
+		value, err := uc.RedisRepo.Get(waitCtx, internalKey)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				return nil, nil
+			}
+
+			return nil, err
+		}
+
+		if !libCommons.IsNilOrEmpty(&value) {
+			return &value, nil
+		}
+
+		select {
+		case <-waitCtx.Done():
+			continue
+		case <-ticker.C:
+		}
 	}
 }

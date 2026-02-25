@@ -1077,11 +1077,13 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		return http.WithError(c, err)
 	}
 
-	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
-
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
-	handler.Command.SetTransactionIdempotencyMapping(ctx, organizationID, ledgerID, tran.ID, key, 5)
+	if err := handler.Command.SetIdempotencyValueAndMapping(ctx, organizationID, ledgerID, key, hash, *tran, ttl, 5*time.Second); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to persist idempotency response", err)
+		logger.Errorf("Failed to persist idempotency response for transaction %s: %v", tran.ID, err)
+		c.Set("X-Idempotency-Degraded", "true")
+	}
 
 	return http.Created(c, tran)
 }
@@ -1099,8 +1101,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	lockPendingTransactionKey := utils.PendingTransactionLockKey(organizationID, ledgerID, tran.ID)
 
-	// TTL is of 300 seconds (time.Seconds is set inside the SetNX method)
-	ttl := time.Duration(300)
+	ttl := 300 * time.Second
 
 	success, err := handler.Command.RedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
 	if err != nil {
