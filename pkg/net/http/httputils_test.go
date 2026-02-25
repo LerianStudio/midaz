@@ -338,7 +338,7 @@ func TestGetIdempotencyKeyAndTTL_WithValidValues(t *testing.T) {
 	app.Get("/test", func(c *fiber.Ctx) error {
 		key, ttl := GetIdempotencyKeyAndTTL(c)
 		assert.Equal(t, "test-key", key)
-		assert.Equal(t, time.Duration(60), ttl)
+		assert.Equal(t, 60*time.Second, ttl)
 		return c.SendStatus(fiber.StatusOK)
 	})
 
@@ -385,6 +385,27 @@ func TestGetIdempotencyKeyAndTTL_WithNegativeTTL(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set(libConstants.IdempotencyKey, "test-key")
 	req.Header.Set(libConstants.IdempotencyTTL, "-1")
+
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestGetIdempotencyKeyAndTTL_WithExcessiveTTL(t *testing.T) {
+	t.Setenv("MAX_IDEMPOTENCY_TTL_SECONDS", "120")
+
+	app := fiber.New()
+
+	app.Get("/test", func(c *fiber.Ctx) error {
+		key, ttl := GetIdempotencyKeyAndTTL(c)
+		assert.Equal(t, "test-key", key)
+		assert.Equal(t, 120*time.Second, ttl)
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set(libConstants.IdempotencyKey, "test-key")
+	req.Header.Set(libConstants.IdempotencyTTL, "999999")
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)

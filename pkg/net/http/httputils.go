@@ -60,6 +60,8 @@ type Pagination struct {
 	EndDate   time.Time
 }
 
+const defaultMaxIdempotencyTTLSeconds = 86400
+
 // ValidateParameters validate and return struct of default parameters
 //
 //nolint:gocyclo
@@ -263,14 +265,22 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 	ikey := c.Get(libConstants.IdempotencyKey)
 	iTTL := c.Get(libConstants.IdempotencyTTL)
+	maxTTLSeconds := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_IDEMPOTENCY_TTL_SECONDS", defaultMaxIdempotencyTTLSeconds))
+	if maxTTLSeconds <= 0 {
+		maxTTLSeconds = defaultMaxIdempotencyTTLSeconds
+	}
 
-	// Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
+	// Interpret TTL as seconds count and convert to explicit duration.
 	t, err := strconv.Atoi(iTTL)
 	if err != nil || t <= 0 {
 		t = libRedis.TTL
 	}
 
-	ttl := time.Duration(t)
+	if t > maxTTLSeconds {
+		t = maxTTLSeconds
+	}
+
+	ttl := time.Duration(t) * time.Second
 
 	return ikey, ttl
 }
