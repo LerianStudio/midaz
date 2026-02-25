@@ -61,13 +61,6 @@ endef
 define check_env_files
 	@missing=false; \
 	if [ ! -f "$(INFRA_DIR)/.env" ]; then missing=true; fi; \
-	if [ ! -f "$(CRM_DIR)/.env" ]; then missing=true; fi; \
-	if [ "$(UNIFIED)" = "true" ]; then \
-		if [ ! -f "$(LEDGER_DIR)/.env" ]; then missing=true; fi; \
-	else \
-		if [ ! -f "$(ONBOARDING_DIR)/.env" ]; then missing=true; fi; \
-		if [ ! -f "$(TRANSACTION_DIR)/.env" ]; then missing=true; fi; \
-	fi; \
 	if [ "$$missing" = "true" ]; then \
 		echo "Environment files are missing. Running set-env command first..."; \
 		$(MAKE) set-env; \
@@ -79,19 +72,20 @@ DOCKER_CMD := $(shell if docker compose version >/dev/null 2>&1; then echo "dock
 export DOCKER_CMD
 
 # Benchmark + k6 defaults
-BENCH_COMPOSE_FILE ?= docker-compose-bench.yaml
 K6_DIR ?= ./tests/k6
 K6_REPO_URL ?= https://github.com/LerianStudio/k6.git
 K6_REPO_LOCAL ?= ../k6
-K6_SCENARIO_DIR ?= tests/v3.x.x/tps_constant_accounting
+K6_SCENARIO_DIR ?= tests/v3.x.x/tps_api_first_accounting
 BENCH_PROFILE ?= load
 BENCH_ENVIRONMENT ?= midaz-bench
 BENCH_AUTH_ENABLED ?= false
 BENCH_LOG ?= OFF
-BENCH_ORGANIZATION_ID ?= 019819da-dfb9-7a68-b3f6-a8906de0d639
-BENCH_LEDGER_ID ?= 019819db-c78c-77b9-a22b-9d018febd0a5
-BENCH_RUN_SETUP ?= true
-BENCH_FORCE_SETUP ?= false
+BENCH_NAMESPACE ?=
+BENCH_ORG_COUNT ?= 1
+BENCH_LEDGERS_PER_ORG ?= 1
+BENCH_ACCOUNTS_PER_TYPE ?= 5
+BENCH_FUND_AMOUNT ?= 1000000.00
+BENCH_TRANSACTION_AMOUNT ?= 10.00
 
 ifeq ($(BENCH_PROFILE),smoke)
 BENCH_PROFILE_TPS := 10
@@ -171,7 +165,7 @@ help:
 	@echo ""
 	@echo ""
 	@echo "Service Commands:"
-	@echo "  make up                           - Start all services (UNIFIED=true by default, use UNIFIED=false for separate mode)"
+	@echo "  make up                           - Start benchmark-ready infra stack"
 	@echo "  make down                         - Stop all services"
 	@echo "  make start                        - Start all containers"
 	@echo "  make stop                         - Stop all containers"
@@ -185,15 +179,18 @@ help:
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
 	@echo "  make k6-sync                      - Clone/update tests/k6 load-test repository"
-	@echo "  make k6-bench                     - Start/check bench stack, seed fixtures, run k6 setup + load"
+	@echo "  make k6-bench                     - Start/check bench stack, run API-first k6 setup + load"
+	@echo "  make k6-bench-validate            - Validate persisted benchmark data + invariants"
+	@echo "  make k6-bench-monitor             - Stream Redpanda consumer lag as CSV"
 	@echo ""
-	@echo "  UNIFIED=true (default): Uses unified ledger service (onboarding + transaction in one process)"
-	@echo "  UNIFIED=false: Starts onboarding and transaction as separate services"
+	@echo "  make up/start/stop/down now control the benchmark-ready infra stack (4 ledgers + 2 authorizers + nginx)"
 	@echo ""
 	@echo "  k6-bench vars (defaults):"
 	@echo "    BENCH_PROFILE=$(BENCH_PROFILE) BENCH_ENVIRONMENT=$(BENCH_ENVIRONMENT)"
 	@echo "    BENCH_TPS=$(BENCH_TPS) BENCH_DURATION=$(BENCH_DURATION) BENCH_PRE_VUS=$(BENCH_PRE_VUS) BENCH_MAX_VUS=$(BENCH_MAX_VUS)"
-	@echo "    BENCH_RUN_SETUP=$(BENCH_RUN_SETUP) BENCH_FORCE_SETUP=$(BENCH_FORCE_SETUP) BENCH_AUTH_ENABLED=$(BENCH_AUTH_ENABLED) BENCH_BUILD_STACK=$(BENCH_BUILD_STACK)"
+	@echo "    BENCH_AUTH_ENABLED=$(BENCH_AUTH_ENABLED) BENCH_BUILD_STACK=$(BENCH_BUILD_STACK)"
+	@echo "    BENCH_NAMESPACE=<auto> BENCH_ORG_COUNT=$(BENCH_ORG_COUNT) BENCH_LEDGERS_PER_ORG=$(BENCH_LEDGERS_PER_ORG) BENCH_ACCOUNTS_PER_TYPE=$(BENCH_ACCOUNTS_PER_TYPE)"
+	@echo "    BENCH_FUND_AMOUNT=$(BENCH_FUND_AMOUNT) BENCH_TRANSACTION_AMOUNT=$(BENCH_TRANSACTION_AMOUNT)"
 	@echo "    profiles: smoke(10/10s/5/20) load(500/30s/200/1000) stress(1500/60s/600/4000) 100k(1000/100s/400/3000)"
 	@echo ""
 	@echo ""
@@ -505,80 +502,32 @@ up:
 	$(call print_title,Starting all services with Docker Compose)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
-	@echo "Starting infrastructure services..."
+	@echo "Starting benchmark-ready infrastructure stack..."
 	@cd $(INFRA_DIR) && $(MAKE) up
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Starting unified backend (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) up); \
-	else \
-		echo "Starting separate backend services..."; \
-		(cd $(ONBOARDING_DIR) && $(MAKE) up); \
-		(cd $(TRANSACTION_DIR) && $(MAKE) up); \
-	fi
-	@echo "Starting CRM service..."
-	@cd $(CRM_DIR) && $(MAKE) up
-	@echo "[ok] All services started successfully"
+	@echo "[ok] Benchmark-ready stack started successfully"
 
 .PHONY: down
 down:
 	$(call print_title,Stopping all services with Docker Compose)
-	@echo "Stopping CRM service..."
-	@if [ -f "$(CRM_DIR)/docker-compose.yml" ]; then \
-		(cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
-	fi
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Stopping unified backend (ledger)..."; \
-		if [ -f "$(LEDGER_DIR)/docker-compose.yml" ]; then \
-			(cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
-		fi; \
-	else \
-		echo "Stopping separate backend services..."; \
-		if [ -f "$(TRANSACTION_DIR)/docker-compose.yml" ]; then \
-			(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
-		fi; \
-		if [ -f "$(ONBOARDING_DIR)/docker-compose.yml" ]; then \
-			(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
-		fi; \
-	fi
-	@echo "Stopping infrastructure services..."
+	@echo "Stopping benchmark-ready infrastructure stack..."
 	@if [ -f "$(INFRA_DIR)/docker-compose.yml" ]; then \
 		(cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
 	fi
-	@echo "[ok] All services stopped successfully"
+	@echo "[ok] Benchmark-ready stack stopped successfully"
 
 .PHONY: start
 start:
 	$(call print_title,Starting all containers)
-	@echo "Starting infrastructure containers..."
+	@echo "Starting benchmark-ready infrastructure containers..."
 	@cd $(INFRA_DIR) && $(MAKE) start
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Starting unified backend containers (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) start); \
-	else \
-		echo "Starting separate backend containers..."; \
-		(cd $(ONBOARDING_DIR) && $(MAKE) start); \
-		(cd $(TRANSACTION_DIR) && $(MAKE) start); \
-	fi
-	@echo "Starting CRM containers..."
-	@cd $(CRM_DIR) && $(MAKE) start
-	@echo "[ok] All containers started successfully"
+	@echo "[ok] Benchmark-ready containers started successfully"
 
 .PHONY: stop
 stop:
 	$(call print_title,Stopping all containers)
-	@echo "Stopping CRM containers..."
-	@cd $(CRM_DIR) && $(MAKE) stop 2>/dev/null || true
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Stopping unified backend containers (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) stop 2>/dev/null || true); \
-	else \
-		echo "Stopping separate backend containers..."; \
-		(cd $(TRANSACTION_DIR) && $(MAKE) stop 2>/dev/null || true); \
-		(cd $(ONBOARDING_DIR) && $(MAKE) stop 2>/dev/null || true); \
-	fi
-	@echo "Stopping infrastructure containers..."
+	@echo "Stopping benchmark-ready infrastructure containers..."
 	@cd $(INFRA_DIR) && $(MAKE) stop 2>/dev/null || true
-	@echo "[ok] All containers stopped successfully"
+	@echo "[ok] Benchmark-ready containers stopped successfully"
 
 .PHONY: restart
 restart:
@@ -587,35 +536,15 @@ restart:
 
 .PHONY: rebuild-up
 rebuild-up:
-	$(call print_title,Rebuilding and restarting all services)
-	@echo "Rebuilding infrastructure..."
+	$(call print_title,Rebuilding and restarting benchmark-ready stack)
+	@echo "Rebuilding infrastructure stack..."
 	@cd $(INFRA_DIR) && $(MAKE) rebuild-up
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Rebuilding unified backend (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) rebuild-up); \
-	else \
-		echo "Rebuilding separate backend services..."; \
-		(cd $(ONBOARDING_DIR) && $(MAKE) rebuild-up); \
-		(cd $(TRANSACTION_DIR) && $(MAKE) rebuild-up); \
-	fi
-	@echo "Rebuilding CRM..."
-	@cd $(CRM_DIR) && $(MAKE) rebuild-up
-	@echo "[ok] All services rebuilt and restarted successfully"
+	@echo "[ok] Benchmark-ready stack rebuilt and restarted successfully"
 
 .PHONY: clean-docker
 clean-docker:
 	$(call print_title,"Cleaning all Docker resources")
-	@echo "Cleaning CRM Docker resources..."
-	@cd $(CRM_DIR) && $(MAKE) clean-docker 2>/dev/null || true
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Cleaning unified backend Docker resources (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
-	else \
-		echo "Cleaning separate backend Docker resources..."; \
-		(cd $(TRANSACTION_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
-		(cd $(ONBOARDING_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
-	fi
-	@echo "Cleaning infrastructure Docker resources..."
+	@echo "Cleaning benchmark-ready infrastructure Docker resources..."
 	@cd $(INFRA_DIR) && $(MAKE) clean-docker 2>/dev/null || true
 	@echo "Pruning system-wide Docker resources..."
 	@docker system prune -f
@@ -626,25 +555,10 @@ clean-docker:
 .PHONY: logs
 logs:
 	$(call print_title,"Showing logs for all services")
-	@echo "=== Infrastructure logs ==="
+	@echo "=== Benchmark-ready infrastructure logs ==="
 	@cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo ""; \
-		echo "=== Ledger (unified backend) logs ==="; \
-		(cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
-	else \
-		echo ""; \
-		echo "=== Onboarding logs ==="; \
-		(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
-		echo ""; \
-		echo "=== Transaction logs ==="; \
-		(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
-	fi
-	@echo ""
-	@echo "=== CRM logs ==="
-	@cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
 
-.PHONY: k6-sync k6-bench-stack k6-bench-seed k6-bench-fund-external k6-bench-reset-fixtures k6-bench-run k6-bench
+.PHONY: k6-sync k6-bench-stack k6-bench-run k6-bench k6-bench-validate k6-bench-monitor
 
 k6-sync:
 	$(call print_title,Syncing k6 repository)
@@ -666,12 +580,11 @@ k6-bench-stack:
 	$(call check_command,curl,"Install curl from https://curl.se/")
 	@if [ "$(BENCH_BUILD_STACK)" = "true" ]; then \
 		echo "Bringing up benchmark stack with image rebuild..."; \
-		$(DOCKER_CMD) -f $(BENCH_COMPOSE_FILE) up -d --build; \
+		$(MAKE) rebuild-up; \
 	else \
 		echo "Bringing up benchmark stack (no rebuild)..."; \
-		$(DOCKER_CMD) -f $(BENCH_COMPOSE_FILE) up -d; \
+		$(MAKE) up; \
 	fi
-	@docker restart midaz-bench-nginx >/dev/null 2>&1 || true
 	@for i in 1 2 3 4 5 6 7 8 9 10; do \
 		status=$$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3010/health || true); \
 		if [ "$$status" = "200" ]; then \
@@ -683,89 +596,67 @@ k6-bench-stack:
 	echo "Error: benchmark gateway did not become healthy on :3010"; \
 	exit 1
 
-k6-bench-seed:
-	$(call print_title,Seeding benchmark fixtures)
-	@onboarding_sql="$(K6_DIR)/$(K6_SCENARIO_DIR)/000_onboarding_setup.sql"; \
-	if [ ! -f "$$onboarding_sql" ]; then \
-		onboarding_sql="$(K6_DIR)/$(K6_SCENARIO_DIR)/000_onboading_setup.sql"; \
-	fi; \
-	transaction_sql="$(K6_DIR)/$(K6_SCENARIO_DIR)/000_transaction_setup.sql"; \
-	if [ ! -f "$$onboarding_sql" ] || [ ! -f "$$transaction_sql" ]; then \
-		echo "Error: benchmark SQL fixtures not found in $(K6_DIR)/$(K6_SCENARIO_DIR)"; \
-		exit 1; \
-	fi; \
-	echo "Applying onboarding fixture SQL (idempotent/best-effort)..."; \
-	docker exec -i midaz-bench-postgres psql -v ON_ERROR_STOP=0 -U midaz -d onboarding < "$$onboarding_sql" >/dev/null; \
-	echo "Applying transaction fixture SQL (idempotent/best-effort)..."; \
-	docker exec -i midaz-bench-postgres psql -v ON_ERROR_STOP=0 -U midaz -d transaction < "$$transaction_sql" >/dev/null
-	@org_exists=$$(docker exec -i midaz-bench-postgres psql -U midaz -d onboarding -Atc "SELECT COUNT(1) FROM organization WHERE id='$(BENCH_ORGANIZATION_ID)';"); \
-	ledger_exists=$$(docker exec -i midaz-bench-postgres psql -U midaz -d onboarding -Atc "SELECT COUNT(1) FROM ledger WHERE id='$(BENCH_LEDGER_ID)' AND organization_id='$(BENCH_ORGANIZATION_ID)';"); \
-	if [ "$$org_exists" != "1" ] || [ "$$ledger_exists" != "1" ]; then \
-		echo "Error: benchmark organization/ledger fixtures were not applied correctly"; \
-		echo "  expected organization=$(BENCH_ORGANIZATION_ID), ledger=$(BENCH_LEDGER_ID)"; \
-		exit 1; \
-	fi
-	@docker restart midaz-bench-authorizer >/dev/null 2>&1 || true
-	@sleep 2
-
-k6-bench-fund-external:
-	@docker exec -i midaz-bench-postgres psql -U midaz -d transaction -v ON_ERROR_STOP=1 -c "WITH external_keys AS (SELECT 'default' AS k UNION ALL SELECT 'shard_' || gs::text AS k FROM generate_series(0, 7) AS gs) INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, \"key\", asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at, deleted_at) SELECT gen_random_uuid(), '$(BENCH_ORGANIZATION_ID)', '$(BENCH_LEDGER_ID)', '019819de-0000-7000-8000-000000000002', '@external/BRL', ek.k, 'BRL', 1000000000000, 0, 1, 'external', true, true, NOW(), NOW(), NULL FROM external_keys ek WHERE NOT EXISTS (SELECT 1 FROM balance b WHERE b.organization_id='$(BENCH_ORGANIZATION_ID)' AND b.ledger_id='$(BENCH_LEDGER_ID)' AND b.alias='@external/BRL' AND b.\"key\"=ek.k AND b.deleted_at IS NULL);" >/dev/null
-	@docker exec -i midaz-bench-postgres psql -U midaz -d transaction -c "UPDATE balance SET allow_sending=true, allow_receiving=true, updated_at=NOW(), deleted_at=NULL WHERE organization_id='$(BENCH_ORGANIZATION_ID)' AND ledger_id='$(BENCH_LEDGER_ID)' AND ((alias='@external/BRL' AND (\"key\"='default' OR \"key\" ~ '^shard_[0-9]+$$')) OR ((alias ~ '^@(cacc|savings|card|bsacc|ewallet|cash)_[1-5]') AND \"key\"='default'));" >/dev/null
-	@docker exec -i midaz-bench-postgres psql -U midaz -d transaction -c "UPDATE balance SET available=1000000000000, updated_at=NOW(), deleted_at=NULL WHERE organization_id='$(BENCH_ORGANIZATION_ID)' AND ledger_id='$(BENCH_LEDGER_ID)' AND alias='@external/BRL';" >/dev/null
-
-k6-bench-reset-fixtures:
-	@echo "Resetting benchmark fixture records for organization=$(BENCH_ORGANIZATION_ID), ledger=$(BENCH_LEDGER_ID)..."
-	@docker exec -i midaz-bench-postgres psql -U midaz -d onboarding -v ON_ERROR_STOP=1 -c "DELETE FROM account WHERE organization_id='$(BENCH_ORGANIZATION_ID)' AND ledger_id='$(BENCH_LEDGER_ID)' AND alias ~ '^@(cacc|savings|card|bsacc|ewallet|cash)_[1-5]';" >/dev/null
-	@docker exec -i midaz-bench-postgres psql -U midaz -d onboarding -v ON_ERROR_STOP=1 -c "DELETE FROM asset WHERE organization_id='$(BENCH_ORGANIZATION_ID)' AND ledger_id='$(BENCH_LEDGER_ID)' AND code='BRL';" >/dev/null
-	@docker exec -i midaz-bench-postgres psql -U midaz -d transaction -v ON_ERROR_STOP=1 -c "DELETE FROM balance WHERE organization_id='$(BENCH_ORGANIZATION_ID)' AND ledger_id='$(BENCH_LEDGER_ID)' AND (alias='@external/BRL' OR alias ~ '^@(cacc|savings|card|bsacc|ewallet|cash)_[1-5]');" >/dev/null
-
 k6-bench-run:
-	$(call print_title,Running k6 benchmark suite)
+	$(call print_title,Running API-first k6 benchmark suite)
 	$(call check_command,k6,"Install k6 with: brew install k6")
 	@if [ ! -d "$(K6_DIR)/$(K6_SCENARIO_DIR)" ]; then \
 		echo "Error: k6 scenario directory not found: $(K6_DIR)/$(K6_SCENARIO_DIR)"; \
 		exit 1; \
 	fi
-	@seed_account_count=$$(docker exec -i midaz-bench-postgres psql -U midaz -d onboarding -Atc "SELECT COUNT(*) FROM account WHERE organization_id='$(BENCH_ORGANIZATION_ID)' AND ledger_id='$(BENCH_LEDGER_ID)' AND deleted_at IS NULL AND alias ~ '^@(cacc|savings|card|bsacc|ewallet|cash)_[1-5]';" || echo 0); \
-	if [ "$(BENCH_RUN_SETUP)" = "true" ]; then \
-		if [ "$(BENCH_FORCE_SETUP)" = "true" ] || [ "$$seed_account_count" != "30" ]; then \
-			echo "Setup required (seeded accounts=$$seed_account_count, expected=30)."; \
-			$(MAKE) k6-bench-reset-fixtures BENCH_ORGANIZATION_ID=$(BENCH_ORGANIZATION_ID) BENCH_LEDGER_ID=$(BENCH_LEDGER_ID); \
-			echo "Running setup scripts (001_create_accounts, 002_charge)..."; \
-			( cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
-			for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
-			k6 run -e ENVIRONMENT=$(BENCH_ENVIRONMENT) -e AUTH_ENABLED=$(BENCH_AUTH_ENABLED) -e LOG=$(BENCH_LOG) 001_create_accounts.js ) && \
-			$(MAKE) k6-bench-fund-external BENCH_ORGANIZATION_ID=$(BENCH_ORGANIZATION_ID) BENCH_LEDGER_ID=$(BENCH_LEDGER_ID) && \
-			( cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
-			for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
-			k6 run -e ENVIRONMENT=$(BENCH_ENVIRONMENT) -e AUTH_ENABLED=$(BENCH_AUTH_ENABLED) -e LOG=$(BENCH_LOG) 002_charge.js ); \
-		else \
-			echo "Skipping setup scripts: benchmark accounts already seeded (set BENCH_FORCE_SETUP=true to rerun)."; \
-		fi; \
-	else \
-		if [ "$$seed_account_count" != "30" ]; then \
-			echo "Error: BENCH_RUN_SETUP=false but fixtures are incomplete (seeded accounts=$$seed_account_count, expected=30)."; \
-			echo "Run with BENCH_RUN_SETUP=true or BENCH_FORCE_SETUP=true."; \
-			exit 1; \
-		fi; \
-		echo "Skipping setup scripts because BENCH_RUN_SETUP=$(BENCH_RUN_SETUP) and fixtures are ready."; \
-	fi
-	@$(MAKE) k6-bench-fund-external BENCH_ORGANIZATION_ID=$(BENCH_ORGANIZATION_ID) BENCH_LEDGER_ID=$(BENCH_LEDGER_ID)
-	@echo "Running load script 003_transactions.js with TPS=$(BENCH_TPS), DURATION=$(BENCH_DURATION)..."
-	@cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
-		for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
-		k6 run \
-		-e ENVIRONMENT=$(BENCH_ENVIRONMENT) \
-		-e AUTH_ENABLED=$(BENCH_AUTH_ENABLED) \
-		-e LOG=$(BENCH_LOG) \
-		-e TPS=$(BENCH_TPS) \
-		-e DURATION=$(BENCH_DURATION) \
-		-e PRE_VUS=$(BENCH_PRE_VUS) \
-		-e MAX_VUS=$(BENCH_MAX_VUS) \
-		003_transactions.js
+	@namespace="$(BENCH_NAMESPACE)"; \
+	if [ -z "$$namespace" ]; then namespace="api_$$(date +%s)"; fi; \
+	echo "Using API-first benchmark namespace=$$namespace"; \
+	( cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
+	for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
+	k6 run \
+	-e ENVIRONMENT=$(BENCH_ENVIRONMENT) \
+	-e AUTH_ENABLED=$(BENCH_AUTH_ENABLED) \
+	-e LOG=$(BENCH_LOG) \
+	-e BENCH_NAMESPACE=$$namespace \
+	-e ORG_COUNT=$(BENCH_ORG_COUNT) \
+	-e LEDGERS_PER_ORG=$(BENCH_LEDGERS_PER_ORG) \
+	-e ACCOUNTS_PER_TYPE=$(BENCH_ACCOUNTS_PER_TYPE) \
+	001_bootstrap_topology.js ) && \
+	( cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
+	for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
+	k6 run \
+	-e ENVIRONMENT=$(BENCH_ENVIRONMENT) \
+	-e AUTH_ENABLED=$(BENCH_AUTH_ENABLED) \
+	-e LOG=$(BENCH_LOG) \
+	-e BENCH_NAMESPACE=$$namespace \
+	-e ORG_COUNT=$(BENCH_ORG_COUNT) \
+	-e LEDGERS_PER_ORG=$(BENCH_LEDGERS_PER_ORG) \
+	-e ACCOUNTS_PER_TYPE=$(BENCH_ACCOUNTS_PER_TYPE) \
+	-e FUND_AMOUNT=$(BENCH_FUND_AMOUNT) \
+	002_fund_accounts.js ) && \
+	( cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
+	for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
+	k6 run \
+	-e ENVIRONMENT=$(BENCH_ENVIRONMENT) \
+	-e AUTH_ENABLED=$(BENCH_AUTH_ENABLED) \
+	-e LOG=$(BENCH_LOG) \
+	-e BENCH_NAMESPACE=$$namespace \
+	-e ORG_COUNT=$(BENCH_ORG_COUNT) \
+	-e LEDGERS_PER_ORG=$(BENCH_LEDGERS_PER_ORG) \
+	-e ACCOUNTS_PER_TYPE=$(BENCH_ACCOUNTS_PER_TYPE) \
+	-e FUND_AMOUNT=$(BENCH_FUND_AMOUNT) \
+	-e TRANSACTION_AMOUNT=$(BENCH_TRANSACTION_AMOUNT) \
+	-e TPS=$(BENCH_TPS) \
+	-e DURATION=$(BENCH_DURATION) \
+	-e PRE_VUS=$(BENCH_PRE_VUS) \
+	-e MAX_VUS=$(BENCH_MAX_VUS) \
+	003_transactions.js )
 
-k6-bench: k6-sync k6-bench-stack k6-bench-seed k6-bench-run
-	@echo "[ok] Benchmark stack and k6 suite completed"
+k6-bench: k6-sync k6-bench-stack k6-bench-run
+	@echo "[ok] API-first benchmark stack and k6 suite completed"
+
+k6-bench-validate:
+	@echo "Validating benchmark results..."
+	@bash tests/k6/scripts/validate_bench.sh
+
+k6-bench-monitor:
+	@echo "Monitoring consumer lag (Ctrl+C to stop)..."
+	@bash tests/k6/scripts/monitor_lag.sh
 
 # Component-specific command execution
 .PHONY: infra onboarding transaction ledger all-components
