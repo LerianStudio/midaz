@@ -13,7 +13,7 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v3/commons/pointers"
-	tenantmanager "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -80,7 +80,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 	ctx, span := tracer.Start(ctx, "postgres.create_account_type")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -152,7 +152,7 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 	ctx, span := tracer.Start(ctx, "postgres.find_account_type_by_id")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -217,7 +217,7 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 	ctx, span := tracer.Start(ctx, "postgres.find_account_type_by_key")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -282,7 +282,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 	ctx, span := tracer.Start(ctx, "postgres.update_account_type")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -368,7 +368,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 	ctx, span := tracer.Start(ctx, "postgres.find_all_account_types")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -477,7 +477,7 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 	ctx, span := tracer.Start(ctx, "postgres.list_account_types_by_ids")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -557,7 +557,7 @@ func (r *AccountTypePostgreSQLRepository) Delete(ctx context.Context, organizati
 	ctx, span := tracer.Start(ctx, "postgres.delete_account_type")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleOnboarding)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 

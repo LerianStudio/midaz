@@ -12,7 +12,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	tenantmanager "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager"
+	tmvalkey "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/valkey"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -90,7 +90,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	ctx, span := tracer.Start(ctx, "redis.set")
 	defer span.End()
 
-	key = tenantmanager.GetKeyFromContext(ctx, key)
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -117,7 +117,7 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	ctx, span := tracer.Start(ctx, "redis.set_nx")
 	defer span.End()
 
-	key = tenantmanager.GetKeyFromContext(ctx, key)
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -144,7 +144,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	ctx, span := tracer.Start(ctx, "redis.get")
 	defer span.End()
 
-	key = tenantmanager.GetKeyFromContext(ctx, key)
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -185,7 +185,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 	// Wrap all keys with tenant prefix
 	prefixedKeys := make([]string, len(keys))
 	for i, k := range keys {
-		prefixedKeys[i] = tenantmanager.GetKeyFromContext(ctx, k)
+		prefixedKeys[i] = tmvalkey.GetKeyFromContext(ctx, k)
 	}
 
 	rds, err := rr.conn.GetClient(ctx)
@@ -235,7 +235,7 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	ctx, span := tracer.Start(ctx, "redis.del")
 	defer span.End()
 
-	key = tenantmanager.GetKeyFromContext(ctx, key)
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -262,7 +262,7 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	ctx, span := tracer.Start(ctx, "redis.incr")
 	defer span.End()
 
-	key = tenantmanager.GetKeyFromContext(ctx, key)
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -312,7 +312,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		}
 
 		// Apply tenant prefix to the balance internal key
-		prefixedInternalKey := tenantmanager.GetKeyFromContext(ctx, blcs.InternalKey)
+		prefixedInternalKey := tmvalkey.GetKeyFromContext(ctx, blcs.InternalKey)
 
 		args = append(args,
 			prefixedInternalKey,
@@ -361,9 +361,9 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	finalArgs := append([]any{scheduleSync}, args...)
 
 	// Apply tenant prefix to all keys passed to the Lua script
-	prefixedBackupQueue := tenantmanager.GetKeyFromContext(ctx, TransactionBackupQueue)
-	prefixedTransactionKey := tenantmanager.GetKeyFromContext(ctx, transactionKey)
-	prefixedBalanceSyncKey := tenantmanager.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
+	prefixedBackupQueue := tmvalkey.GetKeyFromContext(ctx, TransactionBackupQueue)
+	prefixedTransactionKey := tmvalkey.GetKeyFromContext(ctx, transactionKey)
+	prefixedBalanceSyncKey := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
 
 	result, err := script.Run(ctx, rds, []string{prefixedBackupQueue, prefixedTransactionKey, prefixedBalanceSyncKey}, finalArgs...).Result()
 	if err != nil {
@@ -459,7 +459,7 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 	ctx, span := tracer.Start(ctx, "redis.set_bytes")
 	defer span.End()
 
-	key = tenantmanager.GetKeyFromContext(ctx, key)
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -486,7 +486,7 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 	ctx, span := tracer.Start(ctx, "redis.get_bytes")
 	defer span.End()
 
-	key = tenantmanager.GetKeyFromContext(ctx, key)
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -515,8 +515,8 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 	defer span.End()
 
 	// Apply tenant prefix to both the queue key and the hash field key
-	prefixedQueue := tenantmanager.GetKeyFromContext(ctx, TransactionBackupQueue)
-	key = tenantmanager.GetKeyFromContext(ctx, key)
+	prefixedQueue := tmvalkey.GetKeyFromContext(ctx, TransactionBackupQueue)
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -544,8 +544,8 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 	defer span.End()
 
 	// Apply tenant prefix to both the queue key and the hash field key
-	prefixedQueue := tenantmanager.GetKeyFromContext(ctx, TransactionBackupQueue)
-	key = tenantmanager.GetKeyFromContext(ctx, key)
+	prefixedQueue := tmvalkey.GetKeyFromContext(ctx, TransactionBackupQueue)
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -574,7 +574,7 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 	defer span.End()
 
 	// Apply tenant prefix to the queue key
-	prefixedQueue := tenantmanager.GetKeyFromContext(ctx, TransactionBackupQueue)
+	prefixedQueue := tmvalkey.GetKeyFromContext(ctx, TransactionBackupQueue)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -603,8 +603,8 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	defer span.End()
 
 	// Apply tenant prefix to both the queue key and the hash field key
-	prefixedQueue := tenantmanager.GetKeyFromContext(ctx, TransactionBackupQueue)
-	key = tenantmanager.GetKeyFromContext(ctx, key)
+	prefixedQueue := tmvalkey.GetKeyFromContext(ctx, TransactionBackupQueue)
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -641,8 +641,8 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	script := redis.NewScript(getBalancesNearExpirationLua)
 
 	// Apply tenant prefix to the keys used in the Lua script
-	prefixedScheduleKey := tenantmanager.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
-	prefixedLockPrefix := tenantmanager.GetKeyFromContext(ctx, utils.BalanceSyncLockPrefix)
+	prefixedScheduleKey := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
+	prefixedLockPrefix := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncLockPrefix)
 
 	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, int64(600), prefixedLockPrefix).Result()
 	if err != nil {
@@ -698,10 +698,10 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 	script := redis.NewScript(unscheduleSyncedBalanceLua)
 
 	// Apply tenant prefix to the keys used in the Lua script
-	prefixedScheduleKey := tenantmanager.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
-	prefixedLockPrefix := tenantmanager.GetKeyFromContext(ctx, utils.BalanceSyncLockPrefix)
+	prefixedScheduleKey := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
+	prefixedLockPrefix := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncLockPrefix)
 	// The member key should also be prefixed as it refers to balance keys
-	prefixedMember := tenantmanager.GetKeyFromContext(ctx, member)
+	prefixedMember := tmvalkey.GetKeyFromContext(ctx, member)
 
 	_, err = script.Run(ctx, rds, []string{prefixedScheduleKey}, prefixedMember, prefixedLockPrefix).Result()
 	if err != nil {
@@ -732,7 +732,7 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, key)
 	// Apply tenant prefix to the internal key
-	internalKey = tenantmanager.GetKeyFromContext(ctx, internalKey)
+	internalKey = tmvalkey.GetKeyFromContext(ctx, internalKey)
 
 	value, err := rds.Get(ctx, internalKey).Result()
 	if err != nil {

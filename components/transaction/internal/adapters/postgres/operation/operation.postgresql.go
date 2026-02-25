@@ -12,7 +12,7 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v3/commons/pointers"
-	tenantmanager "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -95,7 +95,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 	ctx, span := tracer.Start(ctx, "postgres.create_operation")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -198,7 +198,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -333,7 +333,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 	ctx, span := tracer.Start(ctx, "postgres.list_all_operations_by_ids")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -434,7 +434,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "postgres.find_operation")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -522,7 +522,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -610,7 +610,7 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 	ctx, span := tracer.Start(ctx, "postgres.update_operation")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -686,7 +686,7 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 	ctx, span := tracer.Start(ctx, "postgres.delete_operation")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -752,7 +752,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
 	defer span.End()
 
-	db, err := tenantmanager.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
+	db, err := tmcore.GetModulePostgresForTenant(ctx, constant.ModuleTransaction)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 

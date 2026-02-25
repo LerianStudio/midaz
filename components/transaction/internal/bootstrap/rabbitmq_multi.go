@@ -6,7 +6,10 @@ import (
 
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	tenantmanager "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager"
+	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
+	tmmongo "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/mongo"
+	tmpg "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
+	tmrabbitmq "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/redis/go-redis/v9"
@@ -14,9 +17,9 @@ import (
 
 // MultiTenantPools contains all connection pools used in multi-tenant mode.
 type MultiTenantPools struct {
-	RabbitMQPool *tenantmanager.RabbitMQManager
-	PostgresPool *tenantmanager.PostgresManager
-	MongoPool    *tenantmanager.MongoManager
+	RabbitMQPool *tmrabbitmq.Manager
+	PostgresPool *tmpg.Manager
+	MongoPool    *tmmongo.Manager
 }
 
 // MultiTenantProducerResult contains the result of multi-tenant producer initialization.
@@ -39,43 +42,43 @@ func initMultiTenantProducer(cfg *Config, opts *Options, logger libLog.Logger) M
 	logger.Info("Multi-tenant mode enabled - initializing multi-tenant RabbitMQ producer")
 
 	// Build client options for Tenant Manager
-	var clientOpts []tenantmanager.ClientOption
+	var clientOpts []tmclient.ClientOption
 	if cfg.MultiTenantCircuitBreakerThreshold > 0 {
 		clientOpts = append(clientOpts,
-			tenantmanager.WithCircuitBreaker(
+			tmclient.WithCircuitBreaker(
 				cfg.MultiTenantCircuitBreakerThreshold,
 				time.Duration(cfg.MultiTenantCircuitBreakerTimeoutSec)*time.Second,
 			),
 		)
 	}
 
-	tenantManagerClient := tenantmanager.NewClient(cfg.MultiTenantURL, logger, clientOpts...)
+	tenantManagerClient := tmclient.NewClient(cfg.MultiTenantURL, logger, clientOpts...)
 
 	idleTimeout := time.Duration(cfg.MultiTenantIdleTimeoutSec) * time.Second
 
 	// Create RabbitMQ pool for tenant-specific connections
-	rabbitMQPool := tenantmanager.NewRabbitMQManager(tenantManagerClient, serviceName,
-		tenantmanager.WithRabbitMQModule("transaction"),
-		tenantmanager.WithRabbitMQLogger(logger),
-		tenantmanager.WithRabbitMQMaxTenantPools(cfg.MultiTenantMaxTenantPools),
-		tenantmanager.WithRabbitMQIdleTimeout(idleTimeout),
+	rabbitMQPool := tmrabbitmq.NewManager(tenantManagerClient, serviceName,
+		tmrabbitmq.WithModule("transaction"),
+		tmrabbitmq.WithLogger(logger),
+		tmrabbitmq.WithMaxTenantPools(cfg.MultiTenantMaxTenantPools),
+		tmrabbitmq.WithIdleTimeout(idleTimeout),
 	)
 
 	// Create PostgreSQL pool for multi-tenant mode
-	postgresPool := tenantmanager.NewPostgresManager(tenantManagerClient, serviceName,
-		tenantmanager.WithModule("transaction"),
-		tenantmanager.WithPostgresLogger(logger),
-		tenantmanager.WithMaxTenantPools(cfg.MultiTenantMaxTenantPools),
-		tenantmanager.WithIdleTimeout(idleTimeout),
+	postgresPool := tmpg.NewManager(tenantManagerClient, serviceName,
+		tmpg.WithModule("transaction"),
+		tmpg.WithLogger(logger),
+		tmpg.WithMaxTenantPools(cfg.MultiTenantMaxTenantPools),
+		tmpg.WithIdleTimeout(idleTimeout),
 	)
 	logger.Info("Created PostgreSQL connection manager for multi-tenant mode")
 
 	// Create MongoDB pool for multi-tenant mode
-	mongoPool := tenantmanager.NewMongoManager(tenantManagerClient, serviceName,
-		tenantmanager.WithMongoModule("transaction"),
-		tenantmanager.WithMongoLogger(logger),
-		tenantmanager.WithMongoMaxTenantPools(cfg.MultiTenantMaxTenantPools),
-		tenantmanager.WithMongoIdleTimeout(idleTimeout),
+	mongoPool := tmmongo.NewManager(tenantManagerClient, serviceName,
+		tmmongo.WithModule("transaction"),
+		tmmongo.WithLogger(logger),
+		tmmongo.WithMaxTenantPools(cfg.MultiTenantMaxTenantPools),
+		tmmongo.WithIdleTimeout(idleTimeout),
 	)
 	logger.Info("Created MongoDB connection manager for multi-tenant mode")
 
