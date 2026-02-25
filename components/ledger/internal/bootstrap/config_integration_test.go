@@ -331,6 +331,9 @@ func setEnvFromContainers(t *testing.T, addresses *ContainerAddresses) {
 	t.Setenv("SERVER_ADDRESS_TRANSACTION", ":0")
 	t.Setenv("PROTO_ADDRESS", ":0")
 
+	// Mark as non-production so SSL mode=disable is allowed
+	t.Setenv("ENV_NAME", "test")
+
 	// Disable features that require additional setup
 	t.Setenv("PLUGIN_AUTH_ENABLED", "false")
 	t.Setenv("ENABLE_TELEMETRY", "false")

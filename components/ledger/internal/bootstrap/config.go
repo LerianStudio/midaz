@@ -71,6 +71,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	var cleanupFuncs []func()
+
 	success := false
 
 	defer func() {

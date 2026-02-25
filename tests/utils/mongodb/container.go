@@ -15,6 +15,7 @@ import (
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/go-connections/nat"
 
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
@@ -27,7 +28,9 @@ import (
 
 const (
 	// DefaultDBName is the default database name for test containers.
-	DefaultDBName = "test_db"
+	DefaultDBName  = "test_db"
+	mongoPortID    = "27017/tcp"
+	mappedPortWait = 30 * time.Second
 )
 
 // ContainerConfig holds configuration for MongoDB test container.
@@ -72,11 +75,11 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 
 	req := testcontainers.ContainerRequest{
 		Image:        cfg.Image,
-		ExposedPorts: []string{"27017/tcp"},
+		ExposedPorts: []string{mongoPortID},
 		WaitingFor: wait.ForAll(
 			wait.ForLog("Waiting for connections"),
-			wait.ForListeningPort("27017/tcp"),
-		).WithDeadline(60 * time.Second),
+			wait.ForListeningPort(mongoPortID).SkipExternalCheck(),
+		).WithDeadline(120 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
@@ -91,8 +94,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	host, err := ctr.Host(ctx)
 	require.NoError(t, err, "failed to get MongoDB container host")
 
-	port, err := ctr.MappedPort(ctx, "27017")
-	require.NoError(t, err, "failed to get MongoDB container port")
+	port := waitForMappedPort(t, ctx, ctr, mongoPortID)
 
 	uri := fmt.Sprintf("mongodb://%s:%s", host, port.Port())
 
@@ -121,6 +123,30 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		URI:       uri,
 		DBName:    cfg.DBName,
 	}
+}
+
+func waitForMappedPort(t *testing.T, ctx context.Context, ctr testcontainers.Container, portID string) nat.Port {
+	t.Helper()
+
+	deadline := time.Now().Add(mappedPortWait)
+
+	var (
+		mappedPort nat.Port
+		lastErr    error
+	)
+
+	for time.Now().Before(deadline) {
+		mappedPort, lastErr = ctr.MappedPort(ctx, nat.Port(portID))
+		if lastErr == nil && mappedPort.Port() != "" {
+			return mappedPort
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	require.NoError(t, lastErr, "failed to get MongoDB mapped port %s after %v", portID, mappedPortWait)
+
+	return ""
 }
 
 // CreateConnection creates a libMongo.MongoConnection wrapper for testing.
