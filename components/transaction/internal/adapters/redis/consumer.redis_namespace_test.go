@@ -564,7 +564,6 @@ func TestKeyNamespacing_ListBalanceByKey(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -633,7 +632,6 @@ func TestKeyNamespacing_ProcessBalanceAtomicOperation(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -734,7 +732,6 @@ func TestKeyNamespacing_GetBalanceSyncKeys(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -793,7 +790,6 @@ func TestKeyNamespacing_RemoveBalanceSyncKey(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
