@@ -27,6 +27,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -276,7 +277,7 @@ func TestIntegration_Chaos_RedisNamespacing_RecoveryAfterReconnect(t *testing.T)
 	defer bareCancel()
 
 	bareVal, bareErr := infra.redisContainer.Client.Get(bareCtx, key).Result()
-	assert.Error(t, bareErr, "Phase 1: bare key must NOT be set in Redis")
+	assert.ErrorIs(t, bareErr, redis.Nil, "Phase 1: bare key must NOT be set in Redis")
 	assert.Empty(t, bareVal, "Phase 1: bare key must have no value")
 
 	t.Log("Phase 1 PASS: Set/Get work correctly; key is namespaced in raw Redis")
@@ -380,7 +381,7 @@ func TestIntegration_Chaos_RedisNamespacing_RecoveryAfterReconnect(t *testing.T)
 	defer barePostCancel()
 
 	barePost, barePostErr := infra.redisContainer.Client.Get(barePosCtx, recoveryKey).Result()
-	assert.Error(t, barePostErr, "Phase 5: bare key must NOT exist in Redis after recovery")
+	assert.ErrorIs(t, barePostErr, redis.Nil, "Phase 5: bare key must NOT exist in Redis after recovery")
 	assert.Empty(t, barePost, "Phase 5: bare key must have no value after recovery")
 
 	t.Log("CS-2 PASS: namespaced Set/Get work correctly after Redis recovers from outage")
