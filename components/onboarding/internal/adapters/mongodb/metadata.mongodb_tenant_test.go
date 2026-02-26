@@ -27,6 +27,10 @@ func newDisconnectedDatabase(t *testing.T, dbName string) *mongo.Database {
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	require.NoError(t, err, "mongo.Connect should succeed for a disconnected handle")
 
+	t.Cleanup(func() {
+		require.NoError(t, client.Disconnect(context.Background()), "client disconnect should not error")
+	})
+
 	return client.Database(dbName)
 }
 
@@ -142,6 +146,7 @@ func TestGetDatabase_TenantDB_TakesPrecedence_OverStaticConnection(t *testing.T)
 	// (simulating a working single-tenant connection).
 	staticClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = staticClient.Disconnect(context.Background()) })
 
 	staticConn := &libMongo.MongoConnection{
 		ConnectionStringSource: "mongodb://localhost:27017",
@@ -265,6 +270,7 @@ func TestGetDatabase_StaticConnection_ReturnsDatabaseWithLowercaseName(t *testin
 	// This tests the happy path of the single-tenant fallback: static connection works.
 	staticClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = staticClient.Disconnect(context.Background()) })
 
 	staticConn := &libMongo.MongoConnection{
 		ConnectionStringSource: "mongodb://localhost:27017",
