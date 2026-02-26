@@ -7,7 +7,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
@@ -106,7 +105,7 @@ func initMultiTenantRabbitMQ(
 		multiTenantConsumer: consumer,
 		wireConsumer: func(useCase *command.UseCase) {
 			consumer.Register(
-				os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"),
+				cfg.RabbitMQTransactionBalanceOperationQueue,
 				func(ctx context.Context, delivery amqp.Delivery) error {
 					return handlerBTO(ctx, delivery.Body, useCase)
 				},

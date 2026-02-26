@@ -197,27 +197,14 @@ func newMockTenantManagerServer(t *testing.T, rmqContainer *rmqtestutil.Containe
 	return httptest.NewServer(mux)
 }
 
-// splitPath splits a URL path into segments, ignoring empty segments.
+// splitPath splits a URL path into segments, ignoring empty segments from leading/trailing slashes.
 func splitPath(path string) []string {
 	var parts []string
 
-	current := ""
-
-	for _, ch := range path {
-		if ch == '/' {
-			if current != "" {
-				parts = append(parts, current)
-				current = ""
-			}
-
-			continue
+	for _, p := range strings.Split(path, "/") {
+		if p != "" {
+			parts = append(parts, p)
 		}
-
-		current += string(ch)
-	}
-
-	if current != "" {
-		parts = append(parts, current)
 	}
 
 	return parts

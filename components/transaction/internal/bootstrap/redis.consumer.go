@@ -66,9 +66,8 @@ func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
 	}
 }
 
-//nolint:dogsled
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
 
 	ctx, span := tracer.Start(ctx, "redis.consumer.read_messages_from_queue")
 	defer span.End()
@@ -138,7 +137,7 @@ Outer:
 // processMessage handles a single Redis backup queue message: acquires a distributed lock,
 // rebuilds balances and operations, and writes the transaction via the async path.
 func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m mmodel.TransactionRedisQueue) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
 
 	msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
