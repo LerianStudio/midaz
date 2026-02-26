@@ -5,7 +5,6 @@
 package bootstrap
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
@@ -21,7 +19,6 @@ import (
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
@@ -34,10 +31,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
-	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const ApplicationName = "onboarding"
@@ -182,8 +175,7 @@ type Options struct {
 	// This is typically the transaction.UseCase which implements mbootstrap.BalancePort.
 	BalancePort mbootstrap.BalancePort
 
-	// TODO(multi-tenant): These fields are accepted for forward-compatibility but not yet
-	// consumed by this module. They will be wired in subsequent PRs.
+	// Multi-tenant configuration (only used in unified ledger mode).
 	MultiTenantEnabled bool
 	TenantClient       *tmclient.Client
 	TenantServiceName  string
@@ -265,34 +257,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MaxIdleConnections:      maxIdleConns,
 	}
 
-	// Apply fallback for MongoDB prefixed env vars
-	mongoURI := envFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
-	mongoHost := envFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
-	mongoName := envFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
-	mongoUser := envFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
-	mongoPassword := envFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
-	mongoPortRaw := envFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
-	mongoParametersRaw := envFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
-	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
-
-	// Extract port and parameters for MongoDB connection (handles backward compatibility)
-	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
-
-	// Build MongoDB connection string using centralized utility (ensures correct format)
-	mongoSource := libMongo.BuildConnectionString(
-		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort, mongoParameters, logger)
-
-	// Safe conversion: use uint64 with default, only assign if positive
-	var mongoMaxPoolSize uint64 = 100
-	if mongoPoolSize > 0 {
-		mongoMaxPoolSize = uint64(mongoPoolSize)
-	}
-
-	mongoConnection := &libMongo.MongoConnection{
-		ConnectionStringSource: mongoSource,
-		Database:               mongoName,
-		Logger:                 logger,
-		MaxPoolSize:            mongoMaxPoolSize,
+	// MongoDB: single-tenant or multi-tenant (decided internally)
+	mgo, err := initMongo(opts, cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MongoDB: %w", err)
 	}
 
 	redisConnection := &libRedis.RedisConnection{
@@ -332,25 +300,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
 	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)
 	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(postgresConnection)
-
-	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
-
-	// Ensure indexes also for known base collections on fresh installs
-	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancelEnsureIndexes()
-
-	indexModel := mongo.IndexModel{
-		Keys: bson.D{{Key: "entity_id", Value: 1}},
-		Options: options.Index().
-			SetUnique(false),
-	}
-
-	collections := []string{"organization", "ledger", "segment", "account", "portfolio", "asset", "account_type"}
-	for _, collection := range collections {
-		if err := mongoConnection.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
-			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
-		}
-	}
 
 	// Choose balance port based on UnifiedMode:
 	// - If UnifiedMode is true, validate and use provided ports for in-process calls
@@ -396,7 +345,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
 		AccountTypeRepo:  accountTypePostgreSQLRepository,
-		MetadataRepo:     metadataMongoDBRepository,
+		MetadataRepo:     mgo.metadataRepo,
 		RedisRepo:        redisConsumerRepository,
 		BalancePort:      balancePort,
 	}
@@ -421,7 +370,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
 		AccountTypeRepo:  accountTypePostgreSQLRepository,
-		MetadataRepo:     metadataMongoDBRepository,
+		MetadataRepo:     mgo.metadataRepo,
 		RedisRepo:        redisConsumerRepository,
 		SettingsCacheTTL: settingsCacheTTL,
 	}
@@ -471,7 +420,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Server: serverAPI,
 		Logger: logger,
 		Ports: Ports{
-			MetadataPort: metadataMongoDBRepository,
+			MetadataPort: mgo.metadataRepo,
 			SettingsPort: queryUseCase,
 		},
 		auth:                auth,

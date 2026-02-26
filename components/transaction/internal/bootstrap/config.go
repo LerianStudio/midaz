@@ -5,7 +5,6 @@
 package bootstrap
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
@@ -23,7 +21,6 @@ import (
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
@@ -34,11 +31,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
-	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const ApplicationName = "transaction"
@@ -298,34 +291,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MaxIdleConnections:      maxIdleConns,
 	}
 
-	// Apply fallback for MongoDB prefixed env vars
-	mongoURI := utils.EnvFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
-	mongoHost := utils.EnvFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
-	mongoName := utils.EnvFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
-	mongoUser := utils.EnvFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
-	mongoPassword := utils.EnvFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
-	mongoPortRaw := utils.EnvFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
-	mongoParametersRaw := utils.EnvFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
-	mongoPoolSize := utils.EnvFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
-
-	// Extract port and parameters for MongoDB connection (handles backward compatibility)
-	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
-
-	// Build MongoDB connection string using centralized utility (ensures correct format)
-	mongoSource := libMongo.BuildConnectionString(
-		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort, mongoParameters, logger)
-
-	// Safe conversion: use uint64 with default, only assign if positive
-	var mongoMaxPoolSize uint64 = 100
-	if mongoPoolSize > 0 {
-		mongoMaxPoolSize = uint64(mongoPoolSize)
-	}
-
-	mongoConnection := &libMongo.MongoConnection{
-		ConnectionStringSource: mongoSource,
-		Database:               mongoName,
-		Logger:                 logger,
-		MaxPoolSize:            mongoMaxPoolSize,
+	// MongoDB: single-tenant or multi-tenant (decided internally)
+	mgo, err := initMongo(opts, cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MongoDB: %w", err)
 	}
 
 	redisConnection := &libRedis.RedisConnection{
@@ -365,25 +334,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	operationRoutePostgreSQLRepository := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
 	transactionRoutePostgreSQLRepository := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnection)
 
-	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
-
-	// Ensure indexes also for known base collections on fresh installs
-	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancelEnsureIndexes()
-
-	indexModel := mongo.IndexModel{
-		Keys: bson.D{{Key: "entity_id", Value: 1}},
-		Options: options.Index().
-			SetUnique(false),
-	}
-
-	collections := []string{"operation", "transaction", "operation_route", "transaction_route"}
-	for _, collection := range collections {
-		if err := mongoConnection.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
-			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
-		}
-	}
-
 	var settingsPort mbootstrap.SettingsPort
 	if opts != nil && opts.SettingsPort != nil {
 		settingsPort = opts.SettingsPort
@@ -402,7 +352,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalanceRepo:          balancePostgreSQLRepository,
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
-		MetadataRepo:         metadataMongoDBRepository,
+		MetadataRepo:         mgo.metadataRepo,
 		RabbitMQRepo:         rmq.producerRepo,
 		RedisRepo:            redisConsumerRepository,
 		SettingsPort:         settingsPort,
@@ -415,7 +365,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalanceRepo:          balancePostgreSQLRepository,
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
-		MetadataRepo:         metadataMongoDBRepository,
+		MetadataRepo:         mgo.metadataRepo,
 		RabbitMQRepo:         rmq.producerRepo,
 		RedisRepo:            redisConsumerRepository,
 	}
@@ -499,7 +449,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger:                   logger,
 		Ports: Ports{
 			BalancePort:  useCase,
-			MetadataPort: metadataMongoDBRepository,
+			MetadataPort: mgo.metadataRepo,
 		},
 		useCase:                 useCase,
 		auth:                    auth,
