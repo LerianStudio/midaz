@@ -17,6 +17,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
+	tmvalkey "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/valkey"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -92,6 +93,8 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	ctx, span := tracer.Start(ctx, "redis.set")
 	defer span.End()
 
+	key = tmvalkey.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
@@ -117,6 +120,8 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	ctx, span := tracer.Start(ctx, "redis.set_nx")
 	defer span.End()
 
+	key = tmvalkey.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
@@ -141,6 +146,8 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 	ctx, span := tracer.Start(ctx, "redis.get")
 	defer span.End()
+
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -187,7 +194,12 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 		return nil, err
 	}
 
-	res, err := rds.MGet(ctx, keys...).Result()
+	prefixedKeys := make([]string, len(keys))
+	for i, k := range keys {
+		prefixedKeys[i] = tmvalkey.GetKeyFromContext(ctx, k)
+	}
+
+	res, err := rds.MGet(ctx, prefixedKeys...).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to mget on redis", err)
 
@@ -224,6 +236,8 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	ctx, span := tracer.Start(ctx, "redis.del")
 	defer span.End()
 
+	key = tmvalkey.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to connect on redis", err)
@@ -252,6 +266,8 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 
 	ctx, span := tracer.Start(ctx, "redis.incr")
 	defer span.End()
+
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -299,8 +315,10 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	args := []any{}
 
 	for _, blcs := range balancesOperation {
+		prefixedInternalKey := tmvalkey.GetKeyFromContext(ctx, blcs.InternalKey)
+
 		args = append(args,
-			blcs.InternalKey,
+			prefixedInternalKey,
 			isPending,
 			transactionStatus,
 			blcs.Amount.Operation,
@@ -345,7 +363,11 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 	finalArgs := append([]any{scheduleSync}, args...)
 
-	result, err := script.Run(ctx, rds, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey}, finalArgs...).Result()
+	prefixedBackupQueue := tmvalkey.GetKeyFromContext(ctx, TransactionBackupQueue)
+	prefixedTransactionKey := tmvalkey.GetKeyFromContext(ctx, transactionKey)
+	prefixedBalanceSyncKey := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
+
+	result, err := script.Run(ctx, rds, []string{prefixedBackupQueue, prefixedTransactionKey, prefixedBalanceSyncKey}, finalArgs...).Result()
 	if err != nil {
 		logger.Errorf("Failed run lua script on redis: %v", err)
 
@@ -376,7 +398,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 	spanScript.End()
 
-	logger.Infof("Backup queue: transaction written to %s with key %s", TransactionBackupQueue, transactionKey)
+	logger.Infof("Backup queue: transaction written to %s with key %s", prefixedBackupQueue, prefixedTransactionKey)
 	logger.Infof("result value: %v", result)
 
 	blcsRedis := make([]mmodel.BalanceRedis, 0)
@@ -446,6 +468,8 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 	ctx, span := tracer.Start(ctx, "redis.set_bytes")
 	defer span.End()
 
+	key = tmvalkey.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
@@ -470,6 +494,8 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 
 	ctx, span := tracer.Start(ctx, "redis.get_bytes")
 	defer span.End()
+
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
@@ -497,6 +523,9 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 	ctx, span := tracer.Start(ctx, "redis.add_message_to_queue")
 	defer span.End()
 
+	prefixedQueue := tmvalkey.GetKeyFromContext(ctx, TransactionBackupQueue)
+	key = tmvalkey.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
@@ -504,7 +533,7 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 		return err
 	}
 
-	if err := rds.HSet(ctx, TransactionBackupQueue, key, msg).Err(); err != nil {
+	if err := rds.HSet(ctx, prefixedQueue, key, msg).Err(); err != nil {
 		logger.Warnf("Failed to hset message: %v", err)
 
 		return err
@@ -522,6 +551,9 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 	ctx, span := tracer.Start(ctx, "redis.read_message_from_queue")
 	defer span.End()
 
+	prefixedQueue := tmvalkey.GetKeyFromContext(ctx, TransactionBackupQueue)
+	key = tmvalkey.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
@@ -529,7 +561,7 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 		return nil, err
 	}
 
-	data, err := rds.HGet(ctx, TransactionBackupQueue, key).Bytes()
+	data, err := rds.HGet(ctx, prefixedQueue, key).Bytes()
 	if err != nil {
 		logger.Warnf("Failed to hgetall: %v", err)
 
@@ -548,6 +580,8 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 	ctx, span := tracer.Start(ctx, "redis.read_all_messages_from_queue")
 	defer span.End()
 
+	prefixedQueue := tmvalkey.GetKeyFromContext(ctx, TransactionBackupQueue)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
@@ -555,7 +589,7 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 		return nil, err
 	}
 
-	data, err := rds.HGetAll(ctx, TransactionBackupQueue).Result()
+	data, err := rds.HGetAll(ctx, prefixedQueue).Result()
 	if err != nil {
 		logger.Warnf("Failed to hgetall: %v", err)
 
@@ -574,6 +608,9 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	ctx, span := tracer.Start(ctx, "redis.remove_message_from_queue")
 	defer span.End()
 
+	prefixedQueue := tmvalkey.GetKeyFromContext(ctx, TransactionBackupQueue)
+	key = tmvalkey.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
@@ -581,7 +618,7 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 		return err
 	}
 
-	if err := rds.HDel(ctx, TransactionBackupQueue, key).Err(); err != nil {
+	if err := rds.HDel(ctx, prefixedQueue, key).Err(); err != nil {
 		logger.Warnf("Failed to hdel: %v", err)
 
 		return err
@@ -608,7 +645,10 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 
 	script := redis.NewScript(getBalancesNearExpirationLua)
 
-	res, err := script.Run(ctx, rds, []string{utils.BalanceSyncScheduleKey}, limit, int64(600), utils.BalanceSyncLockPrefix).Result()
+	prefixedScheduleKey := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
+	prefixedLockPrefix := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncLockPrefix)
+
+	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, int64(600), prefixedLockPrefix).Result()
 	if err != nil {
 		logger.Warnf("Failed to run get_balances_near_expiration.lua: %v", err)
 
@@ -661,7 +701,10 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 
 	script := redis.NewScript(unscheduleSyncedBalanceLua)
 
-	_, err = script.Run(ctx, rds, []string{utils.BalanceSyncScheduleKey}, member, utils.BalanceSyncLockPrefix).Result()
+	prefixedScheduleKey := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
+	prefixedLockPrefix := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncLockPrefix)
+
+	_, err = script.Run(ctx, rds, []string{prefixedScheduleKey}, member, prefixedLockPrefix).Result()
 	if err != nil {
 		logger.Warnf("Failed to run unschedule_synced_balance.lua for %s: %v", member, err)
 
@@ -689,6 +732,7 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 	}
 
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, key)
+	internalKey = tmvalkey.GetKeyFromContext(ctx, internalKey)
 
 	value, err := rds.Get(ctx, internalKey).Result()
 	if err != nil {
