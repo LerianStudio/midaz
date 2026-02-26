@@ -24,6 +24,7 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 	"github.com/google/uuid"
+	redisv9 "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -110,7 +111,7 @@ func TestIntegration_RedisNamespacing_SetGetWithTenant(t *testing.T) {
 	defer bareCancel()
 
 	bareVal, bareErr := infra.redisContainer.Client.Get(bareCtx, logicalKey).Result()
-	assert.Error(t, bareErr, "IS-1: bare key must NOT be stored in Redis when tenant is set")
+	require.ErrorIs(t, bareErr, redisv9.Nil, "IS-1: bare key must be missing in Redis when tenant is set")
 	assert.Empty(t, bareVal, "IS-1: bare key must have no value")
 
 	// --- Get via repository ---
@@ -315,7 +316,7 @@ func TestIntegration_RedisNamespacing_DelWithTenant(t *testing.T) {
 	rawKeyA := "tenant:" + tenantA + ":" + logicalKey
 
 	deletedVal, deletedErr := infra.redisContainer.Client.Get(rawCtx, rawKeyA).Result()
-	assert.Error(t, deletedErr, "IS-4: tenant A's key must no longer exist after Del")
+	require.ErrorIs(t, deletedErr, redisv9.Nil, "IS-4: tenant A's key must be missing after Del")
 	assert.Empty(t, deletedVal)
 
 	// Tenant B's key must be untouched.
@@ -373,7 +374,7 @@ func TestIntegration_RedisNamespacing_TTLIsRespected(t *testing.T) {
 	defer rawCancelAfter()
 
 	expiredVal, expiredErr := infra.redisContainer.Client.Get(rawCtxAfter, rawKey).Result()
-	assert.Error(t, expiredErr, "IS-5: tenant-prefixed key must have expired after TTL")
+	require.ErrorIs(t, expiredErr, redisv9.Nil, "IS-5: tenant-prefixed key must be missing after TTL")
 	assert.Empty(t, expiredVal, "IS-5: expired key must have no value")
 
 	// Get via repository must return cache-miss (empty string, no error).
