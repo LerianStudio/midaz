@@ -6,10 +6,8 @@ package query
 
 import (
 	"context"
-	"os"
 	"reflect"
 	"slices"
-	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
@@ -20,17 +18,30 @@ import (
 	"github.com/google/uuid"
 )
 
-// ValidateAccountingRules validates the accounting rules for the given operations
+// ValidateAccountingRules validates the accounting rules for the given operations.
+// Validation is controlled by ledger settings:
+//   - validateRoutes: enables route validation (transaction route must be specified and valid)
+//   - validateAccountType: enables account type validation (accounts must match route rules)
+//
+// Returns nil if validation is disabled or passes.
+// Returns an error if validation fails.
 func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *pkgTransaction.Responses) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	accountingValidation := os.Getenv("TRANSACTION_ROUTE_VALIDATION")
-	if !strings.Contains(accountingValidation, organizationID.String()+":"+ledgerID.String()) {
+	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
+	defer span.End()
+
+	// Get ledger settings for this ledger
+	ledgerSettings := uc.GetLedgerSettings(ctx, organizationID, ledgerID)
+
+	// If route validation is disabled, skip all route-related validation
+	if !ledgerSettings.Accounting.ValidateRoutes {
+		logger.Debugf("Route validation disabled for ledger %s, skipping accounting rules validation", ledgerID.String())
+
 		return nil
 	}
 
-	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
-	defer span.End()
+	logger.Debugf("Route validation enabled for ledger %s, validating accounting rules", ledgerID.String())
 
 	if libCommons.IsNilOrEmpty(&validate.TransactionRoute) {
 		err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotInformed, "")
@@ -75,15 +86,25 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 		return err
 	}
 
-	return validateAccountRules(ctx, transactionRouteCache, validate, operations)
+	// Pass ledgerSettings to validateAccountRules for account type validation control
+	return validateAccountRules(ctx, transactionRouteCache, validate, operations, ledgerSettings)
 }
 
-// validateAccountRules validates each operation against its corresponding route rule
-func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *pkgTransaction.Responses, operations []mmodel.BalanceOperation) error {
+// validateAccountRules validates each operation against its corresponding route rule.
+// If ledgerSettings.Accounting.ValidateAccountType is false, all per-operation rule validation is skipped
+// (including route-existence and account-type checks).
+func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *pkgTransaction.Responses, operations []mmodel.BalanceOperation, ledgerSettings mmodel.LedgerSettings) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "usecase.validate_account_rules")
 	defer span.End()
+
+	// If account type validation is disabled, skip individual operation validation
+	if !ledgerSettings.Accounting.ValidateAccountType {
+		logger.Debugf("Account type validation disabled, skipping operation rule validation")
+
+		return nil
+	}
 
 	for _, operation := range operations {
 		// Get route ID and determine if operation is source or destination

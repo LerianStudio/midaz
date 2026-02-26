@@ -58,19 +58,17 @@ type UseCase struct {
 	// This is a transport-agnostic "port" that can be implemented by either:
 	//   - onboarding query.UseCase: Direct in-process calls (unified ledger mode)
 	//   - GRPCSettingsAdapter: Network calls via gRPC (separate services mode, future)
+	// Uses the Lazy Initialization pattern: this field is nil at construction,
+	// then set via Service.SetSettingsPort after both modules are initialized.
 	// Optional - may be nil if settings functionality is not enabled.
+	//
+	// Thread-safety: This field MUST be set at initialization time only (before Run).
+	// It is not protected by synchronization primitives. Concurrent modification
+	// after request processing begins would cause data races.
 	SettingsPort mbootstrap.SettingsPort
 }
 
 // CheckHealth returns nil for unified mode (in-process calls don't need health checks).
 func (uc *UseCase) CheckHealth(ctx context.Context) error {
 	return nil
-}
-
-// SetSettingsPort sets the settings port after initialization.
-// This is used in unified ledger mode where the initialization order creates
-// a circular dependency: transaction needs to be initialized first to provide
-// BalancePort to onboarding, but onboarding's SettingsPort is needed by transaction.
-func (uc *UseCase) SetSettingsPort(port mbootstrap.SettingsPort) {
-	uc.SettingsPort = port
 }

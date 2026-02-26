@@ -334,10 +334,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	operationRoutePostgreSQLRepository := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
 	transactionRoutePostgreSQLRepository := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnection)
 
-	var settingsPort mbootstrap.SettingsPort
-	if opts != nil && opts.SettingsPort != nil {
-		settingsPort = opts.SettingsPort
-	}
+	// SettingsPort is extracted from opts below when setting up use cases
 
 	// RabbitMQ: producer + consumer (multi-tenant or single-tenant, decided internally)
 	rmq, err := initRabbitMQ(opts, cfg, logger, telemetry, redisConnection)
@@ -345,7 +342,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
-	useCase := &command.UseCase{
+	// UseCases are created without SettingsPort initially.
+	// The Lazy Initialization pattern is used: SetSettingsPort is called after
+	// both transaction and onboarding modules exist, resolving the circular dependency.
+	// If opts.SettingsPort is provided (e.g., in tests), it's set immediately.
+	commandUseCase := &command.UseCase{
 		TransactionRepo:      transactionPostgreSQLRepository,
 		OperationRepo:        operationPostgreSQLRepository,
 		AssetRateRepo:        assetRatePostgreSQLRepository,
@@ -355,7 +356,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MetadataRepo:         mgo.metadataRepo,
 		RabbitMQRepo:         rmq.producerRepo,
 		RedisRepo:            redisConsumerRepository,
-		SettingsPort:         settingsPort,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -370,36 +370,42 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		RedisRepo:            redisConsumerRepository,
 	}
 
+	// If SettingsPort is provided via options (e.g., tests), set it immediately
+	if opts != nil && opts.SettingsPort != nil {
+		commandUseCase.SettingsPort = opts.SettingsPort
+		queryUseCase.SettingsPort = opts.SettingsPort
+	}
+
 	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
-	rmq.wireConsumer(useCase)
+	rmq.wireConsumer(commandUseCase)
 
 	transactionHandler := &in.TransactionHandler{
-		Command: useCase,
+		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
 	operationHandler := &in.OperationHandler{
-		Command: useCase,
+		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
 	assetRateHandler := &in.AssetRateHandler{
-		Command: useCase,
+		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
 	balanceHandler := &in.BalanceHandler{
-		Command: useCase,
+		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
 	operationRouteHandler := &in.OperationRouteHandler{
-		Command: useCase,
+		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
 	transactionRouteHandler := &in.TransactionRouteHandler{
-		Command: useCase,
+		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
@@ -415,7 +421,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Warn("PROTO_ADDRESS not set or invalid, using default: :3011")
 	}
 
-	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, useCase, queryUseCase)
+	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, commandUseCase, queryUseCase)
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
 
 	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
@@ -431,7 +437,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	var balanceSyncWorker *BalanceSyncWorker
 	if balanceSyncWorkerEnabled {
-		balanceSyncWorker = NewBalanceSyncWorker(redisConnection, logger, useCase, balanceSyncMaxWorkers)
+		balanceSyncWorker = NewBalanceSyncWorker(redisConnection, logger, commandUseCase, balanceSyncMaxWorkers)
 		logger.Infof("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers)
 	} else {
 		logger.Info("BalanceSyncWorker disabled.")
@@ -448,10 +454,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		CircuitBreakerManager:    rmq.circuitBreakerManager,
 		Logger:                   logger,
 		Ports: Ports{
-			BalancePort:  useCase,
+			BalancePort:  commandUseCase,
 			MetadataPort: mgo.metadataRepo,
 		},
-		useCase:                 useCase,
+		commandUseCase:          commandUseCase,
+		queryUseCase:            queryUseCase,
 		auth:                    auth,
 		transactionHandler:      transactionHandler,
 		operationHandler:        operationHandler,
