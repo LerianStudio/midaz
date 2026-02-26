@@ -570,8 +570,6 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "test.transaction.exchange")
 	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test.transaction.key")
 	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE", "test.transaction.queue")
-	t.Setenv("RABBITMQ_BALANCE_CREATE_QUEUE", "test.balance.create.queue")
-
 	// Build RabbitMQ health check URL (base URL, lib-commons appends the path)
 	rabbitHealthCheckURL := "http://" + infra.rabbitmqContainer.Host + ":" + infra.rabbitmqContainer.MgmtPort
 	t.Setenv("RABBITMQ_HEALTH_CHECK_URL", rabbitHealthCheckURL)

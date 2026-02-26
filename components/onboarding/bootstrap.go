@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/gofiber/fiber/v2"
@@ -68,6 +69,12 @@ type Options struct {
 	// Required when UnifiedMode is true. The BalancePort is typically the
 	// transaction.UseCase which implements mbootstrap.BalancePort.
 	BalancePort mbootstrap.BalancePort
+
+	// Multi-tenant configuration (only used in unified mode)
+	MultiTenantEnabled bool
+	TenantClient       *tmclient.Client
+	TenantServiceName  string
+	TenantEnvironment  string
 }
 
 // InitService initializes the onboarding service.
@@ -103,8 +110,12 @@ func InitServiceWithOptionsOrError(opts *Options) (OnboardingService, error) {
 	}
 
 	return bootstrap.InitServersWithOptions(&bootstrap.Options{
-		Logger:      opts.Logger,
-		UnifiedMode: opts.UnifiedMode,
-		BalancePort: opts.BalancePort,
+		Logger:             opts.Logger,
+		UnifiedMode:        opts.UnifiedMode,
+		BalancePort:        opts.BalancePort,
+		MultiTenantEnabled: opts.MultiTenantEnabled,
+		TenantClient:       opts.TenantClient,
+		TenantServiceName:  opts.TenantServiceName,
+		TenantEnvironment:  opts.TenantEnvironment,
 	})
 }

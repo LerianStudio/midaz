@@ -6,12 +6,15 @@ package bootstrap
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
@@ -41,6 +44,14 @@ type Config struct {
 	// Auth configuration
 	AuthEnabled bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost    string `env:"PLUGIN_AUTH_HOST"`
+
+	// Multi-tenant configuration
+	MultiTenantEnabled bool   `env:"MULTI_TENANT_ENABLED"`
+	TenantManagerURL   string `env:"TENANT_MANAGER_URL"`
+	TenantServiceName  string `env:"TENANT_SERVICE_NAME"`
+	TenantEnvironment  string `env:"TENANT_ENVIRONMENT"`
+	TenantCBFailures   int    `env:"TENANT_CB_FAILURES"`
+	TenantCBTimeout    int    `env:"TENANT_CB_TIMEOUT"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -52,6 +63,10 @@ type Options struct {
 	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
 	// This is optional - pass nil if you don't need state change notifications.
 	CircuitBreakerStateListener libCircuitBreaker.StateChangeListener
+
+	// TenantClient is the tenant manager client for multi-tenant mode.
+	// Nil when multi-tenant is disabled.
+	TenantClient *tmclient.Client
 }
 
 // InitServers initializes the unified ledger service that composes
@@ -116,6 +131,38 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		"env", cfg.EnvName,
 	).Info("Starting unified ledger component")
 
+	// Multi-tenant setup
+	var tenantClient *tmclient.Client
+
+	if cfg.MultiTenantEnabled {
+		if strings.TrimSpace(cfg.TenantManagerURL) == "" {
+			return nil, fmt.Errorf("TENANT_MANAGER_URL is required when MULTI_TENANT_ENABLED=true")
+		}
+
+		// Apply safe defaults for circuit breaker when not configured
+		cbFailures := cfg.TenantCBFailures
+		if cbFailures <= 0 {
+			cbFailures = 5
+		}
+
+		cbTimeout := cfg.TenantCBTimeout
+		if cbTimeout <= 0 {
+			cbTimeout = 30
+		}
+
+		tenantClient = tmclient.NewClient(
+			cfg.TenantManagerURL,
+			ledgerLogger,
+			tmclient.WithCircuitBreaker(cbFailures, time.Duration(cbTimeout)*time.Second),
+		)
+
+		ledgerLogger.WithFields(
+			"service", cfg.TenantServiceName,
+			"environment", cfg.TenantEnvironment,
+			"tenant_manager_configured", true,
+		).Info("Multi-tenant mode enabled")
+	}
+
 	ledgerLogger.Info("Initializing transaction module...")
 
 	var stateListener libCircuitBreaker.StateChangeListener
@@ -127,6 +174,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	transactionOpts := &transaction.Options{
 		Logger:                      transactionLogger,
 		CircuitBreakerStateListener: stateListener,
+		MultiTenantEnabled:          cfg.MultiTenantEnabled,
+		TenantClient:                tenantClient,
+		TenantServiceName:           cfg.TenantServiceName,
+		TenantEnvironment:           cfg.TenantEnvironment,
+		TenantManagerURL:            cfg.TenantManagerURL,
 	}
 
 	// Initialize transaction module first to get the BalancePort
@@ -152,9 +204,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Initialize onboarding module in unified mode with the BalancePort for direct calls
 	// No intermediate adapter needed - the transaction.UseCase is passed directly
 	onboardingService, err := onboarding.InitServiceWithOptionsOrError(&onboarding.Options{
-		Logger:      onboardingLogger,
-		UnifiedMode: true,
-		BalancePort: balancePort,
+		Logger:             onboardingLogger,
+		UnifiedMode:        true,
+		BalancePort:        balancePort,
+		MultiTenantEnabled: cfg.MultiTenantEnabled,
+		TenantClient:       tenantClient,
+		TenantServiceName:  cfg.TenantServiceName,
+		TenantEnvironment:  cfg.TenantEnvironment,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize onboarding module: %w", err)

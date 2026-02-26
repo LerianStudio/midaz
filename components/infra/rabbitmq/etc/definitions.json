@@ -62,23 +62,12 @@
   ],
   "queues": [
     {
-      "name": "transaction.balance_create.queue",
-      "vhost": "/",
-      "durable": true
-    },
-    {
       "name": "transaction.transaction_balance_operation.queue",
       "vhost": "/",
       "durable": true
     }
   ],
   "exchanges": [
-    {
-      "name": "transaction.balance_create.exchange",
-      "vhost": "/",
-      "type": "direct",
-      "durable": true
-    },
     {
       "name": "transaction.transaction_balance_operation.exchange",
       "vhost": "/",
@@ -93,13 +82,6 @@
     }
   ],
   "bindings": [
-    {
-      "source": "transaction.balance_create.exchange",
-      "vhost": "/",
-      "destination": "transaction.balance_create.queue",
-      "destination_type": "queue",
-      "routing_key": "transaction.balance_create.key"
-    },
     {
       "source": "transaction.transaction_balance_operation.exchange",
       "vhost": "/",

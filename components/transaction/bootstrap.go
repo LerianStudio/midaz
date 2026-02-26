@@ -12,6 +12,7 @@ import (
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/gofiber/fiber/v2"
@@ -55,6 +56,13 @@ type Options struct {
 	// for querying ledger settings. Optional - if not provided, settings functionality
 	// will not be available.
 	SettingsPort mbootstrap.SettingsPort
+
+	// Multi-tenant configuration (only used in unified mode)
+	MultiTenantEnabled bool
+	TenantClient       *tmclient.Client
+	TenantServiceName  string
+	TenantEnvironment  string
+	TenantManagerURL   string
 }
 
 // InitService initializes the transaction service.
@@ -88,5 +96,10 @@ func InitServiceWithOptionsOrError(opts *Options) (TransactionService, error) {
 		Logger:                      opts.Logger,
 		CircuitBreakerStateListener: opts.CircuitBreakerStateListener,
 		SettingsPort:                opts.SettingsPort,
+		MultiTenantEnabled:          opts.MultiTenantEnabled,
+		TenantClient:                opts.TenantClient,
+		TenantServiceName:           opts.TenantServiceName,
+		TenantEnvironment:           opts.TenantEnvironment,
+		TenantManagerURL:            opts.TenantManagerURL,
 	})
 }

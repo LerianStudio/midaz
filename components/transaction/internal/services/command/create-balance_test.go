@@ -6,7 +6,6 @@ package command
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -31,178 +29,6 @@ func setupCreateBalanceUseCase(t *testing.T) (*UseCase, *balance.MockRepository)
 	return &UseCase{
 		BalanceRepo: mockBalanceRepo,
 	}, mockBalanceRepo
-}
-
-func TestCreateBalance(t *testing.T) {
-	ctx := context.Background()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	accountID := uuid.New().String()
-	alias := "test-alias"
-
-	t.Run("creates balance from valid queue data", func(t *testing.T) {
-		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
-
-		account := mmodel.Account{
-			ID:             accountID,
-			OrganizationID: organizationID.String(),
-			LedgerID:       ledgerID.String(),
-			Name:           "Test Account",
-			Type:           "deposit",
-			AssetCode:      "USD",
-			Alias:          &alias,
-		}
-
-		accountBytes, _ := json.Marshal(account)
-		queueData := []mmodel.QueueData{
-			{
-				ID:    uuid.MustParse(accountID),
-				Value: accountBytes,
-			},
-		}
-
-		queue := mmodel.Queue{
-			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
-			AccountID:      uuid.MustParse(accountID),
-			QueueData:      queueData,
-		}
-
-		mockBalanceRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, b *mmodel.Balance) error {
-				assert.Equal(t, alias, b.Alias)
-				assert.Equal(t, organizationID.String(), b.OrganizationID)
-				assert.Equal(t, ledgerID.String(), b.LedgerID)
-				assert.Equal(t, accountID, b.AccountID)
-				assert.Equal(t, "USD", b.AssetCode)
-				assert.Equal(t, "deposit", b.AccountType)
-				assert.True(t, b.AllowSending)
-				assert.True(t, b.AllowReceiving)
-				return nil
-			}).
-			Times(1)
-
-		err := uc.CreateBalance(ctx, queue)
-
-		assert.NoError(t, err)
-	})
-
-	t.Run("balance already exists", func(t *testing.T) {
-		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
-
-		account := mmodel.Account{
-			ID:             accountID,
-			OrganizationID: organizationID.String(),
-			LedgerID:       ledgerID.String(),
-			Name:           "Test Account",
-			Type:           "deposit",
-			AssetCode:      "USD",
-			Alias:          &alias,
-		}
-
-		accountBytes, _ := json.Marshal(account)
-		queueData := []mmodel.QueueData{
-			{
-				ID:    uuid.MustParse(accountID),
-				Value: accountBytes,
-			},
-		}
-
-		queue := mmodel.Queue{
-			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
-			AccountID:      uuid.MustParse(accountID),
-			QueueData:      queueData,
-		}
-
-		pgErr := &pgconn.PgError{Code: "23505"}
-		mockBalanceRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(pgErr).
-			Times(1)
-
-		err := uc.CreateBalance(ctx, queue)
-
-		assert.NoError(t, err)
-	})
-
-	t.Run("error creating balance", func(t *testing.T) {
-		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
-
-		account := mmodel.Account{
-			ID:             accountID,
-			OrganizationID: organizationID.String(),
-			LedgerID:       ledgerID.String(),
-			Name:           "Test Account",
-			Type:           "deposit",
-			AssetCode:      "USD",
-			Alias:          &alias,
-		}
-
-		accountBytes, _ := json.Marshal(account)
-		queueData := []mmodel.QueueData{
-			{
-				ID:    uuid.MustParse(accountID),
-				Value: accountBytes,
-			},
-		}
-
-		queue := mmodel.Queue{
-			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
-			AccountID:      uuid.MustParse(accountID),
-			QueueData:      queueData,
-		}
-
-		mockBalanceRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(errors.New("database error")).
-			Times(1)
-
-		err := uc.CreateBalance(ctx, queue)
-
-		assert.Error(t, err)
-		assert.Equal(t, "database error", err.Error())
-	})
-
-	t.Run("unmarshal error", func(t *testing.T) {
-		uc, _ := setupCreateBalanceUseCase(t)
-
-		queueData := []mmodel.QueueData{
-			{
-				ID:    uuid.MustParse(accountID),
-				Value: []byte("invalid json"),
-			},
-		}
-
-		queue := mmodel.Queue{
-			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
-			AccountID:      uuid.MustParse(accountID),
-			QueueData:      queueData,
-		}
-
-		err := uc.CreateBalance(ctx, queue)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid")
-	})
-
-	t.Run("empty queue data returns nil", func(t *testing.T) {
-		uc, _ := setupCreateBalanceUseCase(t)
-
-		queue := mmodel.Queue{
-			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
-			AccountID:      uuid.MustParse(accountID),
-			QueueData:      []mmodel.QueueData{},
-		}
-
-		err := uc.CreateBalance(ctx, queue)
-
-		assert.NoError(t, err)
-	})
 }
 
 func TestCreateBalanceSync(t *testing.T) {

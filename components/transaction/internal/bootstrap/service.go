@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	tmconsumer "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/consumer"
 	httpin "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
@@ -32,6 +33,7 @@ type Service struct {
 	*Server
 	*ServerGRPC
 	*MultiQueueConsumer
+	MultiTenantConsumer *tmconsumer.MultiTenantConsumer // nil in single-tenant mode
 	*RedisQueueConsumer
 	*BalanceSyncWorker
 	BalanceSyncWorkerEnabled bool
@@ -68,9 +70,15 @@ func (app *Service) Run() {
 	opts := []libCommons.LauncherOption{
 		libCommons.WithLogger(app.Logger),
 		libCommons.RunApp("Fiber Service", app.Server),
-		libCommons.RunApp("RabbitMQ Consumer", app.MultiQueueConsumer),
 		libCommons.RunApp("Redis Queue Consumer", app.RedisQueueConsumer),
 		libCommons.RunApp("gRPC Server", app.ServerGRPC),
+	}
+
+	// Use multi-tenant consumer if available, otherwise single-tenant
+	if app.MultiTenantConsumer != nil {
+		opts = append(opts, libCommons.RunApp("RabbitMQ Consumer", &multiTenantConsumerRunnable{consumer: app.MultiTenantConsumer}))
+	} else if app.MultiQueueConsumer != nil {
+		opts = append(opts, libCommons.RunApp("RabbitMQ Consumer", app.MultiQueueConsumer))
 	}
 
 	if app.BalanceSyncWorkerEnabled {
@@ -97,8 +105,18 @@ func (app *Service) GetRunnables() []mbootstrap.RunnableConfig {
 func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.RunnableConfig {
 	runnables := []mbootstrap.RunnableConfig{
 		{Name: "Transaction Fiber Server", Runnable: app.Server},
-		{Name: "Transaction RabbitMQ Consumer", Runnable: app.MultiQueueConsumer},
 		{Name: "Transaction Redis Consumer", Runnable: app.RedisQueueConsumer},
+	}
+
+	// Use multi-tenant consumer if available, otherwise single-tenant
+	if app.MultiTenantConsumer != nil {
+		runnables = append(runnables, mbootstrap.RunnableConfig{
+			Name: "Transaction RabbitMQ Consumer", Runnable: &multiTenantConsumerRunnable{consumer: app.MultiTenantConsumer},
+		})
+	} else if app.MultiQueueConsumer != nil {
+		runnables = append(runnables, mbootstrap.RunnableConfig{
+			Name: "Transaction RabbitMQ Consumer", Runnable: app.MultiQueueConsumer,
+		})
 	}
 
 	if app.BalanceSyncWorkerEnabled {

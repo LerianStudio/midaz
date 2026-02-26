@@ -18,8 +18,8 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
@@ -30,7 +30,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
@@ -127,66 +126,66 @@ type Config struct {
 	PrefixedMaxPoolSize       int    `env:"MONGO_TRANSACTION_MAX_POOL_SIZE"`
 
 	// MongoDB - fallback vars for standalone deployment
-	MongoURI                     string `env:"MONGO_URI"`
-	MongoDBHost                  string `env:"MONGO_HOST"`
-	MongoDBName                  string `env:"MONGO_NAME"`
-	MongoDBUser                  string `env:"MONGO_USER"`
-	MongoDBPassword              string `env:"MONGO_PASSWORD"`
-	MongoDBPort                  string `env:"MONGO_PORT"`
-	MongoDBParameters            string `env:"MONGO_PARAMETERS"`
-	MaxPoolSize                  int    `env:"MONGO_MAX_POOL_SIZE"`
-	CasdoorAddress               string `env:"CASDOOR_ADDRESS"`
-	CasdoorClientID              string `env:"CASDOOR_CLIENT_ID"`
-	CasdoorClientSecret          string `env:"CASDOOR_CLIENT_SECRET"`
-	CasdoorOrganizationName      string `env:"CASDOOR_ORGANIZATION_NAME"`
-	CasdoorApplicationName       string `env:"CASDOOR_APPLICATION_NAME"`
-	CasdoorModelName             string `env:"CASDOOR_MODEL_NAME"`
-	JWKAddress                   string `env:"CASDOOR_JWK_ADDRESS"`
-	RabbitURI                    string `env:"RABBITMQ_URI"`
-	RabbitMQHost                 string `env:"RABBITMQ_HOST"`
-	RabbitMQPortHost             string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP             string `env:"RABBITMQ_PORT_AMQP"`
-	RabbitMQUser                 string `env:"RABBITMQ_DEFAULT_USER"`
-	RabbitMQPass                 string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQConsumerUser         string `env:"RABBITMQ_CONSUMER_USER"`
-	RabbitMQConsumerPass         string `env:"RABBITMQ_CONSUMER_PASS"`
-	RabbitMQVHost                string `env:"RABBITMQ_VHOST"`
-	RabbitMQBalanceCreateQueue   string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
-	RabbitMQNumbersOfWorkers     int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
-	RabbitMQNumbersOfPrefetch    int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
-	RabbitMQHealthCheckURL       string `env:"RABBITMQ_HEALTH_CHECK_URL"`
-	OtelServiceName              string `env:"OTEL_RESOURCE_SERVICE_NAME"`
-	OtelLibraryName              string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion           string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
-	OtelDeploymentEnv            string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
-	OtelColExporterEndpoint      string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	EnableTelemetry              bool   `env:"ENABLE_TELEMETRY"`
-	RedisHost                    string `env:"REDIS_HOST"`
-	RedisMasterName              string `env:"REDIS_MASTER_NAME" default:""`
-	RedisPassword                string `env:"REDIS_PASSWORD"`
-	RedisDB                      int    `env:"REDIS_DB" default:"0"`
-	RedisProtocol                int    `env:"REDIS_DB" default:"3"`
-	RedisTLS                     bool   `env:"REDIS_TLS" default:"false"`
-	RedisCACert                  string `env:"REDIS_CA_CERT"`
-	RedisUseGCPIAM               bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
-	RedisServiceAccount          string `env:"REDIS_SERVICE_ACCOUNT" default:""`
-	GoogleApplicationCredentials string `env:"GOOGLE_APPLICATION_CREDENTIALS" default:""`
-	RedisTokenLifeTime           int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
-	RedisTokenRefreshDuration    int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
-	RedisPoolSize                int    `env:"REDIS_POOL_SIZE" default:"10"`
-	RedisMinIdleConns            int    `env:"REDIS_MIN_IDLE_CONNS" default:"0"`
-	RedisReadTimeout             int    `env:"REDIS_READ_TIMEOUT" default:"3"`
-	RedisWriteTimeout            int    `env:"REDIS_WRITE_TIMEOUT" default:"3"`
-	RedisDialTimeout             int    `env:"REDIS_DIAL_TIMEOUT" default:"5"`
-	RedisPoolTimeout             int    `env:"REDIS_POOL_TIMEOUT" default:"2"`
-	RedisMaxRetries              int    `env:"REDIS_MAX_RETRIES" default:"3"`
-	RedisMinRetryBackoff         int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
-	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
-	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
-	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
-	ProtoAddress                 string `env:"PROTO_ADDRESS"`
-	BalanceSyncWorkerEnabled     bool   `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
-	BalanceSyncMaxWorkers        int    `env:"BALANCE_SYNC_MAX_WORKERS"`
+	MongoURI                                 string `env:"MONGO_URI"`
+	MongoDBHost                              string `env:"MONGO_HOST"`
+	MongoDBName                              string `env:"MONGO_NAME"`
+	MongoDBUser                              string `env:"MONGO_USER"`
+	MongoDBPassword                          string `env:"MONGO_PASSWORD"`
+	MongoDBPort                              string `env:"MONGO_PORT"`
+	MongoDBParameters                        string `env:"MONGO_PARAMETERS"`
+	MaxPoolSize                              int    `env:"MONGO_MAX_POOL_SIZE"`
+	CasdoorAddress                           string `env:"CASDOOR_ADDRESS"`
+	CasdoorClientID                          string `env:"CASDOOR_CLIENT_ID"`
+	CasdoorClientSecret                      string `env:"CASDOOR_CLIENT_SECRET"`
+	CasdoorOrganizationName                  string `env:"CASDOOR_ORGANIZATION_NAME"`
+	CasdoorApplicationName                   string `env:"CASDOOR_APPLICATION_NAME"`
+	CasdoorModelName                         string `env:"CASDOOR_MODEL_NAME"`
+	JWKAddress                               string `env:"CASDOOR_JWK_ADDRESS"`
+	RabbitURI                                string `env:"RABBITMQ_URI"`
+	RabbitMQHost                             string `env:"RABBITMQ_HOST"`
+	RabbitMQPortHost                         string `env:"RABBITMQ_PORT_HOST"`
+	RabbitMQPortAMQP                         string `env:"RABBITMQ_PORT_AMQP"`
+	RabbitMQUser                             string `env:"RABBITMQ_DEFAULT_USER"`
+	RabbitMQPass                             string `env:"RABBITMQ_DEFAULT_PASS"`
+	RabbitMQConsumerUser                     string `env:"RABBITMQ_CONSUMER_USER"`
+	RabbitMQConsumerPass                     string `env:"RABBITMQ_CONSUMER_PASS"`
+	RabbitMQVHost                            string `env:"RABBITMQ_VHOST"`
+	RabbitMQNumbersOfWorkers                 int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
+	RabbitMQNumbersOfPrefetch                int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
+	RabbitMQHealthCheckURL                   string `env:"RABBITMQ_HEALTH_CHECK_URL"`
+	RabbitMQTransactionBalanceOperationQueue string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"`
+	OtelServiceName                          string `env:"OTEL_RESOURCE_SERVICE_NAME"`
+	OtelLibraryName                          string `env:"OTEL_LIBRARY_NAME"`
+	OtelServiceVersion                       string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
+	OtelDeploymentEnv                        string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
+	OtelColExporterEndpoint                  string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	EnableTelemetry                          bool   `env:"ENABLE_TELEMETRY"`
+	RedisHost                                string `env:"REDIS_HOST"`
+	RedisMasterName                          string `env:"REDIS_MASTER_NAME" default:""`
+	RedisPassword                            string `env:"REDIS_PASSWORD"`
+	RedisDB                                  int    `env:"REDIS_DB" default:"0"`
+	RedisProtocol                            int    `env:"REDIS_DB" default:"3"`
+	RedisTLS                                 bool   `env:"REDIS_TLS" default:"false"`
+	RedisCACert                              string `env:"REDIS_CA_CERT"`
+	RedisUseGCPIAM                           bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
+	RedisServiceAccount                      string `env:"REDIS_SERVICE_ACCOUNT" default:""`
+	GoogleApplicationCredentials             string `env:"GOOGLE_APPLICATION_CREDENTIALS" default:""`
+	RedisTokenLifeTime                       int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
+	RedisTokenRefreshDuration                int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
+	RedisPoolSize                            int    `env:"REDIS_POOL_SIZE" default:"10"`
+	RedisMinIdleConns                        int    `env:"REDIS_MIN_IDLE_CONNS" default:"0"`
+	RedisReadTimeout                         int    `env:"REDIS_READ_TIMEOUT" default:"3"`
+	RedisWriteTimeout                        int    `env:"REDIS_WRITE_TIMEOUT" default:"3"`
+	RedisDialTimeout                         int    `env:"REDIS_DIAL_TIMEOUT" default:"5"`
+	RedisPoolTimeout                         int    `env:"REDIS_POOL_TIMEOUT" default:"2"`
+	RedisMaxRetries                          int    `env:"REDIS_MAX_RETRIES" default:"3"`
+	RedisMinRetryBackoff                     int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
+	RedisMaxRetryBackoff                     int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
+	AuthEnabled                              bool   `env:"PLUGIN_AUTH_ENABLED"`
+	AuthHost                                 string `env:"PLUGIN_AUTH_HOST"`
+	ProtoAddress                             string `env:"PROTO_ADDRESS"`
+	BalanceSyncWorkerEnabled                 bool   `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
+	BalanceSyncMaxWorkers                    int    `env:"BALANCE_SYNC_MAX_WORKERS"`
 
 	// Circuit Breaker configuration for RabbitMQ
 	// Protects against RabbitMQ outages by failing fast when broker is unavailable
@@ -201,6 +200,9 @@ type Config struct {
 	RabbitMQCircuitBreakerHealthCheckTimeout  int `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_TIMEOUT"`  // Stored in seconds
 	// Operation timeout for RabbitMQ connection and publish operations (e.g., "5s", "3s")
 	RabbitMQOperationTimeout string `env:"RABBITMQ_OPERATION_TIMEOUT"`
+	// Multi-tenant consumer configuration
+	RabbitMQMultiTenantSyncInterval     int `env:"RABBITMQ_MULTI_TENANT_SYNC_INTERVAL"`     // Stored in seconds
+	RabbitMQMultiTenantDiscoveryTimeout int `env:"RABBITMQ_MULTI_TENANT_DISCOVERY_TIMEOUT"` // Stored in milliseconds
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -217,6 +219,13 @@ type Options struct {
 	// for querying ledger settings. Optional - if not provided, settings functionality
 	// will not be available.
 	SettingsPort mbootstrap.SettingsPort
+
+	// Multi-tenant configuration (only used in unified ledger mode).
+	MultiTenantEnabled bool
+	TenantClient       *tmclient.Client
+	TenantServiceName  string
+	TenantEnvironment  string
+	TenantManagerURL   string
 }
 
 // InitServers initiate http and grpc servers.
@@ -375,95 +384,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	}
 
-	rabbitSource := buildRabbitMQConnectionString(
-		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
-
-	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQUser,
-		Pass:                   cfg.RabbitMQPass,
-		VHost:                  cfg.RabbitMQVHost,
-		Queue:                  cfg.RabbitMQBalanceCreateQueue,
-		Logger:                 logger,
-	}
-
-	// Create raw producer
-	rawProducerRabbitMQ, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	// RabbitMQ: producer + consumer (multi-tenant or single-tenant, decided internally)
+	rmq, err := initRabbitMQ(opts, cfg, logger, telemetry, redisConnection)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create RabbitMQ producer: %w", err)
-	}
-
-	// Create metric state listener for circuit breaker observability
-	metricStateListener, err := rabbitmq.NewMetricStateListener(telemetry.MetricsFactory)
-	if err != nil {
-		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
-			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
-		}
-
-		return nil, fmt.Errorf("failed to create metric state listener: %w", err)
-	}
-
-	// Use metric listener, or combine with external listener if provided
-	var stateListener libCircuitBreaker.StateChangeListener
-	if opts != nil && opts.CircuitBreakerStateListener != nil {
-		stateListener = &compositeStateListener{
-			listeners: []libCircuitBreaker.StateChangeListener{
-				metricStateListener,
-				opts.CircuitBreakerStateListener,
-			},
-		}
-	} else {
-		stateListener = metricStateListener
-	}
-
-	// Prepare circuit breaker configuration with defaults applied
-	// Note: Config fields are int because lib-commons doesn't support uint32/float64/time.Duration
-	operationTimeout := rabbitmq.DefaultOperationTimeout
-
-	if cfg.RabbitMQOperationTimeout != "" {
-		if parsed, err := time.ParseDuration(cfg.RabbitMQOperationTimeout); err == nil && parsed > 0 {
-			operationTimeout = parsed
-		}
-	}
-
-	cbConfig := rabbitmq.CircuitBreakerConfig{
-		ConsecutiveFailures: utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerConsecutiveFailures, 15),
-		FailureRatio:        utils.GetFloat64FromIntPercentWithDefault(cfg.RabbitMQCircuitBreakerFailureRatio, 0.5),
-		Interval:            utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerInterval, 2*time.Minute),
-		MaxRequests:         utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerMaxRequests, 3),
-		MinRequests:         utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerMinRequests, 10),
-		Timeout:             utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerTimeout, 30*time.Second),
-		HealthCheckInterval: utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckInterval, 30*time.Second),
-		HealthCheckTimeout:  utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckTimeout, 10*time.Second),
-		OperationTimeout:    operationTimeout,
-	}
-
-	// Create circuit breaker manager (always enabled)
-	circuitBreakerManager, err := NewCircuitBreakerManager(logger, rabbitMQConnection, cbConfig, stateListener)
-	if err != nil {
-		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
-			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
-		}
-
-		return nil, fmt.Errorf("failed to create circuit breaker manager: %w", err)
-	}
-
-	// Wrap producer with circuit breaker
-	producerRabbitMQRepository, err := rabbitmq.NewCircuitBreakerProducer(
-		rawProducerRabbitMQ,
-		circuitBreakerManager.Manager,
-		logger,
-		cbConfig.OperationTimeout,
-	)
-	if err != nil {
-		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
-			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
-		}
-
-		return nil, fmt.Errorf("failed to create circuit breaker producer: %w", err)
+		return nil, err
 	}
 
 	// UseCases are created without SettingsPort initially.
@@ -478,7 +402,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
+		RabbitMQRepo:         rmq.producerRepo,
 		RedisRepo:            redisConsumerRepository,
 	}
 
@@ -490,7 +414,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
+		RabbitMQRepo:         rmq.producerRepo,
 		RedisRepo:            redisConsumerRepository,
 	}
 
@@ -499,6 +423,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		commandUseCase.SettingsPort = opts.SettingsPort
 		queryUseCase.SettingsPort = opts.SettingsPort
 	}
+
+	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
+	rmq.wireConsumer(commandUseCase)
 
 	transactionHandler := &in.TransactionHandler{
 		Command: commandUseCase,
@@ -529,25 +456,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
-
-	rabbitConsumerSource := buildRabbitMQConnectionString(
-		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
-
-	rabbitMQConsumerConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitConsumerSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQConsumerUser,
-		Pass:                   cfg.RabbitMQConsumerPass,
-		VHost:                  cfg.RabbitMQVHost,
-		Queue:                  cfg.RabbitMQBalanceCreateQueue,
-		Logger:                 logger,
-	}
-
-	routes := rabbitmq.NewConsumerRoutes(rabbitMQConsumerConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
-
-	multiQueueConsumer := NewMultiQueueConsumer(routes, commandUseCase)
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
@@ -586,11 +494,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	return &Service{
 		Server:                   server,
 		ServerGRPC:               serverGRPC,
-		MultiQueueConsumer:       multiQueueConsumer,
+		MultiQueueConsumer:       rmq.multiQueueConsumer,
+		MultiTenantConsumer:      rmq.multiTenantConsumer,
 		RedisQueueConsumer:       redisConsumer,
 		BalanceSyncWorker:        balanceSyncWorker,
 		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
-		CircuitBreakerManager:    circuitBreakerManager,
+		CircuitBreakerManager:    rmq.circuitBreakerManager,
 		Logger:                   logger,
 		Ports: Ports{
 			BalancePort:  commandUseCase,
@@ -606,16 +515,4 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		operationRouteHandler:   operationRouteHandler,
 		transactionRouteHandler: transactionRouteHandler,
 	}, nil
-}
-
-// compositeStateListener fans out state change notifications to multiple listeners.
-type compositeStateListener struct {
-	listeners []libCircuitBreaker.StateChangeListener
-}
-
-// OnStateChange notifies all registered listeners of the state change.
-func (c *compositeStateListener) OnStateChange(serviceName string, from, to libCircuitBreaker.State) {
-	for _, listener := range c.listeners {
-		listener.OnStateChange(serviceName, from, to)
-	}
 }
