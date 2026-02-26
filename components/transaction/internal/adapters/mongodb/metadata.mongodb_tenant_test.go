@@ -238,36 +238,23 @@ func TestGetDatabase_FallsBack_WhenTenantDBIsNilInContext(t *testing.T) {
 	assert.Nil(t, db, "database should be nil when both tenant context is nil and static connection fails")
 }
 
-func TestGetDatabase_PropagatesUnexpectedErrors_DoesNotFallBack(t *testing.T) {
+func TestGetDatabase_FallbackFailsOnPlaceholderConnection(t *testing.T) {
 	t.Parallel()
 
-	// Arrange — use a canceled context. When tmcore.GetMongoForTenant receives a
-	// canceled context, it returns ErrTenantContextRequired (no tenant DB in context).
-	// However, if a future lib-commons version propagates context errors, getDatabase
-	// must NOT silently fall back to the static connection for non-ErrTenantContextRequired errors.
-	//
-	// To test this directly, we inject a tenant DB into context and then cancel the context.
-	// GetMongoForTenant will still return the DB from context (it reads a context value,
-	// not a channel), so this specific scenario returns successfully.
-	//
-	// The real protection is structural: the code now explicitly checks for
-	// ErrTenantContextRequired before falling back, so any other error type
-	// (e.g., from a future middleware pipeline) will be propagated.
-
+	// Arrange — no tenant DB in context, placeholder connection has no URI.
+	// GetMongoForTenant returns ErrTenantContextRequired (the only error it can return),
+	// which triggers the static fallback. The placeholder connection then fails because
+	// it has no ConnectionStringSource.
 	repo := &MetadataMongoDBRepository{
-		connection: newPlaceholderConnection("should-not-reach"),
-		Database:   "should-not-reach",
+		connection: newPlaceholderConnection("placeholder-db"),
+		Database:   "placeholder-db",
 	}
 
-	// Test with a plain canceled context (no tenant DB injected).
-	// GetMongoForTenant returns ErrTenantContextRequired, which IS the expected fallback case.
-	// The fallback to static connection then fails because placeholder has no URI.
-	canceledCtx, cancel := context.WithCancel(context.Background())
-	cancel()
+	// Act
+	db, err := repo.getDatabase(context.Background())
 
-	db, err := repo.getDatabase(canceledCtx)
-	// ErrTenantContextRequired triggers fallback, placeholder fails — that's correct behavior
-	require.Error(t, err, "should error because placeholder static connection has no server")
+	// Assert — fallback to static connection fails (no real MongoDB behind placeholder)
+	require.Error(t, err, "placeholder connection should fail on GetDB")
 	assert.Nil(t, db)
 }
 
