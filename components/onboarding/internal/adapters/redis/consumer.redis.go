@@ -13,6 +13,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
+	tmvalkey "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/valkey"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -55,6 +56,8 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	ctx, span := tracer.Start(ctx, "redis.set")
 	defer span.End()
 
+	key = tmvalkey.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
@@ -84,6 +87,8 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	ctx, span := tracer.Start(ctx, "redis.get")
 	defer span.End()
 
+	key = tmvalkey.GetKeyFromContext(ctx, key)
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to connect on redis", err)
@@ -110,6 +115,8 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 
 	ctx, span := tracer.Start(ctx, "redis.del")
 	defer span.End()
+
+	key = tmvalkey.GetKeyFromContext(ctx, key)
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
