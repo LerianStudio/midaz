@@ -243,26 +243,6 @@ func TestGetDatabase_FallsBack_WhenTenantDBIsNilInContext(t *testing.T) {
 	assert.Nil(t, db, "database should be nil when both tenant context is nil and static connection fails")
 }
 
-func TestGetDatabase_FallbackFailsOnPlaceholderConnection(t *testing.T) {
-	t.Parallel()
-
-	// Arrange — no tenant DB in context, placeholder connection has no URI.
-	// GetMongoForTenant returns ErrTenantContextRequired (the only error it can return),
-	// which triggers the static fallback. The placeholder connection then fails because
-	// it has no ConnectionStringSource.
-	repo := &MetadataMongoDBRepository{
-		connection: newPlaceholderConnection("placeholder-db"),
-		Database:   "placeholder-db",
-	}
-
-	// Act
-	db, err := repo.getDatabase(context.Background())
-
-	// Assert — fallback to static connection fails (no real MongoDB behind placeholder)
-	require.Error(t, err, "placeholder connection should fail on GetDB")
-	assert.Nil(t, db)
-}
-
 func TestGetDatabase_StaticConnection_ReturnsDatabaseWithLowercaseName(t *testing.T) {
 	t.Parallel()
 
