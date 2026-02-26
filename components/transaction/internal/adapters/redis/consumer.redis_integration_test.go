@@ -15,6 +15,7 @@ import (
 	"time"
 
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -1449,4 +1450,257 @@ func TestIntegration_Redis_CanceledTransactionRelease(t *testing.T) {
 	})
 
 	t.Log("Integration test passed: CANCELED transaction flow verified")
+}
+
+// =============================================================================
+// INTEGRATION TESTS - REDIS KEY NAMESPACING (T-001)
+// =============================================================================
+
+// TestIntegration_RedisNamespacing_SetGetWithTenant verifies that when a tenant
+// ID is present in the context, the key stored in Redis carries the
+// "tenant:{id}:" prefix and the value is retrievable via the same context.
+// IS-1: Set/Get with tenant context — key stored in Redis has the prefix.
+func TestIntegration_RedisNamespacing_SetGetWithTenant(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+
+	tenantID := "tenant-" + uuid.New().String()
+	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+
+	originalKey := "balance:" + uuid.New().String()
+	expectedStoredKey := "tenant:" + tenantID + ":" + originalKey
+	value := "integration-test-value-" + uuid.New().String()
+
+	// Set via repository (key will be namespaced internally)
+	err := infra.repo.Set(ctx, originalKey, value, 3600)
+	require.NoError(t, err, "Set with tenant context should succeed")
+
+	// Inspect actual Redis state using the raw client — verify prefix is stored
+	storedVal, err := infra.redisContainer.Client.Get(context.Background(), expectedStoredKey).Result()
+	require.NoError(t, err, "raw Redis GET on prefixed key should succeed")
+	assert.Equal(t, value, storedVal, "value stored under prefixed key should match")
+
+	// Verify the original (un-prefixed) key was NOT stored
+	rawVal, rawErr := infra.redisContainer.Client.Get(context.Background(), originalKey).Result()
+	assert.Error(t, rawErr, "raw (non-prefixed) key should not exist in Redis")
+	assert.Empty(t, rawVal, "raw (non-prefixed) key should have no value")
+
+	// Get via repository using the same context — should return correct value
+	retrieved, err := infra.repo.Get(ctx, originalKey)
+	require.NoError(t, err, "Get with tenant context should succeed")
+	assert.Equal(t, value, retrieved, "Get should return the value set for this tenant")
+
+	t.Log("Integration test passed: Set/Get with tenant context uses prefixed key")
+}
+
+// TestIntegration_RedisNamespacing_SetGetWithoutTenant verifies that when no
+// tenant ID is present in the context, the key stored in Redis has NO prefix,
+// ensuring backwards compatibility with single-tenant deployments.
+// IS-2: Set/Get without tenant context — key stored has NO prefix.
+func TestIntegration_RedisNamespacing_SetGetWithoutTenant(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+
+	// Plain context — no tenant ID
+	ctx := context.Background()
+
+	originalKey := "balance:" + uuid.New().String()
+	value := "no-tenant-value-" + uuid.New().String()
+
+	// Set via repository (key must remain unchanged)
+	err := infra.repo.Set(ctx, originalKey, value, 3600)
+	require.NoError(t, err, "Set without tenant context should succeed")
+
+	// Inspect actual Redis state using the raw client — verify no prefix was added
+	storedVal, err := infra.redisContainer.Client.Get(context.Background(), originalKey).Result()
+	require.NoError(t, err, "raw Redis GET on original (non-prefixed) key should succeed")
+	assert.Equal(t, value, storedVal, "value stored under original key should match")
+
+	// Get via repository should return the same value
+	retrieved, err := infra.repo.Get(ctx, originalKey)
+	require.NoError(t, err, "Get without tenant context should succeed")
+	assert.Equal(t, value, retrieved, "Get should return the value without prefix")
+
+	t.Log("Integration test passed: Set/Get without tenant context stores key without prefix")
+}
+
+// TestIntegration_RedisNamespacing_TwoTenantsNoCollision verifies that two different
+// tenants using the same logical key store values in completely isolated namespaces
+// and neither can read the other's data.
+// IS-3: Two tenants same key no collision — values are isolated.
+func TestIntegration_RedisNamespacing_TwoTenantsNoCollision(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+
+	tenantA := "tenant-A-" + uuid.New().String()
+	tenantB := "tenant-B-" + uuid.New().String()
+
+	ctxA := tmcore.SetTenantIDInContext(context.Background(), tenantA)
+	ctxB := tmcore.SetTenantIDInContext(context.Background(), tenantB)
+
+	// Both tenants use the SAME logical key
+	sharedKey := "balance:123"
+	valueA := "value-for-tenant-A-" + uuid.New().String()
+	valueB := "value-for-tenant-B-" + uuid.New().String()
+
+	// Each tenant sets its own value
+	require.NoError(t, infra.repo.Set(ctxA, sharedKey, valueA, 3600), "Set for tenant A should succeed")
+	require.NoError(t, infra.repo.Set(ctxB, sharedKey, valueB, 3600), "Set for tenant B should succeed")
+
+	// Verify physical Redis keys are different
+	prefixedKeyA := "tenant:" + tenantA + ":" + sharedKey
+	prefixedKeyB := "tenant:" + tenantB + ":" + sharedKey
+
+	rawA, err := infra.redisContainer.Client.Get(context.Background(), prefixedKeyA).Result()
+	require.NoError(t, err, "raw GET on tenant A prefixed key should succeed")
+	assert.Equal(t, valueA, rawA, "tenant A's physical key should hold tenant A's value")
+
+	rawB, err := infra.redisContainer.Client.Get(context.Background(), prefixedKeyB).Result()
+	require.NoError(t, err, "raw GET on tenant B prefixed key should succeed")
+	assert.Equal(t, valueB, rawB, "tenant B's physical key should hold tenant B's value")
+
+	// Verify isolation via repository: each tenant reads its own value, not the other's
+	retrievedByA, err := infra.repo.Get(ctxA, sharedKey)
+	require.NoError(t, err, "Get for tenant A should succeed")
+	assert.Equal(t, valueA, retrievedByA, "tenant A should read its own value")
+	assert.NotEqual(t, valueB, retrievedByA, "tenant A should NOT read tenant B's value")
+
+	retrievedByB, err := infra.repo.Get(ctxB, sharedKey)
+	require.NoError(t, err, "Get for tenant B should succeed")
+	assert.Equal(t, valueB, retrievedByB, "tenant B should read its own value")
+	assert.NotEqual(t, valueA, retrievedByB, "tenant B should NOT read tenant A's value")
+
+	t.Log("Integration test passed: two tenants using the same key are fully isolated")
+}
+
+// TestIntegration_RedisNamespacing_MGetWithTenantReturnsOriginalKeys verifies that
+// MGet with a tenant context sends prefixed keys to Redis but returns a result map
+// keyed by the original (un-prefixed) keys, preserving the caller's key contract.
+// IS-4: MGet with tenant returns original keys in the result map.
+func TestIntegration_RedisNamespacing_MGetWithTenantReturnsOriginalKeys(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+
+	tenantID := "mget-tenant-" + uuid.New().String()
+	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+
+	// Store values for multiple keys under this tenant
+	keys := []string{
+		"balance:key-1-" + uuid.New().String(),
+		"balance:key-2-" + uuid.New().String(),
+		"balance:key-3-" + uuid.New().String(),
+	}
+	values := map[string]string{
+		keys[0]: "value-1-" + uuid.New().String(),
+		keys[1]: "value-2-" + uuid.New().String(),
+		keys[2]: "value-3-" + uuid.New().String(),
+	}
+
+	// Pre-populate values via the repository (which applies the namespace)
+	for _, k := range keys {
+		require.NoError(t, infra.repo.Set(ctx, k, values[k], 3600),
+			"Set for key %s should succeed", k)
+	}
+
+	// Execute MGet
+	result, err := infra.repo.MGet(ctx, keys)
+	require.NoError(t, err, "MGet with tenant context should succeed")
+	require.Len(t, result, len(keys), "MGet result should contain all requested keys")
+
+	// The result map MUST use original (un-prefixed) keys
+	for _, originalKey := range keys {
+		gotValue, exists := result[originalKey]
+		assert.True(t, exists,
+			"MGet result must be keyed by original key %q (not the prefixed key)", originalKey)
+		assert.Equal(t, values[originalKey], gotValue,
+			"MGet result value for key %q should match what was stored", originalKey)
+	}
+
+	// No prefixed key must appear in the result map
+	for resultKey := range result {
+		assert.NotContains(t, resultKey, "tenant:"+tenantID+":",
+			"MGet result keys must NOT contain the tenant prefix — caller receives original keys")
+	}
+
+	t.Log("Integration test passed: MGet with tenant returns original keys in result map")
+}
+
+// TestIntegration_RedisNamespacing_QueueTenantIsolation verifies that
+// AddMessageToQueue and ReadAllMessagesFromQueue are tenant-scoped: messages
+// written by tenant A are not visible to tenant B and vice-versa.
+// IS-5: Queue operations with tenant isolation.
+func TestIntegration_RedisNamespacing_QueueTenantIsolation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+
+	tenantA := "queue-tenant-A-" + uuid.New().String()
+	tenantB := "queue-tenant-B-" + uuid.New().String()
+
+	ctxA := tmcore.SetTenantIDInContext(context.Background(), tenantA)
+	ctxB := tmcore.SetTenantIDInContext(context.Background(), tenantB)
+
+	msgKeyA := "tx-msg-A-" + uuid.New().String()
+	msgKeyB := "tx-msg-B-" + uuid.New().String()
+
+	payloadA := []byte(`{"tenant":"A","data":"message-from-tenant-A"}`)
+	payloadB := []byte(`{"tenant":"B","data":"message-from-tenant-B"}`)
+
+	// Tenant A adds a message to its queue
+	require.NoError(t, infra.repo.AddMessageToQueue(ctxA, msgKeyA, payloadA),
+		"AddMessageToQueue for tenant A should succeed")
+
+	// Tenant B adds a message to its queue
+	require.NoError(t, infra.repo.AddMessageToQueue(ctxB, msgKeyB, payloadB),
+		"AddMessageToQueue for tenant B should succeed")
+
+	// Verify physical Redis hash keys are tenant-scoped
+	queueA := "tenant:" + tenantA + ":" + TransactionBackupQueue
+	queueB := "tenant:" + tenantB + ":" + TransactionBackupQueue
+
+	// Tenant A queue should contain tenant A's message field
+	prefixedMsgKeyA := "tenant:" + tenantA + ":" + msgKeyA
+	rawPayloadA, err := infra.redisContainer.Client.HGet(context.Background(), queueA, prefixedMsgKeyA).Bytes()
+	require.NoError(t, err, "raw HGET on tenant A queue should succeed")
+	assert.Equal(t, payloadA, rawPayloadA, "tenant A's queue should contain tenant A's payload")
+
+	// Tenant B queue should contain tenant B's message field
+	prefixedMsgKeyB := "tenant:" + tenantB + ":" + msgKeyB
+	rawPayloadB, err := infra.redisContainer.Client.HGet(context.Background(), queueB, prefixedMsgKeyB).Bytes()
+	require.NoError(t, err, "raw HGET on tenant B queue should succeed")
+	assert.Equal(t, payloadB, rawPayloadB, "tenant B's queue should contain tenant B's payload")
+
+	// ReadAllMessagesFromQueue for tenant A should NOT include tenant B's message key
+	msgsA, err := infra.repo.ReadAllMessagesFromQueue(ctxA)
+	require.NoError(t, err, "ReadAllMessagesFromQueue for tenant A should succeed")
+
+	for msgField := range msgsA {
+		assert.NotContains(t, msgField, tenantB,
+			"tenant A's queue must not expose any key referencing tenant B")
+	}
+
+	// ReadAllMessagesFromQueue for tenant B should NOT include tenant A's message key
+	msgsB, err := infra.repo.ReadAllMessagesFromQueue(ctxB)
+	require.NoError(t, err, "ReadAllMessagesFromQueue for tenant B should succeed")
+
+	for msgField := range msgsB {
+		assert.NotContains(t, msgField, tenantA,
+			"tenant B's queue must not expose any key referencing tenant A")
+	}
+
+	t.Log("Integration test passed: queue operations are isolated per tenant")
 }
