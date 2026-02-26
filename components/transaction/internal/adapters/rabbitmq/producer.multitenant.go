@@ -134,6 +134,14 @@ func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, k
 
 		return nil, fmt.Errorf("failed to get channel for tenant %s: %w", tenantID, err)
 	}
+
+	if ch == nil {
+		err := fmt.Errorf("channel provider returned nil channel for tenant %s", tenantID)
+		libOpentelemetry.HandleSpanError(&span, "Nil channel returned", err)
+
+		return nil, err
+	}
+
 	defer ch.Close()
 
 	headers := amqp.Table{
