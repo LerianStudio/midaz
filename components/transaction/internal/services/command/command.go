@@ -61,6 +61,10 @@ type UseCase struct {
 	// Uses the Lazy Initialization pattern: this field is nil at construction,
 	// then set via Service.SetSettingsPort after both modules are initialized.
 	// Optional - may be nil if settings functionality is not enabled.
+	//
+	// Thread-safety: This field MUST be set at initialization time only (before Run).
+	// It is not protected by synchronization primitives. Concurrent modification
+	// after request processing begins would cause data races.
 	SettingsPort mbootstrap.SettingsPort
 }
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -19,6 +20,9 @@ type mockSettingsPort struct {
 	settings map[string]any
 	err      error
 }
+
+// Compile-time interface verification
+var _ mbootstrap.SettingsPort = (*mockSettingsPort)(nil)
 
 func (m *mockSettingsPort) GetLedgerSettings(_ context.Context, _, _ uuid.UUID) (map[string]any, error) {
 	if m.err != nil {
