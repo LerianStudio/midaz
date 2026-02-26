@@ -12,6 +12,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -65,13 +66,10 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 			} else {
 				logger.Debugf("Cache hit for ledger settings: %s", ledgerID.String())
 
-				// Ensure we never return nil from cache (defensive check for edge case
-				// where JSON "null" was somehow cached instead of "{}")
-				if settings == nil {
-					settings = make(map[string]any)
-				}
+				// Merge with defaults to ensure complete settings object
+				mergedSettings := mmodel.MergeSettingsWithDefaults(settings)
 
-				return settings, nil
+				return mergedSettings, nil
 			}
 		}
 	}
@@ -86,10 +84,8 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
-	// Ensure we never return nil, always return empty map
-	if settings == nil {
-		settings = make(map[string]any)
-	}
+	// Merge with defaults to ensure complete settings object
+	settings = mmodel.MergeSettingsWithDefaults(settings)
 
 	// Populate cache for future reads
 	if uc.RedisRepo != nil {
