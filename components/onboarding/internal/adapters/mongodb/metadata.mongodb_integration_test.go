@@ -14,7 +14,9 @@ import (
 	"testing"
 	"time"
 
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -1161,4 +1163,279 @@ func TestIntegration_Chaos_Metadata_IntermittentFailure(t *testing.T) {
 	assert.Equal(t, metadata.EntityID, found.EntityID)
 
 	t.Log("Chaos test passed: intermittent failures handled correctly")
+}
+
+// ============================================================================
+// TENANT ISOLATION INTEGRATION TESTS
+// ============================================================================
+
+// tenantIsolationInfra holds shared infrastructure for tenant-isolation tests.
+// A single MongoDB container hosts two logical databases that simulate two
+// separate tenants. One MetadataMongoDBRepository is used to prove that the
+// per-request tenant context controls which database is queried.
+type tenantIsolationInfra struct {
+	container *mongotestutil.ContainerResult
+	repo      *MetadataMongoDBRepository
+	ctxA      context.Context
+	ctxB      context.Context
+	dbA       string
+	dbB       string
+}
+
+// setupTenantIsolation starts a single MongoDB container and creates two
+// tenant databases inside it, returning contexts that carry each tenant DB.
+func setupTenantIsolation(t *testing.T) *tenantIsolationInfra {
+	t.Helper()
+
+	container := mongotestutil.SetupContainer(t)
+
+	const (
+		tenantADB = "tenant_a_db"
+		tenantBDB = "tenant_b_db"
+	)
+
+	tenantADatabase := container.Client.Database(tenantADB)
+	tenantBDatabase := container.Client.Database(tenantBDB)
+
+	// Build a placeholder connection — in multi-tenant mode the static
+	// connection is never used because every request carries its own DB.
+	placeholderConn := &libMongo.MongoConnection{
+		Database: "placeholder_db",
+		Logger:   &libLog.NoneLogger{},
+	}
+	repo := NewMetadataMongoDBRepository(placeholderConn)
+
+	ctxA := tmcore.ContextWithTenantMongo(context.Background(), tenantADatabase)
+	ctxB := tmcore.ContextWithTenantMongo(context.Background(), tenantBDatabase)
+
+	return &tenantIsolationInfra{
+		container: container,
+		repo:      repo,
+		ctxA:      ctxA,
+		ctxB:      ctxB,
+		dbA:       tenantADB,
+		dbB:       tenantBDB,
+	}
+}
+
+// TestIntegration_MetadataRepository_TenantIsolation_CreateAndFind proves that
+// metadata written through one tenant context is invisible to the other.
+func TestIntegration_MetadataRepository_TenantIsolation_CreateAndFind(t *testing.T) {
+	infra := setupTenantIsolation(t)
+
+	collection := "account"
+	now := time.Now()
+
+	// -- Write entity-1 to tenant A --
+	metaA := &Metadata{
+		EntityID:   "entity-1",
+		EntityName: "Account",
+		Data:       map[string]any{"owner": "tenant-A"},
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	err := infra.repo.Create(infra.ctxA, collection, metaA)
+	require.NoError(t, err, "Create on tenant A should succeed")
+
+	// -- Write entity-2 to tenant B --
+	metaB := &Metadata{
+		EntityID:   "entity-2",
+		EntityName: "Account",
+		Data:       map[string]any{"owner": "tenant-B"},
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	err = infra.repo.Create(infra.ctxB, collection, metaB)
+	require.NoError(t, err, "Create on tenant B should succeed")
+
+	// -- Tenant A sees entity-1, does NOT see entity-2 --
+	foundA1, err := infra.repo.FindByEntity(infra.ctxA, collection, "entity-1")
+	require.NoError(t, err)
+	require.NotNil(t, foundA1, "tenant A should find entity-1")
+	assert.Equal(t, "tenant-A", foundA1.Data["owner"])
+
+	foundA2, err := infra.repo.FindByEntity(infra.ctxA, collection, "entity-2")
+	require.NoError(t, err)
+	assert.Nil(t, foundA2, "tenant A must NOT see entity-2 (belongs to tenant B)")
+
+	// -- Tenant B sees entity-2, does NOT see entity-1 --
+	foundB2, err := infra.repo.FindByEntity(infra.ctxB, collection, "entity-2")
+	require.NoError(t, err)
+	require.NotNil(t, foundB2, "tenant B should find entity-2")
+	assert.Equal(t, "tenant-B", foundB2.Data["owner"])
+
+	foundB1, err := infra.repo.FindByEntity(infra.ctxB, collection, "entity-1")
+	require.NoError(t, err)
+	assert.Nil(t, foundB1, "tenant B must NOT see entity-1 (belongs to tenant A)")
+}
+
+// TestIntegration_MetadataRepository_TenantIsolation_UpdateDoesNotCrossTenants
+// proves that updating a shared entity ID in one tenant does not affect the
+// other tenant's copy.
+func TestIntegration_MetadataRepository_TenantIsolation_UpdateDoesNotCrossTenants(t *testing.T) {
+	infra := setupTenantIsolation(t)
+
+	collection := "account"
+	now := time.Now()
+
+	// -- Write "entity-shared" to BOTH tenants with different initial data --
+	sharedA := &Metadata{
+		EntityID:   "entity-shared",
+		EntityName: "Account",
+		Data:       map[string]any{"status": "original-A"},
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	err := infra.repo.Create(infra.ctxA, collection, sharedA)
+	require.NoError(t, err)
+
+	sharedB := &Metadata{
+		EntityID:   "entity-shared",
+		EntityName: "Account",
+		Data:       map[string]any{"status": "original-B"},
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	err = infra.repo.Create(infra.ctxB, collection, sharedB)
+	require.NoError(t, err)
+
+	// -- Update tenant A's copy --
+	err = infra.repo.Update(infra.ctxA, collection, "entity-shared", map[string]any{"updated": "by-A"})
+	require.NoError(t, err, "Update on tenant A should succeed")
+
+	// -- Tenant A reflects the update --
+	afterA, err := infra.repo.FindByEntity(infra.ctxA, collection, "entity-shared")
+	require.NoError(t, err)
+	require.NotNil(t, afterA)
+	assert.Equal(t, "by-A", afterA.Data["updated"], "tenant A should see the updated value")
+
+	// -- Tenant B is untouched --
+	afterB, err := infra.repo.FindByEntity(infra.ctxB, collection, "entity-shared")
+	require.NoError(t, err)
+	require.NotNil(t, afterB, "tenant B's document must still exist")
+	assert.Equal(t, "original-B", afterB.Data["status"], "tenant B's metadata must remain unchanged")
+	assert.Nil(t, afterB.Data["updated"], "tenant B must NOT have the 'updated' key from tenant A")
+}
+
+// TestIntegration_MetadataRepository_TenantIsolation_DeleteDoesNotCrossTenants
+// proves that deleting an entity from one tenant leaves the other intact.
+func TestIntegration_MetadataRepository_TenantIsolation_DeleteDoesNotCrossTenants(t *testing.T) {
+	infra := setupTenantIsolation(t)
+
+	collection := "account"
+	now := time.Now()
+
+	// -- Write "entity-shared" to BOTH tenants --
+	for _, ctx := range []context.Context{infra.ctxA, infra.ctxB} {
+		meta := &Metadata{
+			EntityID:   "entity-shared",
+			EntityName: "Account",
+			Data:       map[string]any{"present": true},
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		err := infra.repo.Create(ctx, collection, meta)
+		require.NoError(t, err)
+	}
+
+	// -- Delete from tenant A --
+	err := infra.repo.Delete(infra.ctxA, collection, "entity-shared")
+	require.NoError(t, err, "Delete on tenant A should succeed")
+
+	// -- Tenant A no longer has the document --
+	afterA, err := infra.repo.FindByEntity(infra.ctxA, collection, "entity-shared")
+	require.NoError(t, err)
+	assert.Nil(t, afterA, "tenant A's document should be gone after delete")
+
+	// -- Tenant B still has its document --
+	afterB, err := infra.repo.FindByEntity(infra.ctxB, collection, "entity-shared")
+	require.NoError(t, err)
+	require.NotNil(t, afterB, "tenant B's document must survive tenant A's delete")
+	assert.Equal(t, true, afterB.Data["present"])
+}
+
+// TestIntegration_MetadataRepository_FallbackToStaticConnection_WhenNoTenantContext
+// proves that when no tenant DB is injected into context, the repository falls
+// back to the static connection and CRUD operations work normally (single-tenant path).
+func TestIntegration_MetadataRepository_FallbackToStaticConnection_WhenNoTenantContext(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	ctx := context.Background()
+	collection := "account"
+	now := time.Now()
+
+	// -- Create via static connection --
+	meta := &Metadata{
+		EntityID:   "static-entity-1",
+		EntityName: "Account",
+		Data:       map[string]any{"mode": "single-tenant"},
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	err := repo.Create(ctx, collection, meta)
+	require.NoError(t, err, "Create via static connection should succeed")
+
+	// -- FindByEntity via static connection --
+	found, err := repo.FindByEntity(ctx, collection, "static-entity-1")
+	require.NoError(t, err)
+	require.NotNil(t, found, "FindByEntity should return the created document")
+	assert.Equal(t, "single-tenant", found.Data["mode"])
+
+	// -- Update via static connection --
+	err = repo.Update(ctx, collection, "static-entity-1", map[string]any{"mode": "updated"})
+	require.NoError(t, err, "Update via static connection should succeed")
+
+	updated, err := repo.FindByEntity(ctx, collection, "static-entity-1")
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.Equal(t, "updated", updated.Data["mode"])
+
+	// -- Delete via static connection --
+	err = repo.Delete(ctx, collection, "static-entity-1")
+	require.NoError(t, err, "Delete via static connection should succeed")
+
+	deleted, err := repo.FindByEntity(ctx, collection, "static-entity-1")
+	require.NoError(t, err)
+	assert.Nil(t, deleted, "document should be gone after delete")
+}
+
+// TestIntegration_MetadataRepository_TenantContext_TakesPrecedence_OverStaticConnection
+// proves that when a tenant DB is in context, queries go to the tenant DB — NOT
+// the static connection's database — even if the static connection points to a
+// real, populated database.
+func TestIntegration_MetadataRepository_TenantContext_TakesPrecedence_OverStaticConnection(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+
+	// Create a repo with a real static connection pointing to "default_db".
+	staticConn := mongotestutil.CreateConnection(t, container.URI, "default_db")
+	repo := NewMetadataMongoDBRepository(staticConn)
+
+	collection := "account"
+	now := time.Now()
+
+	// -- Write data through the static connection (no tenant context) --
+	staticCtx := context.Background()
+	meta := &Metadata{
+		EntityID:   "precedence-entity",
+		EntityName: "Account",
+		Data:       map[string]any{"source": "static"},
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	err := repo.Create(staticCtx, collection, meta)
+	require.NoError(t, err, "Create via static connection should succeed")
+
+	// Confirm the document exists through the static path.
+	found, err := repo.FindByEntity(staticCtx, collection, "precedence-entity")
+	require.NoError(t, err)
+	require.NotNil(t, found, "document should exist in default_db")
+
+	// -- Query with a tenant context pointing to a DIFFERENT database --
+	tenantDB := container.Client.Database("tenant_isolated_db")
+	tenantCtx := tmcore.ContextWithTenantMongo(context.Background(), tenantDB)
+
+	tenantResult, err := repo.FindByEntity(tenantCtx, collection, "precedence-entity")
+	require.NoError(t, err)
+	assert.Nil(t, tenantResult, "tenant context should override static connection; data is in default_db, not tenant_isolated_db")
 }

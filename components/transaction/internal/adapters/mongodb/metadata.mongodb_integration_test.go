@@ -14,7 +14,9 @@ import (
 	"testing"
 	"time"
 
+	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -1147,4 +1149,279 @@ func TestIntegration_Chaos_Metadata_IntermittentFailure(t *testing.T) {
 	assert.Equal(t, metadata.EntityID, found.EntityID)
 
 	t.Log("Chaos test passed: intermittent failures handled correctly")
+}
+
+// ============================================================================
+// Tenant Isolation Tests (Multi-Tenant with Real MongoDB)
+// ============================================================================
+
+// TestIntegration_MetadataRepository_TenantIsolation_CreateAndFind verifies that
+// two tenants sharing the same MongoDB cluster but using different databases have
+// complete data isolation. A document created under tenant A must not be visible
+// under tenant B, and vice versa.
+func TestIntegration_MetadataRepository_TenantIsolation_CreateAndFind(t *testing.T) {
+	// Arrange — single container, two databases, one shared repo with placeholder connection
+	container := mongotestutil.SetupContainer(t)
+
+	tenantADB := container.Client.Database("tenantA_db")
+	tenantBDB := container.Client.Database("tenantB_db")
+
+	repo := NewMetadataMongoDBRepository(&libMongo.MongoConnection{
+		Database: "placeholder",
+		Logger:   &libLog.NoneLogger{},
+	})
+
+	collection := "operation"
+
+	ctxA := tmcore.ContextWithTenantMongo(context.Background(), tenantADB)
+	ctxB := tmcore.ContextWithTenantMongo(context.Background(), tenantBDB)
+
+	metaA := &Metadata{
+		EntityID:   "iso-entity-1",
+		EntityName: "Operation",
+		Data:       map[string]any{"tenant": "A", "amount": float64(100)},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	metaB := &Metadata{
+		EntityID:   "iso-entity-2",
+		EntityName: "Operation",
+		Data:       map[string]any{"tenant": "B", "amount": float64(200)},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	// Act — create one entity per tenant
+	err := repo.Create(ctxA, collection, metaA)
+	require.NoError(t, err, "Create under tenant A should succeed")
+
+	err = repo.Create(ctxB, collection, metaB)
+	require.NoError(t, err, "Create under tenant B should succeed")
+
+	// Assert — tenant A can find its own entity but not tenant B's
+	foundA, err := repo.FindByEntity(ctxA, collection, "iso-entity-1")
+	require.NoError(t, err)
+	require.NotNil(t, foundA, "tenant A should find its own entity")
+	assert.Equal(t, "A", foundA.Data["tenant"])
+
+	notFoundA, err := repo.FindByEntity(ctxA, collection, "iso-entity-2")
+	require.NoError(t, err)
+	assert.Nil(t, notFoundA, "tenant A must NOT see tenant B's entity")
+
+	// Assert — tenant B can find its own entity but not tenant A's
+	foundB, err := repo.FindByEntity(ctxB, collection, "iso-entity-2")
+	require.NoError(t, err)
+	require.NotNil(t, foundB, "tenant B should find its own entity")
+	assert.Equal(t, "B", foundB.Data["tenant"])
+
+	notFoundB, err := repo.FindByEntity(ctxB, collection, "iso-entity-1")
+	require.NoError(t, err)
+	assert.Nil(t, notFoundB, "tenant B must NOT see tenant A's entity")
+
+	// Assert — direct database verification confirms isolation
+	countA := mongotestutil.CountDocuments(t, tenantADB, strings.ToLower(collection), bson.M{})
+	assert.Equal(t, int64(1), countA, "tenant A database should have exactly 1 document")
+
+	countB := mongotestutil.CountDocuments(t, tenantBDB, strings.ToLower(collection), bson.M{})
+	assert.Equal(t, int64(1), countB, "tenant B database should have exactly 1 document")
+}
+
+// TestIntegration_MetadataRepository_TenantIsolation_UpdateDoesNotCrossTenants verifies
+// that updating an entity in tenant A does not affect an entity with the same ID in
+// tenant B. This proves that the getDatabase(ctx) method correctly routes updates to
+// the tenant-specific database.
+func TestIntegration_MetadataRepository_TenantIsolation_UpdateDoesNotCrossTenants(t *testing.T) {
+	// Arrange — single container, two databases, shared repo
+	container := mongotestutil.SetupContainer(t)
+
+	tenantADB := container.Client.Database("tenantA_db")
+	tenantBDB := container.Client.Database("tenantB_db")
+
+	repo := NewMetadataMongoDBRepository(&libMongo.MongoConnection{
+		Database: "placeholder",
+		Logger:   &libLog.NoneLogger{},
+	})
+
+	collection := "operation"
+
+	ctxA := tmcore.ContextWithTenantMongo(context.Background(), tenantADB)
+	ctxB := tmcore.ContextWithTenantMongo(context.Background(), tenantBDB)
+
+	// Insert same entity_id into both tenants with different data
+	metaA := &Metadata{
+		EntityID:   "shared-id",
+		EntityName: "Operation",
+		Data:       map[string]any{"version": "A-original"},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	metaB := &Metadata{
+		EntityID:   "shared-id",
+		EntityName: "Operation",
+		Data:       map[string]any{"version": "B-original"},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	require.NoError(t, repo.Create(ctxA, collection, metaA))
+	require.NoError(t, repo.Create(ctxB, collection, metaB))
+
+	// Act — update ONLY tenant A's entity
+	err := repo.Update(ctxA, collection, "shared-id", map[string]any{"version": "A-updated"})
+	require.NoError(t, err, "Update under tenant A should succeed")
+
+	// Assert — tenant A sees the update
+	foundA, err := repo.FindByEntity(ctxA, collection, "shared-id")
+	require.NoError(t, err)
+	require.NotNil(t, foundA)
+	assert.Equal(t, "A-updated", foundA.Data["version"], "tenant A should see updated data")
+
+	// Assert — tenant B is NOT affected by tenant A's update
+	foundB, err := repo.FindByEntity(ctxB, collection, "shared-id")
+	require.NoError(t, err)
+	require.NotNil(t, foundB)
+	assert.Equal(t, "B-original", foundB.Data["version"], "tenant B must NOT be affected by tenant A's update")
+}
+
+// TestIntegration_MetadataRepository_TenantIsolation_DeleteDoesNotCrossTenants verifies
+// that deleting an entity in tenant A does not affect an entity with the same ID in
+// tenant B. This proves per-tenant database isolation for delete operations.
+func TestIntegration_MetadataRepository_TenantIsolation_DeleteDoesNotCrossTenants(t *testing.T) {
+	// Arrange — single container, two databases, shared repo
+	container := mongotestutil.SetupContainer(t)
+
+	tenantADB := container.Client.Database("tenantA_db")
+	tenantBDB := container.Client.Database("tenantB_db")
+
+	repo := NewMetadataMongoDBRepository(&libMongo.MongoConnection{
+		Database: "placeholder",
+		Logger:   &libLog.NoneLogger{},
+	})
+
+	collection := "operation"
+
+	ctxA := tmcore.ContextWithTenantMongo(context.Background(), tenantADB)
+	ctxB := tmcore.ContextWithTenantMongo(context.Background(), tenantBDB)
+
+	// Insert same entity_id into both tenants
+	metaA := &Metadata{
+		EntityID:   "delete-shared-id",
+		EntityName: "Operation",
+		Data:       map[string]any{"owner": "tenantA"},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	metaB := &Metadata{
+		EntityID:   "delete-shared-id",
+		EntityName: "Operation",
+		Data:       map[string]any{"owner": "tenantB"},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	require.NoError(t, repo.Create(ctxA, collection, metaA))
+	require.NoError(t, repo.Create(ctxB, collection, metaB))
+
+	// Verify both exist before delete
+	beforeA, err := repo.FindByEntity(ctxA, collection, "delete-shared-id")
+	require.NoError(t, err)
+	require.NotNil(t, beforeA, "tenant A entity should exist before delete")
+
+	beforeB, err := repo.FindByEntity(ctxB, collection, "delete-shared-id")
+	require.NoError(t, err)
+	require.NotNil(t, beforeB, "tenant B entity should exist before delete")
+
+	// Act — delete ONLY from tenant A
+	err = repo.Delete(ctxA, collection, "delete-shared-id")
+	require.NoError(t, err, "Delete under tenant A should succeed")
+
+	// Assert — tenant A's entity is gone
+	afterA, err := repo.FindByEntity(ctxA, collection, "delete-shared-id")
+	require.NoError(t, err)
+	assert.Nil(t, afterA, "tenant A entity should be deleted")
+
+	// Assert — tenant B's entity is NOT affected
+	afterB, err := repo.FindByEntity(ctxB, collection, "delete-shared-id")
+	require.NoError(t, err)
+	require.NotNil(t, afterB, "tenant B entity must NOT be deleted by tenant A's delete")
+	assert.Equal(t, "tenantB", afterB.Data["owner"], "tenant B data should remain unchanged")
+}
+
+// TestIntegration_MetadataRepository_FallbackToStaticConnection_WhenNoTenantContext
+// verifies that when no tenant context is present in the request context, the
+// repository falls back to the static connection (single-tenant mode) and operations
+// succeed against the default database.
+func TestIntegration_MetadataRepository_FallbackToStaticConnection_WhenNoTenantContext(t *testing.T) {
+	// Arrange — standard setup with real static connection (no tenant context)
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	ctx := context.Background()
+	collection := "operation"
+
+	metadata := &Metadata{
+		EntityID:   "fallback-entity-1",
+		EntityName: "Operation",
+		Data:       map[string]any{"mode": "single-tenant"},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	// Act — plain context without tenant, should use static connection
+	err := repo.Create(ctx, collection, metadata)
+	require.NoError(t, err, "Create with no tenant context should succeed via static connection")
+
+	// Assert — entity is findable via the same static connection
+	found, err := repo.FindByEntity(ctx, collection, "fallback-entity-1")
+	require.NoError(t, err)
+	require.NotNil(t, found, "should find entity via static connection fallback")
+	assert.Equal(t, "single-tenant", found.Data["mode"])
+
+	// Assert — verify directly in the default database
+	count := mongotestutil.CountDocuments(t, container.Database, strings.ToLower(collection), bson.M{"entity_id": "fallback-entity-1"})
+	assert.Equal(t, int64(1), count, "document should exist in the default database")
+}
+
+// TestIntegration_MetadataRepository_TenantContext_TakesPrecedence_OverStaticConnection
+// verifies that when both a static connection AND a tenant context are present, the
+// tenant context wins. Data written via tenant context must land in the tenant database,
+// NOT in the static connection's default database.
+func TestIntegration_MetadataRepository_TenantContext_TakesPrecedence_OverStaticConnection(t *testing.T) {
+	// Arrange — static connection points to the container's default_db
+	container := mongotestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	// Create a tenant database that is different from the default
+	tenantDB := container.Client.Database("tenant_precedence_db")
+
+	collection := "operation"
+
+	ctxWithTenant := tmcore.ContextWithTenantMongo(context.Background(), tenantDB)
+
+	metadata := &Metadata{
+		EntityID:   "precedence-entity-1",
+		EntityName: "Operation",
+		Data:       map[string]any{"target": "tenant_db"},
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+
+	// Act — create with tenant context (static connection exists but should be overridden)
+	err := repo.Create(ctxWithTenant, collection, metadata)
+	require.NoError(t, err, "Create with tenant context should succeed")
+
+	// Assert — entity is findable via tenant context
+	found, err := repo.FindByEntity(ctxWithTenant, collection, "precedence-entity-1")
+	require.NoError(t, err)
+	require.NotNil(t, found, "should find entity in tenant database")
+	assert.Equal(t, "tenant_db", found.Data["target"])
+
+	// Assert — entity does NOT exist in the default (static) database
+	countInDefault := mongotestutil.CountDocuments(t, container.Database, strings.ToLower(collection), bson.M{"entity_id": "precedence-entity-1"})
+	assert.Equal(t, int64(0), countInDefault, "document must NOT exist in the default database — tenant context should take precedence")
+
+	// Assert — entity DOES exist in the tenant database (direct verification)
+	countInTenant := mongotestutil.CountDocuments(t, tenantDB, strings.ToLower(collection), bson.M{"entity_id": "precedence-entity-1"})
+	assert.Equal(t, int64(1), countInTenant, "document should exist in the tenant database")
 }
