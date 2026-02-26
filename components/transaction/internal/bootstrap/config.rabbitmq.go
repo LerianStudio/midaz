@@ -107,12 +107,17 @@ func initMultiTenantRabbitMQ(
 	consumer := tmconsumer.NewMultiTenantConsumer(tenantRabbitMQ, tenantDiscoveryRedisClient, mtConfig, logger)
 	producer := rabbitmq.NewMultiTenantProducer(tenantRabbitMQ, logger)
 
+	queueName := cfg.RabbitMQTransactionBalanceOperationQueue
+	if queueName == "" {
+		return nil, fmt.Errorf("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE is required for multi-tenant consumer")
+	}
+
 	return &rabbitMQComponents{
 		producerRepo:        producer,
 		multiTenantConsumer: consumer,
 		wireConsumer: func(useCase *command.UseCase) {
 			consumer.Register(
-				cfg.RabbitMQTransactionBalanceOperationQueue,
+				queueName,
 				func(ctx context.Context, delivery amqp.Delivery) error {
 					return handlerBTO(ctx, delivery.Body, useCase)
 				},
