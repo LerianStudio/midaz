@@ -178,6 +178,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TenantClient:                tenantClient,
 		TenantServiceName:           cfg.TenantServiceName,
 		TenantEnvironment:           cfg.TenantEnvironment,
+		TenantManagerURL:            cfg.TenantManagerURL,
 	}
 
 	// Initialize transaction module first to get the BalancePort

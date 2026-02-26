@@ -66,9 +66,8 @@ func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
 	}
 }
 
-//nolint:dogsled,gocognit
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
-	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
 
 	ctx, span := tracer.Start(ctx, "redis.consumer.read_messages_from_queue")
 	defer span.End()
@@ -125,156 +124,7 @@ Outer:
 				wg.Done()
 			}()
 
-			msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			defer cancel()
-
-			logger := r.Logger.WithFields(
-				libConstants.HeaderID, m.HeaderID,
-			).WithDefaultMessageTemplate(m.HeaderID + " | ")
-
-			ctxWithLogger := libCommons.ContextWithLogger(
-				libCommons.ContextWithHeaderID(msgCtx, m.HeaderID),
-				logger,
-			)
-
-			msgCtxWithSpan, msgSpan := tracer.Start(ctxWithLogger, "redis.consumer.process_message")
-			defer msgSpan.End()
-
-			select {
-			case <-msgCtxWithSpan.Done():
-				logger.Warn("Transaction message processing cancelled due to shutdown/timeout")
-
-				return
-			default:
-			}
-
-			// Acquire distributed lock to prevent duplicate processing across pods
-			lockKey := utils.RedisConsumerLockKey(m.OrganizationID, m.LedgerID, m.TransactionID.String())
-
-			_, spanLock := tracer.Start(msgCtxWithSpan, "redis.consumer.acquire_lock")
-
-			success, err := r.TransactionHandler.Command.RedisRepo.SetNX(msgCtxWithSpan, lockKey, "", ConsumerLockTTL)
-			if err != nil {
-				libOpentelemetry.HandleSpanError(&spanLock, "Failed to acquire lock", err)
-				spanLock.End()
-
-				logger.Warnf("Failed to acquire lock for message %s: %v", key, err)
-
-				return
-			}
-
-			if !success {
-				libOpentelemetry.HandleSpanEvent(&spanLock, "Lock already held by another pod")
-				spanLock.End()
-
-				logger.Infof("Message %s already being processed by another pod, skipping", key)
-
-				return
-			}
-
-			spanLock.End()
-
-			if m.Validate == nil {
-				logger.Warnf("Message (key: %s) has nil Validate field, skipping. Message will remain in queue.", key)
-
-				return
-			}
-
-			balances := make([]*mmodel.Balance, 0, len(m.Balances))
-			for _, balance := range m.Balances {
-				balanceKey := balance.Key
-				if balanceKey == "" {
-					balanceKey = constant.DefaultBalanceKey
-				}
-
-				balances = append(balances, &mmodel.Balance{
-					Alias:          balance.Alias,
-					ID:             balance.ID,
-					AccountID:      balance.AccountID,
-					Key:            balanceKey,
-					Available:      balance.Available,
-					OnHold:         balance.OnHold,
-					Version:        balance.Version,
-					AccountType:    balance.AccountType,
-					AllowSending:   balance.AllowSending == 1,
-					AllowReceiving: balance.AllowReceiving == 1,
-					AssetCode:      balance.AssetCode,
-					OrganizationID: m.OrganizationID.String(),
-					LedgerID:       m.LedgerID.String(),
-				})
-			}
-
-			var parentTransactionID *string
-
-			tran := &postgreTransaction.Transaction{
-				ID:                       m.TransactionID.String(),
-				ParentTransactionID:      parentTransactionID,
-				OrganizationID:           m.OrganizationID.String(),
-				LedgerID:                 m.LedgerID.String(),
-				Description:              m.TransactionInput.Description,
-				Amount:                   &m.TransactionInput.Send.Value,
-				AssetCode:                m.TransactionInput.Send.Asset,
-				ChartOfAccountsGroupName: m.TransactionInput.ChartOfAccountsGroupName,
-				CreatedAt:                m.TransactionDate,
-				UpdatedAt:                time.Now(),
-				Route:                    m.TransactionInput.Route,
-				Metadata:                 m.TransactionInput.Metadata,
-				Status: postgreTransaction.Status{
-					Code:        m.TransactionStatus,
-					Description: &m.TransactionStatus,
-				},
-			}
-
-			var operations []*operation.Operation
-
-			if len(m.Operations) > 0 {
-				operations = make([]*operation.Operation, 0, len(m.Operations))
-				for _, r := range m.Operations {
-					operations = append(operations, operation.OperationFromRedis(r))
-				}
-
-				logger.Infof("Using %d materialized operations from backup", len(operations))
-			} else {
-				var fromTo []pkgTransaction.FromTo
-
-				fromTo = append(fromTo, r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Source.From, true)...)
-				to := r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Distribute.To, true)
-
-				if m.TransactionStatus != constant.PENDING && m.TransactionStatus != constant.CANCELED {
-					fromTo = append(fromTo, to...)
-				}
-
-				var buildErr error
-
-				operations, _, buildErr = r.TransactionHandler.BuildOperations(
-					msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
-				)
-				if buildErr != nil {
-					libOpentelemetry.HandleSpanError(&msgSpan, "Failed to validate balances", buildErr)
-
-					logger.Errorf("Failed to validate balance: %v", buildErr.Error())
-
-					return
-				}
-			}
-
-			tran.Source = m.Validate.Sources
-			tran.Destination = m.Validate.Destinations
-			tran.Operations = operations
-
-			utils.SanitizeAccountAliases(&m.TransactionInput)
-
-			if err := r.TransactionHandler.Command.WriteTransactionAsync(
-				msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.TransactionInput, m.Validate, balances, tran,
-			); err != nil {
-				libOpentelemetry.HandleSpanError(&msgSpan, "Failed sending message to queue", err)
-
-				logger.Errorf("Failed sending message: %s to queue: %v", key, err.Error())
-
-				return
-			}
-
-			logger.Infof("Transaction message processed: %s", key)
+			r.processMessage(ctx, key, m)
 		}(key, transaction)
 	}
 
@@ -282,4 +132,161 @@ Outer:
 
 	r.Logger.Infof("Total of messagens under %d minute(s) : %d", MessageTimeOfLife, totalMessagesLessThanOneHour)
 	r.Logger.Infof("Finished processing total of %d eligible messages", len(messages)-totalMessagesLessThanOneHour)
+}
+
+// processMessage handles a single Redis backup queue message: acquires a distributed lock,
+// rebuilds balances and operations, and writes the transaction via the async path.
+func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m mmodel.TransactionRedisQueue) {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx) //nolint:dogsled
+
+	msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	logger := r.Logger.WithFields(
+		libConstants.HeaderID, m.HeaderID,
+	).WithDefaultMessageTemplate(m.HeaderID + " | ")
+
+	ctxWithLogger := libCommons.ContextWithLogger(
+		libCommons.ContextWithHeaderID(msgCtx, m.HeaderID),
+		logger,
+	)
+
+	msgCtxWithSpan, msgSpan := tracer.Start(ctxWithLogger, "redis.consumer.process_message")
+	defer msgSpan.End()
+
+	select {
+	case <-msgCtxWithSpan.Done():
+		logger.Warn("Transaction message processing cancelled due to shutdown/timeout")
+
+		return
+	default:
+	}
+
+	// Acquire distributed lock to prevent duplicate processing across pods
+	lockKey := utils.RedisConsumerLockKey(m.OrganizationID, m.LedgerID, m.TransactionID.String())
+
+	_, spanLock := tracer.Start(msgCtxWithSpan, "redis.consumer.acquire_lock")
+
+	success, err := r.TransactionHandler.Command.RedisRepo.SetNX(msgCtxWithSpan, lockKey, "", ConsumerLockTTL)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanLock, "Failed to acquire lock", err)
+		spanLock.End()
+
+		logger.Warnf("Failed to acquire lock for message %s: %v", key, err)
+
+		return
+	}
+
+	if !success {
+		libOpentelemetry.HandleSpanEvent(&spanLock, "Lock already held by another pod")
+		spanLock.End()
+
+		logger.Infof("Message %s already being processed by another pod, skipping", key)
+
+		return
+	}
+
+	spanLock.End()
+
+	if m.Validate == nil {
+		logger.Warnf("Message (key: %s) has nil Validate field, skipping. Message will remain in queue.", key)
+
+		return
+	}
+
+	balances := make([]*mmodel.Balance, 0, len(m.Balances))
+	for _, balance := range m.Balances {
+		balanceKey := balance.Key
+		if balanceKey == "" {
+			balanceKey = constant.DefaultBalanceKey
+		}
+
+		balances = append(balances, &mmodel.Balance{
+			Alias:          balance.Alias,
+			ID:             balance.ID,
+			AccountID:      balance.AccountID,
+			Key:            balanceKey,
+			Available:      balance.Available,
+			OnHold:         balance.OnHold,
+			Version:        balance.Version,
+			AccountType:    balance.AccountType,
+			AllowSending:   balance.AllowSending == 1,
+			AllowReceiving: balance.AllowReceiving == 1,
+			AssetCode:      balance.AssetCode,
+			OrganizationID: m.OrganizationID.String(),
+			LedgerID:       m.LedgerID.String(),
+		})
+	}
+
+	var parentTransactionID *string
+
+	tran := &postgreTransaction.Transaction{
+		ID:                       m.TransactionID.String(),
+		ParentTransactionID:      parentTransactionID,
+		OrganizationID:           m.OrganizationID.String(),
+		LedgerID:                 m.LedgerID.String(),
+		Description:              m.TransactionInput.Description,
+		Amount:                   &m.TransactionInput.Send.Value,
+		AssetCode:                m.TransactionInput.Send.Asset,
+		ChartOfAccountsGroupName: m.TransactionInput.ChartOfAccountsGroupName,
+		CreatedAt:                m.TransactionDate,
+		UpdatedAt:                time.Now(),
+		Route:                    m.TransactionInput.Route,
+		Metadata:                 m.TransactionInput.Metadata,
+		Status: postgreTransaction.Status{
+			Code:        m.TransactionStatus,
+			Description: &m.TransactionStatus,
+		},
+	}
+
+	var operations []*operation.Operation
+
+	if len(m.Operations) > 0 {
+		operations = make([]*operation.Operation, 0, len(m.Operations))
+		for _, r := range m.Operations {
+			operations = append(operations, operation.OperationFromRedis(r))
+		}
+
+		logger.Infof("Using %d materialized operations from backup", len(operations))
+	} else {
+		var fromTo []pkgTransaction.FromTo
+
+		fromTo = append(fromTo, r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Source.From, true)...)
+		to := r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Distribute.To, true)
+
+		if m.TransactionStatus != constant.PENDING && m.TransactionStatus != constant.CANCELED {
+			fromTo = append(fromTo, to...)
+		}
+
+		var buildErr error
+
+		operations, _, buildErr = r.TransactionHandler.BuildOperations(
+			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
+		)
+		if buildErr != nil {
+			libOpentelemetry.HandleSpanError(&msgSpan, "Failed to validate balances", buildErr)
+
+			logger.Errorf("Failed to validate balance: %v", buildErr.Error())
+
+			return
+		}
+	}
+
+	tran.Source = m.Validate.Sources
+	tran.Destination = m.Validate.Destinations
+	tran.Operations = operations
+
+	utils.SanitizeAccountAliases(&m.TransactionInput)
+
+	if err := r.TransactionHandler.Command.WriteTransactionAsync(
+		msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.TransactionInput, m.Validate, balances, tran,
+	); err != nil {
+		libOpentelemetry.HandleSpanError(&msgSpan, "Failed sending message to queue", err)
+
+		logger.Errorf("Failed sending message: %s to queue: %v", key, err.Error())
+
+		return
+	}
+
+	logger.Infof("Transaction message processed: %s", key)
 }
