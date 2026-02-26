@@ -200,6 +200,9 @@ type Config struct {
 	RabbitMQCircuitBreakerHealthCheckTimeout  int `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_TIMEOUT"`  // Stored in seconds
 	// Operation timeout for RabbitMQ connection and publish operations (e.g., "5s", "3s")
 	RabbitMQOperationTimeout string `env:"RABBITMQ_OPERATION_TIMEOUT"`
+	// Multi-tenant consumer configuration
+	RabbitMQMultiTenantSyncInterval     int `env:"RABBITMQ_MULTI_TENANT_SYNC_INTERVAL"`     // Stored in seconds
+	RabbitMQMultiTenantDiscoveryTimeout int `env:"RABBITMQ_MULTI_TENANT_DISCOVERY_TIMEOUT"` // Stored in milliseconds
 }
 
 // Options contains optional dependencies that can be injected by callers.

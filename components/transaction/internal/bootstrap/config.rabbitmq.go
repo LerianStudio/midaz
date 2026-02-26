@@ -88,13 +88,20 @@ func initMultiTenantRabbitMQ(
 		prefetchCount = 10
 	}
 
+	syncInterval := utils.GetDurationSecondsWithDefault(cfg.RabbitMQMultiTenantSyncInterval, 30*time.Second)
+
+	discoveryTimeout := 500 * time.Millisecond
+	if cfg.RabbitMQMultiTenantDiscoveryTimeout > 0 {
+		discoveryTimeout = time.Duration(cfg.RabbitMQMultiTenantDiscoveryTimeout) * time.Millisecond
+	}
+
 	mtConfig := tmconsumer.MultiTenantConfig{
-		SyncInterval:     30 * time.Second,
+		SyncInterval:     syncInterval,
 		PrefetchCount:    prefetchCount,
 		MultiTenantURL:   opts.TenantManagerURL,
 		Service:          opts.TenantServiceName,
 		Environment:      opts.TenantEnvironment,
-		DiscoveryTimeout: 500 * time.Millisecond,
+		DiscoveryTimeout: discoveryTimeout,
 	}
 
 	consumer := tmconsumer.NewMultiTenantConsumer(tenantRabbitMQ, tenantDiscoveryRedisClient, mtConfig, logger)
