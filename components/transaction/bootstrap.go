@@ -62,6 +62,7 @@ type Options struct {
 	TenantClient       *tmclient.Client
 	TenantServiceName  string
 	TenantEnvironment  string
+	TenantManagerURL   string
 }
 
 // InitService initializes the transaction service.
@@ -99,5 +100,6 @@ func InitServiceWithOptionsOrError(opts *Options) (TransactionService, error) {
 		TenantClient:                opts.TenantClient,
 		TenantServiceName:           opts.TenantServiceName,
 		TenantEnvironment:           opts.TenantEnvironment,
+		TenantManagerURL:            opts.TenantManagerURL,
 	})
 }

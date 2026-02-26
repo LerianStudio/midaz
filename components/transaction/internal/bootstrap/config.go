@@ -18,7 +18,6 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
@@ -31,7 +30,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
@@ -218,12 +216,12 @@ type Options struct {
 	// will not be available.
 	SettingsPort mbootstrap.SettingsPort
 
-	// TODO(multi-tenant): These fields are accepted for forward-compatibility but not yet
-	// consumed by this module. They will be wired in subsequent PRs.
+	// Multi-tenant configuration (only used in unified ledger mode).
 	MultiTenantEnabled bool
 	TenantClient       *tmclient.Client
 	TenantServiceName  string
 	TenantEnvironment  string
+	TenantManagerURL   string
 }
 
 // InitServers initiate http and grpc servers.
@@ -382,99 +380,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	}
 
-	rabbitSource := buildRabbitMQConnectionString(
-		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
-
-	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQUser,
-		Pass:                   cfg.RabbitMQPass,
-		VHost:                  cfg.RabbitMQVHost,
-		Logger:                 logger,
-	}
-
-	// Create raw producer
-	rawProducerRabbitMQ, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create RabbitMQ producer: %w", err)
-	}
-
-	// Create metric state listener for circuit breaker observability
-	metricStateListener, err := rabbitmq.NewMetricStateListener(telemetry.MetricsFactory)
-	if err != nil {
-		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
-			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
-		}
-
-		return nil, fmt.Errorf("failed to create metric state listener: %w", err)
-	}
-
-	// Use metric listener, or combine with external listener if provided
-	var stateListener libCircuitBreaker.StateChangeListener
-	if opts != nil && opts.CircuitBreakerStateListener != nil {
-		stateListener = &compositeStateListener{
-			listeners: []libCircuitBreaker.StateChangeListener{
-				metricStateListener,
-				opts.CircuitBreakerStateListener,
-			},
-		}
-	} else {
-		stateListener = metricStateListener
-	}
-
-	// Prepare circuit breaker configuration with defaults applied
-	// Note: Config fields are int because lib-commons doesn't support uint32/float64/time.Duration
-	operationTimeout := rabbitmq.DefaultOperationTimeout
-
-	if cfg.RabbitMQOperationTimeout != "" {
-		if parsed, err := time.ParseDuration(cfg.RabbitMQOperationTimeout); err == nil && parsed > 0 {
-			operationTimeout = parsed
-		}
-	}
-
-	cbConfig := rabbitmq.CircuitBreakerConfig{
-		ConsecutiveFailures: utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerConsecutiveFailures, 15),
-		FailureRatio:        utils.GetFloat64FromIntPercentWithDefault(cfg.RabbitMQCircuitBreakerFailureRatio, 0.5),
-		Interval:            utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerInterval, 2*time.Minute),
-		MaxRequests:         utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerMaxRequests, 3),
-		MinRequests:         utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerMinRequests, 10),
-		Timeout:             utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerTimeout, 30*time.Second),
-		HealthCheckInterval: utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckInterval, 30*time.Second),
-		HealthCheckTimeout:  utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckTimeout, 10*time.Second),
-		OperationTimeout:    operationTimeout,
-	}
-
-	// Create circuit breaker manager (always enabled)
-	circuitBreakerManager, err := NewCircuitBreakerManager(logger, rabbitMQConnection, cbConfig, stateListener)
-	if err != nil {
-		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
-			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
-		}
-
-		return nil, fmt.Errorf("failed to create circuit breaker manager: %w", err)
-	}
-
-	// Wrap producer with circuit breaker
-	producerRabbitMQRepository, err := rabbitmq.NewCircuitBreakerProducer(
-		rawProducerRabbitMQ,
-		circuitBreakerManager.Manager,
-		logger,
-		cbConfig.OperationTimeout,
-	)
-	if err != nil {
-		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
-			logger.Warnf("Failed to close RabbitMQ producer during cleanup: %v", closeErr)
-		}
-
-		return nil, fmt.Errorf("failed to create circuit breaker producer: %w", err)
-	}
-
 	var settingsPort mbootstrap.SettingsPort
 	if opts != nil && opts.SettingsPort != nil {
 		settingsPort = opts.SettingsPort
+	}
+
+	// RabbitMQ: producer + consumer (multi-tenant or single-tenant, decided internally)
+	rmq, err := initRabbitMQ(opts, cfg, logger, telemetry, redisConnection)
+	if err != nil {
+		return nil, err
 	}
 
 	useCase := &command.UseCase{
@@ -485,7 +399,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
+		RabbitMQRepo:         rmq.producerRepo,
 		RedisRepo:            redisConsumerRepository,
 		SettingsPort:         settingsPort,
 	}
@@ -498,9 +412,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OperationRouteRepo:   operationRoutePostgreSQLRepository,
 		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
 		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
+		RabbitMQRepo:         rmq.producerRepo,
 		RedisRepo:            redisConsumerRepository,
 	}
+
+	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
+	rmq.wireConsumer(useCase)
 
 	transactionHandler := &in.TransactionHandler{
 		Command: useCase,
@@ -531,24 +448,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Command: useCase,
 		Query:   queryUseCase,
 	}
-
-	rabbitConsumerSource := buildRabbitMQConnectionString(
-		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
-
-	rabbitMQConsumerConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitConsumerSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQConsumerUser,
-		Pass:                   cfg.RabbitMQConsumerPass,
-		VHost:                  cfg.RabbitMQVHost,
-		Logger:                 logger,
-	}
-
-	routes := rabbitmq.NewConsumerRoutes(rabbitMQConsumerConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
-
-	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
@@ -587,11 +486,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	return &Service{
 		Server:                   server,
 		ServerGRPC:               serverGRPC,
-		MultiQueueConsumer:       multiQueueConsumer,
+		MultiQueueConsumer:       rmq.multiQueueConsumer,
+		MultiTenantConsumer:      rmq.multiTenantConsumer,
 		RedisQueueConsumer:       redisConsumer,
 		BalanceSyncWorker:        balanceSyncWorker,
 		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
-		CircuitBreakerManager:    circuitBreakerManager,
+		CircuitBreakerManager:    rmq.circuitBreakerManager,
 		Logger:                   logger,
 		Ports: Ports{
 			BalancePort:  useCase,
@@ -606,16 +506,4 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		operationRouteHandler:   operationRouteHandler,
 		transactionRouteHandler: transactionRouteHandler,
 	}, nil
-}
-
-// compositeStateListener fans out state change notifications to multiple listeners.
-type compositeStateListener struct {
-	listeners []libCircuitBreaker.StateChangeListener
-}
-
-// OnStateChange notifies all registered listeners of the state change.
-func (c *compositeStateListener) OnStateChange(serviceName string, from, to libCircuitBreaker.State) {
-	for _, listener := range c.listeners {
-		listener.OnStateChange(serviceName, from, to)
-	}
 }

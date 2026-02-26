@@ -42,6 +42,14 @@ func (mq *MultiQueueConsumer) Run(l *libCommons.Launcher) error {
 
 // handlerBTOQueue processes messages from the balance fifo queue, unmarshal the JSON, and update balances on database.
 func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) error {
+	return handlerBTO(ctx, body, mq.UseCase)
+}
+
+// handlerBTO is the standalone balance-transaction-operation handler.
+// It unmarshals the message and delegates to the use case for async processing.
+// Extracted as a package-level function so both the single-tenant MultiQueueConsumer
+// and the multi-tenant consumer can reuse the same logic.
+func handlerBTO(ctx context.Context, body []byte, useCase *command.UseCase) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update")
@@ -62,7 +70,7 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 
 	logger.Infof("Transaction message consumed: %s", message.QueueData[0].ID)
 
-	err = mq.UseCase.CreateBalanceTransactionOperationsAsync(ctx, message)
+	err = useCase.CreateBalanceTransactionOperationsAsync(ctx, message)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Error creating transaction", err)
 
