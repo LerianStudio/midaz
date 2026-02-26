@@ -36,24 +36,29 @@ type AccountingValidation struct {
 	ValidateRoutes bool `json:"validateRoutes"`
 }
 
-// DefaultLedgerSettings returns the default ledger settings.
+// defaultAccountingValidation is the canonical source of default validation settings.
+// All validation flags are false by default for backwards compatibility.
+var defaultAccountingValidation = AccountingValidation{
+	ValidateAccountType: false,
+	ValidateRoutes:      false,
+}
+
+// DefaultLedgerSettings returns the default ledger settings as a typed struct.
 // All validation flags are false by default for backwards compatibility.
 func DefaultLedgerSettings() LedgerSettings {
 	return LedgerSettings{
-		Accounting: AccountingValidation{
-			ValidateAccountType: false,
-			ValidateRoutes:      false,
-		},
+		Accounting: defaultAccountingValidation,
 	}
 }
 
 // DefaultLedgerSettingsMap returns the default ledger settings as a map[string]any.
 // This is useful for API responses where the typed struct needs to be serialized.
+// Uses the same canonical defaults as DefaultLedgerSettings.
 func DefaultLedgerSettingsMap() map[string]any {
 	return map[string]any{
 		"accounting": map[string]any{
-			"validateAccountType": false,
-			"validateRoutes":      false,
+			"validateAccountType": defaultAccountingValidation.ValidateAccountType,
+			"validateRoutes":      defaultAccountingValidation.ValidateRoutes,
 		},
 	}
 }
@@ -61,7 +66,9 @@ func DefaultLedgerSettingsMap() map[string]any {
 // MergeSettingsWithDefaults merges persisted settings with default values.
 // Returns a complete settings map where persisted values override defaults.
 // If settings is nil or empty, returns the full default settings.
-// Uses deep merge for nested objects (e.g., "accounting" section).
+// Performs a one-level nested merge: top-level map keys are merged, and if both
+// the default and persisted values for a key are maps, those maps are also merged
+// (persisted keys override default keys). Deeper nesting is not recursively merged.
 func MergeSettingsWithDefaults(settings map[string]any) map[string]any {
 	defaults := DefaultLedgerSettingsMap()
 

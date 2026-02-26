@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
@@ -18,6 +19,54 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
+
+// settingsJSONMatcher validates that a JSON string contains expected accounting settings.
+type settingsJSONMatcher struct {
+	expectedAccountType bool
+	expectedRoutes      bool
+}
+
+func (m settingsJSONMatcher) Matches(x any) bool {
+	jsonStr, ok := x.(string)
+	if !ok {
+		return false
+	}
+
+	var settings map[string]any
+	if err := json.Unmarshal([]byte(jsonStr), &settings); err != nil {
+		return false
+	}
+
+	accounting, ok := settings["accounting"].(map[string]any)
+	if !ok {
+		return false
+	}
+
+	validateAccountType, ok := accounting["validateAccountType"].(bool)
+	if !ok || validateAccountType != m.expectedAccountType {
+		return false
+	}
+
+	validateRoutes, ok := accounting["validateRoutes"].(bool)
+	if !ok || validateRoutes != m.expectedRoutes {
+		return false
+	}
+
+	return true
+}
+
+func (m settingsJSONMatcher) String() string {
+	return fmt.Sprintf("JSON with accounting.validateAccountType=%v and accounting.validateRoutes=%v",
+		m.expectedAccountType, m.expectedRoutes)
+}
+
+// matchSettingsJSON returns a matcher that validates cached settings JSON.
+func matchSettingsJSON(validateAccountType, validateRoutes bool) gomock.Matcher {
+	return settingsJSONMatcher{
+		expectedAccountType: validateAccountType,
+		expectedRoutes:      validateRoutes,
+	}
+}
 
 func TestGetLedgerSettings_Success(t *testing.T) {
 	t.Parallel()
@@ -334,9 +383,9 @@ func TestGetLedgerSettings_CacheMiss_PopulatesCache(t *testing.T) {
 		GetSettings(gomock.Any(), orgID, ledgerID).
 		Return(persistedSettings, nil)
 
-	// Cache should be populated with merged settings
+	// Cache should be populated with merged settings (validateAccountType=true from persisted, validateRoutes=false from defaults)
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, gomock.Any(), DefaultSettingsCacheTTL).
+		Set(gomock.Any(), cacheKey, matchSettingsJSON(true, false), DefaultSettingsCacheTTL).
 		Return(nil)
 
 	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
@@ -382,9 +431,9 @@ func TestGetLedgerSettings_CacheErrorOnRead_FallsBackToDatabase(t *testing.T) {
 		GetSettings(gomock.Any(), orgID, ledgerID).
 		Return(persistedSettings, nil)
 
-	// Should still try to populate cache
+	// Should still try to populate cache with defaults (no accounting in persisted, so both false)
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, gomock.Any(), DefaultSettingsCacheTTL).
+		Set(gomock.Any(), cacheKey, matchSettingsJSON(false, false), DefaultSettingsCacheTTL).
 		Return(nil)
 
 	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
@@ -428,9 +477,9 @@ func TestGetLedgerSettings_InvalidCacheJSON_FallsBackToDatabase(t *testing.T) {
 		GetSettings(gomock.Any(), orgID, ledgerID).
 		Return(persistedSettings, nil)
 
-	// Should try to populate cache with valid data
+	// Should try to populate cache with valid data (defaults since no accounting persisted)
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, gomock.Any(), DefaultSettingsCacheTTL).
+		Set(gomock.Any(), cacheKey, matchSettingsJSON(false, false), DefaultSettingsCacheTTL).
 		Return(nil)
 
 	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
@@ -474,9 +523,9 @@ func TestGetLedgerSettings_CacheSetError_DoesNotFailOperation(t *testing.T) {
 		GetSettings(gomock.Any(), orgID, ledgerID).
 		Return(persistedSettings, nil)
 
-	// Cache set fails - operation should still succeed
+	// Cache set fails - operation should still succeed (defaults since no accounting persisted)
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, gomock.Any(), DefaultSettingsCacheTTL).
+		Set(gomock.Any(), cacheKey, matchSettingsJSON(false, false), DefaultSettingsCacheTTL).
 		Return(errors.New("redis write error"))
 
 	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
@@ -536,9 +585,9 @@ func TestGetLedgerSettings_CustomCacheTTL(t *testing.T) {
 		GetSettings(gomock.Any(), orgID, ledgerID).
 		Return(persistedSettings, nil)
 
-	// Cache should be set with custom TTL, not default
+	// Cache should be set with custom TTL, not default (defaults since no accounting persisted)
 	mockRedisRepo.EXPECT().
-		Set(gomock.Any(), cacheKey, gomock.Any(), customTTL).
+		Set(gomock.Any(), cacheKey, matchSettingsJSON(false, false), customTTL).
 		Return(nil)
 
 	settings, err := uc.GetLedgerSettings(ctx, orgID, ledgerID)
