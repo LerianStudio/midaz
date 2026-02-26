@@ -150,12 +150,18 @@ func TestKeyNamespacing_BackwardsCompatible_NoTenantInContext(t *testing.T) {
 
 	originalKey := "my:original:key"
 
-	_ = repo.Set(ctx, originalKey, "v", time.Minute)
+	err := repo.Set(ctx, originalKey, "v", time.Minute)
+	require.NoError(t, err, "Set must not fail on recording client")
+	require.Len(t, recorder.setCalls, 1, "Set: expected one recorded call")
 	assert.Equal(t, originalKey, recorder.setCalls[0].Key, "Set: key must be unchanged without tenant")
 
-	_, _ = repo.Get(ctx, originalKey)
+	_, err = repo.Get(ctx, originalKey)
+	require.NoError(t, err, "Get must not fail on recording client")
+	require.Len(t, recorder.getCalls, 1, "Get: expected one recorded call")
 	assert.Equal(t, originalKey, recorder.getCalls[0], "Get: key must be unchanged without tenant")
 
-	_ = repo.Del(ctx, originalKey)
+	err = repo.Del(ctx, originalKey)
+	require.NoError(t, err, "Del must not fail on recording client")
+	require.Len(t, recorder.delCalls, 1, "Del: expected one recorded call")
 	assert.Equal(t, originalKey, recorder.delCalls[0], "Del: key must be unchanged without tenant")
 }
