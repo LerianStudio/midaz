@@ -31,11 +31,11 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
 	defer span.End()
 
-	// Get accounting settings for this ledger
-	accountingSettings := uc.GetAccountingSettings(ctx, organizationID, ledgerID)
+	// Get ledger settings for this ledger
+	ledgerSettings := uc.GetLedgerSettings(ctx, organizationID, ledgerID)
 
 	// If route validation is disabled, skip all route-related validation
-	if !accountingSettings.ValidateRoutes {
+	if !ledgerSettings.Accounting.ValidateRoutes {
 		logger.Debugf("Route validation disabled for ledger %s, skipping accounting rules validation", ledgerID.String())
 
 		return nil
@@ -86,21 +86,21 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 		return err
 	}
 
-	// Pass accountingSettings to validateAccountRules for account type validation control
-	return validateAccountRules(ctx, transactionRouteCache, validate, operations, accountingSettings)
+	// Pass ledgerSettings to validateAccountRules for account type validation control
+	return validateAccountRules(ctx, transactionRouteCache, validate, operations, ledgerSettings)
 }
 
 // validateAccountRules validates each operation against its corresponding route rule.
-// If accountingSettings.ValidateAccountType is false, all per-operation rule validation is skipped
+// If ledgerSettings.Accounting.ValidateAccountType is false, all per-operation rule validation is skipped
 // (including route-existence and account-type checks).
-func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *pkgTransaction.Responses, operations []mmodel.BalanceOperation, accountingSettings mmodel.AccountingSettings) error {
+func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *pkgTransaction.Responses, operations []mmodel.BalanceOperation, ledgerSettings mmodel.LedgerSettings) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "usecase.validate_account_rules")
 	defer span.End()
 
 	// If account type validation is disabled, skip individual operation validation
-	if !accountingSettings.ValidateAccountType {
+	if !ledgerSettings.Accounting.ValidateAccountType {
 		logger.Debugf("Account type validation disabled, skipping operation rule validation")
 
 		return nil

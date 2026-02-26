@@ -4,8 +4,8 @@
 
 package mmodel
 
-// AccountingSettings represents the accounting-related settings for a ledger.
-// These settings control validation behavior during transaction processing.
+// LedgerSettings represents the settings for a ledger.
+// These settings control various behaviors during transaction processing.
 //
 // Example JSON structure in ledger.settings:
 //
@@ -15,7 +15,14 @@ package mmodel
 //	    "validateRoutes": true
 //	  }
 //	}
-type AccountingSettings struct {
+type LedgerSettings struct {
+	// Accounting contains validation settings for accounting operations.
+	Accounting AccountingValidation `json:"accounting"`
+}
+
+// AccountingValidation represents the accounting-related validation settings.
+// These settings control validation behavior during transaction processing.
+type AccountingValidation struct {
 	// ValidateAccountType enables validation of account types during transaction processing.
 	// When true, accounts must have types that match the operation route rules.
 	// Default: false (permissive - no validation)
@@ -27,41 +34,43 @@ type AccountingSettings struct {
 	ValidateRoutes bool `json:"validateRoutes"`
 }
 
-// DefaultAccountingSettings returns the default accounting settings.
+// DefaultLedgerSettings returns the default ledger settings.
 // All validation flags are false by default for backwards compatibility.
-func DefaultAccountingSettings() AccountingSettings {
-	return AccountingSettings{
-		ValidateAccountType: false,
-		ValidateRoutes:      false,
+func DefaultLedgerSettings() LedgerSettings {
+	return LedgerSettings{
+		Accounting: AccountingValidation{
+			ValidateAccountType: false,
+			ValidateRoutes:      false,
+		},
 	}
 }
 
-// ParseAccountingSettings extracts and parses accounting settings from a settings map.
+// ParseLedgerSettings extracts and parses ledger settings from a settings map.
 // Returns default settings if the map is nil, empty, or missing the "accounting" key.
 // This function never returns an error - it falls back to safe defaults on any parse issue.
-func ParseAccountingSettings(settings map[string]any) AccountingSettings {
+func ParseLedgerSettings(settings map[string]any) LedgerSettings {
 	if settings == nil {
-		return DefaultAccountingSettings()
+		return DefaultLedgerSettings()
 	}
 
 	accounting, ok := settings["accounting"]
 	if !ok {
-		return DefaultAccountingSettings()
+		return DefaultLedgerSettings()
 	}
 
 	accountingMap, ok := accounting.(map[string]any)
 	if !ok {
-		return DefaultAccountingSettings()
+		return DefaultLedgerSettings()
 	}
 
-	result := DefaultAccountingSettings()
+	result := DefaultLedgerSettings()
 
 	if validateAccountType, ok := accountingMap["validateAccountType"].(bool); ok {
-		result.ValidateAccountType = validateAccountType
+		result.Accounting.ValidateAccountType = validateAccountType
 	}
 
 	if validateRoutes, ok := accountingMap["validateRoutes"].(bool); ok {
-		result.ValidateRoutes = validateRoutes
+		result.Accounting.ValidateRoutes = validateRoutes
 	}
 
 	return result

@@ -10,52 +10,54 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAccountingSettings_StructExists(t *testing.T) {
-	settings := AccountingSettings{
-		ValidateAccountType: true,
-		ValidateRoutes:      true,
+func TestLedgerSettings_StructExists(t *testing.T) {
+	settings := LedgerSettings{
+		Accounting: AccountingValidation{
+			ValidateAccountType: true,
+			ValidateRoutes:      true,
+		},
 	}
 
-	assert.True(t, settings.ValidateAccountType)
-	assert.True(t, settings.ValidateRoutes)
+	assert.True(t, settings.Accounting.ValidateAccountType)
+	assert.True(t, settings.Accounting.ValidateRoutes)
 }
 
-func TestDefaultAccountingSettings(t *testing.T) {
-	settings := DefaultAccountingSettings()
+func TestDefaultLedgerSettings(t *testing.T) {
+	settings := DefaultLedgerSettings()
 
-	assert.False(t, settings.ValidateAccountType, "ValidateAccountType must default to false")
-	assert.False(t, settings.ValidateRoutes, "ValidateRoutes must default to false")
+	assert.False(t, settings.Accounting.ValidateAccountType, "ValidateAccountType must default to false")
+	assert.False(t, settings.Accounting.ValidateRoutes, "ValidateRoutes must default to false")
 }
 
-func TestParseAccountingSettings(t *testing.T) {
+func TestParseLedgerSettings(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    map[string]any
-		expected AccountingSettings
+		expected LedgerSettings
 	}{
 		{
 			name:     "nil map returns defaults",
 			input:    nil,
-			expected: DefaultAccountingSettings(),
+			expected: DefaultLedgerSettings(),
 		},
 		{
 			name:     "empty map returns defaults",
 			input:    map[string]any{},
-			expected: DefaultAccountingSettings(),
+			expected: DefaultLedgerSettings(),
 		},
 		{
 			name: "missing accounting key returns defaults",
 			input: map[string]any{
 				"other": "value",
 			},
-			expected: DefaultAccountingSettings(),
+			expected: DefaultLedgerSettings(),
 		},
 		{
 			name: "accounting not a map returns defaults",
 			input: map[string]any{
 				"accounting": "not a map",
 			},
-			expected: DefaultAccountingSettings(),
+			expected: DefaultLedgerSettings(),
 		},
 		{
 			name: "both flags true",
@@ -65,9 +67,11 @@ func TestParseAccountingSettings(t *testing.T) {
 					"validateRoutes":      true,
 				},
 			},
-			expected: AccountingSettings{
-				ValidateAccountType: true,
-				ValidateRoutes:      true,
+			expected: LedgerSettings{
+				Accounting: AccountingValidation{
+					ValidateAccountType: true,
+					ValidateRoutes:      true,
+				},
 			},
 		},
 		{
@@ -77,9 +81,11 @@ func TestParseAccountingSettings(t *testing.T) {
 					"validateAccountType": true,
 				},
 			},
-			expected: AccountingSettings{
-				ValidateAccountType: true,
-				ValidateRoutes:      false,
+			expected: LedgerSettings{
+				Accounting: AccountingValidation{
+					ValidateAccountType: true,
+					ValidateRoutes:      false,
+				},
 			},
 		},
 		{
@@ -89,9 +95,11 @@ func TestParseAccountingSettings(t *testing.T) {
 					"validateRoutes": true,
 				},
 			},
-			expected: AccountingSettings{
-				ValidateAccountType: false,
-				ValidateRoutes:      true,
+			expected: LedgerSettings{
+				Accounting: AccountingValidation{
+					ValidateAccountType: false,
+					ValidateRoutes:      true,
+				},
 			},
 		},
 		{
@@ -102,9 +110,11 @@ func TestParseAccountingSettings(t *testing.T) {
 					"validateRoutes":      true,
 				},
 			},
-			expected: AccountingSettings{
-				ValidateAccountType: false,
-				ValidateRoutes:      true,
+			expected: LedgerSettings{
+				Accounting: AccountingValidation{
+					ValidateAccountType: false,
+					ValidateRoutes:      true,
+				},
 			},
 		},
 		{
@@ -116,9 +126,11 @@ func TestParseAccountingSettings(t *testing.T) {
 					"unknownField":        "ignored",
 				},
 			},
-			expected: AccountingSettings{
-				ValidateAccountType: true,
-				ValidateRoutes:      true,
+			expected: LedgerSettings{
+				Accounting: AccountingValidation{
+					ValidateAccountType: true,
+					ValidateRoutes:      true,
+				},
 			},
 		},
 		{
@@ -129,16 +141,18 @@ func TestParseAccountingSettings(t *testing.T) {
 					"validateRoutes":      false,
 				},
 			},
-			expected: AccountingSettings{
-				ValidateAccountType: false,
-				ValidateRoutes:      false,
+			expected: LedgerSettings{
+				Accounting: AccountingValidation{
+					ValidateAccountType: false,
+					ValidateRoutes:      false,
+				},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ParseAccountingSettings(tt.input)
+			result := ParseLedgerSettings(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

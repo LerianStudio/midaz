@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAccountingSettings retrieves and parses accounting settings for a ledger.
+// GetLedgerSettings retrieves and parses ledger settings for a ledger.
 // Returns default settings if:
 //   - SettingsPort is nil (settings functionality not enabled)
 //   - Settings fetch fails (graceful degradation)
@@ -21,17 +21,17 @@ import (
 //
 // This function never returns an error - it always returns valid settings.
 // Errors are logged but do not propagate to callers.
-func (uc *UseCase) GetAccountingSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) mmodel.AccountingSettings {
+func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) mmodel.LedgerSettings {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "query.get_accounting_settings")
+	ctx, span := tracer.Start(ctx, "query.get_ledger_settings")
 	defer span.End()
 
 	// If SettingsPort is not configured, return defaults (permissive)
 	if uc.SettingsPort == nil {
-		logger.Debugf("SettingsPort not configured, using default accounting settings for ledger: %s", ledgerID.String())
+		logger.Debugf("SettingsPort not configured, using default ledger settings for ledger: %s", ledgerID.String())
 
-		return mmodel.DefaultAccountingSettings()
+		return mmodel.DefaultLedgerSettings()
 	}
 
 	// Fetch settings from SettingsPort (which uses cache internally)
@@ -43,14 +43,14 @@ func (uc *UseCase) GetAccountingSettings(ctx context.Context, organizationID, le
 		// Error details captured in span; log only ledger ID to avoid exposing internal error messages
 		logger.Warnf("Failed to get ledger settings for %s, using defaults", ledgerID.String())
 
-		return mmodel.DefaultAccountingSettings()
+		return mmodel.DefaultLedgerSettings()
 	}
 
 	// Parse settings into typed struct
-	accountingSettings := mmodel.ParseAccountingSettings(settings)
+	ledgerSettings := mmodel.ParseLedgerSettings(settings)
 
-	logger.Debugf("Retrieved accounting settings for ledger %s: validateAccountType=%v, validateRoutes=%v",
-		ledgerID.String(), accountingSettings.ValidateAccountType, accountingSettings.ValidateRoutes)
+	logger.Debugf("Retrieved ledger settings for ledger %s: validateAccountType=%v, validateRoutes=%v",
+		ledgerID.String(), ledgerSettings.Accounting.ValidateAccountType, ledgerSettings.Accounting.ValidateRoutes)
 
-	return accountingSettings
+	return ledgerSettings
 }

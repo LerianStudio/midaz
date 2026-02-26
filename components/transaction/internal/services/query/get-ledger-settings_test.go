@@ -16,7 +16,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestGetAccountingSettings(t *testing.T) {
+func TestGetLedgerSettings(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -29,9 +29,9 @@ func TestGetAccountingSettings(t *testing.T) {
 			SettingsPort: nil,
 		}
 
-		result := uc.GetAccountingSettings(ctx, organizationID, ledgerID)
+		result := uc.GetLedgerSettings(ctx, organizationID, ledgerID)
 
-		assert.Equal(t, mmodel.DefaultAccountingSettings(), result)
+		assert.Equal(t, mmodel.DefaultLedgerSettings(), result)
 	})
 
 	t.Run("returns defaults when GetLedgerSettings fails", func(t *testing.T) {
@@ -44,9 +44,9 @@ func TestGetAccountingSettings(t *testing.T) {
 			SettingsPort: mockSettingsPort,
 		}
 
-		result := uc.GetAccountingSettings(ctx, organizationID, ledgerID)
+		result := uc.GetLedgerSettings(ctx, organizationID, ledgerID)
 
-		assert.Equal(t, mmodel.DefaultAccountingSettings(), result)
+		assert.Equal(t, mmodel.DefaultLedgerSettings(), result)
 	})
 
 	t.Run("returns defaults when settings are empty", func(t *testing.T) {
@@ -59,9 +59,9 @@ func TestGetAccountingSettings(t *testing.T) {
 			SettingsPort: mockSettingsPort,
 		}
 
-		result := uc.GetAccountingSettings(ctx, organizationID, ledgerID)
+		result := uc.GetLedgerSettings(ctx, organizationID, ledgerID)
 
-		assert.Equal(t, mmodel.DefaultAccountingSettings(), result)
+		assert.Equal(t, mmodel.DefaultLedgerSettings(), result)
 	})
 
 	t.Run("returns parsed settings when accounting settings exist", func(t *testing.T) {
@@ -79,10 +79,10 @@ func TestGetAccountingSettings(t *testing.T) {
 			SettingsPort: mockSettingsPort,
 		}
 
-		result := uc.GetAccountingSettings(ctx, organizationID, ledgerID)
+		result := uc.GetLedgerSettings(ctx, organizationID, ledgerID)
 
-		assert.True(t, result.ValidateAccountType)
-		assert.True(t, result.ValidateRoutes)
+		assert.True(t, result.Accounting.ValidateAccountType)
+		assert.True(t, result.Accounting.ValidateRoutes)
 	})
 
 	t.Run("returns partial settings when only some flags are set", func(t *testing.T) {
@@ -99,9 +99,9 @@ func TestGetAccountingSettings(t *testing.T) {
 			SettingsPort: mockSettingsPort,
 		}
 
-		result := uc.GetAccountingSettings(ctx, organizationID, ledgerID)
+		result := uc.GetLedgerSettings(ctx, organizationID, ledgerID)
 
-		assert.True(t, result.ValidateAccountType)
-		assert.False(t, result.ValidateRoutes)
+		assert.True(t, result.Accounting.ValidateAccountType)
+		assert.False(t, result.Accounting.ValidateRoutes)
 	})
 }
