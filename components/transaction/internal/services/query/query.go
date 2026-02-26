@@ -50,8 +50,12 @@ type UseCase struct {
 	// This is a transport-agnostic "port" that can be implemented by either:
 	//   - onboarding query.UseCase: Direct in-process calls (unified ledger mode)
 	//   - GRPCSettingsAdapter: Network calls via gRPC (separate services mode, future)
+	// Uses the Lazy Initialization pattern: this field is nil at construction,
+	// then set via Service.SetSettingsPort after both modules are initialized.
 	// Optional - may be nil if settings functionality is not enabled.
-	// NOTE: Must be set at initialization time only. Not safe for concurrent modification.
-	// Implementations must be safe for concurrent use by multiple goroutines.
+	//
+	// Thread-safety: This field MUST be set at initialization time only (before Run).
+	// It is not protected by synchronization primitives. Concurrent modification
+	// after request processing begins would cause data races.
 	SettingsPort mbootstrap.SettingsPort
 }

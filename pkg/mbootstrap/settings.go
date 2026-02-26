@@ -32,3 +32,4 @@ type SettingsPort interface {
 	// Returns an error if the ledger does not exist.
 	GetLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error)
 }
+

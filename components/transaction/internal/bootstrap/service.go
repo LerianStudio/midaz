@@ -10,6 +10,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	httpin "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/gofiber/fiber/v2"
 )
@@ -40,8 +41,11 @@ type Service struct {
 	// Ports groups all external interface dependencies.
 	Ports Ports
 
-	// useCase is stored to allow post-initialization port injection (e.g., SettingsPort)
-	useCase *command.UseCase
+	// commandUseCase and queryUseCase are stored for Lazy Initialization pattern.
+	// SetSettingsPort updates both UseCases after initialization, resolving the
+	// circular dependency between transaction and onboarding modules.
+	commandUseCase *command.UseCase
+	queryUseCase   *query.UseCase
 
 	// Route registration dependencies (for unified ledger mode)
 	auth                    *middleware.AuthClient
@@ -153,14 +157,20 @@ func (app *Service) GetRouteRegistrar() func(*fiber.App) {
 // SetSettingsPort sets the settings port for querying ledger settings.
 // This is called after initialization in unified ledger mode to wire the onboarding
 // SettingsPort to transaction, resolving the circular dependency between components.
+// Uses the Lazy Initialization pattern: both UseCases are created without SettingsPort,
+// then this method is called to inject it after both modules exist.
+//
+// IMPORTANT: This method MUST be called before Run() to ensure thread-safety.
+// The SettingsPort fields are not protected by synchronization primitives,
+// so setting them after request processing begins could cause data races.
 func (app *Service) SetSettingsPort(port mbootstrap.SettingsPort) {
-	if app.useCase == nil {
-		app.Warn("SetSettingsPort called but useCase is nil - settings port not wired")
-
-		return
+	if app.commandUseCase != nil {
+		app.commandUseCase.SettingsPort = port
 	}
 
-	app.useCase.SetSettingsPort(port)
+	if app.queryUseCase != nil {
+		app.queryUseCase.SettingsPort = port
+	}
 }
 
 // Ensure Service implements mbootstrap.Service interface at compile time
