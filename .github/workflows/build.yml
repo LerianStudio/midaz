@@ -40,18 +40,17 @@ jobs:
   update_gitops:
     needs: [build]
     if: needs.build.result == 'success'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gitops-update.yml@v1.11.0
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gitops-update.yml@feature/gitops-multi-server-deploy
     with:
       runner_type: "firmino-lxc-runners"
       gitops_repository: "LerianStudio/midaz-firmino-gitops"
-      gitops_server: "firmino"
       app_name: "midaz"
+      deploy_in_firmino: true
+      deploy_in_clotilde: true
       artifact_pattern: "gitops-tags-midaz-*"
       yaml_key_mappings: '{"midaz-onboarding.tag": ".onboarding.image.tag", "midaz-transaction.tag": ".transaction.image.tag", "midaz-crm.tag": ".crm.image.tag", "midaz-ledger.tag": ".ledger.image.tag"}'
       commit_message_prefix: "midaz"
       enable_argocd_sync: true
-      argocd_app_name: "firmino-midaz"
-      use_dynamic_mapping: true
     secrets: inherit
 
   # =========================

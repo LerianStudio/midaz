@@ -22,4 +22,5 @@ COPY --from=builder /transaction-app/components/transaction/migrations /componen
 
 EXPOSE 3001 3011
 
+# Run the application
 ENTRYPOINT ["/app"]
