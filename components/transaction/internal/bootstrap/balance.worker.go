@@ -58,8 +58,9 @@ func NewBalanceSyncWorker(conn *libRedis.RedisConnection, logger libLog.Logger, 
 }
 
 // NewBalanceSyncWorkerMultiTenant creates a BalanceSyncWorker with multi-tenant fields populated.
-// When multiTenantEnabled is true and pgManager is non-nil, the worker will iterate
-// over active tenants and resolve per-tenant PostgreSQL connections.
+// When multiTenantEnabled is true, both tenantClient and pgManager must be non-nil for the worker
+// to be considered ready (isMultiTenantReady). The worker uses tenantClient to discover active
+// tenants and pgManager to resolve per-tenant PostgreSQL connections.
 func NewBalanceSyncWorkerMultiTenant(
 	conn *libRedis.RedisConnection,
 	logger libLog.Logger,

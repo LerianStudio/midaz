@@ -825,39 +825,35 @@ func TestResolveTenantConnections_NoTenantID(t *testing.T) {
 }
 
 // TestResolveTenantConnections_NilManagers verifies that resolveTenantConnections
-// returns no error when a tenant ID is present but both pgManager and mongoManager
-// are nil. The tenant ID should still be present in the returned context.
+// does not panic and preserves the tenant ID when both pgManager and mongoManager
+// are nil. This covers the graceful degradation path where multi-tenant RabbitMQ
+// is active but PG/Mongo managers have not been wired yet.
 func TestResolveTenantConnections_NilManagers(t *testing.T) {
 	t.Parallel()
 
-	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-123")
-	rmq := &rabbitMQComponents{} // pgManager=nil, mongoManager=nil
-
-	result, err := resolveTenantConnections(ctx, rmq)
-	require.NoError(t, err)
-	assert.Equal(t, "tenant-123", tmcore.GetTenantIDFromContext(result),
-		"tenant ID should be preserved in the returned context")
-}
-
-// TestResolveTenantConnections_WithTenantIDButNilManagers ensures no panic when
-// a tenant ID is set in the context but both pgManager and mongoManager are nil.
-// This covers the graceful degradation path where multi-tenant RabbitMQ is active
-// but PG/Mongo managers have not been wired yet (or are intentionally absent).
-func TestResolveTenantConnections_WithTenantIDButNilManagers(t *testing.T) {
-	t.Parallel()
-
-	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-456")
-	rmq := &rabbitMQComponents{
-		pgManager:    nil,
-		mongoManager: nil,
+	tests := []struct {
+		name     string
+		tenantID string
+	}{
+		{name: "tenant_123", tenantID: "tenant-123"},
+		{name: "tenant_456", tenantID: "tenant-456"},
 	}
 
-	require.NotPanics(t, func() {
-		result, err := resolveTenantConnections(ctx, rmq)
-		require.NoError(t, err)
-		assert.Equal(t, "tenant-456", tmcore.GetTenantIDFromContext(result),
-			"tenant ID should be preserved even with nil managers")
-	}, "resolveTenantConnections must not panic with nil managers")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := tmcore.ContextWithTenantID(context.Background(), tt.tenantID)
+			rmq := &rabbitMQComponents{pgManager: nil, mongoManager: nil}
+
+			require.NotPanics(t, func() {
+				result, err := resolveTenantConnections(ctx, rmq)
+				require.NoError(t, err)
+				assert.Equal(t, tt.tenantID, tmcore.GetTenantIDFromContext(result),
+					"tenant ID should be preserved with nil managers")
+			}, "resolveTenantConnections must not panic with nil managers")
+		})
+	}
 }
 
 // TestBalanceSyncWorker_MultiTenantConstructorPreservesRunBehavior verifies that

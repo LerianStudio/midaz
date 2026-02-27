@@ -52,8 +52,9 @@ func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) 
 }
 
 // NewRedisQueueConsumerMultiTenant creates a RedisQueueConsumer with multi-tenant fields populated.
-// When multiTenantEnabled is true and pgManager is non-nil, the consumer will iterate
-// over active tenants and resolve per-tenant PostgreSQL connections.
+// When multiTenantEnabled is true, both tenantClient and pgManager must be non-nil for the consumer
+// to be considered ready (isMultiTenantReady). The consumer uses tenantClient to discover active
+// tenants and pgManager to resolve per-tenant PostgreSQL connections.
 func NewRedisQueueConsumerMultiTenant(
 	logger libLog.Logger,
 	handler in.TransactionHandler,

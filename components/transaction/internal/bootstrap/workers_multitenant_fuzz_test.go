@@ -164,7 +164,7 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 //
 // Properties verified:
 //  1. isMultiTenantReady() never panics on any struct state.
-//  2. Result is true IFF multiTenantEnabled == true AND pgManager != nil.
+//  2. Result is true IFF multiTenantEnabled == true AND pgManager != nil AND tenantClient != nil.
 //  3. Zero-value structs always return false.
 //  4. Predicate is idempotent (calling twice returns same result).
 func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
