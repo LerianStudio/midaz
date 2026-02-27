@@ -6,6 +6,7 @@ package in
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http/httptest"
@@ -1198,15 +1199,22 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 		{
 			name: "success returns 200 with merged settings",
 			requestBody: map[string]any{
-				"newKey": "newValue",
+				"accounting": map[string]any{
+					"validateRoutes": true,
+				},
 			},
 			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+				existingSettings := map[string]any{
+					"accounting": map[string]any{
+						"validateAccountType": true,
+						"validateRoutes":      false,
+					},
+				}
 				ledgerRepo.EXPECT().
-					UpdateSettings(gomock.Any(), orgID, ledgerID, map[string]any{"newKey": "newValue"}).
-					Return(map[string]any{
-						"existingKey": "existingValue",
-						"newKey":      "newValue",
-					}, nil).
+					UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+						return mergeFn(existingSettings)
+					}).
 					Times(1)
 			},
 			expectedStatus: 200,
@@ -1215,17 +1223,27 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
-				assert.Equal(t, "existingValue", result["existingKey"])
-				assert.Equal(t, "newValue", result["newKey"])
+				accounting, ok := result["accounting"].(map[string]any)
+				require.True(t, ok, "accounting section must exist")
+				assert.Equal(t, true, accounting["validateAccountType"])
+				assert.Equal(t, true, accounting["validateRoutes"])
 			},
 		},
 		{
 			name:        "empty settings returns 200",
 			requestBody: map[string]any{},
 			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+				existingSettings := map[string]any{
+					"accounting": map[string]any{
+						"validateAccountType": false,
+						"validateRoutes":      false,
+					},
+				}
 				ledgerRepo.EXPECT().
-					UpdateSettings(gomock.Any(), orgID, ledgerID, map[string]any{}).
-					Return(map[string]any{"existingKey": "existingValue"}, nil).
+					UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+						return mergeFn(existingSettings)
+					}).
 					Times(1)
 			},
 			expectedStatus: 200,
@@ -1234,17 +1252,39 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
-				assert.Equal(t, "existingValue", result["existingKey"])
+				accounting, ok := result["accounting"].(map[string]any)
+				require.True(t, ok, "accounting section must exist")
+				assert.Equal(t, false, accounting["validateAccountType"])
+			},
+		},
+		{
+			name: "unknown field returns 400",
+			requestBody: map[string]any{
+				"unknownKey": "value",
+			},
+			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+				// No repo calls expected - validation fails first
+			},
+			expectedStatus: 400,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+
+				assert.Contains(t, errResp, "code", "error response should contain code")
+				assert.Equal(t, cn.ErrUnknownSettingsField.Error(), errResp["code"])
 			},
 		},
 		{
 			name: "ledger not found returns 404",
 			requestBody: map[string]any{
-				"key": "value",
+				"accounting": map[string]any{
+					"validateRoutes": true,
+				},
 			},
 			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
 				ledgerRepo.EXPECT().
-					UpdateSettings(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())).
 					Times(1)
 			},
@@ -1261,11 +1301,13 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 		{
 			name: "repository error returns 500",
 			requestBody: map[string]any{
-				"key": "value",
+				"accounting": map[string]any{
+					"validateRoutes": true,
+				},
 			},
 			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
 				ledgerRepo.EXPECT().
-					UpdateSettings(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",

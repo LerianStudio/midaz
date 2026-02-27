@@ -162,6 +162,21 @@ func (mr *MockRepositoryMockRecorder) ListByIDs(ctx, organizationID, ids any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByIDs", reflect.TypeOf((*MockRepository)(nil).ListByIDs), ctx, organizationID, ids)
 }
 
+// ReplaceSettings mocks base method.
+func (m *MockRepository) ReplaceSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplaceSettings", ctx, organizationID, ledgerID, settings)
+	ret0, _ := ret[0].(map[string]any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReplaceSettings indicates an expected call of ReplaceSettings.
+func (mr *MockRepositoryMockRecorder) ReplaceSettings(ctx, organizationID, ledgerID, settings any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceSettings", reflect.TypeOf((*MockRepository)(nil).ReplaceSettings), ctx, organizationID, ledgerID, settings)
+}
+
 // Update mocks base method.
 func (m *MockRepository) Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error) {
 	m.ctrl.T.Helper()
@@ -190,4 +205,19 @@ func (m *MockRepository) UpdateSettings(ctx context.Context, organizationID, led
 func (mr *MockRepositoryMockRecorder) UpdateSettings(ctx, organizationID, ledgerID, settings any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSettings", reflect.TypeOf((*MockRepository)(nil).UpdateSettings), ctx, organizationID, ledgerID, settings)
+}
+
+// UpdateSettingsAtomic mocks base method.
+func (m *MockRepository) UpdateSettingsAtomic(ctx context.Context, organizationID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSettingsAtomic", ctx, organizationID, ledgerID, mergeFn)
+	ret0, _ := ret[0].(map[string]any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateSettingsAtomic indicates an expected call of UpdateSettingsAtomic.
+func (mr *MockRepositoryMockRecorder) UpdateSettingsAtomic(ctx, organizationID, ledgerID, mergeFn any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSettingsAtomic", reflect.TypeOf((*MockRepository)(nil).UpdateSettingsAtomic), ctx, organizationID, ledgerID, mergeFn)
 }
