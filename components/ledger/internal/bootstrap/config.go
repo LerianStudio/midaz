@@ -23,6 +23,7 @@ import (
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
@@ -357,8 +358,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 }
 
 // midazErrorMapper converts tenant-manager errors into Midaz-specific HTTP responses.
-// It handles the TenantNotProvisionedError case with a 422 status code and error code "0100".
-// For all other errors, it returns nil to let the default error mapper handle them.
+// It handles the TenantNotProvisionedError case with a 422 status code.
+// For all other errors, it returns the error to let the default error handler process it.
 func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	if err == nil {
 		return nil
@@ -366,7 +367,7 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 
 	if tmcore.IsTenantNotProvisionedError(err) {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-			"code":    "0100",
+			"code":    constant.ErrTenantNotProvisioned.Error(),
 			"title":   "Tenant Not Provisioned",
 			"message": "Database schema not initialized for this tenant. Contact your administrator.",
 		})

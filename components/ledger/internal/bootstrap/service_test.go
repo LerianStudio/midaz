@@ -328,7 +328,7 @@ func TestMidazErrorMapper(t *testing.T) {
 			tenantID:       "tenant-abc",
 			wantStatusCode: http.StatusUnprocessableEntity,
 			wantNil:        false,
-			wantCode:       "0100",
+			wantCode:       "0146",
 			wantTitle:      "Tenant Not Provisioned",
 		},
 		{
@@ -337,7 +337,7 @@ func TestMidazErrorMapper(t *testing.T) {
 			tenantID:       "tenant-xyz",
 			wantStatusCode: http.StatusUnprocessableEntity,
 			wantNil:        false,
-			wantCode:       "0100",
+			wantCode:       "0146",
 			wantTitle:      "Tenant Not Provisioned",
 		},
 		{
@@ -346,7 +346,7 @@ func TestMidazErrorMapper(t *testing.T) {
 			tenantID:       "tenant-abc",
 			wantStatusCode: http.StatusUnprocessableEntity,
 			wantNil:        false,
-			wantCode:       "0100",
+			wantCode:       "0146",
 			wantTitle:      "Tenant Not Provisioned",
 		},
 		{
