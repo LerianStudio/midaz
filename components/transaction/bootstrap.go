@@ -40,6 +40,21 @@ type TransactionService interface {
 	// This is called after initialization in unified ledger mode to wire the onboarding
 	// SettingsPort to transaction, resolving the circular dependency between components.
 	SetSettingsPort(port mbootstrap.SettingsPort)
+
+	// GetPGManager returns the multi-tenant PostgreSQL manager as an opaque handle.
+	// Returns nil in single-tenant mode. The caller (ledger bootstrap) performs
+	// type assertion to *tmpostgres.Manager internally.
+	GetPGManager() interface{}
+
+	// GetMongoManager returns the multi-tenant MongoDB manager as an opaque handle.
+	// Returns nil in single-tenant mode. The caller (ledger bootstrap) performs
+	// type assertion to *tmmongo.Manager internally.
+	GetMongoManager() interface{}
+
+	// GetMultiTenantConsumer returns the multi-tenant RabbitMQ consumer as an opaque handle.
+	// Returns nil until multi-tenant consumer is wired. The caller (ledger bootstrap) performs
+	// type assertion to the concrete consumer type internally.
+	GetMultiTenantConsumer() interface{}
 }
 
 // Options configures the transaction service initialization behavior.

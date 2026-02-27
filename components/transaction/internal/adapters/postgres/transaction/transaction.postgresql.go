@@ -19,11 +19,13 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v3/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -104,6 +106,19 @@ func NewTransactionPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Tra
 	return c
 }
 
+// getDB resolves the PostgreSQL database connection for the current request.
+// In multi-tenant mode, the middleware injects a tenant-specific dbresolver.DB into context.
+// In single-tenant mode (or when no tenant context exists), falls back to the static connection.
+func (r *TransactionPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
+	// GetModulePostgresForTenant returns only ErrTenantContextRequired
+	// when no tenant DB is in context; safe to fall through to static connection.
+	if db, err := tmcore.GetModulePostgresForTenant(ctx, "transaction"); err == nil {
+		return db, nil
+	}
+
+	return r.connection.GetDB()
+}
+
 // Create a new Transaction entity into Postgresql and returns it.
 func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transaction *Transaction) (*Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -111,7 +126,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	ctx, span := tracer.Start(ctx, "postgres.create_transaction")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -189,7 +204,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	ctx, span := tracer.Start(ctx, "postgres.find_all_transactions")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -325,7 +340,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 	ctx, span := tracer.Start(ctx, "postgres.list_transactions_by_ids")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -428,7 +443,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -518,7 +533,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -606,7 +621,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -693,7 +708,7 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 	ctx, span := tracer.Start(ctx, "postgres.delete_transaction")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -744,7 +759,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_with_operations")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -891,7 +906,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	ctx, span := tracer.Start(ctx, "postgres.find_or_list_all_with_operations")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 

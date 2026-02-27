@@ -237,6 +237,7 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 			name: "enabled_no_url_set_returns_error",
 			envVars: map[string]string{
 				"MULTI_TENANT_ENABLED": "true",
+				"PLUGIN_AUTH_ENABLED":  "true",
 				// TENANT_MANAGER_URL intentionally not set
 			},
 			wantErr:         true,
@@ -247,6 +248,7 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 			name: "enabled_url_explicit_empty_returns_error",
 			envVars: map[string]string{
 				"MULTI_TENANT_ENABLED": "true",
+				"PLUGIN_AUTH_ENABLED":  "true",
 				"TENANT_MANAGER_URL":   "",
 			},
 			wantErr:         true,
@@ -257,6 +259,7 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 			name: "enabled_url_whitespace_only_returns_error",
 			envVars: map[string]string{
 				"MULTI_TENANT_ENABLED": "true",
+				"PLUGIN_AUTH_ENABLED":  "true",
 				"TENANT_MANAGER_URL":   "   ",
 			},
 			wantErr:         true,

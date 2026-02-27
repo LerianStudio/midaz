@@ -17,9 +17,9 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-const applicationName = "plugin-crm"
+const ApplicationName = "plugin-crm"
 
-func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, hh *HolderHandler, ah *AliasHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -34,20 +34,26 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	f.Use(cors.New())
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
 
+	// Tenant middleware: registered only when multi-tenant mode is enabled.
+	// When tenantMw is nil (single-tenant mode), this block is skipped entirely.
+	if tenantMw != nil {
+		f.Use(tenantMw)
+	}
+
 	// Holders
-	f.Post("/v1/holders", auth.Authorize(applicationName, "holders", "post"), http.WithBody(new(mmodel.CreateHolderInput), hh.CreateHolder))
-	f.Get("/v1/holders/:id", auth.Authorize(applicationName, "holders", "get"), http.ParseUUIDPathParameters("holder"), hh.GetHolderByID)
-	f.Patch("/v1/holders/:id", auth.Authorize(applicationName, "holders", "patch"), http.ParseUUIDPathParameters("holder"), http.WithBody(new(mmodel.UpdateHolderInput), hh.UpdateHolder))
-	f.Delete("/v1/holders/:id", auth.Authorize(applicationName, "holders", "delete"), http.ParseUUIDPathParameters("holder"), hh.DeleteHolderByID)
-	f.Get("/v1/holders", auth.Authorize(applicationName, "holders", "get"), hh.GetAllHolders)
+	f.Post("/v1/holders", auth.Authorize(ApplicationName, "holders", "post"), http.WithBody(new(mmodel.CreateHolderInput), hh.CreateHolder))
+	f.Get("/v1/holders/:id", auth.Authorize(ApplicationName, "holders", "get"), http.ParseUUIDPathParameters("holder"), hh.GetHolderByID)
+	f.Patch("/v1/holders/:id", auth.Authorize(ApplicationName, "holders", "patch"), http.ParseUUIDPathParameters("holder"), http.WithBody(new(mmodel.UpdateHolderInput), hh.UpdateHolder))
+	f.Delete("/v1/holders/:id", auth.Authorize(ApplicationName, "holders", "delete"), http.ParseUUIDPathParameters("holder"), hh.DeleteHolderByID)
+	f.Get("/v1/holders", auth.Authorize(ApplicationName, "holders", "get"), hh.GetAllHolders)
 
 	// Aliases
-	f.Get("/v1/aliases", auth.Authorize(applicationName, "aliases", "get"), ah.GetAllAliases)
-	f.Post("/v1/holders/:holder_id/aliases", auth.Authorize(applicationName, "aliases", "post"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.CreateAliasInput), ah.CreateAlias))
-	f.Get("/v1/holders/:holder_id/aliases/:id", auth.Authorize(applicationName, "aliases", "get"), http.ParseUUIDPathParameters("aliases"), ah.GetAliasByID)
-	f.Patch("/v1/holders/:holder_id/aliases/:id", auth.Authorize(applicationName, "aliases", "patch"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateAliasInput), ah.UpdateAlias))
-	f.Delete("/v1/holders/:holder_id/aliases/:id", auth.Authorize(applicationName, "aliases", "delete"), http.ParseUUIDPathParameters("aliases"), ah.DeleteAliasByID)
-	f.Delete("/v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id", auth.Authorize(applicationName, "aliases", "delete"), http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)
+	f.Get("/v1/aliases", auth.Authorize(ApplicationName, "aliases", "get"), ah.GetAllAliases)
+	f.Post("/v1/holders/:holder_id/aliases", auth.Authorize(ApplicationName, "aliases", "post"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.CreateAliasInput), ah.CreateAlias))
+	f.Get("/v1/holders/:holder_id/aliases/:id", auth.Authorize(ApplicationName, "aliases", "get"), http.ParseUUIDPathParameters("aliases"), ah.GetAliasByID)
+	f.Patch("/v1/holders/:holder_id/aliases/:id", auth.Authorize(ApplicationName, "aliases", "patch"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateAliasInput), ah.UpdateAlias))
+	f.Delete("/v1/holders/:holder_id/aliases/:id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("aliases"), ah.DeleteAliasByID)
+	f.Delete("/v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)
 
 	// Health
 	f.Get("/health", libHTTP.Ping)

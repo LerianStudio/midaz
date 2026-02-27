@@ -13,19 +13,11 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
@@ -222,39 +214,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
 
-	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
-	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
-	dbUser := envFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
-	dbPassword := envFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
-	dbName := envFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
-	dbPort := envFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
-	dbSSLMode := envFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
-
-	dbReplicaHost := envFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
-	dbReplicaUser := envFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
-	dbReplicaPassword := envFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
-	dbReplicaName := envFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
-	dbReplicaPort := envFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
-	dbReplicaSSLMode := envFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
-
-	maxOpenConns := envFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
-	maxIdleConns := envFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
-
-	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
-
-	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbReplicaHost, dbReplicaUser, dbReplicaPassword, dbReplicaName, dbReplicaPort, dbReplicaSSLMode)
-
-	postgresConnection := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: postgreSourcePrimary,
-		ConnectionStringReplica: postgreSourceReplica,
-		PrimaryDBName:           dbName,
-		ReplicaDBName:           dbReplicaName,
-		Component:               ApplicationName,
-		Logger:                  logger,
-		MaxOpenConnections:      maxOpenConns,
-		MaxIdleConnections:      maxIdleConns,
+	// PostgreSQL: single-tenant or multi-tenant (decided internally)
+	pg, err := initPostgres(opts, cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize PostgreSQL: %w", err)
 	}
 
 	// MongoDB: single-tenant or multi-tenant (decided internally)
@@ -293,13 +256,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize redis: %w", err)
 	}
 
-	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
-	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(postgresConnection)
-	segmentPostgreSQLRepository := segment.NewSegmentPostgreSQLRepository(postgresConnection)
-	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(postgresConnection)
-	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
-	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)
-	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(postgresConnection)
+	organizationPostgreSQLRepository := pg.organizationRepo
+	ledgerPostgreSQLRepository := pg.ledgerRepo
+	segmentPostgreSQLRepository := pg.segmentRepo
+	portfolioPostgreSQLRepository := pg.portfolioRepo
+	accountPostgreSQLRepository := pg.accountRepo
+	assetPostgreSQLRepository := pg.assetRepo
+	accountTypePostgreSQLRepository := pg.accountTypeRepo
 
 	// Choose balance port based on UnifiedMode:
 	// - If UnifiedMode is true, validate and use provided ports for in-process calls

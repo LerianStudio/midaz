@@ -33,6 +33,16 @@ type OnboardingService interface {
 	// GetSettingsPort returns the settings port for use by the transaction module.
 	// This allows direct in-process calls to query ledger settings when running in unified mode.
 	GetSettingsPort() mbootstrap.SettingsPort
+
+	// GetPGManager returns the multi-tenant PostgreSQL manager as an opaque handle.
+	// Returns nil in single-tenant mode. The caller (ledger bootstrap) performs
+	// type assertion to *tmpostgres.Manager internally.
+	GetPGManager() interface{}
+
+	// GetMongoManager returns the multi-tenant MongoDB manager as an opaque handle.
+	// Returns nil in single-tenant mode. The caller (ledger bootstrap) performs
+	// type assertion to *tmmongo.Manager internally.
+	GetMongoManager() interface{}
 }
 
 // Options configures the onboarding service initialization behavior.

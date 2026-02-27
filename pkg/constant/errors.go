@@ -157,8 +157,9 @@ var (
 	ErrPayloadTooLarge                          = errors.New("0143")
 	ErrJSONNestingDepthExceeded                 = errors.New("0144")
 	ErrJSONKeyCountExceeded                     = errors.New("0145")
-	ErrUnknownSettingsField                     = errors.New("0146")
-	ErrInvalidSettingsFieldType                 = errors.New("0147")
+	ErrTenantNotProvisioned                     = errors.New("0146")
+	ErrUnknownSettingsField                     = errors.New("0147")
+	ErrInvalidSettingsFieldType                 = errors.New("0148")
 )
 
 // List of CRM errors.

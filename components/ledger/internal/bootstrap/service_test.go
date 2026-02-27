@@ -5,10 +5,15 @@
 package bootstrap
 
 import (
+	"errors"
+	"io"
+	"net/http"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/middleware"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
@@ -34,6 +39,8 @@ type StubService struct {
 	runnables         []mbootstrap.RunnableConfig
 	metadataIndexRepo mbootstrap.MetadataIndexRepository
 	settingsPort      mbootstrap.SettingsPort
+	pgManager         interface{}
+	mongoManager      interface{}
 }
 
 func (s *StubService) GetRunnables() []mbootstrap.RunnableConfig {
@@ -52,6 +59,14 @@ func (s *StubService) GetSettingsPort() mbootstrap.SettingsPort {
 	return s.settingsPort
 }
 
+func (s *StubService) GetPGManager() interface{} {
+	return s.pgManager
+}
+
+func (s *StubService) GetMongoManager() interface{} {
+	return s.mongoManager
+}
+
 // Ensure StubService implements onboarding.OnboardingService
 var _ onboarding.OnboardingService = (*StubService)(nil)
 
@@ -63,6 +78,9 @@ type StubTransactionService struct {
 	balancePort       mbootstrap.BalancePort
 	metadataIndexRepo mbootstrap.MetadataIndexRepository
 	settingsPort      mbootstrap.SettingsPort
+	pgManager         interface{}
+	mongoManager      interface{}
+	consumer          interface{}
 }
 
 func (s *StubTransactionService) GetRunnables() []mbootstrap.RunnableConfig {
@@ -83,6 +101,18 @@ func (s *StubTransactionService) GetRouteRegistrar() func(*fiber.App) {
 
 func (s *StubTransactionService) SetSettingsPort(port mbootstrap.SettingsPort) {
 	s.settingsPort = port
+}
+
+func (s *StubTransactionService) GetPGManager() interface{} {
+	return s.pgManager
+}
+
+func (s *StubTransactionService) GetMongoManager() interface{} {
+	return s.mongoManager
+}
+
+func (s *StubTransactionService) GetMultiTenantConsumer() interface{} {
+	return s.consumer
 }
 
 // Ensure StubTransactionService implements transaction.TransactionService
@@ -276,4 +306,172 @@ func TestService_CompositionContract(t *testing.T) {
 		// This is a compile-time check enforced by the interface
 		var _ transaction.TransactionService = (*StubTransactionService)(nil)
 	})
+}
+
+// TestMidazErrorMapper verifies that midazErrorMapper correctly maps tenant-manager
+// errors to Midaz-specific HTTP responses.
+func TestMidazErrorMapper(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		err            error
+		tenantID       string
+		wantStatusCode int
+		wantNil        bool
+		wantCode       string
+		wantTitle      string
+	}{
+		{
+			name:           "tenant_not_provisioned_returns_422",
+			err:            tmcore.ErrTenantNotProvisioned,
+			tenantID:       "tenant-abc",
+			wantStatusCode: http.StatusUnprocessableEntity,
+			wantNil:        false,
+			wantCode:       "0146",
+			wantTitle:      "Tenant Not Provisioned",
+		},
+		{
+			name:           "42P01_postgres_error_returns_422",
+			err:            errors.New("ERROR: relation \"organization\" does not exist (SQLSTATE 42P01)"),
+			tenantID:       "tenant-xyz",
+			wantStatusCode: http.StatusUnprocessableEntity,
+			wantNil:        false,
+			wantCode:       "0146",
+			wantTitle:      "Tenant Not Provisioned",
+		},
+		{
+			name:           "relation_does_not_exist_without_sqlstate_returns_422",
+			err:            errors.New("pq: relation \"account\" does not exist"),
+			tenantID:       "tenant-abc",
+			wantStatusCode: http.StatusUnprocessableEntity,
+			wantNil:        false,
+			wantCode:       "0146",
+			wantTitle:      "Tenant Not Provisioned",
+		},
+		{
+			name:           "non_provisioning_error_returns_err",
+			err:            errors.New("some other error"),
+			tenantID:       "tenant-abc",
+			wantStatusCode: http.StatusInternalServerError,
+			wantNil:        false,
+		},
+		{
+			name:     "nil_error_returns_nil",
+			err:      nil,
+			tenantID: "tenant-abc",
+			wantNil:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create a Fiber app and test context.
+			// midazErrorMapper writes the response directly via c.Status().JSON() and returns nil
+			// when it handles the error, or returns nil without writing when it does not handle it.
+			// We use a sentinel header to distinguish "mapper handled it" from "mapper passed through".
+			app := fiber.New()
+			app.Post("/test", func(c *fiber.Ctx) error {
+				result := midazErrorMapper(c, tt.err, tt.tenantID)
+				if result != nil {
+					return result
+				}
+
+				// If the mapper already wrote a response (status != 200), do not overwrite
+				if c.Response().StatusCode() != fiber.StatusOK {
+					return nil
+				}
+
+				return c.SendStatus(http.StatusOK)
+			})
+
+			req, err := http.NewRequest(http.MethodPost, "/test", nil)
+			require.NoError(t, err)
+
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+
+			defer func() {
+				_ = resp.Body.Close()
+			}()
+
+			if tt.wantNil {
+				// When the mapper returns nil, the handler sends 200 OK
+				assert.Equal(t, http.StatusOK, resp.StatusCode,
+					"nil return should result in 200 (pass-through)")
+			} else {
+				assert.Equal(t, tt.wantStatusCode, resp.StatusCode,
+					"expected status %d", tt.wantStatusCode)
+
+				if tt.wantCode != "" || tt.wantTitle != "" {
+					body, readErr := io.ReadAll(resp.Body)
+					require.NoError(t, readErr)
+					bodyStr := string(body)
+
+					if tt.wantCode != "" {
+						assert.Contains(t, bodyStr, tt.wantCode,
+							"response body should contain error code %q", tt.wantCode)
+					}
+
+					if tt.wantTitle != "" {
+						assert.Contains(t, bodyStr, tt.wantTitle,
+							"response body should contain title %q", tt.wantTitle)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestNewUnifiedServer_AcceptsMultiPoolMiddleware verifies that NewUnifiedServer
+// accepts a *tmmiddleware.MultiPoolMiddleware parameter and creates a valid server.
+func TestNewUnifiedServer_AcceptsMultiPoolMiddleware(t *testing.T) {
+	t.Parallel()
+
+	logger := libZap.InitializeLogger()
+	telemetry := &libOpentelemetry.Telemetry{}
+
+	t.Run("nil_middleware_creates_server_without_tenant_db", func(t *testing.T) {
+		t.Parallel()
+
+		server := NewUnifiedServer(
+			":0",
+			logger,
+			telemetry,
+			nil, // multiPoolMiddleware is nil
+		)
+
+		require.NotNil(t, server, "NewUnifiedServer should return non-nil server when middleware is nil")
+		assert.Equal(t, ":0", server.ServerAddress())
+	})
+
+	t.Run("non_nil_middleware_accepted_by_server", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a middleware with no routes (enabled=false) to avoid needing real managers
+		middleware := tmmiddleware.NewMultiPoolMiddleware()
+
+		server := NewUnifiedServer(
+			":0",
+			logger,
+			telemetry,
+			middleware,
+		)
+
+		require.NotNil(t, server, "NewUnifiedServer should return non-nil server when middleware is provided")
+		assert.Equal(t, ":0", server.ServerAddress())
+	})
+}
+
+// TestMultiPoolMiddleware_NilWhenDisabled verifies that middleware constructed
+// with no pools is effectively a no-op but still a valid non-nil instance.
+func TestMultiPoolMiddleware_NilWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	// Test that middleware constructed with no pools is effectively disabled
+	middleware := tmmiddleware.NewMultiPoolMiddleware()
+	assert.NotNil(t, middleware, "NewMultiPoolMiddleware always returns non-nil")
+	// The middleware exists but has no pools configured
 }

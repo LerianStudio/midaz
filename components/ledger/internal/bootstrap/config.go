@@ -15,10 +15,16 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/middleware"
+	tmmongo "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/mongo"
+	tmpostgres "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
@@ -83,6 +89,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
+	}
+
+	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
+		return nil, fmt.Errorf(
+			"MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
+				"running multi-tenant mode without authentication allows cross-tenant data access",
+		)
 	}
 
 	var baseLogger libLog.Logger
@@ -238,6 +251,72 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	ledgerLogger.Info("Both metadata index repositories available for settings routes")
 
+	// Build MultiPoolMiddleware for per-tenant database routing
+	var multiPoolMiddleware *tmmiddleware.MultiPoolMiddleware
+
+	if cfg.MultiTenantEnabled {
+		var multiPoolOpts []tmmiddleware.MultiPoolOption
+
+		// Transaction module route: safe two-return type assertions with typed nil checks
+		rawTxnPG := transactionService.GetPGManager()
+		rawTxnMgo := transactionService.GetMongoManager()
+
+		txnPGMgr, pgOk := rawTxnPG.(*tmpostgres.Manager)
+		txnMgoMgr, mgoOk := rawTxnMgo.(*tmmongo.Manager)
+
+		if pgOk && mgoOk && txnPGMgr != nil && txnMgoMgr != nil {
+			multiPoolOpts = append(multiPoolOpts,
+				tmmiddleware.WithRoute(
+					[]string{"/v1/organizations"},
+					"transaction",
+					txnPGMgr,
+					txnMgoMgr,
+				),
+			)
+		} else {
+			ledgerLogger.Warn("Transaction module managers not available for multi-tenant routing")
+		}
+
+		// Onboarding module (default route): safe two-return type assertions with typed nil checks
+		rawOnbPG := onboardingService.GetPGManager()
+		rawOnbMgo := onboardingService.GetMongoManager()
+
+		onbPGMgr, pgOk := rawOnbPG.(*tmpostgres.Manager)
+		onbMgoMgr, mgoOk := rawOnbMgo.(*tmmongo.Manager)
+
+		if pgOk && mgoOk && onbPGMgr != nil && onbMgoMgr != nil {
+			multiPoolOpts = append(multiPoolOpts,
+				tmmiddleware.WithDefaultRoute(
+					"onboarding",
+					onbPGMgr,
+					onbMgoMgr,
+				),
+			)
+		} else {
+			ledgerLogger.Warn("Onboarding module managers not available for multi-tenant default route")
+		}
+
+		multiPoolOpts = append(multiPoolOpts,
+			tmmiddleware.WithCrossModuleInjection(),
+			tmmiddleware.WithPublicPaths("/health", "/version", "/swagger"),
+			tmmiddleware.WithMultiPoolLogger(ledgerLogger),
+			tmmiddleware.WithErrorMapper(midazErrorMapper),
+		)
+
+		// Consumer trigger
+		if mtConsumer := transactionService.GetMultiTenantConsumer(); mtConsumer != nil {
+			if consumer, ok := mtConsumer.(tmmiddleware.ConsumerTrigger); ok {
+				multiPoolOpts = append(multiPoolOpts,
+					tmmiddleware.WithConsumerTrigger(consumer),
+				)
+			}
+		}
+
+		multiPoolMiddleware = tmmiddleware.NewMultiPoolMiddleware(multiPoolOpts...)
+
+		ledgerLogger.Info("MultiPoolMiddleware configured for per-tenant database routing")
+	}
+
 	// Create auth client for metadata index routes
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &ledgerLogger)
 
@@ -257,6 +336,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		cfg.ServerAddress,
 		ledgerLogger,
 		telemetry,
+		multiPoolMiddleware,
 		onboardingService.GetRouteRegistrar(),
 		transactionService.GetRouteRegistrar(),
 		ledgerRouteRegistrar,
@@ -275,4 +355,23 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger:             ledgerLogger,
 		Telemetry:          telemetry,
 	}, nil
+}
+
+// midazErrorMapper converts tenant-manager errors into Midaz-specific HTTP responses.
+// It handles the TenantNotProvisionedError case with a 422 status code.
+// For all other errors, it returns the error to let the default error handler process it.
+func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
+	if err == nil {
+		return nil
+	}
+
+	if tmcore.IsTenantNotProvisionedError(err) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"code":    constant.ErrTenantNotProvisioned.Error(),
+			"title":   "Tenant Not Provisioned",
+			"message": "Database schema not initialized for this tenant. Contact your administrator.",
+		})
+	}
+
+	return err
 }
