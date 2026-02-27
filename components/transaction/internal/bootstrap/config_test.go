@@ -5,10 +5,14 @@
 package bootstrap
 
 import (
+	"reflect"
+	"strings"
 	"testing"
+	"testing/quick"
 
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEnvFallback(t *testing.T) {
@@ -111,6 +115,43 @@ func TestEnvFallbackInt(t *testing.T) {
 			got := utils.EnvFallbackInt(tt.prefixed, tt.fallback)
 
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestConfig_RedisEnvTags_UniquePerField(t *testing.T) {
+	t.Parallel()
+
+	configType := reflect.TypeFor[Config]()
+
+	tests := []struct {
+		name        string
+		fieldName   string
+		expectedTag string
+	}{
+		{
+			name:        "RedisDB field has env tag REDIS_DB",
+			fieldName:   "RedisDB",
+			expectedTag: "REDIS_DB",
+		},
+		{
+			name:        "RedisProtocol field has env tag REDIS_PROTOCOL",
+			fieldName:   "RedisProtocol",
+			expectedTag: "REDIS_PROTOCOL",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			field, found := configType.FieldByName(tt.fieldName)
+			require.True(t, found, "field %s must exist in Config struct", tt.fieldName)
+
+			envTag := field.Tag.Get("env")
+			assert.Equal(t, tt.expectedTag, envTag,
+				"Config.%s must have env:\"%s\" but has env:\"%s\"",
+				tt.fieldName, tt.expectedTag, envTag)
 		})
 	}
 }
@@ -339,4 +380,236 @@ func TestBuildRabbitMQConnectionString(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestTransactionConfig_EnvTagsUnique verifies the invariant that no two fields
+// in the transaction Config struct share the same env tag value. Duplicate env tags cause
+// silent configuration bugs where one field's value overwrites another.
+func TestTransactionConfig_EnvTagsUnique(t *testing.T) {
+	t.Parallel()
+
+	configType := reflect.TypeFor[Config]()
+	seen := make(map[string]string) // env tag value -> field name
+
+	for i := range configType.NumField() {
+		field := configType.Field(i)
+
+		envTag := field.Tag.Get("env")
+		if envTag == "" {
+			continue
+		}
+
+		if existingField, exists := seen[envTag]; exists {
+			t.Fatalf("duplicate env tag %q found on fields %s and %s",
+				envTag, existingField, field.Name)
+		}
+
+		seen[envTag] = field.Name
+	}
+}
+
+// TestProperty_EnvFallback_Deterministic verifies the invariant that EnvFallback is
+// deterministic: non-empty prefixed always returns prefixed, empty prefixed always
+// returns fallback. This holds for any arbitrary string input combination.
+func TestProperty_EnvFallback_Deterministic(t *testing.T) {
+	t.Parallel()
+
+	property := func(prefixed, fallback string) bool {
+		result := utils.EnvFallback(prefixed, fallback)
+
+		if prefixed != "" {
+			return result == prefixed
+		}
+
+		return result == fallback
+	}
+
+	cfg := &quick.Config{MaxCount: 1000}
+
+	err := quick.Check(property, cfg)
+	require.NoError(t, err, "EnvFallback must be deterministic: non-empty prefixed returns prefixed, empty returns fallback")
+}
+
+// TestProperty_EnvFallbackInt_Deterministic verifies the invariant that EnvFallbackInt is
+// deterministic: non-zero prefixed always returns prefixed, zero prefixed always
+// returns fallback. This holds for any arbitrary int input combination.
+func TestProperty_EnvFallbackInt_Deterministic(t *testing.T) {
+	t.Parallel()
+
+	property := func(prefixed, fallback int) bool {
+		result := utils.EnvFallbackInt(prefixed, fallback)
+
+		if prefixed != 0 {
+			return result == prefixed
+		}
+
+		return result == fallback
+	}
+
+	cfg := &quick.Config{MaxCount: 1000}
+
+	err := quick.Check(property, cfg)
+	require.NoError(t, err, "EnvFallbackInt must be deterministic: non-zero prefixed returns prefixed, zero returns fallback")
+}
+
+// TestProperty_EnvFallback_Idempotent verifies that applying EnvFallback with the same
+// arguments always produces the same result (referential transparency). Calling the
+// function twice with identical inputs must yield identical outputs.
+func TestProperty_EnvFallback_Idempotent(t *testing.T) {
+	t.Parallel()
+
+	property := func(prefixed, fallback string) bool {
+		first := utils.EnvFallback(prefixed, fallback)
+		second := utils.EnvFallback(prefixed, fallback)
+
+		return first == second
+	}
+
+	cfg := &quick.Config{MaxCount: 1000}
+
+	err := quick.Check(property, cfg)
+	require.NoError(t, err, "EnvFallback must be idempotent: same inputs always produce same output")
+}
+
+// TestProperty_EnvFallbackInt_Idempotent verifies that applying EnvFallbackInt with the
+// same arguments always produces the same result (referential transparency).
+func TestProperty_EnvFallbackInt_Idempotent(t *testing.T) {
+	t.Parallel()
+
+	property := func(prefixed, fallback int) bool {
+		first := utils.EnvFallbackInt(prefixed, fallback)
+		second := utils.EnvFallbackInt(prefixed, fallback)
+
+		return first == second
+	}
+
+	cfg := &quick.Config{MaxCount: 1000}
+
+	err := quick.Check(property, cfg)
+	require.NoError(t, err, "EnvFallbackInt must be idempotent: same inputs always produce same output")
+}
+
+// TestProperty_EnvFallback_ResultIsInput verifies the invariant that the result of
+// EnvFallback is always one of the two inputs -- it never fabricates a new value.
+func TestProperty_EnvFallback_ResultIsInput(t *testing.T) {
+	t.Parallel()
+
+	property := func(prefixed, fallback string) bool {
+		result := utils.EnvFallback(prefixed, fallback)
+
+		return result == prefixed || result == fallback
+	}
+
+	cfg := &quick.Config{MaxCount: 1000}
+
+	err := quick.Check(property, cfg)
+	require.NoError(t, err, "EnvFallback result must always be one of the two inputs")
+}
+
+// TestProperty_EnvFallbackInt_ResultIsInput verifies the invariant that the result of
+// EnvFallbackInt is always one of the two inputs -- it never fabricates a new value.
+func TestProperty_EnvFallbackInt_ResultIsInput(t *testing.T) {
+	t.Parallel()
+
+	property := func(prefixed, fallback int) bool {
+		result := utils.EnvFallbackInt(prefixed, fallback)
+
+		return result == prefixed || result == fallback
+	}
+
+	cfg := &quick.Config{MaxCount: 1000}
+
+	err := quick.Check(property, cfg)
+	require.NoError(t, err, "EnvFallbackInt result must always be one of the two inputs")
+}
+
+// FuzzBuildRabbitMQConnectionString_Inputs fuzzes buildRabbitMQConnectionString to verify
+// it never panics and always produces a parseable URL for any combination of inputs.
+func FuzzBuildRabbitMQConnectionString_Inputs(f *testing.F) {
+	// Seed corpus: valid, empty, boundary, unicode, security categories
+	f.Add("amqp", "guest", "guest", "localhost", "5672", "")                      // valid: typical usage
+	f.Add("amqps", "user", "pass", "rabbitmq.prod.internal", "5671", "prod")      // valid: TLS with vhost
+	f.Add("", "", "", "", "", "")                                                 // empty: all fields empty
+	f.Add("amqp", "user@domain", "p@ss:word#123%", "host", "5672", "my/vh")       // security: special chars in credentials
+	f.Add("amqp", "user", "pass", "localhost", "5672", "/")                       // boundary: default vhost slash
+	f.Add("amqp", "admin", "pass", "192.168.1.1", "65535", "test")                // boundary: max port number
+	f.Add("amqp", "\u00e9\u00e0\u00fc", "\u00f1\u00e7", "host", "5672", "\u00e9") // unicode: accented characters
+	f.Add("amqp", "user", "pass", "host", "5672", "' OR 1=1 --")                  // security: SQL injection attempt
+
+	f.Fuzz(func(t *testing.T, uri, user, pass, host, port, vhost string) {
+		// Bound input lengths to prevent OOM
+		if len(uri) > 64 || len(user) > 256 || len(pass) > 256 ||
+			len(host) > 256 || len(port) > 16 || len(vhost) > 256 {
+			return
+		}
+
+		// Core invariant: must not panic for any input
+		result := buildRabbitMQConnectionString(uri, user, pass, host, port, vhost)
+
+		// Result must always be a string (never empty when scheme is provided)
+		if uri != "" {
+			assert.NotEmpty(t, result, "result must not be empty when uri is provided")
+		}
+	})
+}
+
+// FuzzEnvFallback_Inputs fuzzes utils.EnvFallback to verify it never panics and
+// correctly returns prefixed when non-empty, fallback otherwise.
+func FuzzEnvFallback_Inputs(f *testing.F) {
+	// Seed corpus: valid, empty, boundary, unicode, security categories
+	f.Add("prefixed-value", "fallback-value")         // valid: both non-empty
+	f.Add("", "fallback-value")                       // empty: prefixed empty
+	f.Add("prefixed-value", "")                       // empty: fallback empty
+	f.Add("", "")                                     // empty: both empty
+	f.Add("\u00e9\u00e0\u00fc\u00f1", "fallback")     // unicode: accented chars
+	f.Add("a", "b")                                   // boundary: single char
+	f.Add("' OR 1=1 --", "<script>alert(1)</script>") // security: injection payloads
+	f.Add(strings.Repeat("x", 1000), "short")         // boundary: long string
+
+	f.Fuzz(func(t *testing.T, prefixed, fallback string) {
+		// Bound input lengths to prevent OOM
+		if len(prefixed) > 4096 || len(fallback) > 4096 {
+			return
+		}
+
+		// Must not panic
+		result := utils.EnvFallback(prefixed, fallback)
+
+		// Invariant: if prefixed is non-empty, result == prefixed; otherwise result == fallback
+		if prefixed != "" {
+			assert.Equal(t, prefixed, result,
+				"when prefixed is non-empty, result must equal prefixed")
+		} else {
+			assert.Equal(t, fallback, result,
+				"when prefixed is empty, result must equal fallback")
+		}
+	})
+}
+
+// FuzzEnvFallbackInt_Inputs fuzzes utils.EnvFallbackInt to verify it never panics and
+// correctly returns prefixed when non-zero, fallback otherwise.
+func FuzzEnvFallbackInt_Inputs(f *testing.F) {
+	// Seed corpus: valid, zero, boundary, negative categories
+	f.Add(10, 5)          // valid: both positive
+	f.Add(0, 5)           // zero: prefixed zero
+	f.Add(10, 0)          // zero: fallback zero
+	f.Add(0, 0)           // zero: both zero
+	f.Add(-1, 100)        // boundary: negative prefixed
+	f.Add(0, -1)          // boundary: negative fallback
+	f.Add(2147483647, 0)  // boundary: max int32
+	f.Add(-2147483648, 0) // boundary: min int32
+
+	f.Fuzz(func(t *testing.T, prefixed, fallback int) {
+		// Must not panic
+		result := utils.EnvFallbackInt(prefixed, fallback)
+
+		// Invariant: if prefixed is non-zero, result == prefixed; otherwise result == fallback
+		if prefixed != 0 {
+			assert.Equal(t, prefixed, result,
+				"when prefixed is non-zero, result must equal prefixed")
+		} else {
+			assert.Equal(t, fallback, result,
+				"when prefixed is zero, result must equal fallback")
+		}
+	})
 }

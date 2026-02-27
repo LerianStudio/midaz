@@ -123,7 +123,7 @@ type Config struct {
 	RedisMasterName              string `env:"REDIS_MASTER_NAME" default:""`
 	RedisPassword                string `env:"REDIS_PASSWORD"`
 	RedisDB                      int    `env:"REDIS_DB" default:"0"`
-	RedisProtocol                int    `env:"REDIS_DB" default:"3"`
+	RedisProtocol                int    `env:"REDIS_PROTOCOL" default:"3"`
 	RedisTLS                     bool   `env:"REDIS_TLS" default:"false"`
 	RedisCACert                  string `env:"REDIS_CA_CERT"`
 	RedisUseGCPIAM               bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
