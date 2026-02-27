@@ -980,14 +980,12 @@ func setupTenantContainer(t *testing.T) (*pgtestutil.ContainerResult, dbresolver
 	}
 
 	// Trigger migration by calling GetDB (same as constructor does).
-	_, err := tempConn.GetDB()
+	db, err := tempConn.GetDB()
 	require.NoError(t, err, "failed to initialize tenant container database with migrations")
 
 	// Close the temporary connection pool so it does not leak.
 	t.Cleanup(func() {
-		if db, dbErr := tempConn.GetDB(); dbErr == nil {
-			_ = db.Close()
-		}
+		_ = db.Close()
 	})
 
 	// Wrap the raw *sql.DB in a dbresolver.DB for injection into tenant context.
