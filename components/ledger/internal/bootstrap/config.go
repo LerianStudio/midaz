@@ -272,6 +272,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 					txnMgoMgr,
 				),
 			)
+		} else {
+			ledgerLogger.Warn("Transaction module managers not available for multi-tenant routing")
 		}
 
 		// Onboarding module (default route): safe two-return type assertions with typed nil checks
@@ -289,6 +291,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 					onbMgoMgr,
 				),
 			)
+		} else {
+			ledgerLogger.Warn("Onboarding module managers not available for multi-tenant default route")
 		}
 
 		multiPoolOpts = append(multiPoolOpts,

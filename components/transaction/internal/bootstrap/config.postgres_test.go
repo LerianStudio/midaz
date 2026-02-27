@@ -70,9 +70,8 @@ func withTestConnector(t *testing.T) {
 	})
 }
 
+// Note: t.Parallel() omitted because withTestConnector mutates package-level postgresConnector.
 func TestInitPostgres(t *testing.T) {
-	t.Parallel()
-
 	logger, err := libZap.InitializeLoggerWithError()
 	require.NoError(t, err)
 

@@ -468,10 +468,10 @@ func TestIntegration_Chaos_Organization_NetworkPartition(t *testing.T) {
 	var tenantPartitionErr error
 
 	require.NotPanics(t, func() {
-		partitionCtenantCtx, cancel := context.WithTimeout(tenantCtx, 3*time.Second)
+		partitionTenantCtx, cancel := context.WithTimeout(tenantCtx, 3*time.Second)
 		defer cancel()
 
-		_, tenantPartitionErr = infra.repo.Find(partitionCtenantCtx, parseOrgID(t, staticOrg.ID))
+		_, tenantPartitionErr = infra.repo.Find(partitionTenantCtx, parseOrgID(t, staticOrg.ID))
 	}, "Phase 3: tenant Find must not panic during partition")
 
 	if tenantPartitionErr != nil {
