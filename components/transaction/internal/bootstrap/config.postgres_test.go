@@ -206,7 +206,7 @@ func TestInitSingleTenantPostgres_CreatesComponents(t *testing.T) {
 
 // withFailingConnector temporarily replaces postgresConnector with one that
 // always returns the given error. This exercises the connector-error branches
-// in initMultiTenantPostgres (line 63) and initSingleTenantPostgres (line 82).
+// in initMultiTenantPostgres and initSingleTenantPostgres.
 func withFailingConnector(t *testing.T, connErr error) {
 	t.Helper()
 
