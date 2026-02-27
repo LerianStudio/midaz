@@ -54,6 +54,7 @@ type Repository interface {
 	Count(ctx context.Context, organizationID uuid.UUID) (int64, error)
 	GetSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error)
 	UpdateSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error)
+	ReplaceSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error)
 }
 
 // LedgerPostgreSQLRepository is a Postgresql-specific implementation of the LedgerRepository.
@@ -777,6 +778,86 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 	}
 
 	logger.Infof("Successfully updated settings for ledger %s", ledgerID.String())
+
+	return updatedSettings, nil
+}
+
+// ReplaceSettings completely replaces the settings for a ledger.
+// Unlike UpdateSettings which merges, this method overwrites the entire settings JSONB.
+// Used by the service layer after performing application-level validation and merging.
+func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.replace_ledger_settings")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return nil, err
+	}
+
+	// Normalize nil settings to empty map
+	if settings == nil {
+		settings = map[string]any{}
+	}
+
+	settingsJSON, err := json.Marshal(settings)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to marshal settings", err)
+		logger.Errorf("Failed to marshal settings: %v", err)
+
+		return nil, err
+	}
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.replace_settings.exec")
+
+	// Direct assignment (=) instead of merge (||) - complete replacement
+	query := `
+		UPDATE ledger
+		SET settings = $1::jsonb, updated_at = now()
+		WHERE organization_id = $2 AND id = $3 AND deleted_at IS NULL
+		RETURNING settings
+	`
+
+	var updatedSettingsJSON []byte
+
+	err = db.QueryRowContext(ctx, query, settingsJSON, organizationID, ledgerID).Scan(&updatedSettingsJSON)
+
+	spanExec.End()
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Ledger not found", err)
+
+			return nil, err
+		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to replace settings", err)
+		logger.Errorf("Failed to replace settings: %v", err)
+
+		return nil, err
+	}
+
+	var updatedSettings map[string]any
+
+	if len(updatedSettingsJSON) > 0 {
+		if err := json.Unmarshal(updatedSettingsJSON, &updatedSettings); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal updated settings", err)
+			logger.Errorf("Failed to unmarshal updated settings: %v", err)
+
+			return nil, err
+		}
+	}
+
+	if updatedSettings == nil {
+		updatedSettings = make(map[string]any)
+	}
+
+	logger.Infof("Successfully replaced settings for ledger %s", ledgerID.String())
 
 	return updatedSettings, nil
 }

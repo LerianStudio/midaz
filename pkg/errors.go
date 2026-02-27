@@ -1249,6 +1249,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "JSON Key Count Exceeded",
 			Message:    "The JSON payload exceeds the maximum allowed number of keys (100). Please reduce the number of keys in your payload.",
 		},
+		constant.ErrUnknownSettingsField: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrUnknownSettingsField.Error(),
+			Title:      "Unknown Settings Field",
+			Message:    fmt.Sprintf("The settings contain an unknown field: '%v'. Only known settings fields are allowed.", args...),
+		},
+		constant.ErrInvalidSettingsFieldType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidSettingsFieldType.Error(),
+			Title:      "Invalid Settings Field Type",
+			Message:    fmt.Sprintf("The settings field '%v' has an invalid type. Expected %v.", args...),
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

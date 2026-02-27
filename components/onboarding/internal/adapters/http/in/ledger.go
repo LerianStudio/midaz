@@ -436,10 +436,10 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 	return http.OK(c, settings)
 }
 
-// UpdateLedgerSettings updates the settings for a specific ledger using merge semantics.
+// UpdateLedgerSettings updates the settings for a specific ledger using schema-aware deep merge.
 //
 //	@Summary		Update ledger settings
-//	@Description	Updates the configuration settings for a specific ledger. New settings are merged at TOP LEVEL only (shallow merge) using PostgreSQL JSONB merge semantics (||). Nested objects are REPLACED entirely, not deep-merged. To update a nested key, you must send the complete nested object. Setting a key to null stores a JSON null value; keys are retained, not removed. Key removal requires explicit deletion (e.g., JSONB - 'key') which is not performed by this endpoint.
+//	@Description	Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0146 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0147 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Setting a key to null stores a JSON null value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
@@ -447,9 +447,9 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			id				path		string			true	"Ledger ID in UUID format"
-//	@Param			settings		body		map[string]any	true	"Settings to merge with existing settings"
+//	@Param			settings		body		map[string]any	true	"Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)"
 //	@Success		200				{object}	map[string]any	"Successfully updated ledger settings"
-//	@Failure		400				{object}	mmodel.Error	"Invalid request body"
+//	@Failure		400				{object}	mmodel.Error	"Invalid request body, unknown field (0146), or invalid field type (0147)"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Ledger not found"
@@ -472,6 +472,11 @@ func (handler *LedgerHandler) UpdateLedgerSettings(i any, c *fiber.Ctx) error {
 	if !ok {
 		return http.BadRequest(c, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Ledger{}).Name(), "id"))
 	}
+
+	span.SetAttributes(
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", id.String()),
+	)
 
 	settings, ok := i.(*map[string]any)
 	if !ok {
