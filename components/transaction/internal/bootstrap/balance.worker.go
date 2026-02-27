@@ -151,29 +151,13 @@ func (w *BalanceSyncWorker) runMultiTenant() error {
 			return nil
 		}
 
-		tenants, err := w.tenantClient.GetActiveTenantsByService(ctx, "transaction")
-		if err != nil {
-			w.logger.Errorf("BalanceSyncWorker: failed to get active tenants: %v", err)
-
-			if w.waitForNextOrBackoff(ctx, rds) {
-				w.logger.Info("BalanceSyncWorker: shutting down...")
-
-				return nil
-			}
-
+		tenants, ok := w.discoverActiveTenants(ctx, rds)
+		if !ok {
 			continue
 		}
 
-		if len(tenants) == 0 {
-			w.logger.Info("BalanceSyncWorker: no active tenants found, backing off")
-
-			if w.waitForNextOrBackoff(ctx, rds) {
-				w.logger.Info("BalanceSyncWorker: shutting down...")
-
-				return nil
-			}
-
-			continue
+		if tenants == nil {
+			return nil
 		}
 
 		processed := false
@@ -185,25 +169,7 @@ func (w *BalanceSyncWorker) runMultiTenant() error {
 				return nil
 			}
 
-			tenantCtx := tmcore.ContextWithTenantID(ctx, tenant.ID)
-
-			conn, err := w.pgManager.GetConnection(tenantCtx, tenant.ID)
-			if err != nil {
-				w.logger.Errorf("BalanceSyncWorker: failed to get PG connection for tenant %s: %v", tenant.ID, err)
-
-				continue
-			}
-
-			db, err := conn.GetDB()
-			if err != nil {
-				w.logger.Errorf("BalanceSyncWorker: failed to get DB for tenant %s: %v", tenant.ID, err)
-
-				continue
-			}
-
-			tenantCtx = tmcore.ContextWithModulePGConnection(tenantCtx, "transaction", db)
-
-			if w.processBalancesToExpire(tenantCtx, rds) {
+			if w.processTenantBalances(ctx, tenant, rds) {
 				processed = true
 			}
 		}
@@ -216,6 +182,63 @@ func (w *BalanceSyncWorker) runMultiTenant() error {
 			}
 		}
 	}
+}
+
+// discoverActiveTenants retrieves the list of active tenants for the transaction service.
+// Returns (tenants, true) on success, (nil, false) if an error or empty result requires
+// backing off and retrying, or (nil, true) if shutdown was requested during backoff.
+func (w *BalanceSyncWorker) discoverActiveTenants(ctx context.Context, rds redis.UniversalClient) ([]*tmclient.TenantSummary, bool) {
+	tenants, err := w.tenantClient.GetActiveTenantsByService(ctx, "transaction")
+	if err != nil {
+		w.logger.Errorf("BalanceSyncWorker: failed to get active tenants: %v", err)
+
+		if w.waitForNextOrBackoff(ctx, rds) {
+			w.logger.Info("BalanceSyncWorker: shutting down...")
+
+			return nil, true
+		}
+
+		return nil, false
+	}
+
+	if len(tenants) == 0 {
+		w.logger.Info("BalanceSyncWorker: no active tenants found, backing off")
+
+		if w.waitForNextOrBackoff(ctx, rds) {
+			w.logger.Info("BalanceSyncWorker: shutting down...")
+
+			return nil, true
+		}
+
+		return nil, false
+	}
+
+	return tenants, true
+}
+
+// processTenantBalances resolves the per-tenant PostgreSQL connection, augments the context
+// with the tenant ID and module connection, then processes expired balances for that tenant.
+// Returns true if any balances were processed.
+func (w *BalanceSyncWorker) processTenantBalances(ctx context.Context, tenant *tmclient.TenantSummary, rds redis.UniversalClient) bool {
+	tenantCtx := tmcore.ContextWithTenantID(ctx, tenant.ID)
+
+	conn, err := w.pgManager.GetConnection(tenantCtx, tenant.ID)
+	if err != nil {
+		w.logger.Errorf("BalanceSyncWorker: failed to get PG connection for tenant %s: %v", tenant.ID, err)
+
+		return false
+	}
+
+	db, err := conn.GetDB()
+	if err != nil {
+		w.logger.Errorf("BalanceSyncWorker: failed to get DB for tenant %s: %v", tenant.ID, err)
+
+		return false
+	}
+
+	tenantCtx = tmcore.ContextWithModulePGConnection(tenantCtx, "transaction", db)
+
+	return w.processBalancesToExpire(tenantCtx, rds)
 }
 
 func (w *BalanceSyncWorker) shouldShutdown(ctx context.Context) bool {

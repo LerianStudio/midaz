@@ -418,6 +418,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// BalanceSyncWorker: multi-tenant or single-tenant
 	var balanceSyncWorker *BalanceSyncWorker
+
 	if balanceSyncWorkerEnabled {
 		if opts != nil && opts.MultiTenantEnabled {
 			balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConnection, logger, commandUseCase, balanceSyncMaxWorkers, true, opts.TenantClient, pg.pgManager)
