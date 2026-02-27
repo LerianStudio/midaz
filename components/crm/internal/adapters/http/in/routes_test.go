@@ -99,9 +99,15 @@ func TestNewRouter_TenantMiddlewareRegistration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			app := fiber.New()
 
-			// Mirror the conditional registration pattern from NewRouter
+			var mwCalled bool
+
+			// Wrap the test middleware to track invocation
 			if tt.tenantMw != nil {
-				app.Use(tt.tenantMw)
+				original := tt.tenantMw
+				app.Use(func(c *fiber.Ctx) error {
+					mwCalled = true
+					return original(c)
+				})
 			}
 
 			app.Get("/health", func(c *fiber.Ctx) error {
@@ -120,6 +126,8 @@ func TestNewRouter_TenantMiddlewareRegistration(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, resp.StatusCode,
 				"health endpoint must return 200 OK regardless of middleware presence")
+			assert.Equal(t, tt.expectMwCalled, mwCalled,
+				"middleware invocation must match expectation")
 		})
 	}
 }
