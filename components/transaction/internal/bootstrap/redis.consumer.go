@@ -17,6 +17,9 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v3/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	tmpostgres "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
@@ -36,6 +39,9 @@ const (
 type RedisQueueConsumer struct {
 	Logger             libLog.Logger
 	TransactionHandler in.TransactionHandler
+	multiTenantEnabled bool
+	tenantClient       *tmclient.Client
+	pgManager          *tmpostgres.Manager
 }
 
 func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) *RedisQueueConsumer {
@@ -45,14 +51,50 @@ func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) 
 	}
 }
 
+// NewRedisQueueConsumerMultiTenant creates a RedisQueueConsumer with multi-tenant fields populated.
+// When multiTenantEnabled is true and pgManager is non-nil, the consumer will iterate
+// over active tenants and resolve per-tenant PostgreSQL connections.
+func NewRedisQueueConsumerMultiTenant(
+	logger libLog.Logger,
+	handler in.TransactionHandler,
+	multiTenantEnabled bool,
+	tenantClient *tmclient.Client,
+	pgManager *tmpostgres.Manager,
+) *RedisQueueConsumer {
+	c := NewRedisQueueConsumer(logger, handler)
+	c.multiTenantEnabled = multiTenantEnabled
+	c.tenantClient = tenantClient
+	c.pgManager = pgManager
+
+	return c
+}
+
+// isMultiTenantReady returns true when the consumer is configured for multi-tenant
+// dispatching. Both multiTenantEnabled and pgManager must be set; if pgManager is
+// nil the consumer falls back to single-tenant behavior.
+func (r *RedisQueueConsumer) isMultiTenantReady() bool {
+	return r.multiTenantEnabled && r.pgManager != nil
+}
+
+// Run dispatches to multi-tenant or single-tenant execution based on configuration.
 func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
+	if r.isMultiTenantReady() {
+		return r.runMultiTenant()
+	}
+
+	return r.runSingleTenant()
+}
+
+// runSingleTenant runs the Redis queue consumer using the default (shared) database connection.
+// This is the original Run() behavior preserved for backward compatibility.
+func (r *RedisQueueConsumer) runSingleTenant() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	ticker := time.NewTicker(CronTimeToRun)
 	defer ticker.Stop()
 
-	r.Logger.Info("RedisQueueConsumer started")
+	r.Logger.Info("RedisQueueConsumer started (single-tenant mode)")
 
 	for {
 		select {
@@ -62,6 +104,63 @@ func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
 
 		case <-ticker.C:
 			r.readMessagesAndProcess(ctx)
+		}
+	}
+}
+
+// runMultiTenant runs the Redis queue consumer iterating over all active tenants.
+// On each tick, it discovers active tenants and processes messages for each tenant
+// with an enriched context containing the per-tenant PostgreSQL connection.
+// If a tenant's connection fails, it logs and skips that tenant without affecting others.
+func (r *RedisQueueConsumer) runMultiTenant() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	ticker := time.NewTicker(CronTimeToRun)
+	defer ticker.Stop()
+
+	r.Logger.Info("RedisQueueConsumer started (multi-tenant mode)")
+
+	for {
+		select {
+		case <-ctx.Done():
+			r.Logger.Info("RedisQueueConsumer: shutting down...")
+			return nil
+
+		case <-ticker.C:
+			tenants, err := r.tenantClient.GetActiveTenantsByService(ctx, "transaction")
+			if err != nil {
+				r.Logger.Errorf("RedisQueueConsumer: failed to get active tenants: %v", err)
+
+				continue
+			}
+
+			for _, tenant := range tenants {
+				if ctx.Err() != nil {
+					r.Logger.Info("RedisQueueConsumer: shutting down...")
+					return nil
+				}
+
+				tenantCtx := tmcore.ContextWithTenantID(ctx, tenant.ID)
+
+				conn, err := r.pgManager.GetConnection(tenantCtx, tenant.ID)
+				if err != nil {
+					r.Logger.Errorf("RedisQueueConsumer: failed to get PG connection for tenant %s: %v", tenant.ID, err)
+
+					continue
+				}
+
+				db, err := conn.GetDB()
+				if err != nil {
+					r.Logger.Errorf("RedisQueueConsumer: failed to get DB for tenant %s: %v", tenant.ID, err)
+
+					continue
+				}
+
+				tenantCtx = tmcore.ContextWithModulePGConnection(tenantCtx, "transaction", db)
+
+				r.readMessagesAndProcess(tenantCtx)
+			}
 		}
 	}
 }
