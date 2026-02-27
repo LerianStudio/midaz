@@ -296,6 +296,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
+	// Pass PG and Mongo managers to RabbitMQ components for per-message tenant resolution
+	if rmq != nil {
+		rmq.pgManager = pg.pgManager
+		rmq.mongoManager = mgo.mongoManager
+	}
+
 	// UseCases are created without SettingsPort initially.
 	// The Lazy Initialization pattern is used: SetSettingsPort is called after
 	// both transaction and onboarding modules exist, resolving the circular dependency.
@@ -378,7 +384,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, commandUseCase, queryUseCase)
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
 
-	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
+	// RedisQueueConsumer: multi-tenant or single-tenant
+	var redisConsumer *RedisQueueConsumer
+	if opts != nil && opts.MultiTenantEnabled {
+		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, opts.TenantClient, pg.pgManager)
+	} else {
+		redisConsumer = NewRedisQueueConsumer(logger, *transactionHandler)
+	}
 
 	const defaultBalanceSyncMaxWorkers = 5
 
@@ -389,9 +401,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Infof("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers)
 	}
 
+	// BalanceSyncWorker: multi-tenant or single-tenant
 	var balanceSyncWorker *BalanceSyncWorker
 	if balanceSyncWorkerEnabled {
-		balanceSyncWorker = NewBalanceSyncWorker(redisConnection, logger, commandUseCase, balanceSyncMaxWorkers)
+		if opts != nil && opts.MultiTenantEnabled {
+			balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConnection, logger, commandUseCase, balanceSyncMaxWorkers, true, opts.TenantClient, pg.pgManager)
+		} else {
+			balanceSyncWorker = NewBalanceSyncWorker(redisConnection, logger, commandUseCase, balanceSyncMaxWorkers)
+		}
+
 		logger.Infof("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers)
 	} else {
 		logger.Info("BalanceSyncWorker disabled.")
@@ -413,6 +431,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		},
 		commandUseCase:          commandUseCase,
 		queryUseCase:            queryUseCase,
+		multiTenantConsumerPort: rmq.multiTenantConsumer,
 		auth:                    auth,
 		transactionHandler:      transactionHandler,
 		operationHandler:        operationHandler,
