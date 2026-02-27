@@ -1081,7 +1081,7 @@ func TestHandler_GetLedgerSettings(t *testing.T) {
 			},
 		},
 		{
-			name: "empty settings returns 200 with empty object",
+			name: "empty settings returns 200 with default settings",
 			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
 				ledgerRepo.EXPECT().
 					GetSettings(gomock.Any(), orgID, ledgerID).
@@ -1094,7 +1094,12 @@ func TestHandler_GetLedgerSettings(t *testing.T) {
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
-				assert.Empty(t, result, "response should be empty map")
+				// Should return default settings when none persisted
+				require.Contains(t, result, "accounting", "response should contain accounting defaults")
+				accounting, ok := result["accounting"].(map[string]any)
+				require.True(t, ok, "accounting should be a map")
+				assert.Equal(t, false, accounting["validateAccountType"], "default should be false")
+				assert.Equal(t, false, accounting["validateRoutes"], "default should be false")
 			},
 		},
 		{

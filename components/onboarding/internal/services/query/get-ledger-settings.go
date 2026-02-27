@@ -12,6 +12,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -38,9 +39,10 @@ func BuildLedgerSettingsCacheKey(organizationID, ledgerID uuid.UUID) string {
 	return fmt.Sprintf("%s:%s:%s", LedgerSettingsCacheKeyPrefix, organizationID.String(), ledgerID.String())
 }
 
-// GetLedgerSettings retrieves the settings for a specific ledger.
+// GetLedgerSettings retrieves the settings for a specific ledger merged with default values.
 // Uses cache-aside pattern: checks cache first, falls back to database on miss.
-// Returns an empty map if no settings are defined (not an error).
+// Returns default settings if no settings are persisted, ensuring clients always receive
+// a complete settings object with all expected fields.
 // Returns an error if the ledger does not exist.
 func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -65,13 +67,10 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 			} else {
 				logger.Debugf("Cache hit for ledger settings: %s", ledgerID.String())
 
-				// Ensure we never return nil from cache (defensive check for edge case
-				// where JSON "null" was somehow cached instead of "{}")
-				if settings == nil {
-					settings = make(map[string]any)
-				}
+				// Merge with defaults to ensure complete settings object
+				mergedSettings := mmodel.MergeSettingsWithDefaults(settings)
 
-				return settings, nil
+				return mergedSettings, nil
 			}
 		}
 	}
@@ -86,10 +85,8 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
-	// Ensure we never return nil, always return empty map
-	if settings == nil {
-		settings = make(map[string]any)
-	}
+	// Merge with defaults to ensure complete settings object
+	settings = mmodel.MergeSettingsWithDefaults(settings)
 
 	// Populate cache for future reads
 	if uc.RedisRepo != nil {

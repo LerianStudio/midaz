@@ -4,6 +4,8 @@
 
 package mmodel
 
+import "maps"
+
 // LedgerSettings represents the settings for a ledger.
 // These settings control various behaviors during transaction processing.
 //
@@ -34,15 +36,82 @@ type AccountingValidation struct {
 	ValidateRoutes bool `json:"validateRoutes"`
 }
 
-// DefaultLedgerSettings returns the default ledger settings.
+// defaultAccountingValidation is the canonical source of default validation settings.
+// All validation flags are false by default for backwards compatibility.
+var defaultAccountingValidation = AccountingValidation{
+	ValidateAccountType: false,
+	ValidateRoutes:      false,
+}
+
+// DefaultLedgerSettings returns the default ledger settings as a typed struct.
 // All validation flags are false by default for backwards compatibility.
 func DefaultLedgerSettings() LedgerSettings {
 	return LedgerSettings{
-		Accounting: AccountingValidation{
-			ValidateAccountType: false,
-			ValidateRoutes:      false,
+		Accounting: defaultAccountingValidation,
+	}
+}
+
+// DefaultLedgerSettingsMap returns the default ledger settings as a map[string]any.
+// This is useful for API responses where the typed struct needs to be serialized.
+// Uses the same canonical defaults as DefaultLedgerSettings.
+func DefaultLedgerSettingsMap() map[string]any {
+	return map[string]any{
+		"accounting": map[string]any{
+			"validateAccountType": defaultAccountingValidation.ValidateAccountType,
+			"validateRoutes":      defaultAccountingValidation.ValidateRoutes,
 		},
 	}
+}
+
+// MergeSettingsWithDefaults merges persisted settings with default values.
+// Returns a complete settings map where persisted values override defaults.
+// If settings is nil or empty, returns the full default settings.
+// Performs a one-level nested merge: top-level map keys are merged, and if both
+// the default and persisted values for a key are maps, those maps are also merged
+// (persisted keys override default keys). Deeper nesting is not recursively merged.
+func MergeSettingsWithDefaults(settings map[string]any) map[string]any {
+	defaults := DefaultLedgerSettingsMap()
+
+	if len(settings) == 0 {
+		return defaults
+	}
+
+	// Deep merge: iterate over defaults and overlay persisted values
+	result := make(map[string]any)
+
+	for key, defaultValue := range defaults {
+		persistedValue, exists := settings[key]
+		if !exists {
+			result[key] = defaultValue
+			continue
+		}
+
+		// If both are maps, merge them recursively
+		defaultMap, defaultIsMap := defaultValue.(map[string]any)
+		persistedMap, persistedIsMap := persistedValue.(map[string]any)
+
+		if defaultIsMap && persistedIsMap {
+			merged := make(map[string]any)
+			// Start with defaults
+			maps.Copy(merged, defaultMap)
+			// Overlay persisted values
+			maps.Copy(merged, persistedMap)
+
+			result[key] = merged
+		} else {
+			// Not both maps, persisted value wins
+			result[key] = persistedValue
+		}
+	}
+
+	// Include any extra keys from persisted settings not in defaults
+	for key, value := range settings {
+		if _, exists := result[key]; !exists {
+			result[key] = value
+		}
+	}
+
+	return result
 }
 
 // ParseLedgerSettings extracts and parses ledger settings from a settings map.
