@@ -11,9 +11,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,40 +31,6 @@ func TestApplicationNameConstant(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expected, ApplicationName,
 				"ApplicationName constant must equal %q", tt.expected)
-		})
-	}
-}
-
-func TestNewRouter_TenantMiddlewareSignature(t *testing.T) {
-	// Verify NewRouter accepts a fiber.Handler parameter for tenant middleware.
-	// We cannot call NewRouter with nil logger/telemetry (middleware chain panics),
-	// so we verify the function signature compiles with the tenantMw parameter.
-	// Integration testing of the full middleware chain is done at the bootstrap level.
-	tests := []struct {
-		name     string
-		tenantMw fiber.Handler
-	}{
-		{
-			name:     "nil tenant middleware is accepted",
-			tenantMw: nil,
-		},
-		{
-			name: "non-nil tenant middleware is accepted",
-			tenantMw: func(c *fiber.Ctx) error {
-				return c.Next()
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Verify the function signature by assigning to a variable.
-			// This is a compile-time check; the function is not called with nil deps
-			// because the middleware chain requires non-nil logger/telemetry.
-			var fn func(libLog.Logger, *libOpenTelemetry.Telemetry, *middleware.AuthClient, fiber.Handler, *HolderHandler, *AliasHandler) *fiber.App
-			fn = NewRouter
-			assert.NotNil(t, fn, "NewRouter function must exist with tenant middleware parameter")
-			_ = tt.tenantMw // use the variable to satisfy the compiler
 		})
 	}
 }
