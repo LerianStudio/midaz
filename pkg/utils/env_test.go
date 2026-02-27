@@ -295,10 +295,10 @@ func TestGetUint32FromIntWithDefault(t *testing.T) {
 			expected:     15,
 		},
 		{
-			name:         "returns value when zero",
+			name:         "returns default when zero",
 			value:        0,
 			defaultValue: 10,
-			expected:     0,
+			expected:     10,
 		},
 		{
 			name:         "returns default when negative",
