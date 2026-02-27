@@ -188,16 +188,6 @@ type Config struct {
 	// Multi-tenant consumer configuration
 	RabbitMQMultiTenantSyncInterval     int `env:"RABBITMQ_MULTI_TENANT_SYNC_INTERVAL"`     // Stored in seconds
 	RabbitMQMultiTenantDiscoveryTimeout int `env:"RABBITMQ_MULTI_TENANT_DISCOVERY_TIMEOUT"` // Stored in milliseconds
-
-	// Multi-tenant configuration for standalone deployment.
-	// When running in unified ledger mode, these are ignored (Options fields take precedence).
-	MultiTenantEnabled    bool   `env:"MULTI_TENANT_ENABLED"`
-	MultiTenantURL        string `env:"MULTI_TENANT_URL"`
-	MultiTenantTimeout    int    `env:"MULTI_TENANT_TIMEOUT"`   // seconds
-	MultiTenantCacheTTL   int    `env:"MULTI_TENANT_CACHE_TTL"` // seconds
-	MultiTenantCacheSize  int    `env:"MULTI_TENANT_CACHE_SIZE"`
-	MultiTenantRetryMax   int    `env:"MULTI_TENANT_RETRY_MAX"`
-	MultiTenantRetryDelay int    `env:"MULTI_TENANT_RETRY_DELAY"` // seconds
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -381,12 +371,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	tenantMiddleware, err := initTenantMiddleware(opts, cfg, logger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize tenant middleware: %w", err)
-	}
-
-	app := in.NewRouter(logger, telemetry, auth, tenantMiddleware, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
+	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
