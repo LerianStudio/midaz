@@ -26,7 +26,8 @@ func initTenantMiddleware(cfg *Config, logger libLog.Logger) (fiber.Handler, err
 		return nil, nil
 	}
 
-	if strings.TrimSpace(cfg.MultiTenantURL) == "" {
+	mtURL := strings.TrimSpace(cfg.MultiTenantURL)
+	if mtURL == "" {
 		return nil, fmt.Errorf("MULTI_TENANT_URL must not be blank when MULTI_TENANT_ENABLED=true")
 	}
 
@@ -44,7 +45,7 @@ func initTenantMiddleware(cfg *Config, logger libLog.Logger) (fiber.Handler, err
 				time.Duration(cfg.MultiTenantRetryDelay)*time.Second))
 	}
 
-	tmClient := tmclient.NewClient(cfg.MultiTenantURL, logger, clientOpts...)
+	tmClient := tmclient.NewClient(mtURL, logger, clientOpts...)
 
 	// Build mongo manager options
 	var mongoOpts []tmmongo.Option
@@ -70,7 +71,7 @@ func initTenantMiddleware(cfg *Config, logger libLog.Logger) (fiber.Handler, err
 	)
 
 	logger.Infof("Multi-tenant middleware initialized: url=%s service=%s",
-		cfg.MultiTenantURL, in.ApplicationName)
+		mtURL, in.ApplicationName)
 
 	return tenantMid.WithTenantDB, nil
 }
