@@ -52,7 +52,7 @@ type TransactionService interface {
 	GetMongoManager() interface{}
 
 	// GetMultiTenantConsumer returns the multi-tenant RabbitMQ consumer as an opaque handle.
-	// Returns nil until T-007 wires the consumer. The caller (ledger bootstrap) performs
+	// Returns nil until multi-tenant consumer is wired. The caller (ledger bootstrap) performs
 	// type assertion to the concrete consumer type internally.
 	GetMultiTenantConsumer() interface{}
 }

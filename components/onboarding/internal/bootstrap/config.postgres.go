@@ -22,7 +22,7 @@ import (
 // postgresComponents holds PostgreSQL-related components initialized during bootstrap.
 type postgresComponents struct {
 	connection       *libPostgres.PostgresConnection
-	pgManager        *tmpostgres.Manager // nil in single-tenant mode; reserved for MultiPoolMiddleware wiring (T-005/T-006)
+	pgManager        *tmpostgres.Manager // nil in single-tenant mode; reserved for MultiPoolMiddleware wiring
 	organizationRepo *organization.OrganizationPostgreSQLRepository
 	ledgerRepo       *ledger.LedgerPostgreSQLRepository
 	accountRepo      *account.AccountPostgreSQLRepository

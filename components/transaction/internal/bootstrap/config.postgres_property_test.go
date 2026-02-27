@@ -5,7 +5,7 @@
 package bootstrap
 
 // =============================================================================
-// PROPERTY-BASED TESTS -- Postgres Bootstrap Domain Invariants (T-003)
+// PROPERTY-BASED TESTS -- Postgres Bootstrap Domain Invariants
 //
 // These tests verify that the domain invariants of the PostgreSQL bootstrap
 // functions hold across hundreds of automatically-generated inputs. The

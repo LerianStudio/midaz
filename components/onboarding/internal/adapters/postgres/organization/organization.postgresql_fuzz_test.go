@@ -15,7 +15,7 @@ import (
 )
 
 // =============================================================================
-// FUZZ TESTS -- getDB Context Module Name Resolution (T-001)
+// FUZZ TESTS -- getDB Context Module Name Resolution
 //
 // This fuzz test exercises getDB with arbitrary module names injected into
 // context via tmcore.ContextWithModulePGConnection to verify:

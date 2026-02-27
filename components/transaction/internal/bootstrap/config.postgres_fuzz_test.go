@@ -5,7 +5,7 @@
 package bootstrap
 
 // =============================================================================
-// FUZZ TESTS -- buildPostgresConnection Config Values (T-003)
+// FUZZ TESTS -- buildPostgresConnection Config Values
 //
 // This fuzz test exercises buildPostgresConnection with arbitrary Config field
 // values to verify:

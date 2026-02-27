@@ -5,7 +5,7 @@
 package bootstrap
 
 // =============================================================================
-// PROPERTY-BASED TESTS -- Service getter domain invariants (T-005)
+// PROPERTY-BASED TESTS -- Service getter domain invariants
 //
 // These tests verify that the domain invariants of the three opaque-handle
 // getters on Service hold across hundreds of automatically-generated inputs.

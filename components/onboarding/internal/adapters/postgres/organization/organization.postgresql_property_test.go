@@ -5,7 +5,7 @@
 package organization
 
 // =============================================================================
-// PROPERTY-BASED TESTS — getDB Domain Invariants (T-001)
+// PROPERTY-BASED TESTS — getDB Domain Invariants
 //
 // These tests verify that the domain invariants of getDB hold across hundreds
 // of automatically-generated module name strings. The getDB method resolves
