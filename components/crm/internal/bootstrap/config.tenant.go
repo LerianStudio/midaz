@@ -22,7 +22,7 @@ import (
 // The middleware extracts tenantId from JWT, resolves the tenant-specific
 // MongoDB connection via Tenant Manager, and injects it into the request context.
 func initTenantMiddleware(cfg *Config, logger libLog.Logger) (fiber.Handler, error) {
-	if !cfg.MultiTenantEnabled || cfg.MultiTenantURL == "" {
+	if !cfg.MultiTenantEnabled {
 		return nil, nil
 	}
 

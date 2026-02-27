@@ -15,6 +15,9 @@ import (
 	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
 	tmconsumer "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/consumer"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	tmmongo "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/mongo"
+	tmpostgres "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
 	tmrabbitmq "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
@@ -31,6 +34,8 @@ type rabbitMQComponents struct {
 	multiQueueConsumer    *MultiQueueConsumer
 	multiTenantConsumer   *tmconsumer.MultiTenantConsumer
 	circuitBreakerManager *CircuitBreakerManager
+	pgManager             *tmpostgres.Manager // nil in single-tenant mode; used by consumer handler for per-tenant PG resolution
+	mongoManager          *tmmongo.Manager    // nil in single-tenant mode; used by consumer handler for per-tenant Mongo resolution
 
 	// wireConsumer is a callback that wires the consumer with the UseCase.
 	// Must be called after UseCase creation because the handler needs UseCase.
@@ -112,18 +117,65 @@ func initMultiTenantRabbitMQ(
 		return nil, fmt.Errorf("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE is required for multi-tenant consumer")
 	}
 
-	return &rabbitMQComponents{
+	rmqComponents := &rabbitMQComponents{
 		producerRepo:        producer,
 		multiTenantConsumer: consumer,
-		wireConsumer: func(useCase *command.UseCase) {
-			consumer.Register(
-				queueName,
-				func(ctx context.Context, delivery amqp.Delivery) error {
-					return handlerBTO(ctx, delivery.Body, useCase)
-				},
-			)
-		},
-	}, nil
+	}
+
+	// wireConsumer registers the BTO handler on the MultiTenantConsumer.
+	// The closure captures rmqComponents by pointer so that pgManager and mongoManager
+	// can be set after initRabbitMQ returns (they are initialized in initPostgres/initMongo
+	// and wired in config.go before wireConsumer is called).
+	rmqComponents.wireConsumer = func(useCase *command.UseCase) {
+		consumer.Register(
+			queueName,
+			func(ctx context.Context, delivery amqp.Delivery) error {
+				ctx, err := resolveTenantConnections(ctx, rmqComponents)
+				if err != nil {
+					return err
+				}
+
+				return handlerBTO(ctx, delivery.Body, useCase)
+			},
+		)
+	}
+
+	return rmqComponents, nil
+}
+
+// resolveTenantConnections enriches the context with per-tenant PostgreSQL and MongoDB
+// connections for the current message. The tenant ID must already be present in ctx
+// (set by MultiTenantConsumer.handleMessage via tmcore.ContextWithTenantID).
+//
+// Graceful degradation:
+//   - Missing tenant ID: returns ctx unchanged (single-tenant fallback).
+//   - Nil pgManager/mongoManager: skips that resolution (not configured).
+//   - Connection error: returns error so the message is nacked and retried.
+func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (context.Context, error) {
+	tenantID := tmcore.GetTenantIDFromContext(ctx)
+	if tenantID == "" {
+		return ctx, nil
+	}
+
+	if rmq.pgManager != nil {
+		db, err := rmq.pgManager.GetDB(ctx, tenantID)
+		if err != nil {
+			return ctx, fmt.Errorf("failed to resolve tenant PG connection for %s: %w", tenantID, err)
+		}
+
+		ctx = tmcore.ContextWithModulePGConnection(ctx, ApplicationName, db)
+	}
+
+	if rmq.mongoManager != nil {
+		mongoDB, err := rmq.mongoManager.GetDatabaseForTenant(ctx, tenantID)
+		if err != nil {
+			return ctx, fmt.Errorf("failed to resolve tenant Mongo connection for %s: %w", tenantID, err)
+		}
+
+		ctx = tmcore.ContextWithTenantMongo(ctx, mongoDB)
+	}
+
+	return ctx, nil
 }
 
 // initSingleTenantRabbitMQ initializes RabbitMQ in single-tenant mode.

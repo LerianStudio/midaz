@@ -115,12 +115,13 @@ func TestInitTenantMiddleware(t *testing.T) {
 			expectNil: true,
 		},
 		{
-			name: "returns nil when enabled but URL is empty",
+			name: "returns error when enabled but URL is empty",
 			cfg: &Config{
 				MultiTenantEnabled: true,
 				MultiTenantURL:     "",
 			},
-			expectNil: true,
+			expectNil:    true,
+			expectErrMsg: "MULTI_TENANT_URL must not be blank",
 		},
 		{
 			name: "returns error when enabled but URL is whitespace only",

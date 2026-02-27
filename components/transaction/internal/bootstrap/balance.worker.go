@@ -18,6 +18,9 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	tmpostgres "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -28,12 +31,15 @@ import (
 // BalanceSyncWorker continuously processes keys scheduled for pre-expiry actions.
 // Ensures that the balance is synced before the key expires.
 type BalanceSyncWorker struct {
-	redisConn  *libRedis.RedisConnection
-	logger     libLog.Logger
-	idleWait   time.Duration
-	batchSize  int64
-	maxWorkers int
-	useCase    *command.UseCase
+	redisConn          *libRedis.RedisConnection
+	logger             libLog.Logger
+	idleWait           time.Duration
+	batchSize          int64
+	maxWorkers         int
+	useCase            *command.UseCase
+	multiTenantEnabled bool
+	tenantClient       *tmclient.Client
+	pgManager          *tmpostgres.Manager
 }
 
 func NewBalanceSyncWorker(conn *libRedis.RedisConnection, logger libLog.Logger, useCase *command.UseCase, maxWorkers int) *BalanceSyncWorker {
@@ -51,11 +57,50 @@ func NewBalanceSyncWorker(conn *libRedis.RedisConnection, logger libLog.Logger, 
 	}
 }
 
+// NewBalanceSyncWorkerMultiTenant creates a BalanceSyncWorker with multi-tenant fields populated.
+// When multiTenantEnabled is true, both tenantClient and pgManager must be non-nil for the worker
+// to be considered ready (isMultiTenantReady). The worker uses tenantClient to discover active
+// tenants and pgManager to resolve per-tenant PostgreSQL connections.
+func NewBalanceSyncWorkerMultiTenant(
+	conn *libRedis.RedisConnection,
+	logger libLog.Logger,
+	useCase *command.UseCase,
+	maxWorkers int,
+	multiTenantEnabled bool,
+	tenantClient *tmclient.Client,
+	pgManager *tmpostgres.Manager,
+) *BalanceSyncWorker {
+	w := NewBalanceSyncWorker(conn, logger, useCase, maxWorkers)
+	w.multiTenantEnabled = multiTenantEnabled
+	w.tenantClient = tenantClient
+	w.pgManager = pgManager
+
+	return w
+}
+
+// isMultiTenantReady returns true when the worker is configured for multi-tenant
+// dispatching. multiTenantEnabled, pgManager, and tenantClient must all be set;
+// if any is missing the worker falls back to single-tenant behavior.
+func (w *BalanceSyncWorker) isMultiTenantReady() bool {
+	return w.multiTenantEnabled && w.pgManager != nil && w.tenantClient != nil
+}
+
+// Run dispatches to multi-tenant or single-tenant execution based on configuration.
 func (w *BalanceSyncWorker) Run(_ *libCommons.Launcher) error {
+	if w.isMultiTenantReady() {
+		return w.runMultiTenant()
+	}
+
+	return w.runSingleTenant()
+}
+
+// runSingleTenant runs the balance sync loop using the default (shared) database connection.
+// This is the original Run() behavior preserved for backward compatibility.
+func (w *BalanceSyncWorker) runSingleTenant() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	w.logger.Info("BalanceSyncWorker started")
+	w.logger.Info("BalanceSyncWorker started (single-tenant mode)")
 
 	rds, err := w.redisConn.GetClient(ctx)
 	if err != nil {
@@ -81,6 +126,120 @@ func (w *BalanceSyncWorker) Run(_ *libCommons.Launcher) error {
 			return nil
 		}
 	}
+}
+
+// runMultiTenant runs the balance sync loop iterating over all active tenants.
+// For each tenant, it resolves a per-tenant PostgreSQL connection and injects it
+// into the context before processing. If a tenant's connection fails, it logs and
+// skips that tenant without affecting others.
+func (w *BalanceSyncWorker) runMultiTenant() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	w.logger.Info("BalanceSyncWorker started (multi-tenant mode)")
+
+	rds, err := w.redisConn.GetClient(ctx)
+	if err != nil {
+		w.logger.Errorf("BalanceSyncWorker: failed to get redis client: %v", err)
+
+		return err
+	}
+
+	for {
+		if w.shouldShutdown(ctx) {
+			w.logger.Info("BalanceSyncWorker: shutting down...")
+
+			return nil
+		}
+
+		tenants, ok := w.discoverActiveTenants(ctx, rds)
+		if !ok {
+			continue
+		}
+
+		if tenants == nil {
+			return nil
+		}
+
+		processed := false
+
+		for _, tenant := range tenants {
+			if w.shouldShutdown(ctx) {
+				w.logger.Info("BalanceSyncWorker: shutting down...")
+
+				return nil
+			}
+
+			if w.processTenantBalances(ctx, tenant, rds) {
+				processed = true
+			}
+		}
+
+		if !processed {
+			if w.waitForNextOrBackoff(ctx, rds) {
+				w.logger.Info("BalanceSyncWorker: shutting down...")
+
+				return nil
+			}
+		}
+	}
+}
+
+// discoverActiveTenants retrieves the list of active tenants for the transaction service.
+// Returns (tenants, true) on success, (nil, false) if an error or empty result requires
+// backing off and retrying, or (nil, true) if shutdown was requested during backoff.
+func (w *BalanceSyncWorker) discoverActiveTenants(ctx context.Context, rds redis.UniversalClient) ([]*tmclient.TenantSummary, bool) {
+	tenants, err := w.tenantClient.GetActiveTenantsByService(ctx, "transaction")
+	if err != nil {
+		w.logger.Errorf("BalanceSyncWorker: failed to get active tenants: %v", err)
+
+		if w.waitForNextOrBackoff(ctx, rds) {
+			w.logger.Info("BalanceSyncWorker: shutting down...")
+
+			return nil, true
+		}
+
+		return nil, false
+	}
+
+	if len(tenants) == 0 {
+		w.logger.Info("BalanceSyncWorker: no active tenants found, backing off")
+
+		if w.waitForNextOrBackoff(ctx, rds) {
+			w.logger.Info("BalanceSyncWorker: shutting down...")
+
+			return nil, true
+		}
+
+		return nil, false
+	}
+
+	return tenants, true
+}
+
+// processTenantBalances resolves the per-tenant PostgreSQL connection, augments the context
+// with the tenant ID and module connection, then processes expired balances for that tenant.
+// Returns true if any balances were processed.
+func (w *BalanceSyncWorker) processTenantBalances(ctx context.Context, tenant *tmclient.TenantSummary, rds redis.UniversalClient) bool {
+	tenantCtx := tmcore.ContextWithTenantID(ctx, tenant.ID)
+
+	conn, err := w.pgManager.GetConnection(tenantCtx, tenant.ID)
+	if err != nil {
+		w.logger.Errorf("BalanceSyncWorker: failed to get PG connection for tenant %s: %v", tenant.ID, err)
+
+		return false
+	}
+
+	db, err := conn.GetDB()
+	if err != nil {
+		w.logger.Errorf("BalanceSyncWorker: failed to get DB for tenant %s: %v", tenant.ID, err)
+
+		return false
+	}
+
+	tenantCtx = tmcore.ContextWithModulePGConnection(tenantCtx, "transaction", db)
+
+	return w.processBalancesToExpire(tenantCtx, rds)
 }
 
 func (w *BalanceSyncWorker) shouldShutdown(ctx context.Context) bool {

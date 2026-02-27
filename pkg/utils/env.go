@@ -59,7 +59,7 @@ func GetDurationWithDefault(value, defaultValue time.Duration) time.Duration {
 }
 
 // GetUint32FromIntWithDefault converts an int to uint32, returning the default if value is invalid.
-// Returns the default if value is negative or exceeds uint32 max range.
+// Returns the default if value is zero, negative, or exceeds uint32 max range.
 // This is useful when reading config from env vars that only support int types.
 func GetUint32FromIntWithDefault(value int, defaultValue uint32) uint32 {
 	if value > 0 && value <= math.MaxUint32 {
