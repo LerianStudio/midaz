@@ -45,6 +45,13 @@ type Config struct {
 	EncryptSecretKey        string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
 	AuthAddress             string `env:"PLUGIN_AUTH_ADDRESS"`
 	AuthEnabled             bool   `env:"PLUGIN_AUTH_ENABLED"`
+	MultiTenantEnabled      bool   `env:"MULTI_TENANT_ENABLED"`
+	MultiTenantURL          string `env:"MULTI_TENANT_URL"`
+	MultiTenantTimeout      int    `env:"MULTI_TENANT_TIMEOUT"`
+	MultiTenantCacheTTL     int    `env:"MULTI_TENANT_CACHE_TTL"`
+	MultiTenantCacheSize    int    `env:"MULTI_TENANT_CACHE_SIZE"`
+	MultiTenantRetryMax     int    `env:"MULTI_TENANT_RETRY_MAX"`
+	MultiTenantRetryDelay   int    `env:"MULTI_TENANT_RETRY_DELAY"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -75,6 +82,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize logger: %w", err)
 		}
+	}
+
+	if cfg.MultiTenantEnabled {
+		logger.Info("Multi-tenant mode ENABLED")
+	} else {
+		logger.Info("Running in SINGLE-TENANT MODE")
 	}
 
 	// Init Open telemetry to control logs and flows
@@ -146,7 +159,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(cfg.AuthAddress, cfg.AuthEnabled, &logger)
 
-	httpApp := in.NewRouter(logger, telemetry, auth, holderHandler, aliasHandler)
+	tenantMiddleware, err := initTenantMiddleware(cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize tenant middleware: %w", err)
+	}
+
+	httpApp := in.NewRouter(logger, telemetry, auth, tenantMiddleware, holderHandler, aliasHandler)
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 
 	return &Service{
