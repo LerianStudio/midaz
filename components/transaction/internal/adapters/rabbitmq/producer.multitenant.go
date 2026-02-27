@@ -16,6 +16,10 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+// headerTenantID is the AMQP header key used to propagate the tenant ID
+// for audit trail and consumer context in multi-tenant messaging.
+const headerTenantID = "X-Tenant-ID"
+
 //go:generate mockgen -source=./components/transaction/internal/adapters/rabbitmq/producer.multitenant.go -destination=./components/transaction/internal/adapters/rabbitmq/producer.multitenant_mock.go -package=rabbitmq
 
 // PublishableChannel abstracts the amqp.Channel operations used during message
@@ -146,6 +150,7 @@ func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, k
 
 	headers := amqp.Table{
 		libConstants.HeaderID: reqID,
+		headerTenantID:        tenantID,
 	}
 
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))

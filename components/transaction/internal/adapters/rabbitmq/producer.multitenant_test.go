@@ -308,6 +308,7 @@ func TestMultiTenantProducer_ProducerDefault(t *testing.T) {
 								assert.Equal(t, uint8(amqp.Persistent), msg.DeliveryMode, "delivery mode should be persistent")
 								assert.NotNil(t, msg.Headers, "headers should be present")
 								assert.Contains(t, msg.Headers, libConstants.HeaderID, "headers should contain request ID header")
+								assert.Equal(t, tt.tenantID, msg.Headers["X-Tenant-ID"], "headers should contain tenant ID")
 								assert.Equal(t, tt.message, msg.Body, "message body should match")
 								return nil
 							})
@@ -488,6 +489,7 @@ func TestMultiTenantProducer_BothMethodsDelegateToPublish(t *testing.T) {
 				DoAndReturn(func(ctx context.Context, exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error {
 					assert.Equal(t, message, msg.Body, "both methods should pass the same message body")
 					assert.Equal(t, uint8(amqp.Persistent), msg.DeliveryMode, "delivery mode should be persistent")
+					assert.Equal(t, tenantID, msg.Headers["X-Tenant-ID"], "headers should contain tenant ID")
 					return nil
 				})
 
@@ -670,6 +672,7 @@ func TestMultiTenantProducer_PublishMessageParameters(t *testing.T) {
 					// AC-7: verify trace headers present
 					assert.NotNil(t, msg.Headers, "headers must not be nil")
 					assert.Contains(t, msg.Headers, libConstants.HeaderID, "headers must contain request ID")
+					assert.Equal(t, tenantID, msg.Headers["X-Tenant-ID"], "headers must contain tenant ID")
 					// AC-7: verify body matches input
 					assert.Equal(t, tt.message, msg.Body, "body must match the original message")
 					return nil
