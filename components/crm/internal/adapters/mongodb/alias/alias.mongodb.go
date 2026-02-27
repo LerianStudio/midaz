@@ -21,6 +21,7 @@ import (
 	libCrypto "github.com/LerianStudio/lib-commons/v3/commons/crypto"
 	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
 	mongoUtils "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -49,19 +50,56 @@ type MongoDBRepository struct {
 	DataSecurity *libCrypto.Crypto
 }
 
-// NewMongoDBRepository returns a new instance of MongoDBRepository using the given MongoDB connection
+// NewMongoDBRepository returns a new instance of MongoDBRepository using the given MongoDB connection.
+// In multi-tenant mode, connection may be nil — the per-request tenant context provides the database.
 func NewMongoDBRepository(connection *libMongo.MongoConnection, dataSecurity *libCrypto.Crypto) (*MongoDBRepository, error) {
 	r := &MongoDBRepository{
-		connection:   connection,
-		Database:     connection.Database,
 		DataSecurity: dataSecurity,
 	}
 
-	if _, err := r.connection.GetDB(context.Background()); err != nil {
-		return nil, fmt.Errorf("failed to connect to MongoDB for alias repository: %w", err)
+	if connection != nil {
+		r.connection = connection
+		r.Database = connection.Database
+
+		if connection.ConnectionStringSource != "" {
+			if _, err := r.connection.GetDB(context.Background()); err != nil {
+				return nil, fmt.Errorf("failed to connect to MongoDB for alias repository: %w", err)
+			}
+		}
 	}
 
 	return r, nil
+}
+
+// getDatabase resolves the MongoDB database for the current request.
+// In multi-tenant mode, the middleware injects a tenant-specific *mongo.Database into context.
+// In single-tenant mode (or when no tenant context exists), falls back to the static connection.
+func (am *MongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, error) {
+	db, err := tmcore.GetMongoForTenant(ctx)
+	if err == nil && db != nil {
+		return db, nil
+	}
+
+	// Only fall back to static connection when no tenant context exists.
+	// Propagate unexpected errors (e.g., context canceled) to callers.
+	if err != nil && !errors.Is(err, tmcore.ErrTenantContextRequired) {
+		return nil, err
+	}
+
+	// Fall through to static connection. This handles both:
+	// - ErrTenantContextRequired (no tenant middleware configured)
+	// - (nil, nil) from GetMongoForTenant (tenant context key present but DB is nil)
+
+	if am.connection == nil {
+		return nil, fmt.Errorf("no database connection available: multi-tenant context required but not present, and no static connection configured")
+	}
+
+	client, err := am.connection.GetDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.Database(strings.ToLower(am.Database)), nil
 }
 
 // Create inserts an alias into mongo
@@ -79,14 +117,14 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	span.SetAttributes(attributes...)
 
-	db, err := am.connection.GetDB(ctx)
+	db, err := am.getDatabase(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 
 		return nil, err
 	}
 
-	coll := db.Database(strings.ToLower(am.Database)).Collection(strings.ToLower("aliases_" + organizationID))
+	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
 	err = createIndexes(coll)
 	if err != nil {
@@ -157,14 +195,14 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 
 	span.SetAttributes(attributes...)
 
-	db, err := am.connection.GetDB(ctx)
+	db, err := am.getDatabase(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 
 		return nil, err
 	}
 
-	coll := db.Database(strings.ToLower(am.Database)).Collection(strings.ToLower("aliases_" + organizationID))
+	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
 	var record MongoDBModel
 
@@ -214,14 +252,14 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	span.SetAttributes(attributes...)
 
-	db, err := am.connection.GetDB(ctx)
+	db, err := am.getDatabase(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 
 		return nil, err
 	}
 
-	coll := db.Database(strings.ToLower(am.Database)).Collection(strings.ToLower("aliases_" + organizationID))
+	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
 	ctx, spanUpdate := tracer.Start(ctx, "mongodb.update_alias.update_by_id")
 	defer spanUpdate.End()
@@ -314,14 +352,14 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	span.SetAttributes(attributes...)
 
-	db, err := am.connection.GetDB(ctx)
+	db, err := am.getDatabase(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 
 		return nil, err
 	}
 
-	coll := db.Database(strings.ToLower(am.Database)).Collection(strings.ToLower("aliases_" + organizationID))
+	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
 	limit := int64(query.Limit)
 	skip := int64(query.Page*query.Limit - query.Limit)
@@ -472,7 +510,7 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 
 	span.SetAttributes(attributes...)
 
-	db, err := am.connection.GetDB(ctx)
+	db, err := am.getDatabase(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 
@@ -481,7 +519,7 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 
 	opts := options.Delete()
 
-	coll := db.Database(strings.ToLower(am.Database)).Collection(strings.ToLower("aliases_" + organizationID))
+	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
 	ctx, spanDelete := tracer.Start(ctx, "mongodb.delete_alias.delete_one")
 
@@ -544,14 +582,14 @@ func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, h
 
 	span.SetAttributes(attributes...)
 
-	db, err := am.connection.GetDB(ctx)
+	db, err := am.getDatabase(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 
 		return 0, err
 	}
 
-	coll := db.Database(strings.ToLower(am.Database)).Collection(strings.ToLower("aliases_" + organizationID))
+	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
 	ctx, spanCount := tracer.Start(ctx, "mongodb.find_all_alias.find")
 	defer spanCount.End()
@@ -590,13 +628,13 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 
 	span.SetAttributes(attributes...)
 
-	db, err := am.connection.GetDB(ctx)
+	db, err := am.getDatabase(ctx)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
 		return err
 	}
 
-	coll := db.Database(strings.ToLower(am.Database)).Collection(strings.ToLower("aliases_" + organizationID))
+	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
 	filter := bson.D{
 		{Key: "_id", Value: aliasID},
