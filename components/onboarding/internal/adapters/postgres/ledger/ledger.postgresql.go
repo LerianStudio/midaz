@@ -57,6 +57,7 @@ type Repository interface {
 	GetSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error)
 	UpdateSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error)
 	ReplaceSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error)
+	UpdateSettingsAtomic(ctx context.Context, organizationID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error)
 }
 
 // LedgerPostgreSQLRepository is a Postgresql-specific implementation of the LedgerRepository.
@@ -806,7 +807,7 @@ func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organi
 	ctx, span := tracer.Start(ctx, "postgres.replace_ledger_settings")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 		logger.Errorf("Failed to get database connection: %v", err)
@@ -875,4 +876,140 @@ func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organi
 	logger.Infof("Successfully replaced settings for ledger %s", ledgerID.String())
 
 	return updatedSettings, nil
+}
+
+// UpdateSettingsAtomic performs an atomic read-modify-write operation on ledger settings.
+// It uses SELECT FOR UPDATE to lock the row, preventing concurrent modifications.
+// The mergeFn receives the current settings and returns the merged settings to be written.
+// This prevents lost updates under concurrent PATCH requests.
+func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, organizationID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_ledger_settings_atomic")
+	defer span.End()
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return nil, err
+	}
+
+	// Begin transaction
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to begin transaction", err)
+		logger.Errorf("Failed to begin transaction: %v", err)
+
+		return nil, err
+	}
+
+	// Ensure rollback on error, commit on success
+	defer func() {
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				logger.Errorf("Failed to rollback transaction: %v", rollbackErr)
+			}
+		}
+	}()
+
+	// SELECT FOR UPDATE to lock the row
+	ctx, spanSelect := tracer.Start(ctx, "postgres.select_settings_for_update")
+
+	var settingsJSON []byte
+
+	selectQuery := `SELECT settings FROM ledger WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL FOR UPDATE`
+
+	row := tx.QueryRowContext(ctx, selectQuery, organizationID, ledgerID)
+
+	spanSelect.End()
+
+	if scanErr := row.Scan(&settingsJSON); scanErr != nil {
+		err = scanErr
+
+		if errors.Is(scanErr, sql.ErrNoRows) {
+			err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Ledger not found", err)
+
+			return nil, err
+		}
+
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan settings", err)
+		logger.Errorf("Failed to scan settings: %v", err)
+
+		return nil, err
+	}
+
+	// Parse existing settings
+	var existingSettings map[string]any
+
+	if len(settingsJSON) > 0 {
+		if unmarshalErr := json.Unmarshal(settingsJSON, &existingSettings); unmarshalErr != nil {
+			err = unmarshalErr
+			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal existing settings", err)
+			logger.Errorf("Failed to unmarshal existing settings: %v", err)
+
+			return nil, err
+		}
+	}
+
+	if existingSettings == nil {
+		existingSettings = make(map[string]any)
+	}
+
+	// Apply merge function
+	mergedSettings, mergeErr := mergeFn(existingSettings)
+	if mergeErr != nil {
+		err = mergeErr
+		libOpentelemetry.HandleSpanError(&span, "Failed to merge settings", err)
+		logger.Errorf("Failed to merge settings: %v", err)
+
+		return nil, err
+	}
+
+	// Normalize nil to empty map
+	if mergedSettings == nil {
+		mergedSettings = make(map[string]any)
+	}
+
+	// Marshal merged settings
+	mergedJSON, marshalErr := json.Marshal(mergedSettings)
+	if marshalErr != nil {
+		err = marshalErr
+		libOpentelemetry.HandleSpanError(&span, "Failed to marshal merged settings", err)
+		logger.Errorf("Failed to marshal merged settings: %v", err)
+
+		return nil, err
+	}
+
+	// UPDATE with merged settings
+	ctx, spanUpdate := tracer.Start(ctx, "postgres.update_settings_in_tx")
+
+	updateQuery := `UPDATE ledger SET settings = $1::jsonb, updated_at = now() WHERE organization_id = $2 AND id = $3 AND deleted_at IS NULL`
+
+	_, execErr := tx.ExecContext(ctx, updateQuery, mergedJSON, organizationID, ledgerID)
+
+	spanUpdate.End()
+
+	if execErr != nil {
+		err = execErr
+		libOpentelemetry.HandleSpanError(&span, "Failed to update settings", err)
+		logger.Errorf("Failed to update settings: %v", err)
+
+		return nil, err
+	}
+
+	// Commit transaction
+	if commitErr := tx.Commit(); commitErr != nil {
+		err = commitErr
+		libOpentelemetry.HandleSpanError(&span, "Failed to commit transaction", err)
+		logger.Errorf("Failed to commit transaction: %v", err)
+
+		return nil, err
+	}
+
+	logger.Infof("Successfully updated settings atomically for ledger %s", ledgerID.String())
+
+	return mergedSettings, nil
 }

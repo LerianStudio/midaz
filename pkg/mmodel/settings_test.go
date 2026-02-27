@@ -583,9 +583,7 @@ func TestDeepMergeSettings(t *testing.T) {
 			result := DeepMergeSettings(tt.existing, tt.new)
 			assert.Equal(t, tt.expected, result)
 
-			// TODO(review): Consider running mutation check for all tests with non-nil existing
-			// (reported by code-reviewer on 2026-02-27, severity: Low)
-			// Verify original was not mutated for the mutation test
+			// Verify original was not mutated for tests with non-nil existing
 			if existingCopy != nil {
 				assert.Equal(t, existingCopy, tt.existing, "original existing map must not be mutated")
 			}

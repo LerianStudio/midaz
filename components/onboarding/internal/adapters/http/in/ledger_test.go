@@ -6,6 +6,7 @@ package in
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http/httptest"
@@ -1203,30 +1204,17 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 				},
 			},
 			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
-				// GetSettings returns existing settings
+				existingSettings := map[string]any{
+					"accounting": map[string]any{
+						"validateAccountType": true,
+						"validateRoutes":      false,
+					},
+				}
 				ledgerRepo.EXPECT().
-					GetSettings(gomock.Any(), orgID, ledgerID).
-					Return(map[string]any{
-						"accounting": map[string]any{
-							"validateAccountType": true,
-							"validateRoutes":      false,
-						},
-					}, nil).
-					Times(1)
-				// ReplaceSettings receives merged result
-				ledgerRepo.EXPECT().
-					ReplaceSettings(gomock.Any(), orgID, ledgerID, map[string]any{
-						"accounting": map[string]any{
-							"validateAccountType": true,
-							"validateRoutes":      true,
-						},
+					UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+						return mergeFn(existingSettings)
 					}).
-					Return(map[string]any{
-						"accounting": map[string]any{
-							"validateAccountType": true,
-							"validateRoutes":      true,
-						},
-					}, nil).
 					Times(1)
 			},
 			expectedStatus: 200,
@@ -1245,30 +1233,17 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 			name:        "empty settings returns 200",
 			requestBody: map[string]any{},
 			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
-				// GetSettings returns existing settings
+				existingSettings := map[string]any{
+					"accounting": map[string]any{
+						"validateAccountType": false,
+						"validateRoutes":      false,
+					},
+				}
 				ledgerRepo.EXPECT().
-					GetSettings(gomock.Any(), orgID, ledgerID).
-					Return(map[string]any{
-						"accounting": map[string]any{
-							"validateAccountType": false,
-							"validateRoutes":      false,
-						},
-					}, nil).
-					Times(1)
-				// ReplaceSettings receives unchanged settings
-				ledgerRepo.EXPECT().
-					ReplaceSettings(gomock.Any(), orgID, ledgerID, map[string]any{
-						"accounting": map[string]any{
-							"validateAccountType": false,
-							"validateRoutes":      false,
-						},
+					UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+						return mergeFn(existingSettings)
 					}).
-					Return(map[string]any{
-						"accounting": map[string]any{
-							"validateAccountType": false,
-							"validateRoutes":      false,
-						},
-					}, nil).
 					Times(1)
 			},
 			expectedStatus: 200,
@@ -1308,9 +1283,8 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 				},
 			},
 			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
-				// GetSettings returns not found error
 				ledgerRepo.EXPECT().
-					GetSettings(gomock.Any(), orgID, ledgerID).
+					UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())).
 					Times(1)
 			},
@@ -1332,9 +1306,8 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 				},
 			},
 			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
-				// GetSettings returns internal error
 				ledgerRepo.EXPECT().
-					GetSettings(gomock.Any(), orgID, ledgerID).
+					UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",

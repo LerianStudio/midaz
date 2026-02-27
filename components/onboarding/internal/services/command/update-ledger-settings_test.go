@@ -52,12 +52,14 @@ func TestUpdateLedgerSettings_Success(t *testing.T) {
 	}
 
 	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
-		Return(existingSettings, nil)
-
-	mockLedgerRepo.EXPECT().
-		ReplaceSettings(gomock.Any(), orgID, ledgerID, mergedSettings).
-		Return(mergedSettings, nil)
+		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+			result, err := mergeFn(existingSettings)
+			if err != nil {
+				return nil, err
+			}
+			return result, nil
+		})
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
@@ -67,8 +69,6 @@ func TestUpdateLedgerSettings_Success(t *testing.T) {
 }
 
 func TestUpdateLedgerSettings_DeepMergePreservesExistingNestedKeys(t *testing.T) {
-	// This test verifies the deep merge behavior: when updating only validateRoutes,
-	// the existing validateAccountType should be preserved.
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -84,14 +84,12 @@ func TestUpdateLedgerSettings_DeepMergePreservesExistingNestedKeys(t *testing.T)
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
-	// Input: only updating validateRoutes
 	inputSettings := map[string]any{
 		"accounting": map[string]any{
 			"validateRoutes": true,
 		},
 	}
 
-	// Existing: has validateAccountType set to true
 	existingSettings := map[string]any{
 		"accounting": map[string]any{
 			"validateAccountType": true,
@@ -99,21 +97,11 @@ func TestUpdateLedgerSettings_DeepMergePreservesExistingNestedKeys(t *testing.T)
 		},
 	}
 
-	// Expected: validateAccountType preserved, validateRoutes updated
-	expectedMerged := map[string]any{
-		"accounting": map[string]any{
-			"validateAccountType": true,
-			"validateRoutes":      true,
-		},
-	}
-
 	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
-		Return(existingSettings, nil)
-
-	mockLedgerRepo.EXPECT().
-		ReplaceSettings(gomock.Any(), orgID, ledgerID, expectedMerged).
-		Return(expectedMerged, nil)
+		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+			return mergeFn(existingSettings)
+		})
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
@@ -139,7 +127,6 @@ func TestUpdateLedgerSettings_ValidationError_UnknownTopLevelField(t *testing.T)
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
-	// Invalid input: unknown top-level field
 	inputSettings := map[string]any{
 		"unknownField": "value",
 	}
@@ -168,7 +155,6 @@ func TestUpdateLedgerSettings_ValidationError_UnknownNestedField(t *testing.T) {
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
-	// Invalid input: unknown nested field under "accounting"
 	inputSettings := map[string]any{
 		"accounting": map[string]any{
 			"unknownNestedField": true,
@@ -199,7 +185,6 @@ func TestUpdateLedgerSettings_ValidationError_WrongType(t *testing.T) {
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
-	// Invalid input: validateAccountType should be bool, not string
 	inputSettings := map[string]any{
 		"accounting": map[string]any{
 			"validateAccountType": "true", // string instead of bool
@@ -230,10 +215,8 @@ func TestUpdateLedgerSettings_EmptyInputPreservesExisting(t *testing.T) {
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
-	// Empty input
 	inputSettings := map[string]any{}
 
-	// Existing settings should be preserved
 	existingSettings := map[string]any{
 		"accounting": map[string]any{
 			"validateAccountType": true,
@@ -241,13 +224,10 @@ func TestUpdateLedgerSettings_EmptyInputPreservesExisting(t *testing.T) {
 	}
 
 	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
-		Return(existingSettings, nil)
-
-	// DeepMergeSettings with empty input returns existing
-	mockLedgerRepo.EXPECT().
-		ReplaceSettings(gomock.Any(), orgID, ledgerID, existingSettings).
-		Return(existingSettings, nil)
+		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+			return mergeFn(existingSettings)
+		})
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
@@ -271,7 +251,6 @@ func TestUpdateLedgerSettings_NullValueStoresNull(t *testing.T) {
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
-	// Input with null value for a known key
 	inputSettings := map[string]any{
 		"accounting": nil,
 	}
@@ -282,18 +261,11 @@ func TestUpdateLedgerSettings_NullValueStoresNull(t *testing.T) {
 		},
 	}
 
-	// Null should replace the existing accounting object
-	expectedMerged := map[string]any{
-		"accounting": nil,
-	}
-
 	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
-		Return(existingSettings, nil)
-
-	mockLedgerRepo.EXPECT().
-		ReplaceSettings(gomock.Any(), orgID, ledgerID, expectedMerged).
-		Return(expectedMerged, nil)
+		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+			return mergeFn(existingSettings)
+		})
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
@@ -301,7 +273,7 @@ func TestUpdateLedgerSettings_NullValueStoresNull(t *testing.T) {
 	assert.Nil(t, settings["accounting"], "accounting should be null")
 }
 
-func TestUpdateLedgerSettings_LedgerNotFoundOnGetSettings(t *testing.T) {
+func TestUpdateLedgerSettings_LedgerNotFound(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -323,7 +295,7 @@ func TestUpdateLedgerSettings_LedgerNotFoundOnGetSettings(t *testing.T) {
 	}
 
 	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
+		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(nil, errors.New("ledger not found"))
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
@@ -333,7 +305,7 @@ func TestUpdateLedgerSettings_LedgerNotFoundOnGetSettings(t *testing.T) {
 	assert.Contains(t, err.Error(), "ledger not found")
 }
 
-func TestUpdateLedgerSettings_DatabaseErrorOnReplaceSettings(t *testing.T) {
+func TestUpdateLedgerSettings_DatabaseError(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -353,17 +325,9 @@ func TestUpdateLedgerSettings_DatabaseErrorOnReplaceSettings(t *testing.T) {
 			"validateAccountType": true,
 		},
 	}
-	existingSettings := map[string]any{}
-
-	// Compute expected merged settings (mmodel.DeepMergeSettings behavior)
-	expectedMerged := mmodel.DeepMergeSettings(existingSettings, inputSettings)
 
 	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
-		Return(existingSettings, nil)
-
-	mockLedgerRepo.EXPECT().
-		ReplaceSettings(gomock.Any(), orgID, ledgerID, expectedMerged).
+		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(nil, errors.New("database error"))
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
@@ -393,15 +357,9 @@ func TestUpdateLedgerSettings_NilResultReturnsEmptyMap(t *testing.T) {
 			"validateAccountType": true,
 		},
 	}
-	existingSettings := map[string]any{}
-	expectedMerged := mmodel.DeepMergeSettings(existingSettings, inputSettings)
 
 	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
-		Return(existingSettings, nil)
-
-	mockLedgerRepo.EXPECT().
-		ReplaceSettings(gomock.Any(), orgID, ledgerID, expectedMerged).
+		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(nil, nil)
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
@@ -440,12 +398,10 @@ func TestUpdateLedgerSettings_InvalidatesCache(t *testing.T) {
 	cacheKey := query.BuildLedgerSettingsCacheKey(orgID, ledgerID)
 
 	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
-		Return(existingSettings, nil)
-
-	mockLedgerRepo.EXPECT().
-		ReplaceSettings(gomock.Any(), orgID, ledgerID, expectedMerged).
-		Return(expectedMerged, nil)
+		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+			return mergeFn(existingSettings)
+		})
 
 	// Cache should be invalidated after successful update
 	mockRedisRepo.EXPECT().
@@ -485,12 +441,10 @@ func TestUpdateLedgerSettings_CacheInvalidationError_DoesNotFailOperation(t *tes
 	cacheKey := query.BuildLedgerSettingsCacheKey(orgID, ledgerID)
 
 	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
-		Return(existingSettings, nil)
-
-	mockLedgerRepo.EXPECT().
-		ReplaceSettings(gomock.Any(), orgID, ledgerID, expectedMerged).
-		Return(expectedMerged, nil)
+		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+			return mergeFn(existingSettings)
+		})
 
 	// Cache invalidation fails - operation should still succeed
 	mockRedisRepo.EXPECT().
@@ -525,16 +479,10 @@ func TestUpdateLedgerSettings_DatabaseError_NoCacheInvalidation(t *testing.T) {
 			"validateAccountType": true,
 		},
 	}
-	existingSettings := map[string]any{}
-	expectedMerged := mmodel.DeepMergeSettings(existingSettings, inputSettings)
-
-	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
-		Return(existingSettings, nil)
 
 	// Database update fails
 	mockLedgerRepo.EXPECT().
-		ReplaceSettings(gomock.Any(), orgID, ledgerID, expectedMerged).
+		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(nil, errors.New("database error"))
 
 	// Cache should NOT be invalidated when database fails
@@ -562,7 +510,6 @@ func TestUpdateLedgerSettings_NilInput(t *testing.T) {
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
-	// Existing settings should be preserved when input is nil
 	existingSettings := map[string]any{
 		"accounting": map[string]any{
 			"validateAccountType": true,
@@ -570,23 +517,19 @@ func TestUpdateLedgerSettings_NilInput(t *testing.T) {
 	}
 
 	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
-		Return(existingSettings, nil)
+		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+			return mergeFn(existingSettings)
+		})
 
-	// DeepMergeSettings with nil returns existing
-	mockLedgerRepo.EXPECT().
-		ReplaceSettings(gomock.Any(), orgID, ledgerID, existingSettings).
-		Return(existingSettings, nil)
-
+	// Nil input should be valid
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, nil)
 
 	require.NoError(t, err)
-	assert.NotNil(t, settings)
 	assert.Equal(t, existingSettings, settings)
 }
 
-func TestUpdateLedgerSettings_ValidationSkippedForNilInput(t *testing.T) {
-	// Validates that nil input passes validation (ValidateSettings returns nil for nil input)
+func TestUpdateLedgerSettings_NoCacheRepo(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -596,41 +539,7 @@ func TestUpdateLedgerSettings_ValidationSkippedForNilInput(t *testing.T) {
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
-	}
-
-	ctx := context.Background()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-
-	existingSettings := map[string]any{}
-
-	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
-		Return(existingSettings, nil)
-
-	mockLedgerRepo.EXPECT().
-		ReplaceSettings(gomock.Any(), orgID, ledgerID, existingSettings).
-		Return(existingSettings, nil)
-
-	// Nil input should be accepted (validation passes for nil)
-	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, nil)
-
-	require.NoError(t, err)
-	assert.NotNil(t, settings)
-}
-
-func TestUpdateLedgerSettings_NoRedisRepo_SkipsCacheInvalidation(t *testing.T) {
-	// Tests that cache invalidation is skipped when RedisRepo is nil
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-
-	uc := &UseCase{
-		LedgerRepo: mockLedgerRepo,
-		RedisRepo:  nil, // No redis repo
+		RedisRepo:  nil, // No cache configured
 	}
 
 	ctx := context.Background()
@@ -645,14 +554,12 @@ func TestUpdateLedgerSettings_NoRedisRepo_SkipsCacheInvalidation(t *testing.T) {
 	expectedMerged := mmodel.DeepMergeSettings(existingSettings, inputSettings)
 
 	mockLedgerRepo.EXPECT().
-		GetSettings(gomock.Any(), orgID, ledgerID).
-		Return(existingSettings, nil)
+		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+			return mergeFn(existingSettings)
+		})
 
-	mockLedgerRepo.EXPECT().
-		ReplaceSettings(gomock.Any(), orgID, ledgerID, expectedMerged).
-		Return(expectedMerged, nil)
-
-	// No cache invalidation call expected since RedisRepo is nil
+	// No cache invalidation should happen
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 

@@ -17,10 +17,8 @@ import (
 
 // UpdateLedgerSettings updates the settings for a specific ledger using schema-aware deep merge.
 // 1. Validates input settings against the LedgerSettings schema (rejects unknown fields, enforces types)
-// 2. Fetches existing settings from the database
-// 3. Deep merges validated input with existing settings (preserves nested properties not in input)
-// 4. Writes the complete merged result back to the database
-// Invalidates the cache after successful write.
+// 2. Atomically fetches existing settings, deep merges, and writes back using SELECT FOR UPDATE
+// 3. Invalidates the cache after successful write
 // Returns the merged settings after the update.
 // Returns an error if the ledger does not exist or if validation fails.
 func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
@@ -36,7 +34,7 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 
 	logger.Infof("Updating settings for ledger: %s", ledgerID.String())
 
-	// Validate input settings against schema
+	// Validate input settings against schema before any DB operations
 	if err := mmodel.ValidateSettings(settings); err != nil {
 		logger.Errorf("Settings validation failed: %v", err)
 
@@ -45,25 +43,17 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 		return nil, err
 	}
 
-	// Fetch existing settings from database
-	existingSettings, err := uc.LedgerRepo.GetSettings(ctx, organizationID, ledgerID)
+	// Perform atomic read-modify-write using SELECT FOR UPDATE
+	// This prevents lost updates under concurrent PATCH requests
+	updatedSettings, err := uc.LedgerRepo.UpdateSettingsAtomic(ctx, organizationID, ledgerID,
+		func(existing map[string]any) (map[string]any, error) {
+			// Deep merge validated input with existing settings
+			return mmodel.DeepMergeSettings(existing, settings), nil
+		})
 	if err != nil {
-		logger.Errorf("Error fetching existing ledger settings: %v", err)
+		logger.Errorf("Error updating ledger settings atomically: %v", err)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to fetch existing ledger settings", err)
-
-		return nil, err
-	}
-
-	// Deep merge validated input with existing settings
-	mergedSettings := mmodel.DeepMergeSettings(existingSettings, settings)
-
-	// Write complete merged result to database (replace, not merge)
-	updatedSettings, err := uc.LedgerRepo.ReplaceSettings(ctx, organizationID, ledgerID, mergedSettings)
-	if err != nil {
-		logger.Errorf("Error replacing ledger settings: %v", err)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to replace ledger settings", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update ledger settings", err)
 
 		return nil, err
 	}
