@@ -70,10 +70,10 @@ func NewRedisQueueConsumerMultiTenant(
 }
 
 // isMultiTenantReady returns true when the consumer is configured for multi-tenant
-// dispatching. Both multiTenantEnabled and pgManager must be set; if pgManager is
-// nil the consumer falls back to single-tenant behavior.
+// dispatching. multiTenantEnabled, pgManager, and tenantClient must all be set;
+// if any is missing the consumer falls back to single-tenant behavior.
 func (r *RedisQueueConsumer) isMultiTenantReady() bool {
-	return r.multiTenantEnabled && r.pgManager != nil
+	return r.multiTenantEnabled && r.pgManager != nil && r.tenantClient != nil
 }
 
 // Run dispatches to multi-tenant or single-tenant execution based on configuration.

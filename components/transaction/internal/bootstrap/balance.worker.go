@@ -78,10 +78,10 @@ func NewBalanceSyncWorkerMultiTenant(
 }
 
 // isMultiTenantReady returns true when the worker is configured for multi-tenant
-// dispatching. Both multiTenantEnabled and pgManager must be set; if pgManager is
-// nil the worker falls back to single-tenant behavior.
+// dispatching. multiTenantEnabled, pgManager, and tenantClient must all be set;
+// if any is missing the worker falls back to single-tenant behavior.
 func (w *BalanceSyncWorker) isMultiTenantReady() bool {
-	return w.multiTenantEnabled && w.pgManager != nil
+	return w.multiTenantEnabled && w.pgManager != nil && w.tenantClient != nil
 }
 
 // Run dispatches to multi-tenant or single-tenant execution based on configuration.

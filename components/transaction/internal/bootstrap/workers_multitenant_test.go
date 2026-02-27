@@ -273,7 +273,7 @@ func TestRabbitMQConsumerHandlerReceivesPGManager(t *testing.T) {
 }
 
 // TestBalanceSyncWorker_IsMultiTenantReady exercises the isMultiTenantReady()
-// predicate across all four combinations of multiTenantEnabled x pgManager,
+// predicate across all combinations of multiTenantEnabled x pgManager x tenantClient,
 // plus the zero-value struct edge case.
 func TestBalanceSyncWorker_IsMultiTenantReady(t *testing.T) {
 	t.Parallel()
@@ -281,43 +281,56 @@ func TestBalanceSyncWorker_IsMultiTenantReady(t *testing.T) {
 	logger := newTestLogger()
 	conn := &libRedis.RedisConnection{}
 	useCase := &command.UseCase{}
-	tenantClient := tmclient.NewClient("http://localhost:0", logger)
-	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
+	tc := tmclient.NewClient("http://localhost:0", logger)
+	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
 
 	tests := []struct {
 		name               string
 		multiTenantEnabled bool
 		pgManager          *tmpostgres.Manager
+		tenantClient       *tmclient.Client
 		want               bool
 	}{
 		{
-			name:               "true_when_enabled_and_pgManager_set",
+			name:               "true_when_enabled_pgManager_and_tenantClient_set",
 			multiTenantEnabled: true,
 			pgManager:          pgMgr,
+			tenantClient:       tc,
 			want:               true,
 		},
 		{
 			name:               "false_when_enabled_but_pgManager_nil",
 			multiTenantEnabled: true,
 			pgManager:          nil,
+			tenantClient:       tc,
+			want:               false,
+		},
+		{
+			name:               "false_when_enabled_but_tenantClient_nil",
+			multiTenantEnabled: true,
+			pgManager:          pgMgr,
+			tenantClient:       nil,
 			want:               false,
 		},
 		{
 			name:               "false_when_disabled_but_pgManager_set",
 			multiTenantEnabled: false,
 			pgManager:          pgMgr,
+			tenantClient:       tc,
 			want:               false,
 		},
 		{
 			name:               "false_when_disabled_and_pgManager_nil",
 			multiTenantEnabled: false,
 			pgManager:          nil,
+			tenantClient:       nil,
 			want:               false,
 		},
 		{
 			name:               "false_for_zero_value_struct",
 			multiTenantEnabled: false,
 			pgManager:          nil,
+			tenantClient:       nil,
 			want:               false,
 		},
 	}
@@ -333,6 +346,7 @@ func TestBalanceSyncWorker_IsMultiTenantReady(t *testing.T) {
 				worker = NewBalanceSyncWorker(conn, logger, useCase, 5)
 				worker.multiTenantEnabled = tt.multiTenantEnabled
 				worker.pgManager = tt.pgManager
+				worker.tenantClient = tt.tenantClient
 			}
 
 			got := worker.isMultiTenantReady()
@@ -343,50 +357,63 @@ func TestBalanceSyncWorker_IsMultiTenantReady(t *testing.T) {
 }
 
 // TestRedisQueueConsumer_IsMultiTenantReady exercises the isMultiTenantReady()
-// predicate across all four combinations of multiTenantEnabled x pgManager,
+// predicate across all combinations of multiTenantEnabled x pgManager x tenantClient,
 // plus the zero-value struct edge case.
 func TestRedisQueueConsumer_IsMultiTenantReady(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
-	tenantClient := tmclient.NewClient("http://localhost:0", logger)
-	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
+	tc := tmclient.NewClient("http://localhost:0", logger)
+	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
 
 	tests := []struct {
 		name               string
 		multiTenantEnabled bool
 		pgManager          *tmpostgres.Manager
+		tenantClient       *tmclient.Client
 		want               bool
 	}{
 		{
-			name:               "true_when_enabled_and_pgManager_set",
+			name:               "true_when_enabled_pgManager_and_tenantClient_set",
 			multiTenantEnabled: true,
 			pgManager:          pgMgr,
+			tenantClient:       tc,
 			want:               true,
 		},
 		{
 			name:               "false_when_enabled_but_pgManager_nil",
 			multiTenantEnabled: true,
 			pgManager:          nil,
+			tenantClient:       tc,
+			want:               false,
+		},
+		{
+			name:               "false_when_enabled_but_tenantClient_nil",
+			multiTenantEnabled: true,
+			pgManager:          pgMgr,
+			tenantClient:       nil,
 			want:               false,
 		},
 		{
 			name:               "false_when_disabled_but_pgManager_set",
 			multiTenantEnabled: false,
 			pgManager:          pgMgr,
+			tenantClient:       tc,
 			want:               false,
 		},
 		{
 			name:               "false_when_disabled_and_pgManager_nil",
 			multiTenantEnabled: false,
 			pgManager:          nil,
+			tenantClient:       nil,
 			want:               false,
 		},
 		{
 			name:               "false_for_zero_value_struct",
 			multiTenantEnabled: false,
 			pgManager:          nil,
+			tenantClient:       nil,
 			want:               false,
 		},
 	}
@@ -402,6 +429,7 @@ func TestRedisQueueConsumer_IsMultiTenantReady(t *testing.T) {
 				consumer = NewRedisQueueConsumer(logger, handler)
 				consumer.multiTenantEnabled = tt.multiTenantEnabled
 				consumer.pgManager = tt.pgManager
+				consumer.tenantClient = tt.tenantClient
 			}
 
 			got := consumer.isMultiTenantReady()
@@ -444,7 +472,7 @@ func TestNewBalanceSyncWorkerMultiTenant_EdgeCases(t *testing.T) {
 			tenantClient:       nil,
 			pgManager:          pgMgr,
 			wantEnabled:        true,
-			wantReady:          true,
+			wantReady:          false,
 		},
 		{
 			name:               "all_nil_disabled",
@@ -511,7 +539,7 @@ func TestNewRedisQueueConsumerMultiTenant_EdgeCases(t *testing.T) {
 			tenantClient:       nil,
 			pgManager:          pgMgr,
 			wantEnabled:        true,
-			wantReady:          true,
+			wantReady:          false,
 		},
 		{
 			name:               "all_nil_disabled",
@@ -677,13 +705,14 @@ func TestBalanceSyncWorker_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 	logger := newTestLogger()
 	conn := &libRedis.RedisConnection{}
 	useCase := &command.UseCase{}
-	tenantClient := tmclient.NewClient("http://localhost:0", logger)
-	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
+	tc := tmclient.NewClient("http://localhost:0", logger)
+	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
 
 	tests := []struct {
 		name               string
 		multiTenantEnabled bool
 		pgManager          *tmpostgres.Manager
+		tenantClient       *tmclient.Client
 		wantReady          bool
 	}{
 		{
@@ -696,12 +725,14 @@ func TestBalanceSyncWorker_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 			name:               "multi_tenant_dispatches_to_runMultiTenant",
 			multiTenantEnabled: true,
 			pgManager:          pgMgr,
+			tenantClient:       tc,
 			wantReady:          true,
 		},
 		{
 			name:               "enabled_but_nil_pgManager_falls_back_to_single",
 			multiTenantEnabled: true,
 			pgManager:          nil,
+			tenantClient:       tc,
 			wantReady:          false,
 		},
 	}
@@ -713,6 +744,7 @@ func TestBalanceSyncWorker_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 			worker := NewBalanceSyncWorker(conn, logger, useCase, 5)
 			worker.multiTenantEnabled = tt.multiTenantEnabled
 			worker.pgManager = tt.pgManager
+			worker.tenantClient = tt.tenantClient
 
 			got := worker.isMultiTenantReady()
 			assert.Equal(t, tt.wantReady, got,
@@ -729,13 +761,14 @@ func TestRedisQueueConsumer_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
-	tenantClient := tmclient.NewClient("http://localhost:0", logger)
-	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
+	tc := tmclient.NewClient("http://localhost:0", logger)
+	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
 
 	tests := []struct {
 		name               string
 		multiTenantEnabled bool
 		pgManager          *tmpostgres.Manager
+		tenantClient       *tmclient.Client
 		wantReady          bool
 	}{
 		{
@@ -748,12 +781,14 @@ func TestRedisQueueConsumer_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 			name:               "multi_tenant_dispatches_to_runMultiTenant",
 			multiTenantEnabled: true,
 			pgManager:          pgMgr,
+			tenantClient:       tc,
 			wantReady:          true,
 		},
 		{
 			name:               "enabled_but_nil_pgManager_falls_back_to_single",
 			multiTenantEnabled: true,
 			pgManager:          nil,
+			tenantClient:       tc,
 			wantReady:          false,
 		},
 	}
@@ -765,6 +800,7 @@ func TestRedisQueueConsumer_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 			consumer := NewRedisQueueConsumer(logger, handler)
 			consumer.multiTenantEnabled = tt.multiTenantEnabled
 			consumer.pgManager = tt.pgManager
+			consumer.tenantClient = tt.tenantClient
 
 			got := consumer.isMultiTenantReady()
 			assert.Equal(t, tt.wantReady, got,

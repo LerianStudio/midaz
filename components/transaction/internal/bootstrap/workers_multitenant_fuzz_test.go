@@ -86,10 +86,10 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 			t.Fatalf("multiTenantEnabled mismatch: got %v, want %v", worker.multiTenantEnabled, multiTenantEnabled)
 		}
 
-		// Property: isMultiTenantReady() is true only when enabled AND pgManager non-nil.
+		// Property: isMultiTenantReady() is true only when enabled AND pgManager AND tenantClient non-nil.
 		ready := worker.isMultiTenantReady()
-		if multiTenantEnabled && worker.pgManager != nil && !ready {
-			t.Fatal("isMultiTenantReady() should be true when enabled and pgManager is non-nil")
+		if multiTenantEnabled && worker.pgManager != nil && worker.tenantClient != nil && !ready {
+			t.Fatal("isMultiTenantReady() should be true when enabled, pgManager, and tenantClient are non-nil")
 		}
 
 		if !multiTenantEnabled && ready {
@@ -149,11 +149,11 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 
 		// Property: isMultiTenantReady() follows the predicate logic.
 		ready := consumer.isMultiTenantReady()
-		expectReady := multiTenantEnabled && mgr != nil
+		expectReady := multiTenantEnabled && mgr != nil && consumer.tenantClient != nil
 
 		if ready != expectReady {
-			t.Fatalf("isMultiTenantReady() = %v, want %v (enabled=%v, hasPGManager=%v)",
-				ready, expectReady, multiTenantEnabled, hasPGManager)
+			t.Fatalf("isMultiTenantReady() = %v, want %v (enabled=%v, hasPGManager=%v, hasTenantClient=%v)",
+				ready, expectReady, multiTenantEnabled, hasPGManager, consumer.tenantClient != nil)
 		}
 	})
 }
@@ -203,10 +203,11 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 		workerReady := worker.isMultiTenantReady()
 
 		// Property: result matches predicate logic.
-		expectWorkerReady := workerEnabled && workerHasPGMgr
+		// tenantClient is not set in this fuzz test, so isMultiTenantReady() is always false.
+		expectWorkerReady := workerEnabled && workerHasPGMgr && worker.tenantClient != nil
 		if workerReady != expectWorkerReady {
-			t.Fatalf("BalanceSyncWorker.isMultiTenantReady() = %v, want %v (enabled=%v, hasPGMgr=%v)",
-				workerReady, expectWorkerReady, workerEnabled, workerHasPGMgr)
+			t.Fatalf("BalanceSyncWorker.isMultiTenantReady() = %v, want %v (enabled=%v, hasPGMgr=%v, hasTenantClient=%v)",
+				workerReady, expectWorkerReady, workerEnabled, workerHasPGMgr, worker.tenantClient != nil)
 		}
 
 		// Property: idempotent.
@@ -228,10 +229,11 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 		consumerReady := consumer.isMultiTenantReady()
 
 		// Property: result matches predicate logic.
-		expectConsumerReady := consumerEnabled && consumerHasPGMgr
+		// tenantClient is not set in this fuzz test, so isMultiTenantReady() is always false.
+		expectConsumerReady := consumerEnabled && consumerHasPGMgr && consumer.tenantClient != nil
 		if consumerReady != expectConsumerReady {
-			t.Fatalf("RedisQueueConsumer.isMultiTenantReady() = %v, want %v (enabled=%v, hasPGMgr=%v)",
-				consumerReady, expectConsumerReady, consumerEnabled, consumerHasPGMgr)
+			t.Fatalf("RedisQueueConsumer.isMultiTenantReady() = %v, want %v (enabled=%v, hasPGMgr=%v, hasTenantClient=%v)",
+				consumerReady, expectConsumerReady, consumerEnabled, consumerHasPGMgr, consumer.tenantClient != nil)
 		}
 
 		// Property: idempotent.
