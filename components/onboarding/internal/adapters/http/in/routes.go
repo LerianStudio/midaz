@@ -26,7 +26,7 @@ const (
 const SettingsMaxPayloadSize = 64 * 1024
 
 // NewRouter register NewRouter routes to the Server.
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
@@ -39,6 +39,12 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
+
+	// Tenant middleware: registered only when multi-tenant mode is enabled.
+	// When tenantMw is nil (single-tenant mode), this block is skipped entirely.
+	if tenantMw != nil {
+		f.Use(tenantMw)
+	}
 
 	// Register all routes
 	RegisterRoutesToApp(f, auth, ah, ph, lh, ih, oh, sh, ath)
