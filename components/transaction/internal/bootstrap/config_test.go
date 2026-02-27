@@ -382,44 +382,30 @@ func TestBuildRabbitMQConnectionString(t *testing.T) {
 	}
 }
 
-// TestProperty_TransactionConfig_EnvTagsUnique verifies the invariant that no two fields
+// TestTransactionConfig_EnvTagsUnique verifies the invariant that no two fields
 // in the transaction Config struct share the same env tag value. Duplicate env tags cause
-// silent configuration bugs where one field's value overwrites another. This property uses
-// reflection to inspect ALL fields and is verified across 1000 iterations to ensure the
-// struct definition itself satisfies the uniqueness constraint.
-func TestProperty_TransactionConfig_EnvTagsUnique(t *testing.T) {
+// silent configuration bugs where one field's value overwrites another.
+func TestTransactionConfig_EnvTagsUnique(t *testing.T) {
 	t.Parallel()
 
-	property := func() bool {
-		configType := reflect.TypeFor[Config]()
-		seen := make(map[string]string) // env tag value -> field name
+	configType := reflect.TypeFor[Config]()
+	seen := make(map[string]string) // env tag value -> field name
 
-		for i := range configType.NumField() {
-			field := configType.Field(i)
+	for i := range configType.NumField() {
+		field := configType.Field(i)
 
-			envTag := field.Tag.Get("env")
-			if envTag == "" {
-				continue
-			}
-
-			if existingField, exists := seen[envTag]; exists {
-				t.Errorf("duplicate env tag %q found on fields %s and %s",
-					envTag, existingField, field.Name)
-				return false
-			}
-
-			seen[envTag] = field.Name
+		envTag := field.Tag.Get("env")
+		if envTag == "" {
+			continue
 		}
 
-		return true
+		if existingField, exists := seen[envTag]; exists {
+			t.Fatalf("duplicate env tag %q found on fields %s and %s",
+				envTag, existingField, field.Name)
+		}
+
+		seen[envTag] = field.Name
 	}
-
-	cfg := &quick.Config{MaxCount: 1000}
-
-	err := quick.Check(func(int) bool {
-		return property()
-	}, cfg)
-	require.NoError(t, err, "Config struct must have unique env tags for all fields")
 }
 
 // TestProperty_EnvFallback_Deterministic verifies the invariant that EnvFallback is
@@ -564,10 +550,6 @@ func FuzzBuildRabbitMQConnectionString_Inputs(f *testing.F) {
 		if uri != "" {
 			assert.NotEmpty(t, result, "result must not be empty when uri is provided")
 		}
-
-		// The function uses url.URL internally so result is always a string
-		// The key property is crash-freedom with any input combination
-		_ = result
 	})
 }
 
