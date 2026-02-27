@@ -33,6 +33,11 @@ type Service struct {
 	// Ports groups all external interface dependencies.
 	Ports Ports
 
+	// Multi-tenant manager handles (opaque interface{} to avoid leaking lib-commons types).
+	// nil in single-tenant mode. Populated from pg.pgManager / mgo.mongoManager at construction.
+	pgManager    interface{}
+	mongoManager interface{}
+
 	// Route registration dependencies (for unified ledger mode)
 	auth                *middleware.AuthClient
 	accountHandler      *httpin.AccountHandler
@@ -89,6 +94,18 @@ func (app *Service) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
 // This allows the transaction module to query ledger settings during validation.
 func (app *Service) GetSettingsPort() mbootstrap.SettingsPort {
 	return app.Ports.SettingsPort
+}
+
+// GetPGManager returns the multi-tenant PostgreSQL manager as an opaque handle.
+// Returns nil in single-tenant mode.
+func (app *Service) GetPGManager() interface{} {
+	return app.pgManager
+}
+
+// GetMongoManager returns the multi-tenant MongoDB manager as an opaque handle.
+// Returns nil in single-tenant mode.
+func (app *Service) GetMongoManager() interface{} {
+	return app.mongoManager
 }
 
 // Ensure Service implements mbootstrap.Service interface at compile time

@@ -17,12 +17,14 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v3/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -74,6 +76,19 @@ func NewSegmentPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Segment
 	return c
 }
 
+// getDB resolves the PostgreSQL database connection for the current request.
+// In multi-tenant mode, the middleware injects a tenant-specific dbresolver.DB into context.
+// In single-tenant mode (or when no tenant context exists), falls back to the static connection.
+func (p *SegmentPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
+	// GetModulePostgresForTenant returns only ErrTenantContextRequired
+	// when no tenant DB is in context; safe to fall through to static connection.
+	if db, err := tmcore.GetModulePostgresForTenant(ctx, "onboarding"); err == nil {
+		return db, nil
+	}
+
+	return p.connection.GetDB()
+}
+
 // Create a new segment entity into Postgresql and returns it.
 func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmodel.Segment) (*mmodel.Segment, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -81,7 +96,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 	ctx, span := tracer.Start(ctx, "postgres.create_segment")
 	defer span.End()
 
-	db, err := p.connection.GetDB()
+	db, err := p.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -156,7 +171,7 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 	ctx, span := tracer.Start(ctx, "postgres.find_segment_by_name")
 	defer span.End()
 
-	db, err := p.connection.GetDB()
+	db, err := p.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -218,7 +233,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "postgres.find_all_segments")
 	defer span.End()
 
-	db, err := p.connection.GetDB()
+	db, err := p.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -292,7 +307,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "postgres.find_segments_by_ids")
 	defer span.End()
 
-	db, err := p.connection.GetDB()
+	db, err := p.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -362,7 +377,7 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "postgres.find_segment")
 	defer span.End()
 
-	db, err := p.connection.GetDB()
+	db, err := p.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -421,7 +436,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "postgres.update_segment")
 	defer span.End()
 
-	db, err := p.connection.GetDB()
+	db, err := p.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -513,7 +528,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "postgres.delete_segment")
 	defer span.End()
 
-	db, err := p.connection.GetDB()
+	db, err := p.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -567,7 +582,7 @@ func (p *SegmentPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 	count := int64(0)
 
-	db, err := p.connection.GetDB()
+	db, err := p.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
