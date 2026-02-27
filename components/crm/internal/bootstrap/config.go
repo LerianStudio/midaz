@@ -47,11 +47,11 @@ type Config struct {
 	AuthEnabled             bool   `env:"PLUGIN_AUTH_ENABLED"`
 	MultiTenantEnabled      bool   `env:"MULTI_TENANT_ENABLED"`
 	MultiTenantURL          string `env:"MULTI_TENANT_URL"`
-	MultiTenantTimeout      int    `env:"MULTI_TENANT_TIMEOUT"`
-	MultiTenantCacheTTL     int    `env:"MULTI_TENANT_CACHE_TTL"`
+	MultiTenantTimeout      int    `env:"MULTI_TENANT_TIMEOUT"`   // seconds
+	MultiTenantCacheTTL     int    `env:"MULTI_TENANT_CACHE_TTL"` // seconds
 	MultiTenantCacheSize    int    `env:"MULTI_TENANT_CACHE_SIZE"`
 	MultiTenantRetryMax     int    `env:"MULTI_TENANT_RETRY_MAX"`
-	MultiTenantRetryDelay   int    `env:"MULTI_TENANT_RETRY_DELAY"`
+	MultiTenantRetryDelay   int    `env:"MULTI_TENANT_RETRY_DELAY"` // seconds
 }
 
 // Options contains optional dependencies that can be injected by callers.
