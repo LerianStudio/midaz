@@ -1,48 +1,389 @@
 version: "2"
 run:
-  tests: false
+  tests: true
 linters:
   enable:
-    - bodyclose
-    - depguard
-    - dogsled
-    - dupword
-    - errchkjson
-    - gocognit
-    - gocyclo
-    - loggercheck
-    - misspell
-    - nakedret
-    - nilerr
-    - nolintlint
-    - prealloc
-    - predeclared
-    - reassign
-    - revive
-    - staticcheck
-    - thelper
-    - tparallel
-    - unconvert
-    - unparam
-    - usestdlibvars
-    - wastedassign
-    - wsl_v5
+    # ===========================================
+    # Security & Bug Detection
+    # ===========================================
+    - bidichk        # Dangerous unicode characters
+    - copyloopvar    # Loop variable capture issues (replaces exportloopref)
+    - errcheck       # Unchecked errors
+    - gosec          # Security vulnerabilities
+    - govet          # Standard Go vet checks
+    - staticcheck    # Advanced static analysis (includes gosimple, stylecheck)
+
+    # ===========================================
+    # Unused Code Detection
+    # ===========================================
+    - ineffassign    # Ineffectual assignments
+    - unparam        # Unused function parameters
+    - unused         # Unused constants, variables, functions, types
+    - wastedassign   # Wasted assignment statements (more aggressive than ineffassign)
+
+    # ===========================================
+    # Error Handling
+    # ===========================================
+    - err113         # Error handling expressions (replaces goerr113)
+    - errchkjson     # JSON error checking
+    - errname        # Error naming conventions
+    - errorlint      # Error wrapping issues
+    - nilerr         # Return nil with non-nil error
+    - wrapcheck      # Ensure errors are wrapped properly
+
+    # ===========================================
+    # Performance
+    # ===========================================
+    - bodyclose      # HTTP body close
+    - perfsprint     # fmt.Sprintf performance
+    - prealloc       # Slice preallocation
+
+    # ===========================================
+    # Complexity & Maintainability
+    # ===========================================
+    - cyclop         # Package cyclomatic complexity
+    - gocognit       # Cognitive complexity
+    - gocyclo        # Cyclomatic complexity
+    - nestif         # Nested if depth
+
+    # ===========================================
+    # Code Quality & Style
+    # ===========================================
+    - dogsled        # Blank identifier assignments (x, _, _, _ = ...)
+    - dupword        # Duplicate words in comments
+    - goconst        # Repeated strings as constants
+    - gocritic       # Opinionated checks
+    - misspell       # Spelling mistakes
+    - nakedret       # Naked returns in long functions
+    - nolintlint     # Proper nolint directive usage
+    - predeclared    # Shadowing of predeclared identifiers
+    - revive         # Comprehensive linting rules
+    - unconvert      # Unnecessary type conversions
+    - usestdlibvars  # Use stdlib variables (http.MethodGet, etc.)
+    - whitespace     # Whitespace issues
+    - wsl_v5         # Whitespace linter v5
+
+    # Note: gci and gofumpt are formatters (see formatters section)
+
+    # ===========================================
+    # Nil Safety & Additional Quality
+    # ===========================================
+    - nilnil         # Check (nil, nil) returns
+    - funlen         # Function length limits
+    - godot          # Check comment punctuation
+    - forcetypeassert # Find forced type assertions (panic risk)
+
+    # ===========================================
+    # Test Quality Enhancement
+    # ===========================================
+    - testifylint    # Detect testify assertion issues
+
+    # ===========================================
+    # Best Practices
+    # ===========================================
+    - durationcheck     # Time.Duration multiplication issues
+    - exhaustive        # Exhaustive enum switch coverage
+    - loggercheck       # Logger argument consistency
+    - mnd               # Magic number detection (replaces gomnd)
+    - nosprintfhostport # Host:port in sprintf (use net.JoinHostPort)
+    - reassign          # Reassignment of package variables
+
+    # ===========================================
+    # Context & Concurrency
+    # ===========================================
+    - contextcheck   # Context usage validation
+    - noctx          # HTTP requests without context
+
+    # ===========================================
+    # Database
+    # ===========================================
+    - rowserrcheck   # SQL rows.Err() checks
+    - sqlclosecheck  # SQL Close() calls
+
+    # ===========================================
+    # Dependencies & Custom Rules
+    # ===========================================
+    - depguard       # Dependency guard (block specific imports)
+    - forbidigo      # Forbid specific function calls
+
+    # ===========================================
+    # Test Quality
+    # ===========================================
+    - thelper        # Test helper functions should call t.Helper()
+    - tparallel      # Enforce t.Parallel() usage in tests
   settings:
     wsl_v5:
       allow-first-in-block: true
       allow-whole-block: false
       branch-max-lines: 2
+    # ===========================================
+    # Function Length Limits
+    # Slightly higher thresholds for repository patterns
+    # ===========================================
+    funlen:
+      lines: 120
+      statements: 60
+      ignore-comments: true
+    # ===========================================
+    # Comment Punctuation
+    # ===========================================
+    godot:
+      scope: toplevel
+      exclude:
+        - "^\\s*//\\s*nolint"
+        - "^\\s*//\\s*TODO"
+        - "^\\s*//\\s*FIXME"
+        - "^\\s*//\\s*@"
+      capital: false
+    # ===========================================
+    # Nil Return Checking
+    # ===========================================
+    nilnil:
+      checked-types:
+        - func
+        - iface
+        - map
+        - chan
+    # ===========================================
+    # Testify Linter Configuration
+    # ===========================================
+    testifylint:
+      enable-all: true
+      disable:
+        - go-require
+    forbidigo:
+      analyze-types: true
+      forbid:
+        # ===========================================
+        # Avoid panics/exits in production paths
+        # ===========================================
+        - pattern: '^panic$'
+          msg: 'avoid panics in production code; return errors instead'
+        - pattern: '^log\.Panic'
+          msg: 'avoid log.Panic* in production code; return errors instead'
+        - pattern: '^log\.Fatal'
+          msg: 'avoid log.Fatal* in production code; return errors instead'
+        - pattern: '^os\.Exit$'
+          msg: 'avoid os.Exit in production code; return errors instead'
+        # ===========================================
+        # Prevent Direct fmt.Print* in Production
+        # Use structured logging instead
+        # ===========================================
+        - pattern: '^fmt\.Print(ln|f)?$'
+          msg: 'use structured logging (logger.Info/Warn/Error) instead of fmt.Print*'
+        # ===========================================
+        # UTC Timestamp Enforcement
+        # Financial systems require consistent timezone handling
+        # ===========================================
+        - pattern: 'time\.Now\(\)[^.]'
+          msg: 'Always use time.Now().UTC() for consistent timezone handling across organizations'
+        - pattern: 'time\.Now\(\),'
+          msg: 'Always use time.Now().UTC() for consistent timezone handling across organizations'
+        - pattern: 'time\.Now\(\)\)'
+          msg: 'Always use time.Now().UTC() for consistent timezone handling across organizations'
+        - pattern: 'time\.Now\(\)}'
+          msg: 'Always use time.Now().UTC() for consistent timezone handling across organizations'
+        # ===========================================
+        # SQL Injection Prevention
+        # Always use parameterized queries ($1, $2, ...)
+        # ===========================================
+        - pattern: 'fmt\.Sprintf\([^)]*"[^"]*(?:SELECT|INSERT|UPDATE|DELETE|WHERE)[^"]*%s'
+          msg: 'Use parameterized queries ($1, $2, ...) instead of fmt.Sprintf with %s for SQL - risk of SQL injection'
+        - pattern: '"\s*\+\s*[^"]+\s*\+\s*".*(?:SELECT|INSERT|UPDATE|DELETE|WHERE)'
+          msg: 'Use parameterized queries ($1, $2, ...) instead of string concatenation for SQL - risk of SQL injection'
+        # ===========================================
+        # Error Handling Enforcement
+        # Always wrap errors with %w, never %v
+        # ===========================================
+        - pattern: 'fmt\.Errorf\([^)]*%v[^)]*err\)'
+          msg: 'Use %w instead of %v for error wrapping to preserve error chain for errors.Is() checks'
     depguard:
       rules:
         main:
           deny:
             - pkg: io/ioutil
               desc: The io/ioutil package has been deprecated, see https://go.dev/doc/go1.16#ioutil
+        # ===========================================
+        # Cross-Component Isolation
+        # Components must not import each other's internal packages directly.
+        # Use proto/gRPC or shared packages for inter-component communication.
+        # ===========================================
+        cross-component-ledger:
+          list-mode: lax
+          files:
+            - "**/components/ledger/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/transaction/internal"
+              desc: "Cross-component violation: Ledger cannot import Transaction internals. Use proto/gRPC or shared packages."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/onboarding/internal"
+              desc: "Cross-component violation: Ledger cannot import Onboarding internals. Use proto/gRPC or shared packages."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/crm/internal"
+              desc: "Cross-component violation: Ledger cannot import CRM internals. Use proto/gRPC or shared packages."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/authorizer/internal"
+              desc: "Cross-component violation: Ledger cannot import Authorizer internals. Use proto/gRPC or shared packages."
+        cross-component-transaction:
+          list-mode: lax
+          files:
+            - "**/components/transaction/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/ledger/internal"
+              desc: "Cross-component violation: Transaction cannot import Ledger internals. Use proto/gRPC or shared packages."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/onboarding/internal"
+              desc: "Cross-component violation: Transaction cannot import Onboarding internals. Use proto/gRPC or shared packages."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/crm/internal"
+              desc: "Cross-component violation: Transaction cannot import CRM internals. Use proto/gRPC or shared packages."
+        cross-component-onboarding:
+          list-mode: lax
+          files:
+            - "**/components/onboarding/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/transaction/internal"
+              desc: "Cross-component violation: Onboarding cannot import Transaction internals. Use proto/gRPC or shared packages."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/ledger/internal"
+              desc: "Cross-component violation: Onboarding cannot import Ledger internals. Use proto/gRPC or shared packages."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/crm/internal"
+              desc: "Cross-component violation: Onboarding cannot import CRM internals. Use proto/gRPC or shared packages."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/authorizer/internal"
+              desc: "Cross-component violation: Onboarding cannot import Authorizer internals. Use proto/gRPC or shared packages."
+        cross-component-crm:
+          list-mode: lax
+          files:
+            - "**/components/crm/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/transaction/internal"
+              desc: "Cross-component violation: CRM cannot import Transaction internals. Use proto/gRPC or shared packages."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/ledger/internal"
+              desc: "Cross-component violation: CRM cannot import Ledger internals. Use proto/gRPC or shared packages."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/onboarding/internal"
+              desc: "Cross-component violation: CRM cannot import Onboarding internals. Use proto/gRPC or shared packages."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/authorizer/internal"
+              desc: "Cross-component violation: CRM cannot import Authorizer internals. Use proto/gRPC or shared packages."
+        cross-component-authorizer:
+          list-mode: lax
+          files:
+            - "**/components/authorizer/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/ledger/internal"
+              desc: "Cross-component violation: Authorizer cannot import Ledger internals. Use proto/gRPC or shared packages."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/onboarding/internal"
+              desc: "Cross-component violation: Authorizer cannot import Onboarding internals. Use proto/gRPC or shared packages."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/crm/internal"
+              desc: "Cross-component violation: Authorizer cannot import CRM internals. Use proto/gRPC or shared packages."
+        # ===========================================
+        # CQRS Enforcement
+        # Commands and Queries must be strictly separated.
+        # ===========================================
+        cqrs-command-isolation:
+          list-mode: lax
+          files:
+            - "**/services/command/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
+              desc: "CQRS violation: Command cannot import Query package."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+              desc: "CQRS violation: Command cannot import Query package."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+              desc: "CQRS violation: Command cannot import Query package."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/crm/internal/services/query"
+              desc: "CQRS violation: Command cannot import Query package."
+        cqrs-query-isolation:
+          list-mode: lax
+          files:
+            - "**/services/query/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+              desc: "CQRS violation: Query cannot import Command package. Queries must be read-only."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
+              desc: "CQRS violation: Query cannot import Command package. Queries must be read-only."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+              desc: "CQRS violation: Query cannot import Command package. Queries must be read-only."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/crm/internal/services/command"
+              desc: "CQRS violation: Query cannot import Command package. Queries must be read-only."
+        # ===========================================
+        # Hexagonal Architecture Boundary Enforcement
+        # HTTP handlers must use service interfaces, not data adapters directly
+        # ===========================================
+        http-handlers-boundary:
+          list-mode: lax
+          files:
+            - "**/adapters/http/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres"
+              desc: "Hexagonal violation: HTTP handlers must use services, not postgres adapters directly."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres"
+              desc: "Hexagonal violation: HTTP handlers must use services, not postgres adapters directly."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres"
+              desc: "Hexagonal violation: HTTP handlers must use services, not postgres adapters directly."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/postgres"
+              desc: "Hexagonal violation: HTTP handlers must use services, not postgres adapters directly."
+        # ===========================================
+        # Ports Must Be Pure Interfaces
+        # Ports cannot import adapters (dependency inversion)
+        # ===========================================
+        ports-no-adapters:
+          list-mode: lax
+          files:
+            - "**/ports/**/*.go"
+          deny:
+            - pkg: "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters"
+              desc: "Hexagonal violation: Ports cannot import adapters. Ports define interfaces; adapters implement them."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters"
+              desc: "Hexagonal violation: Ports cannot import adapters. Ports define interfaces; adapters implement them."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters"
+              desc: "Hexagonal violation: Ports cannot import adapters. Ports define interfaces; adapters implement them."
+            - pkg: "github.com/LerianStudio/midaz/v3/components/crm/internal/adapters"
+              desc: "Hexagonal violation: Ports cannot import adapters. Ports define interfaces; adapters implement them."
+            - pkg: "github.com/gofiber/fiber"
+              desc: "Ports should be infrastructure-agnostic. Use abstract types instead of Fiber."
+    # ===========================================
+    # Exhaustive Switch Coverage for Enums
+    # ===========================================
+    exhaustive:
+      default-signifies-exhaustive: true
+    cyclop:
+      max-complexity: 15
     gocyclo:
-      min-complexity: 18
+      min-complexity: 15
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    nestif:
+      min-complexity: 4
+    wrapcheck:
+      ignore-sigs:
+        - "func fmt.Errorf(format string, a ...any) error"
+        - "func fmt.Errorf(format string, a ...any) (err error)"
+        - "func errors.New(text string) error"
+        - "func errors.Join(errs ...error) error"
+        # Fiber native response functions
+        - "func (*github.com/gofiber/fiber/v2.Ctx).JSON(data interface{}, ctype ...string) error"
+        - "func (*github.com/gofiber/fiber/v2.Ctx).SendString(body string) error"
+        - "func (*github.com/gofiber/fiber/v2.App).Listen(addr string) error"
+        - "func (*github.com/gofiber/fiber/v2.Ctx).SendStatus(status int) error"
+        - "func (*github.com/gofiber/fiber/v2.Ctx).Next() error"
+        - "func (*github.com/gofiber/fiber/v2.Ctx).Send(body []byte) error"
+        - "func (*github.com/gofiber/fiber/v2.Ctx).Status(status int) *github.com/gofiber/fiber/v2.Ctx"
+        # Database operations
+        - "func (*database/sql.Tx).ExecContext(ctx context.Context, query string, args ...any) (database/sql.Result, error)"
+        - "func (*database/sql.Tx).QueryContext(ctx context.Context, query string, args ...any) (*database/sql.Rows, error)"
+        - "func (*database/sql.Tx).QueryRowContext(ctx context.Context, query string, args ...any) *database/sql.Row"
+        - "func (*database/sql.Row).Scan(dest ...any) error"
+        - "func (*database/sql.Rows).Scan(dest ...any) error"
+        - "func (*database/sql.Rows).Err() error"
+        - "func (database/sql.Result).RowsAffected() (int64, error)"
+        # Interface Scan method
+        - "func (interface).Scan(dest ...any) error"
+        # JSON operations
+        - "func encoding/json.Marshal(v any) ([]byte, error)"
+        - "func encoding/json.Unmarshal(data []byte, v any) error"
+      ignore-package-globs:
+        - github.com/LerianStudio/midaz/v3/pkg/*
+        - github.com/LerianStudio/midaz/v3/components/*/internal/services/*
     govet:
       enable:
         - shadow
+        - unusedresult
+        - unusedwrite
       settings:
         shadow:
           strict: true
@@ -60,6 +401,111 @@ linters:
         - name: use-any
           severity: warning
           disabled: false
+        - name: package-comments
+          severity: warning
+          disabled: false
+        - name: context-as-argument
+          severity: error
+          disabled: false
+        - name: error-return
+          severity: warning
+          disabled: false
+        - name: error-naming
+          severity: warning
+          disabled: false
+        - name: exported
+          severity: warning
+          disabled: false
+          arguments:
+            - checkPrivateReceivers
+            - disableStutteringCheck
+        - name: unexported-return
+          severity: warning
+          disabled: false
+        - name: indent-error-flow
+          severity: warning
+          disabled: false
+        - name: range
+          severity: warning
+          disabled: false
+        - name: receiver-naming
+          severity: warning
+          disabled: false
+        - name: time-naming
+          severity: warning
+          disabled: false
+        - name: var-declaration
+          severity: warning
+          disabled: false
+        - name: unconditional-recursion
+          severity: error
+          disabled: false
+        - name: waitgroup-by-value
+          severity: error
+          disabled: false
+        - name: error-strings
+          severity: warning
+          disabled: false
+        - name: defer
+          severity: warning
+          disabled: false
+          arguments:
+            - ["call-chain", "loop"]
+        - name: deep-exit
+          severity: warning
+          disabled: false
+        - name: unnecessary-stmt
+          severity: warning
+          disabled: false
+        - name: redefines-builtin-id
+          severity: warning
+          disabled: false
+        - name: superfluous-else
+          severity: warning
+          disabled: false
+          arguments:
+            - preserveScope
+    # ===========================================
+    # Gocritic Enhanced Checks
+    # ===========================================
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - hugeParam
+        - rangeValCopy
+        - unnamedResult
+        - whyNoLint
+        - ptrToRefParam
+        - emptyStringTest
+        - appendCombine
+        - paramTypeCombine
+      settings:
+        captLocal:
+          paramsOnly: true
+        ifElseChain:
+          minThreshold: 3
+    varnamelen:
+      min-name-length: 2
+      check-receiver: true
+      check-return: true
+      check-type-param: true
+      ignore-decls:
+        - err error
+        - ok bool
+        - id string
+        - id int
+        - id int64
+        - id uint64
+        - tx *sql.Tx
+        - db *sql.DB
+        - ctx context.Context
+        - t *testing.T
+        - i int
+        - j int
+        - k int
   exclusions:
     generated: lax
     rules:
@@ -111,6 +557,86 @@ linters:
         text: '^shadow: declaration of "(err|ok)" shadows declaration'
       - path: (.+)\.go$
         text: parameter .* always receives
+      # Allow forbidigo exceptions in test files
+      - linters:
+          - forbidigo
+        path: _test\.go
+      # Allow forbidigo in cmd/ (main entry points need os.Exit, fmt.Print)
+      - linters:
+          - forbidigo
+        path: cmd/
+      # Exclude goconst from test files
+      - linters:
+          - goconst
+        path: _test\.go
+      # ===========================================
+      # Complex Repository Functions
+      # Query building with pagination requires more lines
+      # ===========================================
+      - linters:
+          - funlen
+        path: internal/.*/adapters/postgres/.*\.go
+      - linters:
+          - funlen
+        path: components/.*/internal/adapters/postgres/.*\.go
+      # ===========================================
+      # Bootstrap/Init Functions
+      # Module initialization requires more statements
+      # ===========================================
+      - linters:
+          - funlen
+        path: components/.*/internal/bootstrap/.*\.go
+      - linters:
+          - funlen
+        path: components/.*/bootstrap\.go
+      # ===========================================
+      # Nil returns in bootstrap (optional connections)
+      # ===========================================
+      - linters:
+          - nilnil
+        path: internal/bootstrap/
+      - linters:
+          - nilnil
+        path: components/.*/internal/bootstrap/
+      # ===========================================
+      # Swagger Comment Exclusions
+      # ===========================================
+      - linters:
+          - godot
+        source: "^// @"
+      # ===========================================
+      # Migration/SQL File Exclusions
+      # ===========================================
+      - linters:
+          - godot
+        path: migrations/
+      # ===========================================
+      # Wrapcheck exclusion for service layer
+      # ===========================================
+      - linters:
+          - wrapcheck
+        path: components/.*/internal/services/(command|query)/.*\.go
+        text: "error returned from interface method should be wrapped"
+      # ===========================================
+      # Generated Code Exclusions
+      # ===========================================
+      - linters:
+          - gofumpt
+        path: (docs/swagger/|.*\.pb\.go)
+      # Exclude proto generated files from most linters
+      - linters:
+          - govet
+          - revive
+          - stylecheck
+          - gocritic
+          - wrapcheck
+          - errcheck
+          - forcetypeassert
+          - varnamelen
+          - funlen
+          - godot
+          - dupword
+        path: .*\.pb\.go
     paths:
       - third_party$
       - builtin$
@@ -119,9 +645,22 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
 formatters:
+  enable:
+    - gci
+    - gofumpt
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/LerianStudio)
+        - prefix(github.com/LerianStudio/midaz)
+    gofumpt:
+      extra-rules: true
   exclusions:
     generated: lax
     paths:
       - third_party$
       - builtin$
       - examples$
+      - docs/swagger$
