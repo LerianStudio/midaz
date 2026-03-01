@@ -1,0 +1,32 @@
+[
+  {
+    "key": "default"
+  },
+  {
+    "key": "food"
+  },
+  {
+    "key": "house"
+  },
+  {
+    "key": "car"
+  },
+  {
+    "key": "pet"
+  },
+  {
+    "key": "health"
+  },
+  {
+    "key": "entertainment"
+  },
+  {
+    "key": "education"
+  },
+  {
+    "key": "travel"
+  },
+  {
+    "key": "other"
+  }
+]

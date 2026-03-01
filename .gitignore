@@ -21,6 +21,8 @@ docs/codereview/
 
 # Build and binary files
 *__debug_bin*
+/app
+bin/
 dist/
 coverage.out
 scripts/coverage_ignore.txt
@@ -53,6 +55,3 @@ cert/
 
 # Planning docs
 PLAN.md
-
-# K6 benchmark scripts
-tests/k6/

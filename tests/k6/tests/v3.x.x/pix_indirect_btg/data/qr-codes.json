@@ -1,0 +1,37 @@
+[
+  {
+    "description": "Static QR Code - Fixed Amount 100 BRL",
+    "emvPayload": "00020126580014BR.GOV.BCB.PIX0136a1b2c3d4-e5f6-7890-abcd-ef12345678905204000053039865406100.005802BR5913Test Merchant6008SAOPAULO62070503***6304A1B2",
+    "amount": "100.00",
+    "merchantName": "Test Merchant",
+    "city": "SAO PAULO"
+  },
+  {
+    "description": "Static QR Code - Fixed Amount 250 BRL",
+    "emvPayload": "00020126580014BR.GOV.BCB.PIX0136b2c3d4e5-f6a7-8901-bcde-f123456789015204000053039865406250.005802BR5914Loja Exemplo6011RIODEJANEIRO62070503***6304C3D4",
+    "amount": "250.00",
+    "merchantName": "Loja Exemplo",
+    "city": "RIO DE JANEIRO"
+  },
+  {
+    "description": "Static QR Code - Variable Amount",
+    "emvPayload": "00020126580014BR.GOV.BCB.PIX0136c3d4e5f6-a7b8-9012-cdef-0123456789025204000053039865802BR5916Comercio Digital6008SAOPAULO62070503***6304E5F6",
+    "amount": null,
+    "merchantName": "Comercio Digital",
+    "city": "SAO PAULO"
+  },
+  {
+    "description": "Dynamic QR Code - Immediate Collection",
+    "emvPayload": "00020126850014BR.GOV.BCB.PIX2563qr.sandbox.pix-btg.com.br/v2/cobv/TX12345678901234567890123452040000530398654061500.005802BR5920Empresa Servicos LTDA6010BELOHORIZONTE62070503***6304G7H8",
+    "amount": "1500.00",
+    "merchantName": "Empresa Servicos LTDA",
+    "city": "BELO HORIZONTE"
+  },
+  {
+    "description": "Dynamic QR Code - Due Date Collection",
+    "emvPayload": "00020126850014BR.GOV.BCB.PIX2563qr.sandbox.pix-btg.com.br/v2/cobv/TX98765432109876543210987655204000053039865406500.005802BR5918Distribuidora ABC6008CURITIBA62070503***6304I9J0",
+    "amount": "500.00",
+    "merchantName": "Distribuidora ABC",
+    "city": "CURITIBA"
+  }
+]
