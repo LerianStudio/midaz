@@ -7,9 +7,10 @@ package testutils
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	"github.com/stretchr/testify/require"
 )
 
 // Test-only encryption keys. These are hex-encoded 32-byte (64 hex chars) values.

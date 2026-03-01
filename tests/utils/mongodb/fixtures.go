@@ -11,13 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 )
 
 // MetadataFixture represents test metadata for insertion.
@@ -89,7 +90,7 @@ func ClearCollection(t *testing.T, db *mongo.Database, collection string) {
 
 // ============================================================================
 // Alias Fixtures
-// ============================================================================
+// ============================================================================.
 
 // AliasParams holds parameters for creating a test alias.
 type AliasParams struct {
@@ -192,7 +193,7 @@ func CreateTestAliasWithBanking(t *testing.T, holderID uuid.UUID, accountID, doc
 
 // ============================================================================
 // Holder Fixtures
-// ============================================================================
+// ============================================================================.
 
 // HolderParams holds parameters for creating a test holder.
 type HolderParams struct {

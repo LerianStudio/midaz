@@ -8,6 +8,11 @@ import (
 	"github.com/docker/docker/api/types/container"
 )
 
+const (
+	bytesPerMB      = 1024 * 1024 // 1 MB in bytes
+	nanoCPUsPerCore = 1e9         // 1 CPU core in nanoseconds
+)
+
 // ApplyResourceLimits configures memory and CPU limits on a container's HostConfig.
 // This is the recommended approach for testcontainers-go (HostConfigModifier).
 //
@@ -25,10 +30,10 @@ import (
 //	}
 func ApplyResourceLimits(hostConfig *container.HostConfig, memoryMB int64, cpuLimit float64) {
 	if memoryMB > 0 {
-		hostConfig.Memory = memoryMB * 1024 * 1024 // Convert MB to bytes
+		hostConfig.Memory = memoryMB * bytesPerMB // Convert MB to bytes
 	}
 
 	if cpuLimit > 0 {
-		hostConfig.NanoCPUs = int64(cpuLimit * 1e9) // Convert cores to nanoseconds
+		hostConfig.NanoCPUs = int64(cpuLimit * nanoCPUsPerCore) // Convert cores to nanoseconds
 	}
 }

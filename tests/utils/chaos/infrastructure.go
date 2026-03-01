@@ -175,7 +175,7 @@ func (i *Infrastructure) RegisterContainerWithPort(name string, container testco
 		Host:         host,
 		Port:         mappedPort.Port(),
 		DirectAddr:   fmt.Sprintf("%s:%s", host, mappedPort.Port()),
-		UpstreamAddr: fmt.Sprintf("host.docker.internal:%s", mappedPort.Port()),
+		UpstreamAddr: "host.docker.internal:" + mappedPort.Port(),
 	}
 
 	i.containers[name] = info
@@ -191,7 +191,7 @@ func (i *Infrastructure) GetContainer(name string) (*ContainerInfo, bool) {
 
 // CreateProxyFor creates a Toxiproxy proxy for a registered container.
 // Returns the proxy listen address that clients should connect to.
-func (i *Infrastructure) CreateProxyFor(containerName string, listenPort string) (*Proxy, error) {
+func (i *Infrastructure) CreateProxyFor(containerName, listenPort string) (*Proxy, error) {
 	i.t.Helper()
 
 	if i.toxiproxy == nil {
@@ -200,15 +200,15 @@ func (i *Infrastructure) CreateProxyFor(containerName string, listenPort string)
 
 	info, ok := i.containers[containerName]
 	if !ok {
-		return nil, fmt.Errorf("container %s not registered", containerName)
+		return nil, fmt.Errorf("container %s not registered", containerName) //nolint:err113 // dynamic error with context info
 	}
 
-	proxyName := fmt.Sprintf("%s-proxy", containerName)
+	proxyName := containerName + "-proxy"
 	// Use UpstreamAddr which uses host.docker.internal to reach the target from inside Toxiproxy container
 	upstream := info.UpstreamAddr
 	// Extract just the port number from the port ID (e.g., "8666/tcp" -> "8666")
 	portNum := nat.Port(listenPort).Port()
-	listen := fmt.Sprintf("0.0.0.0:%s", portNum)
+	listen := "0.0.0.0:" + portNum
 
 	proxy, err := i.orch.CreateProxy(proxyName, upstream, listen)
 	if err != nil {
@@ -233,6 +233,7 @@ func (i *Infrastructure) GetProxy(containerName string) (*Proxy, bool) {
 }
 
 // Cleanup releases all resources held by the infrastructure.
+//
 // Deprecated: Cleanup is now handled automatically via t.Cleanup().
 // This method is kept for backward compatibility but is a no-op.
 func (i *Infrastructure) Cleanup() {

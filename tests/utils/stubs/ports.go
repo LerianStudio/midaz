@@ -17,8 +17,9 @@ package stubs
 import (
 	"context"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // BalancePortStub is a stub implementation of mbootstrap.BalancePort for integration tests.

@@ -25,8 +25,13 @@ import (
 )
 
 const (
-	kafkaPort = "9092/tcp"
-	adminPort = "9644/tcp"
+	kafkaPort              = "9092/tcp"
+	adminPort              = "9644/tcp"
+	redpandaStartupTimeout = 180 * time.Second
+	topicCreateTimeout     = 5 * time.Second
+	topicRetryMaxAttempt   = 20
+	topicRetryLastAttempt  = 19
+	topicRetryPollInterval = 300 * time.Millisecond
 )
 
 // ContainerResult contains Redpanda container connection information.
@@ -41,7 +46,9 @@ type ContainerResult struct {
 func reserveHostPort(t *testing.T) string {
 	t.Helper()
 
-	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	lc := &net.ListenConfig{}
+
+	listener, err := lc.Listen(context.Background(), "tcp4", "127.0.0.1:0")
 	require.NoError(t, err)
 
 	defer func() {
@@ -78,9 +85,9 @@ func SetupContainer(t *testing.T) *ContainerResult {
 			"--check=false",
 			"--node-id", "0",
 			"--kafka-addr", "PLAINTEXT://0.0.0.0:9092",
-			"--advertise-kafka-addr", fmt.Sprintf("PLAINTEXT://127.0.0.1:%s", kafkaHostPort),
+			"--advertise-kafka-addr", "PLAINTEXT://127.0.0.1:" + kafkaHostPort,
 		},
-		WaitingFor: wait.ForLog("Successfully started Redpanda!").WithStartupTimeout(180 * time.Second),
+		WaitingFor: wait.ForLog("Successfully started Redpanda!").WithStartupTimeout(redpandaStartupTimeout),
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -103,7 +110,7 @@ func SetupContainer(t *testing.T) *ContainerResult {
 		Host:      host,
 		KafkaPort: mappedKafka.Port(),
 		AdminPort: mappedAdmin.Port(),
-		Brokers:   []string{fmt.Sprintf("127.0.0.1:%s", mappedKafka.Port())},
+		Brokers:   []string{"127.0.0.1:" + mappedKafka.Port()},
 	}
 
 	t.Cleanup(func() {
@@ -143,7 +150,9 @@ func SetupTopics(t *testing.T, result *ContainerResult, topics ...string) {
 func createTopicWithRetry(ctx context.Context, client *kgo.Client, topicName string) error {
 	var lastErr error
 
-	for attempt := range 20 {
+	timeoutMillis := int32(topicCreateTimeout.Milliseconds()) //nolint:gosec // known safe: 5000ms fits int32
+
+	for attempt := range topicRetryMaxAttempt {
 		topicReq := kmsg.NewCreateTopicsRequestTopic()
 		topicReq.Topic = topicName
 		topicReq.NumPartitions = 1
@@ -151,14 +160,16 @@ func createTopicWithRetry(ctx context.Context, client *kgo.Client, topicName str
 
 		req := kmsg.NewPtrCreateTopicsRequest()
 		req.Topics = append(req.Topics, topicReq)
-		req.TimeoutMillis = int32((5 * time.Second).Milliseconds())
+		req.TimeoutMillis = timeoutMillis
 
 		resp, requestErr := req.RequestWith(ctx, client)
-		if requestErr != nil {
+
+		switch {
+		case requestErr != nil:
 			lastErr = fmt.Errorf("create topic %s request failed: %w", topicName, requestErr)
-		} else if len(resp.Topics) != 1 {
-			lastErr = fmt.Errorf("create topic %s returned unexpected topic count: %d", topicName, len(resp.Topics))
-		} else {
+		case len(resp.Topics) != 1:
+			lastErr = fmt.Errorf("create topic %s returned unexpected topic count: %d", topicName, len(resp.Topics)) //nolint:err113 // dynamic error with context info
+		default:
 			resultTopic := resp.Topics[0]
 			if resultTopic.ErrorCode == 0 {
 				return nil
@@ -176,8 +187,8 @@ func createTopicWithRetry(ctx context.Context, client *kgo.Client, topicName str
 			}
 		}
 
-		if attempt < 19 {
-			time.Sleep(300 * time.Millisecond)
+		if attempt < topicRetryLastAttempt {
+			time.Sleep(topicRetryPollInterval)
 		}
 	}
 
@@ -188,7 +199,7 @@ func createTopicWithRetry(ctx context.Context, client *kgo.Client, topicName str
 func waitForTopicReady(ctx context.Context, client *kgo.Client, topicName string) error {
 	var readinessErr error
 
-	for attempt := range 20 {
+	for attempt := range topicRetryMaxAttempt {
 		name := topicName
 		metadataReq := kmsg.NewPtrMetadataRequest()
 		metadataTopic := kmsg.NewMetadataRequestTopic()
@@ -196,14 +207,16 @@ func waitForTopicReady(ctx context.Context, client *kgo.Client, topicName string
 		metadataReq.Topics = append(metadataReq.Topics, metadataTopic)
 
 		metadataResp, err := metadataReq.RequestWith(ctx, client)
-		if err != nil {
-			readinessErr = fmt.Errorf("metadata request for topic %s failed: %w", topicName, err)
-		} else if len(metadataResp.Topics) != 1 {
-			readinessErr = fmt.Errorf("metadata request for topic %s returned unexpected topic count: %d", topicName, len(metadataResp.Topics))
-		} else {
-			topicMeta := metadataResp.Topics[0]
 
+		switch {
+		case err != nil:
+			readinessErr = fmt.Errorf("metadata request for topic %s failed: %w", topicName, err)
+		case len(metadataResp.Topics) != 1:
+			readinessErr = fmt.Errorf("metadata request for topic %s returned unexpected topic count: %d", topicName, len(metadataResp.Topics)) //nolint:err113 // dynamic error with context info
+		default:
+			topicMeta := metadataResp.Topics[0]
 			topicErr := kerr.ErrorForCode(topicMeta.ErrorCode)
+
 			if topicMeta.ErrorCode == 0 && len(topicMeta.Partitions) > 0 {
 				allLeadersReady := true
 
@@ -218,14 +231,14 @@ func waitForTopicReady(ctx context.Context, client *kgo.Client, topicName string
 					return nil
 				}
 
-				readinessErr = fmt.Errorf("topic %s partitions are not leader-ready yet", topicName)
+				readinessErr = fmt.Errorf("topic %s partitions are not leader-ready yet", topicName) //nolint:err113 // dynamic error with context info
 			} else {
 				readinessErr = fmt.Errorf("topic %s metadata not ready: %w", topicName, topicErr)
 			}
 		}
 
-		if attempt < 19 {
-			time.Sleep(300 * time.Millisecond)
+		if attempt < topicRetryLastAttempt {
+			time.Sleep(topicRetryPollInterval)
 		}
 	}
 

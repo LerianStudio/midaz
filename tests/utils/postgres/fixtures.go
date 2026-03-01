@@ -7,14 +7,25 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+)
+
+const (
+	defaultBalanceAvailable  = 1000
+	defaultTransactionAmount = 100
+	defaultAssetRateTTL      = 3600
+	defaultAssetRateValue    = 5.25
+	defaultAssetRateScale    = 2.0
 )
 
 // OrganizationParams holds parameters for creating a test organization.
@@ -47,7 +58,7 @@ func CreateTestOrganizationWithParams(t *testing.T, db *sql.DB, params Organizat
 	id := libCommons.GenerateUUIDv7()
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO organization (id, legal_name, legal_document, address, status, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`, id, params.LegalName, params.LegalDocument, `{"city":"Test"}`, params.Status, now, now, params.DeletedAt)
@@ -84,7 +95,7 @@ func CreateTestLedgerWithParams(t *testing.T, db *sql.DB, orgID uuid.UUID, param
 	id := libCommons.GenerateUUIDv7()
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO ledger (id, name, organization_id, status, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, id, params.Name, orgID, params.Status, now, now, params.DeletedAt)
@@ -124,7 +135,7 @@ func CreateTestPortfolioWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uui
 	id := libCommons.GenerateUUIDv7()
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO portfolio (id, name, entity_id, ledger_id, organization_id, status, status_description, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`, id, params.Name, params.EntityID, ledgerID, orgID, params.Status, params.StatusDescription, now, now, params.DeletedAt)
@@ -138,7 +149,7 @@ func CreateTestAsset(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, code s
 	t.Helper()
 
 	id := libCommons.GenerateUUIDv7()
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO asset (id, name, type, code, organization_id, ledger_id, status, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, id, code+" Asset", "currency", code, orgID, ledgerID, "ACTIVE", time.Now(), time.Now())
@@ -174,7 +185,7 @@ func CreateTestAssetWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UU
 	id := libCommons.GenerateUUIDv7()
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO asset (id, name, type, code, status, status_description, ledger_id, organization_id, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`, id, params.Name, params.Type, params.Code, params.Status, params.StatusDescription,
@@ -185,7 +196,7 @@ func CreateTestAssetWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UU
 }
 
 // CreateTestAccount inserts an account directly into DB for test setup.
-// Parameters: db, orgID, ledgerID, portfolioID (nil for none), name, alias, assetCode, deletedAt (nil for active)
+// Parameters: db, orgID, ledgerID, portfolioID (nil for none), name, alias, assetCode, deletedAt (nil for active).
 func CreateTestAccount(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, portfolioID *uuid.UUID, name, alias, assetCode string, deletedAt *time.Time) uuid.UUID {
 	t.Helper()
 
@@ -197,7 +208,7 @@ func CreateTestAccount(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, port
 		portfolioIDVal = *portfolioID
 	}
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO account (id, name, asset_code, organization_id, ledger_id, portfolio_id, status, alias, type, blocked, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`, id, name, assetCode, orgID, ledgerID, portfolioIDVal, "ACTIVE", alias, "deposit", false, now, now, deletedAt)
@@ -225,7 +236,7 @@ func DefaultBalanceParams() BalanceParams {
 		Alias:          "@test-balance",
 		Key:            "default",
 		AssetCode:      "USD",
-		Available:      decimal.NewFromInt(1000),
+		Available:      decimal.NewFromInt(defaultBalanceAvailable),
 		OnHold:         decimal.Zero,
 		AccountType:    "deposit",
 		AllowSending:   true,
@@ -241,7 +252,7 @@ func CreateTestBalance(t *testing.T, db *sql.DB, orgID, ledgerID, accountID uuid
 	id := libCommons.GenerateUUIDv7()
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`, id, orgID, ledgerID, accountID, params.Alias, params.Key, params.AssetCode,
@@ -284,7 +295,7 @@ func DefaultTransactionParams() TransactionParams {
 	return TransactionParams{
 		Description:              "Test transaction",
 		Status:                   "PENDING",
-		Amount:                   decimal.NewFromInt(100),
+		Amount:                   decimal.NewFromInt(defaultTransactionAmount),
 		AssetCode:                "USD",
 		ChartOfAccountsGroupName: "default",
 		Body:                     &body,
@@ -303,7 +314,7 @@ func CreateTestTransaction(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, 
 		parentID = *params.ParentTransactionID
 	}
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO transaction (id, parent_transaction_id, description, status, status_description, amount, asset_code, chart_of_accounts_group_name, route, organization_id, ledger_id, body, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	`, id, parentID, params.Description, params.Status, params.StatusDescription,
@@ -379,7 +390,7 @@ func CreateTestOperation(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, pa
 		balanceAffected = params.BalanceAffected
 	}
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO operation (
 			id, transaction_id, description, type, account_id, account_alias, balance_id, balance_key,
 			asset_code, chart_of_accounts, amount, available_balance, on_hold_balance,
@@ -401,7 +412,7 @@ func CreateTestOperation(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, pa
 func UpdateTransactionStatus(t *testing.T, db *sql.DB, txID uuid.UUID, status string) {
 	t.Helper()
 
-	_, err := db.Exec(`UPDATE transaction SET status = $1, updated_at = $2 WHERE id = $3`,
+	_, err := db.ExecContext(context.Background(), `UPDATE transaction SET status = $1, updated_at = $2 WHERE id = $3`,
 		status, time.Now().Truncate(time.Microsecond), txID)
 	require.NoError(t, err, "failed to update transaction status")
 }
@@ -412,7 +423,7 @@ func GetTransactionStatus(t *testing.T, db *sql.DB, txID uuid.UUID) string {
 
 	var status string
 
-	err := db.QueryRow(`SELECT status FROM transaction WHERE id = $1`, txID).Scan(&status)
+	err := db.QueryRowContext(context.Background(), `SELECT status FROM transaction WHERE id = $1`, txID).Scan(&status)
 	require.NoError(t, err, "failed to get transaction status")
 
 	return status
@@ -424,7 +435,7 @@ func GetTransactionParentID(t *testing.T, db *sql.DB, txID uuid.UUID) *uuid.UUID
 
 	var parentID *string
 
-	err := db.QueryRow(`SELECT parent_transaction_id FROM transaction WHERE id = $1`, txID).Scan(&parentID)
+	err := db.QueryRowContext(context.Background(), `SELECT parent_transaction_id FROM transaction WHERE id = $1`, txID).Scan(&parentID)
 	require.NoError(t, err, "failed to get transaction parent ID")
 
 	if parentID == nil {
@@ -443,7 +454,7 @@ func GetBalanceAvailable(t *testing.T, db *sql.DB, balanceID uuid.UUID) decimal.
 
 	var available decimal.Decimal
 
-	err := db.QueryRow(`SELECT available FROM balance WHERE id = $1`, balanceID).Scan(&available)
+	err := db.QueryRowContext(context.Background(), `SELECT available FROM balance WHERE id = $1`, balanceID).Scan(&available)
 	require.NoError(t, err, "failed to get balance available")
 
 	return available
@@ -455,7 +466,7 @@ func GetBalanceOnHold(t *testing.T, db *sql.DB, balanceID uuid.UUID) decimal.Dec
 
 	var onHold decimal.Decimal
 
-	err := db.QueryRow(`SELECT on_hold FROM balance WHERE id = $1`, balanceID).Scan(&onHold)
+	err := db.QueryRowContext(context.Background(), `SELECT on_hold FROM balance WHERE id = $1`, balanceID).Scan(&onHold)
 	require.NoError(t, err, "failed to get balance on_hold")
 
 	return onHold
@@ -467,7 +478,7 @@ func CountOperationsByTransactionID(t *testing.T, db *sql.DB, txID uuid.UUID) in
 
 	var count int
 
-	err := db.QueryRow(`SELECT COUNT(*) FROM operation WHERE transaction_id = $1`, txID).Scan(&count)
+	err := db.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM operation WHERE transaction_id = $1`, txID).Scan(&count)
 	require.NoError(t, err, "failed to count operations")
 
 	return count
@@ -480,8 +491,8 @@ func GetTransactionByParentID(t *testing.T, db *sql.DB, parentID uuid.UUID) *uui
 
 	var id string
 
-	err := db.QueryRow(`SELECT id FROM transaction WHERE parent_transaction_id = $1`, parentID).Scan(&id)
-	if err == sql.ErrNoRows {
+	err := db.QueryRowContext(context.Background(), `SELECT id FROM transaction WHERE parent_transaction_id = $1`, parentID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 
@@ -499,7 +510,7 @@ func GetBalanceByAlias(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, alia
 
 	var available decimal.Decimal
 
-	err := db.QueryRow(`
+	err := db.QueryRowContext(context.Background(), `
 		SELECT available FROM balance
 		WHERE organization_id = $1 AND ledger_id = $2 AND alias = $3 AND deleted_at IS NULL
 	`, orgID, ledgerID, alias).Scan(&available)
@@ -531,7 +542,7 @@ func CreateTestSegmentWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.
 	id := libCommons.GenerateUUIDv7()
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO segment (id, name, ledger_id, organization_id, status, status_description, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, id, params.Name, ledgerID, orgID, params.Status, params.StatusDescription, now, now, params.DeletedAt)
@@ -564,7 +575,7 @@ func CreateTestAccountType(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, 
 	id := libCommons.GenerateUUIDv7()
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO account_type (id, organization_id, ledger_id, name, description, key_value, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, id, orgID, ledgerID, params.Name, params.Description, params.KeyValue, now, now, params.DeletedAt)
@@ -591,10 +602,10 @@ func DefaultAssetRateParams() AssetRateParams {
 	return AssetRateParams{
 		From:      "USD",
 		To:        "BRL",
-		Rate:      5.25,
-		RateScale: 2.0,
+		Rate:      defaultAssetRateValue,
+		RateScale: defaultAssetRateScale,
 		Source:    &source,
-		TTL:       3600,
+		TTL:       defaultAssetRateTTL,
 	}
 }
 
@@ -611,7 +622,7 @@ func CreateTestAssetRate(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, pa
 		externalID = *params.ExternalID
 	}
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO asset_rate (id, organization_id, ledger_id, external_id, "from", "to", rate, rate_scale, source, ttl, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`, id, orgID, ledgerID, externalID, params.From, params.To, params.Rate, params.RateScale, params.Source, params.TTL, now, now)
@@ -638,7 +649,7 @@ func CreateTestAssetRateSimple(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UU
 func GetAssetRateByID(t *testing.T, db *sql.DB, id uuid.UUID) (from, to string, rate float64) {
 	t.Helper()
 
-	err := db.QueryRow(`
+	err := db.QueryRowContext(context.Background(), `
 		SELECT "from", "to", rate FROM asset_rate WHERE id = $1
 	`, id).Scan(&from, &to, &rate)
 	require.NoError(t, err, "failed to get asset rate by ID")
@@ -673,7 +684,7 @@ func CreateTestOperationRoute(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUI
 	id := libCommons.GenerateUUIDv7()
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO operation_route (id, organization_id, ledger_id, title, description, code, operation_type, account_rule_type, account_rule_valid_if, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`, id, orgID, ledgerID, params.Title, params.Description, params.Code, params.OperationType,
@@ -722,7 +733,7 @@ func CreateTestTransactionRoute(t *testing.T, db *sql.DB, orgID, ledgerID uuid.U
 	id := libCommons.GenerateUUIDv7()
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO transaction_route (id, organization_id, ledger_id, title, description, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`, id, orgID, ledgerID, params.Title, params.Description, now, now, params.DeletedAt)
@@ -748,7 +759,7 @@ func CreateTestOperationTransactionRouteLink(t *testing.T, db *sql.DB, operation
 	id := libCommons.GenerateUUIDv7()
 	now := time.Now().Truncate(time.Microsecond)
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at, deleted_at)
 		VALUES ($1, $2, $3, $4, NULL)
 	`, id, operationRouteID, transactionRouteID, now)
@@ -761,7 +772,7 @@ func CreateTestOperationTransactionRouteLink(t *testing.T, db *sql.DB, operation
 func SoftDeleteOperationTransactionRouteLink(t *testing.T, db *sql.DB, linkID uuid.UUID) {
 	t.Helper()
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.Background(), `
 		UPDATE operation_transaction_route SET deleted_at = NOW() WHERE id = $1
 	`, linkID)
 	require.NoError(t, err, "failed to soft-delete operation transaction route link")

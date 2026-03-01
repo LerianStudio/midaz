@@ -6,7 +6,9 @@ package helpers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,6 +16,14 @@ import (
 	"testing"
 	"time"
 )
+
+// errMissingCredentials is returned when TEST_AUTH_USERNAME or TEST_AUTH_PASSWORD is not set.
+var errMissingCredentials = errors.New("TEST_AUTH_USERNAME/TEST_AUTH_PASSWORD must be set when TEST_AUTH_URL is provided")
+
+// errMissingAccessToken is returned when the auth response does not contain an access token.
+var errMissingAccessToken = errors.New("auth response missing access token")
+
+const authClientTimeout = 15 * time.Second
 
 // AuthenticateFromEnv obtains a Bearer token using env vars and exports TEST_AUTH_HEADER.
 // Inputs via env:
@@ -33,7 +43,7 @@ func AuthenticateFromEnv() error {
 	password := os.Getenv("TEST_AUTH_PASSWORD")
 
 	if username == "" || password == "" {
-		return fmt.Errorf("TEST_AUTH_USERNAME/TEST_AUTH_PASSWORD must be set when TEST_AUTH_URL is provided")
+		return errMissingCredentials
 	}
 
 	payload := map[string]string{
@@ -47,18 +57,20 @@ func AuthenticateFromEnv() error {
 		return fmt.Errorf("failed to marshal auth payload: %w", err)
 	}
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{Timeout: authClientTimeout}
 
-	req, err := http.NewRequest(http.MethodPost, authURL, bytes.NewReader(body))
+	ctx := context.Background()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, authURL, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return fmt.Errorf("create auth request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:gosec // G704: SSRF intentional in test helper
 	if err != nil {
-		return err
+		return fmt.Errorf("execute auth request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -68,11 +80,11 @@ func AuthenticateFromEnv() error {
 			return fmt.Errorf("auth request failed with status %d, and could not read body: %w", resp.StatusCode, readErr)
 		}
 
-		return fmt.Errorf("auth request failed: status=%d, body: %s", resp.StatusCode, errBody.String())
+		return fmt.Errorf("auth request failed: status=%d, body: %s", resp.StatusCode, errBody.String()) //nolint:err113 // dynamic error with context info
 	}
 
 	var out struct {
-		AccessToken string `json:"accessToken"`
+		AccessToken string `json:"accessToken"` //nolint:gosec // Not actually a secret, just the field name
 		Token       string `json:"token"`
 	}
 
@@ -86,11 +98,15 @@ func AuthenticateFromEnv() error {
 	}
 
 	if token == "" {
-		return fmt.Errorf("auth response missing access token")
+		return errMissingAccessToken
 	}
 
 	// Export for the duration of the process so helpers.AuthHeaders picks it up
-	return os.Setenv("TEST_AUTH_HEADER", "Bearer "+token)
+	if err := os.Setenv("TEST_AUTH_HEADER", "Bearer "+token); err != nil {
+		return fmt.Errorf("set TEST_AUTH_HEADER env var: %w", err)
+	}
+
+	return nil
 }
 
 // RunTestsWithAuth authenticates using env (if configured) and runs tests, failing fast on auth errors.
@@ -99,8 +115,8 @@ func AuthenticateFromEnv() error {
 //	func TestMain(m *testing.M) { helpers.RunTestsWithAuth(m) }
 func RunTestsWithAuth(m *testing.M) {
 	if err := AuthenticateFromEnv(); err != nil {
-		log.Fatalf("Failed to authenticate from environment: %v", err)
+		log.Fatalf("Failed to authenticate from environment: %v", err) //nolint:forbidigo,revive // log.Fatalf is required in TestMain for early exit
 	}
 
-	os.Exit(m.Run())
+	os.Exit(m.Run()) //nolint:forbidigo,revive // os.Exit is required in TestMain
 }

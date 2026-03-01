@@ -6,7 +6,6 @@ package chaos
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -14,9 +13,11 @@ import (
 )
 
 // Prolonged primary outage: stop Postgres for ~12s while reads continue; APIs fail gracefully and recover.
-func TestChaos_ProlongedPrimaryOutage_GracefulRecovery(t *testing.T) {
+func TestChaos_ProlongedPrimaryOutage_GracefulRecovery(t *testing.T) { //nolint:paralleltest // chaos tests interact with shared Docker infrastructure
 	shouldRunChaos(t)
-	defer h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "ProlongedPrimaryOutage_GracefulRecovery")()
+
+	cleanup := h.StartLogCapture([]string{"midaz-transaction", "midaz-onboarding", "midaz-postgres-primary"}, "ProlongedPrimaryOutage_GracefulRecovery")
+	defer cleanup()
 
 	env := h.LoadEnvironment()
 	_ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
@@ -30,6 +31,7 @@ func TestChaos_ProlongedPrimaryOutage_GracefulRecovery(t *testing.T) {
 	if err != nil || code != 201 {
 		t.Fatalf("create org: %d %s", code, string(body))
 	}
+
 	var org struct {
 		ID string `json:"id"`
 	}
@@ -43,13 +45,16 @@ func TestChaos_ProlongedPrimaryOutage_GracefulRecovery(t *testing.T) {
 	// While down, attempt reads; allow 4xx/5xx or errors, but no panics; just ensure we get responses or network errors.
 	deadline := time.Now().Add(12 * time.Second)
 	sawFailure := false
+
 	for time.Now().Before(deadline) {
-		code, _, err := onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s", org.ID), headers, nil)
-		if err != nil || code >= 400 {
+		pollCode, _, pollErr := onboard.Request(ctx, "GET", "/v1/organizations/"+org.ID, headers, nil)
+		if pollErr != nil || pollCode >= 400 {
 			sawFailure = true
 		}
+
 		time.Sleep(300 * time.Millisecond)
 	}
+
 	if !sawFailure {
 		t.Logf("note: did not observe failures during outage; environment may use caches")
 	}
@@ -58,11 +63,12 @@ func TestChaos_ProlongedPrimaryOutage_GracefulRecovery(t *testing.T) {
 	if err := h.DockerAction("start", "midaz-postgres-primary"); err != nil {
 		t.Fatalf("start primary: %v", err)
 	}
+
 	_ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
 	_ = h.WaitForHTTP200(env.TransactionURL+"/health", 60*time.Second)
 
 	// Verify reads succeed again
-	code, _, err = onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s", org.ID), headers, nil)
+	code, _, err = onboard.Request(ctx, "GET", "/v1/organizations/"+org.ID, headers, nil)
 	if err != nil || code != 200 {
 		t.Fatalf("get org after primary recovery: %d err=%v", code, err)
 	}

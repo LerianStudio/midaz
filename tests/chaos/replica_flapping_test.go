@@ -14,9 +14,11 @@ import (
 )
 
 // Stop/start the Postgres replica repeatedly; reads should continue via primary without crashes.
-func TestChaos_ReplicaFlapping_ReadsContinue(t *testing.T) {
+func TestChaos_ReplicaFlapping_ReadsContinue(t *testing.T) { //nolint:paralleltest // chaos tests interact with shared Docker infrastructure
 	shouldRunChaos(t)
-	defer h.StartLogCapture([]string{"midaz-onboarding", "midaz-postgres-replica", "midaz-postgres-primary"}, "ReplicaFlapping_ReadsContinue")()
+
+	cleanup := h.StartLogCapture([]string{"midaz-onboarding", "midaz-postgres-replica", "midaz-postgres-primary"}, "ReplicaFlapping_ReadsContinue")
+	defer cleanup()
 
 	env := h.LoadEnvironment()
 	_ = h.WaitForHTTP200(env.OnboardingURL+"/health", 60*time.Second)
@@ -30,10 +32,12 @@ func TestChaos_ReplicaFlapping_ReadsContinue(t *testing.T) {
 	if err != nil || code != 201 {
 		t.Fatalf("create org: %d %s", code, string(body))
 	}
+
 	var org struct {
 		ID string `json:"id"`
 	}
 	mustUnmarshalJSON(t, body, &org)
+
 	for i := 0; i < 2; i++ {
 		_, _, _ = onboard.Request(ctx, "POST", fmt.Sprintf("/v1/organizations/%s/ledgers", org.ID), headers, map[string]any{"name": fmt.Sprintf("L-%d", i)})
 	}
@@ -43,20 +47,25 @@ func TestChaos_ReplicaFlapping_ReadsContinue(t *testing.T) {
 		if err := h.DockerAction("stop", "midaz-postgres-replica"); err != nil {
 			t.Fatalf("stop replica: %v", err)
 		}
+
 		time.Sleep(2 * time.Second)
+
 		if err := h.DockerAction("start", "midaz-postgres-replica"); err != nil {
 			t.Fatalf("start replica: %v", err)
 		}
 		// After start, ensure reads recover
 		deadline := time.Now().Add(15 * time.Second)
+
 		for {
-			code, _, err := onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers", org.ID), headers, nil)
-			if err == nil && code == 200 {
+			pollCode, _, pollErr := onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s/ledgers", org.ID), headers, nil)
+			if pollErr == nil && pollCode == 200 {
 				break
 			}
+
 			if time.Now().After(deadline) {
 				t.Fatalf("reads did not recover after replica start")
 			}
+
 			time.Sleep(200 * time.Millisecond)
 		}
 	}

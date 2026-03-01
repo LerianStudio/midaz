@@ -8,6 +8,7 @@ package chaos
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 	docker "github.com/docker/docker/client"
 	"github.com/stretchr/testify/require"
 )
+
+const orchestratorRecoveryPollInterval = 100 * time.Millisecond
 
 // Orchestrator coordinates chaos injection operations.
 // It provides a unified interface for container lifecycle and network chaos.
@@ -78,7 +81,9 @@ func (o *Orchestrator) SetToxiproxyClient(c *toxiproxyclient.Client) {
 // Close releases resources held by the orchestrator.
 func (o *Orchestrator) Close() error {
 	if o.docker != nil {
-		return o.docker.Close()
+		if err := o.docker.Close(); err != nil {
+			return fmt.Errorf("close docker client: %w", err)
+		}
 	}
 
 	return nil
@@ -91,7 +96,7 @@ func (o *Orchestrator) WaitForRecovery(ctx context.Context, check func() error, 
 
 	deadline := time.Now().Add(timeout)
 
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(orchestratorRecoveryPollInterval)
 	defer ticker.Stop()
 
 	var lastErr error
@@ -99,7 +104,7 @@ func (o *Orchestrator) WaitForRecovery(ctx context.Context, check func() error, 
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("context cancelled: %w", ctx.Err())
 		case <-ticker.C:
 			if err := check(); err == nil {
 				return nil

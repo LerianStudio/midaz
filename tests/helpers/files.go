@@ -10,11 +10,20 @@ import (
 	"path/filepath"
 )
 
+const (
+	dirPermissions  = 0o755 // rwxr-xr-x
+	filePermissions = 0o644 // rw-r--r--
+)
+
 // WriteTextFile ensures the directory exists and writes content to path, overwriting any existing file.
-func WriteTextFile(path string, content string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+func WriteTextFile(path, content string) error {
+	if err := os.MkdirAll(filepath.Dir(path), dirPermissions); err != nil {
 		return fmt.Errorf("mkdir: %w", err)
 	}
 
-	return os.WriteFile(path, []byte(content), 0o644)
+	if err := os.WriteFile(path, []byte(content), filePermissions); err != nil {
+		return fmt.Errorf("write file: %w", err)
+	}
+
+	return nil
 }

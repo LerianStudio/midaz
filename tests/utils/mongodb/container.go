@@ -8,29 +8,32 @@ package mongodb
 
 import (
 	"context"
-	"fmt"
+	"net"
 	"testing"
 	"time"
 
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
-
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
-
-	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 )
 
 const (
 	// DefaultDBName is the default database name for test containers.
-	DefaultDBName  = "test_db"
-	mongoPortID    = "27017/tcp"
-	mappedPortWait = 30 * time.Second
+	DefaultDBName        = "test_db"
+	mongoPortID          = "27017/tcp"
+	mappedPortWait       = 30 * time.Second
+	mongoContainerMemory = 512
+	mongoReadyDeadline   = 120 * time.Second
+	mongoPortPollSleep   = 100 * time.Millisecond
 )
 
 // ContainerConfig holds configuration for MongoDB test container.
@@ -46,8 +49,8 @@ func DefaultContainerConfig() ContainerConfig {
 	return ContainerConfig{
 		DBName:   DefaultDBName,
 		Image:    "mongo:8",
-		MemoryMB: 512, // 512MB - moderate for limited hardware
-		CPULimit: 1.0, // 1 CPU core
+		MemoryMB: mongoContainerMemory, // 512MB - moderate for limited hardware
+		CPULimit: 1.0,                  // 1 CPU core
 	}
 }
 
@@ -79,7 +82,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		WaitingFor: wait.ForAll(
 			wait.ForLog("Waiting for connections"),
 			wait.ForListeningPort(mongoPortID).SkipExternalCheck(),
-		).WithDeadline(120 * time.Second),
+		).WithDeadline(mongoReadyDeadline),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
@@ -96,7 +99,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 
 	port := waitForMappedPort(t, ctx, ctr, mongoPortID)
 
-	uri := fmt.Sprintf("mongodb://%s:%s", host, port.Port())
+	uri := "mongodb://" + net.JoinHostPort(host, port.Port())
 
 	clientOpts := options.Client().ApplyURI(uri)
 	client, err := mongo.Connect(ctx, clientOpts)
@@ -125,7 +128,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	}
 }
 
-func waitForMappedPort(t *testing.T, ctx context.Context, ctr testcontainers.Container, portID string) nat.Port {
+func waitForMappedPort(t *testing.T, ctx context.Context, ctr testcontainers.Container, portID string) nat.Port { //nolint:revive // ctx must follow t for test helper pattern
 	t.Helper()
 
 	deadline := time.Now().Add(mappedPortWait)
@@ -141,7 +144,7 @@ func waitForMappedPort(t *testing.T, ctx context.Context, ctr testcontainers.Con
 			return mappedPort
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(mongoPortPollSleep)
 	}
 
 	require.NoError(t, lastErr, "failed to get MongoDB mapped port %s after %v", portID, mappedPortWait)

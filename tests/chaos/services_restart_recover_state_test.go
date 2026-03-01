@@ -6,7 +6,6 @@ package chaos
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -14,9 +13,11 @@ import (
 )
 
 // Restart onboarding/transaction services; APIs should return and state remains accessible.
-func TestChaos_ServicesRestart_RecoverState(t *testing.T) {
+func TestChaos_ServicesRestart_RecoverState(t *testing.T) { //nolint:paralleltest // chaos tests interact with shared Docker infrastructure
 	shouldRunChaos(t)
-	defer h.StartLogCapture([]string{"midaz-onboarding", "midaz-transaction"}, "ServicesRestart_RecoverState")()
+
+	cleanup := h.StartLogCapture([]string{"midaz-onboarding", "midaz-transaction"}, "ServicesRestart_RecoverState")
+	defer cleanup()
 
 	env := h.LoadEnvironment()
 	ctx := context.Background()
@@ -29,6 +30,7 @@ func TestChaos_ServicesRestart_RecoverState(t *testing.T) {
 	if err != nil || code != 201 {
 		t.Fatalf("create org: %d %s", code, string(body))
 	}
+
 	var org struct {
 		ID string `json:"id"`
 	}
@@ -38,19 +40,23 @@ func TestChaos_ServicesRestart_RecoverState(t *testing.T) {
 	if err := h.RestartWithWait("midaz-onboarding", 5*time.Second); err != nil {
 		t.Fatalf("restart onboarding: %v", err)
 	}
+
 	deadline := time.Now().Add(60 * time.Second)
+
 	for {
 		code, _, err = onboard.Request(ctx, "GET", "/health", headers, nil)
 		if err == nil && code == 200 {
 			break
 		}
+
 		if time.Now().After(deadline) {
 			t.Fatalf("onboarding did not become healthy after restart: code=%d err=%v", code, err)
 		}
+
 		time.Sleep(300 * time.Millisecond)
 	}
 	// Verify GET still works
-	code, _, err = onboard.Request(ctx, "GET", fmt.Sprintf("/v1/organizations/%s", org.ID), headers, nil)
+	code, _, err = onboard.Request(ctx, "GET", "/v1/organizations/"+org.ID, headers, nil)
 	if err != nil || code != 200 {
 		t.Fatalf("get org after onboarding restart: %d err=%v", code, err)
 	}
@@ -59,15 +65,19 @@ func TestChaos_ServicesRestart_RecoverState(t *testing.T) {
 	if err := h.RestartWithWait("midaz-transaction", 5*time.Second); err != nil {
 		t.Fatalf("restart transaction: %v", err)
 	}
+
 	deadline = time.Now().Add(60 * time.Second)
+
 	for {
 		code, _, err = trans.Request(ctx, "GET", "/health", headers, nil)
 		if err == nil && code == 200 {
 			break
 		}
+
 		if time.Now().After(deadline) {
 			t.Fatalf("transaction did not become healthy after restart: code=%d err=%v", code, err)
 		}
+
 		time.Sleep(300 * time.Millisecond)
 	}
 }

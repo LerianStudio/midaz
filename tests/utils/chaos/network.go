@@ -9,6 +9,7 @@ package chaos
 import (
 	"context"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -17,6 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	tctoxiproxy "github.com/testcontainers/testcontainers-go/modules/toxiproxy"
+)
+
+const (
+	defaultNetworkMemoryMB = 128
+	defaultNetworkCPULimit = 0.5
+	fullToxicityPercent    = 100.0
 )
 
 // NetworkChaosConfig holds configuration for network chaos operations.
@@ -33,8 +40,8 @@ type NetworkChaosConfig struct {
 func DefaultNetworkChaosConfig() NetworkChaosConfig {
 	return NetworkChaosConfig{
 		Image:    "ghcr.io/shopify/toxiproxy:2.12.0",
-		MemoryMB: 128,
-		CPULimit: 0.5,
+		MemoryMB: defaultNetworkMemoryMB,
+		CPULimit: defaultNetworkCPULimit,
 	}
 }
 
@@ -78,7 +85,7 @@ func SetupToxiproxyWithConfig(t *testing.T, cfg NetworkChaosConfig) *ToxiproxyRe
 	apiPort, err := toxiContainer.MappedPort(ctx, "8474")
 	require.NoError(t, err, "failed to get Toxiproxy API port")
 
-	apiURL := fmt.Sprintf("http://%s:%s", host, apiPort.Port())
+	apiURL := "http://" + net.JoinHostPort(host, apiPort.Port())
 	client := toxiproxyclient.NewClient(apiURL)
 
 	t.Cleanup(func() {
@@ -155,8 +162,11 @@ func (p *Proxy) AddLatency(latency, jitter time.Duration) error {
 		"latency": int(latency.Milliseconds()),
 		"jitter":  int(jitter.Milliseconds()),
 	})
+	if err != nil {
+		return fmt.Errorf("add latency toxic: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // AddPacketLoss adds packet loss to the proxy.
@@ -165,11 +175,14 @@ func (p *Proxy) AddPacketLoss(percent float64) error {
 	p.t.Helper()
 	p.t.Logf("Chaos: adding packet loss to proxy %s (percent: %.1f%%)", p.proxy.Name, percent)
 
-	_, err := p.proxy.AddToxic("packet_loss", "timeout", "downstream", float32(percent/100), toxiproxyclient.Attributes{
+	_, err := p.proxy.AddToxic("packet_loss", "timeout", "downstream", float32(percent/fullToxicityPercent), toxiproxyclient.Attributes{
 		"timeout": 0, // Drop immediately
 	})
+	if err != nil {
+		return fmt.Errorf("add packet loss toxic: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // AddBandwidthLimit adds bandwidth limit to the proxy.
@@ -181,8 +194,11 @@ func (p *Proxy) AddBandwidthLimit(rateKBps int64) error {
 	_, err := p.proxy.AddToxic("bandwidth", "bandwidth", "downstream", 1.0, toxiproxyclient.Attributes{
 		"rate": rateKBps,
 	})
+	if err != nil {
+		return fmt.Errorf("add bandwidth toxic: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // Disconnect disables the proxy, simulating network partition.
@@ -191,7 +207,11 @@ func (p *Proxy) Disconnect() error {
 	p.t.Logf("Chaos: disconnecting proxy %s", p.proxy.Name)
 	p.proxy.Enabled = false
 
-	return p.proxy.Save()
+	if err := p.proxy.Save(); err != nil {
+		return fmt.Errorf("save proxy (disconnect): %w", err)
+	}
+
+	return nil
 }
 
 // Reconnect enables the proxy, restoring connectivity.
@@ -200,7 +220,11 @@ func (p *Proxy) Reconnect() error {
 	p.t.Logf("Chaos: reconnecting proxy %s", p.proxy.Name)
 	p.proxy.Enabled = true
 
-	return p.proxy.Save()
+	if err := p.proxy.Save(); err != nil {
+		return fmt.Errorf("save proxy (reconnect): %w", err)
+	}
+
+	return nil
 }
 
 // RemoveAllToxics removes all toxics from the proxy.
@@ -210,12 +234,12 @@ func (p *Proxy) RemoveAllToxics() error {
 
 	toxics, err := p.proxy.Toxics()
 	if err != nil {
-		return err
+		return fmt.Errorf("list toxics: %w", err)
 	}
 
 	for _, toxic := range toxics {
 		if err := p.proxy.RemoveToxic(toxic.Name); err != nil {
-			return err
+			return fmt.Errorf("remove toxic %s: %w", toxic.Name, err)
 		}
 	}
 
@@ -227,7 +251,11 @@ func (p *Proxy) Delete() error {
 	p.t.Helper()
 	p.t.Logf("Chaos: deleting proxy %s", p.proxy.Name)
 
-	return p.proxy.Delete()
+	if err := p.proxy.Delete(); err != nil {
+		return fmt.Errorf("delete proxy: %w", err)
+	}
+
+	return nil
 }
 
 // Listen returns the listen address of the proxy.

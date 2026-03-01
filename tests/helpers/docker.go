@@ -5,6 +5,7 @@
 package helpers
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -15,11 +16,11 @@ import (
 // DockerAction performs a docker container action like stop/start/restart/pause/unpause.
 func DockerAction(action, container string, extraArgs ...string) error {
 	args := append([]string{action, container}, extraArgs...)
-	cmd := exec.Command("docker", args...)
+	cmd := exec.CommandContext(context.Background(), "docker", args...)
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("docker %s %s failed: %v\n%s", action, strings.Join(args, " "), err, string(out))
+		return fmt.Errorf("docker %s %s failed: %w\n%s", action, strings.Join(args, " "), err, string(out))
 	}
 
 	return nil
@@ -39,11 +40,11 @@ func RestartWithWait(container string, wait time.Duration) error {
 // DockerNetwork connects or disconnects a container to/from a Docker network.
 // action should be "connect" or "disconnect".
 func DockerNetwork(action, network, container string) error {
-	cmd := exec.Command("docker", "network", action, network, container)
+	cmd := exec.CommandContext(context.Background(), "docker", "network", action, network, container)
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("docker network %s %s %s failed: %v\n%s", action, network, container, err, string(out))
+		return fmt.Errorf("docker network %s %s %s failed: %w\n%s", action, network, container, err, string(out))
 	}
 
 	return nil
@@ -52,11 +53,11 @@ func DockerNetwork(action, network, container string) error {
 // DockerExec runs a command inside a running container and returns its combined output.
 func DockerExec(container string, args ...string) (string, error) {
 	full := append([]string{"exec", container}, args...)
-	cmd := exec.Command("docker", full...)
+	cmd := exec.CommandContext(context.Background(), "docker", full...)
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return string(out), fmt.Errorf("docker exec %s %v failed: %v\n%s", container, args, err, string(out))
+		return string(out), fmt.Errorf("docker exec %s %v failed: %w\n%s", container, args, err, string(out))
 	}
 
 	return string(out), nil
@@ -71,11 +72,11 @@ func DockerLogsSince(container, since string, tail int) (string, error) {
 	}
 
 	args = append(args, container)
-	cmd := exec.Command("docker", args...)
+	cmd := exec.CommandContext(context.Background(), "docker", args...)
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return string(out), fmt.Errorf("docker logs failed: %v\n%s", err, string(out))
+		return string(out), fmt.Errorf("docker logs failed: %w\n%s", err, string(out))
 	}
 
 	return string(out), nil

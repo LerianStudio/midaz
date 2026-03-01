@@ -11,16 +11,23 @@ import (
 	"testing"
 	"time"
 
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
-
 	"github.com/docker/docker/api/types/container"
-
-	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
+)
+
+const (
+	defaultRedisMemoryMB   = 128
+	defaultRedisCPULimit   = 0.5
+	redisContainerDeadline = 60 * time.Second
+	redisRetryPollInterval = 500 * time.Millisecond
 )
 
 // ContainerConfig holds configuration for Redis test container.
@@ -34,8 +41,8 @@ type ContainerConfig struct {
 func DefaultContainerConfig() ContainerConfig {
 	return ContainerConfig{
 		Image:    "valkey/valkey:8",
-		MemoryMB: 128, // 128MB - lightweight in-memory store
-		CPULimit: 0.5, // 0.5 CPU core
+		MemoryMB: defaultRedisMemoryMB, // 128MB - lightweight in-memory store
+		CPULimit: defaultRedisCPULimit, // 0.5 CPU core
 	}
 }
 
@@ -65,7 +72,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		WaitingFor: wait.ForAll(
 			wait.ForLog("Ready to accept connections"),
 			wait.ForListeningPort("6379/tcp"),
-		).WithDeadline(60 * time.Second),
+		).WithDeadline(redisContainerDeadline),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
@@ -111,13 +118,13 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 // SetupContainerOnNetwork starts a Redis container on a specific Docker network.
 // The networkAlias is the hostname by which other containers on the network can reach this container.
 // This is useful for chaos testing with Toxiproxy where containers need to communicate directly.
-func SetupContainerOnNetwork(t *testing.T, networkName string, networkAlias string) *ContainerResult {
+func SetupContainerOnNetwork(t *testing.T, networkName, networkAlias string) *ContainerResult {
 	t.Helper()
 	return SetupContainerOnNetworkWithConfig(t, DefaultContainerConfig(), networkName, networkAlias)
 }
 
 // SetupContainerOnNetworkWithConfig starts a Redis container on a specific Docker network with custom configuration.
-func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networkName string, networkAlias string) *ContainerResult {
+func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networkName, networkAlias string) *ContainerResult {
 	t.Helper()
 
 	ctx := context.Background()
@@ -130,7 +137,7 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 		WaitingFor: wait.ForAll(
 			wait.ForLog("Ready to accept connections"),
 			wait.ForListeningPort("6379/tcp"),
-		).WithDeadline(60 * time.Second),
+		).WithDeadline(redisContainerDeadline),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
@@ -211,7 +218,7 @@ func CreateConnectionWithRetry(t *testing.T, addr string, timeout time.Duration)
 
 		lastErr = err
 
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(redisRetryPollInterval)
 	}
 
 	require.NoError(t, lastErr, "failed to connect to Redis at %s after %v", addr, timeout)

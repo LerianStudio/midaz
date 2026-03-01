@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
-
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 )
 
 const (
@@ -29,9 +29,14 @@ const (
 	// DefaultDBUser is the default database user for test containers.
 	DefaultDBUser = "test"
 	// DefaultDBPassword is the default database password for test containers.
-	DefaultDBPassword = "test"
-	postgresPortID    = "5432/tcp"
-	mappedPortTimeout = 30 * time.Second
+	DefaultDBPassword     = "test"
+	postgresPortID        = "5432/tcp"
+	mappedPortTimeout     = 90 * time.Second
+	postgresContainerMem  = 512
+	postgresReadyOccur    = 2
+	postgresReadyDeadline = 240 * time.Second
+	postgresPortPollSleep = 100 * time.Millisecond
+	dockerAPICallTimeout  = 3 * time.Second
 )
 
 // ContainerConfig holds configuration for PostgreSQL test container.
@@ -51,8 +56,8 @@ func DefaultContainerConfig() ContainerConfig {
 		DBUser:     DefaultDBUser,
 		DBPassword: DefaultDBPassword,
 		Image:      "postgres:17-alpine",
-		MemoryMB:   512, // 512MB - moderate for limited hardware
-		CPULimit:   1.0, // 1 CPU core
+		MemoryMB:   postgresContainerMem, // 512MB - moderate for limited hardware
+		CPULimit:   1.0,                  // 1 CPU core
 	}
 }
 
@@ -87,10 +92,9 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 			"POSTGRES_USER":     cfg.DBUser,
 			"POSTGRES_PASSWORD": cfg.DBPassword,
 		},
-		WaitingFor: wait.ForAll(
-			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
-			wait.ForListeningPort(postgresPortID).SkipExternalCheck(),
-		).WithDeadline(120 * time.Second),
+		WaitingFor: wait.ForLog("database system is ready to accept connections").
+			WithOccurrence(postgresReadyOccur).
+			WithStartupTimeout(postgresReadyDeadline),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
@@ -113,7 +117,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	db, err := sql.Open("pgx", dsn)
 	require.NoError(t, err, "failed to open database connection")
 
-	require.NoError(t, db.Ping(), "failed to ping database")
+	require.NoError(t, db.PingContext(context.Background()), "failed to ping database")
 
 	t.Cleanup(func() {
 		db.Close()
@@ -133,7 +137,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	}
 }
 
-func waitForMappedPort(t *testing.T, ctx context.Context, ctr testcontainers.Container, portID string) nat.Port {
+func waitForMappedPort(t *testing.T, ctx context.Context, ctr testcontainers.Container, portID string) nat.Port { //nolint:revive // ctx must follow t for test helper pattern
 	t.Helper()
 
 	deadline := time.Now().Add(mappedPortTimeout)
@@ -144,12 +148,16 @@ func waitForMappedPort(t *testing.T, ctx context.Context, ctr testcontainers.Con
 	)
 
 	for time.Now().Before(deadline) {
-		mappedPort, lastErr = ctr.MappedPort(ctx, nat.Port(portID))
+		attemptCtx, cancel := context.WithTimeout(ctx, dockerAPICallTimeout)
+		mappedPort, lastErr = ctr.MappedPort(attemptCtx, nat.Port(portID))
+
+		cancel()
+
 		if lastErr == nil && mappedPort.Port() != "" {
 			return mappedPort
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(postgresPortPollSleep)
 	}
 
 	require.NoError(t, lastErr, "failed to get PostgreSQL mapped port %s after %v", portID, mappedPortTimeout)

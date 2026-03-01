@@ -10,22 +10,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
+
+const defaultFixtureBalanceAvailable = 1000
 
 // CreateBalanceOperation creates a BalanceOperation for testing purposes.
 // Uses default available balance of 1000 and account type "deposit".
 func CreateBalanceOperation(organizationID, ledgerID uuid.UUID, alias, assetCode, operation string, amount decimal.Decimal) mmodel.BalanceOperation {
-	return CreateBalanceOperationWithAvailable(organizationID, ledgerID, alias, assetCode, operation, amount, decimal.NewFromInt(1000), "deposit")
+	return CreateBalanceOperationWithAvailable(organizationID, ledgerID, alias, assetCode, operation, amount, decimal.NewFromInt(defaultFixtureBalanceAvailable), "deposit")
 }
 
 // CreateBalanceOperationWithAvailable creates a BalanceOperation with custom available balance and account type.

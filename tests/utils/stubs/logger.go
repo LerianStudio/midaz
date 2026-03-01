@@ -15,7 +15,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 )
 
-// Compile-time check that LoggerStub implements libLog.Logger
+// Compile-time check that LoggerStub implements libLog.Logger.
 var _ libLog.Logger = (*LoggerStub)(nil)
 
 // LoggerStub captures log messages for verification in tests.

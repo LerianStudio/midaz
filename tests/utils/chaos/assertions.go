@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const recoveryPollInterval = 100 * time.Millisecond
+
 // AssertRecoveryWithin asserts that a check function succeeds within the given timeout.
 // This is useful for verifying that a service recovers after chaos injection.
 func AssertRecoveryWithin(t *testing.T, check func() error, timeout time.Duration, msgAndArgs ...any) {
@@ -24,7 +26,7 @@ func AssertRecoveryWithin(t *testing.T, check func() error, timeout time.Duratio
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(recoveryPollInterval)
 	defer ticker.Stop()
 
 	var lastErr error
