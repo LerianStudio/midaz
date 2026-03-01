@@ -435,6 +435,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		commandUseCase:          commandUseCase,
 		queryUseCase:            queryUseCase,
 		multiTenantConsumerPort: rmq.multiTenantConsumer,
+		metricsFactory:          rmq.metricsFactory,
 		auth:                    auth,
 		transactionHandler:      transactionHandler,
 		operationHandler:        operationHandler,
