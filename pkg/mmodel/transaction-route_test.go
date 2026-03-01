@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTransactionRoute_ToCache(t *testing.T) {
+func TestTransactionRoute_ToCache(t *testing.T) { //nolint:funlen // table-driven test with comprehensive cases
 	t.Parallel()
 
 	now := time.Now().UTC()
@@ -284,6 +284,7 @@ func TestTransactionRouteCache_FromMsgpack(t *testing.T) {
 
 	// Deserialize
 	var restored TransactionRouteCache
+
 	err = restored.FromMsgpack(data)
 	require.NoError(t, err)
 
@@ -364,6 +365,7 @@ func TestTransactionRouteCache_FromMsgpack_InvalidData(t *testing.T) {
 	t.Parallel()
 
 	var cache TransactionRouteCache
+
 	err := cache.FromMsgpack([]byte("invalid msgpack data"))
 	require.Error(t, err)
 }
@@ -399,6 +401,7 @@ func TestTransactionRouteCache_RoundTrip(t *testing.T) {
 
 	// Deserialize
 	var restored TransactionRouteCache
+
 	err = restored.FromMsgpack(data)
 	require.NoError(t, err)
 

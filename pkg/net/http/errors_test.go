@@ -10,11 +10,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
 func TestWithError_EntityConflictError_Returns409(t *testing.T) {
@@ -70,9 +71,10 @@ func TestWithError_EntityConflictError_Returns409(t *testing.T) {
 				return WithError(c, tt.err)
 			})
 
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 			resp, err := app.Test(req)
 			require.NoError(t, err)
+
 			defer resp.Body.Close()
 
 			assert.Equal(t, tt.expectedCode, resp.StatusCode)
@@ -98,9 +100,10 @@ func TestWithError_EntityNotFoundError_Returns404(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -123,9 +126,10 @@ func TestWithError_ValidationError_Returns400(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -148,9 +152,10 @@ func TestWithError_UnprocessableOperationError_Returns422(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
@@ -173,9 +178,10 @@ func TestWithError_UnauthorizedError_Returns401(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -198,9 +204,10 @@ func TestWithError_ForbiddenError_Returns403(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
@@ -223,9 +230,10 @@ func TestWithError_ServiceUnavailableConsumerLagStaleBalance_SetsRetryAfterHeade
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)

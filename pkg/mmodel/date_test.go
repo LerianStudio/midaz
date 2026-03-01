@@ -59,6 +59,7 @@ func TestDate_UnmarshalJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var d Date
+
 			err := json.Unmarshal([]byte(tt.input), &d)
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -71,7 +72,9 @@ func TestDate_UnmarshalJSON(t *testing.T) {
 
 func TestDate_UnmarshalJSON_DateOnly_ParsesCorrectly(t *testing.T) {
 	input := `"2025-06-15"`
+
 	var d Date
+
 	err := json.Unmarshal([]byte(input), &d)
 	require.NoError(t, err)
 
@@ -91,6 +94,7 @@ func TestDate_MarshalJSON(t *testing.T) {
 
 func TestDate_MarshalJSON_Zero(t *testing.T) {
 	var d Date
+
 	data, err := json.Marshal(d)
 	require.NoError(t, err)
 

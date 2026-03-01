@@ -5,13 +5,13 @@
 package http
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProperty_ValidateStruct_OversizedFields(t *testing.T) {
@@ -84,7 +84,7 @@ func TestProperty_ValidateStruct_OversizedFields(t *testing.T) {
 				require.Error(t, err, "expected validation error for oversized field")
 
 				var vErr *pkg.ValidationKnownFieldsError
-				require.True(t, errors.As(err, &vErr), "expected *ValidationKnownFieldsError type, got %T", err)
+				require.ErrorAs(t, err, &vErr, "expected *ValidationKnownFieldsError type, got %T", err)
 				_, hasField := vErr.Fields[tc.wantField]
 				require.True(t, hasField, "expected field %q in validation errors, got fields: %v", tc.wantField, vErr.Fields)
 			} else {

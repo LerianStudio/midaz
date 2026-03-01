@@ -8,8 +8,9 @@ import (
 	"context"
 	"testing"
 
-	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	"github.com/shopspring/decimal"
+
+	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 )
 
 // BenchmarkOperateBalances benchmarks the core balance operation function.
@@ -130,6 +131,7 @@ func BenchmarkCalculateTotal(b *testing.B) {
 		// Last one takes the remainder
 		fromTos[count-1].Share = nil
 		fromTos[count-1].Remaining = "remaining"
+
 		return fromTos
 	}
 
@@ -168,6 +170,8 @@ func BenchmarkCalculateTotal(b *testing.B) {
 
 // BenchmarkValidateSendSourceAndDistribute benchmarks the main validation orchestrator.
 // This is the hot path for every transaction creation.
+//
+//nolint:funlen // benchmark requires multiple detailed transaction scenarios.
 func BenchmarkValidateSendSourceAndDistribute(b *testing.B) {
 	scenarios := []struct {
 		name        string

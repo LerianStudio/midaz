@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTransactionDate_UnmarshalJSON(t *testing.T) {
@@ -88,12 +89,13 @@ func TestTransactionDate_UnmarshalJSON(t *testing.T) {
 			t.Parallel()
 
 			var td TransactionDate
+
 			err := json.Unmarshal([]byte(tt.input), &td)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.isZero, td.IsZero())
 			}
 		})
@@ -125,7 +127,7 @@ func TestTransactionDate_MarshalJSON(t *testing.T) {
 			t.Parallel()
 
 			result, err := json.Marshal(tt.date)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expected, string(result))
 		})
 	}
@@ -242,10 +244,12 @@ func TestTransactionDate_UnmarshalJSON_ZeroTime(t *testing.T) {
 	t.Parallel()
 
 	input := `"0001-01-01T00:00:00Z"`
+
 	var td TransactionDate
+
 	err := json.Unmarshal([]byte(input), &td)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, td.IsZero())
 }
 
@@ -256,11 +260,12 @@ func TestTransactionDate_RoundTrip(t *testing.T) {
 	original := TransactionDate(originalTime)
 
 	marshaled, err := json.Marshal(original)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var unmarshaled TransactionDate
+
 	err = json.Unmarshal(marshaled, &unmarshaled)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, original.Time().Unix(), unmarshaled.Time().Unix())
 }

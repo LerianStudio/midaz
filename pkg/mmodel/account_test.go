@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 func TestAccount_ToProto(t *testing.T) {
@@ -18,7 +19,7 @@ func TestAccount_ToProto(t *testing.T) {
 
 	tm := time.Now()
 
-	var timeDel *time.Time = &tm
+	timeDel := &tm
 
 	tests := []struct {
 		name    string
@@ -78,6 +79,7 @@ func TestAccount_ToProto(t *testing.T) {
 
 func TestAccount_IDtoUUID(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		account *Account

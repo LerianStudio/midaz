@@ -17,6 +17,7 @@ func TestStatus_IsEmpty(t *testing.T) {
 		Code        string
 		Description *string
 	}
+
 	tests := []struct {
 		name   string
 		fields fields

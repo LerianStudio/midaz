@@ -8,16 +8,18 @@ import (
 	"bytes"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
+
+	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 )
 
 func TestValidateParameters_DefaultValues(t *testing.T) {
@@ -100,7 +102,7 @@ func TestValidateParameters_WithInvalidSortOrder(t *testing.T) {
 
 	result, err := ValidateParameters(params)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }
 
@@ -138,7 +140,7 @@ func TestValidateParameters_WithInvalidStartDate(t *testing.T) {
 
 	result, err := ValidateParameters(params)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }
 
@@ -150,7 +152,7 @@ func TestValidateParameters_WithInvalidEndDate(t *testing.T) {
 
 	result, err := ValidateParameters(params)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }
 
@@ -173,7 +175,7 @@ func TestValidateParameters_WithInvalidPortfolioID(t *testing.T) {
 
 	result, err := ValidateParameters(params)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }
 
@@ -208,7 +210,7 @@ func TestValidateParameters_LimitExceeded(t *testing.T) {
 
 	result, err := ValidateParameters(params)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }
 
@@ -219,7 +221,7 @@ func TestValidateParameters_WithInvalidCursor(t *testing.T) {
 
 	result, err := ValidateParameters(params)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }
 
@@ -248,7 +250,7 @@ func TestValidateDates_OnlyStartDateProvided(t *testing.T) {
 
 	err := validateDates(&startDate, &endDate)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestValidateDates_OnlyEndDateProvided(t *testing.T) {
@@ -257,7 +259,7 @@ func TestValidateDates_OnlyEndDateProvided(t *testing.T) {
 
 	err := validateDates(&startDate, &endDate)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestValidateDates_StartDateAfterEndDate(t *testing.T) {
@@ -266,7 +268,7 @@ func TestValidateDates_StartDateAfterEndDate(t *testing.T) {
 
 	err := validateDates(&startDate, &endDate)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestValidateDates_ValidDateRange(t *testing.T) {
@@ -306,7 +308,7 @@ func TestValidatePagination_ValidParamsDesc(t *testing.T) {
 func TestValidatePagination_InvalidSortOrder(t *testing.T) {
 	err := validatePagination("", "invalid", 10)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestValidatePagination_LimitExceeded(t *testing.T) {
@@ -314,13 +316,13 @@ func TestValidatePagination_LimitExceeded(t *testing.T) {
 
 	err := validatePagination("", "asc", 150)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestValidatePagination_InvalidCursor(t *testing.T) {
 	err := validatePagination("invalid-cursor", "asc", 10)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestValidatePagination_ValidCursor(t *testing.T) {
@@ -339,15 +341,19 @@ func TestGetIdempotencyKeyAndTTL_WithValidValues(t *testing.T) {
 		key, ttl := GetIdempotencyKeyAndTTL(c)
 		assert.Equal(t, "test-key", key)
 		assert.Equal(t, 60*time.Second, ttl)
+
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	req.Header.Set(libConstants.IdempotencyKey, "test-key")
 	req.Header.Set(libConstants.IdempotencyTTL, "60")
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }
 
@@ -358,16 +364,20 @@ func TestGetIdempotencyKeyAndTTL_WithInvalidTTL(t *testing.T) {
 		key, ttl := GetIdempotencyKeyAndTTL(c)
 		assert.Equal(t, "test-key", key)
 		// Default TTL when invalid
-		assert.True(t, ttl > 0)
+		assert.Positive(t, ttl)
+
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	req.Header.Set(libConstants.IdempotencyKey, "test-key")
 	req.Header.Set(libConstants.IdempotencyTTL, "invalid")
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }
 
@@ -378,16 +388,20 @@ func TestGetIdempotencyKeyAndTTL_WithNegativeTTL(t *testing.T) {
 		key, ttl := GetIdempotencyKeyAndTTL(c)
 		assert.Equal(t, "test-key", key)
 		// Default TTL when negative
-		assert.True(t, ttl > 0)
+		assert.Positive(t, ttl)
+
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	req.Header.Set(libConstants.IdempotencyKey, "test-key")
 	req.Header.Set(libConstants.IdempotencyTTL, "-1")
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }
 
@@ -400,15 +414,19 @@ func TestGetIdempotencyKeyAndTTL_WithExcessiveTTL(t *testing.T) {
 		key, ttl := GetIdempotencyKeyAndTTL(c)
 		assert.Equal(t, "test-key", key)
 		assert.Equal(t, 120*time.Second, ttl)
+
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	req.Header.Set(libConstants.IdempotencyKey, "test-key")
 	req.Header.Set(libConstants.IdempotencyTTL, "999999")
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }
 
@@ -418,14 +436,18 @@ func TestGetIdempotencyKeyAndTTL_WithEmptyHeaders(t *testing.T) {
 	app.Get("/test", func(c *fiber.Ctx) error {
 		key, ttl := GetIdempotencyKeyAndTTL(c)
 		assert.Empty(t, key)
-		assert.True(t, ttl > 0)
+		assert.Positive(t, ttl)
+
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }
 
@@ -434,15 +456,19 @@ func TestGetFileFromHeader_NoFile(t *testing.T) {
 
 	app.Post("/upload", func(c *fiber.Ctx) error {
 		_, err := GetFileFromHeader(c)
-		assert.Error(t, err)
+		require.Error(t, err)
+
 		return c.SendStatus(fiber.StatusBadRequest)
 	})
 
-	req := httptest.NewRequest("POST", "/upload", nil)
+	req := httptest.NewRequest(http.MethodPost, "/upload", http.NoBody)
 	req.Header.Set("Content-Type", "multipart/form-data")
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
 
@@ -451,7 +477,8 @@ func TestGetFileFromHeader_InvalidExtension(t *testing.T) {
 
 	app.Post("/upload", func(c *fiber.Ctx) error {
 		_, err := GetFileFromHeader(c)
-		assert.Error(t, err)
+		require.Error(t, err)
+
 		return c.SendStatus(fiber.StatusBadRequest)
 	})
 
@@ -460,13 +487,17 @@ func TestGetFileFromHeader_InvalidExtension(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile(libConstants.DSL, "test.txt")
 	_, _ = io.WriteString(part, "file content")
+
 	writer.Close()
 
-	req := httptest.NewRequest("POST", "/upload", body)
+	req := httptest.NewRequest(http.MethodPost, "/upload", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
 
@@ -475,7 +506,8 @@ func TestGetFileFromHeader_EmptyFile(t *testing.T) {
 
 	app.Post("/upload", func(c *fiber.Ctx) error {
 		_, err := GetFileFromHeader(c)
-		assert.Error(t, err)
+		require.Error(t, err)
+
 		return c.SendStatus(fiber.StatusBadRequest)
 	})
 
@@ -484,13 +516,17 @@ func TestGetFileFromHeader_EmptyFile(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile(libConstants.DSL, "test"+libConstants.FileExtension)
 	_, _ = io.WriteString(part, "")
+
 	writer.Close()
 
-	req := httptest.NewRequest("POST", "/upload", body)
+	req := httptest.NewRequest(http.MethodPost, "/upload", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
 
@@ -504,7 +540,9 @@ func TestGetFileFromHeader_ValidFile(t *testing.T) {
 		if err != nil {
 			return c.SendStatus(fiber.StatusBadRequest)
 		}
+
 		assert.Equal(t, expectedContent, content)
+
 		return c.SendStatus(fiber.StatusOK)
 	})
 
@@ -513,13 +551,17 @@ func TestGetFileFromHeader_ValidFile(t *testing.T) {
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile(libConstants.DSL, "test"+libConstants.FileExtension)
 	_, _ = io.WriteString(part, expectedContent)
+
 	writer.Close()
 
-	req := httptest.NewRequest("POST", "/upload", body)
+	req := httptest.NewRequest(http.MethodPost, "/upload", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }
 
@@ -621,15 +663,19 @@ func TestGetUUIDFromLocals_ValidUUID(t *testing.T) {
 	app.Get("/test/:id", func(c *fiber.Ctx) error {
 		c.Locals("id", testUUID)
 		result, err := GetUUIDFromLocals(c, "id")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, testUUID, result)
+
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest("GET", "/test/"+testUUID.String(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/test/"+testUUID.String(), http.NoBody)
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }
 
@@ -638,15 +684,19 @@ func TestGetUUIDFromLocals_NilValue(t *testing.T) {
 
 	app.Get("/test", func(c *fiber.Ctx) error {
 		result, err := GetUUIDFromLocals(c, "id")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, uuid.Nil, result)
+
 		return c.SendStatus(fiber.StatusBadRequest)
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
 
@@ -656,15 +706,19 @@ func TestGetUUIDFromLocals_WrongType(t *testing.T) {
 	app.Get("/test", func(c *fiber.Ctx) error {
 		c.Locals("id", "not-a-uuid-object")
 		result, err := GetUUIDFromLocals(c, "id")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, uuid.Nil, result)
+
 		return c.SendStatus(fiber.StatusBadRequest)
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
 
@@ -674,15 +728,19 @@ func TestGetUUIDFromLocals_WrongTypeInteger(t *testing.T) {
 	app.Get("/test", func(c *fiber.Ctx) error {
 		c.Locals("id", 12345)
 		result, err := GetUUIDFromLocals(c, "id")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, uuid.Nil, result)
+
 		return c.SendStatus(fiber.StatusBadRequest)
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
 
@@ -696,19 +754,22 @@ func TestGetUUIDFromLocals_DifferentKeys(t *testing.T) {
 		c.Locals("alias_id", aliasID)
 
 		resultHolder, err := GetUUIDFromLocals(c, "holder_id")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, holderID, resultHolder)
 
 		resultAlias, err := GetUUIDFromLocals(c, "alias_id")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, aliasID, resultAlias)
 
 		return c.SendStatus(fiber.StatusOK)
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 }

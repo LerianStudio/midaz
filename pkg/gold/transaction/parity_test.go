@@ -8,8 +8,9 @@ import (
 	"reflect"
 	"testing"
 
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/shopspring/decimal"
+
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
 
 func TestDSL_Parse_ValidExamples(t *testing.T) {
@@ -78,11 +79,14 @@ func TestDSL_Parse_ValidExamples(t *testing.T) {
 			if err := Validate(tc.dsl); err != nil {
 				t.Fatalf("validate failed: %+v", err)
 			}
+
 			got := Parse(tc.dsl)
+
 			tx, ok := got.(pkgTransaction.Transaction)
 			if !ok {
 				t.Fatalf("unexpected parse type: %T", got)
 			}
+
 			if !reflect.DeepEqual(simplify(tx), simplify(tc.want)) {
 				t.Fatalf("mismatch\nwant: %#v\n got: %#v", tc.want, tx)
 			}
@@ -102,10 +106,12 @@ func simplify(t pkgTransaction.Transaction) pkgTransaction.Transaction {
 			t.Send.Source.From[i].Share = nil
 		}
 	}
+
 	for i := range t.Send.Distribute.To {
 		if t.Send.Distribute.To[i].Share != nil && t.Send.Distribute.To[i].Share.Percentage == 0 && t.Send.Distribute.To[i].Share.PercentageOfPercentage == 0 {
 			t.Send.Distribute.To[i].Share = nil
 		}
 	}
+
 	return t
 }

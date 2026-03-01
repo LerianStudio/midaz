@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateCountryAddress(t *testing.T) {
@@ -102,7 +103,7 @@ func TestValidateCountryAddress(t *testing.T) {
 			err := ValidateCountryAddress(tt.country)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Equal(t, tt.errorCode, err.Error())
 			} else {
 				assert.NoError(t, err)
@@ -190,7 +191,7 @@ func TestValidateAccountType(t *testing.T) {
 			err := ValidateAccountType(tt.accountType)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Equal(t, tt.errorCode, err.Error())
 			} else {
 				assert.NoError(t, err)
@@ -273,7 +274,7 @@ func TestValidateType(t *testing.T) {
 			err := ValidateType(tt.assetType)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Equal(t, tt.errorCode, err.Error())
 			} else {
 				assert.NoError(t, err)
@@ -384,7 +385,7 @@ func TestValidateCode(t *testing.T) {
 			err := ValidateCode(tt.code)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Equal(t, tt.errorCode, err.Error())
 			} else {
 				assert.NoError(t, err)
@@ -393,7 +394,7 @@ func TestValidateCode(t *testing.T) {
 	}
 }
 
-func TestValidateCurrency(t *testing.T) {
+func TestValidateCurrency(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	tests := []struct {
@@ -510,7 +511,7 @@ func TestValidateCurrency(t *testing.T) {
 			err := ValidateCurrency(tt.currency)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Equal(t, tt.errorCode, err.Error())
 			} else {
 				assert.NoError(t, err)

@@ -15,6 +15,11 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 )
 
+var (
+	errRedpandaUnavailable   = errors.New("redpanda unavailable")
+	errListEndOffsetsUnavail = errors.New("list end offsets unavailable")
+)
+
 type fakeLagAdminClient struct {
 	fetchOffsetsResp kadm.OffsetResponses
 	fetchOffsetsErr  error
@@ -103,7 +108,7 @@ func TestFranzConsumerLagCheckerFailOpenOnAdminError(t *testing.T) {
 	t.Parallel()
 
 	admin := &fakeLagAdminClient{
-		fetchOffsetsErr: errors.New("redpanda unavailable"),
+		fetchOffsetsErr: errRedpandaUnavailable,
 	}
 
 	checker := newFranzConsumerLagChecker(admin, "midaz-balance-projector", 500*time.Millisecond, true)
@@ -195,7 +200,7 @@ func TestFranzConsumerLagChecker_ListEndOffsetsErrorPath(t *testing.T) {
 				},
 			},
 		},
-		listEndErr: errors.New("list end offsets unavailable"),
+		listEndErr: errListEndOffsetsUnavail,
 	}
 
 	checker := newFranzConsumerLagChecker(admin, "midaz-balance-projector", 500*time.Millisecond, true)
@@ -210,7 +215,7 @@ func TestFranzConsumerLagChecker_FailClosedOnAdminError(t *testing.T) {
 	t.Parallel()
 
 	admin := &fakeLagAdminClient{
-		fetchOffsetsErr: errors.New("redpanda unavailable"),
+		fetchOffsetsErr: errRedpandaUnavailable,
 	}
 
 	checker := newFranzConsumerLagChecker(admin, "midaz-balance-projector", 500*time.Millisecond, false)

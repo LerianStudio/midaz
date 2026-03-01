@@ -6,18 +6,22 @@ package transaction
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"testing"
 	"testing/quick"
 
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+
 	"github.com/LerianStudio/lib-commons/v2/commons"
 	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	"github.com/LerianStudio/lib-commons/v2/commons/log"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/otel"
 )
 
+//nolint:funlen // table-driven test with comprehensive scenarios.
 func TestValidateBalancesRules(t *testing.T) {
 	t.Parallel()
 
@@ -236,19 +240,60 @@ func TestValidateBalancesRules(t *testing.T) {
 			err := ValidateBalancesRules(ctx, tt.transaction, tt.validate, tt.balances)
 
 			if tt.expectError {
-				assert.Error(t, err)
-				if tt.errorCode != "" {
-					// Check if the error is a Response type and contains the error code
-					if respErr, ok := err.(commons.Response); ok {
-						assert.Equal(t, tt.errorCode, respErr.Code)
-					} else {
-						assert.Contains(t, err.Error(), tt.errorCode)
-					}
-				}
+				require.Error(t, err)
+				assertErrorCode(t, err, tt.errorCode)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
+	}
+}
+
+// assertErrorCode checks whether err contains the expected error code, either
+// as a commons.Response or within the error string.
+func assertErrorCode(t *testing.T, err error, code string) {
+	t.Helper()
+
+	if code == "" {
+		return
+	}
+
+	var respErr commons.Response
+	if errors.As(err, &respErr) {
+		assert.Equal(t, code, respErr.Code)
+	} else {
+		assert.Contains(t, err.Error(), code)
+	}
+}
+
+// assertResponsesMatch compares expected and actual Responses, checking asset, map sizes, and amount values.
+func assertResponsesMatch(t *testing.T, want, got *Responses) {
+	t.Helper()
+
+	if want == nil {
+		return
+	}
+
+	assert.Equal(t, want.Asset, got.Asset)
+	assert.Len(t, got.From, len(want.From))
+	assert.Len(t, got.To, len(want.To))
+
+	assertAmountMapValues(t, "From", want.From, got.From)
+	assertAmountMapValues(t, "To", want.To, got.To)
+}
+
+// assertAmountMapValues checks that each key in the want map exists in the got map with a matching Value.
+func assertAmountMapValues(t *testing.T, label string, want, got map[string]Amount) {
+	t.Helper()
+
+	for key, wantAmount := range want {
+		gotAmount, exists := got[key]
+		assert.True(t, exists, "%s map should contain key %s", label, key)
+
+		if exists {
+			assert.True(t, wantAmount.Value.Equal(gotAmount.Value),
+				"%s[%s].Value: want=%s got=%s", label, key, wantAmount.Value, gotAmount.Value)
+		}
 	}
 }
 
@@ -342,17 +387,10 @@ func TestValidateFromBalances(t *testing.T) {
 			err := validateFromBalances(tt.balance, tt.from, tt.asset, false)
 
 			if tt.expectError {
-				assert.Error(t, err)
-				if tt.errorCode != "" {
-					// Check if the error is a Response type and contains the error code
-					if respErr, ok := err.(commons.Response); ok {
-						assert.Equal(t, tt.errorCode, respErr.Code)
-					} else {
-						assert.Contains(t, err.Error(), tt.errorCode)
-					}
-				}
+				require.Error(t, err)
+				assertErrorCode(t, err, tt.errorCode)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -431,22 +469,16 @@ func TestValidateToBalances(t *testing.T) {
 			err := validateToBalances(tt.balance, tt.to, tt.asset)
 
 			if tt.expectError {
-				assert.Error(t, err)
-				if tt.errorCode != "" {
-					// Check if the error is a Response type and contains the error code
-					if respErr, ok := err.(commons.Response); ok {
-						assert.Equal(t, tt.errorCode, respErr.Code)
-					} else {
-						assert.Contains(t, err.Error(), tt.errorCode)
-					}
-				}
+				require.Error(t, err)
+				assertErrorCode(t, err, tt.errorCode)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
 }
 
+//nolint:funlen // table-driven test with comprehensive balance operation scenarios.
 func TestOperateBalances(t *testing.T) {
 	t.Parallel()
 
@@ -487,7 +519,7 @@ func TestOperateBalances(t *testing.T) {
 				OnHold:    decimal.NewFromInt(10),
 			},
 			expected: Balance{
-				Available: decimal.NewFromInt(150), // 100 + 50 = 150
+				Available: decimal.NewFromInt(150), // sum: 100 plus 50
 				OnHold:    decimal.NewFromInt(10),
 			},
 			expectError: false,
@@ -521,7 +553,7 @@ func TestOperateBalances(t *testing.T) {
 				OnHold:    decimal.NewFromInt(0),
 			},
 			expected: Balance{
-				Available: decimal.NewFromInt(130), // 100 + 30 = 130
+				Available: decimal.NewFromInt(130), // sum: 100 plus 30
 				OnHold:    decimal.NewFromInt(0),   // No change
 			},
 			expectError: false,
@@ -605,13 +637,13 @@ func TestOperateBalances(t *testing.T) {
 			result, err := OperateBalances(tt.amount, tt.balance)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expected.Available.String(), result.Available.String())
 				assert.Equal(t, tt.expected.OnHold.String(), result.OnHold.String())
 
-				// For unknown operation, verify version is unchanged
+				// For unknown operation, verify version is unchanged.
 				if tt.expected.Version > 0 {
 					assert.Equal(t, tt.expected.Version, result.Version,
 						"version should match expected value")
@@ -797,6 +829,7 @@ func TestAppendIfNotExist(t *testing.T) {
 	}
 }
 
+//nolint:funlen // table-driven test with comprehensive validation scenarios.
 func TestValidateSendSourceAndDistribute(t *testing.T) {
 	t.Parallel()
 
@@ -1025,48 +1058,18 @@ func TestValidateSendSourceAndDistribute(t *testing.T) {
 			got, err := ValidateSendSourceAndDistribute(ctx, tt.transaction, constant.CREATED)
 
 			if tt.expectError {
-				assert.Error(t, err)
-				if tt.errorCode != "" {
-					// Check if the error is a Response type and contains the error code
-					if respErr, ok := err.(commons.Response); ok {
-						assert.Equal(t, tt.errorCode, respErr.Code)
-					} else {
-						assert.Contains(t, err.Error(), tt.errorCode)
-					}
-				}
+				require.Error(t, err)
+				assertErrorCode(t, err, tt.errorCode)
 			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, got)
-				if tt.want != nil && got != nil {
-					assert.Equal(t, tt.want.Asset, got.Asset)
-					assert.Equal(t, len(tt.want.From), len(got.From))
-					assert.Equal(t, len(tt.want.To), len(got.To))
-
-					// Assert Amount.Value for each key in From map
-					for key, wantAmount := range tt.want.From {
-						gotAmount, exists := got.From[key]
-						assert.True(t, exists, "From map should contain key %s", key)
-						if exists {
-							assert.True(t, wantAmount.Value.Equal(gotAmount.Value),
-								"From[%s].Value: want=%s got=%s", key, wantAmount.Value, gotAmount.Value)
-						}
-					}
-
-					// Assert Amount.Value for each key in To map
-					for key, wantAmount := range tt.want.To {
-						gotAmount, exists := got.To[key]
-						assert.True(t, exists, "To map should contain key %s", key)
-						if exists {
-							assert.True(t, wantAmount.Value.Equal(gotAmount.Value),
-								"To[%s].Value: want=%s got=%s", key, wantAmount.Value, gotAmount.Value)
-						}
-					}
-				}
+				require.NoError(t, err)
+				require.NotNil(t, got)
+				assertResponsesMatch(t, tt.want, got)
 			}
 		})
 	}
 }
 
+//nolint:funlen // table-driven test with comprehensive percentage/remaining scenarios.
 func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 	t.Parallel()
 
@@ -1081,7 +1084,7 @@ func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 			transaction: Transaction{
 				ChartOfAccountsGroupName: "PAG_CONTAS_CODE_1",
 				Description:              "description for the transaction person1 to person2 value of 100 reais",
-				Metadata: map[string]interface{}{
+				Metadata: map[string]any{
 					"depositType": "PIX",
 					"valor":       "100.00",
 				},
@@ -1097,7 +1100,7 @@ func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 								Remaining:    "remaining",
 								Description:  "Loan payment 1",
 								Route:        "00000000-0000-0000-0000-000000000000",
-								Metadata: map[string]interface{}{
+								Metadata: map[string]any{
 									"1":   "m",
 									"Cpf": "43049498x",
 								},
@@ -1112,7 +1115,7 @@ func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 									Percentage: 50,
 								},
 								Route: "00000000-0000-0000-0000-000000000000",
-								Metadata: map[string]interface{}{
+								Metadata: map[string]any{
 									"mensagem": "tks",
 								},
 							},
@@ -1122,7 +1125,7 @@ func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 									Percentage: 50,
 								},
 								Description: "regression test",
-								Metadata: map[string]interface{}{
+								Metadata: map[string]any{
 									"key": "value",
 								},
 							},
@@ -1179,16 +1182,14 @@ func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 			responses, err := ValidateSendSourceAndDistribute(ctx, tt.transaction, constant.CREATED)
 
 			if tt.expectError {
-				assert.Error(t, err)
-				if tt.errorCode != "" {
-					errMsg := err.Error()
-					assert.Contains(t, errMsg, tt.errorCode, "Error should contain the expected error code")
-				}
+				require.Error(t, err)
+				assertErrorCode(t, err, tt.errorCode)
+
 				return
 			}
 
-			assert.NoError(t, err)
-			assert.NotNil(t, responses)
+			require.NoError(t, err)
+			require.NotNil(t, responses)
 
 			// For successful case, validate response structure
 			assert.Equal(t, tt.transaction.Send.Value, responses.Total)
@@ -1213,6 +1214,7 @@ func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 			for _, amount := range responses.To {
 				total = total.Add(amount.Value)
 			}
+
 			assert.True(t, responses.Total.Equal(total),
 				"Total amount (%s) should equal sum of destination amounts (%s)",
 				responses.Total.String(), total.String())
@@ -1240,6 +1242,7 @@ func TestProperty_OperateBalances_SumInvariant(t *testing.T) {
 
 		for i := 0; i < ops; i++ {
 			value := decimal.NewFromInt(int64(rng.Intn(50) + 1))
+
 			var amount Amount
 
 			// 50% DEBIT (if funds available), 50% CREDIT
@@ -1260,6 +1263,7 @@ func TestProperty_OperateBalances_SumInvariant(t *testing.T) {
 			}
 
 			var err error
+
 			balance, err = OperateBalances(amount, balance)
 			if err != nil {
 				t.Logf("OperateBalances error: %v", err)
@@ -1270,6 +1274,7 @@ func TestProperty_OperateBalances_SumInvariant(t *testing.T) {
 		if !balance.Available.Equal(expectedSum) {
 			t.Logf("Mismatch: balance.Available=%s expectedSum=%s seed=%d numOps=%d",
 				balance.Available, expectedSum, seed, numOps)
+
 			return false
 		}
 

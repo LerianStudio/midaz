@@ -8,8 +8,22 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+)
+
+// sentinel errors used across tests to satisfy err113.
+var (
+	errInternal        = errors.New("internal error")
+	errInner           = errors.New("inner error")
+	errValidationInner = errors.New("validation inner error")
+	errConflictInner   = errors.New("conflict inner error")
+	errDupLedger       = errors.New("duplicate_ledger")
+	errTxValueMismatch = errors.New("transaction_value_mismatch")
+	errCustom          = errors.New("custom error")
+	errUnknown         = errors.New("unknown_error")
 )
 
 func TestEntityNotFoundError_Error(t *testing.T) {
@@ -35,7 +49,7 @@ func TestEntityNotFoundError_Error(t *testing.T) {
 		{
 			name: "Message is empty, but Err is set",
 			errorObj: EntityNotFoundError{
-				Err: errors.New("internal error"),
+				Err: errInternal,
 			},
 			expected: "internal error",
 		},
@@ -64,20 +78,19 @@ func TestEntityNotFoundError_Error(t *testing.T) {
 }
 
 func TestEntityNotFoundError_Unwrap(t *testing.T) {
-	innerErr := errors.New("inner error")
 	err := EntityNotFoundError{
-		Err: innerErr,
+		Err: errInner,
 	}
 
 	unwrapped := err.Unwrap()
-	assert.Equal(t, innerErr, unwrapped)
+	assert.Equal(t, errInner, unwrapped)
 
 	// Test with nil inner error
 	err = EntityNotFoundError{
 		Err: nil,
 	}
 	unwrapped = err.Unwrap()
-	assert.Nil(t, unwrapped)
+	assert.NoError(t, unwrapped)
 }
 
 func TestValidationError_Error(t *testing.T) {
@@ -114,20 +127,19 @@ func TestValidationError_Error(t *testing.T) {
 }
 
 func TestValidationError_Unwrap(t *testing.T) {
-	innerErr := errors.New("validation inner error")
 	err := ValidationError{
-		Err: innerErr,
+		Err: errValidationInner,
 	}
 
 	unwrapped := err.Unwrap()
-	assert.Equal(t, innerErr, unwrapped)
+	assert.Equal(t, errValidationInner, unwrapped)
 
 	// Test with nil inner error
 	err = ValidationError{
 		Err: nil,
 	}
 	unwrapped = err.Unwrap()
-	assert.Nil(t, unwrapped)
+	assert.NoError(t, unwrapped)
 }
 
 func TestEntityConflictError_Error(t *testing.T) {
@@ -146,7 +158,7 @@ func TestEntityConflictError_Error(t *testing.T) {
 		{
 			name: "Message is empty, but Err is set",
 			errorObj: EntityConflictError{
-				Err: errors.New("internal error"),
+				Err: errInternal,
 			},
 			expected: "internal error",
 		},
@@ -168,20 +180,19 @@ func TestEntityConflictError_Error(t *testing.T) {
 }
 
 func TestEntityConflictError_Unwrap(t *testing.T) {
-	innerErr := errors.New("conflict inner error")
 	err := EntityConflictError{
-		Err: innerErr,
+		Err: errConflictInner,
 	}
 
 	unwrapped := err.Unwrap()
-	assert.Equal(t, innerErr, unwrapped)
+	assert.Equal(t, errConflictInner, unwrapped)
 
 	// Test with nil inner error
 	err = EntityConflictError{
 		Err: nil,
 	}
 	unwrapped = err.Unwrap()
-	assert.Nil(t, unwrapped)
+	assert.NoError(t, unwrapped)
 }
 
 func TestUnauthorizedError_Error(t *testing.T) {
@@ -217,7 +228,7 @@ func TestUnauthorizedError_Error(t *testing.T) {
 func TestValidateBusinessError_InvalidDatetimeFormatHandlesMissingArgs(t *testing.T) {
 	err := ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", "start_date")
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), constant.ErrInvalidDatetimeFormat.Error())
 	assert.Contains(t, err.Error(), "yyyy-mm-dd")
 }
@@ -539,17 +550,20 @@ func TestValidateBadRequestFieldsError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ValidateBadRequestFieldsError(tt.requiredFields, tt.knownInvalidFields, tt.entityType, tt.unknownFields)
 
-			assert.NotNil(t, result, "Expected an error but got nil")
+			require.Error(t, result, "Expected an error but got nil")
 
 			switch tt.expectedErrorType {
 			case "errorString":
-				_, ok := result.(error)
-				assert.True(t, ok, "Expected a generic error")
+				require.ErrorIs(t, result, ErrEmptyValidationFields)
 			case "ValidationUnknownFieldsError":
-				_, ok := result.(ValidationUnknownFieldsError)
+				var validationUnknownFieldsError ValidationUnknownFieldsError
+
+				ok := errors.As(result, &validationUnknownFieldsError)
 				assert.True(t, ok, "Expected ValidationUnknownFieldsError")
 			case "ValidationKnownFieldsError":
-				_, ok := result.(ValidationKnownFieldsError)
+				var validationKnownFieldsError ValidationKnownFieldsError
+
+				ok := errors.As(result, &validationKnownFieldsError)
 				assert.True(t, ok, "Expected ValidationKnownFieldsError")
 			}
 		})
@@ -558,7 +572,7 @@ func TestValidateBadRequestFieldsError(t *testing.T) {
 
 func TestValidateBusinessError(t *testing.T) {
 	// Create a simple mock for ValidateBusinessError
-	mockValidateBusinessError := func(err error, entityType string, args ...interface{}) error {
+	mockValidateBusinessError := func(err error, entityType string, _ ...any) error {
 		switch err.Error() {
 		case "duplicate_ledger":
 			return &EntityConflictError{
@@ -579,29 +593,29 @@ func TestValidateBusinessError(t *testing.T) {
 		name       string
 		err        error
 		entityType string
-		args       []interface{}
-		expected   interface{}
+		args       []any
+		expected   any
 	}{
 		{
 			name:       "entity conflict error",
-			err:        errors.New("duplicate_ledger"),
+			err:        errDupLedger,
 			entityType: "User",
-			args:       []interface{}{},
+			args:       []any{},
 			expected:   &EntityConflictError{},
 		},
 		{
 			name:       "transaction value mismatch error",
-			err:        errors.New("transaction_value_mismatch"),
+			err:        errTxValueMismatch,
 			entityType: "Transaction",
-			args:       []interface{}{},
+			args:       []any{},
 			expected:   &ValidationError{},
 		},
 		{
 			name:       "error not mapped",
-			err:        errors.New("custom error"),
+			err:        errCustom,
 			entityType: "Custom",
-			args:       []interface{}{},
-			expected:   errors.New("custom error"),
+			args:       []any{},
+			expected:   errCustom,
 		},
 	}
 
@@ -609,51 +623,60 @@ func TestValidateBusinessError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := mockValidateBusinessError(tt.err, tt.entityType, tt.args...)
 
-			if _, ok := tt.expected.(error); ok && tt.err.Error() == "custom error" {
+			if errors.Is(tt.err, errCustom) {
 				assert.Equal(t, tt.err.Error(), result.Error())
 			} else {
-				assert.IsType(t, tt.expected, result)
+				switch tt.expected.(type) {
+				case *EntityConflictError:
+					var target *EntityConflictError
+					assert.ErrorAs(t, result, &target)
+				case *ValidationError:
+					var target *ValidationError
+					assert.ErrorAs(t, result, &target)
+				default:
+					assert.IsType(t, tt.expected, result) //nolint:testifylint // fallback for non-error types
+				}
 			}
 		})
 	}
 }
 
-// TestRealValidateBusinessError tests the actual ValidateBusinessError function with a few common error cases
+// TestRealValidateBusinessError tests the actual ValidateBusinessError function with a few common error cases.
 func TestRealValidateBusinessError(t *testing.T) {
 	tests := []struct {
 		name         string
 		err          error
 		entityType   string
-		args         []interface{}
-		expectedType interface{}
+		args         []any
+		expectedType any
 	}{
 		{
 			name:         "entity not found error",
 			err:          constant.ErrEntityNotFound,
 			entityType:   "User",
-			args:         []interface{}{},
+			args:         []any{},
 			expectedType: EntityNotFoundError{},
 		},
 		{
 			name:         "unmodifiable field error",
 			err:          constant.ErrUnmodifiableField,
 			entityType:   "Transaction",
-			args:         []interface{}{},
+			args:         []any{},
 			expectedType: ValidationError{},
 		},
 		{
 			name:         "duplicate ledger error",
 			err:          constant.ErrDuplicateLedger,
 			entityType:   "Ledger",
-			args:         []interface{}{"TestLedger", "TestDivision"},
+			args:         []any{"TestLedger", "TestDivision"},
 			expectedType: EntityConflictError{},
 		},
 		{
 			name:         "unknown error",
-			err:          errors.New("unknown_error"),
+			err:          errUnknown,
 			entityType:   "Custom",
-			args:         []interface{}{},
-			expectedType: errors.New(""),
+			args:         []any{},
+			expectedType: errUnknown,
 		},
 	}
 
@@ -662,33 +685,39 @@ func TestRealValidateBusinessError(t *testing.T) {
 			result := ValidateBusinessError(tt.err, tt.entityType, tt.args...)
 
 			// For unknown errors, we expect the original error to be returned
-			if tt.err.Error() == "unknown_error" {
+			if errors.Is(tt.err, errUnknown) {
 				assert.Equal(t, tt.err, result)
 				return
 			}
 
 			// For known errors, check the type
-			switch expected := tt.expectedType.(type) {
+			switch tt.expectedType.(type) {
 			case EntityNotFoundError:
-				actual, ok := result.(EntityNotFoundError)
+				var actual EntityNotFoundError
+
+				ok := errors.As(result, &actual)
 				assert.True(t, ok, "Expected EntityNotFoundError")
 				assert.Equal(t, tt.entityType, actual.EntityType)
 				assert.NotEmpty(t, actual.Title)
 				assert.NotEmpty(t, actual.Message)
 			case ValidationError:
-				actual, ok := result.(ValidationError)
+				var actual ValidationError
+
+				ok := errors.As(result, &actual)
 				assert.True(t, ok, "Expected ValidationError")
 				assert.Equal(t, tt.entityType, actual.EntityType)
 				assert.NotEmpty(t, actual.Title)
 				assert.NotEmpty(t, actual.Message)
 			case EntityConflictError:
-				actual, ok := result.(EntityConflictError)
+				var actual EntityConflictError
+
+				ok := errors.As(result, &actual)
 				assert.True(t, ok, "Expected EntityConflictError")
 				assert.Equal(t, tt.entityType, actual.EntityType)
 				assert.NotEmpty(t, actual.Title)
 				assert.NotEmpty(t, actual.Message)
 			default:
-				assert.Equal(t, expected, result)
+				assert.Equal(t, tt.expectedType, result)
 			}
 		})
 	}
@@ -702,7 +731,7 @@ func TestValidateInternalError(t *testing.T) {
 	}{
 		{
 			name:       "with error",
-			err:        errors.New("internal error"),
+			err:        errInternal,
 			entityType: "User",
 		},
 		{
@@ -717,10 +746,12 @@ func TestValidateInternalError(t *testing.T) {
 			result := ValidateInternalError(tt.err, tt.entityType)
 
 			// Check that we got a non-nil result
-			assert.NotNil(t, result)
+			require.Error(t, result)
 
 			// Check that it's the right type
-			internalErr, ok := result.(InternalServerError)
+			var internalErr InternalServerError
+
+			ok := errors.As(result, &internalErr)
 			assert.True(t, ok)
 
 			// Check the fields
@@ -730,9 +761,9 @@ func TestValidateInternalError(t *testing.T) {
 
 			// Check if Err is nil or not nil as expected
 			if tt.err == nil {
-				assert.Nil(t, internalErr.Err)
+				assert.NoError(t, internalErr.Err)
 			} else {
-				assert.NotNil(t, internalErr.Err)
+				require.Error(t, internalErr.Err)
 				assert.Equal(t, tt.err.Error(), internalErr.Err.Error())
 			}
 		})

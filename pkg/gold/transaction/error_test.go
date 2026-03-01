@@ -16,6 +16,7 @@ func TestError_SyntaxError(t *testing.T) {
 		Errors               []CompileError
 		Source               string
 	}
+
 	type args struct {
 		recognizer      antlr.Recognizer
 		offendingSymbol any
@@ -24,6 +25,7 @@ func TestError_SyntaxError(t *testing.T) {
 		msg             string
 		e               antlr.RecognitionException
 	}
+
 	tests := []struct {
 		name   string
 		fields fields

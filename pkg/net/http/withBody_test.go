@@ -6,14 +6,16 @@ package http
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/gofiber/fiber/v2"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/pkg"
 )
 
 type SimpleStruct struct {
@@ -40,7 +42,10 @@ func TestNewOfType(t *testing.T) {
 			input:    new(SimpleStruct),
 			jsonData: `{"Name":"Bruce", "Age": 18}`,
 			validateFunc: func(t *testing.T, result any) {
-				s := result.(*SimpleStruct)
+				t.Helper()
+
+				s, ok := result.(*SimpleStruct)
+				require.True(t, ok, "expected *SimpleStruct type")
 				assert.Equal(t, "Bruce", s.Name)
 				assert.Equal(t, 18, s.Age)
 			},
@@ -50,7 +55,10 @@ func TestNewOfType(t *testing.T) {
 			input:    new(ComplexStruct),
 			jsonData: `{"Simple": {"Name":"Bruce", "Age": 18}}`,
 			validateFunc: func(t *testing.T, result any) {
-				s := result.(*ComplexStruct)
+				t.Helper()
+
+				s, ok := result.(*ComplexStruct)
+				require.True(t, ok, "expected *ComplexStruct type")
 				assert.Equal(t, "Bruce", s.Simple.Name)
 				assert.Equal(t, 18, s.Simple.Age)
 			},
@@ -162,9 +170,12 @@ func TestParseUUIDPathParameters(t *testing.T) {
 				return c.SendStatus(fiber.StatusOK)
 			})
 
-			req := httptest.NewRequest("GET", tc.requestPath, nil)
+			req := httptest.NewRequest(http.MethodGet, tc.requestPath, http.NoBody)
 			resp, err := app.Test(req, -1)
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
 		})
 	}
@@ -283,6 +294,7 @@ func TestFindUnknownFields(t *testing.T) {
 
 func TestIsStringNumeric(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		input    string
 		expected bool
@@ -418,7 +430,9 @@ func TestMetadataValidation_KeyMaxLength(t *testing.T) {
 			type testStruct struct {
 				Metadata map[string]any `validate:"dive,keys,keymax=100,endkeys"`
 			}
+
 			s := testStruct{Metadata: map[string]any{tc.key: "value"}}
+
 			err := v.Struct(s)
 			if tc.expected {
 				assert.NoError(t, err)
@@ -493,7 +507,9 @@ func TestMetadataValidation_ValueMaxLength(t *testing.T) {
 			type testStruct struct {
 				Metadata map[string]any `validate:"dive,keys,endkeys,valuemax=2000"`
 			}
+
 			s := testStruct{Metadata: map[string]any{"key": tc.value}}
+
 			err := v.Struct(s)
 			if tc.expected {
 				assert.NoError(t, err)
@@ -548,7 +564,9 @@ func TestMetadataValidation_NestedValues(t *testing.T) {
 			type testStruct struct {
 				Metadata map[string]any `validate:"dive,keys,endkeys,nonested"`
 			}
+
 			s := testStruct{Metadata: map[string]any{"key": tc.value}}
+
 			err := v.Struct(s)
 			if tc.expected {
 				assert.NoError(t, err)
@@ -594,7 +612,9 @@ func TestMetadataValidation_Combined(t *testing.T) {
 			type testStruct struct {
 				Metadata map[string]any `validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 			}
+
 			s := testStruct{Metadata: tc.metadata}
+
 			err := v.Struct(s)
 			if tc.expected {
 				assert.NoError(t, err)
@@ -728,6 +748,7 @@ func TestAreDatesEqual(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestFindUnknownFields_DateComparison(t *testing.T) {
 	t.Parallel()
 

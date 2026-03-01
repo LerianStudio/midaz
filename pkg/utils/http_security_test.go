@@ -93,9 +93,11 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 		app.Use(SecurityHeadersMiddleware)
 		app.Get("/v1/health", func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 
-		req := httptest.NewRequest("GET", "/v1/health", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/health", http.NoBody)
 		resp, err := app.Test(req)
 		require.NoError(t, err)
+
+		defer resp.Body.Close()
 
 		assert.Equal(t, "nosniff", resp.Header.Get("X-Content-Type-Options"))
 		assert.Equal(t, "DENY", resp.Header.Get("X-Frame-Options"))
@@ -111,9 +113,11 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 		app.Use(SecurityHeadersMiddleware)
 		app.Get("/swagger/index.html", func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
 
-		req := httptest.NewRequest("GET", "/swagger/index.html", nil)
+		req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", http.NoBody)
 		resp, err := app.Test(req)
 		require.NoError(t, err)
+
+		defer resp.Body.Close()
 
 		assert.Contains(t, resp.Header.Get("Content-Security-Policy"), "default-src 'self'")
 		assert.Empty(t, resp.Header.Get("Strict-Transport-Security"))
@@ -128,11 +132,13 @@ func TestSwaggerRequestToken(t *testing.T) {
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req := httptest.NewRequest("GET", "/swagger/index.html", nil)
+		req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", http.NoBody)
 		req.Header.Set("X-Swagger-Token", "header-token")
 
-		_, err := app.Test(req)
+		resp, err := app.Test(req)
 		require.NoError(t, err)
+
+		defer resp.Body.Close()
 	})
 
 	t.Run("reads_cookie_token", func(t *testing.T) {
@@ -142,11 +148,13 @@ func TestSwaggerRequestToken(t *testing.T) {
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req := httptest.NewRequest("GET", "/swagger/index.html", nil)
+		req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", http.NoBody)
 		req.AddCookie(&http.Cookie{Name: SwaggerTokenCookieName, Value: "cookie-token"})
 
-		_, err := app.Test(req)
+		resp, err := app.Test(req)
 		require.NoError(t, err)
+
+		defer resp.Body.Close()
 	})
 
 	t.Run("ignores_query_token_to_avoid_leakage", func(t *testing.T) {
@@ -156,16 +164,19 @@ func TestSwaggerRequestToken(t *testing.T) {
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req := httptest.NewRequest("GET", "/swagger/index.html?token=query-token", nil)
+		req := httptest.NewRequest(http.MethodGet, "/swagger/index.html?token=query-token", http.NoBody)
 
-		_, err := app.Test(req)
+		resp, err := app.Test(req)
 		require.NoError(t, err)
+
+		defer resp.Body.Close()
 	})
 }
 
 func TestSwaggerRateLimitMiddleware(t *testing.T) {
 	t.Setenv("SWAGGER_RATE_LIMIT_MAX", "2")
 	t.Setenv("SWAGGER_RATE_LIMIT_WINDOW_SECONDS", "60")
+
 	swaggerLimiterState = newSwaggerRateLimiterState()
 
 	app := fiber.New()
@@ -175,25 +186,30 @@ func TestSwaggerRateLimitMiddleware(t *testing.T) {
 	})
 
 	for i := 0; i < 2; i++ {
-		req := httptest.NewRequest("GET", "/swagger/index.html", nil)
+		req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", http.NoBody)
 		req.RemoteAddr = "10.0.0.1:12345"
 
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+		resp.Body.Close()
 	}
 
-	req := httptest.NewRequest("GET", "/swagger/index.html", nil)
+	req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", http.NoBody)
 	req.RemoteAddr = "10.0.0.1:12345"
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusTooManyRequests, resp.StatusCode)
+
+	resp.Body.Close()
 }
 
-func TestShardingControlPlaneMiddleware(t *testing.T) {
+func TestShardingControlPlaneMiddleware(t *testing.T) { //nolint:funlen
 	t.Run("strict_env_requires_configured_token", func(t *testing.T) {
 		shardingLimiterState = newSwaggerRateLimiterState()
+
 		t.Setenv("ENV_NAME", "production")
 		t.Setenv("SHARDING_ADMIN_TOKEN", "")
 
@@ -203,13 +219,16 @@ func TestShardingControlPlaneMiddleware(t *testing.T) {
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", nil))
+		resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody))
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
+
+		resp.Body.Close()
 	})
 
 	t.Run("configured_token_rejects_missing_or_invalid_header", func(t *testing.T) {
 		shardingLimiterState = newSwaggerRateLimiterState()
+
 		t.Setenv("ENV_NAME", "production")
 		t.Setenv("SHARDING_ADMIN_TOKEN", "12345678901234567890123456789012")
 
@@ -220,23 +239,28 @@ func TestShardingControlPlaneMiddleware(t *testing.T) {
 		})
 
 		t.Run("missing_header_returns_401", func(t *testing.T) {
-			resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", nil))
+			resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody))
 			require.NoError(t, err)
 			assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
+
+			resp.Body.Close()
 		})
 
 		t.Run("invalid_header_returns_401", func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
 			req.Header.Set(ShardingControlTokenHeader, "wrong-token")
 
 			resp, err := app.Test(req)
 			require.NoError(t, err)
 			assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
+
+			resp.Body.Close()
 		})
 	})
 
 	t.Run("configured_token_allows_valid_header", func(t *testing.T) {
 		shardingLimiterState = newSwaggerRateLimiterState()
+
 		t.Setenv("ENV_NAME", "production")
 		t.Setenv("SHARDING_ADMIN_TOKEN", "12345678901234567890123456789012")
 
@@ -246,16 +270,19 @@ func TestShardingControlPlaneMiddleware(t *testing.T) {
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
 		req.Header.Set(ShardingControlTokenHeader, "12345678901234567890123456789012")
 
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+		resp.Body.Close()
 	})
 
 	t.Run("dev_env_without_token_is_also_blocked", func(t *testing.T) {
 		shardingLimiterState = newSwaggerRateLimiterState()
+
 		t.Setenv("ENV_NAME", "dev")
 		t.Setenv("SHARDING_ADMIN_TOKEN", "")
 
@@ -265,13 +292,16 @@ func TestShardingControlPlaneMiddleware(t *testing.T) {
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", nil))
+		resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody))
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
+
+		resp.Body.Close()
 	})
 
 	t.Run("token_below_minimum_length_is_blocked", func(t *testing.T) {
 		shardingLimiterState = newSwaggerRateLimiterState()
+
 		t.Setenv("ENV_NAME", "production")
 		t.Setenv("SHARDING_ADMIN_TOKEN", "short-token")
 
@@ -281,16 +311,19 @@ func TestShardingControlPlaneMiddleware(t *testing.T) {
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
 		req.Header.Set(ShardingControlTokenHeader, "short-token")
 
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
+
+		resp.Body.Close()
 	})
 
 	t.Run("placeholder_token_is_blocked", func(t *testing.T) {
 		shardingLimiterState = newSwaggerRateLimiterState()
+
 		t.Setenv("ENV_NAME", "production")
 		t.Setenv("SHARDING_ADMIN_TOKEN", knownPlaceholderToken)
 
@@ -300,16 +333,19 @@ func TestShardingControlPlaneMiddleware(t *testing.T) {
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", nil)
+		req := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
 		req.Header.Set(ShardingControlTokenHeader, knownPlaceholderToken)
 
 		resp, err := app.Test(req)
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
+
+		resp.Body.Close()
 	})
 
 	t.Run("configured_token_rate_limits_requests", func(t *testing.T) {
 		shardingLimiterState = newSwaggerRateLimiterState()
+
 		t.Setenv("ENV_NAME", "production")
 		t.Setenv("SHARDING_ADMIN_TOKEN", "12345678901234567890123456789012")
 		t.Setenv("SHARDING_ADMIN_RATE_LIMIT_MAX", "1")
@@ -321,7 +357,7 @@ func TestShardingControlPlaneMiddleware(t *testing.T) {
 			return c.SendStatus(fiber.StatusOK)
 		})
 
-		req1 := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", nil)
+		req1 := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
 		req1.Header.Set(ShardingControlTokenHeader, "12345678901234567890123456789012")
 		req1.RemoteAddr = "10.0.0.1:12345"
 
@@ -329,12 +365,16 @@ func TestShardingControlPlaneMiddleware(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
-		req2 := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", nil)
+		resp.Body.Close()
+
+		req2 := httptest.NewRequest(http.MethodGet, "/v1/sharding/rebalance/status", http.NoBody)
 		req2.Header.Set(ShardingControlTokenHeader, "12345678901234567890123456789012")
 		req2.RemoteAddr = "10.0.0.1:12345"
 
 		resp, err = app.Test(req2)
 		require.NoError(t, err)
 		assert.Equal(t, fiber.StatusTooManyRequests, resp.StatusCode)
+
+		resp.Body.Close()
 	})
 }

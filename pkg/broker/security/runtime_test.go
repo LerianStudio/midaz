@@ -27,7 +27,6 @@ func TestIsNonProductionEnvironment(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.want, IsNonProductionEnvironment(tt.env))
@@ -39,6 +38,8 @@ func TestValidateRuntimeConfig(t *testing.T) {
 	t.Parallel()
 
 	t.Run("rejects insecure skip verify in production", func(t *testing.T) {
+		t.Parallel()
+
 		warnings, err := ValidateRuntimeConfig(RuntimeConfig{
 			Environment:           "production",
 			TLSEnabled:            true,
@@ -51,6 +52,8 @@ func TestValidateRuntimeConfig(t *testing.T) {
 	})
 
 	t.Run("warns for disabled tls and tls without sasl in production", func(t *testing.T) {
+		t.Parallel()
+
 		warnings, err := ValidateRuntimeConfig(RuntimeConfig{
 			Environment:           "production",
 			TLSEnabled:            false,
@@ -63,6 +66,8 @@ func TestValidateRuntimeConfig(t *testing.T) {
 	})
 
 	t.Run("warns when tls is enabled without sasl in production", func(t *testing.T) {
+		t.Parallel()
+
 		warnings, err := ValidateRuntimeConfig(RuntimeConfig{
 			Environment:           "production",
 			TLSEnabled:            true,
@@ -75,6 +80,8 @@ func TestValidateRuntimeConfig(t *testing.T) {
 	})
 
 	t.Run("allows insecure skip verify in non production with warning", func(t *testing.T) {
+		t.Parallel()
+
 		warnings, err := ValidateRuntimeConfig(RuntimeConfig{
 			Environment:           "development",
 			TLSEnabled:            true,

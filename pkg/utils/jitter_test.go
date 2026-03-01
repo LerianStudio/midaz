@@ -118,7 +118,7 @@ func TestNextBackoff_ZeroCurrent(t *testing.T) {
 	assert.Equal(t, time.Duration(0), result, "backoff from zero should be zero")
 }
 
-// Property-based tests verify invariants hold across many inputs
+// Property-based tests verify invariants hold across many inputs.
 
 func TestFullJitter_AlwaysNonNegative(t *testing.T) {
 	t.Parallel()
@@ -214,12 +214,12 @@ func TestNextBackoff_Monotonic(t *testing.T) {
 	}
 }
 
-// Test constants are correctly defined
+// Test constants are correctly defined.
 func TestConstants(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, 5, MaxRetries, "MaxRetries should be 5")
 	assert.Equal(t, 500*time.Millisecond, InitialBackoff, "InitialBackoff should be 500ms")
 	assert.Equal(t, 10*time.Second, MaxBackoff, "MaxBackoff should be 10s")
-	assert.Equal(t, 2.0, BackoffFactor, "BackoffFactor should be 2.0")
+	assert.InDelta(t, 2.0, BackoffFactor, 1e-9, "BackoffFactor should be 2.0")
 }

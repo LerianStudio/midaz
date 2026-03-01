@@ -313,10 +313,10 @@ func TestSplitAliasAndBalanceKey(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		input        string
-		wantAlias    string
-		wantKey      string
+		name      string
+		input     string
+		wantAlias string
+		wantKey   string
 	}{
 		{
 			name:      "standard alias with default key",

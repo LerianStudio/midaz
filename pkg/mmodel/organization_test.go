@@ -7,8 +7,9 @@ package mmodel
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 func TestAddress_IsEmpty(t *testing.T) {

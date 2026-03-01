@@ -202,7 +202,7 @@ func TestConstants(t *testing.T) {
 
 	t.Run("MaxAllowedScale_consistent_with_MaxScaledDigits", func(t *testing.T) {
 		// The typed int32 constant and the untyped int should agree on the boundary value.
-		assert.Equal(t, int32(MaxScaledDigits), MaxAllowedScale)
+		assert.Equal(t, MaxAllowedScale, int32(MaxScaledDigits))
 	})
 
 	t.Run("MaxAllowedScale_below_overflow_threshold", func(t *testing.T) {

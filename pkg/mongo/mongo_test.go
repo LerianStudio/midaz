@@ -7,12 +7,13 @@ package mongo
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/tests/utils/stubs"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
+
+	"github.com/LerianStudio/midaz/v3/tests/utils/stubs"
 )
 
-func TestBuildDocumentToPatch(t *testing.T) {
+func TestBuildDocumentToPatch(t *testing.T) { //nolint:funlen // table-driven test with comprehensive cases
 	t.Parallel()
 
 	tests := []struct {
@@ -404,7 +405,7 @@ func TestExtractMongoPortAndParameters(t *testing.T) {
 			assert.Equal(t, tt.expectedParameters, actualParameters, "parameters mismatch")
 
 			if tt.expectWarning {
-				assert.True(t, logger.WarningCount() > 0, "expected warning to be logged")
+				assert.Positive(t, logger.WarningCount(), "expected warning to be logged")
 				assert.True(t, logger.HasWarning(tt.warningSubstring),
 					"expected warning containing %q, got: %v", tt.warningSubstring, logger.Warnings)
 			} else {

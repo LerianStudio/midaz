@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
 
 func TestBalance_IDtoUUID(t *testing.T) {
@@ -52,6 +53,7 @@ func TestBalance_IDtoUUID(t *testing.T) {
 
 func TestCreateAdditionalBalance_KeyValidation(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name           string
 		key            string
@@ -88,20 +90,26 @@ func TestCreateAdditionalBalance_KeyValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			allowSend := true
+			allowRecv := true
+
 			cab := &CreateAdditionalBalance{
 				Key:            tt.key,
-				AllowSending:   &[]bool{true}[0],
-				AllowReceiving: &[]bool{true}[0],
+				AllowSending:   &allowSend,
+				AllowReceiving: &allowRecv,
 			}
 
-			assert.Equal(t, tt.expectedLength, len(cab.Key), tt.description)
+			assert.Len(t, cab.Key, tt.expectedLength, tt.description)
 			assert.LessOrEqual(t, len(cab.Key), 100, "Key length should not exceed 100 characters")
+			assert.NotNil(t, cab.AllowSending)
+			assert.NotNil(t, cab.AllowReceiving)
 		})
 	}
 }
 
 func TestBalance_KeyField(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name        string
 		key         string
@@ -133,7 +141,7 @@ func TestBalance_KeyField(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			balance := &Balance{
+			balance := Balance{
 				ID:             "balance-123",
 				OrganizationID: "org-123",
 				LedgerID:       "ledger-456",
@@ -149,6 +157,10 @@ func TestBalance_KeyField(t *testing.T) {
 				AllowReceiving: true,
 			}
 
+			// Verify the struct is fully populated via conversion
+			txBal := balance.ToTransactionBalance()
+			assert.Equal(t, balance.ID, txBal.ID)
+
 			if tt.shouldBeSet {
 				assert.NotEmpty(t, balance.Key, "Key should be set")
 				assert.LessOrEqual(t, len(balance.Key), 100, "Key length should not exceed 100 characters")
@@ -159,8 +171,9 @@ func TestBalance_KeyField(t *testing.T) {
 	}
 }
 
-func TestBalance_ToTransactionBalance(t *testing.T) {
+func TestBalance_ToTransactionBalance(t *testing.T) { //nolint:funlen // table-driven test with comprehensive cases
 	t.Parallel()
+
 	now := time.Now().UTC().Truncate(time.Second)
 	deletedAt := now.Add(time.Hour)
 
@@ -321,7 +334,7 @@ func TestBalance_ToTransactionBalance(t *testing.T) {
 	}
 }
 
-func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
+func TestBalanceRedis_UnmarshalJSON(t *testing.T) { //nolint:funlen // table-driven test with comprehensive cases
 	t.Parallel()
 
 	tests := []struct {
@@ -434,13 +447,16 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 			t.Parallel()
 
 			var br BalanceRedis
+
 			err := br.UnmarshalJSON([]byte(tt.input))
 
 			if tt.wantErr {
 				require.Error(t, err)
+
 				if tt.errContain != "" {
 					assert.Contains(t, err.Error(), tt.errContain)
 				}
+
 				return
 			}
 
@@ -453,6 +469,7 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 
 func TestBalanceRedis_UnmarshalJSON_OtherFields(t *testing.T) {
 	t.Parallel()
+
 	input := `{
 		"id": "balance-uuid-123",
 		"alias": "@merchant",
@@ -468,6 +485,7 @@ func TestBalanceRedis_UnmarshalJSON_OtherFields(t *testing.T) {
 	}`
 
 	var br BalanceRedis
+
 	err := br.UnmarshalJSON([]byte(input))
 
 	require.NoError(t, err)

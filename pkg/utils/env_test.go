@@ -211,7 +211,7 @@ func TestGetFloat64WithDefault(t *testing.T) {
 			t.Parallel()
 
 			result := GetFloat64WithDefault(tt.value, tt.defaultValue)
-			assert.Equal(t, tt.expected, result)
+			assert.InDelta(t, tt.expected, result, 1e-9)
 		})
 	}
 }
@@ -400,7 +400,7 @@ func TestGetFloat64FromIntPercentWithDefault(t *testing.T) {
 			t.Parallel()
 
 			result := GetFloat64FromIntPercentWithDefault(tt.value, tt.defaultValue)
-			assert.Equal(t, tt.expected, result)
+			assert.InDelta(t, tt.expected, result, 1e-9)
 		})
 	}
 }
