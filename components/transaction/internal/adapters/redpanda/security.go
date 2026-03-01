@@ -7,8 +7,9 @@ package redpanda
 import (
 	"fmt"
 
-	brokersecurity "github.com/LerianStudio/midaz/v3/pkg/broker/security"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	brokersecurity "github.com/LerianStudio/midaz/v3/pkg/broker/security"
 )
 
 // ClientSecurityConfig controls optional TLS/SASL settings for Redpanda clients.

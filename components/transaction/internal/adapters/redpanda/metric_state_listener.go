@@ -8,10 +8,12 @@ import (
 	"context"
 	"errors"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	"github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
+
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // ErrNilMetricsFactory indicates that the metrics factory parameter is nil.
@@ -40,15 +42,22 @@ func (m *MetricStateListener) OnStateChange(serviceName string, _, to libCircuit
 		Set(context.Background(), value)
 }
 
+const (
+	metricStateClosed   int64 = 0
+	metricStateOpen     int64 = 1
+	metricStateHalfOpen int64 = 2
+	metricStateUnknown  int64 = -1
+)
+
 func stateToMetricValue(state libCircuitBreaker.State) int64 {
 	switch state {
 	case libCircuitBreaker.StateClosed:
-		return 0
+		return metricStateClosed
 	case libCircuitBreaker.StateOpen:
-		return 1
+		return metricStateOpen
 	case libCircuitBreaker.StateHalfOpen:
-		return 2
+		return metricStateHalfOpen
 	default:
-		return -1
+		return metricStateUnknown
 	}
 }

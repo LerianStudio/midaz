@@ -15,7 +15,11 @@ import (
 )
 
 func TestOperationPostgreSQLModel_ToEntity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("with_all_fields_populated", func(t *testing.T) {
+		t.Parallel()
+
 		amount := decimal.NewFromFloat(1500.00)
 		availableBalance := decimal.NewFromFloat(5000.00)
 		onHoldBalance := decimal.NewFromFloat(500.00)
@@ -101,6 +105,8 @@ func TestOperationPostgreSQLModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("with_optional_fields_nil", func(t *testing.T) {
+		t.Parallel()
+
 		model := &OperationPostgreSQLModel{
 			ID:              "op-456",
 			TransactionID:   "tx-789",
@@ -135,6 +141,8 @@ func TestOperationPostgreSQLModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("with_route_nil", func(t *testing.T) {
+		t.Parallel()
+
 		model := &OperationPostgreSQLModel{
 			ID:              "op-route-nil",
 			TransactionID:   "tx-route",
@@ -158,6 +166,8 @@ func TestOperationPostgreSQLModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("with_deleted_at_valid_but_zero_time", func(t *testing.T) {
+		t.Parallel()
+
 		model := &OperationPostgreSQLModel{
 			ID:              "op-edge",
 			TransactionID:   "tx-edge",
@@ -182,7 +192,11 @@ func TestOperationPostgreSQLModel_ToEntity(t *testing.T) {
 }
 
 func TestOperationPostgreSQLModel_FromEntity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("with_all_fields_populated", func(t *testing.T) {
+		t.Parallel()
+
 		amount := decimal.NewFromFloat(1500.00)
 		availableBalance := decimal.NewFromFloat(5000.00)
 		onHoldBalance := decimal.NewFromFloat(500.00)
@@ -276,6 +290,8 @@ func TestOperationPostgreSQLModel_FromEntity(t *testing.T) {
 	})
 
 	t.Run("with_optional_fields_nil", func(t *testing.T) {
+		t.Parallel()
+
 		entity := &Operation{
 			TransactionID:   "tx-789",
 			Type:            "CREDIT",
@@ -309,6 +325,8 @@ func TestOperationPostgreSQLModel_FromEntity(t *testing.T) {
 	})
 
 	t.Run("generates_uuid_when_id_empty", func(t *testing.T) {
+		t.Parallel()
+
 		entity := &Operation{
 			ID:              "",
 			TransactionID:   "tx-uuid",
@@ -324,8 +342,11 @@ func TestOperationPostgreSQLModel_FromEntity(t *testing.T) {
 			UpdatedAt:       time.Now(),
 		}
 
-		var model1 OperationPostgreSQLModel
-		var model2 OperationPostgreSQLModel
+		var (
+			model1 OperationPostgreSQLModel
+			model2 OperationPostgreSQLModel
+		)
+
 		model1.FromEntity(entity)
 		model2.FromEntity(entity)
 
@@ -336,6 +357,8 @@ func TestOperationPostgreSQLModel_FromEntity(t *testing.T) {
 	})
 
 	t.Run("with_empty_route", func(t *testing.T) {
+		t.Parallel()
+
 		entity := &Operation{
 			ID:              "op-empty-route",
 			TransactionID:   "tx-empty-route",
@@ -360,19 +383,27 @@ func TestOperationPostgreSQLModel_FromEntity(t *testing.T) {
 }
 
 func TestStatus_IsEmpty(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns_true_when_empty", func(t *testing.T) {
+		t.Parallel()
+
 		status := Status{}
 
 		assert.True(t, status.IsEmpty())
 	})
 
 	t.Run("returns_false_when_code_set", func(t *testing.T) {
+		t.Parallel()
+
 		status := Status{Code: "ACTIVE"}
 
 		assert.False(t, status.IsEmpty())
 	})
 
 	t.Run("returns_false_when_description_set", func(t *testing.T) {
+		t.Parallel()
+
 		desc := "Active status"
 		status := Status{Description: &desc}
 
@@ -380,6 +411,8 @@ func TestStatus_IsEmpty(t *testing.T) {
 	})
 
 	t.Run("returns_false_when_both_set", func(t *testing.T) {
+		t.Parallel()
+
 		desc := "Active status"
 		status := Status{Code: "ACTIVE", Description: &desc}
 
@@ -388,13 +421,19 @@ func TestStatus_IsEmpty(t *testing.T) {
 }
 
 func TestAmount_IsEmpty(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns_true_when_empty", func(t *testing.T) {
+		t.Parallel()
+
 		amount := Amount{}
 
 		assert.True(t, amount.IsEmpty())
 	})
 
 	t.Run("returns_false_when_value_set", func(t *testing.T) {
+		t.Parallel()
+
 		value := decimal.NewFromFloat(100.00)
 		amount := Amount{Value: &value}
 
@@ -402,6 +441,8 @@ func TestAmount_IsEmpty(t *testing.T) {
 	})
 
 	t.Run("returns_false_when_value_is_zero", func(t *testing.T) {
+		t.Parallel()
+
 		value := decimal.NewFromFloat(0)
 		amount := Amount{Value: &value}
 
@@ -410,13 +451,19 @@ func TestAmount_IsEmpty(t *testing.T) {
 }
 
 func TestBalance_IsEmpty(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns_true_when_empty", func(t *testing.T) {
+		t.Parallel()
+
 		balance := Balance{}
 
 		assert.True(t, balance.IsEmpty())
 	})
 
 	t.Run("returns_false_when_available_set", func(t *testing.T) {
+		t.Parallel()
+
 		available := decimal.NewFromFloat(1000.00)
 		balance := Balance{Available: &available}
 
@@ -424,6 +471,8 @@ func TestBalance_IsEmpty(t *testing.T) {
 	})
 
 	t.Run("returns_false_when_onhold_set", func(t *testing.T) {
+		t.Parallel()
+
 		onHold := decimal.NewFromFloat(500.00)
 		balance := Balance{OnHold: &onHold}
 
@@ -431,6 +480,8 @@ func TestBalance_IsEmpty(t *testing.T) {
 	})
 
 	t.Run("returns_false_when_both_set", func(t *testing.T) {
+		t.Parallel()
+
 		available := decimal.NewFromFloat(1000.00)
 		onHold := decimal.NewFromFloat(500.00)
 		balance := Balance{Available: &available, OnHold: &onHold}
@@ -439,6 +490,8 @@ func TestBalance_IsEmpty(t *testing.T) {
 	})
 
 	t.Run("returns_true_when_only_version_set", func(t *testing.T) {
+		t.Parallel()
+
 		// IsEmpty only checks Available and OnHold, not Version
 		version := int64(1)
 		balance := Balance{Version: &version}
@@ -448,7 +501,11 @@ func TestBalance_IsEmpty(t *testing.T) {
 }
 
 func TestOperation_ToLog(t *testing.T) {
+	t.Parallel()
+
 	t.Run("converts_all_fields", func(t *testing.T) {
+		t.Parallel()
+
 		amount := decimal.NewFromFloat(1500.00)
 		availableBalance := decimal.NewFromFloat(5000.00)
 		onHoldBalance := decimal.NewFromFloat(500.00)
@@ -516,6 +573,8 @@ func TestOperation_ToLog(t *testing.T) {
 	})
 
 	t.Run("excludes_mutable_fields", func(t *testing.T) {
+		t.Parallel()
+
 		// OperationLog intentionally excludes mutable fields for audit log immutability:
 		// Description, OrganizationID, LedgerID, UpdatedAt, DeletedAt, Metadata
 		// The OperationLog struct provides compile-time exclusion guarantee.
@@ -580,7 +639,11 @@ func TestOperation_ToLog(t *testing.T) {
 }
 
 func TestOperation_ToRedis(t *testing.T) {
+	t.Parallel()
+
 	t.Run("with_all_fields_populated", func(t *testing.T) {
+		t.Parallel()
+
 		amount := decimal.NewFromFloat(1500.00)
 		availBefore := decimal.NewFromFloat(5000.00)
 		onHoldBefore := decimal.NewFromFloat(500.00)
@@ -659,6 +722,8 @@ func TestOperation_ToRedis(t *testing.T) {
 	})
 
 	t.Run("with_nil_pointer_fields", func(t *testing.T) {
+		t.Parallel()
+
 		op := &Operation{
 			ID:              "op-nil",
 			TransactionID:   "tx-nil",
@@ -693,7 +758,11 @@ func TestOperation_ToRedis(t *testing.T) {
 // database default, but squirrel sends an explicit value for every column, so an empty
 // string would be written as-is without this substitution logic.
 func TestOperationPostgreSQLModel_FromEntity_DefaultBalanceKey(t *testing.T) {
+	t.Parallel()
+
 	t.Run("substitutes_default_when_balance_key_empty", func(t *testing.T) {
+		t.Parallel()
+
 		entity := &Operation{
 			ID:              "op-default-key",
 			TransactionID:   "tx-default-key",
@@ -718,6 +787,8 @@ func TestOperationPostgreSQLModel_FromEntity_DefaultBalanceKey(t *testing.T) {
 	})
 
 	t.Run("preserves_custom_balance_key_unchanged", func(t *testing.T) {
+		t.Parallel()
+
 		entity := &Operation{
 			ID:              "op-custom-key",
 			TransactionID:   "tx-custom-key",
@@ -747,7 +818,11 @@ func TestOperationPostgreSQLModel_FromEntity_DefaultBalanceKey(t *testing.T) {
 // This model is used by FindLastOperationBeforeTimestamp and
 // FindLastOperationsForAccountBeforeTimestamp for index-only scan efficiency.
 func TestOperationPointInTimeModel_ToEntity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("maps_all_point_in_time_fields", func(t *testing.T) {
+		t.Parallel()
+
 		availAfter := decimal.NewFromFloat(3500.00)
 		onHoldAfter := decimal.NewFromFloat(200.00)
 		versionAfter := int64(5)
@@ -783,6 +858,8 @@ func TestOperationPointInTimeModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("maps_nil_balance_pointers_correctly", func(t *testing.T) {
+		t.Parallel()
+
 		now := time.Now()
 
 		model := &OperationPointInTimeModel{
@@ -809,6 +886,8 @@ func TestOperationPointInTimeModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("does_not_populate_non_point_in_time_fields", func(t *testing.T) {
+		t.Parallel()
+
 		// OperationPointInTimeModel is a deliberately minimal struct.
 		// ToEntity must leave fields like TransactionID, Description, Type,
 		// Amount, Balance (before), Status, and OrganizationID at their zero values
@@ -841,7 +920,11 @@ func TestOperationPointInTimeModel_ToEntity(t *testing.T) {
 }
 
 func TestOperationFromRedis(t *testing.T) {
+	t.Parallel()
+
 	t.Run("roundtrip_preserves_all_fields", func(t *testing.T) {
+		t.Parallel()
+
 		amount := decimal.NewFromFloat(1500.00)
 		availBefore := decimal.NewFromFloat(5000.00)
 		onHoldBefore := decimal.NewFromFloat(500.00)

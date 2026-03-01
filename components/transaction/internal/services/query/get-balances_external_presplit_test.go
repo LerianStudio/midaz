@@ -10,16 +10,17 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 )
 
 func newExternalPresplitUseCase(t *testing.T) (*UseCase, *balance.MockRepository, context.Context, uuid.UUID, uuid.UUID) {
@@ -37,8 +38,12 @@ func newExternalPresplitUseCase(t *testing.T) (*UseCase, *balance.MockRepository
 	return uc, mockBalanceRepo, context.Background(), uuid.New(), uuid.New()
 }
 
-func TestEnsureExternalPreSplitBalances(t *testing.T) {
+func TestEnsureExternalPreSplitBalances(t *testing.T) { //nolint:funlen
+	t.Parallel()
+
 	t.Run("creates missing external pre-split balance from default template", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo, ctx, organizationID, ledgerID := newExternalPresplitUseCase(t)
 		expectedShard := uc.ShardRouter.ResolveBalance("@alice", constant.DefaultBalanceKey)
 		expectedShardKey := "shard_" + strconv.Itoa(expectedShard)
@@ -89,6 +94,8 @@ func TestEnsureExternalPreSplitBalances(t *testing.T) {
 	})
 
 	t.Run("ignores out-of-range shard key to avoid unbounded materialization", func(t *testing.T) {
+		t.Parallel()
+
 		uc, _, ctx, organizationID, ledgerID := newExternalPresplitUseCase(t)
 
 		err := uc.ensureExternalPreSplitBalances(ctx, organizationID, ledgerID, []string{"@external/USD#shard_999999"})
@@ -96,6 +103,8 @@ func TestEnsureExternalPreSplitBalances(t *testing.T) {
 	})
 
 	t.Run("ignores in-range external key that does not match any counterparty shard", func(t *testing.T) {
+		t.Parallel()
+
 		uc, _, ctx, organizationID, ledgerID := newExternalPresplitUseCase(t)
 
 		counterpartyShard := uc.ShardRouter.ResolveBalance("@alice", constant.DefaultBalanceKey)
@@ -111,6 +120,8 @@ func TestEnsureExternalPreSplitBalances(t *testing.T) {
 	})
 
 	t.Run("no-op when no external sharded aliases", func(t *testing.T) {
+		t.Parallel()
+
 		uc, _, ctx, organizationID, ledgerID := newExternalPresplitUseCase(t)
 
 		err := uc.ensureExternalPreSplitBalances(ctx, organizationID, ledgerID, []string{"@alice#default", "@bob#default"})
@@ -118,9 +129,11 @@ func TestEnsureExternalPreSplitBalances(t *testing.T) {
 	})
 
 	t.Run("returns list error when template query fails", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo, ctx, organizationID, ledgerID := newExternalPresplitUseCase(t)
 
-		expectedErr := errors.New("template query failed")
+		expectedErr := errors.New("template query failed") //nolint:err113
 
 		mockBalanceRepo.
 			EXPECT().
@@ -134,6 +147,8 @@ func TestEnsureExternalPreSplitBalances(t *testing.T) {
 	})
 
 	t.Run("returns not found when default external template is missing", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo, ctx, organizationID, ledgerID := newExternalPresplitUseCase(t)
 
 		mockBalanceRepo.
@@ -150,6 +165,8 @@ func TestEnsureExternalPreSplitBalances(t *testing.T) {
 	})
 
 	t.Run("succeeds when balance already exists (ON CONFLICT DO NOTHING)", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo, ctx, organizationID, ledgerID := newExternalPresplitUseCase(t)
 
 		template := &mmodel.Balance{
@@ -186,6 +203,8 @@ func TestEnsureExternalPreSplitBalances(t *testing.T) {
 	})
 
 	t.Run("returns wrapped error when create fails with non-unique violation", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo, ctx, organizationID, ledgerID := newExternalPresplitUseCase(t)
 
 		template := &mmodel.Balance{
@@ -213,7 +232,7 @@ func TestEnsureExternalPreSplitBalances(t *testing.T) {
 		mockBalanceRepo.
 			EXPECT().
 			CreateIfNotExists(gomock.Any(), gomock.Any()).
-			Return(errors.New("database unavailable")).
+			Return(errors.New("database unavailable")). //nolint:err113
 			Times(1)
 
 		err := uc.ensureExternalPreSplitBalances(ctx, organizationID, ledgerID, []string{"@external/USD#shard_6"})

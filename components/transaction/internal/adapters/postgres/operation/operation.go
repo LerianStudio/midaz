@@ -8,10 +8,12 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/shopspring/decimal"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/shopspring/decimal"
 )
 
 // OperationPostgreSQLModel represents the entity OperationPostgreSQLModel into SQL context in Database
@@ -63,7 +65,7 @@ type OperationPointInTimeModel struct {
 	CreatedAt             time.Time        // Creation timestamp (used as UpdatedAt for balance)
 }
 
-// ToEntity converts an OperationPointInTimeModel to entity Operation with only point-in-time relevant fields
+// ToEntity converts an OperationPointInTimeModel to entity Operation with only point-in-time relevant fields.
 func (t *OperationPointInTimeModel) ToEntity() *Operation {
 	balanceAfter := Balance{
 		Available: t.AvailableBalanceAfter,
@@ -98,7 +100,7 @@ type Status struct {
 	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status" maxLength:"256"`
 } // @name Status
 
-// IsEmpty method that set empty or nil in fields
+// IsEmpty method that set empty or nil in fields.
 func (s Status) IsEmpty() bool {
 	return s.Code == "" && s.Description == nil
 }
@@ -114,7 +116,7 @@ type Amount struct {
 	Value *decimal.Decimal `json:"value" example:"1500" minimum:"0"`
 } // @name Amount
 
-// IsEmpty method that set empty or nil in fields
+// IsEmpty method that set empty or nil in fields.
 func (a Amount) IsEmpty() bool {
 	return a.Value == nil
 }
@@ -140,7 +142,7 @@ type Balance struct {
 	Version *int64 `json:"version" example:"2" minimum:"0"`
 } // @name Balance
 
-// IsEmpty method that set empty or nil in fields
+// IsEmpty method that set empty or nil in fields.
 func (b Balance) IsEmpty() bool {
 	return b.Available == nil && b.OnHold == nil
 }
@@ -252,7 +254,7 @@ type Operation struct {
 	Metadata map[string]any `json:"metadata"`
 } // @name Operation
 
-// ToEntity converts an OperationPostgreSQLModel to entity Operation
+// ToEntity converts an OperationPostgreSQLModel to entity Operation.
 func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 	status := Status{
 		Code:        t.Status,
@@ -310,7 +312,7 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 	return Operation
 }
 
-// FromEntity converts an entity Operation to OperationPostgreSQLModel
+// FromEntity converts an entity Operation to OperationPostgreSQLModel.
 func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 	ID := libCommons.GenerateUUIDv7().String()
 	if operation.ID != "" {
@@ -577,24 +579,24 @@ type OperationLog struct {
 	BalanceAffected bool `json:"balanceAffected" example:"true" format:"boolean"`
 }
 
-// ToLog converts an Operation excluding the fields that are not immutable
-func (o *Operation) ToLog() *OperationLog {
+// ToLog converts an Operation excluding the fields that are not immutable.
+func (op *Operation) ToLog() *OperationLog {
 	return &OperationLog{
-		ID:              o.ID,
-		TransactionID:   o.TransactionID,
-		Type:            o.Type,
-		AssetCode:       o.AssetCode,
-		ChartOfAccounts: o.ChartOfAccounts,
-		Amount:          o.Amount,
-		Balance:         o.Balance,
-		BalanceAfter:    o.BalanceAfter,
-		Status:          o.Status,
-		AccountID:       o.AccountID,
-		AccountAlias:    o.AccountAlias,
-		BalanceKey:      o.BalanceKey,
-		BalanceID:       o.BalanceID,
-		Route:           o.Route,
-		CreatedAt:       o.CreatedAt,
-		BalanceAffected: o.BalanceAffected,
+		ID:              op.ID,
+		TransactionID:   op.TransactionID,
+		Type:            op.Type,
+		AssetCode:       op.AssetCode,
+		ChartOfAccounts: op.ChartOfAccounts,
+		Amount:          op.Amount,
+		Balance:         op.Balance,
+		BalanceAfter:    op.BalanceAfter,
+		Status:          op.Status,
+		AccountID:       op.AccountID,
+		AccountAlias:    op.AccountAlias,
+		BalanceKey:      op.BalanceKey,
+		BalanceID:       op.BalanceID,
+		Route:           op.Route,
+		CreatedAt:       op.CreatedAt,
+		BalanceAffected: op.BalanceAffected,
 	}
 }

@@ -9,15 +9,22 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestCreateOperationRouteSuccess is responsible to test CreateOperationRoute with success
+// Sentinel errors for test assertions.
+var (
+	errTestCreateOperationRoute = errors.New("failed to create operation route")
+)
+
+// TestCreateOperationRouteSuccess is responsible to test CreateOperationRoute with success.
 func TestCreateOperationRouteSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -43,6 +50,7 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 			assert.Equal(t, payload.Description, operationRoute.Description)
 			assert.Equal(t, payload.OperationType, operationRoute.OperationType)
 			assert.Equal(t, payload.Account, operationRoute.Account)
+
 			return operationRoute, nil
 		})
 
@@ -52,7 +60,7 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 
 	operationRoute, err := useCase.CreateOperationRoute(context.Background(), organizationID, ledgerID, payload)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, operationRoute)
 	assert.Equal(t, payload.Title, operationRoute.Title)
 	assert.Equal(t, payload.Description, operationRoute.Description)
@@ -60,7 +68,7 @@ func TestCreateOperationRouteSuccess(t *testing.T) {
 	assert.Equal(t, payload.Account, operationRoute.Account)
 }
 
-// TestCreateOperationRouteSuccessWithAccountAlias tests creating an operation route with account alias only
+// TestCreateOperationRouteSuccessWithAccountAlias tests creating an operation route with account alias only.
 func TestCreateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -86,6 +94,7 @@ func TestCreateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 			assert.Equal(t, payload.Description, operationRoute.Description)
 			assert.Equal(t, payload.OperationType, operationRoute.OperationType)
 			assert.Equal(t, payload.Account, operationRoute.Account)
+
 			return operationRoute, nil
 		})
 
@@ -95,7 +104,7 @@ func TestCreateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 
 	operationRoute, err := useCase.CreateOperationRoute(context.Background(), organizationID, ledgerID, payload)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, operationRoute)
 	assert.Equal(t, payload.Title, operationRoute.Title)
 	assert.Equal(t, payload.Description, operationRoute.Description)
@@ -103,7 +112,7 @@ func TestCreateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 	assert.Equal(t, payload.Account, operationRoute.Account)
 }
 
-// TestCreateOperationRouteWithEmptyAccount tests creating an operation route with empty account
+// TestCreateOperationRouteWithEmptyAccount tests creating an operation route with empty account.
 func TestCreateOperationRouteWithEmptyAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -139,10 +148,10 @@ func TestCreateOperationRouteWithEmptyAccount(t *testing.T) {
 	result, err := uc.CreateOperationRoute(context.Background(), organizationID, ledgerID, payload)
 
 	assert.Equal(t, expectedOperationRoute, result)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
-// TestCreateOperationRouteError is responsible to test CreateOperationRoute with error
+// TestCreateOperationRouteError is responsible to test CreateOperationRoute with error.
 func TestCreateOperationRouteError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -163,7 +172,7 @@ func TestCreateOperationRouteError(t *testing.T) {
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockOperationRouteRepo.EXPECT().
 		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(nil, errors.New("failed to create operation route"))
+		Return(nil, errTestCreateOperationRoute)
 
 	useCase := &UseCase{
 		OperationRouteRepo: mockOperationRouteRepo,
@@ -171,6 +180,6 @@ func TestCreateOperationRouteError(t *testing.T) {
 
 	operationRoute, err := useCase.CreateOperationRoute(context.Background(), organizationID, ledgerID, payload)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, operationRoute)
 }

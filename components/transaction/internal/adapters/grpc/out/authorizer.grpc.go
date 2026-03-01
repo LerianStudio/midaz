@@ -14,13 +14,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	brokersecurity "github.com/LerianStudio/midaz/v3/pkg/broker/security"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -28,6 +24,20 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
+
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+
+	brokersecurity "github.com/LerianStudio/midaz/v3/pkg/broker/security"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
+	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
+)
+
+// Sentinel errors for the authorizer gRPC client.
+var (
+	ErrAuthorizerDisabled            = errors.New("authorizer is disabled")
+	ErrAuthorizerShardRangesRequired = errors.New("AUTHORIZER_SHARD_RANGES is required in sharded routing mode")
+	ErrAuthorizerClientNotConfigured = errors.New("authorizer gRPC client not configured")
 )
 
 // AuthorizerConfig configures the outbound authorizer gRPC client.
@@ -43,6 +53,7 @@ type AuthorizerConfig struct {
 	Instances   string
 	ShardRanges string
 	ShardCount  int
+	PoolSize    int // Number of gRPC connections per authorizer endpoint (default: 4).
 }
 
 // AuthorizerClient groups all methods required by command/query use cases.
@@ -60,16 +71,40 @@ var (
 	_ AuthorizerClient = (*ShardedAuthorizerGRPCRepository)(nil)
 )
 
+// defaultPoolSize is the number of gRPC connections opened per authorizer
+// endpoint when PoolSize is not explicitly configured.  Each connection is an
+// independent HTTP/2 transport, so N connections allow N * MAX_CONCURRENT_STREAMS
+// RPCs in parallel without head-of-line blocking.
+const defaultPoolSize = 4
+
 // AuthorizerGRPCRepository is a gRPC client for the authorizer service.
+// It maintains a pool of gRPC connections and round-robins RPCs across them
+// to avoid HTTP/2 head-of-line blocking under high concurrency.
 type AuthorizerGRPCRepository struct {
 	enabled bool
 	timeout time.Duration
 
-	conn   *grpc.ClientConn
-	client authorizerv1.BalanceAuthorizerClient
-	logger libLog.Logger
+	conns   []*grpc.ClientConn
+	clients []authorizerv1.BalanceAuthorizerClient
+	rrIndex atomic.Uint64 // round-robin counter (lock-free)
+	logger  libLog.Logger
 }
 
+// pick returns the next client in the pool using atomic round-robin.
+func (a *AuthorizerGRPCRepository) pick() authorizerv1.BalanceAuthorizerClient {
+	n := uint64(len(a.clients))
+	if n == 0 {
+		return nil
+	}
+
+	idx := a.rrIndex.Add(1) - 1
+
+	return a.clients[idx%n]
+}
+
+// NewAuthorizerGRPC creates a new gRPC client for the authorizer service.
+// It opens cfg.PoolSize independent TCP connections to the same endpoint and
+// distributes RPCs across them with atomic round-robin.
 func NewAuthorizerGRPC(cfg AuthorizerConfig, logger libLog.Logger) (*AuthorizerGRPCRepository, error) {
 	repo := &AuthorizerGRPCRepository{
 		enabled: cfg.Enabled,
@@ -81,8 +116,15 @@ func NewAuthorizerGRPC(cfg AuthorizerConfig, logger libLog.Logger) (*AuthorizerG
 		return repo, nil
 	}
 
+	const defaultTimeoutMs = 100
+
 	if repo.timeout <= 0 {
-		repo.timeout = 100 * time.Millisecond
+		repo.timeout = defaultTimeoutMs * time.Millisecond
+	}
+
+	poolSize := cfg.PoolSize
+	if poolSize <= 0 {
+		poolSize = defaultPoolSize
 	}
 
 	addr := net.JoinHostPort(cfg.Host, cfg.Port)
@@ -92,7 +134,7 @@ func NewAuthorizerGRPC(cfg AuthorizerConfig, logger libLog.Logger) (*AuthorizerG
 		transportCredentials = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12}))
 	} else {
 		if !isDevelopmentEnvironment(cfg.Environment) {
-			return nil, fmt.Errorf("authorizer gRPC insecure transport is not allowed in environment %q", cfg.Environment)
+			return nil, fmt.Errorf("authorizer gRPC insecure transport is not allowed in environment %q", cfg.Environment) //nolint:err113
 		}
 
 		logger.Warn("gRPC authorizer connection using insecure transport - not recommended for production")
@@ -100,30 +142,54 @@ func NewAuthorizerGRPC(cfg AuthorizerConfig, logger libLog.Logger) (*AuthorizerG
 		transportCredentials = grpc.WithTransportCredentials(insecure.NewCredentials())
 	}
 
-	conn, err := grpc.NewClient(
-		addr,
+	const (
+		keepaliveTime    = 30
+		keepaliveTimeout = 10
+		// HTTP/2 flow-control window sizes.  The defaults (64 KiB per-stream,
+		// 16 MiB per-connection) are far too small when thousands of concurrent
+		// RPCs share a single TCP connection.  Enlarging them lets the framer
+		// pipeline more data before stalling on WINDOW_UPDATE frames.
+		windowSize     = 8 * 1024 * 1024  // 8 MiB per-stream
+		connWindowSize = 16 * 1024 * 1024 // 16 MiB per-connection
+	)
+
+	dialOpts := []grpc.DialOption{
 		transportCredentials,
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                30 * time.Second,
-			Timeout:             10 * time.Second,
+			Time:                keepaliveTime * time.Second,
+			Timeout:             keepaliveTimeout * time.Second,
 			PermitWithoutStream: true,
 		}),
+		grpc.WithInitialWindowSize(windowSize),
+		grpc.WithInitialConnWindowSize(connWindowSize),
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("connect to authorizer gRPC: %w", err)
 	}
 
-	repo.conn = conn
-	repo.client = authorizerv1.NewBalanceAuthorizerClient(conn)
+	repo.conns = make([]*grpc.ClientConn, 0, poolSize)
+	repo.clients = make([]authorizerv1.BalanceAuthorizerClient, 0, poolSize)
 
-	logger.Infof("Connected to authorizer gRPC at %s", addr)
+	for i := range poolSize {
+		conn, err := grpc.NewClient(addr, dialOpts...)
+		if err != nil {
+			// Close any connections already opened before returning.
+			for _, c := range repo.conns {
+				_ = c.Close()
+			}
+
+			return nil, fmt.Errorf("connect to authorizer gRPC (pool member %d): %w", i, err)
+		}
+
+		repo.conns = append(repo.conns, conn)
+		repo.clients = append(repo.clients, authorizerv1.NewBalanceAuthorizerClient(conn))
+	}
+
+	logger.Infof("Connected to authorizer gRPC at %s (pool_size=%d)", addr, poolSize)
 
 	return repo, nil
 }
 
 // NewAuthorizerClient builds a single or shard-routed authorizer client based on config.
-func NewAuthorizerClient(cfg AuthorizerConfig, logger libLog.Logger) (AuthorizerClient, error) {
+func NewAuthorizerClient(cfg AuthorizerConfig, logger libLog.Logger) (AuthorizerClient, error) { //nolint:gocyclo,cyclop
 	mode := strings.ToLower(strings.TrimSpace(cfg.RoutingMode))
 	if mode == "" {
 		mode = "single"
@@ -148,7 +214,7 @@ func NewAuthorizerClient(cfg AuthorizerConfig, logger libLog.Logger) (Authorizer
 	}
 
 	if len(ranges) != len(instanceAddrs) {
-		return nil, fmt.Errorf("authorizer sharded routing requires one shard range per instance: instances=%d ranges=%d", len(instanceAddrs), len(ranges))
+		return nil, fmt.Errorf("authorizer sharded routing requires one shard range per instance: instances=%d ranges=%d", len(instanceAddrs), len(ranges)) //nolint:err113
 	}
 
 	clients := make([]*AuthorizerGRPCRepository, 0, len(instanceAddrs))
@@ -166,6 +232,7 @@ func NewAuthorizerClient(cfg AuthorizerConfig, logger libLog.Logger) (Authorizer
 			Streaming:   cfg.Streaming,
 			TLSEnabled:  cfg.TLSEnabled,
 			Environment: cfg.Environment,
+			PoolSize:    cfg.PoolSize,
 		}, logger)
 		if clientErr != nil {
 			var closeErr error
@@ -222,14 +289,14 @@ type shardRange struct {
 func parseShardRanges(raw string) ([]shardRange, error) {
 	parts := parseCSV(raw)
 	if len(parts) == 0 {
-		return nil, fmt.Errorf("AUTHORIZER_SHARD_RANGES is required in sharded routing mode")
+		return nil, ErrAuthorizerShardRangesRequired
 	}
 
 	ranges := make([]shardRange, 0, len(parts))
 	for _, part := range parts {
 		bounds := strings.Split(strings.TrimSpace(part), "-")
-		if len(bounds) != 2 {
-			return nil, fmt.Errorf("invalid shard range %q: expected start-end", part)
+		if len(bounds) != 2 { //nolint:mnd
+			return nil, fmt.Errorf("invalid shard range %q: expected start-end", part) //nolint:err113
 		}
 
 		start, err := strconv.Atoi(strings.TrimSpace(bounds[0]))
@@ -243,7 +310,7 @@ func parseShardRanges(raw string) ([]shardRange, error) {
 		}
 
 		if start < 0 || end < start {
-			return nil, fmt.Errorf("invalid shard range %q: start=%d end=%d", part, start, end)
+			return nil, fmt.Errorf("invalid shard range %q: start=%d end=%d", part, start, end) //nolint:err113
 		}
 
 		ranges = append(ranges, shardRange{start: start, end: end})
@@ -262,7 +329,7 @@ func parseShardRanges(raw string) ([]shardRange, error) {
 
 		current := ranges[i]
 		if current.start <= previous.end {
-			return nil, fmt.Errorf(
+			return nil, fmt.Errorf( //nolint:err113
 				"invalid shard ranges: overlap between %d-%d and %d-%d",
 				previous.start,
 				previous.end,
@@ -295,20 +362,24 @@ func parseCSV(raw string) []string {
 	return out
 }
 
+// Enabled reports whether the authorizer gRPC client is active and connected.
 func (a *AuthorizerGRPCRepository) Enabled() bool {
-	return a != nil && a.enabled && a.client != nil
+	return a != nil && a.enabled && len(a.clients) > 0
 }
 
+// Authorize sends an authorization request to the authorizer gRPC service.
 func (a *AuthorizerGRPCRepository) Authorize(ctx context.Context, req *authorizerv1.AuthorizeRequest) (*authorizerv1.AuthorizeResponse, error) {
 	if !a.Enabled() {
-		return nil, fmt.Errorf("authorizer gRPC client is disabled")
+		return nil, ErrAuthorizerDisabled
 	}
+
+	client := a.pick()
 
 	var lastErr error
 
 	for attempt := 1; attempt <= 2; attempt++ {
 		callCtx, cancel := context.WithTimeout(ctx, a.timeout)
-		resp, err := a.client.Authorize(callCtx, req, grpc.WaitForReady(true))
+		resp, err := client.Authorize(callCtx, req, grpc.WaitForReady(true))
 
 		cancel()
 
@@ -321,24 +392,29 @@ func (a *AuthorizerGRPCRepository) Authorize(ctx context.Context, req *authorize
 			break
 		}
 
-		if sleepErr := sleepWithContext(ctx, 5*time.Millisecond); sleepErr != nil {
-			return nil, sleepErr
+		const retryDelay = 5
+
+		if sleepErr := sleepWithContext(ctx, retryDelay*time.Millisecond); sleepErr != nil {
+			return nil, fmt.Errorf("authorize sleep interrupted: %w", sleepErr)
 		}
 	}
 
 	return nil, lastErr
 }
 
+// LoadBalances sends a load balances request to the authorizer gRPC service.
 func (a *AuthorizerGRPCRepository) LoadBalances(ctx context.Context, req *authorizerv1.LoadBalancesRequest) (*authorizerv1.LoadBalancesResponse, error) {
 	if !a.Enabled() {
-		return nil, fmt.Errorf("authorizer gRPC client is disabled")
+		return nil, ErrAuthorizerDisabled
 	}
+
+	client := a.pick()
 
 	var lastErr error
 
 	for attempt := 1; attempt <= 2; attempt++ {
 		callCtx, cancel := context.WithTimeout(ctx, a.timeout)
-		resp, err := a.client.LoadBalances(callCtx, req, grpc.WaitForReady(true))
+		resp, err := client.LoadBalances(callCtx, req, grpc.WaitForReady(true))
 
 		cancel()
 
@@ -351,17 +427,20 @@ func (a *AuthorizerGRPCRepository) LoadBalances(ctx context.Context, req *author
 			break
 		}
 
-		if sleepErr := sleepWithContext(ctx, 5*time.Millisecond); sleepErr != nil {
-			return nil, sleepErr
+		const retryDelay = 5
+
+		if sleepErr := sleepWithContext(ctx, retryDelay*time.Millisecond); sleepErr != nil {
+			return nil, fmt.Errorf("load balances sleep interrupted: %w", sleepErr)
 		}
 	}
 
 	return nil, lastErr
 }
 
+// PublishBalanceOperations sends balance operations to the authorizer gRPC service for publishing.
 func (a *AuthorizerGRPCRepository) PublishBalanceOperations(ctx context.Context, topic, partitionKey string, payload []byte, headers map[string]string) error {
 	if !a.Enabled() {
-		return fmt.Errorf("authorizer gRPC client is disabled")
+		return ErrAuthorizerDisabled
 	}
 
 	req := &authorizerv1.PublishBalanceOperationsRequest{
@@ -372,11 +451,13 @@ func (a *AuthorizerGRPCRepository) PublishBalanceOperations(ctx context.Context,
 		Headers:      headers,
 	}
 
+	client := a.pick()
+
 	var lastErr error
 
 	for attempt := 1; attempt <= 2; attempt++ {
 		callCtx, cancel := context.WithTimeout(ctx, a.timeout)
-		_, err := a.client.PublishBalanceOperations(callCtx, req, grpc.WaitForReady(true))
+		_, err := client.PublishBalanceOperations(callCtx, req, grpc.WaitForReady(true))
 
 		cancel()
 
@@ -389,8 +470,10 @@ func (a *AuthorizerGRPCRepository) PublishBalanceOperations(ctx context.Context,
 			break
 		}
 
-		if sleepErr := sleepWithContext(ctx, 5*time.Millisecond); sleepErr != nil {
-			return sleepErr
+		const retryDelay = 5
+
+		if sleepErr := sleepWithContext(ctx, retryDelay*time.Millisecond); sleepErr != nil {
+			return fmt.Errorf("publish operations sleep interrupted: %w", sleepErr)
 		}
 	}
 
@@ -417,7 +500,7 @@ func sleepWithContext(ctx context.Context, d time.Duration) error {
 
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("sleep interrupted by context: %w", ctx.Err())
 	case <-t.C:
 		return nil
 	}
@@ -432,34 +515,37 @@ type ShardedAuthorizerGRPCRepository struct {
 	logger        libLog.Logger
 }
 
+// Enabled reports whether the sharded authorizer gRPC client is active and has configured clients.
 func (s *ShardedAuthorizerGRPCRepository) Enabled() bool {
 	return s != nil && s.enabled && len(s.clients) > 0
 }
 
+// Authorize routes the authorization request to the appropriate shard's gRPC client.
 func (s *ShardedAuthorizerGRPCRepository) Authorize(ctx context.Context, req *authorizerv1.AuthorizeRequest) (*authorizerv1.AuthorizeResponse, error) {
 	if !s.Enabled() {
-		return nil, fmt.Errorf("authorizer gRPC client is disabled")
+		return nil, ErrAuthorizerDisabled
 	}
 
 	shardID := s.resolvePrimaryShard(req.GetOperations())
 
 	client := s.clientForShard(shardID)
 	if client == nil {
-		return nil, fmt.Errorf("authorizer gRPC client not configured for shard %d", shardID)
+		return nil, fmt.Errorf("authorizer gRPC client not configured for shard %d", shardID) //nolint:err113
 	}
 
 	return client.Authorize(ctx, req)
 }
 
+// LoadBalances routes the load balances request to the appropriate shard's gRPC client.
 func (s *ShardedAuthorizerGRPCRepository) LoadBalances(ctx context.Context, req *authorizerv1.LoadBalancesRequest) (*authorizerv1.LoadBalancesResponse, error) {
 	if !s.Enabled() {
-		return nil, fmt.Errorf("authorizer gRPC client is disabled")
+		return nil, ErrAuthorizerDisabled
 	}
 
 	if len(req.GetShardIds()) == 0 {
 		client := s.clientForShard(0)
 		if client == nil {
-			return nil, fmt.Errorf("authorizer gRPC client not configured")
+			return nil, ErrAuthorizerClientNotConfigured
 		}
 
 		return client.LoadBalances(ctx, req)
@@ -470,7 +556,7 @@ func (s *ShardedAuthorizerGRPCRepository) LoadBalances(ctx context.Context, req 
 	for _, shardID := range req.GetShardIds() {
 		client := s.clientForShard(int(shardID))
 		if client == nil {
-			return nil, fmt.Errorf("authorizer gRPC client not configured for shard %d", shardID)
+			return nil, fmt.Errorf("authorizer gRPC client not configured for shard %d", shardID) //nolint:err113
 		}
 
 		grouped[client] = append(grouped[client], shardID)
@@ -504,15 +590,16 @@ func (s *ShardedAuthorizerGRPCRepository) LoadBalances(ctx context.Context, req 
 	}
 
 	if err := g.Wait(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load balances across shards: %w", err)
 	}
 
 	return response, nil
 }
 
+// PublishBalanceOperations routes the publish request to the appropriate shard's gRPC client.
 func (s *ShardedAuthorizerGRPCRepository) PublishBalanceOperations(ctx context.Context, topic, partitionKey string, payload []byte, headers map[string]string) error {
 	if !s.Enabled() {
-		return fmt.Errorf("authorizer gRPC client is disabled")
+		return ErrAuthorizerDisabled
 	}
 
 	shardID, err := strconv.Atoi(strings.TrimSpace(partitionKey))
@@ -522,12 +609,13 @@ func (s *ShardedAuthorizerGRPCRepository) PublishBalanceOperations(ctx context.C
 
 	client := s.clientForShard(shardID)
 	if client == nil {
-		return fmt.Errorf("authorizer gRPC client not configured for shard %d", shardID)
+		return fmt.Errorf("authorizer gRPC client not configured for shard %d", shardID) //nolint:err113
 	}
 
 	return client.PublishBalanceOperations(ctx, topic, partitionKey, payload, headers)
 }
 
+// Close releases all underlying gRPC connections for all shard clients.
 func (s *ShardedAuthorizerGRPCRepository) Close() error {
 	if s == nil {
 		return nil
@@ -598,10 +686,23 @@ func (s *ShardedAuthorizerGRPCRepository) resolvePrimaryShard(ops []*authorizerv
 	return 0
 }
 
+// Close releases all underlying gRPC connections in the pool.
 func (a *AuthorizerGRPCRepository) Close() error {
-	if a == nil || a.conn == nil {
+	if a == nil || len(a.conns) == 0 {
 		return nil
 	}
 
-	return a.conn.Close()
+	var closeErr error
+
+	for _, conn := range a.conns {
+		if conn == nil {
+			continue
+		}
+
+		if err := conn.Close(); err != nil {
+			closeErr = errors.Join(closeErr, fmt.Errorf("close authorizer gRPC connection: %w", err))
+		}
+	}
+
+	return closeErr
 }

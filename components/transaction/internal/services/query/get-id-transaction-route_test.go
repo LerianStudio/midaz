@@ -10,19 +10,23 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestGetTransactionRouteByIDSuccess tests getting a transaction route by ID successfully with metadata
+// TestGetTransactionRouteByIDSuccess tests getting a transaction route by ID successfully with metadata.
 func TestGetTransactionRouteByIDSuccess(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -71,15 +75,17 @@ func TestGetTransactionRouteByIDSuccess(t *testing.T) {
 
 	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedTransactionRoute.ID, result.ID)
 	assert.Equal(t, expectedTransactionRoute.Title, result.Title)
 	assert.Equal(t, map[string]any{"key": "value"}, result.Metadata)
 }
 
-// TestGetTransactionRouteByIDSuccessWithoutMetadata tests getting a transaction route by ID successfully without metadata
+// TestGetTransactionRouteByIDSuccessWithoutMetadata tests getting a transaction route by ID successfully without metadata.
 func TestGetTransactionRouteByIDSuccessWithoutMetadata(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -115,22 +121,24 @@ func TestGetTransactionRouteByIDSuccessWithoutMetadata(t *testing.T) {
 
 	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedTransactionRoute.ID, result.ID)
 	assert.Equal(t, expectedTransactionRoute.Title, result.Title)
 	assert.Nil(t, result.Metadata)
 }
 
-// TestGetTransactionRouteByIDErrorTransactionRouteRepo tests getting a transaction route by ID with transaction route repository error
+// TestGetTransactionRouteByIDErrorTransactionRouteRepo tests getting a transaction route by ID with transaction route repository error.
 func TestGetTransactionRouteByIDErrorTransactionRouteRepo(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	expectedError := errors.New("database error")
+	expectedError := errors.New("database error") //nolint:err113
 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -147,13 +155,15 @@ func TestGetTransactionRouteByIDErrorTransactionRouteRepo(t *testing.T) {
 
 	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, expectedError, err)
 	assert.Nil(t, result)
 }
 
-// TestGetTransactionRouteByIDNotFound tests getting a transaction route by ID when not found returns business error
+// TestGetTransactionRouteByIDNotFound tests getting a transaction route by ID when not found returns business error.
 func TestGetTransactionRouteByIDNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -176,7 +186,7 @@ func TestGetTransactionRouteByIDNotFound(t *testing.T) {
 
 	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// Should return business error for transaction route not found
 	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
@@ -184,15 +194,17 @@ func TestGetTransactionRouteByIDNotFound(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-// TestGetTransactionRouteByIDErrorMetadataRepo tests getting a transaction route by ID with metadata repository error
+// TestGetTransactionRouteByIDErrorMetadataRepo tests getting a transaction route by ID with metadata repository error.
 func TestGetTransactionRouteByIDErrorMetadataRepo(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	metadataError := errors.New("metadata database error")
+	metadataError := errors.New("metadata database error") //nolint:err113
 
 	expectedTransactionRoute := &mmodel.TransactionRoute{
 		ID:             transactionRouteID,
@@ -222,13 +234,15 @@ func TestGetTransactionRouteByIDErrorMetadataRepo(t *testing.T) {
 
 	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, metadataError, err)
 	assert.Nil(t, result)
 }
 
-// TestGetTransactionRouteByIDNilTransactionRoute tests getting a transaction route by ID when transaction route is nil
+// TestGetTransactionRouteByIDNilTransactionRoute tests getting a transaction route by ID when transaction route is nil.
 func TestGetTransactionRouteByIDNilTransactionRoute(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -253,6 +267,6 @@ func TestGetTransactionRouteByIDNilTransactionRoute(t *testing.T) {
 
 	result, err := uc.GetTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, result)
 }

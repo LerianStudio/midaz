@@ -7,15 +7,20 @@ package redpanda
 import (
 	"testing"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
-	"github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
+	"github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
 )
 
 func TestNewMetricStateListener(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil factory", func(t *testing.T) {
+		t.Parallel()
+
 		listener, err := NewMetricStateListener(nil)
 		require.Error(t, err)
 		assert.Nil(t, listener)
@@ -23,6 +28,8 @@ func TestNewMetricStateListener(t *testing.T) {
 	})
 
 	t.Run("valid factory", func(t *testing.T) {
+		t.Parallel()
+
 		meterProvider := sdkmetric.NewMeterProvider()
 		factory := metrics.NewMetricsFactory(meterProvider.Meter("test"), nil)
 
@@ -33,6 +40,8 @@ func TestNewMetricStateListener(t *testing.T) {
 }
 
 func TestMetricStateListener_OnStateChange_DoesNotPanic(t *testing.T) {
+	t.Parallel()
+
 	meterProvider := sdkmetric.NewMeterProvider()
 	factory := metrics.NewMetricsFactory(meterProvider.Meter("test"), nil)
 
@@ -45,6 +54,8 @@ func TestMetricStateListener_OnStateChange_DoesNotPanic(t *testing.T) {
 }
 
 func TestStateToMetricValue(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, int64(0), stateToMetricValue(libCircuitBreaker.StateClosed))
 	assert.Equal(t, int64(1), stateToMetricValue(libCircuitBreaker.StateOpen))
 	assert.Equal(t, int64(2), stateToMetricValue(libCircuitBreaker.StateHalfOpen))

@@ -7,10 +7,12 @@ package command
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
 )
 
 // DeleteTransactionRouteCache deletes the cache for a transaction route.

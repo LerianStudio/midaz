@@ -5,16 +5,18 @@
 package in
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate" //nolint:depguard
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
 // AssetRateHandler struct contains a cqrs use case for managing asset rate.
@@ -50,13 +52,24 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 	ctx, span := tracer.Start(ctx, "handler.create_asset_rate")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
 
 	logger.Infof("Initiating create of AssetRate with organization ID: %s", organizationID.String())
 	logger.Infof("Initiating create of AssetRate with ledger ID: %s", ledgerID.String())
 
-	payload := p.(*assetrate.CreateAssetRateInput)
+	payload, ok := p.(*assetrate.CreateAssetRateInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
+
 	logger.Infof("Request to create an AssetRate with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
@@ -103,9 +116,20 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_external_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	externalID := c.Locals("external_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	externalID, ok := c.Locals("external_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid external_id"))
+	}
 
 	logger.Infof("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and external ID: '%s'",
 		organizationID.String(), ledgerID.String(), externalID.String())
@@ -157,8 +181,16 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_asset_code")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
 	assetCode := c.Params("asset_code")
 
 	headerParams, err := http.ValidateParameters(c.Queries())

@@ -7,9 +7,10 @@ package command
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/shardrouting"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
 )
 
 // resolveBalanceCacheKey returns the appropriate Redis cache key for a balance,

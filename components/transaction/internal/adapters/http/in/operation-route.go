@@ -9,18 +9,20 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // OperationRouteHandler is a struct that contains the command and query use cases.
@@ -29,7 +31,7 @@ type OperationRouteHandler struct {
 	Query   *query.UseCase
 }
 
-// Create an Operation Route.
+// CreateOperationRoute creates a new Operation Route.
 //
 //	@Summary		Create Operation Route
 //	@Description	Endpoint to create a new Operation Route.
@@ -55,10 +57,20 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 	ctx, span := tracer.Start(ctx, "handler.create_operation_route")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
 
-	payload := i.(*mmodel.CreateOperationRouteInput)
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	payload, ok := i.(*mmodel.CreateOperationRouteInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
@@ -107,9 +119,20 @@ func (handler *OperationRouteHandler) GetOperationRouteByID(c *fiber.Ctx) error 
 	ctx, span := tracer.Start(ctx, "handler.get_operation_route_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("operation_route_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	id, ok := c.Locals("operation_route_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid operation_route_id"))
+	}
 
 	logger.Infof("Initiating retrieval of Operation Route with Operation Route ID: %s", id.String())
 
@@ -156,13 +179,28 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	ctx, span := tracer.Start(ctx, "handler.update_operation_route")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("operation_route_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	id, ok := c.Locals("operation_route_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid operation_route_id"))
+	}
 
 	logger.Infof("Initiating update of Operation Route with Operation Route ID: %s", id.String())
 
-	payload := i.(*mmodel.UpdateOperationRouteInput)
+	payload, ok := i.(*mmodel.UpdateOperationRouteInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
+
 	logger.Infof("Request to update an Operation Route with details: %#v", payload)
 
 	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
@@ -225,9 +263,20 @@ func (handler *OperationRouteHandler) DeleteOperationRouteByID(c *fiber.Ctx) err
 	ctx, span := tracer.Start(ctx, "handler.delete_operation_route_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("operation_route_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	id, ok := c.Locals("operation_route_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid operation_route_id"))
+	}
 
 	logger.Infof("Initiating deletion of Operation Route with Operation Route ID: %s", id.String())
 
@@ -274,8 +323,15 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 	ctx, span := tracer.Start(ctx, "handler.get_all_operation_routes")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -341,6 +397,8 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 
 // validateAccountRule validates account rule configuration for operation routes.
 // It ensures proper pairing of ruleType and validIf, and validates data types based on rule type.
+//
+//nolint:gocyclo,cyclop,wrapcheck
 func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, account *mmodel.AccountRule) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -9,15 +9,17 @@ import (
 	"testing"
 	"time"
 
-	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgShard "github.com/LerianStudio/midaz/v3/pkg/shard"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	pkgShard "github.com/LerianStudio/midaz/v3/pkg/shard"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 func newTestManager(t *testing.T, cfg Config) (*Manager, *miniredis.Miniredis, redis.UniversalClient) {
@@ -46,9 +48,11 @@ func TestManagerRoutingOverrideVisibleAcrossInstancesWithoutCache(t *testing.T) 
 	mgrA, mini, _ := newTestManager(t, Config{RouteCacheTTL: 0})
 
 	clientB := redis.NewClient(&redis.Options{Addr: mini.Addr()})
+
 	t.Cleanup(func() {
 		require.NoError(t, clientB.Close())
 	})
+
 	mgrB := NewManager(&libRedis.RedisConnection{Client: clientB, Connected: true}, pkgShard.NewRouter(4), nil, Config{RouteCacheTTL: 0})
 	require.NotNil(t, mgrB)
 
@@ -112,11 +116,11 @@ func TestManagerMigrateAccountPreservesPersistentTTL(t *testing.T) {
 	assert.Equal(t, 1, result.MigratedKeys)
 
 	_, srcErr := client.Get(ctx, sourceKey).Result()
-	assert.ErrorIs(t, srcErr, redis.Nil)
+	require.ErrorIs(t, srcErr, redis.Nil)
 
 	value, getErr := client.Get(ctx, targetKey).Result()
 	require.NoError(t, getErr)
-	assert.Equal(t, `{"available":"10"}`, value)
+	assert.JSONEq(t, `{"available":"10"}`, value)
 
 	ttl, ttlErr := client.TTL(ctx, targetKey).Result()
 	require.NoError(t, ttlErr)

@@ -6,21 +6,24 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"reflect"
 	"slices"
 	"strings"
 
+	"github.com/google/uuid"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/google/uuid"
 )
 
-// ValidateAccountingRules validates the accounting rules for the given operations
+// ValidateAccountingRules validates the accounting rules for the given operations.
 func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *pkgTransaction.Responses) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -33,7 +36,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	defer span.End()
 
 	if libCommons.IsNilOrEmpty(&validate.TransactionRoute) {
-		err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotInformed, "")
+		err := fmt.Errorf("validate accounting rules: %w", pkg.ValidateBusinessError(constant.ErrTransactionRouteNotInformed, ""))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction route is empty", err)
 
 		logger.Warnf("Transaction route is empty")
@@ -43,7 +46,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 	transactionRouteID, err := uuid.Parse(validate.TransactionRoute)
 	if err != nil {
-		validationErr := pkg.ValidateBusinessError(constant.ErrInvalidTransactionRouteID, "")
+		validationErr := fmt.Errorf("validate accounting rules: %w", pkg.ValidateBusinessError(constant.ErrInvalidTransactionRouteID, ""))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid transaction route ID format", validationErr)
 
@@ -54,11 +57,12 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 	transactionRouteCache, err := uc.GetOrCreateTransactionRouteCache(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to load transaction route cache", err)
+		wrappedErr := fmt.Errorf("validate accounting rules: %w", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to load transaction route cache", wrappedErr)
 
 		logger.Errorf("Failed to load transaction route cache: %v", err)
 
-		return err
+		return wrappedErr
 	}
 
 	uniqueFromCount := uniqueValues(validate.OperationRoutesFrom)
@@ -67,7 +71,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	destinationRoutesCount := len(transactionRouteCache.Destination)
 
 	if uniqueFromCount != sourceRoutesCount || uniqueToCount != destinationRoutesCount {
-		err := pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount)
+		err := fmt.Errorf("validate accounting rules: %w", pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting route count mismatch", err)
 
 		logger.Warnf("Route count mismatch: expected %d source, %d destination; got %d source, %d destination", sourceRoutesCount, destinationRoutesCount, uniqueFromCount, uniqueToCount)
@@ -78,7 +82,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	return validateAccountRules(ctx, transactionRouteCache, validate, operations)
 }
 
-// validateAccountRules validates each operation against its corresponding route rule
+// validateAccountRules validates each operation against its corresponding route rule.
 func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *pkgTransaction.Responses, operations []mmodel.BalanceOperation) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -112,7 +116,7 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 		}
 
 		if !found {
-			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), routeID, operation.Alias)
+			err := fmt.Errorf("validate accounting rules: %w", pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), routeID, operation.Alias))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting route not found", err)
 
 			logger.Warnf("Route ID '%s' not found in cache for operation '%s'", routeID, operation.Alias)
@@ -134,51 +138,51 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 	return nil
 }
 
-// validateSingleOperationRule validates if an operation matches the account rule defined in the transaction route
+// validateSingleOperationRule validates if an operation matches the account rule defined in the transaction route.
 func validateSingleOperationRule(op mmodel.BalanceOperation, account *mmodel.AccountCache) error {
 	switch account.RuleType {
 	case constant.AccountRuleTypeAlias:
 		expected, ok := account.ValidIf.(string)
 		if !ok {
-			return pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name())
+			return fmt.Errorf("validate single operation rule: %w", pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name()))
 		}
 
 		alias := pkgTransaction.SplitAlias(op.Alias)
 
 		if alias != expected {
-			return pkg.ValidateBusinessError(
+			return fmt.Errorf("validate single operation rule: %w", pkg.ValidateBusinessError(
 				constant.ErrAccountingAliasValidationFailed,
 				reflect.TypeOf(mmodel.AccountRule{}).Name(),
 				alias,
 				expected,
-			)
+			))
 		}
 
 	case constant.AccountRuleTypeAccountType:
 		allowedTypes := extractStringSlice(account.ValidIf)
 		if allowedTypes == nil {
-			return pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name())
+			return fmt.Errorf("validate single operation rule: %w", pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name()))
 		}
 
 		if slices.Contains(allowedTypes, op.Balance.AccountType) {
 			return nil
 		}
 
-		return pkg.ValidateBusinessError(
+		return fmt.Errorf("validate single operation rule: %w", pkg.ValidateBusinessError(
 			constant.ErrAccountingAccountTypeValidationFailed,
 			reflect.TypeOf(mmodel.AccountRule{}).Name(),
 			op.Balance.AccountType,
 			allowedTypes,
-		)
+		))
 
 	default:
-		return pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name())
+		return fmt.Errorf("validate single operation rule: %w", pkg.ValidateBusinessError(constant.ErrInvalidAccountingRoute, reflect.TypeOf(mmodel.AccountRule{}).Name()))
 	}
 
 	return nil
 }
 
-// uniqueValues counts the number of unique values in a map
+// uniqueValues counts the number of unique values in a map.
 func uniqueValues(m map[string]string) int {
 	if len(m) == 0 {
 		return 0
@@ -196,7 +200,7 @@ func uniqueValues(m map[string]string) int {
 	return len(seen)
 }
 
-// extractStringSlice helper function to handle []string and []any conversion
+// extractStringSlice helper function to handle []string and []any conversion.
 func extractStringSlice(value any) []string {
 	switch v := value.(type) {
 	case []string:

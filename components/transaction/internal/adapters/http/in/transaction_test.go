@@ -7,31 +7,33 @@ package in
 import (
 	"encoding/json"
 	"io"
-	nethttp "net/http"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"   //nolint:depguard
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction" //nolint:depguard
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
 
-func TestTransactionHandler_GetTransaction(t *testing.T) {
+func TestTransactionHandler_GetTransaction(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		queryParams    string
@@ -48,6 +50,7 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 					Get(gomock.Any(), gomock.Any()).
 					Return("", nil).
 					Times(1)
+
 				amount := decimal.NewFromInt(1000)
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
@@ -74,7 +77,10 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -110,7 +116,10 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -138,7 +147,10 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -155,6 +167,7 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 					Get(gomock.Any(), gomock.Any()).
 					Return("", nil).
 					Times(1)
+
 				amount := decimal.NewFromInt(1000)
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
@@ -181,7 +194,10 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -197,6 +213,7 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 					Get(gomock.Any(), gomock.Any()).
 					Return("", nil).
 					Times(1)
+
 				amount := decimal.NewFromInt(1000)
 				transactionRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, transactionID).
@@ -227,7 +244,10 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -266,19 +286,21 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
+
 					return c.Next()
 				},
 				handler.GetTransaction,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+tt.queryParams,
-				nil)
+			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -390,25 +412,28 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
+
 					return c.Next()
 				},
 				handler.CommitTransaction,
 			)
 
 			// Act
-			req := httptest.NewRequest("POST",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
-				nil)
+			req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-PENDING status")
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			var errResp map[string]any
+
 			err = json.Unmarshal(body, &errResp)
 			require.NoError(t, err, "error response should be valid JSON")
 
@@ -492,25 +517,28 @@ func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
+
 					return c.Next()
 				},
 				handler.RevertTransaction,
 			)
 
 			// Act
-			req := httptest.NewRequest("POST",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
-				nil)
+			req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-APPROVED status")
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			var errResp map[string]any
+
 			err = json.Unmarshal(body, &errResp)
 			require.NoError(t, err, "error response should be valid JSON")
 
@@ -567,25 +595,28 @@ func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
+
 			return c.Next()
 		},
 		handler.RevertTransaction,
 	)
 
 	// Act
-	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
-		nil)
+	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for already reverted transaction")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
 	var errResp map[string]any
+
 	err = json.Unmarshal(body, &errResp)
 	require.NoError(t, err, "error response should be valid JSON")
 
@@ -655,25 +686,28 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
+
 			return c.Next()
 		},
 		handler.RevertTransaction,
 	)
 
 	// Act
-	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
-		nil)
+	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for transaction that is already a revert")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
 	var errResp map[string]any
+
 	err = json.Unmarshal(body, &errResp)
 	require.NoError(t, err, "error response should be valid JSON")
 
@@ -717,25 +751,28 @@ func TestRevertTransaction_GetParentError_ReturnsError(t *testing.T) {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
+
 			return c.Next()
 		},
 		handler.RevertTransaction,
 	)
 
 	// Act
-	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
-		nil)
+	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, 500, resp.StatusCode, "expected HTTP 500 for database error")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
 	var errResp map[string]any
+
 	err = json.Unmarshal(body, &errResp)
 	require.NoError(t, err, "error response should be valid JSON")
 
@@ -793,25 +830,28 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
+
 			return c.Next()
 		},
 		handler.RevertTransaction,
 	)
 
 	// Act
-	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
-		nil)
+	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, 404, resp.StatusCode, "expected HTTP 404 for not found")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
 	var errResp map[string]any
+
 	err = json.Unmarshal(body, &errResp)
 	require.NoError(t, err, "error response should be valid JSON")
 
@@ -883,25 +923,28 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
+
 			return c.Next()
 		},
 		handler.RevertTransaction,
 	)
 
 	// Act
-	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
-		nil)
+	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, 400, resp.StatusCode, "expected HTTP 400 for empty revert")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
 	var errResp map[string]any
+
 	err = json.Unmarshal(body, &errResp)
 	require.NoError(t, err, "error response should be valid JSON")
 
@@ -947,25 +990,28 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
+
 			return c.Next()
 		},
 		handler.CommitTransaction,
 	)
 
 	// Act
-	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
-		nil)
+	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, 404, resp.StatusCode, "expected HTTP 404 for not found")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
 	var errResp map[string]any
+
 	err = json.Unmarshal(body, &errResp)
 	require.NoError(t, err, "error response should be valid JSON")
 
@@ -1053,25 +1099,28 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
+
 			return c.Next()
 		},
 		handler.CommitTransaction,
 	)
 
 	// Act
-	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
-		nil)
+	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, 500, resp.StatusCode, "expected HTTP 500 for Redis error")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
 	var errResp map[string]any
+
 	err = json.Unmarshal(body, &errResp)
 	require.NoError(t, err, "error response should be valid JSON")
 
@@ -1154,25 +1203,28 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 			c.Locals("organization_id", orgID)
 			c.Locals("ledger_id", ledgerID)
 			c.Locals("transaction_id", transactionID)
+
 			return c.Next()
 		},
 		handler.CommitTransaction,
 	)
 
 	// Act
-	req := httptest.NewRequest("POST",
-		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit",
-		nil)
+	req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/commit", http.NoBody)
 	resp, err := app.Test(req)
 
 	// Assert
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
 	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for locked transaction")
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
 	var errResp map[string]any
+
 	err = json.Unmarshal(body, &errResp)
 	require.NoError(t, err, "error response should be valid JSON")
 
@@ -1211,9 +1263,10 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
-				http.WithBody(new(transaction.CreateTransactionInput), handler.CreateTransactionJSON),
+				pkgHTTP.WithBody(new(transaction.CreateTransactionInput), handler.CreateTransactionJSON),
 			)
 
 			// Build request body with non-positive value
@@ -1231,7 +1284,7 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 			}`
 
 			// Act
-			req := httptest.NewRequest("POST",
+			req := httptest.NewRequest(http.MethodPost,
 				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/json",
 				strings.NewReader(requestBody))
 			req.Header.Set("Content-Type", "application/json")
@@ -1239,12 +1292,16 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-positive transaction value")
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			var errResp map[string]any
+
 			err = json.Unmarshal(body, &errResp)
 			require.NoError(t, err, "error response should be valid JSON")
 
@@ -1290,9 +1347,10 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
-				http.WithBody(new(transaction.CreateTransactionInflowInput), handler.CreateTransactionInflow),
+				pkgHTTP.WithBody(new(transaction.CreateTransactionInflowInput), handler.CreateTransactionInflow),
 			)
 
 			// Build request body with non-positive value (inflow has no source, only distribute.to)
@@ -1307,7 +1365,7 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 			}`
 
 			// Act
-			req := httptest.NewRequest("POST",
+			req := httptest.NewRequest(http.MethodPost,
 				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/inflow",
 				strings.NewReader(requestBody))
 			req.Header.Set("Content-Type", "application/json")
@@ -1315,12 +1373,16 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-positive transaction value")
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			var errResp map[string]any
+
 			err = json.Unmarshal(body, &errResp)
 			require.NoError(t, err, "error response should be valid JSON")
 
@@ -1366,9 +1428,10 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
-				http.WithBody(new(transaction.CreateTransactionOutflowInput), handler.CreateTransactionOutflow),
+				pkgHTTP.WithBody(new(transaction.CreateTransactionOutflowInput), handler.CreateTransactionOutflow),
 			)
 
 			// Build request body with non-positive value (outflow has no distribute.to, only source.from)
@@ -1383,7 +1446,7 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 			}`
 
 			// Act
-			req := httptest.NewRequest("POST",
+			req := httptest.NewRequest(http.MethodPost,
 				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/outflow",
 				strings.NewReader(requestBody))
 			req.Header.Set("Content-Type", "application/json")
@@ -1391,12 +1454,16 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-positive transaction value")
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			var errResp map[string]any
+
 			err = json.Unmarshal(body, &errResp)
 			require.NoError(t, err, "error response should be valid JSON")
 
@@ -1416,8 +1483,8 @@ func ptr(s string) *string {
 	return &s
 }
 
-// TestTransactionHandler_GetAllTransactions tests the GetAllTransactions handler
-func TestTransactionHandler_GetAllTransactions(t *testing.T) {
+// TestTransactionHandler_GetAllTransactions tests the GetAllTransactions handler.
+func TestTransactionHandler_GetAllTransactions(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		queryParams    string
@@ -1458,7 +1525,10 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -1510,7 +1580,10 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -1552,7 +1625,10 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -1567,7 +1643,10 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -1589,7 +1668,10 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -1625,19 +1707,21 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetAllTransactions,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions"+tt.queryParams,
-				nil)
+			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1649,8 +1733,8 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 	}
 }
 
-// TestTransactionHandler_UpdateTransaction tests the UpdateTransaction handler
-func TestTransactionHandler_UpdateTransaction(t *testing.T) {
+// TestTransactionHandler_UpdateTransaction tests the UpdateTransaction handler.
+func TestTransactionHandler_UpdateTransaction(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		requestBody    string
@@ -1719,7 +1803,10 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -1743,7 +1830,10 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -1766,7 +1856,10 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -1819,7 +1912,10 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -1860,13 +1956,14 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
+
 					return c.Next()
 				},
-				http.WithBody(new(transaction.UpdateTransactionInput), handler.UpdateTransaction),
+				pkgHTTP.WithBody(new(transaction.UpdateTransactionInput), handler.UpdateTransaction),
 			)
 
 			// Act
-			req := httptest.NewRequest("PATCH",
+			req := httptest.NewRequest(http.MethodPatch,
 				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String(),
 				strings.NewReader(tt.requestBody))
 			req.Header.Set("Content-Type", "application/json")
@@ -1874,6 +1971,9 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1916,9 +2016,10 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
-				http.WithBody(new(transaction.CreateTransactionInput), handler.CreateTransactionAnnotation),
+				pkgHTTP.WithBody(new(transaction.CreateTransactionInput), handler.CreateTransactionAnnotation),
 			)
 
 			// Build request body with non-positive value
@@ -1936,7 +2037,7 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 			}`
 
 			// Act
-			req := httptest.NewRequest("POST",
+			req := httptest.NewRequest(http.MethodPost,
 				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/annotation",
 				strings.NewReader(requestBody))
 			req.Header.Set("Content-Type", "application/json")
@@ -1944,12 +2045,16 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-positive transaction value")
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			var errResp map[string]any
+
 			err = json.Unmarshal(body, &errResp)
 			require.NoError(t, err, "error response should be valid JSON")
 
@@ -1969,29 +2074,29 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 // RFC 8594 specifies standard HTTP headers for communicating API deprecation status:
 // - Deprecation: indicates the resource is deprecated
 // - Sunset: specifies when the deprecated resource will become unavailable
-// - Link with rel="successor-version": points to the replacement resource
-func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) {
+// - Link with rel="successor-version": points to the replacement resource.
+func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	tests := []struct {
 		name             string
-		setupRequest     func(orgID, ledgerID uuid.UUID) *nethttp.Request
+		setupRequest     func(orgID, ledgerID uuid.UUID) *http.Request
 		expectedStatus   int
-		validateHeaders  func(t *testing.T, resp *nethttp.Response, orgID, ledgerID uuid.UUID)
+		validateHeaders  func(t *testing.T, resp *http.Response, orgID, ledgerID uuid.UUID)
 		validateResponse func(t *testing.T, body []byte)
 	}{
 		{
 			name: "deprecation headers present on missing file error",
-			setupRequest: func(orgID, ledgerID uuid.UUID) *nethttp.Request {
+			setupRequest: func(orgID, ledgerID uuid.UUID) *http.Request {
 				// Request without file - will fail validation but should still have deprecation headers
-				req := httptest.NewRequest(nethttp.MethodPost,
-					"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl",
-					nil)
+				req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl", http.NoBody)
 				req.Header.Set("Content-Type", "multipart/form-data")
+
 				return req
 			},
 			expectedStatus: 400,
-			validateHeaders: func(t *testing.T, resp *nethttp.Response, orgID, ledgerID uuid.UUID) {
+			validateHeaders: func(t *testing.T, resp *http.Response, orgID, ledgerID uuid.UUID) {
+				t.Helper()
 				// Verify Deprecation header
 				assert.Equal(t, "true", resp.Header.Get("Deprecation"),
 					"Deprecation header should be 'true'")
@@ -2008,7 +2113,10 @@ func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) {
 					"Link header should point to JSON endpoint with successor-version rel")
 			},
 			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 				assert.Contains(t, errResp, "code", "error response should contain code field")
@@ -2016,15 +2124,15 @@ func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) {
 		},
 		{
 			name: "deprecation headers present with invalid query parameters",
-			setupRequest: func(orgID, ledgerID uuid.UUID) *nethttp.Request {
-				req := httptest.NewRequest(nethttp.MethodPost,
-					"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl?start_date=invalid-format",
-					nil)
+			setupRequest: func(orgID, ledgerID uuid.UUID) *http.Request {
+				req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl?start_date=invalid-format", http.NoBody)
 				req.Header.Set("Content-Type", "multipart/form-data")
+
 				return req
 			},
 			expectedStatus: 400,
-			validateHeaders: func(t *testing.T, resp *nethttp.Response, orgID, ledgerID uuid.UUID) {
+			validateHeaders: func(t *testing.T, resp *http.Response, orgID, ledgerID uuid.UUID) {
+				t.Helper()
 				// Even on validation errors, deprecation headers should be present
 				assert.Equal(t, "true", resp.Header.Get("Deprecation"),
 					"Deprecation header should be present even on error")
@@ -2034,7 +2142,10 @@ func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) {
 					"Link header should contain successor-version rel")
 			},
 			validateResponse: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 				assert.Contains(t, errResp, "code", "error response should contain code field")
@@ -2042,15 +2153,16 @@ func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) {
 		},
 		{
 			name: "Link header contains dynamic organization_id and ledger_id",
-			setupRequest: func(orgID, ledgerID uuid.UUID) *nethttp.Request {
-				req := httptest.NewRequest(nethttp.MethodPost,
-					"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl",
-					nil)
+			setupRequest: func(orgID, ledgerID uuid.UUID) *http.Request {
+				req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl", http.NoBody)
 				req.Header.Set("Content-Type", "multipart/form-data")
+
 				return req
 			},
 			expectedStatus: 400,
-			validateHeaders: func(t *testing.T, resp *nethttp.Response, orgID, ledgerID uuid.UUID) {
+			validateHeaders: func(t *testing.T, resp *http.Response, orgID, ledgerID uuid.UUID) {
+				t.Helper()
+
 				linkHeader := resp.Header.Get("Link")
 
 				// Verify Link header contains the specific organization_id
@@ -2092,6 +2204,7 @@ func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.CreateTransactionDSL,
@@ -2103,6 +2216,9 @@ func TestCreateTransactionDSL_DeprecationHeaders(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			// Validate deprecation headers
@@ -2149,18 +2265,19 @@ func TestCreateTransactionDSL_DeprecationHeaders_DifferentIDs(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.CreateTransactionDSL,
 			)
 
-			req := httptest.NewRequest(nethttp.MethodPost,
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl",
-				nil)
+			req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/dsl", http.NoBody)
 			req.Header.Set("Content-Type", "multipart/form-data")
 
 			resp, err := app.Test(req)
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 
 			// Build expected Link header with this test's specific IDs
 			expectedLink := "</v1/organizations/" + orgID.String() +
@@ -2173,8 +2290,8 @@ func TestCreateTransactionDSL_DeprecationHeaders_DifferentIDs(t *testing.T) {
 	}
 }
 
-// TestCancelTransaction tests the CancelTransaction handler
-func TestCancelTransaction(t *testing.T) {
+// TestCancelTransaction tests the CancelTransaction handler.
+func TestCancelTransaction(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	tests := []struct {
@@ -2198,7 +2315,10 @@ func TestCancelTransaction(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -2262,7 +2382,10 @@ func TestCancelTransaction(t *testing.T) {
 			},
 			expectedStatus: 422,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -2324,7 +2447,10 @@ func TestCancelTransaction(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -2381,7 +2507,10 @@ func TestCancelTransaction(t *testing.T) {
 			},
 			expectedStatus: 422,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -2423,7 +2552,10 @@ func TestCancelTransaction(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -2466,19 +2598,21 @@ func TestCancelTransaction(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
+
 					return c.Next()
 				},
 				handler.CancelTransaction,
 			)
 
 			// Act
-			req := httptest.NewRequest("POST",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/cancel",
-				nil)
+			req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/cancel", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {

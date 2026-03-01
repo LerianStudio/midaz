@@ -10,21 +10,26 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.uber.org/mock/gomock"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.uber.org/mock/gomock"
 )
 
-// TestGetAllMetadataOperations is responsible to test GetAllMetadataOperations with success and error
+// TestGetAllMetadataOperations is responsible to test GetAllMetadataOperations with success and error.
 func TestGetAllMetadataOperations(t *testing.T) {
+	t.Parallel()
+
 	collection := reflect.TypeOf(operation.Operation{}).Name()
 	filter := http.QueryHeader{
 		Metadata: &bson.M{"metadata": 1},
@@ -32,16 +37,15 @@ func TestGetAllMetadataOperations(t *testing.T) {
 		Page:     1,
 	}
 
-	t.Parallel()
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockMetadataRepo := mongodb.NewMockRepository(gomock.NewController(t))
-	uc := UseCase{
-		MetadataRepo: mockMetadataRepo,
-	}
-
 	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := UseCase{MetadataRepo: mockMetadataRepo}
+
 		mockMetadataRepo.
 			EXPECT().
 			FindList(gomock.Any(), collection, filter).
@@ -49,27 +53,37 @@ func TestGetAllMetadataOperations(t *testing.T) {
 			Times(1)
 		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 	})
 
 	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := UseCase{MetadataRepo: mockMetadataRepo}
+
 		errMSG := "errDatabaseItemNotFound"
 		mockMetadataRepo.
 			EXPECT().
 			FindList(gomock.Any(), collection, filter).
-			Return(nil, errors.New(errMSG)).
+			Return(nil, errors.New(errMSG)). //nolint:err113
 			Times(1)
 		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
 
-		assert.EqualError(t, err, errMSG)
+		require.EqualError(t, err, errMSG)
 		assert.Nil(t, res)
 	})
 }
 
 // TestGetAllMetadataOperationsWithOperations tests that operations are populated for operations
-// retrieved by metadata filtering in the GetAllMetadataOperations method
+// retrieved by metadata filtering in the GetAllMetadataOperations method.
 func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -96,12 +110,12 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 		{
 			ID:       primitive.NewObjectID(),
 			EntityID: opID1Str,
-			Data:     map[string]interface{}{"key": "value"},
+			Data:     map[string]any{"key": "value"},
 		},
 		{
 			ID:       primitive.NewObjectID(),
 			EntityID: opID2Str,
-			Data:     map[string]interface{}{"key": "value"},
+			Data:     map[string]any{"key": "value"},
 		},
 	}
 
@@ -133,7 +147,7 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 
 	result, _, err := uc.GetAllMetadataOperations(context.Background(), orgID, ledgerID, accountID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Len(t, result, 2)
 
@@ -152,8 +166,10 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 	}
 }
 
-// TestGetAllMetadataOperationsMetadataNotFound tests error handling when metadata is not found
+// TestGetAllMetadataOperationsMetadataNotFound tests error handling when metadata is not found.
 func TestGetAllMetadataOperationsMetadataNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -172,7 +188,7 @@ func TestGetAllMetadataOperationsMetadataNotFound(t *testing.T) {
 
 	mockMetadataRepo.EXPECT().
 		FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), filter).
-		Return(nil, errors.New("metadata not found"))
+		Return(nil, errors.New("metadata not found")) //nolint:err113
 
 	uc := &UseCase{
 		MetadataRepo:  mockMetadataRepo,
@@ -181,13 +197,15 @@ func TestGetAllMetadataOperationsMetadataNotFound(t *testing.T) {
 
 	result, _, err := uc.GetAllMetadataOperations(context.Background(), orgID, ledgerID, accountID, filter)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "No operations were found in the search")
 }
 
-// TestGetAllMetadataOperationsOperationNotFound tests error handling when operations are not found
+// TestGetAllMetadataOperationsOperationNotFound tests error handling when operations are not found.
 func TestGetAllMetadataOperationsOperationNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -208,7 +226,7 @@ func TestGetAllMetadataOperationsOperationNotFound(t *testing.T) {
 		{
 			ID:       primitive.NewObjectID(),
 			EntityID: "op1",
-			Data:     map[string]interface{}{"key": "value"},
+			Data:     map[string]any{"key": "value"},
 		},
 	}
 
@@ -227,13 +245,15 @@ func TestGetAllMetadataOperationsOperationNotFound(t *testing.T) {
 
 	result, _, err := uc.GetAllMetadataOperations(context.Background(), orgID, ledgerID, accountID, filter)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "No operations were found in the search")
 }
 
-// TestGetAllMetadataOperationsOperationRepoError tests error handling when operation repository returns error
+// TestGetAllMetadataOperationsOperationRepoError tests error handling when operation repository returns error.
 func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -254,11 +274,11 @@ func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
 		{
 			ID:       primitive.NewObjectID(),
 			EntityID: "op1",
-			Data:     map[string]interface{}{"key": "value"},
+			Data:     map[string]any{"key": "value"},
 		},
 	}
 
-	repoError := errors.New("database connection error")
+	repoError := errors.New("database connection error") //nolint:err113
 
 	mockMetadataRepo.EXPECT().
 		FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), filter).
@@ -275,7 +295,7 @@ func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
 
 	result, _, err := uc.GetAllMetadataOperations(context.Background(), orgID, ledgerID, accountID, filter)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, repoError, err)
 }

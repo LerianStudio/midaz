@@ -10,18 +10,26 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestCreateTransactionRouteSuccess tests successful transaction route creation
+// Sentinel errors for test assertions.
+var (
+	errTestCreateTransactionRoute = errors.New("failed to create transaction route")
+	errTestCreateMetadataRoute    = errors.New("failed to create metadata")
+)
+
+// TestCreateTransactionRouteSuccess tests successful transaction route creation.
 func TestCreateTransactionRouteSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -94,15 +102,15 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 
 	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedTransactionRoute.Title, result.Title)
 	assert.Equal(t, expectedTransactionRoute.Description, result.Description)
-	assert.Equal(t, len(expectedOperationRoutes), len(result.OperationRoutes))
+	assert.Len(t, result.OperationRoutes, len(expectedOperationRoutes))
 	assert.Equal(t, payload.Metadata, result.Metadata)
 }
 
-// TestCreateTransactionRouteSuccessWithoutMetadata tests successful creation without metadata
+// TestCreateTransactionRouteSuccessWithoutMetadata tests successful creation without metadata.
 func TestCreateTransactionRouteSuccessWithoutMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -155,12 +163,12 @@ func TestCreateTransactionRouteSuccessWithoutMetadata(t *testing.T) {
 
 	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedTransactionRoute.Title, result.Title)
 }
 
-// TestCreateTransactionRouteErrorOperationRoutesNotFound tests error when operation routes are not found
+// TestCreateTransactionRouteErrorOperationRoutesNotFound tests error when operation routes are not found.
 func TestCreateTransactionRouteErrorOperationRoutesNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -188,12 +196,12 @@ func TestCreateTransactionRouteErrorOperationRoutesNotFound(t *testing.T) {
 
 	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, expectedError, err)
 }
 
-// TestCreateTransactionRouteErrorMissingDebitRoute tests error when debit operation route is missing
+// TestCreateTransactionRouteErrorMissingDebitRoute tests error when debit operation route is missing.
 func TestCreateTransactionRouteErrorMissingDebitRoute(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -227,13 +235,14 @@ func TestCreateTransactionRouteErrorMissingDebitRoute(t *testing.T) {
 
 	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
+
 	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	assert.Equal(t, expectedError, err)
 }
 
-// TestCreateTransactionRouteErrorMissingCreditRoute tests error when credit operation route is missing
+// TestCreateTransactionRouteErrorMissingCreditRoute tests error when credit operation route is missing.
 func TestCreateTransactionRouteErrorMissingCreditRoute(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -267,13 +276,14 @@ func TestCreateTransactionRouteErrorMissingCreditRoute(t *testing.T) {
 
 	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
+
 	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	assert.Equal(t, expectedError, err)
 }
 
-// TestCreateTransactionRouteErrorTransactionRouteCreationFails tests error when transaction route creation fails
+// TestCreateTransactionRouteErrorTransactionRouteCreationFails tests error when transaction route creation fails.
 func TestCreateTransactionRouteErrorTransactionRouteCreationFails(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -312,7 +322,7 @@ func TestCreateTransactionRouteErrorTransactionRouteCreationFails(t *testing.T) 
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
-	expectedError := errors.New("failed to create transaction route")
+	expectedError := errTestCreateTransactionRoute
 	mockTransactionRouteRepo.EXPECT().
 		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return(nil, expectedError).
@@ -320,12 +330,12 @@ func TestCreateTransactionRouteErrorTransactionRouteCreationFails(t *testing.T) 
 
 	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, expectedError, err)
 }
 
-// TestCreateTransactionRouteErrorMetadataCreationFails tests error when metadata creation fails
+// TestCreateTransactionRouteErrorMetadataCreationFails tests error when metadata creation fails.
 func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -378,7 +388,7 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 		Return(expectedTransactionRoute, nil).
 		Times(1)
 
-	expectedError := errors.New("failed to create metadata")
+	expectedError := errTestCreateMetadataRoute
 	mockMetadataRepo.EXPECT().
 		Create(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
 		Return(expectedError).
@@ -386,12 +396,12 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 
 	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, ledgerID, payload)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, expectedError, err)
 }
 
-// TestValidateOperationRouteTypesSuccess tests successful validation
+// TestValidateOperationRouteTypesSuccess tests successful validation.
 func TestValidateOperationRouteTypesSuccess(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{
 		{OperationType: "source"},
@@ -399,10 +409,10 @@ func TestValidateOperationRouteTypesSuccess(t *testing.T) {
 	}
 
 	err := validateOperationRouteTypes(operationRoutes)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
-// TestValidateOperationRouteTypesMissingDebit tests validation error when debit is missing
+// TestValidateOperationRouteTypesMissingDebit tests validation error when debit is missing.
 func TestValidateOperationRouteTypesMissingDebit(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{
 		{OperationType: "destination"},
@@ -410,12 +420,13 @@ func TestValidateOperationRouteTypesMissingDebit(t *testing.T) {
 	}
 
 	err := validateOperationRouteTypes(operationRoutes)
-	assert.Error(t, err)
+	require.Error(t, err)
+
 	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	assert.Equal(t, expectedError, err)
 }
 
-// TestValidateOperationRouteTypesMissingCredit tests validation error when credit is missing
+// TestValidateOperationRouteTypesMissingCredit tests validation error when credit is missing.
 func TestValidateOperationRouteTypesMissingCredit(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{
 		{OperationType: "source"},
@@ -423,17 +434,19 @@ func TestValidateOperationRouteTypesMissingCredit(t *testing.T) {
 	}
 
 	err := validateOperationRouteTypes(operationRoutes)
-	assert.Error(t, err)
+	require.Error(t, err)
+
 	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	assert.Equal(t, expectedError, err)
 }
 
-// TestValidateOperationRouteTypesEmpty tests validation with empty array
+// TestValidateOperationRouteTypesEmpty tests validation with empty array.
 func TestValidateOperationRouteTypesEmpty(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{}
 
 	err := validateOperationRouteTypes(operationRoutes)
-	assert.Error(t, err)
+	require.Error(t, err)
+
 	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	assert.Equal(t, expectedError, err)
 }

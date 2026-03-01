@@ -9,20 +9,25 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	goredis "github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	goredis "github.com/redis/go-redis/v9"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestGetOrCreateTransactionRouteCache_CacheHit tests successful cache hit
+// TestGetOrCreateTransactionRouteCache_CacheHit tests successful cache hit.
 func TestGetOrCreateTransactionRouteCache_CacheHit(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -52,12 +57,14 @@ func TestGetOrCreateTransactionRouteCache_CacheHit(t *testing.T) {
 
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedCacheData, result)
 }
 
-// TestGetOrCreateTransactionRouteCache_CacheMiss_Success tests successful cache miss with database retrieval
+// TestGetOrCreateTransactionRouteCache_CacheMiss_Success tests successful cache miss with database retrieval.
 func TestGetOrCreateTransactionRouteCache_CacheMiss_Success(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -113,12 +120,14 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_Success(t *testing.T) {
 
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedCacheData, result)
 }
 
-// TestGetOrCreateTransactionRouteCache_CacheMiss_EmptyCache tests cache miss with empty cache value
+// TestGetOrCreateTransactionRouteCache_CacheMiss_EmptyCache tests cache miss with empty cache value.
 func TestGetOrCreateTransactionRouteCache_CacheMiss_EmptyCache(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -164,12 +173,14 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_EmptyCache(t *testing.T) {
 
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedCacheData, result)
 }
 
-// TestGetOrCreateTransactionRouteCache_RedisGetError tests Redis get error handling
+// TestGetOrCreateTransactionRouteCache_RedisGetError tests Redis get error handling.
 func TestGetOrCreateTransactionRouteCache_RedisGetError(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -200,7 +211,7 @@ func TestGetOrCreateTransactionRouteCache_RedisGetError(t *testing.T) {
 
 	mockRedisRepo.EXPECT().
 		GetBytes(gomock.Any(), expectedKey).
-		Return([]byte{}, errors.New("redis connection error")).
+		Return([]byte{}, errors.New("redis connection error")). //nolint:err113
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
@@ -215,12 +226,14 @@ func TestGetOrCreateTransactionRouteCache_RedisGetError(t *testing.T) {
 
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedCacheData, result)
 }
 
-// TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound tests handling when transaction route is not found
+// TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound tests handling when transaction route is not found.
 func TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -250,13 +263,15 @@ func TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound(t *testing.T)
 
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, services.ErrDatabaseItemNotFound, err)
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result)
 }
 
-// TestGetOrCreateTransactionRouteCache_DatabaseError tests database error handling
+// TestGetOrCreateTransactionRouteCache_DatabaseError tests database error handling.
 func TestGetOrCreateTransactionRouteCache_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -273,7 +288,7 @@ func TestGetOrCreateTransactionRouteCache_DatabaseError(t *testing.T) {
 	}
 
 	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
-	dbError := errors.New("database connection error")
+	dbError := errors.New("database connection error") //nolint:err113
 
 	mockRedisRepo.EXPECT().
 		GetBytes(gomock.Any(), expectedKey).
@@ -287,13 +302,15 @@ func TestGetOrCreateTransactionRouteCache_DatabaseError(t *testing.T) {
 
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, dbError, err)
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result)
 }
 
-// TestGetOrCreateTransactionRouteCache_CacheCreationFails tests Redis set error handling
+// TestGetOrCreateTransactionRouteCache_CacheCreationFails tests Redis set error handling.
 func TestGetOrCreateTransactionRouteCache_CacheCreationFails(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -321,7 +338,7 @@ func TestGetOrCreateTransactionRouteCache_CacheCreationFails(t *testing.T) {
 
 	expectedCacheData := transactionRoute.ToCache()
 	expectedCacheBytes, _ := expectedCacheData.ToMsgpack()
-	redisError := errors.New("redis connection error")
+	redisError := errors.New("redis connection error") //nolint:err113
 
 	mockRedisRepo.EXPECT().
 		GetBytes(gomock.Any(), expectedKey).
@@ -340,13 +357,15 @@ func TestGetOrCreateTransactionRouteCache_CacheCreationFails(t *testing.T) {
 
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, redisError, err)
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result)
 }
 
-// TestGetOrCreateTransactionRouteCache_ToCacheDataError tests msgpack encoding error handling
+// TestGetOrCreateTransactionRouteCache_ToCacheDataError tests msgpack encoding error handling.
 func TestGetOrCreateTransactionRouteCache_ToCacheDataError(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -394,6 +413,6 @@ func TestGetOrCreateTransactionRouteCache_ToCacheDataError(t *testing.T) {
 
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result)
 }

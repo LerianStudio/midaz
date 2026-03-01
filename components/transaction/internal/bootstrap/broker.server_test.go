@@ -11,19 +11,21 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vmihailenco/msgpack/v5"
+
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
 // =============================================================================
 // Test Stubs
-// =============================================================================
+// =============================================================================.
 
 // balanceRepoStub provides a stub implementation of balance.Repository
 // for unit testing. It allows configuring success/failure behavior.
@@ -36,10 +38,11 @@ type balanceRepoStub struct {
 func (s *balanceRepoStub) Create(ctx context.Context, b *mmodel.Balance) error {
 	s.createCalled = true
 	s.lastBalance = b
+
 	return s.createErr
 }
 
-// Implement other required interface methods as no-ops
+// Implement other required interface methods as no-ops.
 func (s *balanceRepoStub) Find(ctx context.Context, orgID, ledgerID, id uuid.UUID) (*mmodel.Balance, error) {
 	return nil, nil
 }
@@ -114,7 +117,7 @@ func (s *balanceRepoStub) CreateIfNotExists(ctx context.Context, balance *mmodel
 
 // =============================================================================
 // UNIT TESTS - handlerBalanceCreateQueue
-// =============================================================================
+// =============================================================================.
 
 func TestHandlerBalanceCreateQueue(t *testing.T) {
 	t.Parallel()
@@ -200,7 +203,7 @@ func TestHandlerBalanceCreateQueue(t *testing.T) {
 	t.Run("use_case_create_balance_error", func(t *testing.T) {
 		t.Parallel()
 
-		expectedErr := errors.New("database error")
+		expectedErr := errors.New("database error") //nolint:err113
 		stub := &balanceRepoStub{
 			createErr: expectedErr,
 		}
@@ -269,7 +272,7 @@ func TestHandlerBalanceCreateQueue(t *testing.T) {
 
 		err = consumer.handlerBalanceCreateQueue(ctx, body)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.False(t, stub.createCalled, "Create should not be called with empty queue data")
 	})
 
@@ -297,7 +300,7 @@ func TestHandlerBalanceCreateQueue(t *testing.T) {
 
 // =============================================================================
 // UNIT TESTS - handlerBTOQueue
-// =============================================================================
+// =============================================================================.
 
 func TestHandlerBTOQueue(t *testing.T) {
 	t.Parallel()
@@ -372,7 +375,7 @@ func TestHandlerBTOQueue(t *testing.T) {
 
 // =============================================================================
 // UNIT TESTS - MultiQueueConsumer struct
-// =============================================================================
+// =============================================================================.
 
 func TestMultiQueueConsumer_StructFields(t *testing.T) {
 	t.Parallel()
@@ -390,6 +393,7 @@ func TestMultiQueueConsumer_Run_ValidatesConfiguration(t *testing.T) {
 	t.Parallel()
 
 	var nilConsumer *MultiQueueConsumer
+
 	err := nilConsumer.Run(nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "multi queue consumer is nil")

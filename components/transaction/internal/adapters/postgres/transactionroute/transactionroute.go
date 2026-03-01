@@ -8,11 +8,12 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// TransactionRoutePostgreSQLModel represents the database model for transaction routes
+// TransactionRoutePostgreSQLModel represents the database model for transaction routes.
 type TransactionRoutePostgreSQLModel struct {
 	ID             uuid.UUID    `db:"id"`
 	OrganizationID uuid.UUID    `db:"organization_id"`
@@ -24,7 +25,7 @@ type TransactionRoutePostgreSQLModel struct {
 	DeletedAt      sql.NullTime `db:"deleted_at"`
 }
 
-// ToEntity converts the database model to a domain model
+// ToEntity converts the database model to a domain model.
 func (m *TransactionRoutePostgreSQLModel) ToEntity() *mmodel.TransactionRoute {
 	e := &mmodel.TransactionRoute{
 		ID:             m.ID,
@@ -43,7 +44,7 @@ func (m *TransactionRoutePostgreSQLModel) ToEntity() *mmodel.TransactionRoute {
 	return e
 }
 
-// FromEntity converts a domain model to the database model
+// FromEntity converts a domain model to the database model.
 func (m *TransactionRoutePostgreSQLModel) FromEntity(transactionRoute *mmodel.TransactionRoute) {
 	m.ID = transactionRoute.ID
 	m.OrganizationID = transactionRoute.OrganizationID

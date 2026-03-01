@@ -7,41 +7,50 @@ package in
 import (
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	fiberSwagger "github.com/swaggo/fiber-swagger"
+
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"   //nolint:depguard
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"   //nolint:depguard
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction" //nolint:depguard
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
 const (
 	midazName    = "midaz"
 	routingName  = "routing"
 	shardingName = "sharding"
+
+	readTimeoutSeconds  = 30
+	writeTimeoutSeconds = 30
+	idleTimeoutSeconds  = 120
+	bodyLimitBytes      = 4 * 1024 * 1024
+	readBufferSize      = 8192
+	writeBufferSize     = 8192
+	concurrencyLimit    = 256 * 1024
+	corsMaxAge          = 300
 )
 
 // NewRouter register NewRouter routes to the Server.
 func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
-		ReadTimeout:           30 * time.Second,
-		WriteTimeout:          30 * time.Second,
-		IdleTimeout:           120 * time.Second,
-		BodyLimit:             4 * 1024 * 1024, // 4MB
-		ReadBufferSize:        8192,
-		WriteBufferSize:       8192,
-		Concurrency:           256 * 1024,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.HandleFiberError(ctx, err)
-		},
+		ReadTimeout:           readTimeoutSeconds * time.Second,
+		WriteTimeout:          writeTimeoutSeconds * time.Second,
+		IdleTimeout:           idleTimeoutSeconds * time.Second,
+		BodyLimit:             bodyLimitBytes,
+		ReadBufferSize:        readBufferSize,
+		WriteBufferSize:       writeBufferSize,
+		Concurrency:           concurrencyLimit,
+		ErrorHandler:          libHTTP.HandleFiberError,
 	})
 
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
@@ -52,7 +61,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 		AllowMethods:  "GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD",
 		AllowHeaders:  "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-Swagger-Token",
 		ExposeHeaders: "X-Request-Id",
-		MaxAge:        300,
+		MaxAge:        corsMaxAge,
 	}))
 	f.Use(utils.SecurityHeadersMiddleware)
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))

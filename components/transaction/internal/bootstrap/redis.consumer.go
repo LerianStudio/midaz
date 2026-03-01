@@ -13,10 +13,13 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
@@ -24,21 +27,24 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"go.opentelemetry.io/otel/trace"
 )
 
+// CronTimeToRun is the interval between each Redis queue consumer scan.
 const (
 	CronTimeToRun     = 30 * time.Minute
 	MessageTimeOfLife = 30
 	MaxWorkers        = 100
-	ConsumerLockTTL   = 1500 // 25 minutes in seconds
+	ConsumerLockTTL   = 1500
 )
 
+// RedisQueueConsumer processes transactions from the Redis queue that did not reach
+// the Redpanda consumer path. It runs periodically to drain stale backup entries.
 type RedisQueueConsumer struct {
 	Logger             libLog.Logger
 	TransactionHandler in.TransactionHandler
 }
 
+// NewRedisQueueConsumer creates a new RedisQueueConsumer with the given logger and handler.
 func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) *RedisQueueConsumer {
 	return &RedisQueueConsumer{
 		Logger:             logger,
@@ -46,6 +52,7 @@ func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) 
 	}
 }
 
+// Run starts the RedisQueueConsumer, scanning the queue at regular intervals.
 func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -98,11 +105,10 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 
 	totalMessagesLessThanOneHour := 0
 
-Outer:
 	for key, message := range messages {
 		if ctx.Err() != nil {
 			r.Logger.Warnf("Shutdown in progress: skipping remaining messages")
-			break Outer
+			break
 		}
 
 		var transaction mmodel.TransactionRedisQueue
@@ -149,13 +155,14 @@ func (r *RedisQueueConsumer) processMessageAsync(
 	r.processMessage(ctx, tracer, key, m)
 }
 
-//nolint:funlen
-func (r *RedisQueueConsumer) processMessage(ctx context.Context, tracer trace.Tracer, key string, m mmodel.TransactionRedisQueue) {
+func (r *RedisQueueConsumer) processMessage(ctx context.Context, tracer trace.Tracer, key string, m mmodel.TransactionRedisQueue) { //nolint:gocyclo,cyclop // message processing; complexity is inherent
 	if r == nil || r.Logger == nil || r.TransactionHandler.Command == nil || r.TransactionHandler.Command.RedisRepo == nil {
 		return
 	}
 
-	msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	const messageProcessingTimeoutSecs = 30
+
+	msgCtx, cancel := context.WithTimeout(ctx, messageProcessingTimeoutSecs*time.Second)
 	defer cancel()
 
 	logger := r.Logger.WithFields(
@@ -280,6 +287,16 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, tracer trace.Tr
 
 			return
 		}
+	}
+
+	if m.TransactionStatus != constant.NOTED && len(balances) == 0 {
+		logger.Warnf("Malformed backup entry without balances for non-NOTED transaction (key: %s, status: %s). Removing poison backup.", key, m.TransactionStatus)
+
+		if rmErr := r.TransactionHandler.Command.RedisRepo.RemoveMessageFromQueue(msgCtxWithSpan, key); rmErr != nil {
+			logger.Warnf("Failed to remove malformed backup entry (key: %s): %v", key, rmErr)
+		}
+
+		return
 	}
 
 	tran.Source = m.Validate.Sources

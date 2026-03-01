@@ -12,25 +12,38 @@ import (
 	"testing"
 	"time"
 
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 )
 
-type indexedBatchFailure struct {
+type indexedBatchFailureError struct {
 	failed []int
 }
 
-func (e indexedBatchFailure) Error() string {
+func (e indexedBatchFailureError) Error() string {
 	return "batch failure"
 }
 
-func (e indexedBatchFailure) FailedRecordIndexes() []int {
+func (e indexedBatchFailureError) FailedRecordIndexes() []int {
 	return e.failed
 }
 
+func initLogger(t *testing.T) libLog.Logger {
+	t.Helper()
+
+	l, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
+
+	return l
+}
+
 func TestNewConsumerRoutes_UsesDefaults(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutes([]string{"127.0.0.1:9092"}, "", 0, 0, nil, nil)
 
 	require.NotNil(t, routes)
@@ -42,6 +55,8 @@ func TestNewConsumerRoutes_UsesDefaults(t *testing.T) {
 }
 
 func TestConsumerRoutes_Stop_NilAndIdempotent(t *testing.T) {
+	t.Parallel()
+
 	var nilRoutes *ConsumerRoutes
 	nilRoutes.Stop()
 
@@ -50,7 +65,7 @@ func TestConsumerRoutes_Stop_NilAndIdempotent(t *testing.T) {
 		"group",
 		1,
 		0,
-		libZap.InitializeLogger(),
+		initLogger(t),
 		nil,
 		ClientSecurityConfig{},
 		defaultMaxRetryAttempts,
@@ -61,6 +76,8 @@ func TestConsumerRoutes_Stop_NilAndIdempotent(t *testing.T) {
 }
 
 func TestConsumerRoutes_SetDBRateLimiter_NilReceiverDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
 	var routes *ConsumerRoutes
 
 	assert.NotPanics(t, func() {
@@ -69,6 +86,8 @@ func TestConsumerRoutes_SetDBRateLimiter_NilReceiverDoesNotPanic(t *testing.T) {
 }
 
 func TestConsumerRoutes_SetDBRateLimiter_DisableLimiter(t *testing.T) {
+	t.Parallel()
+
 	routes := &ConsumerRoutes{}
 	routes.SetDBRateLimiter(100, 100)
 	require.NotNil(t, routes.dbLimiter)
@@ -78,9 +97,11 @@ func TestConsumerRoutes_SetDBRateLimiter_DisableLimiter(t *testing.T) {
 }
 
 func TestConsumerRoutes_Register(t *testing.T) {
+	t.Parallel()
+
 	routes := &ConsumerRoutes{
 		routes: make(map[string]QueueHandlerFunc),
-		Logger: libZap.InitializeLogger(),
+		Logger: initLogger(t),
 	}
 
 	handler := func(_ context.Context, _ []byte) error { return nil }
@@ -91,9 +112,11 @@ func TestConsumerRoutes_Register(t *testing.T) {
 }
 
 func TestConsumerRoutes_RunConsumers_NoRoutes(t *testing.T) {
+	t.Parallel()
+
 	routes := &ConsumerRoutes{
 		routes: make(map[string]QueueHandlerFunc),
-		Logger: libZap.InitializeLogger(),
+		Logger: initLogger(t),
 	}
 
 	err := routes.RunConsumers()
@@ -101,6 +124,8 @@ func TestConsumerRoutes_RunConsumers_NoRoutes(t *testing.T) {
 }
 
 func TestConsumerRoutes_RunConsumers_NilReceiver(t *testing.T) {
+	t.Parallel()
+
 	var routes *ConsumerRoutes
 
 	err := routes.RunConsumers()
@@ -109,12 +134,14 @@ func TestConsumerRoutes_RunConsumers_NilReceiver(t *testing.T) {
 }
 
 func TestConsumerRoutes_RunConsumers_InvalidSecurityConfig(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutesWithSecurity(
 		[]string{"127.0.0.1:9092"},
 		"test-group",
 		1,
 		int(math.MaxInt32)+1024,
-		libZap.InitializeLogger(),
+		initLogger(t),
 		nil,
 		ClientSecurityConfig{SASLEnabled: true},
 		defaultMaxRetryAttempts,
@@ -127,6 +154,8 @@ func TestConsumerRoutes_RunConsumers_InvalidSecurityConfig(t *testing.T) {
 }
 
 func TestResolveHandler(t *testing.T) {
+	t.Parallel()
+
 	routes := &ConsumerRoutes{
 		routes: map[string]QueueHandlerFunc{
 			"ledger.balance.operations": func(_ context.Context, _ []byte) error { return nil },
@@ -144,6 +173,8 @@ func TestResolveHandler(t *testing.T) {
 }
 
 func TestResolveBatchHandler(t *testing.T) {
+	t.Parallel()
+
 	routes := &ConsumerRoutes{
 		batchRoutes: map[string]BatchQueueHandlerFunc{
 			"ledger.balance.operations": func(_ context.Context, _ [][]byte) error { return nil },
@@ -161,12 +192,14 @@ func TestResolveBatchHandler(t *testing.T) {
 }
 
 func TestConsumerRoutes_SetBatchConfigAndWorkersPerPartition(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutesWithSecurity(
 		[]string{"127.0.0.1:9092"},
 		"group",
 		16,
 		0,
-		libZap.InitializeLogger(),
+		initLogger(t),
 		nil,
 		ClientSecurityConfig{},
 		defaultMaxRetryAttempts,
@@ -190,6 +223,8 @@ func TestConsumerRoutes_SetBatchConfigAndWorkersPerPartition(t *testing.T) {
 }
 
 func TestParseRetryAttempt(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, 0, parseRetryAttempt(nil))
 
 	headers := []kgo.RecordHeader{{Key: retryAttemptHeader, Value: []byte("2")}}
@@ -203,6 +238,8 @@ func TestParseRetryAttempt(t *testing.T) {
 }
 
 func TestResolveHeader(t *testing.T) {
+	t.Parallel()
+
 	headers := []kgo.RecordHeader{
 		{Key: "a", Value: []byte("1")},
 		{Key: "b", Value: []byte("")},
@@ -210,11 +247,13 @@ func TestResolveHeader(t *testing.T) {
 	}
 
 	assert.Equal(t, "1", resolveHeader(headers, "a"))
-	assert.Equal(t, "", resolveHeader(headers, "b"))
-	assert.Equal(t, "", resolveHeader(headers, "missing"))
+	assert.Empty(t, resolveHeader(headers, "b"))
+	assert.Empty(t, resolveHeader(headers, "missing"))
 }
 
 func TestUpsertHeader(t *testing.T) {
+	t.Parallel()
+
 	headers := []kgo.RecordHeader{{Key: "a", Value: []byte("1")}}
 	headers = upsertHeader(headers, "a", []byte("2"))
 	assert.Len(t, headers, 1)
@@ -225,6 +264,8 @@ func TestUpsertHeader(t *testing.T) {
 }
 
 func TestCloneHeaders(t *testing.T) {
+	t.Parallel()
+
 	original := []kgo.RecordHeader{{Key: "a", Value: []byte("1")}}
 	cloned := cloneHeaders(original)
 	cloned = append(cloned, kgo.RecordHeader{Key: "b", Value: []byte("2")})
@@ -234,6 +275,8 @@ func TestCloneHeaders(t *testing.T) {
 }
 
 func TestResolveFailedRecordTargetTopic(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t,
 		"ledger.balance.operations.retry",
 		resolveFailedRecordTargetTopic("ledger.balance.operations", 1, 3),
@@ -251,6 +294,8 @@ func TestResolveFailedRecordTargetTopic(t *testing.T) {
 }
 
 func TestNewConsumerRoutesWithSecurity_DefaultsNilLogger(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutesWithSecurity(
 		[]string{"127.0.0.1:9092"},
 		"",
@@ -270,14 +315,18 @@ func TestNewConsumerRoutesWithSecurity_DefaultsNilLogger(t *testing.T) {
 }
 
 func TestRouteFailedRecord_NilRecord(t *testing.T) {
+	t.Parallel()
+
 	routes := &ConsumerRoutes{maxRetryAttempts: defaultMaxRetryAttempts}
 
-	err := routes.routeFailedRecord(context.Background(), nil, errors.New("handler failed"), libZap.InitializeLogger())
+	err := routes.routeFailedRecord(context.Background(), nil, errors.New("handler failed"), initLogger(t)) //nolint:err113
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "record is nil")
 }
 
 func TestRouteFailedRecord_PublishFailure(t *testing.T) {
+	t.Parallel()
+
 	client, err := kgo.NewClient(kgo.SeedBrokers("127.0.0.1:1"))
 	require.NoError(t, err)
 	t.Cleanup(client.Close)
@@ -296,29 +345,33 @@ func TestRouteFailedRecord_PublishFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err = routes.routeFailedRecord(ctx, record, errors.New("handler failed"), libZap.InitializeLogger())
+	err = routes.routeFailedRecord(ctx, record, errors.New("handler failed"), initLogger(t)) //nolint:err113
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "publish failed message")
 }
 
 func TestRouteFailedRecordWithRetry_StopsWhenConsumerContextCancelled(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	routes := &ConsumerRoutes{ctx: ctx}
 
-	err := routes.routeFailedRecordWithRetry(context.Background(), nil, errors.New("handler failed"), libZap.InitializeLogger())
+	err := routes.routeFailedRecordWithRetry(context.Background(), nil, errors.New("handler failed"), initLogger(t)) //nolint:err113
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "consumer shutting down while rerouting failed message")
 }
 
 func TestStartWorker_FlushesBatchOnBatchSize(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutesWithSecurity(
 		[]string{"127.0.0.1:9092"},
 		"group",
 		1,
 		0,
-		libZap.InitializeLogger(),
+		initLogger(t),
 		nil,
 		ClientSecurityConfig{},
 		defaultMaxRetryAttempts,
@@ -334,6 +387,7 @@ func TestStartWorker_FlushesBatchOnBatchSize(t *testing.T) {
 
 	batchHandler := func(_ context.Context, bodies [][]byte) error {
 		mu.Lock()
+
 		batchSizes = append(batchSizes, len(bodies))
 		mu.Unlock()
 
@@ -342,13 +396,16 @@ func TestStartWorker_FlushesBatchOnBatchSize(t *testing.T) {
 
 	done := make(chan struct{})
 	stopCh := make(chan struct{})
+
 	go func() {
 		routes.startWorker(1, workCh, stopCh)
 		close(done)
 	}()
 
 	workCh <- queuedRecord{batchHandler: batchHandler, record: &kgo.Record{Topic: "ledger.balance.operations", Partition: 0, Offset: 1, Value: []byte("a")}}
+
 	workCh <- queuedRecord{batchHandler: batchHandler, record: &kgo.Record{Topic: "ledger.balance.operations", Partition: 0, Offset: 2, Value: []byte("b")}}
+
 	close(workCh)
 
 	select {
@@ -359,16 +416,19 @@ func TestStartWorker_FlushesBatchOnBatchSize(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
+
 	assert.Equal(t, []int{2}, batchSizes)
 }
 
 func TestStartWorker_FlushesBatchOnTopicChange(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutesWithSecurity(
 		[]string{"127.0.0.1:9092"},
 		"group",
 		1,
 		0,
-		libZap.InitializeLogger(),
+		initLogger(t),
 		nil,
 		ClientSecurityConfig{},
 		defaultMaxRetryAttempts,
@@ -384,6 +444,7 @@ func TestStartWorker_FlushesBatchOnTopicChange(t *testing.T) {
 
 	batchHandler := func(_ context.Context, bodies [][]byte) error {
 		mu.Lock()
+
 		batchSizes = append(batchSizes, len(bodies))
 		mu.Unlock()
 
@@ -392,13 +453,16 @@ func TestStartWorker_FlushesBatchOnTopicChange(t *testing.T) {
 
 	done := make(chan struct{})
 	stopCh := make(chan struct{})
+
 	go func() {
 		routes.startWorker(1, workCh, stopCh)
 		close(done)
 	}()
 
 	workCh <- queuedRecord{batchHandler: batchHandler, record: &kgo.Record{Topic: "ledger.balance.operations", Partition: 0, Offset: 1, Value: []byte("a")}}
+
 	workCh <- queuedRecord{batchHandler: batchHandler, record: &kgo.Record{Topic: "ledger.balance.create", Partition: 0, Offset: 2, Value: []byte("b")}}
+
 	close(workCh)
 
 	select {
@@ -409,16 +473,19 @@ func TestStartWorker_FlushesBatchOnTopicChange(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
+
 	assert.Equal(t, []int{1, 1}, batchSizes)
 }
 
 func TestStartWorker_FlushesBatchOnIdle(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutesWithSecurity(
 		[]string{"127.0.0.1:9092"},
 		"group",
 		1,
 		0,
-		libZap.InitializeLogger(),
+		initLogger(t),
 		nil,
 		ClientSecurityConfig{},
 		defaultMaxRetryAttempts,
@@ -434,6 +501,7 @@ func TestStartWorker_FlushesBatchOnIdle(t *testing.T) {
 
 	batchHandler := func(_ context.Context, bodies [][]byte) error {
 		mu.Lock()
+
 		batchSizes = append(batchSizes, len(bodies))
 		mu.Unlock()
 
@@ -442,12 +510,14 @@ func TestStartWorker_FlushesBatchOnIdle(t *testing.T) {
 
 	done := make(chan struct{})
 	stopCh := make(chan struct{})
+
 	go func() {
 		routes.startWorker(1, workCh, stopCh)
 		close(done)
 	}()
 
 	workCh <- queuedRecord{batchHandler: batchHandler, record: &kgo.Record{Topic: "ledger.balance.operations", Partition: 0, Offset: 1, Value: []byte("a")}}
+
 	time.Sleep(120 * time.Millisecond)
 	close(workCh)
 
@@ -459,16 +529,19 @@ func TestStartWorker_FlushesBatchOnIdle(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
+
 	assert.Equal(t, []int{1}, batchSizes)
 }
 
 func TestStartWorker_FlushesBatchOnBatchWindowAge(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutesWithSecurity(
 		[]string{"127.0.0.1:9092"},
 		"group",
 		1,
 		0,
-		libZap.InitializeLogger(),
+		initLogger(t),
 		nil,
 		ClientSecurityConfig{},
 		defaultMaxRetryAttempts,
@@ -485,6 +558,7 @@ func TestStartWorker_FlushesBatchOnBatchWindowAge(t *testing.T) {
 	flushCh := make(chan int, 1)
 	batchHandler := func(_ context.Context, bodies [][]byte) error {
 		mu.Lock()
+
 		batchSizes = append(batchSizes, len(bodies))
 		mu.Unlock()
 
@@ -495,13 +569,16 @@ func TestStartWorker_FlushesBatchOnBatchWindowAge(t *testing.T) {
 
 	done := make(chan struct{})
 	stopCh := make(chan struct{})
+
 	go func() {
 		routes.startWorker(1, workCh, stopCh)
 		close(done)
 	}()
 
 	workCh <- queuedRecord{batchHandler: batchHandler, record: &kgo.Record{Topic: "ledger.balance.operations", Partition: 0, Offset: 1, Value: []byte("a")}}
+
 	time.Sleep(15 * time.Millisecond)
+
 	workCh <- queuedRecord{batchHandler: batchHandler, record: &kgo.Record{Topic: "ledger.balance.operations", Partition: 0, Offset: 2, Value: []byte("b")}}
 
 	select {
@@ -512,6 +589,7 @@ func TestStartWorker_FlushesBatchOnBatchWindowAge(t *testing.T) {
 	}
 
 	close(workCh)
+
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
@@ -520,16 +598,19 @@ func TestStartWorker_FlushesBatchOnBatchWindowAge(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
+
 	assert.Equal(t, []int{2}, batchSizes)
 }
 
 func TestStartWorker_FlushesPendingBatchOnRebalanceStop(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutesWithSecurity(
 		[]string{"127.0.0.1:9092"},
 		"group",
 		1,
 		0,
-		libZap.InitializeLogger(),
+		initLogger(t),
 		nil,
 		ClientSecurityConfig{},
 		defaultMaxRetryAttempts,
@@ -547,6 +628,7 @@ func TestStartWorker_FlushesPendingBatchOnRebalanceStop(t *testing.T) {
 
 	batchHandler := func(_ context.Context, bodies [][]byte) error {
 		mu.Lock()
+
 		batchSizes = append(batchSizes, len(bodies))
 		mu.Unlock()
 
@@ -555,12 +637,14 @@ func TestStartWorker_FlushesPendingBatchOnRebalanceStop(t *testing.T) {
 
 	done := make(chan struct{})
 	stopCh := make(chan struct{})
+
 	go func() {
 		routes.startWorker(1, workCh, stopCh)
 		close(done)
 	}()
 
 	workCh <- queuedRecord{batchHandler: batchHandler, record: &kgo.Record{Topic: "ledger.balance.operations", Partition: 0, Offset: 1, Value: []byte("a")}}
+
 	close(stopCh)
 
 	select {
@@ -571,16 +655,19 @@ func TestStartWorker_FlushesPendingBatchOnRebalanceStop(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
+
 	assert.Equal(t, []int{1}, batchSizes)
 }
 
 func TestProcessBatchRecords_BatchFailureFallsBackPerRecord(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutesWithSecurity(
 		[]string{"127.0.0.1:9092"},
 		"group",
 		1,
 		0,
-		libZap.InitializeLogger(),
+		initLogger(t),
 		nil,
 		ClientSecurityConfig{},
 		defaultMaxRetryAttempts,
@@ -596,7 +683,7 @@ func TestProcessBatchRecords_BatchFailureFallsBackPerRecord(t *testing.T) {
 				return nil
 			},
 			batchHandler: func(_ context.Context, _ [][]byte) error {
-				return errors.New("batch failed")
+				return errors.New("batch failed") //nolint:err113
 			},
 			record: &kgo.Record{Topic: "ledger.balance.operations", Partition: 0, Offset: 1, Value: []byte("a")},
 		},
@@ -606,7 +693,7 @@ func TestProcessBatchRecords_BatchFailureFallsBackPerRecord(t *testing.T) {
 				return nil
 			},
 			batchHandler: func(_ context.Context, _ [][]byte) error {
-				return errors.New("batch failed")
+				return errors.New("batch failed") //nolint:err113
 			},
 			record: &kgo.Record{Topic: "ledger.balance.operations", Partition: 0, Offset: 2, Value: []byte("b")},
 		},
@@ -619,12 +706,14 @@ func TestProcessBatchRecords_BatchFailureFallsBackPerRecord(t *testing.T) {
 }
 
 func TestProcessBatchRecords_BatchFailureFallsBackOnlyFailedRecordsWhenIndexed(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutesWithSecurity(
 		[]string{"127.0.0.1:9092"},
 		"group",
 		1,
 		0,
-		libZap.InitializeLogger(),
+		initLogger(t),
 		nil,
 		ClientSecurityConfig{},
 		defaultMaxRetryAttempts,
@@ -640,7 +729,7 @@ func TestProcessBatchRecords_BatchFailureFallsBackOnlyFailedRecordsWhenIndexed(t
 				return nil
 			},
 			batchHandler: func(_ context.Context, _ [][]byte) error {
-				return indexedBatchFailure{failed: []int{1}}
+				return indexedBatchFailureError{failed: []int{1}}
 			},
 			record: &kgo.Record{Topic: "ledger.balance.operations", Partition: 0, Offset: 1, Value: []byte("a")},
 		},
@@ -650,7 +739,7 @@ func TestProcessBatchRecords_BatchFailureFallsBackOnlyFailedRecordsWhenIndexed(t
 				return nil
 			},
 			batchHandler: func(_ context.Context, _ [][]byte) error {
-				return indexedBatchFailure{failed: []int{1}}
+				return indexedBatchFailureError{failed: []int{1}}
 			},
 			record: &kgo.Record{Topic: "ledger.balance.operations", Partition: 0, Offset: 2, Value: []byte("b")},
 		},
@@ -663,12 +752,14 @@ func TestProcessBatchRecords_BatchFailureFallsBackOnlyFailedRecordsWhenIndexed(t
 }
 
 func TestClosePartitionPoolsForAssignments_StopsRevokedPools(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutesWithSecurity(
 		[]string{"127.0.0.1:9092"},
 		"group",
 		4,
 		0,
-		libZap.InitializeLogger(),
+		initLogger(t),
 		nil,
 		ClientSecurityConfig{},
 		defaultMaxRetryAttempts,
@@ -695,12 +786,14 @@ func TestClosePartitionPoolsForAssignments_StopsRevokedPools(t *testing.T) {
 }
 
 func TestProcessBatchRecords_EmptyBatchReturnsTrue(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutesWithSecurity(
 		[]string{"127.0.0.1:9092"},
 		"group",
 		1,
 		0,
-		libZap.InitializeLogger(),
+		initLogger(t),
 		nil,
 		ClientSecurityConfig{},
 		defaultMaxRetryAttempts,
@@ -711,6 +804,8 @@ func TestProcessBatchRecords_EmptyBatchReturnsTrue(t *testing.T) {
 }
 
 func TestResolveWorkerTickerInterval_DerivesFromBatchConfig(t *testing.T) {
+	t.Parallel()
+
 	routes := &ConsumerRoutes{}
 	assert.Equal(t, defaultWorkerTicker, routes.resolveWorkerTickerInterval())
 
@@ -723,18 +818,21 @@ func TestResolveWorkerTickerInterval_DerivesFromBatchConfig(t *testing.T) {
 }
 
 func TestDrainStoppedPartitionQueue_ProcessesBufferedRecords(t *testing.T) {
+	t.Parallel()
+
 	routes := NewConsumerRoutesWithSecurity(
 		[]string{"127.0.0.1:9092"},
 		"group",
 		1,
 		0,
-		libZap.InitializeLogger(),
+		initLogger(t),
 		nil,
 		ClientSecurityConfig{},
 		defaultMaxRetryAttempts,
 	)
 
 	workCh := make(chan queuedRecord, 1)
+
 	processed := 0
 	workCh <- queuedRecord{
 		handler: func(_ context.Context, _ []byte) error {

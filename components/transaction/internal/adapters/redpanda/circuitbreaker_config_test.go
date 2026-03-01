@@ -12,6 +12,8 @@ import (
 )
 
 func TestProducerCircuitBreakerConfig(t *testing.T) {
+	t.Parallel()
+
 	cfg := CircuitBreakerConfig{
 		ConsecutiveFailures: 3,
 		FailureRatio:        0.4,
@@ -25,7 +27,7 @@ func TestProducerCircuitBreakerConfig(t *testing.T) {
 	resolved := ProducerCircuitBreakerConfig(cfg)
 
 	assert.Equal(t, cfg.ConsecutiveFailures, resolved.ConsecutiveFailures)
-	assert.Equal(t, cfg.FailureRatio, resolved.FailureRatio)
+	assert.InEpsilon(t, cfg.FailureRatio, resolved.FailureRatio, 1e-9)
 	assert.Equal(t, cfg.Interval, resolved.Interval)
 	assert.Equal(t, cfg.MaxRequests, resolved.MaxRequests)
 	assert.Equal(t, cfg.MinRequests, resolved.MinRequests)

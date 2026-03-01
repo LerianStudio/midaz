@@ -6,13 +6,15 @@ package query
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/shardrouting"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
 )
 
 // resolveBalanceCacheKey returns the appropriate Redis cache key for a balance,
@@ -43,7 +45,11 @@ func (uc *UseCase) waitForMigrationUnlock(ctx context.Context, organizationID, l
 		return nil
 	}
 
-	return uc.ShardManager.WaitForAliasesUnlocked(ctx, organizationID, ledgerID, aliases)
+	if err := uc.ShardManager.WaitForAliasesUnlocked(ctx, organizationID, ledgerID, aliases); err != nil {
+		return fmt.Errorf("failed to wait for aliases to be unlocked: %w", err)
+	}
+
+	return nil
 }
 
 func (uc *UseCase) recordShardLoad(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation) {

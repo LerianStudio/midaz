@@ -5,11 +5,11 @@
 package query
 
 import (
+	"github.com/google/uuid"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/google/uuid"
-
 	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
 
@@ -82,7 +82,7 @@ func convertAuthorizerSnapshots(
 			AssetCode:      snap.GetAssetCode(),
 			Available:      available,
 			OnHold:         onHold,
-			Version:        int64(snap.GetVersion()),
+			Version:        int64(snap.GetVersion()), //nolint:gosec // protobuf uint32 is always safe to convert to int64
 			AccountType:    snap.GetAccountType(),
 			AllowSending:   snap.GetAllowSending(),
 			AllowReceiving: snap.GetAllowReceiving(),

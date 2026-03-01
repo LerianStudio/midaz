@@ -8,12 +8,14 @@ import (
 	"database/sql"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/shopspring/decimal"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// BalancePostgreSQLModel represents the entity Balance into SQL context in Database
+// BalancePostgreSQLModel represents the entity Balance into SQL context in Database.
 type BalancePostgreSQLModel struct {
 	ID             string
 	OrganizationID string
@@ -33,7 +35,7 @@ type BalancePostgreSQLModel struct {
 	DeletedAt      sql.NullTime
 }
 
-// FromEntity converts a request entity Balance to BalancePostgreSQLModel
+// FromEntity converts a request entity Balance to BalancePostgreSQLModel.
 func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 	*b = BalancePostgreSQLModel{
 		ID:             balance.ID,
@@ -64,7 +66,7 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 	}
 }
 
-// ToEntity converts an BalancePostgreSQLModel to a response entity Balance
+// ToEntity converts an BalancePostgreSQLModel to a response entity Balance.
 func (b *BalancePostgreSQLModel) ToEntity() *mmodel.Balance {
 	balance := &mmodel.Balance{
 		ID:             b.ID,
@@ -87,7 +89,7 @@ func (b *BalancePostgreSQLModel) ToEntity() *mmodel.Balance {
 	return balance
 }
 
-// BalanceAtTimestampModel represents a balance snapshot at a specific point in time
+// BalanceAtTimestampModel represents a balance snapshot at a specific point in time.
 type BalanceAtTimestampModel struct {
 	ID             string
 	OrganizationID string
@@ -104,7 +106,7 @@ type BalanceAtTimestampModel struct {
 	UpdatedAt      time.Time
 }
 
-// ToEntity converts BalanceAtTimestampModel to mmodel.Balance
+// ToEntity converts BalanceAtTimestampModel to mmodel.Balance.
 func (b *BalanceAtTimestampModel) ToEntity() *mmodel.Balance {
 	return &mmodel.Balance{
 		ID:             b.ID,

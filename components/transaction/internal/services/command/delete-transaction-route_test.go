@@ -9,16 +9,24 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestDeleteTransactionRouteByIDSuccess tests successful deletion of a transaction route
+// Sentinel errors for test assertions.
+var (
+	errTestDBConnectionDTR = errors.New("database connection error")
+	errTestDBDeletion      = errors.New("database deletion error")
+)
+
+// TestDeleteTransactionRouteByIDSuccess tests successful deletion of a transaction route.
 func TestDeleteTransactionRouteByIDSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -54,10 +62,10 @@ func TestDeleteTransactionRouteByIDSuccess(t *testing.T) {
 
 	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
-// TestDeleteTransactionRouteByIDNotFoundOnFind tests deletion when transaction route is not found during find
+// TestDeleteTransactionRouteByIDNotFoundOnFind tests deletion when transaction route is not found during find.
 func TestDeleteTransactionRouteByIDNotFoundOnFind(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -78,14 +86,14 @@ func TestDeleteTransactionRouteByIDNotFoundOnFind(t *testing.T) {
 
 	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	var businessError pkg.EntityNotFoundError
-	assert.True(t, errors.As(err, &businessError))
+	require.ErrorAs(t, err, &businessError)
 	assert.Equal(t, "0101", businessError.Code)
 }
 
-// TestDeleteTransactionRouteByIDFindError tests deletion with database error during find
+// TestDeleteTransactionRouteByIDFindError tests deletion with database error during find.
 func TestDeleteTransactionRouteByIDFindError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -93,7 +101,7 @@ func TestDeleteTransactionRouteByIDFindError(t *testing.T) {
 	transactionRouteID := uuid.New()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	databaseError := errors.New("database connection error")
+	databaseError := errTestDBConnectionDTR
 
 	mockRepo := transactionroute.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -107,11 +115,11 @@ func TestDeleteTransactionRouteByIDFindError(t *testing.T) {
 
 	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, databaseError, err)
 }
 
-// TestDeleteTransactionRouteByIDDeleteError tests deletion with database error during delete
+// TestDeleteTransactionRouteByIDDeleteError tests deletion with database error during delete.
 func TestDeleteTransactionRouteByIDDeleteError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -120,7 +128,7 @@ func TestDeleteTransactionRouteByIDDeleteError(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	operationRouteID := uuid.New()
-	databaseError := errors.New("database deletion error")
+	databaseError := errTestDBDeletion
 
 	mockRepo := transactionroute.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -146,6 +154,6 @@ func TestDeleteTransactionRouteByIDDeleteError(t *testing.T) {
 
 	err := uc.DeleteTransactionRouteByID(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, databaseError, err)
 }

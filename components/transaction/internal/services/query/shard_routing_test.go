@@ -10,14 +10,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	goredis "github.com/redis/go-redis/v9"
+	"github.com/shopspring/decimal"
+
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+
 	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/google/uuid"
-	goredis "github.com/redis/go-redis/v9"
-	"github.com/shopspring/decimal"
 )
 
 // pipelineErrorClient is a minimal fake goredis.UniversalClient whose
@@ -48,7 +50,7 @@ func (p *errorPipeliner) Expire(_ context.Context, _ string, _ time.Duration) *g
 }
 
 func (p *errorPipeliner) Exec(_ context.Context) ([]goredis.Cmder, error) {
-	return nil, errors.New("simulated pipeline exec failure")
+	return nil, errors.New("simulated pipeline exec failure") //nolint:err113
 }
 
 // newTestShardManager returns a *internalsharding.Manager backed by a fake
@@ -82,7 +84,7 @@ func makeOp(alias string, shardID int) mmodel.BalanceOperation {
 
 // =============================================================================
 // UNIT TESTS — recordShardLoad
-// =============================================================================
+// =============================================================================.
 
 func TestRecordShardLoad(t *testing.T) {
 	t.Parallel()

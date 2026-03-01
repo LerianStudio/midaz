@@ -8,15 +8,20 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestValidateAccountingRules(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		accountCache *mmodel.AccountCache
@@ -111,44 +116,56 @@ func TestValidateAccountingRules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := validateSingleOperationRule(tt.operation, tt.accountCache)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
 }
 
 func TestExtractStringSlice(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Handles string slice", func(t *testing.T) {
+		t.Parallel()
+
 		input := []string{"asset", "liability"}
 		result := extractStringSlice(input)
 		assert.Equal(t, []string{"asset", "liability"}, result)
 	})
 
 	t.Run("Handles any slice with strings", func(t *testing.T) {
+		t.Parallel()
+
 		input := []any{"asset", "liability"}
 		result := extractStringSlice(input)
 		assert.Equal(t, []string{"asset", "liability"}, result)
 	})
 
 	t.Run("Handles any slice with mixed types", func(t *testing.T) {
+		t.Parallel()
+
 		input := []any{"asset", 123}
 		result := extractStringSlice(input)
 		assert.Nil(t, result)
 	})
 
 	t.Run("Handles invalid input", func(t *testing.T) {
+		t.Parallel()
+
 		input := "not a slice"
 		result := extractStringSlice(input)
 		assert.Nil(t, result)
 	})
 }
 
-func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
+func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) { //nolint:paralleltest // t.Setenv is incompatible with t.Parallel
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -184,7 +201,7 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 
 		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Returns error when transaction route is empty", func(t *testing.T) {
@@ -205,7 +222,7 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 
 		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Returns error when transaction route ID is invalid", func(t *testing.T) {
@@ -226,7 +243,7 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 
 		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Empty TRANSACTION_ROUTE_VALIDATION environment variable", func(t *testing.T) {
@@ -247,22 +264,30 @@ func TestValidateAccountingRules_WithEnvironmentVariable(t *testing.T) {
 
 		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
 func TestUniqueValues(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Empty map returns 0", func(t *testing.T) {
+		t.Parallel()
+
 		result := uniqueValues(map[string]string{})
 		assert.Equal(t, 0, result)
 	})
 
 	t.Run("Single item map returns 1", func(t *testing.T) {
+		t.Parallel()
+
 		result := uniqueValues(map[string]string{"key1": "value1"})
 		assert.Equal(t, 1, result)
 	})
 
 	t.Run("Map with duplicate values returns correct count", func(t *testing.T) {
+		t.Parallel()
+
 		result := uniqueValues(map[string]string{
 			"key1": "value1",
 			"key2": "value1",
@@ -272,6 +297,8 @@ func TestUniqueValues(t *testing.T) {
 	})
 
 	t.Run("Map with all unique values returns correct count", func(t *testing.T) {
+		t.Parallel()
+
 		result := uniqueValues(map[string]string{
 			"key1": "value1",
 			"key2": "value2",

@@ -6,43 +6,54 @@ package sharding
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
+)
+
+var (
+	// ErrShardingManagerNotEnabled is returned when the sharding manager is not enabled.
+	ErrShardingManagerNotEnabled = errors.New("sharding manager not enabled")
+	// ErrAliasContainsWildcards is returned when the alias contains wildcard characters.
+	ErrAliasContainsWildcards = errors.New("alias contains invalid wildcard characters")
+	// ErrExternalAliasMigration is returned when an external alias is passed to MigrateAccount.
+	ErrExternalAliasMigration = errors.New("external aliases cannot be migrated")
 )
 
 // validateMigrationRequest checks all preconditions for a migration request
 // before any Redis operations are performed.
 func (m *Manager) validateMigrationRequest(alias string, targetShard int) error {
 	if !m.Enabled() {
-		return fmt.Errorf("sharding manager not enabled")
+		return ErrShardingManagerNotEnabled
 	}
 
 	if m.router.ShardCount() <= 0 {
-		return fmt.Errorf("invalid shard count")
+		return ErrInvalidShardCount
 	}
 
 	if alias == "" {
-		return fmt.Errorf("alias is required")
+		return ErrAliasRequired
 	}
 
 	if strings.ContainsAny(alias, "*?[]") {
-		return fmt.Errorf("alias contains invalid wildcard characters")
+		return ErrAliasContainsWildcards
 	}
 
 	if shard.IsExternal(alias) {
-		return fmt.Errorf("external aliases cannot be migrated")
+		return ErrExternalAliasMigration
 	}
 
 	if targetShard < 0 || targetShard >= m.router.ShardCount() {
-		return fmt.Errorf("target shard %d out of range", targetShard)
+		return fmt.Errorf("target shard %d out of range", targetShard) //nolint:err113
 	}
 
 	return nil
@@ -50,8 +61,9 @@ func (m *Manager) validateMigrationRequest(alias string, targetShard int) error 
 
 // clearMigrationLock removes the migration lock key from Redis. It is intended
 // to be called via defer to ensure the lock is always released.
-func (m *Manager) clearMigrationLock(rds redis.UniversalClient, migrationKey, alias string) {
-	if derr := rds.Del(context.Background(), migrationKey).Err(); derr != nil && m.logger != nil {
+// Uses context.Background() intentionally because this runs in a deferred cleanup.
+func (m *Manager) clearMigrationLock(ctx context.Context, rds redis.UniversalClient, migrationKey, alias string) {
+	if derr := rds.Del(ctx, migrationKey).Err(); derr != nil && m.logger != nil {
 		m.logger.Warnf("failed to clear migration lock for alias %s: %v", alias, derr)
 	}
 }
@@ -87,7 +99,7 @@ func (m *Manager) executeMigration(
 
 	if len(sourceKeys) > 0 {
 		if err := rds.Del(ctx, sourceKeys...).Err(); err != nil {
-			return 0, err
+			return 0, fmt.Errorf("execute migration: delete source keys: %w", err)
 		}
 	}
 
@@ -103,7 +115,7 @@ func (m *Manager) waitForDrain(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("wait for drain: %w", ctx.Err())
 	case <-time.After(m.cfg.MigrationDrainWait):
 		return nil
 	}
@@ -131,16 +143,16 @@ func (m *Manager) migrateBalanceKeys(
 
 		value, err := rds.Get(ctx, sourceRedisKey).Result()
 		if err != nil {
-			if err == redis.Nil {
+			if errors.Is(err, redis.Nil) {
 				continue
 			}
 
-			return nil, err
+			return nil, fmt.Errorf("migrate balance keys: get source: %w", err)
 		}
 
 		ttl, err := rds.TTL(ctx, sourceRedisKey).Result()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("migrate balance keys: ttl: %w", err)
 		}
 
 		// TTL of -1 means the key has no expiration (persistent).
@@ -151,7 +163,7 @@ func (m *Manager) migrateBalanceKeys(
 		}
 
 		if err := rds.Set(ctx, targetRedisKey, value, ttl).Err(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("migrate balance keys: set target: %w", err)
 		}
 
 		sourceKeys = append(sourceKeys, sourceRedisKey)
@@ -184,7 +196,7 @@ func (m *Manager) countActiveIsolationMembers(
 
 		exists, existsErr := rds.Exists(ctx, accountKey).Result()
 		if existsErr != nil {
-			return 0, existsErr
+			return 0, fmt.Errorf("count active isolation members: exists: %w", existsErr)
 		}
 
 		if exists > 0 {
@@ -209,12 +221,14 @@ type hotAccountKey struct {
 // (field: "epoch|orgID|ledgerID|alias", value: count) and sums the values
 // per unique account, filtering out buckets older than minSec.
 func aggregateHotAccountBuckets(buckets map[string]string, minSec int64) map[hotAccountKey]int64 {
+	const hotAccountBucketParts = 4 // epoch|organizationID|ledgerID|alias
+
 	totals := make(map[hotAccountKey]int64)
 
 	for field, rawValue := range buckets {
 		// Field format: "epoch|organizationID|ledgerID|alias"
-		parts := strings.SplitN(field, "|", 4)
-		if len(parts) != 4 {
+		parts := strings.SplitN(field, "|", hotAccountBucketParts)
+		if len(parts) != hotAccountBucketParts {
 			continue
 		}
 

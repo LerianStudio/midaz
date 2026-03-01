@@ -10,18 +10,25 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestUpdateOperationRouteSuccess tests updating an operation route successfully
+// Sentinel errors for test assertions.
+var (
+	errTestUpdateOperationRoute = errors.New("failed to update operation route")
+)
+
+// TestUpdateOperationRouteSuccess tests updating an operation route successfully.
 func TestUpdateOperationRouteSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -56,6 +63,7 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 			assert.Equal(t, input.Title, operationRoute.Title)
 			assert.Equal(t, input.Description, operationRoute.Description)
 			assert.Equal(t, input.Account, operationRoute.Account)
+
 			return expectedOperationRoute, nil
 		})
 
@@ -72,12 +80,12 @@ func TestUpdateOperationRouteSuccess(t *testing.T) {
 
 	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, operationRoute)
 	assert.Equal(t, expectedOperationRoute, operationRoute)
 }
 
-// TestUpdateOperationRouteSuccessWithAccountAlias tests updating an operation route with account alias only
+// TestUpdateOperationRouteSuccessWithAccountAlias tests updating an operation route with account alias only.
 func TestUpdateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -112,6 +120,7 @@ func TestUpdateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 			assert.Equal(t, input.Title, operationRoute.Title)
 			assert.Equal(t, input.Description, operationRoute.Description)
 			assert.Equal(t, input.Account, operationRoute.Account)
+
 			return expectedOperationRoute, nil
 		})
 
@@ -128,12 +137,12 @@ func TestUpdateOperationRouteSuccessWithAccountAlias(t *testing.T) {
 
 	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, operationRoute)
 	assert.Equal(t, expectedOperationRoute, operationRoute)
 }
 
-// TestUpdateOperationRouteAccountTypesOnly tests updating only account types
+// TestUpdateOperationRouteAccountTypesOnly tests updating only account types.
 func TestUpdateOperationRouteAccountTypesOnly(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -176,11 +185,11 @@ func TestUpdateOperationRouteAccountTypesOnly(t *testing.T) {
 
 	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, updatedRoute, result)
 }
 
-// TestUpdateOperationRouteNotFound tests updating a non-existent operation route
+// TestUpdateOperationRouteNotFound tests updating a non-existent operation route.
 func TestUpdateOperationRouteNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -210,12 +219,12 @@ func TestUpdateOperationRouteNotFound(t *testing.T) {
 
 	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, operationRoute)
 	assert.Equal(t, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name()), err)
 }
 
-// TestUpdateOperationRouteError tests updating an operation route with an error
+// TestUpdateOperationRouteError tests updating an operation route with an error.
 func TestUpdateOperationRouteError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -236,7 +245,7 @@ func TestUpdateOperationRouteError(t *testing.T) {
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockOperationRouteRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, operationRouteID, gomock.Any()).
-		Return(nil, errors.New("failed to update operation route"))
+		Return(nil, errTestUpdateOperationRoute)
 
 	useCase := &UseCase{
 		OperationRouteRepo: mockOperationRouteRepo,
@@ -244,11 +253,11 @@ func TestUpdateOperationRouteError(t *testing.T) {
 
 	operationRoute, err := useCase.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, operationRoute)
 }
 
-// TestUpdateOperationRoutePartialUpdate tests partial update with only description
+// TestUpdateOperationRoutePartialUpdate tests partial update with only description.
 func TestUpdateOperationRoutePartialUpdate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -289,6 +298,6 @@ func TestUpdateOperationRoutePartialUpdate(t *testing.T) {
 
 	result, err := uc.UpdateOperationRoute(context.Background(), organizationID, ledgerID, operationRouteID, input)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, updatedRoute, result)
 }

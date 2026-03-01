@@ -9,14 +9,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 func TestTransactionRoutePostgreSQLModel_ToEntity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("with_all_fields_populated", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()
@@ -48,6 +53,8 @@ func TestTransactionRoutePostgreSQLModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("with_deleted_at_nil", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()
@@ -70,6 +77,8 @@ func TestTransactionRoutePostgreSQLModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("with_deleted_at_valid_but_zero_time", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()
@@ -92,6 +101,8 @@ func TestTransactionRoutePostgreSQLModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("with_empty_description", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()
@@ -114,7 +125,11 @@ func TestTransactionRoutePostgreSQLModel_ToEntity(t *testing.T) {
 }
 
 func TestTransactionRoutePostgreSQLModel_FromEntity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("with_all_fields_populated", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()
@@ -146,6 +161,8 @@ func TestTransactionRoutePostgreSQLModel_FromEntity(t *testing.T) {
 	})
 
 	t.Run("with_deleted_at_nil", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()
@@ -169,6 +186,8 @@ func TestTransactionRoutePostgreSQLModel_FromEntity(t *testing.T) {
 	})
 
 	t.Run("with_optional_fields_empty", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()

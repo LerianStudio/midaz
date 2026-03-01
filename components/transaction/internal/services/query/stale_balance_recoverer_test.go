@@ -8,15 +8,16 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vmihailenco/msgpack/v5"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
 
 func TestExtractRecoveredBalances_AccumulatesAcrossReplayedRecords(t *testing.T) {
@@ -265,7 +266,7 @@ func makeBalance(
 
 // ---------------------------------------------------------------------------
 // Additional tests for extractRecoveredBalances and replayPartitionRange
-// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------.
 
 // TestExtractRecoveredBalances_MultipleBatchesInSingleRecord verifies that when
 // a single queue envelope holds multiple QueueData items (batches), every balance

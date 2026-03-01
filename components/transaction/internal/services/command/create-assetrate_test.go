@@ -9,16 +9,21 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 )
 
+// TestCreateOrUpdateAssetRate tests the CreateOrUpdateAssetRate use case.
+//
+//nolint:funlen
 func TestCreateOrUpdateAssetRate(t *testing.T) {
 	t.Parallel()
 
@@ -46,8 +51,9 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			},
 			expectedError: true,
 			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				t.Helper()
 				assert.Nil(t, result)
-				assert.Error(t, err)
+				require.Error(t, err)
 			},
 		},
 		{
@@ -64,8 +70,9 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			},
 			expectedError: true,
 			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				t.Helper()
 				assert.Nil(t, result)
-				assert.Error(t, err)
+				require.Error(t, err)
 			},
 		},
 		{
@@ -82,8 +89,9 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			},
 			expectedError: true,
 			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				t.Helper()
 				assert.Nil(t, result)
-				assert.Error(t, err)
+				require.Error(t, err)
 			},
 		},
 		{
@@ -99,14 +107,15 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 				mockAssetRateRepo := assetrate.NewMockRepository(ctrl)
 				mockAssetRateRepo.EXPECT().
 					FindByCurrencyPair(gomock.Any(), orgID, ledgerID, "USD", "BRL").
-					Return(nil, errors.New("database connection error")).
+					Return(nil, errors.New("database connection error")). //nolint:err113
 					Times(1)
 				uc.AssetRateRepo = mockAssetRateRepo
 			},
 			expectedError: true,
 			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				t.Helper()
 				assert.Nil(t, result)
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), "database connection error")
 			},
 		},
@@ -146,10 +155,11 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 					Update(gomock.Any(), orgID, ledgerID, uuid.MustParse(existingID), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, oID, lID, id uuid.UUID, ar *assetrate.AssetRate) (*assetrate.AssetRate, error) {
 						// Verify the updated fields
-						assert.Equal(t, float64(550), ar.Rate)
-						assert.Equal(t, float64(2), *ar.Scale)
+						assert.InDelta(t, float64(550), ar.Rate, 1e-9)
+						assert.InDelta(t, float64(2), *ar.Scale, 1e-9)
 						assert.Equal(t, "Central Bank", *ar.Source)
 						assert.Equal(t, 7200, ar.TTL)
+
 						return ar, nil
 					}).
 					Times(1)
@@ -169,9 +179,10 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			},
 			expectedError: false,
 			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				t.Helper()
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				assert.Equal(t, float64(550), result.Rate)
+				assert.InDelta(t, float64(550), result.Rate, 1e-9)
 				assert.Equal(t, "Central Bank", *result.Source)
 				assert.Equal(t, 7200, result.TTL)
 			},
@@ -226,9 +237,10 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			},
 			expectedError: false,
 			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				t.Helper()
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				assert.Equal(t, float64(110), result.Rate)
+				assert.InDelta(t, float64(110), result.Rate, 1e-9)
 			},
 		},
 		{
@@ -260,15 +272,16 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 
 				mockAssetRateRepo.EXPECT().
 					Update(gomock.Any(), orgID, ledgerID, uuid.MustParse(existingID), gomock.Any()).
-					Return(nil, errors.New("update failed")).
+					Return(nil, errors.New("update failed")). //nolint:err113
 					Times(1)
 
 				uc.AssetRateRepo = mockAssetRateRepo
 			},
 			expectedError: true,
 			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				t.Helper()
 				assert.Nil(t, result)
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), "update failed")
 			},
 		},
@@ -310,7 +323,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 				mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), "AssetRate", existingID).
-					Return(nil, errors.New("metadata lookup failed")).
+					Return(nil, errors.New("metadata lookup failed")). //nolint:err113
 					Times(1)
 
 				uc.AssetRateRepo = mockAssetRateRepo
@@ -318,8 +331,9 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			},
 			expectedError: true,
 			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				t.Helper()
 				assert.Nil(t, result)
-				assert.Error(t, err)
+				require.Error(t, err)
 			},
 		},
 		{
@@ -345,11 +359,12 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 						assert.Equal(t, ledgerID.String(), ar.LedgerID)
 						assert.Equal(t, "JPY", ar.From)
 						assert.Equal(t, "USD", ar.To)
-						assert.Equal(t, float64(7), ar.Rate)
-						assert.Equal(t, float64(4), *ar.Scale)
+						assert.InDelta(t, float64(7), ar.Rate, 1e-9)
+						assert.InDelta(t, float64(4), *ar.Scale, 1e-9)
 						assert.Equal(t, 1800, ar.TTL)
 						assert.NotEmpty(t, ar.ID)
 						assert.NotEmpty(t, ar.ExternalID) // Auto-generated
+
 						return ar, nil
 					}).
 					Times(1)
@@ -358,11 +373,12 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			},
 			expectedError: false,
 			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				t.Helper()
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, "JPY", result.From)
 				assert.Equal(t, "USD", result.To)
-				assert.Equal(t, float64(7), result.Rate)
+				assert.InDelta(t, float64(7), result.Rate, 1e-9)
 				assert.NotEmpty(t, result.ID)
 				assert.NotEmpty(t, result.ExternalID)
 			},
@@ -396,6 +412,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			},
 			expectedError: false,
 			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				t.Helper()
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, "custom-external-id-123", result.ExternalID)
@@ -432,6 +449,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 						assert.Equal(t, "AssetRate", entityName)
 						assert.Equal(t, "forex", meta.Data["source"])
 						assert.Equal(t, "high", meta.Data["priority"])
+
 						return nil
 					}).
 					Times(1)
@@ -441,6 +459,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			},
 			expectedError: false,
 			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				t.Helper()
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, "AUD", result.From)
@@ -467,15 +486,16 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 
 				mockAssetRateRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("create failed: duplicate key")).
+					Return(nil, errors.New("create failed: duplicate key")). //nolint:err113
 					Times(1)
 
 				uc.AssetRateRepo = mockAssetRateRepo
 			},
 			expectedError: true,
 			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				t.Helper()
 				assert.Nil(t, result)
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), "create failed")
 			},
 		},
@@ -506,7 +526,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 				mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 				mockMetadataRepo.EXPECT().
 					Create(gomock.Any(), "AssetRate", gomock.Any()).
-					Return(errors.New("mongodb connection error")).
+					Return(errors.New("mongodb connection error")). //nolint:err113
 					Times(1)
 
 				uc.AssetRateRepo = mockAssetRateRepo
@@ -514,8 +534,9 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			},
 			expectedError: true,
 			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				t.Helper()
 				assert.Nil(t, result)
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), "mongodb connection error")
 			},
 		},
@@ -534,9 +555,9 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 			result, err := uc.CreateOrUpdateAssetRate(context.Background(), orgID, ledgerID, tt.input)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			tt.validateResult(t, result, err)

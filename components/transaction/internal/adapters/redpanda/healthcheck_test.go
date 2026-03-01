@@ -22,39 +22,51 @@ func (s stubHealthChecker) Ping(context.Context) error {
 }
 
 func TestCheckBrokerHealth(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil checker", func(t *testing.T) {
+		t.Parallel()
+
 		err := CheckBrokerHealth(context.Background(), nil)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrBrokerUnhealthy)
 	})
 
 	t.Run("ping error", func(t *testing.T) {
-		err := CheckBrokerHealth(context.Background(), stubHealthChecker{err: errors.New("boom")})
+		t.Parallel()
+
+		err := CheckBrokerHealth(context.Background(), stubHealthChecker{err: errors.New("boom")}) //nolint:err113
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrBrokerUnhealthy)
 	})
 
 	t.Run("healthy", func(t *testing.T) {
+		t.Parallel()
+
 		err := CheckBrokerHealth(context.Background(), stubHealthChecker{})
 		assert.NoError(t, err)
 	})
 
 	t.Run("preserves root cause", func(t *testing.T) {
-		rootCause := errors.New("dial tcp timeout")
+		t.Parallel()
+
+		rootCause := errors.New("dial tcp timeout") //nolint:err113
 
 		err := CheckBrokerHealth(context.Background(), stubHealthChecker{err: rootCause})
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrBrokerUnhealthy)
-		assert.ErrorIs(t, err, rootCause)
+		require.ErrorIs(t, err, ErrBrokerUnhealthy)
+		require.ErrorIs(t, err, rootCause)
 	})
 
 	t.Run("propagates context cancellation", func(t *testing.T) {
+		t.Parallel()
+
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
 		err := CheckBrokerHealth(ctx, stubHealthChecker{err: ctx.Err()})
 		require.Error(t, err)
-		assert.ErrorIs(t, err, ErrBrokerUnhealthy)
-		assert.ErrorIs(t, err, context.Canceled)
+		require.ErrorIs(t, err, ErrBrokerUnhealthy)
+		require.ErrorIs(t, err, context.Canceled)
 	})
 }

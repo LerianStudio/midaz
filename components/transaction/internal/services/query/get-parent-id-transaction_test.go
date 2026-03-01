@@ -10,15 +10,16 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 )
 
-func TestGetParentByTransactionID(t *testing.T) {
+func TestGetParentByTransactionID(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	organizationID := uuid.New()
@@ -29,6 +30,7 @@ func TestGetParentByTransactionID(t *testing.T) {
 	// Helper to create a fresh transaction instance for each test case
 	newBaseTran := func() *transaction.Transaction {
 		parentIDStr := parentID.String()
+
 		return &transaction.Transaction{
 			ID:                  transactionID.String(),
 			OrganizationID:      organizationID.String(),
@@ -90,9 +92,9 @@ func TestGetParentByTransactionID(t *testing.T) {
 			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
 				mockTxRepo.EXPECT().
 					FindByParentID(gomock.Any(), organizationID, ledgerID, parentID).
-					Return(nil, errors.New("database connection error"))
+					Return(nil, errors.New("database connection error")) //nolint:err113
 			},
-			expectedErr:     errors.New("database connection error"),
+			expectedErr:     errors.New("database connection error"), //nolint:err113
 			expectNilResult: true,
 			expectedMeta:    nil,
 		},
@@ -104,9 +106,9 @@ func TestGetParentByTransactionID(t *testing.T) {
 					Return(newBaseTran(), nil)
 				mockMetaRepo.EXPECT().
 					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
-					Return(nil, errors.New("mongodb connection error"))
+					Return(nil, errors.New("mongodb connection error")) //nolint:err113
 			},
-			expectedErr:     errors.New("mongodb connection error"),
+			expectedErr:     errors.New("mongodb connection error"), //nolint:err113
 			expectNilResult: true,
 			expectedMeta:    nil,
 		},
@@ -115,6 +117,7 @@ func TestGetParentByTransactionID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -134,6 +137,7 @@ func TestGetParentByTransactionID(t *testing.T) {
 				require.Error(t, err)
 				assert.Equal(t, tt.expectedErr.Error(), err.Error())
 				assert.Nil(t, result)
+
 				return
 			}
 

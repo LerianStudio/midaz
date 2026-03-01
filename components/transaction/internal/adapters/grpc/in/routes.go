@@ -7,19 +7,22 @@ package in
 import (
 	"context"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	balance "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 )
 
 const midazName = "midaz"
 
+// NewRouterGRPC creates and configures a gRPC server with authentication, telemetry, and balance service registration.
 func NewRouterGRPC(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, commandUseCase *command.UseCase, queryUseCase *query.UseCase) *grpc.Server {
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
 

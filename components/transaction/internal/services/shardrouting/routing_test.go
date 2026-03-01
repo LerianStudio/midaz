@@ -8,9 +8,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 )
 
 func TestResolveBalanceShard(t *testing.T) {
@@ -89,6 +90,7 @@ func TestResolveBalanceShard(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
+
 				if tt.errContain != "" {
 					require.Contains(t, err.Error(), tt.errContain)
 				}

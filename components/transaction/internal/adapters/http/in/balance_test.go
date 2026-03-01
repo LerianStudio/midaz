@@ -7,16 +7,25 @@ package in
 import (
 	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"   //nolint:depguard
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation" //nolint:depguard
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
@@ -24,15 +33,9 @@ import (
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
-func TestBalanceHandler_GetAllBalances(t *testing.T) {
+func TestBalanceHandler_GetAllBalances(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		queryParams    string
@@ -52,7 +55,10 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -63,7 +69,7 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) {
 				// Validate limit is present
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InEpsilon(t, float64(10), limit, 1e-9)
 			},
 		},
 		{
@@ -98,7 +104,10 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -110,7 +119,7 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) {
 				// Validate pagination structure
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(5), limit)
+				assert.InEpsilon(t, float64(5), limit, 1e-9)
 
 				nextCursor, ok := result["next_cursor"].(string)
 				require.True(t, ok, "next_cursor should be a string")
@@ -137,7 +146,10 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -171,19 +183,21 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetAllBalances,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/balances"+tt.queryParams,
-				nil)
+			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/balances"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -195,7 +209,7 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) {
 	}
 }
 
-func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) {
+func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		queryParams    string
@@ -215,7 +229,10 @@ func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -227,7 +244,7 @@ func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) {
 				// Validate limit is present
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InEpsilon(t, float64(10), limit, 1e-9)
 			},
 		},
 		{
@@ -255,7 +272,10 @@ func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -273,7 +293,7 @@ func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) {
 				// Validate pagination structure
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(20), limit)
+				assert.InEpsilon(t, float64(20), limit, 1e-9)
 
 				nextCursor, ok := result["next_cursor"].(string)
 				require.True(t, ok, "next_cursor should be a string")
@@ -296,7 +316,10 @@ func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -332,19 +355,21 @@ func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
+
 					return c.Next()
 				},
 				handler.GetAllBalancesByAccountID,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/accounts/"+accountID.String()+"/balances"+tt.queryParams,
-				nil)
+			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/accounts/"+accountID.String()+"/balances"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -356,7 +381,7 @@ func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) {
 	}
 }
 
-func TestBalanceHandler_GetBalancesByAlias(t *testing.T) {
+func TestBalanceHandler_GetBalancesByAlias(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		alias          string
@@ -376,7 +401,10 @@ func TestBalanceHandler_GetBalancesByAlias(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -386,7 +414,7 @@ func TestBalanceHandler_GetBalancesByAlias(t *testing.T) {
 
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InEpsilon(t, float64(10), limit, 1e-9)
 			},
 		},
 		{
@@ -414,7 +442,10 @@ func TestBalanceHandler_GetBalancesByAlias(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -446,7 +477,10 @@ func TestBalanceHandler_GetBalancesByAlias(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -480,19 +514,21 @@ func TestBalanceHandler_GetBalancesByAlias(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetBalancesByAlias,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/"+tt.alias,
-				nil)
+			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/"+tt.alias, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -504,7 +540,7 @@ func TestBalanceHandler_GetBalancesByAlias(t *testing.T) {
 	}
 }
 
-func TestBalanceHandler_GetBalanceByID(t *testing.T) {
+func TestBalanceHandler_GetBalanceByID(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		setupMocks     func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, balanceID uuid.UUID)
@@ -535,7 +571,10 @@ func TestBalanceHandler_GetBalanceByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -556,7 +595,10 @@ func TestBalanceHandler_GetBalanceByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -579,7 +621,10 @@ func TestBalanceHandler_GetBalanceByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -615,19 +660,21 @@ func TestBalanceHandler_GetBalanceByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
+
 					return c.Next()
 				},
 				handler.GetBalanceByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/balances/"+balanceID.String(),
-				nil)
+			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/balances/"+balanceID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -639,7 +686,7 @@ func TestBalanceHandler_GetBalanceByID(t *testing.T) {
 	}
 }
 
-func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
+func TestBalanceHandler_DeleteBalanceByID(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		setupMocks     func(balanceRepo *balance.MockRepository, orgID, ledgerID, balanceID uuid.UUID)
@@ -678,7 +725,10 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -705,7 +755,10 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -727,7 +780,10 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -761,19 +817,21 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
+
 					return c.Next()
 				},
 				handler.DeleteBalanceByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("DELETE",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/balances/"+balanceID.String(),
-				nil)
+			req := httptest.NewRequest(http.MethodDelete, "/test/"+orgID.String()+"/"+ledgerID.String()+"/balances/"+balanceID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -785,7 +843,7 @@ func TestBalanceHandler_DeleteBalanceByID(t *testing.T) {
 	}
 }
 
-func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) {
+func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		code           string
@@ -806,7 +864,10 @@ func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -816,7 +877,7 @@ func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) {
 
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InEpsilon(t, float64(10), limit, 1e-9)
 			},
 		},
 		{
@@ -845,7 +906,10 @@ func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -878,7 +942,10 @@ func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -912,19 +979,21 @@ func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetBalancesExternalByCode,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/accounts/external/"+tt.code+"/balances",
-				nil)
+			req := httptest.NewRequest(http.MethodGet, "/test/"+orgID.String()+"/"+ledgerID.String()+"/accounts/external/"+tt.code+"/balances", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -936,7 +1005,7 @@ func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) {
 	}
 }
 
-func TestBalanceHandler_UpdateBalance(t *testing.T) {
+func TestBalanceHandler_UpdateBalance(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		payload        *mmodel.UpdateBalance
@@ -976,7 +1045,10 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -1006,7 +1078,10 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1031,7 +1106,10 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1074,6 +1152,7 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
+
 					return c.Next()
 				},
 				// Simulate WithBody middleware by calling handler directly with parsed payload
@@ -1083,14 +1162,15 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("PATCH",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/balances/"+balanceID.String(),
-				nil)
+			req := httptest.NewRequest(http.MethodPatch, "/test/"+orgID.String()+"/"+ledgerID.String()+"/balances/"+balanceID.String(), http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1102,7 +1182,7 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 	}
 }
 
-func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
+func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		payload        *mmodel.CreateAdditionalBalance
@@ -1149,7 +1229,10 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -1189,7 +1272,10 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			},
 			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1234,7 +1320,10 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1268,7 +1357,10 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1316,7 +1408,10 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1352,6 +1447,7 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
+
 					return c.Next()
 				},
 				// Simulate WithBody middleware by calling handler directly with parsed payload
@@ -1361,14 +1457,15 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("POST",
-				"/test/"+orgID.String()+"/"+ledgerID.String()+"/accounts/"+accountID.String()+"/balances",
-				nil)
+			req := httptest.NewRequest(http.MethodPost, "/test/"+orgID.String()+"/"+ledgerID.String()+"/accounts/"+accountID.String()+"/balances", http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1380,7 +1477,7 @@ func TestBalanceHandler_CreateAdditionalBalance(t *testing.T) {
 	}
 }
 
-func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
+func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		date           string
@@ -1433,7 +1530,10 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -1462,7 +1562,10 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1478,7 +1581,10 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1494,7 +1600,10 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1513,7 +1622,10 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1548,7 +1660,10 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1571,7 +1686,10 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1597,6 +1715,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			var date time.Time
 			if tt.date != "" {
 				var err error
+
 				date, _, err = libCommons.ParseDateTime(tt.date, false)
 				if err != nil {
 					date = time.Time{}
@@ -1617,6 +1736,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("balance_id", balanceID)
+
 					return c.Next()
 				},
 				handler.GetBalanceAtTimestamp,
@@ -1627,11 +1747,15 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			if tt.date != "" {
 				testURL += "?date=" + url.QueryEscape(tt.date)
 			}
-			req := httptest.NewRequest("GET", testURL, nil)
+
+			req := httptest.NewRequest(http.MethodGet, testURL, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1643,7 +1767,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 	}
 }
 
-func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
+func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		date           string
@@ -1682,7 +1806,10 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result []map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 				require.Len(t, result, 1, "should have one balance")
@@ -1712,7 +1839,10 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1728,7 +1858,10 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1744,7 +1877,10 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1763,7 +1899,10 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1786,7 +1925,10 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1841,16 +1983,24 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result []map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 				require.Len(t, result, 2, "should have two balances")
 
 				// Verify both balances are present
 				assetCodes := make([]string, 0, 2)
+
 				for _, balance := range result {
-					assetCodes = append(assetCodes, balance["assetCode"].(string))
+					assetCode, ok := balance["assetCode"].(string)
+					require.True(t, ok, "assetCode should be a string")
+
+					assetCodes = append(assetCodes, assetCode)
 				}
+
 				assert.Contains(t, assetCodes, "USD", "should contain USD balance")
 				assert.Contains(t, assetCodes, "BRL", "should contain BRL balance")
 			},
@@ -1872,6 +2022,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			var date time.Time
 			if tt.date != "" {
 				var err error
+
 				date, _, err = libCommons.ParseDateTime(tt.date, false)
 				if err != nil {
 					date = time.Time{}
@@ -1891,6 +2042,7 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
+
 					return c.Next()
 				},
 				handler.GetAccountBalancesAtTimestamp,
@@ -1901,11 +2053,15 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 			if tt.date != "" {
 				testURL += "?date=" + url.QueryEscape(tt.date)
 			}
-			req := httptest.NewRequest("GET", testURL, nil)
+
+			req := httptest.NewRequest(http.MethodGet, testURL, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {

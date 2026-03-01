@@ -8,15 +8,16 @@ import (
 	"database/sql"
 	"time"
 
-	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/google/uuid"
 )
 
 // TransactionPostgreSQLModel represents the entity TransactionPostgreSQLModel into SQL context in Database
@@ -57,7 +58,7 @@ type Status struct {
 	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status" maxLength:"256"`
 } // @name Status
 
-// IsEmpty method that set empty or nil in fields
+// IsEmpty method that set empty or nil in fields.
 func (s Status) IsEmpty() bool {
 	return s.Code == "" && s.Description == nil
 }
@@ -156,9 +157,9 @@ type CreateTransactionInput struct {
 //		    }
 //		  }
 //		}
-//
-// CreateTransactionSwagger is a struct that mirrors CreateTransactionInput but with explicit types for Swagger
-// This is only used for Swagger documentation generation
+
+// CreateTransactionSwaggerModel is a struct that mirrors CreateTransactionInput but with explicit types for Swagger.
+// This is only used for Swagger documentation generation.
 //
 // swagger:model CreateTransactionSwaggerModel
 // @Description Schema for creating transaction with the complete Send operation structure defined inline
@@ -409,12 +410,12 @@ type Transaction struct {
 	Operations []*operation.Operation `json:"operations"`
 } // @name Transaction
 
-// IDtoUUID is a func that convert UUID string to uuid.UUID
+// IDtoUUID is a func that convert UUID string to uuid.UUID.
 func (t Transaction) IDtoUUID() uuid.UUID {
 	return uuid.MustParse(t.ID)
 }
 
-// ToEntity converts an TransactionPostgreSQLModel to entity Transaction
+// ToEntity converts an TransactionPostgreSQLModel to entity Transaction.
 func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 	status := Status{
 		Code:        t.Status,
@@ -451,7 +452,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 	return transaction
 }
 
-// FromEntity converts an entity Transaction to TransactionPostgreSQLModel
+// FromEntity converts an entity Transaction to TransactionPostgreSQLModel.
 func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 	ID := libCommons.GenerateUUIDv7().String()
 	if transaction.ID != "" {
@@ -487,7 +488,7 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 	}
 }
 
-// BuildTransaction converts a CreateTransactionInput to a pkgTransaction.Transaction
+// BuildTransaction converts a CreateTransactionInput to a pkgTransaction.Transaction.
 func (cti *CreateTransactionInput) BuildTransaction() *pkgTransaction.Transaction {
 	dsl := &pkgTransaction.Transaction{
 		ChartOfAccountsGroupName: cti.ChartOfAccountsGroupName,
@@ -510,7 +511,7 @@ func (cti *CreateTransactionInput) BuildTransaction() *pkgTransaction.Transactio
 	return dsl
 }
 
-// TransactionRevert is a func that revert transaction
+// TransactionRevert is a func that revert transaction.
 func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 	froms := make([]pkgTransaction.FromTo, 0)
 	tos := make([]pkgTransaction.FromTo, 0)
@@ -581,6 +582,9 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 //
 // @Description Container for transaction data exchanged via message queues.
 type TransactionProcessingPayload struct {
+	// Decision contract that defines sync decision and guarantee semantics.
+	DecisionContract pkgTransaction.DecisionContract `json:"decisionContract" msgpack:"DecisionContract"`
+
 	// Validation responses from the transaction processing
 	Validate *pkgTransaction.Responses `json:"validate" msgpack:"Validate"`
 
@@ -787,7 +791,7 @@ type CreateTransactionInflowSwaggerModel struct {
 	} `json:"send"`
 } // @name CreateTransactionInflowSwaggerModel
 
-// BuildInflowEntry converts a CreateTransactionInflowInput to a pkgTransaction.Transaction
+// BuildInflowEntry converts a CreateTransactionInflowInput to a pkgTransaction.Transaction.
 func (c *CreateTransactionInflowInput) BuildInflowEntry() *pkgTransaction.Transaction {
 	listFrom := make([]pkgTransaction.FromTo, 0, 1)
 
@@ -998,7 +1002,7 @@ type CreateTransactionOutflowSwaggerModel struct {
 	} `json:"send"`
 } // @name CreateTransactionOutflowSwaggerModel
 
-// BuildOutflowEntry converts a CreateTransactionOutflowInput to a pkgTransaction.Transaction
+// BuildOutflowEntry converts a CreateTransactionOutflowInput to a pkgTransaction.Transaction.
 func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *pkgTransaction.Transaction {
 	listTo := make([]pkgTransaction.FromTo, 0, 1)
 

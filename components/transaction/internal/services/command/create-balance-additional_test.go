@@ -10,26 +10,23 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
+// TestCreateAdditionalBalance tests the CreateAdditionalBalance use case.
+//
+//nolint:funlen
 func TestCreateAdditionalBalance(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	t.Parallel()
 
-	mockBalanceRepo := balance.NewMockRepository(ctrl)
-
-	uc := &UseCase{
-		BalanceRepo: mockBalanceRepo,
-	}
-
-	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	accountID := uuid.New()
@@ -50,6 +47,15 @@ func TestCreateAdditionalBalance(t *testing.T) {
 	}
 
 	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		uc := &UseCase{BalanceRepo: mockBalanceRepo}
+		ctx := context.Background()
+
 		allowSending := true
 		allowReceiving := false
 		key := "asset-freeze"
@@ -83,13 +89,14 @@ func TestCreateAdditionalBalance(t *testing.T) {
 				assert.Equal(t, "deposit", b.AccountType)
 				assert.True(t, b.AllowSending)
 				assert.False(t, b.AllowReceiving)
+
 				return nil
 			}).
 			Times(1)
 
 		result, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, cbi)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, alias, result.Alias)
 		assert.Equal(t, "asset-freeze", result.Key)
@@ -98,6 +105,15 @@ func TestCreateAdditionalBalance(t *testing.T) {
 	})
 
 	t.Run("failed to get default balance", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		uc := &UseCase{BalanceRepo: mockBalanceRepo}
+		ctx := context.Background()
+
 		allowSending := true
 		allowReceiving := true
 		key := "test-key"
@@ -116,17 +132,26 @@ func TestCreateAdditionalBalance(t *testing.T) {
 
 		mockBalanceRepo.EXPECT().
 			FindByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "default").
-			Return(nil, errors.New("default balance not found")).
+			Return(nil, errors.New("default balance not found")). //nolint:err113
 			Times(1)
 
 		result, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, cbi)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, "default balance not found", err.Error())
 	})
 
 	t.Run("additional balance already exists", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		uc := &UseCase{BalanceRepo: mockBalanceRepo}
+		ctx := context.Background()
+
 		allowSending := false
 		allowReceiving := true
 		key := "duplicate-key"
@@ -146,12 +171,21 @@ func TestCreateAdditionalBalance(t *testing.T) {
 
 		result, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, cbi)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "An account alias with the specified key value already exists")
 	})
 
 	t.Run("error creating additional balance", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		uc := &UseCase{BalanceRepo: mockBalanceRepo}
+		ctx := context.Background()
+
 		allowSending := true
 		allowReceiving := true
 		key := "test-key"
@@ -175,17 +209,26 @@ func TestCreateAdditionalBalance(t *testing.T) {
 
 		mockBalanceRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
-			Return(errors.New("database error")).
+			Return(errors.New("database error")). //nolint:err113
 			Times(1)
 
 		result, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, cbi)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, "database error", err.Error())
 	})
 
 	t.Run("key is converted to lowercase", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		uc := &UseCase{BalanceRepo: mockBalanceRepo}
+		ctx := context.Background()
+
 		allowSending := true
 		allowReceiving := true
 		key := "UPPER-CASE-KEY"
@@ -217,12 +260,21 @@ func TestCreateAdditionalBalance(t *testing.T) {
 
 		result, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, cbi)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, "upper-case-key", result.Key)
 	})
 
 	t.Run("external account type not allowed", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		uc := &UseCase{BalanceRepo: mockBalanceRepo}
+		ctx := context.Background()
+
 		allowSending := true
 		allowReceiving := true
 		key := "test-key"
@@ -259,7 +311,7 @@ func TestCreateAdditionalBalance(t *testing.T) {
 
 		result, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, cbi)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "Additional balances are not allowed for external account type")
 	})

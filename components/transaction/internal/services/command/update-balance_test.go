@@ -10,19 +10,28 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
 
-// TestUpdateBalance tests the Update method with no Redis cached value
+// Sentinel errors for update-balance tests.
+var (
+	errTestDatabaseItemNotFound = errors.New("errDatabaseItemNotFound")
+	errTestRedisConnectionUB    = errors.New("redis connection error")
+	errTestTimeoutUB            = errors.New("timeout")
+)
+
+// TestUpdateBalance tests the Update method with no Redis cached value.
 func TestUpdateBalance(t *testing.T) {
 	t.Parallel()
 
@@ -71,20 +80,19 @@ func TestUpdateBalance(t *testing.T) {
 
 	result, err := uc.Update(context.TODO(), organizationID, ledgerID, balanceID, balanceUpdate)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedBalance.ID, result.ID)
 	assert.False(t, result.AllowSending)
 }
 
-// TestUpdateBalance_RepoError tests the Update method when repository returns error
+// TestUpdateBalance_RepoError tests the Update method when repository returns error.
 func TestUpdateBalance_RepoError(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	errMSG := "errDatabaseItemNotFound"
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	balanceID := libCommons.GenerateUUIDv7()
@@ -101,7 +109,7 @@ func TestUpdateBalance_RepoError(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(nil, errors.New(errMSG))
+		Return(nil, errTestDatabaseItemNotFound)
 	// Redis is NOT called when Update fails
 
 	uc := UseCase{
@@ -111,8 +119,8 @@ func TestUpdateBalance_RepoError(t *testing.T) {
 	result, err := uc.Update(context.TODO(), organizationID, ledgerID, balanceID, balanceUpdate)
 
 	assert.Nil(t, result)
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
+	require.Error(t, err)
+	assert.Equal(t, err.Error(), errTestDatabaseItemNotFound.Error())
 }
 
 // TestUpdateBalance_RedisOverlay verifies that when Redis has cached balance values,
@@ -193,6 +201,7 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 	assert.True(t, result.AllowReceiving)
 }
 
+//nolint:funlen
 func TestFilterStaleBalances(t *testing.T) {
 	t.Parallel()
 
@@ -253,7 +262,7 @@ func TestFilterStaleBalances(t *testing.T) {
 			setupMocks: func(mockRedis *redis.MockRedisRepository) {
 				mockRedis.EXPECT().
 					ListBalanceByKey(gomock.Any(), orgID, ledgerID, "@account1#default").
-					Return(nil, errors.New("redis connection error"))
+					Return(nil, errTestRedisConnectionUB)
 			},
 			expectedCount: 1,
 			expectedIDs:   []string{"balance-1"},
@@ -290,7 +299,7 @@ func TestFilterStaleBalances(t *testing.T) {
 				// balance-3: cache error → included (fail-open)
 				mockRedis.EXPECT().
 					ListBalanceByKey(gomock.Any(), orgID, ledgerID, "@account3#default").
-					Return(nil, errors.New("timeout"))
+					Return(nil, errTestTimeoutUB)
 			},
 			expectedCount: 2,
 			expectedIDs:   []string{"balance-2", "balance-3"},
@@ -322,7 +331,7 @@ func TestFilterStaleBalances(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // capture loop variable
+		// capture loop variable
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -347,6 +356,7 @@ func TestFilterStaleBalances(t *testing.T) {
 			for i, b := range result {
 				resultIDs[i] = b.ID
 			}
+
 			assert.ElementsMatch(t, tt.expectedIDs, resultIDs)
 		})
 	}

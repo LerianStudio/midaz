@@ -6,22 +6,35 @@ package redpanda
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 const (
 	defaultProducerLinger        = 5 * time.Millisecond
 	defaultMaxBufferedRecords    = 10_000
 	defaultRecordDeliveryTimeout = 30 * time.Second
+	// healthCheckTimeout is the timeout for the async health-check ping.
+	healthCheckTimeout = 2 * time.Second
+)
+
+var (
+	// ErrNoBrokersProvided is returned when no broker addresses are supplied.
+	ErrNoBrokersProvided = errors.New("at least one redpanda broker is required")
+	// ErrProducerNil is returned when the producer client is nil.
+	ErrProducerNil = errors.New("redpanda producer is nil")
+	// ErrTopicEmpty is returned when the topic string is empty.
+	ErrTopicEmpty = errors.New("redpanda topic cannot be empty")
 )
 
 // ProducerRepository provides an abstraction for broker producer operations.
@@ -72,7 +85,7 @@ func NewProducerRedpandaWithSecurityAndShardPartitioning(
 	shardCount int,
 ) (*ProducerRedpandaRepository, error) {
 	if len(brokers) == 0 {
-		return nil, fmt.Errorf("at least one redpanda broker is required")
+		return nil, ErrNoBrokersProvided
 	}
 
 	if linger <= 0 {
@@ -121,6 +134,7 @@ type ShardPartitioner struct {
 	shardCount int
 }
 
+// ForTopic returns a TopicPartitioner for the given topic backed by shard-aware logic.
 func (p *ShardPartitioner) ForTopic(topic string) kgo.TopicPartitioner {
 	return &shardTopicPartitioner{topic: topic, shardCount: p.shardCount}
 }
@@ -130,8 +144,10 @@ type shardTopicPartitioner struct {
 	shardCount int
 }
 
+// RequiresConsistency always returns true to ensure record ordering per shard.
 func (tp *shardTopicPartitioner) RequiresConsistency(_ *kgo.Record) bool { return true }
 
+// Partition returns the target partition for the given record.
 func (tp *shardTopicPartitioner) Partition(record *kgo.Record, partitions int) int {
 	if partitions <= 0 {
 		return 0
@@ -157,7 +173,7 @@ func hashPartition(key []byte, partitions int) int {
 	h := fnv.New32a()
 	_, _ = h.Write(key)
 
-	return int(uint64(h.Sum32()) % uint64(partitions))
+	return int(uint64(h.Sum32()) % uint64(partitions)) //nolint:gosec
 }
 
 // CheckHealth checks broker connectivity.
@@ -170,7 +186,7 @@ func (p *ProducerRedpandaRepository) CheckHealth() bool {
 		return true
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), healthCheckTimeout)
 	defer cancel()
 
 	return p.client.Ping(ctx) == nil
@@ -188,12 +204,12 @@ func (p *ProducerRedpandaRepository) ProducerDefaultWithContext(ctx context.Cont
 
 func (p *ProducerRedpandaRepository) produceSync(ctx context.Context, topic, key string, message []byte, spanName string) (*string, error) {
 	if p == nil || p.client == nil {
-		return nil, fmt.Errorf("redpanda producer is nil")
+		return nil, ErrProducerNil
 	}
 
 	topic = strings.TrimSpace(topic)
 	if topic == "" {
-		return nil, fmt.Errorf("redpanda topic cannot be empty")
+		return nil, ErrTopicEmpty
 	}
 
 	logger, tracer, reqID, _ := libCommons.NewTrackingFromContext(ctx)
@@ -219,7 +235,7 @@ func (p *ProducerRedpandaRepository) produceSync(ctx context.Context, topic, key
 		logger.Errorf("Failed to publish message topic=%s key=%s err=%v", topic, key, err)
 		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message", err)
 
-		return nil, err
+		return nil, fmt.Errorf("produce sync failed: %w", err)
 	}
 
 	return nil, nil

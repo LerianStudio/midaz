@@ -9,27 +9,28 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestGetAllMetadataIndexes tests the GetAllMetadataIndexes method with success and error scenarios
-func TestGetAllMetadataIndexes(t *testing.T) {
+// TestGetAllMetadataIndexes tests the GetAllMetadataIndexes method with success and error scenarios.
+func TestGetAllMetadataIndexes(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-
-	uc := &UseCase{
-		MetadataRepo: mockMetadataRepo,
-	}
-
 	t.Run("Success_WithoutEntityFilter", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := &UseCase{MetadataRepo: mockMetadataRepo}
+
 		filter := http.QueryHeader{
 			Limit: 10,
 			Page:  1,
@@ -62,12 +63,20 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 
 		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Len(t, result, 2)
 	})
 
 	t.Run("Success_WithEntityFilter", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := &UseCase{MetadataRepo: mockMetadataRepo}
+
 		entityName := "transaction"
 		filter := http.QueryHeader{
 			Limit:      10,
@@ -86,7 +95,7 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 
 		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Len(t, result, 2)
 		assert.Equal(t, "metadata.tier_1", result[0].IndexName)
@@ -97,6 +106,14 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 	})
 
 	t.Run("Success_EmptyResult", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := &UseCase{MetadataRepo: mockMetadataRepo}
+
 		entityName := "operation"
 		filter := http.QueryHeader{
 			Limit:      10,
@@ -111,12 +128,20 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 
 		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Empty(t, result)
 	})
 
 	t.Run("Error_RepositoryError", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := &UseCase{MetadataRepo: mockMetadataRepo}
+
 		entityName := "transaction"
 		filter := http.QueryHeader{
 			Limit:      10,
@@ -124,7 +149,7 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 			EntityName: &entityName,
 		}
 
-		repoError := errors.New("database connection error")
+		repoError := errors.New("database connection error") //nolint:err113
 
 		mockMetadataRepo.EXPECT().
 			FindAllIndexes(gomock.Any(), entityName).
@@ -133,18 +158,26 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 
 		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, repoError, err)
 	})
 
 	t.Run("Error_RepositoryErrorOnSecondEntity", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := &UseCase{MetadataRepo: mockMetadataRepo}
+
 		filter := http.QueryHeader{
 			Limit: 10,
 			Page:  1,
 		}
 
-		repoError := errors.New("database error")
+		repoError := errors.New("database error") //nolint:err113
 
 		// First call succeeds
 		mockMetadataRepo.EXPECT().
@@ -160,14 +193,16 @@ func TestGetAllMetadataIndexes(t *testing.T) {
 
 		result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, repoError, err)
 	})
 }
 
-// TestGetAllMetadataIndexesIndexNameFormat tests that the index name is preserved from repository
+// TestGetAllMetadataIndexesIndexNameFormat tests that the index name is preserved from repository.
 func TestGetAllMetadataIndexesIndexNameFormat(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -194,7 +229,7 @@ func TestGetAllMetadataIndexesIndexNameFormat(t *testing.T) {
 
 	result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Len(t, result, 1)
 	assert.Equal(t, "metadata.custom_field_1", result[0].IndexName)
@@ -204,8 +239,10 @@ func TestGetAllMetadataIndexesIndexNameFormat(t *testing.T) {
 	assert.False(t, result[0].Sparse)
 }
 
-// TestGetAllMetadataIndexesPreservesIndexProperties tests that index properties are preserved from repository
+// TestGetAllMetadataIndexesPreservesIndexProperties tests that index properties are preserved from repository.
 func TestGetAllMetadataIndexesPreservesIndexProperties(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -233,7 +270,7 @@ func TestGetAllMetadataIndexesPreservesIndexProperties(t *testing.T) {
 
 	result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Len(t, result, 2)
 
@@ -246,8 +283,10 @@ func TestGetAllMetadataIndexesPreservesIndexProperties(t *testing.T) {
 	assert.False(t, result[1].Sparse)
 }
 
-// TestGetAllMetadataIndexesWithEmptyEntityName tests behavior when entity name is empty string
+// TestGetAllMetadataIndexesWithEmptyEntityName tests behavior when entity name is empty string.
 func TestGetAllMetadataIndexesWithEmptyEntityName(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -271,13 +310,15 @@ func TestGetAllMetadataIndexesWithEmptyEntityName(t *testing.T) {
 
 	result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Empty(t, result)
 }
 
-// TestGetAllMetadataIndexesMultipleEntitiesAggregation tests aggregation of indexes from multiple entities
+// TestGetAllMetadataIndexesMultipleEntitiesAggregation tests aggregation of indexes from multiple entities.
 func TestGetAllMetadataIndexesMultipleEntitiesAggregation(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -323,7 +364,7 @@ func TestGetAllMetadataIndexesMultipleEntitiesAggregation(t *testing.T) {
 
 	result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Len(t, result, 4)
 
@@ -338,8 +379,10 @@ func TestGetAllMetadataIndexesMultipleEntitiesAggregation(t *testing.T) {
 	assert.True(t, entityNames["transaction_route"])
 }
 
-// TestGetAllMetadataIndexesWithStats tests that index stats are preserved from repository
+// TestGetAllMetadataIndexesWithStats tests that index stats are preserved from repository.
 func TestGetAllMetadataIndexesWithStats(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -375,7 +418,7 @@ func TestGetAllMetadataIndexesWithStats(t *testing.T) {
 
 	result, err := uc.GetAllMetadataIndexes(context.Background(), filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Len(t, result, 1)
 	assert.NotNil(t, result[0].Stats)

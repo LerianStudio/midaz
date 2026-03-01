@@ -9,15 +9,23 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestDeleteOperationRouteByIDSuccess tests successful deletion of an operation route
+// Sentinel errors for test assertions.
+var (
+	errTestDBConnectionDOR            = errors.New("database connection error")
+	errTestCheckTransactionRouteLinks = errors.New("failed to check transaction route links")
+)
+
+// TestDeleteOperationRouteByIDSuccess tests successful deletion of an operation route.
 func TestDeleteOperationRouteByIDSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -43,10 +51,10 @@ func TestDeleteOperationRouteByIDSuccess(t *testing.T) {
 
 	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, ledgerID, operationRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
-// TestDeleteOperationRouteByIDNotFound tests deletion when operation route is not found
+// TestDeleteOperationRouteByIDNotFound tests deletion when operation route is not found.
 func TestDeleteOperationRouteByIDNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -72,15 +80,15 @@ func TestDeleteOperationRouteByIDNotFound(t *testing.T) {
 
 	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, ledgerID, operationRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// Check if it's the proper business error
 	var entityNotFoundError pkg.EntityNotFoundError
-	assert.True(t, errors.As(err, &entityNotFoundError))
+	require.ErrorAs(t, err, &entityNotFoundError)
 	assert.Equal(t, "0101", entityNotFoundError.Code)
 }
 
-// TestDeleteOperationRouteByIDError tests deletion with database error
+// TestDeleteOperationRouteByIDError tests deletion with database error.
 func TestDeleteOperationRouteByIDError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -88,7 +96,7 @@ func TestDeleteOperationRouteByIDError(t *testing.T) {
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	databaseError := errors.New("database connection error")
+	databaseError := errTestDBConnectionDOR
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -107,11 +115,11 @@ func TestDeleteOperationRouteByIDError(t *testing.T) {
 
 	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, ledgerID, operationRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, databaseError, err)
 }
 
-// TestDeleteOperationRouteByIDLinkedToTransactionRoutes tests deletion when operation route is linked to transaction routes
+// TestDeleteOperationRouteByIDLinkedToTransactionRoutes tests deletion when operation route is linked to transaction routes.
 func TestDeleteOperationRouteByIDLinkedToTransactionRoutes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -137,15 +145,15 @@ func TestDeleteOperationRouteByIDLinkedToTransactionRoutes(t *testing.T) {
 
 	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, ledgerID, operationRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// Check if it's the proper business error for linked operation routes
 	var unprocessableOperationError pkg.UnprocessableOperationError
-	assert.True(t, errors.As(err, &unprocessableOperationError))
+	require.ErrorAs(t, err, &unprocessableOperationError)
 	assert.Equal(t, "0107", unprocessableOperationError.Code)
 }
 
-// TestDeleteOperationRouteByIDHasLinksCheckError tests deletion when checking for links fails
+// TestDeleteOperationRouteByIDHasLinksCheckError tests deletion when checking for links fails.
 func TestDeleteOperationRouteByIDHasLinksCheckError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -153,7 +161,7 @@ func TestDeleteOperationRouteByIDHasLinksCheckError(t *testing.T) {
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	linkCheckError := errors.New("failed to check transaction route links")
+	linkCheckError := errTestCheckTransactionRouteLinks
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	uc := &UseCase{
@@ -172,6 +180,6 @@ func TestDeleteOperationRouteByIDHasLinksCheckError(t *testing.T) {
 
 	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, ledgerID, operationRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, linkCheckError, err)
 }

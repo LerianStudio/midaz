@@ -6,19 +6,24 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"sort"
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+
 	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	"github.com/google/uuid"
 )
 
+// ShardRebalanceWorker periodically checks shard load distribution and migrates
+// hot accounts to less-loaded shards to maintain balance.
 type ShardRebalanceWorker struct {
 	logger libLog.Logger
 
@@ -43,6 +48,8 @@ type shardRebalanceManager interface {
 	MarkAccountIsolated(ctx context.Context, account internalsharding.HotAccount, shardID int) error
 }
 
+// NewShardRebalanceWorker creates a new ShardRebalanceWorker with the given configuration.
+// Returns nil if either manager or router is nil.
 func NewShardRebalanceWorker(
 	logger libLog.Logger,
 	manager shardRebalanceManager,
@@ -58,12 +65,17 @@ func NewShardRebalanceWorker(
 		return nil
 	}
 
+	const (
+		defaultIntervalSecs   = 5
+		defaultLoadWindowSecs = 60
+	)
+
 	if interval <= 0 {
-		interval = 5 * time.Second
+		interval = defaultIntervalSecs * time.Second
 	}
 
 	if loadWindow <= 0 {
-		loadWindow = 60 * time.Second
+		loadWindow = defaultLoadWindowSecs * time.Second
 	}
 
 	if imbalanceThreshold <= 1.0 {
@@ -95,6 +107,7 @@ func NewShardRebalanceWorker(
 	}
 }
 
+// Run starts the ShardRebalanceWorker and blocks until the context is cancelled.
 func (w *ShardRebalanceWorker) Run(_ *libCommons.Launcher) error {
 	if w == nil || w.manager == nil || w.router == nil {
 		return nil
@@ -125,7 +138,7 @@ func (w *ShardRebalanceWorker) Run(_ *libCommons.Launcher) error {
 func (w *ShardRebalanceWorker) rebalanceOnce(ctx context.Context) error {
 	paused, err := w.manager.IsRebalancerPaused(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("check rebalancer paused: %w", err)
 	}
 
 	if paused {
@@ -136,7 +149,7 @@ func (w *ShardRebalanceWorker) rebalanceOnce(ctx context.Context) error {
 
 	loads, err := w.manager.GetShardLoads(ctx, w.router.ShardCount(), w.loadWindow)
 	if err != nil {
-		return err
+		return fmt.Errorf("get shard loads: %w", err)
 	}
 
 	maxLoad, ok := w.detectImbalance(loads)
@@ -146,7 +159,7 @@ func (w *ShardRebalanceWorker) rebalanceOnce(ctx context.Context) error {
 
 	hotAccounts, err := w.manager.TopHotAccounts(ctx, maxLoad.ShardID, w.loadWindow, w.candidateLimit)
 	if err != nil {
-		return err
+		return fmt.Errorf("top hot accounts: %w", err)
 	}
 
 	if len(hotAccounts) == 0 {
@@ -160,7 +173,7 @@ func (w *ShardRebalanceWorker) rebalanceOnce(ctx context.Context) error {
 
 	isolationCounts, err := w.manager.GetShardIsolationCounts(ctx, w.router.ShardCount())
 	if err != nil {
-		return err
+		return fmt.Errorf("get shard isolation counts: %w", err)
 	}
 
 	for _, hot := range hotAccounts {
@@ -185,7 +198,9 @@ func (w *ShardRebalanceWorker) rebalanceOnce(ctx context.Context) error {
 // to warrant rebalancing. Returns the heaviest shard and true if rebalancing
 // should proceed.
 func (w *ShardRebalanceWorker) detectImbalance(loads []internalsharding.ShardLoad) (internalsharding.ShardLoad, bool) {
-	if len(loads) < 2 {
+	const minShardsForImbalance = 2
+
+	if len(loads) < minShardsForImbalance {
 		return internalsharding.ShardLoad{}, false
 	}
 
@@ -234,7 +249,7 @@ func (w *ShardRebalanceWorker) tryMigrateHotAccount(
 
 	permitOK, permitErr := w.manager.TryAcquireRebalancePermits(ctx, maxLoad.ShardID, targetShard, hot)
 	if permitErr != nil {
-		return false, permitErr
+		return false, fmt.Errorf("acquire rebalance permits: %w", permitErr)
 	}
 
 	if !permitOK {

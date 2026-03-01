@@ -9,14 +9,22 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	midazpkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
+)
+
+// Sentinel errors for test assertions.
+var (
+	errTestDBConnectionDB = errors.New("database connection error")
+	errTestDeleteFailed   = errors.New("delete failed")
 )
 
 func TestDeleteBalance(t *testing.T) {
@@ -27,7 +35,7 @@ func TestDeleteBalance(t *testing.T) {
 
 	t.Run("find balance error", func(t *testing.T) {
 		uc, mockBalanceRepo := setupDeleteBalanceUseCase(t)
-		expectedErr := errors.New("database connection error")
+		expectedErr := errTestDBConnectionDB
 
 		mockBalanceRepo.EXPECT().
 			Find(gomock.Any(), organizationID, ledgerID, balanceID).
@@ -35,7 +43,7 @@ func TestDeleteBalance(t *testing.T) {
 
 		err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, expectedErr, err)
 	})
 
@@ -65,7 +73,7 @@ func TestDeleteBalance(t *testing.T) {
 				err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 
 				var validationErr midazpkg.ValidationError
-				assert.True(t, errors.As(err, &validationErr))
+				require.ErrorAs(t, err, &validationErr)
 				assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
 			})
 		}
@@ -78,7 +86,7 @@ func TestDeleteBalance(t *testing.T) {
 			Available: decimal.Zero,
 			OnHold:    decimal.Zero,
 		}
-		expectedErr := errors.New("delete failed")
+		expectedErr := errTestDeleteFailed
 
 		mockBalanceRepo.EXPECT().
 			Find(gomock.Any(), organizationID, ledgerID, balanceID).
@@ -89,7 +97,7 @@ func TestDeleteBalance(t *testing.T) {
 
 		err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, expectedErr, err)
 	})
 
@@ -105,7 +113,7 @@ func TestDeleteBalance(t *testing.T) {
 
 		err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("deletes balance with zero funds", func(t *testing.T) {
@@ -125,7 +133,7 @@ func TestDeleteBalance(t *testing.T) {
 
 		err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 

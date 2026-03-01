@@ -5,16 +5,18 @@
 package in
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation" //nolint:depguard
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
 // OperationHandler struct contains a cqrs use case for managing operations.
@@ -55,9 +57,20 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_operations_by_account")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	accountID := c.Locals("account_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	accountID, ok := c.Locals("account_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid account_id"))
+	}
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -147,10 +160,25 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_operation_by_account")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	accountID := c.Locals("account_id").(uuid.UUID)
-	operationID := c.Locals("operation_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	accountID, ok := c.Locals("account_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid account_id"))
+	}
+
+	operationID, ok := c.Locals("operation_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid operation_id"))
+	}
 
 	logger.Infof("Initiating retrieval of Operation by account")
 
@@ -197,14 +225,32 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_operation")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
-	operationID := c.Locals("operation_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	transactionID, ok := c.Locals("transaction_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid transaction_id"))
+	}
+
+	operationID, ok := c.Locals("operation_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid operation_id"))
+	}
 
 	logger.Infof("Initiating update of Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String(), operationID.String())
 
-	payload := p.(*operation.UpdateOperationInput)
+	payload, ok := p.(*operation.UpdateOperationInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
 
 	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)

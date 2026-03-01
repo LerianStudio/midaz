@@ -9,14 +9,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("with_all_fields_populated", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()
@@ -57,6 +62,8 @@ func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("with_account_type_rule", func(t *testing.T) {
+		t.Parallel()
+
 		// Tests the account_type rule which converts comma-separated values to array
 		id := uuid.New()
 		orgID := uuid.New()
@@ -89,6 +96,8 @@ func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("with_code_null", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()
@@ -112,6 +121,8 @@ func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("with_no_account_rule", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()
@@ -134,6 +145,8 @@ func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("with_nil_model", func(t *testing.T) {
+		t.Parallel()
+
 		var model *OperationRoutePostgreSQLModel
 
 		entity := model.ToEntity()
@@ -142,6 +155,8 @@ func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("with_deleted_at_valid_but_zero_time", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()
@@ -165,7 +180,11 @@ func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
 }
 
 func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("with_all_fields_populated", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()
@@ -208,6 +227,8 @@ func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
 	})
 
 	t.Run("with_account_type_rule_string_slice", func(t *testing.T) {
+		t.Parallel()
+
 		// Tests conversion of []string ValidIf for account_type rule
 		id := uuid.New()
 		orgID := uuid.New()
@@ -235,6 +256,8 @@ func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
 	})
 
 	t.Run("with_account_type_rule_any_slice", func(t *testing.T) {
+		t.Parallel()
+
 		// Tests conversion of []any ValidIf for account_type rule
 		id := uuid.New()
 		orgID := uuid.New()
@@ -262,6 +285,8 @@ func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
 	})
 
 	t.Run("with_empty_code", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()
@@ -284,6 +309,8 @@ func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
 	})
 
 	t.Run("with_optional_fields_nil", func(t *testing.T) {
+		t.Parallel()
+
 		id := uuid.New()
 		orgID := uuid.New()
 		ledgerID := uuid.New()
@@ -310,7 +337,10 @@ func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
 	})
 
 	t.Run("with_nil_entity", func(t *testing.T) {
+		t.Parallel()
+
 		var model OperationRoutePostgreSQLModel
+
 		initialID := model.ID
 
 		model.FromEntity(nil)
@@ -319,6 +349,8 @@ func TestOperationRoutePostgreSQLModel_FromEntity(t *testing.T) {
 	})
 
 	t.Run("converts_operation_type_to_lowercase", func(t *testing.T) {
+		t.Parallel()
+
 		cases := []struct {
 			input    string
 			expected string

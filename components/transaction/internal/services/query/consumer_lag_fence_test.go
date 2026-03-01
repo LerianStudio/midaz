@@ -8,13 +8,16 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 )
 
 func TestShouldEnforceConsumerLagFence(t *testing.T) {
+	t.Parallel()
+
 	var nilUC *UseCase
 	assert.False(t, nilUC.shouldEnforceConsumerLagFence())
 
@@ -29,17 +32,23 @@ func TestShouldEnforceConsumerLagFence(t *testing.T) {
 }
 
 func TestEnsureConsumerLagFenceForAliases(t *testing.T) {
+	t.Parallel()
+
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 	ctx := context.Background()
 
 	t.Run("returns nil when disabled", func(t *testing.T) {
+		t.Parallel()
+
 		uc := &UseCase{}
 		err := uc.ensureConsumerLagFenceForAliases(ctx, orgID, ledgerID, []string{"@alice#default"})
 		require.NoError(t, err)
 	})
 
 	t.Run("returns stale error when partition lagging", func(t *testing.T) {
+		t.Parallel()
+
 		router := shard.NewRouter(8)
 		partition := int32(router.ResolveBalance("@alice", "default"))
 
@@ -57,6 +66,8 @@ func TestEnsureConsumerLagFenceForAliases(t *testing.T) {
 	})
 
 	t.Run("deduplicates repeated partitions", func(t *testing.T) {
+		t.Parallel()
+
 		router := shard.NewRouter(8)
 		lagChecker := &stubLagChecker{caughtUpByPartition: map[int32]bool{}}
 		uc := &UseCase{
@@ -73,6 +84,8 @@ func TestEnsureConsumerLagFenceForAliases(t *testing.T) {
 }
 
 func TestEnsureConsumerLagFenceForPartitions_DeduplicatesAndFailsOnLag(t *testing.T) {
+	t.Parallel()
+
 	lagChecker := &stubLagChecker{caughtUpByPartition: map[int32]bool{1: true, 2: false}}
 	uc := &UseCase{
 		ConsumerLagFenceEnabled: true,

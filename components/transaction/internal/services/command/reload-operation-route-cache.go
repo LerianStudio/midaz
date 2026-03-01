@@ -7,9 +7,10 @@ package command
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/google/uuid"
 )
 
 // ReloadOperationRouteCache reloads the cache for all transaction routes associated with the given operation route.

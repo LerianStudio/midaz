@@ -9,13 +9,16 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/mongo"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/google/uuid"
 )
 
 // CreateTransaction creates a new transaction persisting data in the repository.
@@ -64,6 +67,22 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
+	if tran == nil { //nolint:nestif
+		if transactionUUID, parseErr := uuid.Parse(save.ID); parseErr == nil {
+			existing, findErr := uc.TransactionRepo.Find(ctx, organizationID, ledgerID, transactionUUID)
+			if findErr == nil && existing != nil {
+				tran = existing
+			} else {
+				logger.Warnf("Transaction repo returned nil transaction without error and fallback lookup failed (id=%s): %v", save.ID, findErr)
+			}
+		}
+
+		if tran == nil {
+			logger.Warnf("Transaction repo returned nil transaction without error (id=%s); using request payload as canonical transaction", save.ID)
+			tran = save
+		}
+	}
+
 	if t.Metadata != nil {
 		meta := mongodb.Metadata{
 			EntityID:   tran.ID,
@@ -74,6 +93,11 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), &meta); err != nil {
+			if mongo.IsDuplicateKeyError(err) {
+				tran.Metadata = t.Metadata
+				return tran, nil
+			}
+
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction metadata", err)
 
 			logger.Errorf("Error into creating transactiont metadata: %v", err)

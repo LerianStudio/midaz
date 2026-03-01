@@ -10,6 +10,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -40,7 +41,7 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, entityName string, i
 
 			logger.Errorf("Metadata index already exists for key: %s", input.MetadataKey)
 
-			return nil, pkg.ValidateBusinessError(constant.ErrMetadataIndexAlreadyExists, "MetadataIndex", strings.ToLower(input.MetadataKey))
+			return nil, pkg.ValidateBusinessError(constant.ErrMetadataIndexAlreadyExists, "MetadataIndex", strings.ToLower(input.MetadataKey)) //nolint:wrapcheck
 		}
 	}
 

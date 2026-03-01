@@ -9,18 +9,27 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
 
+// Sentinel errors for test assertions.
+var (
+	errTestDBConnectionCT    = errors.New("database connection error")
+	errTestMongoConnectionCT = errors.New("mongodb connection error")
+)
+
+//nolint:funlen
 func TestUseCase_CreateTransaction(t *testing.T) {
 	orgID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
@@ -57,6 +66,7 @@ func TestUseCase_CreateTransaction(t *testing.T) {
 						assert.Equal(t, "Test transaction", tx.Description)
 						assert.Equal(t, "USD", tx.AssetCode)
 						assert.Nil(t, tx.ParentTransactionID)
+
 						return tx, nil
 					}).
 					Times(1)
@@ -65,6 +75,7 @@ func TestUseCase_CreateTransaction(t *testing.T) {
 				uc.MetadataRepo = mockMetaRepo
 			},
 			validate: func(t *testing.T, result *transaction.Transaction, err error) {
+				t.Helper()
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, constant.APPROVED, result.Status.Code)
@@ -89,6 +100,7 @@ func TestUseCase_CreateTransaction(t *testing.T) {
 					DoAndReturn(func(ctx context.Context, tx *transaction.Transaction) (*transaction.Transaction, error) {
 						require.NotNil(t, tx.ParentTransactionID)
 						assert.Equal(t, parentTxID.String(), *tx.ParentTransactionID)
+
 						return tx, nil
 					}).
 					Times(1)
@@ -97,6 +109,7 @@ func TestUseCase_CreateTransaction(t *testing.T) {
 				uc.MetadataRepo = mockMetaRepo
 			},
 			validate: func(t *testing.T, result *transaction.Transaction, err error) {
+				t.Helper()
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				require.NotNil(t, result.ParentTransactionID)
@@ -131,6 +144,7 @@ func TestUseCase_CreateTransaction(t *testing.T) {
 						assert.Equal(t, "Transaction", meta.EntityName)
 						assert.Equal(t, "value", meta.Data["key"])
 						assert.Equal(t, 42, meta.Data["number"])
+
 						return nil
 					}).
 					Times(1)
@@ -139,6 +153,7 @@ func TestUseCase_CreateTransaction(t *testing.T) {
 				uc.MetadataRepo = mockMetaRepo
 			},
 			validate: func(t *testing.T, result *transaction.Transaction, err error) {
+				t.Helper()
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, "value", result.Metadata["key"])
@@ -172,6 +187,7 @@ func TestUseCase_CreateTransaction(t *testing.T) {
 				uc.MetadataRepo = mockMetaRepo
 			},
 			validate: func(t *testing.T, result *transaction.Transaction, err error) {
+				t.Helper()
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Nil(t, result.Metadata)
@@ -193,16 +209,53 @@ func TestUseCase_CreateTransaction(t *testing.T) {
 
 				mockTxRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("database connection error")).
+					Return(nil, errTestDBConnectionCT).
 					Times(1)
 
 				uc.TransactionRepo = mockTxRepo
 				uc.MetadataRepo = mockMetaRepo
 			},
 			validate: func(t *testing.T, result *transaction.Transaction, err error) {
+				t.Helper()
 				require.Error(t, err)
 				assert.Nil(t, result)
 				assert.Contains(t, err.Error(), "database connection error")
+			},
+		},
+		{
+			name:          "falls_back_to_request_payload_when_repo_returns_nil_without_error",
+			transactionID: uuid.Nil,
+			dsl: &pkgTransaction.Transaction{
+				Description: "Idempotent duplicate",
+				Send: pkgTransaction.Send{
+					Asset: "USD",
+					Value: decimal.NewFromInt(75),
+				},
+			},
+			setupMocks: func(ctrl *gomock.Controller, uc *UseCase) {
+				mockTxRepo := transaction.NewMockRepository(ctrl)
+				mockMetaRepo := mongodb.NewMockRepository(ctrl)
+
+				mockTxRepo.EXPECT().
+					Find(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					Return(nil, nil).
+					Times(1)
+
+				mockTxRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(nil, nil).
+					Times(1)
+
+				uc.TransactionRepo = mockTxRepo
+				uc.MetadataRepo = mockMetaRepo
+			},
+			validate: func(t *testing.T, result *transaction.Transaction, err error) {
+				t.Helper()
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, "Idempotent duplicate", result.Description)
+				assert.Equal(t, "USD", result.AssetCode)
+				assert.NotEmpty(t, result.ID)
 			},
 		},
 		{
@@ -229,13 +282,14 @@ func TestUseCase_CreateTransaction(t *testing.T) {
 
 				mockMetaRepo.EXPECT().
 					Create(gomock.Any(), "Transaction", gomock.Any()).
-					Return(errors.New("mongodb connection error")).
+					Return(errTestMongoConnectionCT).
 					Times(1)
 
 				uc.TransactionRepo = mockTxRepo
 				uc.MetadataRepo = mockMetaRepo
 			},
 			validate: func(t *testing.T, result *transaction.Transaction, err error) {
+				t.Helper()
 				require.Error(t, err)
 				assert.Nil(t, result)
 				assert.Contains(t, err.Error(), "mongodb connection error")
@@ -268,6 +322,7 @@ func TestUseCase_CreateTransaction(t *testing.T) {
 				uc.MetadataRepo = mockMetaRepo
 			},
 			validate: func(t *testing.T, result *transaction.Transaction, err error) {
+				t.Helper()
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				assert.Equal(t, "revenue-1000", result.ChartOfAccountsGroupName)

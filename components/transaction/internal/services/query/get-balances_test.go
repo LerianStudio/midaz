@@ -12,6 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -20,11 +26,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 type stubLagChecker struct {
@@ -79,6 +80,7 @@ func (s *stubLagChecker) IsPartitionCaughtUp(_ context.Context, _ string, partit
 	defer s.mu.Unlock()
 
 	s.calls++
+
 	caughtUp, ok := s.caughtUpByPartition[partition]
 	if !ok {
 		return true
@@ -88,6 +90,8 @@ func (s *stubLagChecker) IsPartitionCaughtUp(_ context.Context, _ string, partit
 }
 
 func TestGetBalances_ReturnsErrorWhenValidateIsNil(t *testing.T) {
+	t.Parallel()
+
 	uc := &UseCase{}
 
 	_, err := uc.GetBalances(context.Background(), uuid.New(), uuid.New(), uuid.New(), nil, nil, constant.CREATED)
@@ -96,23 +100,23 @@ func TestGetBalances_ReturnsErrorWhenValidateIsNil(t *testing.T) {
 	assert.Contains(t, err.Error(), "validate is nil")
 }
 
-func TestGetBalances(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestGetBalances(t *testing.T) { //nolint:funlen
+	t.Parallel()
 
-	mockBalanceRepo := balance.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-	uc := &UseCase{
-		BalanceRepo: mockBalanceRepo,
-		RedisRepo:   mockRedisRepo,
-	}
-
-	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 
 	t.Run("get balances from redis and database", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		uc := &UseCase{BalanceRepo: mockBalanceRepo, RedisRepo: mockRedisRepo}
+		ctx := context.Background()
+
 		aliases := []string{"alias1#default", "alias2#default", "alias3#default"}
 
 		fromAmount := pkgTransaction.Amount{
@@ -248,7 +252,7 @@ func TestGetBalances(t *testing.T) {
 
 		transactionID := uuid.New()
 		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, balances, 3)
 
 		sort.Slice(balances, func(i, j int) bool {
@@ -266,6 +270,15 @@ func TestGetBalances(t *testing.T) {
 	})
 
 	t.Run("all balances from redis", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		uc := &UseCase{RedisRepo: mockRedisRepo}
+		ctx := context.Background()
+
 		aliases := []string{"alias1#default", "alias2#default"}
 		fromAmount := pkgTransaction.Amount{
 			Asset:     "USD",
@@ -376,12 +389,12 @@ func TestGetBalances(t *testing.T) {
 		transactionID := uuid.New()
 		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, balances, 2)
 	})
 }
 
-func TestGetBalancesConsumerLagFence(t *testing.T) {
+func TestGetBalancesConsumerLagFence(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	ctx := context.Background()
@@ -402,6 +415,8 @@ func TestGetBalancesConsumerLagFence(t *testing.T) {
 	}
 
 	t.Run("fence enabled and lag > 0 blocks postgres fallback", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -434,6 +449,8 @@ func TestGetBalancesConsumerLagFence(t *testing.T) {
 	})
 
 	t.Run("fence enabled and lag > 0 replays and recovers balances", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -491,6 +508,8 @@ func TestGetBalancesConsumerLagFence(t *testing.T) {
 	})
 
 	t.Run("fence enabled and lag == 0 allows postgres fallback", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -540,6 +559,8 @@ func TestGetBalancesConsumerLagFence(t *testing.T) {
 	})
 
 	t.Run("fence disabled skips lag check and proceeds", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -589,8 +610,10 @@ func TestGetBalancesConsumerLagFence(t *testing.T) {
 }
 
 func TestGetAccountAndLock(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	t.Cleanup(ctrl.Finish)
 
 	ctx := context.Background()
 
@@ -603,6 +626,8 @@ func TestGetAccountAndLock(t *testing.T) {
 	}
 
 	t.Run("lock balances successfully", func(t *testing.T) {
+		t.Parallel()
+
 		balanceID1 := uuid.MustParse("c7d0fa07-3e11-4105-a0fc-6fa46834ce66")
 		accountID1 := uuid.MustParse("bad0ddef-d697-4a4e-840d-1f5380de4607")
 
@@ -651,11 +676,13 @@ func TestGetAccountAndLock(t *testing.T) {
 		transactionID := uuid.New()
 		lockedBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, constant.CREATED)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, lockedBalances, 1)
 	})
 
 	t.Run("returns error when validate is nil", func(t *testing.T) {
+		t.Parallel()
+
 		balances := []*mmodel.Balance{{Alias: "alias1", Key: "default"}}
 
 		_, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, uuid.New(), nil, nil, balances, constant.CREATED)
@@ -665,6 +692,8 @@ func TestGetAccountAndLock(t *testing.T) {
 	})
 
 	t.Run("returns error when balances contain nil", func(t *testing.T) {
+		t.Parallel()
+
 		validate := &pkgTransaction.Responses{From: map[string]pkgTransaction.Amount{}, To: map[string]pkgTransaction.Amount{}}
 
 		_, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, uuid.New(), nil, validate, []*mmodel.Balance{nil}, constant.CREATED)
@@ -675,8 +704,10 @@ func TestGetAccountAndLock(t *testing.T) {
 }
 
 func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	t.Cleanup(ctrl.Finish)
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
@@ -689,6 +720,8 @@ func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
 	ledgerID := uuid.New()
 
 	t.Run("some balances in redis", func(t *testing.T) {
+		t.Parallel()
+
 		aliases := []string{"alias1#default", "alias2#default", "alias3#default"}
 
 		balance1 := mmodel.BalanceRedis{
@@ -737,6 +770,8 @@ func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
 }
 
 func TestValidateIfBalanceExistsOnRedis_ShardedUsesShardKey(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -786,6 +821,8 @@ func TestValidateIfBalanceExistsOnRedis_ShardedUsesShardKey(t *testing.T) {
 }
 
 func TestValidateIfBalanceExistsOnRedis_ShardedCorruptJSON(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -827,6 +864,8 @@ func TestValidateIfBalanceExistsOnRedis_ShardedCorruptJSON(t *testing.T) {
 }
 
 func TestGetAccountAndLock_ShardedOperationsContainShardData(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -903,7 +942,7 @@ func TestGetAccountAndLock_ShardedOperationsContainShardData(t *testing.T) {
 			false,
 			gomock.Any(),
 		).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID, _ string, _ bool, ops []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
+		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, _ string, _ bool, ops []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
 			capturedOps = ops
 			return balances, nil
 		})
@@ -925,7 +964,9 @@ func TestGetAccountAndLock_ShardedOperationsContainShardData(t *testing.T) {
 	}
 }
 
-func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
+func TestBalanceRedis_UnmarshalJSON(t *testing.T) { //nolint:funlen,gocognit
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		json    string
@@ -1087,6 +1128,8 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			b := mmodel.BalanceRedis{}
 			err := json.Unmarshal([]byte(tt.json), &b)
 
@@ -1095,31 +1138,39 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 				return
 			}
 
-			if !tt.wantErr {
+			if !tt.wantErr { //nolint:nestif
 				if b.ID != tt.want.ID {
 					t.Errorf("ID: got = %v, want %v", b.ID, tt.want.ID)
 				}
+
 				if b.AccountID != tt.want.AccountID {
 					t.Errorf("AccountID: got = %v, want %v", b.AccountID, tt.want.AccountID)
 				}
+
 				if b.AssetCode != tt.want.AssetCode {
 					t.Errorf("AssetCode: got = %v, want %v", b.AssetCode, tt.want.AssetCode)
 				}
+
 				if b.Available.String() != tt.want.Available.String() {
 					t.Errorf("Available: got = %v, want %v", b.Available, tt.want.Available)
 				}
+
 				if b.OnHold.String() != tt.want.OnHold.String() {
 					t.Errorf("OnHold: got = %v, want %v", b.OnHold, tt.want.OnHold)
 				}
+
 				if b.Version != tt.want.Version {
 					t.Errorf("Version: got = %v, want %v", b.Version, tt.want.Version)
 				}
+
 				if b.AccountType != tt.want.AccountType {
 					t.Errorf("AccountType: got = %v, want %v", b.AccountType, tt.want.AccountType)
 				}
+
 				if b.AllowSending != tt.want.AllowSending {
 					t.Errorf("AllowSending: got = %v, want %v", b.AllowSending, tt.want.AllowSending)
 				}
+
 				if b.AllowReceiving != tt.want.AllowReceiving {
 					t.Errorf("AllowReceiving: got = %v, want %v", b.AllowReceiving, tt.want.AllowReceiving)
 				}
@@ -1133,6 +1184,8 @@ func TestBalanceRedis_UnmarshalJSON(t *testing.T) {
 // an error. Instead of propagating the error to the caller, it should fall
 // back to the non-sharded (legacy) Redis key and continue the lookup.
 func TestValidateIfBalanceExistsOnRedis_ShardResolutionFailure(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

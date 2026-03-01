@@ -11,8 +11,15 @@ import (
 	"reflect"
 	"testing"
 
+	goredis "github.com/redis/go-redis/v9"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	redisAdapter "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
@@ -21,11 +28,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	goredis "github.com/redis/go-redis/v9"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // shardLookupFailRedisClient is a focused test stub that only implements HGet.
@@ -35,13 +37,15 @@ type shardLookupFailRedisClient struct {
 	goredis.UniversalClient
 }
 
-func (f *shardLookupFailRedisClient) HGet(_ context.Context, _ string, _ string) *goredis.StringCmd {
-	return goredis.NewStringResult("", errors.New("forced shard lookup failure"))
+func (f *shardLookupFailRedisClient) HGet(_ context.Context, _, _ string) *goredis.StringCmd {
+	return goredis.NewStringResult("", errors.New("forced shard lookup failure")) //nolint:err113
 }
 
-func TestGetBalanceByID(t *testing.T) {
+func TestGetBalanceByID(t *testing.T) { //nolint:funlen
 	t.Parallel()
 	t.Run("SuccessNoCacheOverlay", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -78,11 +82,13 @@ func TestGetBalanceByID(t *testing.T) {
 
 		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, bal, out)
 	})
 
 	t.Run("RepoReturnsNilBalance", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -102,12 +108,15 @@ func TestGetBalanceByID(t *testing.T) {
 
 		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
-		assert.Error(t, err)
+		require.Error(t, err)
+
 		var nf pkg.EntityNotFoundError
-		assert.True(t, errors.As(err, &nf))
+		require.ErrorAs(t, err, &nf)
 		assert.Nil(t, out)
 	})
 	t.Run("RedisOverlayApplied", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -156,13 +165,15 @@ func TestGetBalanceByID(t *testing.T) {
 
 		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, decimal.RequireFromString("123.45"), out.Available)
 		assert.Equal(t, decimal.RequireFromString("6.78"), out.OnHold)
 		assert.Equal(t, int64(9), out.Version)
 	})
 
 	t.Run("RedisOverlayAppliedUsesShardKeyWhenShardRouterConfigured", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -206,6 +217,7 @@ func TestGetBalanceByID(t *testing.T) {
 
 		payload, marshalErr := json.Marshal(cached)
 		require.NoError(t, marshalErr)
+
 		shardID := router.Resolve(base.Alias)
 		shardKey := utils.BalanceShardKey(shardID, orgID, ledgerID, base.Alias+"#"+base.Key)
 
@@ -213,13 +225,15 @@ func TestGetBalanceByID(t *testing.T) {
 
 		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, out.Available.Equal(decimal.RequireFromString("999.99")))
 		assert.True(t, out.OnHold.Equal(decimal.RequireFromString("0.01")))
 		assert.Equal(t, int64(17), out.Version)
 	})
 
 	t.Run("ShardResolutionErrorFallsBackToDeterministicShard", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -252,7 +266,7 @@ func TestGetBalanceByID(t *testing.T) {
 		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(base, nil)
 		fallbackShardID := router.Resolve(base.Alias)
 		fallbackKey := utils.BalanceShardKey(fallbackShardID, orgID, ledgerID, base.Alias+"#"+base.Key)
-		redisRepo.EXPECT().Get(gomock.Any(), fallbackKey).Return("", errors.New("redis unavailable"))
+		redisRepo.EXPECT().Get(gomock.Any(), fallbackKey).Return("", errors.New("redis unavailable")) //nolint:err113
 
 		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
@@ -278,7 +292,7 @@ func TestGetBalanceByID(t *testing.T) {
 			onHold:        "1",
 			version:       2,
 			redisResponse: "",
-			redisErr:      errors.New("redis down"),
+			redisErr:      errors.New("redis down"), //nolint:err113
 		},
 		{
 			name:          "InvalidCachePayloadSkipsOverlay",
@@ -293,6 +307,8 @@ func TestGetBalanceByID(t *testing.T) {
 
 	for _, tt := range gracefulDegradationTests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -326,13 +342,16 @@ func TestGetBalanceByID(t *testing.T) {
 
 			out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.True(t, out.Available.Equal(decimal.RequireFromString(tt.available)), "available should match postgres value")
 			assert.True(t, out.OnHold.Equal(decimal.RequireFromString(tt.onHold)), "onHold should match postgres value")
 			assert.Equal(t, tt.version, out.Version, "version should match postgres value")
 		})
 	}
+
 	t.Run("NotFoundReturnsError", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -351,12 +370,15 @@ func TestGetBalanceByID(t *testing.T) {
 
 		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
-		assert.Error(t, err)
+		require.Error(t, err)
+
 		var nf pkg.EntityNotFoundError
-		assert.True(t, errors.As(err, &nf))
+		require.ErrorAs(t, err, &nf)
 		assert.Nil(t, out)
 	})
 	t.Run("RepoErrorPreventsRedisCall", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -373,7 +395,7 @@ func TestGetBalanceByID(t *testing.T) {
 
 		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, out)
 	})
 }

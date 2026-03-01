@@ -10,15 +10,17 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	midazpkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func setupCreateBalanceUseCase(t *testing.T) (*UseCase, *balance.MockRepository) {
@@ -34,7 +36,10 @@ func setupCreateBalanceUseCase(t *testing.T) (*UseCase, *balance.MockRepository)
 	}, mockBalanceRepo
 }
 
+//nolint:funlen
 func TestCreateBalance(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
@@ -42,6 +47,7 @@ func TestCreateBalance(t *testing.T) {
 	alias := "test-alias"
 
 	t.Run("creates balance from valid queue data", func(t *testing.T) {
+		t.Parallel()
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		account := mmodel.Account{
@@ -80,6 +86,7 @@ func TestCreateBalance(t *testing.T) {
 				assert.Equal(t, "deposit", b.AccountType)
 				assert.True(t, b.AllowSending)
 				assert.True(t, b.AllowReceiving)
+
 				return nil
 			}).
 			Times(1)
@@ -90,6 +97,8 @@ func TestCreateBalance(t *testing.T) {
 	})
 
 	t.Run("balance already exists", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		account := mmodel.Account{
@@ -129,6 +138,8 @@ func TestCreateBalance(t *testing.T) {
 	})
 
 	t.Run("error creating balance", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		account := mmodel.Account{
@@ -158,16 +169,18 @@ func TestCreateBalance(t *testing.T) {
 
 		mockBalanceRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
-			Return(errors.New("database error")).
+			Return(errors.New("database error")). //nolint:err113
 			Times(1)
 
 		err := uc.CreateBalance(ctx, queue)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "database error", err.Error())
 	})
 
 	t.Run("unmarshal error", func(t *testing.T) {
+		t.Parallel()
+
 		uc, _ := setupCreateBalanceUseCase(t)
 
 		queueData := []mmodel.QueueData{
@@ -186,11 +199,13 @@ func TestCreateBalance(t *testing.T) {
 
 		err := uc.CreateBalance(ctx, queue)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid")
 	})
 
 	t.Run("empty queue data returns nil", func(t *testing.T) {
+		t.Parallel()
+
 		uc, _ := setupCreateBalanceUseCase(t)
 
 		queue := mmodel.Queue{
@@ -206,13 +221,17 @@ func TestCreateBalance(t *testing.T) {
 	})
 }
 
+//nolint:funlen
 func TestCreateBalanceSync(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	accountID := uuid.New()
 
 	t.Run("creates default balance", func(t *testing.T) {
+		t.Parallel()
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		input := mmodel.CreateBalanceInput{
@@ -245,19 +264,22 @@ func TestCreateBalanceSync(t *testing.T) {
 				assert.Equal(t, "deposit", b.AccountType)
 				assert.True(t, b.AllowSending)
 				assert.True(t, b.AllowReceiving)
+
 				return nil
 			}).
 			Times(1)
 
 		result, err := uc.CreateBalanceSync(ctx, input)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, "default", result.Key)
 		assert.Equal(t, "test-alias", result.Alias)
 	})
 
 	t.Run("normalizes key to lowercase and trims whitespace", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		input := mmodel.CreateBalanceInput{
@@ -294,12 +316,14 @@ func TestCreateBalanceSync(t *testing.T) {
 
 		result, err := uc.CreateBalanceSync(ctx, input)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, "upper-case-key", result.Key)
 	})
 
 	t.Run("error checking default balance existence", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		input := mmodel.CreateBalanceInput{
@@ -314,7 +338,7 @@ func TestCreateBalanceSync(t *testing.T) {
 			AllowReceiving: true,
 		}
 
-		expectedErr := errors.New("database connection error")
+		expectedErr := errors.New("database connection error") //nolint:err113
 		mockBalanceRepo.EXPECT().
 			ExistsByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, constant.DefaultBalanceKey).
 			Return(false, expectedErr).
@@ -322,12 +346,14 @@ func TestCreateBalanceSync(t *testing.T) {
 
 		result, err := uc.CreateBalanceSync(ctx, input)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, expectedErr, err)
 	})
 
 	t.Run("default balance not found", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		input := mmodel.CreateBalanceInput{
@@ -349,15 +375,17 @@ func TestCreateBalanceSync(t *testing.T) {
 
 		result, err := uc.CreateBalanceSync(ctx, input)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 
 		var notFoundErr midazpkg.EntityNotFoundError
-		assert.True(t, errors.As(err, &notFoundErr))
+		require.ErrorAs(t, err, &notFoundErr)
 		assert.Equal(t, constant.ErrDefaultBalanceNotFound.Error(), notFoundErr.Code)
 	})
 
 	t.Run("additional balance not allowed for external account", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		input := mmodel.CreateBalanceInput{
@@ -379,15 +407,17 @@ func TestCreateBalanceSync(t *testing.T) {
 
 		result, err := uc.CreateBalanceSync(ctx, input)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 
 		var validationErr midazpkg.ValidationError
-		assert.True(t, errors.As(err, &validationErr))
+		require.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, constant.ErrAdditionalBalanceNotAllowed.Error(), validationErr.Code)
 	})
 
 	t.Run("creates external shard balance key", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		input := mmodel.CreateBalanceInput{
@@ -424,12 +454,14 @@ func TestCreateBalanceSync(t *testing.T) {
 
 		result, err := uc.CreateBalanceSync(ctx, input)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, shard.ExternalBalanceKey(3), result.Key)
 	})
 
 	t.Run("error checking key existence", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		input := mmodel.CreateBalanceInput{
@@ -449,7 +481,7 @@ func TestCreateBalanceSync(t *testing.T) {
 			Return(true, nil).
 			Times(1)
 
-		expectedErr := errors.New("database error")
+		expectedErr := errors.New("database error") //nolint:err113
 		mockBalanceRepo.EXPECT().
 			ExistsByAccountIDAndKey(gomock.Any(), organizationID, ledgerID, accountID, "custom-key").
 			Return(false, expectedErr).
@@ -457,12 +489,14 @@ func TestCreateBalanceSync(t *testing.T) {
 
 		result, err := uc.CreateBalanceSync(ctx, input)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, expectedErr, err)
 	})
 
 	t.Run("balance key already exists", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		input := mmodel.CreateBalanceInput{
@@ -489,15 +523,17 @@ func TestCreateBalanceSync(t *testing.T) {
 
 		result, err := uc.CreateBalanceSync(ctx, input)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 
 		var conflictErr midazpkg.EntityConflictError
-		assert.True(t, errors.As(err, &conflictErr))
+		require.ErrorAs(t, err, &conflictErr)
 		assert.Equal(t, constant.ErrDuplicatedAliasKeyValue.Error(), conflictErr.Code)
 	})
 
 	t.Run("creates non-default balance", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		input := mmodel.CreateBalanceInput{
@@ -534,13 +570,14 @@ func TestCreateBalanceSync(t *testing.T) {
 				assert.Equal(t, "deposit", b.AccountType)
 				assert.False(t, b.AllowSending)
 				assert.True(t, b.AllowReceiving)
+
 				return nil
 			}).
 			Times(1)
 
 		result, err := uc.CreateBalanceSync(ctx, input)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, "custom-key", result.Key)
 		assert.False(t, result.AllowSending)
@@ -548,6 +585,8 @@ func TestCreateBalanceSync(t *testing.T) {
 	})
 
 	t.Run("error creating balance", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		input := mmodel.CreateBalanceInput{
@@ -567,7 +606,7 @@ func TestCreateBalanceSync(t *testing.T) {
 			Return(false, nil).
 			Times(1)
 
-		expectedErr := errors.New("database error")
+		expectedErr := errors.New("database error") //nolint:err113
 		mockBalanceRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
 			Return(expectedErr).
@@ -575,12 +614,14 @@ func TestCreateBalanceSync(t *testing.T) {
 
 		result, err := uc.CreateBalanceSync(ctx, input)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, expectedErr, err)
 	})
 
 	t.Run("verifies balance properties on creation", func(t *testing.T) {
+		t.Parallel()
+
 		uc, mockBalanceRepo := setupCreateBalanceUseCase(t)
 
 		input := mmodel.CreateBalanceInput{
@@ -617,13 +658,14 @@ func TestCreateBalanceSync(t *testing.T) {
 				assert.False(t, b.AllowReceiving)
 				assert.False(t, b.CreatedAt.IsZero())
 				assert.False(t, b.UpdatedAt.IsZero())
+
 				return nil
 			}).
 			Times(1)
 
 		result, err := uc.CreateBalanceSync(ctx, input)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, "my-alias", result.Alias)
 		assert.Equal(t, "BRL", result.AssetCode)

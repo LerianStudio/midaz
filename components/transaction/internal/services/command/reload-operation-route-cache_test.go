@@ -9,17 +9,28 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestReloadOperationRouteCache_Success tests successful cache reload with multiple transaction routes
+// Sentinel errors for test assertions.
+var (
+	errTestDBConnectionRORC         = errors.New("database connection error")
+	errTestTransactionRouteNotFound = errors.New("transaction route not found")
+	errTestRedisConnectionRORC      = errors.New("redis connection error")
+	errTestRouteNotFound            = errors.New("route not found")
+)
+
+// TestReloadOperationRouteCache_Success tests successful cache reload with multiple transaction routes.
 func TestReloadOperationRouteCache_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -81,10 +92,10 @@ func TestReloadOperationRouteCache_Success(t *testing.T) {
 
 	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
-// TestReloadOperationRouteCache_NoTransactionRoutes tests successful handling when no transaction routes are found
+// TestReloadOperationRouteCache_NoTransactionRoutes tests successful handling when no transaction routes are found.
 func TestReloadOperationRouteCache_NoTransactionRoutes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -110,10 +121,10 @@ func TestReloadOperationRouteCache_NoTransactionRoutes(t *testing.T) {
 
 	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
-// TestReloadOperationRouteCache_FindTransactionRouteIDsError tests error handling when FindTransactionRouteIDs fails
+// TestReloadOperationRouteCache_FindTransactionRouteIDsError tests error handling when FindTransactionRouteIDs fails.
 func TestReloadOperationRouteCache_FindTransactionRouteIDsError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -132,7 +143,7 @@ func TestReloadOperationRouteCache_FindTransactionRouteIDsError(t *testing.T) {
 		RedisRepo:            mockRedisRepo,
 	}
 
-	dbError := errors.New("database connection error")
+	dbError := errTestDBConnectionRORC
 
 	mockOperationRouteRepo.EXPECT().
 		FindTransactionRouteIDs(gomock.Any(), operationRouteID).
@@ -141,11 +152,11 @@ func TestReloadOperationRouteCache_FindTransactionRouteIDsError(t *testing.T) {
 
 	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, dbError, err)
 }
 
-// TestReloadOperationRouteCache_TransactionRouteNotFound tests handling when transaction route is not found
+// TestReloadOperationRouteCache_TransactionRouteNotFound tests handling when transaction route is not found.
 func TestReloadOperationRouteCache_TransactionRouteNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -172,7 +183,7 @@ func TestReloadOperationRouteCache_TransactionRouteNotFound(t *testing.T) {
 		Return(transactionRouteIDs, nil).
 		Times(1)
 
-	dbError := errors.New("transaction route not found")
+	dbError := errTestTransactionRouteNotFound
 
 	mockTransactionRouteRepo.EXPECT().
 		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
@@ -181,10 +192,10 @@ func TestReloadOperationRouteCache_TransactionRouteNotFound(t *testing.T) {
 
 	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
-// TestReloadOperationRouteCache_CreateCacheError tests handling when cache creation fails
+// TestReloadOperationRouteCache_CreateCacheError tests handling when cache creation fails.
 func TestReloadOperationRouteCache_CreateCacheError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -224,7 +235,7 @@ func TestReloadOperationRouteCache_CreateCacheError(t *testing.T) {
 		Return(transactionRoute, nil).
 		Times(1)
 
-	redisError := errors.New("redis connection error")
+	redisError := errTestRedisConnectionRORC
 
 	mockRedisRepo.EXPECT().
 		SetBytes(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -233,10 +244,10 @@ func TestReloadOperationRouteCache_CreateCacheError(t *testing.T) {
 
 	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
-// TestReloadOperationRouteCache_PartialFailure tests handling when some operations fail but others succeed
+// TestReloadOperationRouteCache_PartialFailure tests handling when some operations fail but others succeed.
 func TestReloadOperationRouteCache_PartialFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -274,7 +285,7 @@ func TestReloadOperationRouteCache_PartialFailure(t *testing.T) {
 
 	mockTransactionRouteRepo.EXPECT().
 		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID1).
-		Return(nil, errors.New("route not found")).
+		Return(nil, errTestRouteNotFound).
 		Times(1)
 
 	mockTransactionRouteRepo.EXPECT().
@@ -289,5 +300,5 @@ func TestReloadOperationRouteCache_PartialFailure(t *testing.T) {
 
 	err := uc.ReloadOperationRouteCache(context.Background(), organizationID, ledgerID, operationRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }

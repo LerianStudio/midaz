@@ -14,16 +14,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-
-	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"   //nolint:depguard
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction" //nolint:depguard
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -34,12 +37,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
-// TransactionHandler struct that handle transaction
+// TransactionHandler struct that handle transaction.
 type TransactionHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
@@ -74,7 +74,11 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 
 	c.SetUserContext(ctx)
 
-	input := p.(*transaction.CreateTransactionInput)
+	input, ok := p.(*transaction.CreateTransactionInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
+
 	transactionInput := input.BuildTransaction()
 	logger.Infof("Request to create an transaction with details: %#v", transactionInput)
 
@@ -120,7 +124,11 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 
 	c.SetUserContext(ctx)
 
-	input := p.(*transaction.CreateTransactionInput)
+	input, ok := p.(*transaction.CreateTransactionInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
+
 	transactionInput := input.BuildTransaction()
 	logger.Infof("Create an transaction annotation without an affected balance: %#v", transactionInput)
 
@@ -156,7 +164,11 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 
 	c.SetUserContext(ctx)
 
-	input := p.(*transaction.CreateTransactionInflowInput)
+	input, ok := p.(*transaction.CreateTransactionInflowInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
+
 	transactionInput := input.BuildInflowEntry()
 	logger.Infof("Request to create an transaction inflow with details: %#v", transactionInput)
 
@@ -199,7 +211,11 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 
 	c.SetUserContext(ctx)
 
-	input := p.(*transaction.CreateTransactionOutflowInput)
+	input, ok := p.(*transaction.CreateTransactionOutflowInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
+
 	transactionInput := input.BuildOutflowEntry()
 	logger.Infof("Request to create an transaction outflow with details: %#v", transactionInput)
 
@@ -331,9 +347,20 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	transactionID, ok := c.Locals("transaction_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid transaction_id"))
+	}
 
 	_, span := tracer.Start(ctx, "handler.commit_transaction")
 	defer span.End()
@@ -375,9 +402,20 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	transactionID, ok := c.Locals("transaction_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid transaction_id"))
+	}
 
 	_, span := tracer.Start(ctx, "handler.cancel_transaction")
 	defer span.End()
@@ -420,9 +458,20 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	transactionID, ok := c.Locals("transaction_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid transaction_id"))
+	}
 
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
 	defer span.End()
@@ -519,13 +568,28 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 	ctx, span := tracer.Start(ctx, "handler.update_transaction")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	transactionID, ok := c.Locals("transaction_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid transaction_id"))
+	}
 
 	logger.Infof("Initiating update of Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String())
 
-	payload := p.(*transaction.UpdateTransactionInput)
+	payload, ok := p.(*transaction.UpdateTransactionInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
+
 	logger.Infof("Request to update an Transaction with details: %#v", payload)
 
 	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload); err != nil {
@@ -581,9 +645,20 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_transaction")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	transactionID, ok := c.Locals("transaction_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid transaction_id"))
+	}
 
 	// Try to get transaction from idempotency cache first
 	if cachedTran, found := handler.Query.GetTransactionFromIdempotencyCache(ctx, organizationID, ledgerID, transactionID); found {
@@ -659,8 +734,15 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_transactions")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -725,7 +807,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 }
 
 // HandleAccountFields processes account and accountAlias fields for transaction entries
-// accountAlias is deprecated but still needs to be handled for backward compatibility
+// accountAlias is deprecated but still needs to be handled for backward compatibility.
 func (handler *TransactionHandler) HandleAccountFields(entries []pkgTransaction.FromTo, isConcat bool) []pkgTransaction.FromTo {
 	result := make([]pkgTransaction.FromTo, 0, len(entries))
 
@@ -755,22 +837,24 @@ func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, tr
 
 			logger.Warnf("transaction date cannot be a future date: %v", err.Error())
 
-			return time.Time{}, err
-		} else if transactionStatus == constant.PENDING {
+			return time.Time{}, err //nolint:wrapcheck
+		}
+
+		if transactionStatus == constant.PENDING {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidPendingFutureTransactionDate, "validateTransactionDate")
 
 			logger.Warnf("pending transaction cannot be used together a transaction date: %v", err.Error())
 
-			return time.Time{}, err
-		} else {
-			transactionDate = transactionInput.TransactionDate.Time()
+			return time.Time{}, err //nolint:wrapcheck
 		}
+
+		transactionDate = transactionInput.TransactionDate.Time()
 	}
 
 	return transactionDate, nil
 }
 
-// BuildOperations builds the operations for the transaction
+// BuildOperations builds the operations for the transaction.
 func (handler *TransactionHandler) BuildOperations(
 	ctx context.Context,
 	balances []*mmodel.Balance,
@@ -792,88 +876,92 @@ func (handler *TransactionHandler) BuildOperations(
 
 	for _, blc := range balances {
 		for i := range fromTo {
-			if blc.Alias == fromTo[i].AccountAlias {
-				logger.Infof("Creating operation for account id: %s and account alias: %s", blc.ID, blc.Alias)
-
-				preBalances = append(preBalances, blc)
-
-				amt, bat, err := pkgTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ToTransactionBalance())
-				if err != nil {
-					libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
-
-					logger.Errorf("Failed to validate balance: %v", err.Error())
-
-					return nil, nil, err
-				}
-
-				amount := operation.Amount{
-					Value: &amt.Value,
-				}
-
-				balance := operation.Balance{
-					Available: &blc.Available,
-					OnHold:    &blc.OnHold,
-					Version:   &blc.Version,
-				}
-
-				balanceAfter := operation.Balance{
-					Available: &bat.Available,
-					OnHold:    &bat.OnHold,
-					Version:   &bat.Version,
-				}
-
-				if isAnnotation {
-					a := decimal.NewFromInt(0)
-					balance.Available = &a
-					balanceAfter.Available = &a
-
-					o := decimal.NewFromInt(0)
-					balance.OnHold = &o
-					balanceAfter.OnHold = &o
-
-					vBefore := int64(0)
-					balance.Version = &vBefore
-					vAfter := int64(0)
-					balanceAfter.Version = &vAfter
-				}
-
-				description := fromTo[i].Description
-				if libCommons.IsNilOrEmpty(&fromTo[i].Description) {
-					description = transactionInput.Description
-				}
-
-				operations = append(operations, &operation.Operation{
-					ID:              libCommons.GenerateUUIDv7().String(),
-					TransactionID:   tran.ID,
-					Description:     description,
-					Type:            amt.Operation,
-					AssetCode:       transactionInput.Send.Asset,
-					ChartOfAccounts: fromTo[i].ChartOfAccounts,
-					Amount:          amount,
-					Balance:         balance,
-					BalanceAfter:    balanceAfter,
-					BalanceID:       blc.ID,
-					AccountID:       blc.AccountID,
-					AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
-					BalanceKey:      blc.Key,
-					OrganizationID:  blc.OrganizationID,
-					LedgerID:        blc.LedgerID,
-					CreatedAt:       transactionDate,
-					UpdatedAt:       time.Now(),
-					Route:           fromTo[i].Route,
-					Metadata:        fromTo[i].Metadata,
-					BalanceAffected: !isAnnotation,
-				})
-
-				metricFactory.RecordTransactionProcessed(ctx, tran.OrganizationID, tran.LedgerID)
+			if blc.Alias != fromTo[i].AccountAlias {
+				continue
 			}
+
+			logger.Infof("Creating operation for account id: %s and account alias: %s", blc.ID, blc.Alias)
+
+			preBalances = append(preBalances, blc)
+
+			amt, bat, err := pkgTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ToTransactionBalance())
+			if err != nil {
+				libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
+
+				logger.Errorf("Failed to validate balance: %v", err.Error())
+
+				return nil, nil, err
+			}
+
+			amount := operation.Amount{
+				Value: &amt.Value,
+			}
+
+			balance := operation.Balance{
+				Available: &blc.Available,
+				OnHold:    &blc.OnHold,
+				Version:   &blc.Version,
+			}
+
+			balanceAfter := operation.Balance{
+				Available: &bat.Available,
+				OnHold:    &bat.OnHold,
+				Version:   &bat.Version,
+			}
+
+			if isAnnotation {
+				a := decimal.NewFromInt(0)
+				balance.Available = &a
+				balanceAfter.Available = &a
+
+				o := decimal.NewFromInt(0)
+				balance.OnHold = &o
+				balanceAfter.OnHold = &o
+
+				vBefore := int64(0)
+				balance.Version = &vBefore
+				vAfter := int64(0)
+				balanceAfter.Version = &vAfter
+			}
+
+			description := fromTo[i].Description
+			if libCommons.IsNilOrEmpty(&fromTo[i].Description) {
+				description = transactionInput.Description
+			}
+
+			operations = append(operations, &operation.Operation{
+				ID:              libCommons.GenerateUUIDv7().String(),
+				TransactionID:   tran.ID,
+				Description:     description,
+				Type:            amt.Operation,
+				AssetCode:       transactionInput.Send.Asset,
+				ChartOfAccounts: fromTo[i].ChartOfAccounts,
+				Amount:          amount,
+				Balance:         balance,
+				BalanceAfter:    balanceAfter,
+				BalanceID:       blc.ID,
+				AccountID:       blc.AccountID,
+				AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+				BalanceKey:      blc.Key,
+				OrganizationID:  blc.OrganizationID,
+				LedgerID:        blc.LedgerID,
+				CreatedAt:       transactionDate,
+				UpdatedAt:       time.Now(),
+				Route:           fromTo[i].Route,
+				Metadata:        fromTo[i].Metadata,
+				BalanceAffected: !isAnnotation,
+			})
+
+			metricFactory.RecordTransactionProcessed(ctx, tran.OrganizationID, tran.LedgerID)
 		}
 	}
 
 	return operations, preBalances, nil
 }
 
-// createTransaction func that received struct from DSL parsed and create Transaction
+// createTransaction func that received struct from DSL parsed and create Transaction.
+//
+//nolint:gocyclo,cyclop,funlen
 func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -881,8 +969,16 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	_, span := tracer.Start(ctx, "handler.create_transaction")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
 	parentID, _ := c.Locals("transaction_id").(uuid.UUID)
 	transactionID := libCommons.GenerateUUIDv7()
 
@@ -1064,7 +1160,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
-	handler.Command.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID.String(), operations)
+	handler.Command.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID.String(), balances, operations)
 
 	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &transactionInput, validate, balances, tran)
 	if err != nil {
@@ -1079,7 +1175,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
-	if err := handler.Command.SetIdempotencyValueAndMapping(ctx, organizationID, ledgerID, key, hash, *tran, ttl, 5*time.Second); err != nil {
+	const idempotencyLockTTLSeconds = 5
+
+	if err := handler.Command.SetIdempotencyValueAndMapping(ctx, organizationID, ledgerID, key, hash, *tran, ttl, idempotencyLockTTLSeconds*time.Second); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to persist idempotency response", err)
 		logger.Errorf("Failed to persist idempotency response for transaction %s: %v", tran.ID, err)
 		c.Set("X-Idempotency-Degraded", "true")
@@ -1089,6 +1187,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 }
 
 // commitOrCancelTransaction func that is responsible to commit or cancel transaction.
+//
+//nolint:funlen
 func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran *transaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -1101,7 +1201,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	lockPendingTransactionKey := utils.PendingTransactionLockKey(organizationID, ledgerID, tran.ID)
 
-	ttl := 300 * time.Second
+	const pendingLockTTLSeconds = 300
+
+	ttl := pendingLockTTLSeconds * time.Second
 
 	success, err := handler.Command.RedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
 	if err != nil {

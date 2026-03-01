@@ -11,12 +11,13 @@ import (
 	"testing"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 )
 
 func newTestManager(t *testing.T, logger libLog.Logger) libCircuitBreaker.Manager {
@@ -42,35 +43,46 @@ func newTestManagerWithConfig(t *testing.T, logger libLog.Logger, cfg CircuitBre
 }
 
 func TestNewCircuitBreakerProducer_ValidatesInput(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logger := libZap.InitializeLogger()
-	manager := newTestManager(t, logger)
+	l, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
+
+	manager := newTestManager(t, l)
 	underlying := NewMockProducerRepository(ctrl)
 
-	producer, err := NewCircuitBreakerProducer(nil, manager, logger, time.Second)
+	producer, err := NewCircuitBreakerProducer(nil, manager, l, time.Second)
 	assert.Nil(t, producer)
-	assert.ErrorIs(t, err, ErrNilUnderlying)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrNilUnderlying)
 
-	producer, err = NewCircuitBreakerProducer(underlying, nil, logger, time.Second)
+	producer, err = NewCircuitBreakerProducer(underlying, nil, l, time.Second)
 	assert.Nil(t, producer)
-	assert.ErrorIs(t, err, ErrNilCBManager)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrNilCBManager)
 
 	producer, err = NewCircuitBreakerProducer(underlying, manager, nil, time.Second)
 	assert.Nil(t, producer)
-	assert.ErrorIs(t, err, ErrNilCBLogger)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrNilCBLogger)
 }
 
 func TestCircuitBreakerProducer_DefaultTimeoutAndDelegation(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logger := libZap.InitializeLogger()
-	manager := newTestManager(t, logger)
+	l, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
+
+	manager := newTestManager(t, l)
 	underlying := NewMockProducerRepository(ctrl)
 
-	producer, err := NewCircuitBreakerProducer(underlying, manager, logger, 0)
+	producer, err := NewCircuitBreakerProducer(underlying, manager, l, 0)
 	require.NoError(t, err)
 	assert.Equal(t, DefaultOperationTimeout, producer.operationTimeout)
 
@@ -81,48 +93,61 @@ func TestCircuitBreakerProducer_DefaultTimeoutAndDelegation(t *testing.T) {
 }
 
 func TestNewCircuitBreakerProducer_ClampsMaxTimeout(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logger := libZap.InitializeLogger()
-	manager := newTestManager(t, logger)
+	l, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
+
+	manager := newTestManager(t, l)
 	underlying := NewMockProducerRepository(ctrl)
 
-	producer, err := NewCircuitBreakerProducer(underlying, manager, logger, MaxOperationTimeout+time.Second)
+	producer, err := NewCircuitBreakerProducer(underlying, manager, l, MaxOperationTimeout+time.Second)
 	require.NoError(t, err)
 	assert.Equal(t, MaxOperationTimeout, producer.operationTimeout)
 }
 
 func TestCircuitBreakerProducer_ReturnsServiceUnavailableWhenOpen(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logger := libZap.InitializeLogger()
-	manager := newTestManager(t, logger)
-	underlying := NewMockProducerRepository(ctrl)
-
-	producer, err := NewCircuitBreakerProducer(underlying, manager, logger, time.Second)
+	l, err := libZap.InitializeLoggerWithError()
 	require.NoError(t, err)
 
-	underlying.EXPECT().ProducerDefault(gomock.Any(), "topic", "key", []byte("payload")).Return(nil, errors.New("broker down")).AnyTimes()
+	manager := newTestManager(t, l)
+	underlying := NewMockProducerRepository(ctrl)
+
+	producer, err := NewCircuitBreakerProducer(underlying, manager, l, time.Second)
+	require.NoError(t, err)
+
+	underlying.EXPECT().ProducerDefault(gomock.Any(), "topic", "key", []byte("payload")).Return(nil, errors.New("broker down")).AnyTimes() //nolint:err113
 
 	_, firstErr := producer.ProducerDefault(context.Background(), "topic", "key", []byte("payload"))
-	assert.Error(t, firstErr)
+	require.Error(t, firstErr)
+
 	_, err = producer.ProducerDefault(context.Background(), "topic", "key", []byte("payload"))
 
-	assert.ErrorIs(t, err, ErrServiceUnavailable)
+	require.ErrorIs(t, err, ErrServiceUnavailable)
 	assert.Equal(t, libCircuitBreaker.StateOpen, producer.GetCircuitState())
 }
 
 func TestCircuitBreakerProducer_ProducerDefaultWithContext_UsesScopedTimeout(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logger := libZap.InitializeLogger()
-	manager := newTestManager(t, logger)
+	l, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
+
+	manager := newTestManager(t, l)
 	underlying := NewMockProducerRepository(ctrl)
 
-	producer, err := NewCircuitBreakerProducer(underlying, manager, logger, 100*time.Millisecond)
+	producer, err := NewCircuitBreakerProducer(underlying, manager, l, 100*time.Millisecond)
 	require.NoError(t, err)
 
 	underlying.EXPECT().ProducerDefaultWithContext(gomock.Any(), "topic", "key", []byte("payload")).DoAndReturn(
@@ -140,57 +165,70 @@ func TestCircuitBreakerProducer_ProducerDefaultWithContext_UsesScopedTimeout(t *
 }
 
 func TestCircuitBreakerProducer_ProducerDefaultWithContext_ServiceUnavailableWhenOpen(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logger := libZap.InitializeLogger()
-	manager := newTestManager(t, logger)
-	underlying := NewMockProducerRepository(ctrl)
-
-	producer, err := NewCircuitBreakerProducer(underlying, manager, logger, time.Second)
+	l, err := libZap.InitializeLoggerWithError()
 	require.NoError(t, err)
 
-	underlying.EXPECT().ProducerDefaultWithContext(gomock.Any(), "topic", "key", []byte("payload")).Return(nil, errors.New("broker down")).AnyTimes()
+	manager := newTestManager(t, l)
+	underlying := NewMockProducerRepository(ctrl)
+
+	producer, err := NewCircuitBreakerProducer(underlying, manager, l, time.Second)
+	require.NoError(t, err)
+
+	underlying.EXPECT().ProducerDefaultWithContext(gomock.Any(), "topic", "key", []byte("payload")).Return(nil, errors.New("broker down")).AnyTimes() //nolint:err113
 
 	_, firstErr := producer.ProducerDefaultWithContext(context.Background(), "topic", "key", []byte("payload"))
-	assert.Error(t, firstErr)
+	require.Error(t, firstErr)
+
 	_, err = producer.ProducerDefaultWithContext(context.Background(), "topic", "key", []byte("payload"))
 
-	assert.ErrorIs(t, err, ErrServiceUnavailable)
+	require.ErrorIs(t, err, ErrServiceUnavailable)
 	assert.Equal(t, libCircuitBreaker.StateOpen, producer.GetCircuitState())
 }
 
 func TestCircuitBreakerProducer_DelegatesHealthAndClose(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logger := libZap.InitializeLogger()
-	manager := newTestManager(t, logger)
+	l, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
+
+	manager := newTestManager(t, l)
 	underlying := NewMockProducerRepository(ctrl)
 
-	producer, err := NewCircuitBreakerProducer(underlying, manager, logger, time.Second)
+	producer, err := NewCircuitBreakerProducer(underlying, manager, l, time.Second)
 	require.NoError(t, err)
 
 	underlying.EXPECT().CheckHealth().Return(true)
 	assert.True(t, producer.CheckHealth())
 
 	underlying.EXPECT().Close().Return(nil)
-	assert.NoError(t, producer.Close())
+	require.NoError(t, producer.Close())
 
 	_ = producer.IsCircuitHealthy()
 	_ = producer.GetCounts()
 }
 
 func TestCircuitBreakerProducer_Close_NilReceiver(t *testing.T) {
+	t.Parallel()
+
 	var producer *CircuitBreakerProducer
 	assert.NoError(t, producer.Close())
 }
 
 func TestCircuitBreakerProducer_NilReceiverGuards(t *testing.T) {
+	t.Parallel()
+
 	var producer *CircuitBreakerProducer
 
 	_, err := producer.ProducerDefault(context.Background(), "topic", "key", []byte("payload"))
-	assert.ErrorIs(t, err, ErrInternalProducerError)
+	require.ErrorIs(t, err, ErrInternalProducerError)
 
 	assert.False(t, producer.CheckHealth())
 	assert.False(t, producer.IsCircuitHealthy())
@@ -199,10 +237,14 @@ func TestCircuitBreakerProducer_NilReceiverGuards(t *testing.T) {
 }
 
 func TestCircuitBreakerProducer_TransitionsToHalfOpenAndRecovers(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logger := libZap.InitializeLogger()
+	l, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
+
 	cfg := CircuitBreakerConfig{
 		ConsecutiveFailures: 1,
 		FailureRatio:        0,
@@ -211,19 +253,19 @@ func TestCircuitBreakerProducer_TransitionsToHalfOpenAndRecovers(t *testing.T) {
 		MinRequests:         1,
 		Timeout:             50 * time.Millisecond,
 	}
-	manager := newTestManagerWithConfig(t, logger, cfg)
+	manager := newTestManagerWithConfig(t, l, cfg)
 	underlying := NewMockProducerRepository(ctrl)
 
-	producer, err := NewCircuitBreakerProducer(underlying, manager, logger, time.Second)
+	producer, err := NewCircuitBreakerProducer(underlying, manager, l, time.Second)
 	require.NoError(t, err)
 
 	gomock.InOrder(
-		underlying.EXPECT().ProducerDefaultWithContext(gomock.Any(), "topic", "key", []byte("payload")).Return(nil, errors.New("broker down")),
+		underlying.EXPECT().ProducerDefaultWithContext(gomock.Any(), "topic", "key", []byte("payload")).Return(nil, errors.New("broker down")), //nolint:err113
 		underlying.EXPECT().ProducerDefaultWithContext(gomock.Any(), "topic", "key", []byte("payload")).Return(nil, nil),
 	)
 
 	_, err = producer.ProducerDefaultWithContext(context.Background(), "topic", "key", []byte("payload"))
-	assert.ErrorIs(t, err, ErrServiceUnavailable)
+	require.ErrorIs(t, err, ErrServiceUnavailable)
 	require.Eventually(t, func() bool {
 		return producer.GetCircuitState() == libCircuitBreaker.StateOpen
 	}, time.Second, 10*time.Millisecond)
@@ -231,18 +273,22 @@ func TestCircuitBreakerProducer_TransitionsToHalfOpenAndRecovers(t *testing.T) {
 	time.Sleep(cfg.Timeout + 20*time.Millisecond)
 
 	_, err = producer.ProducerDefaultWithContext(context.Background(), "topic", "key", []byte("payload"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		return producer.GetCircuitState() == libCircuitBreaker.StateClosed
 	}, time.Second, 10*time.Millisecond)
 }
 
 func TestCircuitBreakerProducer_ProducerDefaultWithContext_RespectsCancelledContext(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logger := libZap.InitializeLogger()
-	manager := newTestManagerWithConfig(t, logger, CircuitBreakerConfig{
+	l, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
+
+	manager := newTestManagerWithConfig(t, l, CircuitBreakerConfig{
 		ConsecutiveFailures: 5,
 		FailureRatio:        0,
 		Interval:            time.Minute,
@@ -252,7 +298,7 @@ func TestCircuitBreakerProducer_ProducerDefaultWithContext_RespectsCancelledCont
 	})
 	underlying := NewMockProducerRepository(ctrl)
 
-	producer, err := NewCircuitBreakerProducer(underlying, manager, logger, time.Second)
+	producer, err := NewCircuitBreakerProducer(underlying, manager, l, time.Second)
 	require.NoError(t, err)
 
 	underlying.EXPECT().ProducerDefaultWithContext(gomock.Any(), "topic", "key", []byte("payload")).DoAndReturn(
@@ -270,11 +316,15 @@ func TestCircuitBreakerProducer_ProducerDefaultWithContext_RespectsCancelledCont
 }
 
 func TestCircuitBreakerProducer_ConcurrentCallsRemainSafe(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	logger := libZap.InitializeLogger()
-	manager := newTestManagerWithConfig(t, logger, CircuitBreakerConfig{
+	l, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
+
+	manager := newTestManagerWithConfig(t, l, CircuitBreakerConfig{
 		ConsecutiveFailures: 3,
 		FailureRatio:        0,
 		Interval:            time.Minute,
@@ -284,19 +334,22 @@ func TestCircuitBreakerProducer_ConcurrentCallsRemainSafe(t *testing.T) {
 	})
 	underlying := NewMockProducerRepository(ctrl)
 
-	producer, err := NewCircuitBreakerProducer(underlying, manager, logger, time.Second)
+	producer, err := NewCircuitBreakerProducer(underlying, manager, l, time.Second)
 	require.NoError(t, err)
 
-	underlying.EXPECT().ProducerDefaultWithContext(gomock.Any(), "topic", "key", []byte("payload")).Return(nil, errors.New("broker down")).AnyTimes()
+	underlying.EXPECT().ProducerDefaultWithContext(gomock.Any(), "topic", "key", []byte("payload")).Return(nil, errors.New("broker down")).AnyTimes() //nolint:err113
 
 	const workers = 32
+
 	errCh := make(chan error, workers)
 
 	var wg sync.WaitGroup
 	for range workers {
 		wg.Add(1)
+
 		go func() {
 			defer wg.Done()
+
 			_, callErr := producer.ProducerDefaultWithContext(context.Background(), "topic", "key", []byte("payload"))
 			errCh <- callErr
 		}()

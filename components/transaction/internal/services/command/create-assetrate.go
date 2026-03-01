@@ -6,19 +6,24 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
+	"github.com/google/uuid"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
 )
 
 // CreateOrUpdateAssetRate creates or updates an asset rate.
+//
+//nolint:funlen
 func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (*assetrate.AssetRate, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -28,7 +33,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	logger.Infof("Initializing the create or update asset rate operation: %v", cari)
 
 	if err := utils.ValidateCode(cari.From); err != nil {
-		err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+		err := fmt.Errorf("validate 'from' asset code: %w", pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name()))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'from' asset code", err)
 
@@ -36,7 +41,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	}
 
 	if err := utils.ValidateCode(cari.To); err != nil {
-		err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+		err := fmt.Errorf("validate 'to' asset code: %w", pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name()))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'to' asset code", err)
 

@@ -14,15 +14,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+	attribute "go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/time/rate"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
-	"github.com/twmb/franz-go/pkg/kgo"
-	attribute "go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/time/rate"
 )
 
 const (
@@ -37,6 +38,24 @@ const (
 	retryTopicSuffix        = ".retry"
 	dltTopicSuffix          = ".dlt"
 	retryAttemptHeader      = "x-midaz-retry-attempt"
+
+	// commitTimeout is the timeout for committing marked offsets.
+	commitTimeout = 5 * time.Second
+	// publishTimeout is the timeout for publishing a failed record.
+	publishTimeout = 5 * time.Second
+	// dispatchRetryAttempts is the number of times to retry dispatching to a partition pool.
+	dispatchRetryAttempts = 2
+	// rerouteDelayMultiplier is the base delay multiplied by attempt number for reroute backoff.
+	rerouteDelayMultiplier = 200 * time.Millisecond
+)
+
+var (
+	// ErrConsumerRoutesNil is returned when consumer routes are nil.
+	ErrConsumerRoutesNil = errors.New("consumer routes are nil")
+	// ErrCannotDispatchNilRecord is returned when a nil record is dispatched.
+	ErrCannotDispatchNilRecord = errors.New("cannot dispatch nil record")
+	// ErrCannotRouteNilRecord is returned when a nil record is routed.
+	ErrCannotRouteNilRecord = errors.New("cannot route failed message: record is nil")
 )
 
 // workerAction represents the action the worker loop should take after handling a job.
@@ -183,6 +202,12 @@ func NewConsumerRoutesWithSecurity(
 		telemetryValue = *telemetry
 	}
 
+	const (
+		defaultBatchSize   = 50
+		defaultBatchWindow = 10 * time.Millisecond
+		defaultIdleFlush   = 100 * time.Millisecond
+	)
+
 	return &ConsumerRoutes{
 		brokers:              brokers,
 		consumerGroup:        consumerGroup,
@@ -200,9 +225,9 @@ func NewConsumerRoutesWithSecurity(
 		partitionHint:        defaultPartitionHint,
 		partitionBufSize:     defaultPartitionBufSize,
 		commitInterval:       defaultCommitInterval,
-		batchSize:            50,
-		batchWindow:          10 * time.Millisecond,
-		idleFlush:            100 * time.Millisecond,
+		batchSize:            defaultBatchSize,
+		batchWindow:          defaultBatchWindow,
+		idleFlush:            defaultIdleFlush,
 		batchImmediateCommit: true,
 	}
 }
@@ -329,7 +354,7 @@ func (cr *ConsumerRoutes) SetBatchImmediateCommit(enabled bool) {
 // RunConsumers starts the consumer workers.
 func (cr *ConsumerRoutes) RunConsumers() error {
 	if cr == nil {
-		return fmt.Errorf("consumer routes are nil")
+		return ErrConsumerRoutesNil
 	}
 
 	if len(cr.routes) == 0 {
@@ -337,7 +362,9 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 		return nil
 	}
 
-	topicsSet := make(map[string]struct{}, len(cr.routes)*2)
+	const topicsPerRoute = 2
+
+	topicsSet := make(map[string]struct{}, len(cr.routes)*topicsPerRoute)
 	for topic := range cr.routes {
 		topicsSet[topic] = struct{}{}
 		topicsSet[topic+retryTopicSuffix] = struct{}{}
@@ -432,10 +459,10 @@ func (cr *ConsumerRoutes) pollLoop() {
 
 func (cr *ConsumerRoutes) dispatchToPartitionQueue(job queuedRecord) error {
 	if job.record == nil {
-		return fmt.Errorf("cannot dispatch nil record")
+		return ErrCannotDispatchNilRecord
 	}
 
-	for attempt := 0; attempt < 2; attempt++ {
+	for attempt := 0; attempt < dispatchRetryAttempts; attempt++ {
 		pool := cr.getOrCreatePartitionPool(job.record.Partition)
 
 		select {
@@ -444,11 +471,11 @@ func (cr *ConsumerRoutes) dispatchToPartitionQueue(job queuedRecord) error {
 		case <-pool.done:
 			continue
 		case <-cr.ctx.Done():
-			return cr.ctx.Err()
+			return fmt.Errorf("consumer context done while dispatching: %w", cr.ctx.Err())
 		}
 	}
 
-	return fmt.Errorf("partition worker pool unavailable for partition=%d", job.record.Partition)
+	return fmt.Errorf("partition worker pool unavailable for partition=%d", job.record.Partition) //nolint:err113
 }
 
 func (cr *ConsumerRoutes) getOrCreatePartitionPool(partition int32) *partitionWorkerPool {
@@ -734,6 +761,22 @@ func (cr *ConsumerRoutes) processSingleRecord(workerID int, job queuedRecord) bo
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanConsumer, "Error processing message", err)
 		logger.Errorf("Worker %d: Error processing topic=%s err=%v", workerID, job.record.Topic, err)
 
+		if isNonRetryablePayloadError(err) {
+			logger.Warnf(
+				"Worker %d: Dropping non-retryable malformed payload topic=%s partition=%d offset=%d err=%v",
+				workerID,
+				job.record.Topic,
+				job.record.Partition,
+				job.record.Offset,
+				err,
+			)
+
+			spanConsumer.End()
+			cr.markRecord(workerID, logger, job.record)
+
+			return true
+		}
+
 		if routeErr := cr.routeFailedRecordWithRetry(ctx, job.record, err, logger); routeErr != nil {
 			libOpentelemetry.HandleSpanError(&spanConsumer, "Failed to route message to retry/DLT", routeErr)
 			spanConsumer.End()
@@ -756,36 +799,13 @@ func (cr *ConsumerRoutes) processSingleRecord(workerID int, job queuedRecord) bo
 }
 
 func (cr *ConsumerRoutes) processBatchRecords(workerID int, batch []queuedRecord) bool {
+	batch = cr.filterValidBatchRecords(workerID, batch)
 	if len(batch) == 0 {
 		return true
 	}
 
-	validBatch := make([]queuedRecord, 0, len(batch))
-	for _, job := range batch {
-		if job.record == nil {
-			cr.Warnf("Worker %d: Dropping nil record from batch", workerID)
-			continue
-		}
-
-		validBatch = append(validBatch, job)
-	}
-
-	if len(validBatch) == 0 {
-		return true
-	}
-
-	batch = validBatch
-
 	if batch[0].batchHandler == nil {
-		for _, job := range batch {
-			if !cr.processSingleRecord(workerID, job) {
-				return false
-			}
-		}
-
-		cr.commitBatchIfEnabled(workerID, cr.Logger, batch)
-
-		return true
+		return cr.processBatchAsSingleRecords(workerID, batch)
 	}
 
 	ctx, logger, spanConsumer := cr.startRecordSpan(batch[0])
@@ -802,40 +822,106 @@ func (cr *ConsumerRoutes) processBatchRecords(workerID int, batch []queuedRecord
 		}
 	}
 
-	bodies := make([][]byte, 0, len(batch))
-	for _, job := range batch {
-		bodies = append(bodies, job.record.Value)
-	}
+	bodies := extractBatchBodies(batch)
 
 	err := batch[0].batchHandler(ctx, bodies)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanConsumer, "Error processing batch", err)
-		logger.Errorf("Worker %d: Error processing batch topic=%s size=%d err=%v", workerID, batch[0].record.Topic, len(batch), err)
-
-		failedBatch := cr.handleBatchFailedRecords(workerID, logger, batch, err)
-
-		for _, job := range failedBatch {
-			if !cr.processSingleRecord(workerID, job) {
-				spanConsumer.End()
-				return false
-			}
-		}
-
-		cr.commitBatchIfEnabled(workerID, logger, batch)
-		spanConsumer.End()
-
-		return true
+		ok := cr.handleBatchProcessingError(workerID, logger, &spanConsumer, batch, err)
+		return ok
 	}
 
-	for _, job := range batch {
-		cr.markRecord(workerID, logger, job.record)
-	}
-
+	cr.markBatchRecords(workerID, logger, batch)
 	cr.commitBatchIfEnabled(workerID, logger, batch)
 
 	spanConsumer.End()
 
 	return true
+}
+
+// filterValidBatchRecords removes records with nil kgo.Record from the batch,
+// logging a warning for each dropped record.
+func (cr *ConsumerRoutes) filterValidBatchRecords(workerID int, batch []queuedRecord) []queuedRecord {
+	if len(batch) == 0 {
+		return nil
+	}
+
+	validBatch := make([]queuedRecord, 0, len(batch))
+
+	for _, job := range batch {
+		if job.record == nil {
+			cr.Warnf("Worker %d: Dropping nil record from batch", workerID)
+			continue
+		}
+
+		validBatch = append(validBatch, job)
+	}
+
+	return validBatch
+}
+
+// processBatchAsSingleRecords falls back to processing each record individually
+// when no batch handler is available.
+func (cr *ConsumerRoutes) processBatchAsSingleRecords(workerID int, batch []queuedRecord) bool {
+	for _, job := range batch {
+		if !cr.processSingleRecord(workerID, job) {
+			return false
+		}
+	}
+
+	cr.commitBatchIfEnabled(workerID, cr.Logger, batch)
+
+	return true
+}
+
+// extractBatchBodies collects the raw message bodies from each record in the batch.
+func extractBatchBodies(batch []queuedRecord) [][]byte {
+	bodies := make([][]byte, 0, len(batch))
+	for _, job := range batch {
+		bodies = append(bodies, job.record.Value)
+	}
+
+	return bodies
+}
+
+// handleBatchProcessingError handles errors from batch processing by either
+// dropping non-retryable records or falling back to individual record processing.
+func (cr *ConsumerRoutes) handleBatchProcessingError(
+	workerID int,
+	logger libLog.Logger,
+	spanConsumer *trace.Span,
+	batch []queuedRecord,
+	err error,
+) bool {
+	libOpentelemetry.HandleSpanBusinessErrorEvent(spanConsumer, "Error processing batch", err)
+	logger.Errorf("Worker %d: Error processing batch topic=%s size=%d err=%v", workerID, batch[0].record.Topic, len(batch), err)
+
+	if isNonRetryablePayloadError(err) {
+		cr.markBatchRecords(workerID, logger, batch)
+		(*spanConsumer).End()
+
+		return true
+	}
+
+	failedBatch := cr.handleBatchFailedRecords(workerID, logger, batch, err)
+
+	for _, job := range failedBatch {
+		if !cr.processSingleRecord(workerID, job) {
+			(*spanConsumer).End()
+			return false
+		}
+	}
+
+	cr.commitBatchIfEnabled(workerID, logger, batch)
+	(*spanConsumer).End()
+
+	return true
+}
+
+// markBatchRecords marks all records in a batch as consumed.
+func (cr *ConsumerRoutes) markBatchRecords(workerID int, logger libLog.Logger, batch []queuedRecord) {
+	for _, job := range batch {
+		cr.markRecord(workerID, logger, job.record)
+	}
 }
 
 // handleBatchFailedRecords processes failed batch records by identifying specific failed indexes
@@ -1031,7 +1117,7 @@ func (cr *ConsumerRoutes) commitMarkedOffsets() {
 		return
 	}
 
-	commitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	commitCtx, cancel := context.WithTimeout(context.Background(), commitTimeout)
 	defer cancel()
 
 	if err := cr.client.CommitMarkedOffsets(commitCtx); err != nil {
@@ -1041,7 +1127,7 @@ func (cr *ConsumerRoutes) commitMarkedOffsets() {
 
 func (cr *ConsumerRoutes) routeFailedRecord(ctx context.Context, record *kgo.Record, handlerErr error, logger libLog.Logger) error {
 	if record == nil {
-		return fmt.Errorf("cannot route failed message: record is nil")
+		return ErrCannotRouteNilRecord
 	}
 
 	attempt := parseRetryAttempt(record.Headers)
@@ -1060,7 +1146,7 @@ func (cr *ConsumerRoutes) routeFailedRecord(ctx context.Context, record *kgo.Rec
 		Timestamp: time.Now(),
 	}
 
-	publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	publishCtx, cancel := context.WithTimeout(ctx, publishTimeout)
 	defer cancel()
 
 	if err := cr.client.ProduceSync(publishCtx, failedRecord).FirstErr(); err != nil {
@@ -1093,17 +1179,18 @@ func (cr *ConsumerRoutes) routeFailedRecordWithRetry(ctx context.Context, record
 	}
 
 	for attempt := 1; attempt <= defaultRerouteAttempts; attempt++ {
-		if err := cr.routeFailedRecord(ctx, record, handlerErr, logger); err == nil {
+		routeErr := cr.routeFailedRecord(ctx, record, handlerErr, logger)
+		if routeErr == nil {
 			return nil
-		} else {
-			lastErr = err
 		}
+
+		lastErr = routeErr
 
 		if attempt == defaultRerouteAttempts {
 			break
 		}
 
-		delay := time.Duration(attempt) * 200 * time.Millisecond
+		delay := time.Duration(attempt) * rerouteDelayMultiplier
 		logger.Warnf(
 			"Reroute attempt %d/%d failed for topic=%s partition=%d offset=%d err=%v; retrying in %s",
 			attempt,
@@ -1165,6 +1252,17 @@ func cloneHeaders(headers []kgo.RecordHeader) []kgo.RecordHeader {
 	copy(cloned, headers)
 
 	return cloned
+}
+
+func isNonRetryablePayloadError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := err.Error()
+
+	return strings.Contains(msg, "invalid queue payload:") ||
+		strings.Contains(msg, "invalid transaction payload:")
 }
 
 func upsertHeader(headers []kgo.RecordHeader, key string, value []byte) []kgo.RecordHeader {

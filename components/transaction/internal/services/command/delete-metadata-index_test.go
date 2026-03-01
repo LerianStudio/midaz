@@ -9,11 +9,21 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 )
 
+// Sentinel errors for test assertions.
+var (
+	errTestDeleteIndex    = errors.New("failed to delete index")
+	errTestCode0130       = errors.New("0130")
+	errTestDBConnectionDM = errors.New("database connection error")
+)
+
+//nolint:funlen
 func TestDeleteMetadataIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -113,7 +123,7 @@ func TestDeleteMetadataIndex(t *testing.T) {
 			setupMocks: func() {
 				mockMetadataRepo.EXPECT().
 					DeleteIndex(gomock.Any(), "transaction", "metadata.tier_1").
-					Return(errors.New("failed to delete index")).
+					Return(errTestDeleteIndex).
 					Times(1)
 			},
 			expectedErr: true,
@@ -126,7 +136,7 @@ func TestDeleteMetadataIndex(t *testing.T) {
 			setupMocks: func() {
 				mockMetadataRepo.EXPECT().
 					DeleteIndex(gomock.Any(), "transaction", "metadata.nonexistent_1").
-					Return(errors.New("0130")).
+					Return(errTestCode0130).
 					Times(1)
 			},
 			expectedErr: true,
@@ -139,7 +149,7 @@ func TestDeleteMetadataIndex(t *testing.T) {
 			setupMocks: func() {
 				mockMetadataRepo.EXPECT().
 					DeleteIndex(gomock.Any(), "operation", "metadata.field_1").
-					Return(errors.New("database connection error")).
+					Return(errTestDBConnectionDM).
 					Times(1)
 			},
 			expectedErr: true,
@@ -154,18 +164,19 @@ func TestDeleteMetadataIndex(t *testing.T) {
 			err := uc.DeleteMetadataIndex(ctx, tt.entityName, tt.indexName)
 
 			if tt.expectedErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
 }
 
-// TestDeleteMetadataIndexValidatesPrefix tests that only indexes with "metadata." prefix can be deleted
+// TestDeleteMetadataIndexValidatesPrefix tests that only indexes with "metadata." prefix can be deleted.
 func TestDeleteMetadataIndexValidatesPrefix(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -193,13 +204,13 @@ func TestDeleteMetadataIndexValidatesPrefix(t *testing.T) {
 		t.Run(indexName, func(t *testing.T) {
 			err := uc.DeleteMetadataIndex(ctx, "transaction", indexName)
 
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), "0137")
 		})
 	}
 }
 
-// TestDeleteMetadataIndexValidPrefixes tests that indexes with valid "metadata." prefix are accepted
+// TestDeleteMetadataIndexValidPrefixes tests that indexes with valid "metadata." prefix are accepted.
 func TestDeleteMetadataIndexValidPrefixes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -229,12 +240,12 @@ func TestDeleteMetadataIndexValidPrefixes(t *testing.T) {
 
 			err := uc.DeleteMetadataIndex(ctx, "transaction", indexName)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
 
-// TestDeleteMetadataIndexAllEntities tests deletion across all valid entity types
+// TestDeleteMetadataIndexAllEntities tests deletion across all valid entity types.
 func TestDeleteMetadataIndexAllEntities(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -265,7 +276,7 @@ func TestDeleteMetadataIndexAllEntities(t *testing.T) {
 
 			err := uc.DeleteMetadataIndex(ctx, entity, indexName)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }

@@ -12,21 +12,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
-func TestGetAllBalances(t *testing.T) {
+func TestGetAllBalances(t *testing.T) { //nolint:funlen
+	t.Parallel()
+
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 
@@ -41,8 +45,9 @@ func TestGetAllBalances(t *testing.T) {
 		Prev: "prev",
 	}
 
-	t.Parallel()
 	t.Run("SuccessNoCacheOverlay", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -79,7 +84,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 		assert.Equal(t, mockCur, cur)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(100)))
@@ -88,6 +93,8 @@ func TestGetAllBalances(t *testing.T) {
 	})
 
 	t.Run("SuccessWithCacheOverlay", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -132,7 +139,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 		assert.Equal(t, mockCur, cur)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(999)))
@@ -141,6 +148,8 @@ func TestGetAllBalances(t *testing.T) {
 	})
 
 	t.Run("SuccessWithCacheOverlayUsesShardKeyWhenShardRouterConfigured", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -182,7 +191,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 		assert.Equal(t, mockCur, cur)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(321)))
@@ -191,6 +200,8 @@ func TestGetAllBalances(t *testing.T) {
 	})
 
 	t.Run("RedisErrorShouldNotFail", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -220,15 +231,16 @@ func TestGetAllBalances(t *testing.T) {
 
 		key := utils.BalanceInternalKey(organizationID, ledgerID, bal.Alias+"#"+bal.Key)
 		_ = key // key construction is deterministic; expectation uses Any to avoid tight coupling
+
 		mockRedisRepo.
 			EXPECT().
 			MGet(gomock.Any(), gomock.Any()).
-			Return(nil, errors.New("redis down")).
+			Return(nil, errors.New("redis down")). //nolint:err113
 			Times(1)
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 		assert.Equal(t, mockCur, cur)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(5)))
@@ -237,6 +249,8 @@ func TestGetAllBalances(t *testing.T) {
 	})
 
 	t.Run("InvalidCachePayloadSkipsOverlay", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -273,7 +287,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 		assert.Equal(t, mockCur, cur)
 		// Should keep DB values because cache unmarshalling fails
@@ -283,6 +297,8 @@ func TestGetAllBalances(t *testing.T) {
 	})
 
 	t.Run("CacheDecimalValuesAsString", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -321,17 +337,21 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 		assert.Equal(t, mockCur, cur)
+
 		wantAvail, _ := decimal.NewFromString("123.4500")
 		wantHold, _ := decimal.NewFromString("0.5500")
+
 		assert.True(t, res[0].Available.Equal(wantAvail))
 		assert.True(t, res[0].OnHold.Equal(wantHold))
 		assert.Equal(t, int64(12), res[0].Version)
 	})
 
 	t.Run("IgnoreUnrelatedCacheKeys", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -378,7 +398,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 		assert.Equal(t, mockCur, cur)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(777)))
@@ -387,6 +407,8 @@ func TestGetAllBalances(t *testing.T) {
 	})
 
 	t.Run("MixedValidAndInvalidCacheEntries", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -436,7 +458,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 2)
 		assert.Equal(t, mockCur, cur)
 		// b1 overlaid
@@ -451,6 +473,8 @@ func TestGetAllBalances(t *testing.T) {
 
 	// Same alias with two keys; overlay should only apply to the matching alias#key
 	t.Run("OverlayOnlyForMatchingAliasAndKeySameAliasMultiKeys", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -500,7 +524,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 2)
 		assert.Equal(t, mockCur, cur)
 		// default overlaid
@@ -515,6 +539,8 @@ func TestGetAllBalances(t *testing.T) {
 
 	// Partial overlay where one cache entry is missing entirely
 	t.Run("PartialOverlayMissingCacheEntry", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -563,7 +589,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 2)
 		assert.Equal(t, mockCur, cur)
 		// aliasA overlaid, aliasB unchanged
@@ -576,6 +602,8 @@ func TestGetAllBalances(t *testing.T) {
 	})
 
 	t.Run("VeryLargeDecimalMagnitudesStrings", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -606,7 +634,7 @@ func TestGetAllBalances(t *testing.T) {
 		key := utils.BalanceInternalKey(organizationID, ledgerID, bal.Alias+"#"+bal.Key)
 		largeAvail := "123456789012345678901234567890.123456789012345678901234567890"
 		largeHold := "987654321098765432109876543210.987654321098765432109876543210"
-		cachedJSON := fmt.Sprintf(`{"available":"%s","onHold":"%s","version":77}`, largeAvail, largeHold)
+		cachedJSON := fmt.Sprintf(`{"available":%q,"onHold":%q,"version":77}`, largeAvail, largeHold)
 
 		mockRedisRepo.
 			EXPECT().
@@ -616,17 +644,21 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 		assert.Equal(t, mockCur, cur)
+
 		wantAvail, _ := decimal.NewFromString(largeAvail)
 		wantHold, _ := decimal.NewFromString(largeHold)
+
 		assert.True(t, res[0].Available.Equal(wantAvail))
 		assert.True(t, res[0].OnHold.Equal(wantHold))
 		assert.Equal(t, int64(77), res[0].Version)
 	})
 
 	t.Run("ContextCancellationPropagatesAndSkipsOverlay", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -650,13 +682,15 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(cctx, organizationID, ledgerID, filter)
 
-		assert.ErrorIs(t, err, context.Canceled)
+		require.ErrorIs(t, err, context.Canceled)
 		assert.Nil(t, res)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 		// If overlay (MGet) were attempted, gomock would fail due to unexpected call
 	})
 
 	t.Run("CacheDecimalValuesAsNumbers", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -695,17 +729,21 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 		assert.Equal(t, mockCur, cur)
+
 		wantAvail, _ := decimal.NewFromString("123.45")
 		wantHold, _ := decimal.NewFromString("0.55")
+
 		assert.True(t, res[0].Available.Equal(wantAvail))
 		assert.True(t, res[0].OnHold.Equal(wantHold))
 		assert.Equal(t, int64(2), res[0].Version)
 	})
 
 	t.Run("LargeBatchMGetOverlayAll", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -738,6 +776,7 @@ func TestGetAllBalances(t *testing.T) {
 			cached := mmodel.BalanceRedis{Available: decimal.NewFromInt(int64(i)), OnHold: decimal.NewFromInt(int64(i % 7)), Version: int64(i)}
 			data, marshalErr := json.Marshal(cached)
 			require.NoError(t, marshalErr)
+
 			redisMap[k] = string(data)
 		}
 
@@ -755,7 +794,7 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, N)
 		assert.Equal(t, mockCur, cur)
 
@@ -774,6 +813,8 @@ func TestGetAllBalances(t *testing.T) {
 	})
 
 	t.Run("RepoError", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -789,17 +830,19 @@ func TestGetAllBalances(t *testing.T) {
 		mockBalanceRepo.
 			EXPECT().
 			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, errors.New(errMsg)).
+			Return(nil, libHTTP.CursorPagination{}, errors.New(errMsg)). //nolint:err113
 			Times(1)
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.EqualError(t, err, errMsg)
+		require.EqualError(t, err, errMsg)
 		assert.Nil(t, res)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
 
 	t.Run("NoBalancesFound", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -825,20 +868,22 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, res)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
 }
 
-func TestGetAllBalancesByAlias(t *testing.T) {
+func TestGetAllBalancesByAlias(t *testing.T) { //nolint:funlen
+	t.Parallel()
+
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	alias := "test-alias"
 
-	t.Parallel()
-
 	t.Run("SuccessNoCacheOverlay", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -878,11 +923,13 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 
 		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 	})
 
 	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -897,17 +944,19 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 		mockBalanceRepo.
 			EXPECT().
 			ListByAliases(gomock.Any(), organizationID, ledgerID, []string{alias}).
-			Return(nil, errors.New(errMsg)).
+			Return(nil, errors.New(errMsg)). //nolint:err113
 			Times(1)
 
 		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, errMsg, err.Error())
 		assert.Nil(t, res)
 	})
 
 	t.Run("SuccessWithCacheOverlay", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -950,7 +999,7 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 
 		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(999)))
 		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(777)))
@@ -958,6 +1007,8 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 	})
 
 	t.Run("SuccessWithCacheOverlayUsesShardKeyWhenShardRouterConfigured", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -1002,7 +1053,7 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 
 		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(444)))
 		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(222)))
@@ -1010,6 +1061,8 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 	})
 
 	t.Run("RedisErrorShouldNotFail", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -1042,12 +1095,12 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 		mockRedisRepo.
 			EXPECT().
 			MGet(gomock.Any(), gomock.Any()).
-			Return(nil, errors.New("redis down")).
+			Return(nil, errors.New("redis down")). //nolint:err113
 			Times(1)
 
 		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(10)))
 		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(1)))
@@ -1055,6 +1108,8 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 	})
 
 	t.Run("InvalidCachePayloadSkipsOverlay", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -1093,7 +1148,7 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 
 		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(50)))
 		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(5)))
@@ -1101,6 +1156,8 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 	})
 
 	t.Run("NoBalancesFoundForAlias", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -1126,11 +1183,13 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 
 		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, res)
 	})
 
 	t.Run("MultipleKeysPartialOverlay", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -1166,7 +1225,7 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 
 		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 2)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(42)))
 		assert.True(t, res[0].OnHold.Equal(decimal.Zero))

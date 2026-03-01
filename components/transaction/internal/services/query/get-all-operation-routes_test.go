@@ -11,21 +11,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.uber.org/mock/gomock"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.uber.org/mock/gomock"
 )
 
-// TestGetAllOperationRoutesSuccess tests getting all operation routes successfully
+// TestGetAllOperationRoutesSuccess tests getting all operation routes successfully.
 func TestGetAllOperationRoutesSuccess(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -102,7 +107,7 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 
 	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedCursor, cur)
 	assert.Len(t, result, 2)
 
@@ -110,14 +115,16 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 	assert.Equal(t, map[string]any{"key2": "value2"}, result[1].Metadata)
 }
 
-// TestGetAllOperationRoutesError tests getting all operation routes with database error
+// TestGetAllOperationRoutesError tests getting all operation routes with database error.
 func TestGetAllOperationRoutesError(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	expectedError := errors.New("database connection error")
+	expectedError := errors.New("database connection error") //nolint:err113
 
 	filter := http.QueryHeader{
 		Limit:     10,
@@ -139,14 +146,16 @@ func TestGetAllOperationRoutesError(t *testing.T) {
 
 	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, expectedError, err)
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 }
 
-// TestGetAllOperationRoutesNotFound tests getting all operation routes when no results found
+// TestGetAllOperationRoutesNotFound tests getting all operation routes when no results found.
 func TestGetAllOperationRoutesNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -173,14 +182,16 @@ func TestGetAllOperationRoutesNotFound(t *testing.T) {
 
 	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	assert.Contains(t, err.Error(), "No operation routes were found in the search")
 }
 
-// TestGetAllOperationRoutesEmpty tests getting all operation routes when empty results returned
+// TestGetAllOperationRoutesEmpty tests getting all operation routes when empty results returned.
 func TestGetAllOperationRoutesEmpty(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -220,20 +231,22 @@ func TestGetAllOperationRoutesEmpty(t *testing.T) {
 
 	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedOperationRoutes, result)
 	assert.Equal(t, expectedCursor, cur)
-	assert.Len(t, result, 0)
+	assert.Empty(t, result)
 }
 
-// TestGetAllOperationRoutesMetadataError tests getting all operation routes with metadata error
+// TestGetAllOperationRoutesMetadataError tests getting all operation routes with metadata error.
 func TestGetAllOperationRoutesMetadataError(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	metadataError := errors.New("metadata repository error")
+	metadataError := errors.New("metadata repository error") //nolint:err113
 
 	filter := http.QueryHeader{
 		Limit:     10,
@@ -282,14 +295,16 @@ func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 
 	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	assert.Contains(t, err.Error(), "No entity was found for the given ID")
 }
 
-// TestGetAllOperationRoutesWithDifferentPagination tests getting all operation routes with different pagination settings
+// TestGetAllOperationRoutesWithDifferentPagination tests getting all operation routes with different pagination settings.
 func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -344,14 +359,16 @@ func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
 
 	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedOperationRoutes, result)
 	assert.Equal(t, expectedCursor, cur)
 	assert.Len(t, result, 1)
 }
 
-// TestGetAllOperationRoutesWithDateRange tests getting all operation routes with date range pagination
+// TestGetAllOperationRoutesWithDateRange tests getting all operation routes with date range pagination.
 func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -410,14 +427,16 @@ func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
 
 	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedOperationRoutes, result)
 	assert.Equal(t, expectedCursor, cur)
 	assert.Len(t, result, 1)
 }
 
-// TestGetAllOperationRoutesWithMetadataFilter tests getting all operation routes with metadata filtering
+// TestGetAllOperationRoutesWithMetadataFilter tests getting all operation routes with metadata filtering.
 func TestGetAllOperationRoutesWithMetadataFilter(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -476,7 +495,7 @@ func TestGetAllOperationRoutesWithMetadataFilter(t *testing.T) {
 
 	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedCursor, cur)
 	assert.Len(t, result, 1)
 

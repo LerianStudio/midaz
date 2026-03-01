@@ -9,14 +9,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/vmihailenco/msgpack/v5"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
 
 const defaultReplayTimeout = 2 * time.Second
@@ -175,7 +176,9 @@ func (r *FranzStaleBalanceRecoverer) replayPartitionRange(
 		},
 	}
 
-	opts := make([]kgo.Opt, 0, 3+len(r.securityOpts))
+	const baseOptCount = 3
+
+	opts := make([]kgo.Opt, 0, baseOptCount+len(r.securityOpts))
 	opts = append(opts,
 		kgo.SeedBrokers(r.brokers...),
 		kgo.ConsumePartitions(consumePartitions),
@@ -195,7 +198,7 @@ func (r *FranzStaleBalanceRecoverer) replayPartitionRange(
 	for nextOffset < endOffset {
 		fetches := client.PollFetches(replayCtx)
 		if fetches.IsClientClosed() {
-			return nil, fmt.Errorf("replay consumer closed while reading partition %d", partition)
+			return nil, fmt.Errorf("replay consumer closed while reading partition %d", partition) //nolint:err113
 		}
 
 		if errs := fetches.Errors(); len(errs) > 0 {

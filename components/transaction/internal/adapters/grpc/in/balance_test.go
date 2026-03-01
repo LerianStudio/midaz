@@ -10,20 +10,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	balancepb "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
-func TestBalanceProto_CreateBalance(t *testing.T) {
+func TestBalanceProto_CreateBalance(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	tests := []struct {
@@ -61,6 +62,7 @@ func TestBalanceProto_CreateBalance(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, resp *balancepb.BalanceResponse) {
+				t.Helper()
 				assert.NotEmpty(t, resp.Id)
 				assert.Equal(t, "@user1", resp.Alias)
 				assert.Equal(t, constant.DefaultBalanceKey, resp.Key)
@@ -101,6 +103,7 @@ func TestBalanceProto_CreateBalance(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, resp *balancepb.BalanceResponse) {
+				t.Helper()
 				assert.NotEmpty(t, resp.Id)
 				assert.Equal(t, "savings", resp.Key)
 				assert.Equal(t, "BRL", resp.AssetCode)
@@ -186,7 +189,7 @@ func TestBalanceProto_CreateBalance(t *testing.T) {
 					Times(1)
 				balanceRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(errors.New("database connection error")).
+					Return(errors.New("database connection error")). //nolint:err113
 					Times(1)
 			},
 			wantErr:     true,
@@ -258,14 +261,17 @@ func TestBalanceProto_CreateBalance(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
+
 				return
 			}
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
+
 			if tt.validate != nil {
 				tt.validate(t, resp)
 			}
@@ -273,7 +279,7 @@ func TestBalanceProto_CreateBalance(t *testing.T) {
 	}
 }
 
-func TestBalanceProto_DeleteAllBalancesByAccountID(t *testing.T) {
+func TestBalanceProto_DeleteAllBalancesByAccountID(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	tests := []struct {
@@ -393,7 +399,7 @@ func TestBalanceProto_DeleteAllBalancesByAccountID(t *testing.T) {
 			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, accountID uuid.UUID) {
 				balanceRepo.EXPECT().
 					ListByAccountID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("database connection error")).
+					Return(nil, errors.New("database connection error")). //nolint:err113
 					Times(1)
 			},
 			wantErr:     true,
@@ -502,9 +508,11 @@ func TestBalanceProto_DeleteAllBalancesByAccountID(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
+
 				return
 			}
 

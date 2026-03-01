@@ -11,16 +11,21 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 )
 
 func TestGetAssetRateByID(t *testing.T) {
+	t.Parallel()
+
 	id := libCommons.GenerateUUIDv7()
 	orgID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
@@ -43,19 +48,22 @@ func TestGetAssetRateByID(t *testing.T) {
 		AssetRateRepo: assetrate.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AssetRateRepo.(*assetrate.MockRepository).
-		EXPECT().
-		FindByExternalID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(assetRate, nil).
-		Times(1)
+	uc.AssetRateRepo.(*assetrate.MockRepository). //nolint:forcetypeassert
+
+							EXPECT().
+							FindByExternalID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+							Return(assetRate, nil).
+							Times(1)
 	res, err := uc.AssetRateRepo.FindByExternalID(context.TODO(), orgID, ledgerID, exID)
 
 	assert.Equal(t, assetRate, res)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
-// TestGetAssetRateByIDError is responsible to test GetAssetRateByExternalID with error
+// TestGetAssetRateByIDError is responsible to test GetAssetRateByExternalID with error.
 func TestGetAssetRateByIDError(t *testing.T) {
+	t.Parallel()
+
 	id := libCommons.GenerateUUIDv7()
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
@@ -65,28 +73,28 @@ func TestGetAssetRateByIDError(t *testing.T) {
 		AssetRateRepo: assetrate.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AssetRateRepo.(*assetrate.MockRepository).
-		EXPECT().
-		FindByExternalID(gomock.Any(), organizationID, ledgerID, id).
-		Return(nil, errors.New(errMSG)).
-		Times(1)
+	uc.AssetRateRepo.(*assetrate.MockRepository). //nolint:forcetypeassert
+
+							EXPECT().
+							FindByExternalID(gomock.Any(), organizationID, ledgerID, id).
+							Return(nil, errors.New(errMSG)). //nolint:err113
+							Times(1)
 	res, err := uc.AssetRateRepo.FindByExternalID(context.TODO(), organizationID, ledgerID, id)
 
-	assert.NotEmpty(t, err)
+	require.Error(t, err)
 	assert.Equal(t, err.Error(), errMSG)
 	assert.Nil(t, res)
 }
 
-func TestGetAssetRateByExternalID(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestGetAssetRateByExternalID(t *testing.T) { //nolint:funlen
+	t.Parallel()
 
 	id := libCommons.GenerateUUIDv7()
 	orgID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	exID := libCommons.GenerateUUIDv7()
 
-	assetRate := &assetrate.AssetRate{
+	ar := &assetrate.AssetRate{
 		ID:             id.String(),
 		OrganizationID: orgID.String(),
 		LedgerID:       ledgerID.String(),
@@ -113,33 +121,21 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 		UpdatedAt: time.Now(),
 	}
 
-	// Create mocks
-	assetRateRepo := assetrate.NewMockRepository(ctrl)
-	metadataRepo := mongodb.NewMockRepository(ctrl)
-
-	// Create use case with mocks
-	uc := UseCase{
-		AssetRateRepo: assetRateRepo,
-		MetadataRepo:  metadataRepo,
-	}
-
 	// Test cases
 	tests := []struct {
 		name           string
-		setupMocks     func()
+		setupMocks     func(arRepo *assetrate.MockRepository, metaRepo *mongodb.MockRepository)
 		expectedResult *assetrate.AssetRate
 		expectedError  error
 	}{
 		{
 			name: "success_with_metadata",
-			setupMocks: func() {
-				// Setup AssetRateRepo mock
-				assetRateRepo.EXPECT().
+			setupMocks: func(arRepo *assetrate.MockRepository, metaRepo *mongodb.MockRepository) {
+				arRepo.EXPECT().
 					FindByExternalID(gomock.Any(), orgID, ledgerID, exID).
-					Return(assetRate, nil)
+					Return(ar, nil)
 
-				// Setup MetadataRepo mock
-				metadataRepo.EXPECT().
+				metaRepo.EXPECT().
 					FindByEntity(gomock.Any(), reflect.TypeOf(assetrate.AssetRate{}).Name(), id.String()).
 					Return(metadata, nil)
 			},
@@ -154,7 +150,7 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 				Scale:          libPointers.Float64(2),
 				Source:         libPointers.String("External System"),
 				TTL:            3600,
-				Metadata: map[string]interface{}{
+				Metadata: map[string]any{
 					"custom_field": "custom_value",
 				},
 			},
@@ -162,63 +158,67 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 		},
 		{
 			name: "success_without_metadata",
-			setupMocks: func() {
-				// Setup AssetRateRepo mock
-				assetRateRepo.EXPECT().
+			setupMocks: func(arRepo *assetrate.MockRepository, metaRepo *mongodb.MockRepository) {
+				arRepo.EXPECT().
 					FindByExternalID(gomock.Any(), orgID, ledgerID, exID).
-					Return(assetRate, nil)
+					Return(ar, nil)
 
-				// Setup MetadataRepo mock
-				metadataRepo.EXPECT().
+				metaRepo.EXPECT().
 					FindByEntity(gomock.Any(), reflect.TypeOf(assetrate.AssetRate{}).Name(), id.String()).
 					Return(nil, nil)
 			},
-			expectedResult: assetRate,
+			expectedResult: ar,
 			expectedError:  nil,
 		},
 		{
 			name: "error_finding_asset_rate",
-			setupMocks: func() {
-				// Setup AssetRateRepo mock with error
-				assetRateRepo.EXPECT().
+			setupMocks: func(arRepo *assetrate.MockRepository, metaRepo *mongodb.MockRepository) {
+				arRepo.EXPECT().
 					FindByExternalID(gomock.Any(), orgID, ledgerID, exID).
-					Return(nil, errors.New("database error"))
+					Return(nil, errors.New("database error")) //nolint:err113
 			},
 			expectedResult: nil,
-			expectedError:  errors.New("database error"),
+			expectedError:  errors.New("database error"), //nolint:err113
 		},
 		{
 			name: "error_finding_metadata",
-			setupMocks: func() {
-				// Setup AssetRateRepo mock
-				assetRateRepo.EXPECT().
+			setupMocks: func(arRepo *assetrate.MockRepository, metaRepo *mongodb.MockRepository) {
+				arRepo.EXPECT().
 					FindByExternalID(gomock.Any(), orgID, ledgerID, exID).
-					Return(assetRate, nil)
+					Return(ar, nil)
 
-				// Setup MetadataRepo mock with error
-				metadataRepo.EXPECT().
+				metaRepo.EXPECT().
 					FindByEntity(gomock.Any(), reflect.TypeOf(assetrate.AssetRate{}).Name(), id.String()).
-					Return(nil, errors.New("metadata error"))
+					Return(nil, errors.New("metadata error")) //nolint:err113
 			},
 			expectedResult: nil,
-			expectedError:  errors.New("metadata error"),
+			expectedError:  errors.New("metadata error"), //nolint:err113
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			arRepo := assetrate.NewMockRepository(ctrl)
+			metaRepo := mongodb.NewMockRepository(ctrl)
+			uc := UseCase{AssetRateRepo: arRepo, MetadataRepo: metaRepo}
+
 			// Setup mocks for this test case
-			tc.setupMocks()
+			tc.setupMocks(arRepo, metaRepo)
 
 			// Call the method being tested
 			result, err := uc.GetAssetRateByExternalID(context.Background(), orgID, ledgerID, exID)
 
 			// Assert results
 			if tc.expectedError != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tc.expectedResult, result)

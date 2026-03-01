@@ -9,12 +9,18 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
+
+// errTestSyncBalance is a sentinel error for sync balance test assertions.
+var errTestSyncBalance = errors.New("err syncing balance from redis")
 
 // TestSyncBalance_SuccessSynced verifies that when the repository sync succeeds
 // and returns true, the use case returns true and no error.
@@ -27,16 +33,16 @@ func TestSyncBalance_SuccessSynced(t *testing.T) {
 		BalanceRepo: balance.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.BalanceRepo.(*balance.MockRepository).
-		EXPECT().
-		Sync(gomock.Any(), organizationID, ledgerID, balanceRedis).
-		Return(true, nil).
-		Times(1)
+	uc.BalanceRepo.(*balance.MockRepository). //nolint:forcetypeassert
+							EXPECT().
+							Sync(gomock.Any(), organizationID, ledgerID, balanceRedis).
+							Return(true, nil).
+							Times(1)
 
 	res, err := uc.SyncBalance(context.TODO(), organizationID, ledgerID, balanceRedis)
 
 	assert.True(t, res)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 // TestSyncBalance_SuccessSkipped verifies that when the repository indicates the
@@ -50,16 +56,16 @@ func TestSyncBalance_SuccessSkipped(t *testing.T) {
 		BalanceRepo: balance.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.BalanceRepo.(*balance.MockRepository).
-		EXPECT().
-		Sync(gomock.Any(), organizationID, ledgerID, balanceRedis).
-		Return(false, nil).
-		Times(1)
+	uc.BalanceRepo.(*balance.MockRepository). //nolint:forcetypeassert
+							EXPECT().
+							Sync(gomock.Any(), organizationID, ledgerID, balanceRedis).
+							Return(false, nil).
+							Times(1)
 
 	res, err := uc.SyncBalance(context.TODO(), organizationID, ledgerID, balanceRedis)
 
 	assert.False(t, res)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 // TestSyncBalance_Error verifies that when the repository sync returns an error,
@@ -69,21 +75,19 @@ func TestSyncBalance_Error(t *testing.T) {
 	ledgerID := libCommons.GenerateUUIDv7()
 	balanceRedis := mmodel.BalanceRedis{ID: libCommons.GenerateUUIDv7().String(), Alias: "@alias3"}
 
-	errMSG := "err syncing balance from redis"
-
 	uc := UseCase{
 		BalanceRepo: balance.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.BalanceRepo.(*balance.MockRepository).
-		EXPECT().
-		Sync(gomock.Any(), organizationID, ledgerID, balanceRedis).
-		Return(false, errors.New(errMSG)).
-		Times(1)
+	uc.BalanceRepo.(*balance.MockRepository). //nolint:forcetypeassert
+							EXPECT().
+							Sync(gomock.Any(), organizationID, ledgerID, balanceRedis).
+							Return(false, errTestSyncBalance).
+							Times(1)
 
 	res, err := uc.SyncBalance(context.TODO(), organizationID, ledgerID, balanceRedis)
 
 	assert.False(t, res)
-	assert.NotEmpty(t, err)
-	assert.Equal(t, errMSG, err.Error())
+	require.Error(t, err)
+	assert.Equal(t, errTestSyncBalance.Error(), err.Error())
 }

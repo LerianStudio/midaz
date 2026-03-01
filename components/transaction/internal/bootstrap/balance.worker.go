@@ -16,15 +16,20 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 )
+
+// errBalanceSyncKeyMissingUUIDs is a sentinel error for keys that do not contain two valid UUIDs.
+var errBalanceSyncKeyMissingUUIDs = errors.New("balance sync key missing two UUIDs (orgID, ledgerID)")
 
 // BalanceSyncWorker continuously processes keys scheduled for pre-expiry actions.
 // Ensures that the balance is synced before the key expires.
@@ -37,21 +42,29 @@ type BalanceSyncWorker struct {
 	useCase    *command.UseCase
 }
 
+// NewBalanceSyncWorker creates a new BalanceSyncWorker with the given dependencies.
+// If maxWorkers is <= 0, it defaults to 5.
 func NewBalanceSyncWorker(conn *libRedis.RedisConnection, logger libLog.Logger, useCase *command.UseCase, maxWorkers int) *BalanceSyncWorker {
+	const defaultMaxWorkers = 5
+
 	if maxWorkers <= 0 {
-		maxWorkers = 5
+		maxWorkers = defaultMaxWorkers
 	}
+
+	const idleWaitSeconds = 600
 
 	return &BalanceSyncWorker{
 		redisConn:  conn,
 		logger:     logger,
-		idleWait:   600 * time.Second,
+		idleWait:   idleWaitSeconds * time.Second,
 		batchSize:  int64(maxWorkers),
 		maxWorkers: maxWorkers,
 		useCase:    useCase,
 	}
 }
 
+// Run starts the BalanceSyncWorker and blocks until the context is cancelled.
+// It processes scheduled balance sync keys and syncs them to the database.
 func (w *BalanceSyncWorker) Run(_ *libCommons.Launcher) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -62,7 +75,7 @@ func (w *BalanceSyncWorker) Run(_ *libCommons.Launcher) error {
 	if err != nil {
 		w.logger.Errorf("BalanceSyncWorker: failed to get redis client: %v", err)
 
-		return err
+		return fmt.Errorf("balance sync worker: get redis client: %w", err)
 	}
 
 	for {
@@ -211,7 +224,9 @@ func (w *BalanceSyncWorker) waitForNextOrBackoff(ctx context.Context, rds redis.
 // WHY: Reduce cognitive complexity of Run by isolating the per-member logic.
 func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redis.UniversalClient, member string) {
 	// Timeout shorter than lock TTL (600s) to ensure operations don't exceed the lock duration
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	const processTimeout = 5 * time.Minute
+
+	ctx, cancel := context.WithTimeout(ctx, processTimeout)
 	defer cancel()
 
 	_, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
@@ -243,15 +258,7 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 
 	val, err := rds.Get(ctx, member).Result()
 	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			w.logger.Warnf("BalanceSyncWorker: missing key on GET: %s, removing from schedule", member)
-
-			if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-				w.logger.Warnf("BalanceSyncWorker: failed to remove missing balance sync key %s: %v", member, remErr)
-			}
-		} else {
-			w.logger.Warnf("BalanceSyncWorker: GET error for %s: %v", member, err)
-		}
+		w.handleGetError(ctx, member, err)
 
 		return
 	}
@@ -334,10 +341,26 @@ func (w *BalanceSyncWorker) waitUntilDue(ctx context.Context, dueAtUnix int64, l
 	return waitOrDone(ctx, waitFor, logger)
 }
 
+// handleGetError handles the error from a Redis GET call for a balance sync key.
+// If the key is missing (redis.Nil), it removes the key from the schedule.
+func (w *BalanceSyncWorker) handleGetError(ctx context.Context, member string, err error) {
+	if errors.Is(err, redis.Nil) {
+		w.logger.Warnf("BalanceSyncWorker: missing key on GET: %s, removing from schedule", member)
+
+		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
+			w.logger.Warnf("BalanceSyncWorker: failed to remove missing balance sync key %s: %v", member, remErr)
+		}
+
+		return
+	}
+
+	w.logger.Warnf("BalanceSyncWorker: GET error for %s: %v", member, err)
+}
+
 // extractIDsFromMember parses a Redis member key that follows the pattern
 // balance:{transactions}:<organizationID>:<ledgerID>:@account#key  (legacy)
 // balance:{shard_N}:<organizationID>:<ledgerID>:@account#key      (sharded)
-func (w *BalanceSyncWorker) extractIDsFromMember(member string) (organizationID uuid.UUID, ledgerID uuid.UUID, err error) {
+func (w *BalanceSyncWorker) extractIDsFromMember(member string) (organizationID, ledgerID uuid.UUID, err error) {
 	var (
 		first     uuid.UUID
 		haveFirst bool
@@ -345,25 +368,34 @@ func (w *BalanceSyncWorker) extractIDsFromMember(member string) (organizationID 
 
 	start := 0
 
-	for i := 0; i <= len(member); i++ {
-		if i == len(member) || member[i] == ':' {
-			if i > start {
-				seg := member[start:i]
-				if len(seg) == 36 {
-					if u, e := uuid.Parse(seg); e == nil {
-						if !haveFirst {
-							first = u
-							haveFirst = true
-						} else {
-							return first, u, nil
-						}
-					}
-				}
-			}
+	const uuidLen = 36
 
-			start = i + 1
+	for i := 0; i <= len(member); i++ {
+		if i != len(member) && member[i] != ':' {
+			continue
 		}
+
+		seg := member[start:i]
+		start = i + 1
+
+		if len(seg) != uuidLen {
+			continue
+		}
+
+		u, e := uuid.Parse(seg)
+		if e != nil {
+			continue
+		}
+
+		if !haveFirst {
+			first = u
+			haveFirst = true
+
+			continue
+		}
+
+		return first, u, nil
 	}
 
-	return uuid.UUID{}, uuid.UUID{}, fmt.Errorf("balance sync key missing two UUIDs (orgID, ledgerID): %q", member)
+	return uuid.UUID{}, uuid.UUID{}, fmt.Errorf("%w: %q", errBalanceSyncKeyMissingUUIDs, member)
 }

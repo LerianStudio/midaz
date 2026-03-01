@@ -8,31 +8,34 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"   //nolint:depguard
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute" //nolint:depguard
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
+	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
-func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
+func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		jsonBody       string
@@ -75,6 +78,7 @@ func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
 					DoAndReturn(func(ctx any, oID, lID uuid.UUID, tr *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error) {
 						tr.CreatedAt = time.Now()
 						tr.UpdatedAt = time.Now()
+
 						return tr, nil
 					}).
 					Times(1)
@@ -93,7 +97,10 @@ func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -127,7 +134,10 @@ func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -165,16 +175,20 @@ func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
-				http.WithBody(new(mmodel.CreateTransactionRouteInput), handler.CreateTransactionRoute),
+				pkgHTTP.WithBody(new(mmodel.CreateTransactionRouteInput), handler.CreateTransactionRoute),
 			)
 
-			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -186,7 +200,7 @@ func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
 	}
 }
 
-func TestTransactionRouteHandler_GetTransactionRouteByID(t *testing.T) {
+func TestTransactionRouteHandler_GetTransactionRouteByID(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		setupMocks     func(transactionRouteRepo *transactionroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, transactionRouteID uuid.UUID)
@@ -221,7 +235,10 @@ func TestTransactionRouteHandler_GetTransactionRouteByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -242,7 +259,10 @@ func TestTransactionRouteHandler_GetTransactionRouteByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -264,7 +284,10 @@ func TestTransactionRouteHandler_GetTransactionRouteByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -299,15 +322,19 @@ func TestTransactionRouteHandler_GetTransactionRouteByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_route_id", transactionRouteID)
+
 					return c.Next()
 				},
 				handler.GetTransactionRouteByID,
 			)
 
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes/"+transactionRouteID.String(), nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes/"+transactionRouteID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -319,7 +346,7 @@ func TestTransactionRouteHandler_GetTransactionRouteByID(t *testing.T) {
 	}
 }
 
-func TestTransactionRouteHandler_UpdateTransactionRoute(t *testing.T) {
+func TestTransactionRouteHandler_UpdateTransactionRoute(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		jsonBody       string
@@ -393,7 +420,10 @@ func TestTransactionRouteHandler_UpdateTransactionRoute(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -416,7 +446,10 @@ func TestTransactionRouteHandler_UpdateTransactionRoute(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -441,7 +474,10 @@ func TestTransactionRouteHandler_UpdateTransactionRoute(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -488,16 +524,20 @@ func TestTransactionRouteHandler_UpdateTransactionRoute(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_route_id", transactionRouteID)
+
 					return c.Next()
 				},
-				http.WithBody(new(mmodel.UpdateTransactionRouteInput), handler.UpdateTransactionRoute),
+				pkgHTTP.WithBody(new(mmodel.UpdateTransactionRouteInput), handler.UpdateTransactionRoute),
 			)
 
-			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes/"+transactionRouteID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes/"+transactionRouteID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -509,7 +549,7 @@ func TestTransactionRouteHandler_UpdateTransactionRoute(t *testing.T) {
 	}
 }
 
-func TestTransactionRouteHandler_DeleteTransactionRouteByID(t *testing.T) {
+func TestTransactionRouteHandler_DeleteTransactionRouteByID(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		setupMocks     func(transactionRouteRepo *transactionroute.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, transactionRouteID uuid.UUID)
@@ -559,7 +599,10 @@ func TestTransactionRouteHandler_DeleteTransactionRouteByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -580,7 +623,10 @@ func TestTransactionRouteHandler_DeleteTransactionRouteByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -615,15 +661,19 @@ func TestTransactionRouteHandler_DeleteTransactionRouteByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_route_id", transactionRouteID)
+
 					return c.Next()
 				},
 				handler.DeleteTransactionRouteByID,
 			)
 
-			req := httptest.NewRequest("DELETE", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes/"+transactionRouteID.String(), nil)
+			req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes/"+transactionRouteID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -635,7 +685,7 @@ func TestTransactionRouteHandler_DeleteTransactionRouteByID(t *testing.T) {
 	}
 }
 
-func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
+func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		queryParams    string
@@ -660,14 +710,17 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				// Validate pagination structure exists
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InEpsilon(t, float64(10), limit, 1e-9)
 
 				// Validate items is empty array
 				items, ok := result["items"].([]any)
@@ -723,7 +776,10 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -742,7 +798,7 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 				// Validate pagination
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(5), limit)
+				assert.InEpsilon(t, float64(5), limit, 1e-9)
 
 				// Validate cursor pagination fields
 				assert.Contains(t, result, "next_cursor", "response should contain next_cursor")
@@ -788,7 +844,10 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -818,7 +877,10 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -851,15 +913,19 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetAllTransactionRoutes,
 			)
 
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transaction-routes"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -871,5 +937,5 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 	}
 }
 
-// Ensure libPostgres.Pagination is used (referenced in handler)
+// Ensure libPostgres.Pagination is used (referenced in handler).
 var _ = libPostgres.Pagination{}

@@ -9,16 +9,24 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
+// Sentinel errors for test assertions.
+var (
+	errTestDBConnection = errors.New("database connection error")
+)
+
+//nolint:funlen
 func TestCreateMetadataIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	t.Cleanup(ctrl.Finish)
 
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
@@ -65,6 +73,7 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 			expectedErr: nil,
 			validateResult: func(t *testing.T, result *mmodel.MetadataIndex) {
+				t.Helper()
 				assert.Equal(t, "metadata.tier_1", result.IndexName)
 				assert.Equal(t, "transaction", result.EntityName)
 				assert.Equal(t, "tier", result.MetadataKey)
@@ -98,6 +107,7 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 			expectedErr: nil,
 			validateResult: func(t *testing.T, result *mmodel.MetadataIndex) {
+				t.Helper()
 				assert.Equal(t, "metadata.category_1", result.IndexName)
 				assert.Equal(t, "operation", result.EntityName)
 				assert.Equal(t, "category", result.MetadataKey)
@@ -131,6 +141,7 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 			expectedErr: nil,
 			validateResult: func(t *testing.T, result *mmodel.MetadataIndex) {
+				t.Helper()
 				assert.Equal(t, "metadata.priority_1", result.IndexName)
 				assert.Equal(t, "transaction_route", result.EntityName)
 				assert.Equal(t, "priority", result.MetadataKey)
@@ -164,6 +175,7 @@ func TestCreateMetadataIndex(t *testing.T) {
 			},
 			expectedErr: nil,
 			validateResult: func(t *testing.T, result *mmodel.MetadataIndex) {
+				t.Helper()
 				assert.Equal(t, "metadata.external_id_1", result.IndexName)
 				assert.Equal(t, "operation_route", result.EntityName)
 				assert.Equal(t, "external_id", result.MetadataKey)
@@ -186,10 +198,10 @@ func TestCreateMetadataIndex(t *testing.T) {
 					Times(1)
 				mockMetadataRepo.EXPECT().
 					CreateIndex(gomock.Any(), "transaction", gomock.Any()).
-					Return(nil, errors.New("failed to create index")).
+					Return(nil, errors.New("failed to create index")). //nolint:err113
 					Times(1)
 			},
-			expectedErr:    errors.New("failed to create index"),
+			expectedErr:    errors.New("failed to create index"), //nolint:err113
 			validateResult: nil,
 		},
 		{
@@ -210,7 +222,8 @@ func TestCreateMetadataIndex(t *testing.T) {
 					Times(1)
 			},
 			validateError: func(t *testing.T, err error) {
-				assert.Error(t, err)
+				t.Helper()
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), "metadata index with the same key already exists")
 			},
 			validateResult: nil,
@@ -226,10 +239,10 @@ func TestCreateMetadataIndex(t *testing.T) {
 			setupMocks: func() {
 				mockMetadataRepo.EXPECT().
 					FindAllIndexes(gomock.Any(), "operation").
-					Return(nil, errors.New("database connection error")).
+					Return(nil, errTestDBConnection).
 					Times(1)
 			},
-			expectedErr:    errors.New("database connection error"),
+			expectedErr:    errTestDBConnection,
 			validateResult: nil,
 		},
 	}
@@ -241,15 +254,16 @@ func TestCreateMetadataIndex(t *testing.T) {
 			result, err := uc.CreateMetadataIndex(ctx, tt.entityName, tt.input)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Equal(t, tt.expectedErr.Error(), err.Error())
 				assert.Nil(t, result)
 			} else if tt.validateError != nil {
 				tt.validateError(t, err)
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
+
 				if tt.validateResult != nil {
 					tt.validateResult(t, result)
 				}
@@ -258,7 +272,7 @@ func TestCreateMetadataIndex(t *testing.T) {
 	}
 }
 
-// TestCreateMetadataIndexIndexNameFormat tests that the index name is formatted correctly
+// TestCreateMetadataIndexIndexNameFormat tests that the index name is formatted correctly.
 func TestCreateMetadataIndexIndexNameFormat(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -306,14 +320,14 @@ func TestCreateMetadataIndexIndexNameFormat(t *testing.T) {
 
 			result, err := uc.CreateMetadataIndex(ctx, "transaction", input)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Equal(t, tc.expectedIndexName, result.IndexName)
 		})
 	}
 }
 
-// TestCreateMetadataIndexSparseDefaultValue tests that sparse defaults to true when nil
+// TestCreateMetadataIndexSparseDefaultValue tests that sparse defaults to true when nil.
 func TestCreateMetadataIndexSparseDefaultValue(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -349,7 +363,7 @@ func TestCreateMetadataIndexSparseDefaultValue(t *testing.T) {
 
 	result, err := uc.CreateMetadataIndex(ctx, "transaction", input)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.True(t, result.Sparse)
 }

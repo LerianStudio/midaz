@@ -6,15 +6,18 @@ package out
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
+	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
 
 type stubBalanceAuthorizerClient struct {
@@ -36,8 +39,10 @@ func (s *stubBalanceAuthorizerClient) Authorize(_ context.Context, _ *authorizer
 	return &authorizerv1.AuthorizeResponse{}, nil
 }
 
+var errAuthorizeStreamNotImplemented = errors.New("AuthorizeStream not implemented in stub")
+
 func (s *stubBalanceAuthorizerClient) AuthorizeStream(_ context.Context, _ ...grpc.CallOption) (grpc.BidiStreamingClient[authorizerv1.AuthorizeRequest, authorizerv1.AuthorizeResponse], error) {
-	return nil, nil
+	return nil, errAuthorizeStreamNotImplemented
 }
 
 func (s *stubBalanceAuthorizerClient) LoadBalances(_ context.Context, _ *authorizerv1.LoadBalancesRequest, _ ...grpc.CallOption) (*authorizerv1.LoadBalancesResponse, error) {
@@ -62,7 +67,21 @@ func (s *stubBalanceAuthorizerClient) PublishBalanceOperations(_ context.Context
 	return &authorizerv1.PublishBalanceOperationsResponse{}, nil
 }
 
+func (s *stubBalanceAuthorizerClient) PrepareAuthorize(_ context.Context, _ *authorizerv1.AuthorizeRequest, _ ...grpc.CallOption) (*authorizerv1.PrepareAuthorizeResponse, error) {
+	return &authorizerv1.PrepareAuthorizeResponse{}, nil
+}
+
+func (s *stubBalanceAuthorizerClient) CommitPrepared(_ context.Context, _ *authorizerv1.CommitPreparedRequest, _ ...grpc.CallOption) (*authorizerv1.CommitPreparedResponse, error) {
+	return &authorizerv1.CommitPreparedResponse{}, nil
+}
+
+func (s *stubBalanceAuthorizerClient) AbortPrepared(_ context.Context, _ *authorizerv1.AbortPreparedRequest, _ ...grpc.CallOption) (*authorizerv1.AbortPreparedResponse, error) {
+	return &authorizerv1.AbortPreparedResponse{}, nil
+}
+
 func TestParseShardRanges_AllowsNonOverlappingRanges(t *testing.T) {
+	t.Parallel()
+
 	ranges, err := parseShardRanges("0-3,4-7")
 	require.NoError(t, err)
 	require.Len(t, ranges, 2)
@@ -71,18 +90,24 @@ func TestParseShardRanges_AllowsNonOverlappingRanges(t *testing.T) {
 }
 
 func TestParseShardRanges_RejectsOverlappingRanges(t *testing.T) {
+	t.Parallel()
+
 	_, err := parseShardRanges("0-5,4-7")
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "overlap")
 }
 
 func TestParseShardRanges_RejectsReversedBounds(t *testing.T) {
+	t.Parallel()
+
 	_, err := parseShardRanges("5-3")
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "invalid shard range")
 }
 
 func TestParseShardRanges_AllowsSingleElementRange(t *testing.T) {
+	t.Parallel()
+
 	ranges, err := parseShardRanges("3-3")
 	require.NoError(t, err)
 	require.Len(t, ranges, 1)
@@ -90,6 +115,8 @@ func TestParseShardRanges_AllowsSingleElementRange(t *testing.T) {
 }
 
 func TestShardedAuthorizerClientMethods_ReturnErrorWhenNoClientResolved(t *testing.T) {
+	t.Parallel()
+
 	repo := &ShardedAuthorizerGRPCRepository{
 		enabled:       true,
 		clients:       []*AuthorizerGRPCRepository{nil},
@@ -98,23 +125,27 @@ func TestShardedAuthorizerClientMethods_ReturnErrorWhenNoClientResolved(t *testi
 
 	_, err := repo.Authorize(context.Background(), &authorizerv1.AuthorizeRequest{})
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "not configured")
+	require.ErrorContains(t, err, "not configured")
 
 	_, err = repo.LoadBalances(context.Background(), &authorizerv1.LoadBalancesRequest{ShardIds: []int32{1}})
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "not configured")
+	require.ErrorContains(t, err, "not configured")
 
 	err = repo.PublishBalanceOperations(context.Background(), "topic", "1", []byte("payload"), nil)
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "not configured")
+	require.ErrorContains(t, err, "not configured")
 }
 
 func TestParseCSV_TrimsAndSkipsEmptyValues(t *testing.T) {
+	t.Parallel()
+
 	parsed := parseCSV(" a, ,b , , c ")
 	assert.Equal(t, []string{"a", "b", "c"}, parsed)
 }
 
 func TestResolvePrimaryShard_PrefersInternalDebit(t *testing.T) {
+	t.Parallel()
+
 	router := shard.NewRouter(8)
 	repo := &ShardedAuthorizerGRPCRepository{router: router}
 
@@ -129,6 +160,8 @@ func TestResolvePrimaryShard_PrefersInternalDebit(t *testing.T) {
 }
 
 func TestResolvePrimaryShard_FallsBackToFirstAlias(t *testing.T) {
+	t.Parallel()
+
 	router := shard.NewRouter(8)
 	repo := &ShardedAuthorizerGRPCRepository{router: router}
 
@@ -141,6 +174,8 @@ func TestResolvePrimaryShard_FallsBackToFirstAlias(t *testing.T) {
 }
 
 func TestShardedAuthorizerGRPCRepository_AuthorizeRoutesToMappedShard(t *testing.T) {
+	t.Parallel()
+
 	router := shard.NewRouter(8)
 	shardID := router.ResolveBalance("@alice", "default")
 
@@ -169,6 +204,8 @@ func TestShardedAuthorizerGRPCRepository_AuthorizeRoutesToMappedShard(t *testing
 }
 
 func TestShardedAuthorizerGRPCRepository_DoesNotFallbackWhenShardUnmapped(t *testing.T) {
+	t.Parallel()
+
 	client := &AuthorizerGRPCRepository{enabled: true, timeout: 10 * time.Millisecond, client: &stubBalanceAuthorizerClient{}}
 
 	repo := &ShardedAuthorizerGRPCRepository{
@@ -184,13 +221,18 @@ func TestShardedAuthorizerGRPCRepository_DoesNotFallbackWhenShardUnmapped(t *tes
 }
 
 func TestNewAuthorizerGRPC_RejectsInsecureTransportInProduction(t *testing.T) {
+	t.Parallel()
+
+	logger, logErr := libZap.InitializeLoggerWithError()
+	require.NoError(t, logErr)
+
 	_, err := NewAuthorizerGRPC(AuthorizerConfig{
 		Enabled:     true,
 		Host:        "127.0.0.1",
 		Port:        "50051",
 		TLSEnabled:  false,
 		Environment: "production",
-	}, libZap.InitializeLogger())
+	}, logger)
 
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "insecure transport is not allowed")

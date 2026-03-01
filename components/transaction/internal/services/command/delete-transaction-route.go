@@ -9,13 +9,15 @@ import (
 	"errors"
 	"reflect"
 
+	"github.com/google/uuid"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // DeleteTransactionRouteByID delete a transaction route from the repository by ids.
@@ -33,7 +35,7 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			logger.Warnf("Transaction Route ID not found: %s", transactionRouteID.String())
 
-			return pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			return pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name()) //nolint:wrapcheck
 		}
 
 		logger.Errorf("Error finding transaction route: %v", err)

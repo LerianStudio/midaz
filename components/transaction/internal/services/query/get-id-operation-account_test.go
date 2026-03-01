@@ -10,16 +10,21 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestGetOperationByAccount_WithMetadata tests getting an operation by account successfully with metadata
+// TestGetOperationByAccount_WithMetadata tests getting an operation by account successfully with metadata.
 func TestGetOperationByAccount_WithMetadata(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -61,7 +66,7 @@ func TestGetOperationByAccount_WithMetadata(t *testing.T) {
 
 	result, err := uc.GetOperationByAccount(context.Background(), organizationID, ledgerID, accountID, operationID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedOperation.ID, result.ID)
 	assert.Equal(t, expectedOperation.OrganizationID, result.OrganizationID)
@@ -69,8 +74,10 @@ func TestGetOperationByAccount_WithMetadata(t *testing.T) {
 	assert.Equal(t, map[string]any{"key": "value"}, result.Metadata)
 }
 
-// TestGetOperationByAccount_WithoutMetadata tests getting an operation by account successfully without metadata
+// TestGetOperationByAccount_WithoutMetadata tests getting an operation by account successfully without metadata.
 func TestGetOperationByAccount_WithoutMetadata(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -106,14 +113,16 @@ func TestGetOperationByAccount_WithoutMetadata(t *testing.T) {
 
 	result, err := uc.GetOperationByAccount(context.Background(), organizationID, ledgerID, accountID, operationID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedOperation.ID, result.ID)
 	assert.Nil(t, result.Metadata)
 }
 
-// TestGetOperationByAccount_ErrorOperationRepo tests getting an operation by account with operation repository error
+// TestGetOperationByAccount_ErrorOperationRepo tests getting an operation by account with operation repository error.
 func TestGetOperationByAccount_ErrorOperationRepo(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -121,7 +130,7 @@ func TestGetOperationByAccount_ErrorOperationRepo(t *testing.T) {
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	accountID := libCommons.GenerateUUIDv7()
-	expectedError := errors.New("database error")
+	expectedError := errors.New("database error") //nolint:err113
 
 	mockOperationRepo := operation.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -138,13 +147,15 @@ func TestGetOperationByAccount_ErrorOperationRepo(t *testing.T) {
 
 	result, err := uc.GetOperationByAccount(context.Background(), organizationID, ledgerID, accountID, operationID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, expectedError, err)
 	assert.Nil(t, result)
 }
 
-// TestGetOperationByAccount_NotFound tests getting an operation by account when not found (ErrDatabaseItemNotFound)
+// TestGetOperationByAccount_NotFound tests getting an operation by account when not found (ErrDatabaseItemNotFound).
 func TestGetOperationByAccount_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -168,13 +179,15 @@ func TestGetOperationByAccount_NotFound(t *testing.T) {
 
 	result, err := uc.GetOperationByAccount(context.Background(), organizationID, ledgerID, accountID, operationID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "No operations were found in the search")
 }
 
-// TestGetOperationByAccount_ErrorMetadataRepo tests getting an operation by account with metadata repository error
+// TestGetOperationByAccount_ErrorMetadataRepo tests getting an operation by account with metadata repository error.
 func TestGetOperationByAccount_ErrorMetadataRepo(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -182,7 +195,7 @@ func TestGetOperationByAccount_ErrorMetadataRepo(t *testing.T) {
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	accountID := libCommons.GenerateUUIDv7()
-	metadataError := errors.New("metadata database error")
+	metadataError := errors.New("metadata database error") //nolint:err113
 
 	expectedOperation := &operation.Operation{
 		ID:             operationID.String(),
@@ -211,13 +224,15 @@ func TestGetOperationByAccount_ErrorMetadataRepo(t *testing.T) {
 
 	result, err := uc.GetOperationByAccount(context.Background(), organizationID, ledgerID, accountID, operationID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, metadataError, err)
 	assert.Nil(t, result)
 }
 
-// TestGetOperationByAccount_NilOperation tests getting an operation by account when operation is nil
+// TestGetOperationByAccount_NilOperation tests getting an operation by account when operation is nil.
 func TestGetOperationByAccount_NilOperation(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -243,6 +258,6 @@ func TestGetOperationByAccount_NilOperation(t *testing.T) {
 
 	result, err := uc.GetOperationByAccount(context.Background(), organizationID, ledgerID, accountID, operationID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, result)
 }

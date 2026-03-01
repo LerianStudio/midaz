@@ -7,20 +7,23 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // GetTransactionRouteByID retrieves a transaction route by its ID.
 // It returns the transaction route if found, otherwise it returns an error.
-func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
+func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_transaction_route_by_id")
@@ -33,13 +36,13 @@ func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, 
 		logger.Errorf("Error getting transaction route on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			wrappedErr := fmt.Errorf("get transaction route by id: %w", pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name()))
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction route", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction route", wrappedErr)
 
-			logger.Warnf("Error getting transaction route on repo by id: %v", err)
+			logger.Warnf("Error getting transaction route on repo by id: %v", wrappedErr)
 
-			return nil, err
+			return nil, wrappedErr
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to get transaction route", err)

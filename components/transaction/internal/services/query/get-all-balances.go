@@ -8,13 +8,15 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/google/uuid"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
 )
 
 // GetAllBalances methods responsible to get all balances from a database.
@@ -70,19 +72,22 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 	}
 
 	for i := range balances {
-		if data, ok := balanceCacheValues[balanceCacheKeys[i]]; ok {
-			cachedBalance := mmodel.BalanceRedis{}
-
-			if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
-				logger.Warnf("Error unmarshalling balance cache value: %v", err)
-
-				continue
-			}
-
-			balances[i].Available = cachedBalance.Available
-			balances[i].OnHold = cachedBalance.OnHold
-			balances[i].Version = cachedBalance.Version
+		data, ok := balanceCacheValues[balanceCacheKeys[i]]
+		if !ok {
+			continue
 		}
+
+		cachedBalance := mmodel.BalanceRedis{}
+
+		if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
+			logger.Warnf("Error unmarshalling balance cache value: %v", err)
+
+			continue
+		}
+
+		balances[i].Available = cachedBalance.Available
+		balances[i].OnHold = cachedBalance.OnHold
+		balances[i].Version = cachedBalance.Version
 	}
 
 	return balances, cur, nil
@@ -137,19 +142,22 @@ func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, le
 	}
 
 	for i := range balances {
-		if data, ok := balanceCacheValues[balanceCacheKeys[i]]; ok {
-			cachedBalance := mmodel.BalanceRedis{}
-
-			if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
-				logger.Warnf("Error unmarshalling balance cache value (alias): %v", err)
-
-				continue
-			}
-
-			balances[i].Available = cachedBalance.Available
-			balances[i].OnHold = cachedBalance.OnHold
-			balances[i].Version = cachedBalance.Version
+		data, ok := balanceCacheValues[balanceCacheKeys[i]]
+		if !ok {
+			continue
 		}
+
+		cachedBalance := mmodel.BalanceRedis{}
+
+		if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
+			logger.Warnf("Error unmarshalling balance cache value (alias): %v", err)
+
+			continue
+		}
+
+		balances[i].Available = cachedBalance.Available
+		balances[i].OnHold = cachedBalance.OnHold
+		balances[i].Version = cachedBalance.Version
 	}
 
 	return balances, nil

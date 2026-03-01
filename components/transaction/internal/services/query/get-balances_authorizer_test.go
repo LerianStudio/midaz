@@ -10,6 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -17,12 +23,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
-
 	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
 
@@ -73,6 +73,8 @@ func (s *stubAuthorizer) LoadBalances(_ context.Context, req *authorizerv1.LoadB
 }
 
 func TestGetBalancesUsesAuthorizerWhenEnabled(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -141,12 +143,16 @@ func TestGetBalancesUsesAuthorizerWhenEnabled(t *testing.T) {
 }
 
 func TestMapAuthorizerRejectionInternalError(t *testing.T) {
+	t.Parallel()
+
 	err := mapAuthorizerRejection("INTERNAL_ERROR")
 	require.Error(t, err)
 	require.Equal(t, pkg.ValidateBusinessError(constant.ErrInternalServer, "authorizer").Error(), err.Error())
 }
 
 func TestProcessAuthorizerAtomicOperation_RetryOnBalanceNotFound(t *testing.T) {
+	t.Parallel()
+
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	transactionID := uuid.New()
@@ -481,6 +487,8 @@ func TestProcessAuthorizerAtomicOperation_LagFenceDisabledIgnoresLag(t *testing.
 }
 
 func TestCacheAuthorizerBalances_SkipsNilBalances(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -518,6 +526,8 @@ func TestCacheAuthorizerBalances_SkipsNilBalances(t *testing.T) {
 }
 
 func TestConvertAuthorizerSnapshots_SkipsNilEntries(t *testing.T) {
+	t.Parallel()
+
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 

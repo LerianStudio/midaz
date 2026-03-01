@@ -10,15 +10,20 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestGetOperationByID tests getting an operation by ID successfully with metadata
+// TestGetOperationByID tests getting an operation by ID successfully with metadata.
 func TestGetOperationByID(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -60,15 +65,17 @@ func TestGetOperationByID(t *testing.T) {
 
 	result, err := uc.GetOperationByID(context.Background(), organizationID, ledgerID, transactionID, operationID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedOperation.ID, result.ID)
 	assert.Equal(t, expectedOperation.OrganizationID, result.OrganizationID)
 	assert.Equal(t, map[string]any{"key": "value"}, result.Metadata)
 }
 
-// TestGetOperationByID_WithoutMetadata tests getting an operation by ID successfully without metadata
+// TestGetOperationByID_WithoutMetadata tests getting an operation by ID successfully without metadata.
 func TestGetOperationByID_WithoutMetadata(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -104,14 +111,16 @@ func TestGetOperationByID_WithoutMetadata(t *testing.T) {
 
 	result, err := uc.GetOperationByID(context.Background(), organizationID, ledgerID, transactionID, operationID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedOperation.ID, result.ID)
 	assert.Nil(t, result.Metadata)
 }
 
-// TestGetOperationByID_ErrorOperationRepo tests getting an operation by ID with operation repository error
+// TestGetOperationByID_ErrorOperationRepo tests getting an operation by ID with operation repository error.
 func TestGetOperationByID_ErrorOperationRepo(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -119,7 +128,7 @@ func TestGetOperationByID_ErrorOperationRepo(t *testing.T) {
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	transactionID := libCommons.GenerateUUIDv7()
-	expectedError := errors.New("database error")
+	expectedError := errors.New("database error") //nolint:err113
 
 	mockOperationRepo := operation.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -136,13 +145,15 @@ func TestGetOperationByID_ErrorOperationRepo(t *testing.T) {
 
 	result, err := uc.GetOperationByID(context.Background(), organizationID, ledgerID, transactionID, operationID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, expectedError, err)
 	assert.Nil(t, result)
 }
 
-// TestGetOperationByID_ErrorMetadataRepo tests getting an operation by ID with metadata repository error
+// TestGetOperationByID_ErrorMetadataRepo tests getting an operation by ID with metadata repository error.
 func TestGetOperationByID_ErrorMetadataRepo(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -150,7 +161,7 @@ func TestGetOperationByID_ErrorMetadataRepo(t *testing.T) {
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	transactionID := libCommons.GenerateUUIDv7()
-	metadataError := errors.New("metadata database error")
+	metadataError := errors.New("metadata database error") //nolint:err113
 
 	expectedOperation := &operation.Operation{
 		ID:             operationID.String(),
@@ -179,13 +190,15 @@ func TestGetOperationByID_ErrorMetadataRepo(t *testing.T) {
 
 	result, err := uc.GetOperationByID(context.Background(), organizationID, ledgerID, transactionID, operationID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, metadataError, err)
 	assert.Nil(t, result)
 }
 
-// TestGetOperationByID_NilOperation tests getting an operation by ID when operation is nil
+// TestGetOperationByID_NilOperation tests getting an operation by ID when operation is nil.
 func TestGetOperationByID_NilOperation(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -211,6 +224,6 @@ func TestGetOperationByID_NilOperation(t *testing.T) {
 
 	result, err := uc.GetOperationByID(context.Background(), organizationID, ledgerID, transactionID, operationID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, result)
 }

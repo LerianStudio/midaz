@@ -7,14 +7,28 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+
+	"github.com/vmihailenco/msgpack/v5"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/vmihailenco/msgpack/v5"
+)
+
+var (
+	// ErrMultiQueueConsumerNil is returned when the multi queue consumer is nil.
+	ErrMultiQueueConsumerNil = errors.New("multi queue consumer is nil")
+	// ErrConsumerRoutesNotConfigured is returned when the consumer routes are not configured.
+	ErrConsumerRoutesNotConfigured = errors.New("consumer routes are not configured")
+	// ErrConsumerUseCaseNotConfigured is returned when the consumer use case is not configured.
+	ErrConsumerUseCaseNotConfigured = errors.New("consumer use case is not configured")
+	// ErrEmptyQueueData is returned when the queue payload has empty queue data.
+	ErrEmptyQueueData = errors.New("invalid queue payload: empty queue data")
 )
 
 // MultiQueueConsumer represents a multi-topic consumer.
@@ -49,20 +63,24 @@ func NewMultiQueueConsumer(routes *redpanda.ConsumerRoutes, useCase *command.Use
 // Run starts consumers for all registered topics.
 func (mq *MultiQueueConsumer) Run(l *libCommons.Launcher) error {
 	if mq == nil {
-		return fmt.Errorf("multi queue consumer is nil")
+		return ErrMultiQueueConsumerNil
 	}
 
 	if mq.consumerRoutes == nil {
-		return fmt.Errorf("consumer routes are not configured")
+		return ErrConsumerRoutesNotConfigured
 	}
 
-	return mq.consumerRoutes.RunConsumers()
+	if err := mq.consumerRoutes.RunConsumers(); err != nil {
+		return fmt.Errorf("consumer routes run failed: %w", err)
+	}
+
+	return nil
 }
 
 // handlerBalanceCreateQueue processes messages from the audit queue, unmarshal the JSON, and creates balances on database.
 func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, body []byte) error {
 	if mq == nil || mq.UseCase == nil {
-		return fmt.Errorf("consumer use case is not configured")
+		return ErrConsumerUseCaseNotConfigured
 	}
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -100,7 +118,7 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 // handlerBTOQueue processes messages from the balance fifo queue, unmarshal the JSON, and update balances on database.
 func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) error {
 	if mq == nil || mq.UseCase == nil {
-		return fmt.Errorf("consumer use case is not configured")
+		return ErrConsumerUseCaseNotConfigured
 	}
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -118,11 +136,11 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 
 		logger.Errorf("Error unmarshalling balance message JSON: %v", err)
 
-		return err
+		return fmt.Errorf("unmarshal balance queue message: %w", err)
 	}
 
 	if len(message.QueueData) == 0 {
-		err := fmt.Errorf("invalid queue payload: empty queue data")
+		err := ErrEmptyQueueData
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Empty queue data in balance_retry_queue_fifo message", err)
 
 		logger.Warn("Empty queue data in balance_retry_queue_fifo message")
@@ -149,7 +167,7 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 // micro-batch scheduling (size/window/idle flush).
 func (mq *MultiQueueConsumer) handlerBTOQueueBatch(ctx context.Context, bodies [][]byte) error {
 	if mq == nil || mq.UseCase == nil {
-		return fmt.Errorf("consumer use case is not configured")
+		return ErrConsumerUseCaseNotConfigured
 	}
 
 	if len(bodies) == 0 {
@@ -167,7 +185,7 @@ func (mq *MultiQueueConsumer) handlerBTOQueueBatch(ctx context.Context, bodies [
 		}
 
 		if len(message.QueueData) == 0 {
-			return fmt.Errorf("batch item %d: invalid queue payload: empty queue data", i)
+			return fmt.Errorf("batch item %d: %w", i, ErrEmptyQueueData)
 		}
 
 		batchMessages = append(batchMessages, message)

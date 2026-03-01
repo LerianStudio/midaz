@@ -10,17 +10,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestUpdateTransaction tests successful update of transaction with description and metadata
+// Sentinel errors for update-transaction tests.
+var (
+	errTestDatabaseConnection   = errors.New("database connection error")
+	errTestMetadataUpdateFailed = errors.New("metadata update failed")
+	errTestMetadataUpdateError  = errors.New("metadata update error")
+)
+
+// TestUpdateTransaction tests successful update of transaction with description and metadata.
 func TestUpdateTransaction(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -71,13 +81,13 @@ func TestUpdateTransaction(t *testing.T) {
 
 	result, err := uc.UpdateTransaction(context.Background(), organizationID, ledgerID, transactionID, input)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedTransaction.ID, result.ID)
 	assert.Equal(t, input.Metadata, result.Metadata)
 }
 
-// TestUpdateTransaction_NotFound tests update when transaction is not found
+// TestUpdateTransaction_NotFound tests update when transaction is not found.
 func TestUpdateTransaction_NotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -107,14 +117,14 @@ func TestUpdateTransaction_NotFound(t *testing.T) {
 
 	result, err := uc.UpdateTransaction(context.Background(), organizationID, ledgerID, transactionID, input)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 
 	var entityNotFoundError pkg.EntityNotFoundError
-	assert.True(t, errors.As(err, &entityNotFoundError))
+	require.ErrorAs(t, err, &entityNotFoundError)
 }
 
-// TestUpdateTransaction_RepositoryError tests update when repository returns generic error
+// TestUpdateTransaction_RepositoryError tests update when repository returns generic error.
 func TestUpdateTransaction_RepositoryError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -122,7 +132,7 @@ func TestUpdateTransaction_RepositoryError(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	transactionID := uuid.New()
-	databaseError := errors.New("database connection error")
+	databaseError := errTestDatabaseConnection
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -145,12 +155,12 @@ func TestUpdateTransaction_RepositoryError(t *testing.T) {
 
 	result, err := uc.UpdateTransaction(context.Background(), organizationID, ledgerID, transactionID, input)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, databaseError, err)
 	assert.Nil(t, result)
 }
 
-// TestUpdateTransaction_MetadataFindError tests update when metadata find fails
+// TestUpdateTransaction_MetadataFindError tests update when metadata find fails.
 func TestUpdateTransaction_MetadataFindError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -158,7 +168,7 @@ func TestUpdateTransaction_MetadataFindError(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	transactionID := uuid.New()
-	metadataError := errors.New("metadata update failed")
+	metadataError := errTestMetadataUpdateError
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -197,12 +207,12 @@ func TestUpdateTransaction_MetadataFindError(t *testing.T) {
 
 	result, err := uc.UpdateTransaction(context.Background(), organizationID, ledgerID, transactionID, input)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, metadataError, err)
 	assert.Nil(t, result)
 }
 
-// TestUpdateTransaction_MetadataUpdateError tests update when metadata update fails
+// TestUpdateTransaction_MetadataUpdateError tests update when metadata update fails.
 func TestUpdateTransaction_MetadataUpdateError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -210,7 +220,7 @@ func TestUpdateTransaction_MetadataUpdateError(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	transactionID := uuid.New()
-	metadataUpdateError := errors.New("metadata update failed")
+	metadataUpdateError := errTestMetadataUpdateFailed
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -254,12 +264,12 @@ func TestUpdateTransaction_MetadataUpdateError(t *testing.T) {
 
 	result, err := uc.UpdateTransaction(context.Background(), organizationID, ledgerID, transactionID, input)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, metadataUpdateError, err)
 	assert.Nil(t, result)
 }
 
-// TestUpdateTransactionStatus tests successful update of transaction status
+// TestUpdateTransactionStatus tests successful update of transaction status.
 func TestUpdateTransactionStatus(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -302,12 +312,12 @@ func TestUpdateTransactionStatus(t *testing.T) {
 
 	result, err := uc.UpdateTransactionStatus(context.Background(), inputTransaction)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, "COMPLETED", result.Status.Code)
 }
 
-// TestUpdateTransactionStatus_NotFound tests status update when transaction is not found
+// TestUpdateTransactionStatus_NotFound tests status update when transaction is not found.
 func TestUpdateTransactionStatus_NotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -339,14 +349,14 @@ func TestUpdateTransactionStatus_NotFound(t *testing.T) {
 
 	result, err := uc.UpdateTransactionStatus(context.Background(), inputTransaction)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 
 	var entityNotFoundError pkg.EntityNotFoundError
-	assert.True(t, errors.As(err, &entityNotFoundError))
+	require.ErrorAs(t, err, &entityNotFoundError)
 }
 
-// TestUpdateTransactionStatus_RepositoryError tests status update when repository returns generic error
+// TestUpdateTransactionStatus_RepositoryError tests status update when repository returns generic error.
 func TestUpdateTransactionStatus_RepositoryError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -354,7 +364,7 @@ func TestUpdateTransactionStatus_RepositoryError(t *testing.T) {
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	transactionID := libCommons.GenerateUUIDv7()
-	databaseError := errors.New("database connection error")
+	databaseError := errTestDatabaseConnection
 
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 
@@ -379,12 +389,12 @@ func TestUpdateTransactionStatus_RepositoryError(t *testing.T) {
 
 	result, err := uc.UpdateTransactionStatus(context.Background(), inputTransaction)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, databaseError, err)
 	assert.Nil(t, result)
 }
 
-// ptr is a helper function to create a pointer to a string
+// ptr is a helper function to create a pointer to a string.
 func ptr(s string) *string {
 	return &s
 }

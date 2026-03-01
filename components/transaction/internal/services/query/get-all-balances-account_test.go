@@ -10,8 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
@@ -19,13 +25,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestGetAllBalancesByAccountID validates repository delegation, Redis overlay, and error handling.
-func TestGetAllBalancesByAccountID(t *testing.T) {
+func TestGetAllBalancesByAccountID(t *testing.T) { //nolint:funlen
+	t.Parallel()
+
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	accountID := libCommons.GenerateUUIDv7()
@@ -41,8 +46,6 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		Next: "next",
 		Prev: "prev",
 	}
-
-	t.Parallel()
 
 	// Success without Redis overlay: values should remain unchanged
 	t.Run("SuccessNoRedisOverlay", func(t *testing.T) {
@@ -77,7 +80,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		uc := UseCase{BalanceRepo: mockBalanceRepo, RedisRepo: mockRedisRepo}
 		res, cur, err := uc.GetAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, mockCur, cur)
 		assert.Len(t, res, 1)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(10)))
@@ -119,7 +122,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		uc := UseCase{BalanceRepo: mockBalanceRepo, RedisRepo: mockRedisRepo}
 		res, cur, err := uc.GetAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, mockCur, cur)
 		assert.Len(t, res, 1)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromFloat(123.45)))
@@ -163,7 +166,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		uc := UseCase{BalanceRepo: mockBalanceRepo, RedisRepo: mockRedisRepo, ShardRouter: router}
 		res, cur, err := uc.GetAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, mockCur, cur)
 		assert.Len(t, res, 1)
 		assert.True(t, res[0].Available.Equal(decimal.RequireFromString("77.10")))
@@ -188,9 +191,9 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		uc := UseCase{BalanceRepo: mockBalanceRepo}
 		res, cur, err := uc.GetAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, mockCur, cur)
-		assert.Len(t, res, 0)
+		assert.Empty(t, res)
 	})
 
 	// Repository not found should map to business error
@@ -210,7 +213,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		uc := UseCase{BalanceRepo: mockBalanceRepo}
 		res, cur, err := uc.GetAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, res)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
@@ -223,7 +226,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 
-		errDB := errors.New("database error")
+		errDB := errors.New("database error") //nolint:err113
 		mockBalanceRepo.
 			EXPECT().
 			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, filter.ToCursorPagination()).
@@ -233,7 +236,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		uc := UseCase{BalanceRepo: mockBalanceRepo}
 		res, cur, err := uc.GetAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, res)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 		assert.Contains(t, err.Error(), "database error")
@@ -266,13 +269,13 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		mockRedisRepo.
 			EXPECT().
 			MGet(gomock.Any(), gomock.Eq([]string{expectedKey})).
-			Return(nil, errors.New("redis error")).
+			Return(nil, errors.New("redis error")). //nolint:err113
 			Times(1)
 
 		uc := UseCase{BalanceRepo: mockBalanceRepo, RedisRepo: mockRedisRepo}
 		res, cur, err := uc.GetAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, mockCur, cur)
 		assert.Len(t, res, 1)
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(7)))
@@ -312,7 +315,7 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		uc := UseCase{BalanceRepo: mockBalanceRepo, RedisRepo: mockRedisRepo}
 		res, cur, err := uc.GetAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, mockCur, cur)
 		assert.Len(t, res, 1)
 		// Values remain as from repository (overlay skipped)

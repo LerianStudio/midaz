@@ -6,21 +6,26 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-func TestGetAllAssetRatesByAssetCode(t *testing.T) {
+func TestGetAllAssetRatesByAssetCode(t *testing.T) { //nolint:funlen
+	t.Parallel()
+
 	orgID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	fromAssetCode := "USD"
@@ -37,18 +42,16 @@ func TestGetAllAssetRatesByAssetCode(t *testing.T) {
 		Prev: "prev",
 	}
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockAssetRateRepo := assetrate.NewMockRepository(ctrl)
-	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-
-	uc := UseCase{
-		AssetRateRepo: mockAssetRateRepo,
-		MetadataRepo:  mockMetadataRepo,
-	}
-
 	t.Run("returns_asset_rates_with_metadata", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockAssetRateRepo := assetrate.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := UseCase{AssetRateRepo: mockAssetRateRepo, MetadataRepo: mockMetadataRepo}
+
 		assetRateID := libCommons.GenerateUUIDv7().String()
 
 		assetRates := []*assetrate.AssetRate{
@@ -88,13 +91,22 @@ func TestGetAllAssetRatesByAssetCode(t *testing.T) {
 
 		result, cur, err := uc.GetAllAssetRatesByAssetCode(context.TODO(), orgID, ledgerID, fromAssetCode, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.Equal(t, mockCur, cur)
 		assert.Equal(t, map[string]any{"key": "value"}, result[0].Metadata)
 	})
 
 	t.Run("returns_asset_rates_without_metadata", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockAssetRateRepo := assetrate.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := UseCase{AssetRateRepo: mockAssetRateRepo, MetadataRepo: mockMetadataRepo}
+
 		assetRateID := libCommons.GenerateUUIDv7().String()
 
 		assetRates := []*assetrate.AssetRate{
@@ -122,13 +134,21 @@ func TestGetAllAssetRatesByAssetCode(t *testing.T) {
 
 		result, cur, err := uc.GetAllAssetRatesByAssetCode(context.TODO(), orgID, ledgerID, fromAssetCode, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.Equal(t, mockCur, cur)
 		assert.Nil(t, result[0].Metadata)
 	})
 
 	t.Run("returns_empty_when_no_asset_rates", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockAssetRateRepo := assetrate.NewMockRepository(ctrl)
+		uc := UseCase{AssetRateRepo: mockAssetRateRepo}
+
 		mockAssetRateRepo.
 			EXPECT().
 			FindAllByAssetCodes(gomock.Any(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToCursorPagination()).
@@ -137,12 +157,16 @@ func TestGetAllAssetRatesByAssetCode(t *testing.T) {
 
 		result, cur, err := uc.GetAllAssetRatesByAssetCode(context.TODO(), orgID, ledgerID, fromAssetCode, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
 
 	t.Run("error_invalid_asset_codes", func(t *testing.T) {
+		t.Parallel()
+
+		uc := UseCase{}
+
 		cases := []struct {
 			name            string
 			fromAssetCode   string
@@ -177,6 +201,8 @@ func TestGetAllAssetRatesByAssetCode(t *testing.T) {
 
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
 				testFilter := http.QueryHeader{
 					Limit:        10,
 					Page:         1,
@@ -188,7 +214,7 @@ func TestGetAllAssetRatesByAssetCode(t *testing.T) {
 
 				result, cur, err := uc.GetAllAssetRatesByAssetCode(context.TODO(), orgID, ledgerID, tc.fromAssetCode, testFilter)
 
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 				assert.Equal(t, libHTTP.CursorPagination{}, cur)
 				assert.Contains(t, err.Error(), tc.expectedErrCode)
@@ -197,21 +223,38 @@ func TestGetAllAssetRatesByAssetCode(t *testing.T) {
 	})
 
 	t.Run("error_asset_rate_repo_failure", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockAssetRateRepo := assetrate.NewMockRepository(ctrl)
+		uc := UseCase{AssetRateRepo: mockAssetRateRepo}
+
 		mockAssetRateRepo.
 			EXPECT().
 			FindAllByAssetCodes(gomock.Any(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, errors.New("database error")).
+			Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound).
 			Times(1)
 
 		result, cur, err := uc.GetAllAssetRatesByAssetCode(context.TODO(), orgID, ledgerID, fromAssetCode, filter)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
-		assert.Contains(t, err.Error(), "database error")
+		assert.ErrorIs(t, err, services.ErrDatabaseItemNotFound)
 	})
 
 	t.Run("error_metadata_repo_failure", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockAssetRateRepo := assetrate.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := UseCase{AssetRateRepo: mockAssetRateRepo, MetadataRepo: mockMetadataRepo}
+
 		assetRateID := libCommons.GenerateUUIDv7().String()
 
 		assetRates := []*assetrate.AssetRate{
@@ -234,14 +277,14 @@ func TestGetAllAssetRatesByAssetCode(t *testing.T) {
 		mockMetadataRepo.
 			EXPECT().
 			FindList(gomock.Any(), "AssetRate", filter).
-			Return(nil, errors.New("mongodb error")).
+			Return(nil, services.ErrDatabaseItemNotFound).
 			Times(1)
 
 		result, cur, err := uc.GetAllAssetRatesByAssetCode(context.TODO(), orgID, ledgerID, fromAssetCode, filter)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
-		assert.Contains(t, err.Error(), "mongodb error")
+		assert.ErrorIs(t, err, services.ErrDatabaseItemNotFound)
 	})
 }

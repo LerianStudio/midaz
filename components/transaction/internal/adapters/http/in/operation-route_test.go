@@ -7,28 +7,31 @@ package in
 import (
 	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute" //nolint:depguard
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
-func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
+func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	tests := []struct {
@@ -56,6 +59,7 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 						or.LedgerID = lID
 						or.CreatedAt = time.Now()
 						or.UpdatedAt = time.Now()
+
 						return or, nil
 					}).
 					Times(1)
@@ -67,7 +71,10 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -98,13 +105,17 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 						or.LedgerID = lID
 						or.CreatedAt = time.Now()
 						or.UpdatedAt = time.Now()
+
 						return or, nil
 					}).
 					Times(1)
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -136,13 +147,17 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 						or.LedgerID = lID
 						or.CreatedAt = time.Now()
 						or.UpdatedAt = time.Now()
+
 						return or, nil
 					}).
 					Times(1)
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -165,7 +180,10 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -188,7 +206,10 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -211,7 +232,10 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -234,7 +258,10 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -257,7 +284,10 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -280,7 +310,10 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -306,7 +339,10 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -342,6 +378,7 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				func(c *fiber.Ctx) error {
@@ -350,12 +387,15 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes", nil)
+			req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes", http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -367,7 +407,7 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 	}
 }
 
-func TestOperationRouteHandler_GetOperationRouteByID(t *testing.T) {
+func TestOperationRouteHandler_GetOperationRouteByID(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	tests := []struct {
@@ -405,7 +445,10 @@ func TestOperationRouteHandler_GetOperationRouteByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -440,7 +483,10 @@ func TestOperationRouteHandler_GetOperationRouteByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -459,7 +505,10 @@ func TestOperationRouteHandler_GetOperationRouteByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -481,7 +530,10 @@ func TestOperationRouteHandler_GetOperationRouteByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -519,17 +571,21 @@ func TestOperationRouteHandler_GetOperationRouteByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("operation_route_id", operationRouteID)
+
 					return c.Next()
 				},
 				handler.GetOperationRouteByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+operationRouteID.String(), nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+operationRouteID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -541,7 +597,7 @@ func TestOperationRouteHandler_GetOperationRouteByID(t *testing.T) {
 	}
 }
 
-func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
+func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	tests := []struct {
@@ -613,7 +669,10 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -689,7 +748,10 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -710,7 +772,10 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -732,7 +797,10 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -754,7 +822,10 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -779,7 +850,10 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -826,6 +900,7 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("operation_route_id", operationRouteID)
+
 					return c.Next()
 				},
 				func(c *fiber.Ctx) error {
@@ -834,12 +909,15 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+operationRouteID.String(), nil)
+			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+operationRouteID.String(), http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -851,7 +929,7 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 	}
 }
 
-func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
+func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	tests := []struct {
@@ -894,7 +972,10 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -914,7 +995,10 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
 			},
 			expectedStatus: 422, // UnprocessableOperationError returns 422
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -936,7 +1020,10 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -963,7 +1050,10 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -999,17 +1089,21 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("operation_route_id", operationRouteID)
+
 					return c.Next()
 				},
 				handler.DeleteOperationRouteByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("DELETE", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+operationRouteID.String(), nil)
+			req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes/"+operationRouteID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1021,7 +1115,7 @@ func TestOperationRouteHandler_DeleteOperationRouteByID(t *testing.T) {
 	}
 }
 
-func TestOperationRouteHandler_GetAllOperationRoutes(t *testing.T) {
+func TestOperationRouteHandler_GetAllOperationRoutes(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	tests := []struct {
@@ -1048,14 +1142,17 @@ func TestOperationRouteHandler_GetAllOperationRoutes(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				// Validate pagination structure exists
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InEpsilon(t, float64(10), limit, 1e-9)
 
 				// Validate items is empty array
 				items, ok := result["items"].([]any)
@@ -1113,7 +1210,10 @@ func TestOperationRouteHandler_GetAllOperationRoutes(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -1132,7 +1232,7 @@ func TestOperationRouteHandler_GetAllOperationRoutes(t *testing.T) {
 				// Validate pagination
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(5), limit)
+				assert.InEpsilon(t, float64(5), limit, 1e-9)
 
 				// Validate cursor pagination fields
 				assert.Contains(t, result, "next_cursor", "response should contain next_cursor")
@@ -1179,7 +1279,10 @@ func TestOperationRouteHandler_GetAllOperationRoutes(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -1209,7 +1312,10 @@ func TestOperationRouteHandler_GetAllOperationRoutes(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -1225,7 +1331,10 @@ func TestOperationRouteHandler_GetAllOperationRoutes(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -1261,17 +1370,21 @@ func TestOperationRouteHandler_GetAllOperationRoutes(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetAllOperationRoutes,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/operation-routes"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {

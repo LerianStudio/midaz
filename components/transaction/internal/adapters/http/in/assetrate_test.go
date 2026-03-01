@@ -8,28 +8,33 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate" //nolint:depguard
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
-func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) {
+func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) { //nolint:funlen
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		jsonBody       string
@@ -60,6 +65,7 @@ func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) {
 					DoAndReturn(func(ctx any, ar *assetrate.AssetRate) (*assetrate.AssetRate, error) {
 						ar.CreatedAt = time.Now()
 						ar.UpdatedAt = time.Now()
+
 						return ar, nil
 					}).
 					Times(1)
@@ -72,7 +78,11 @@ func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) {
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -138,7 +148,11 @@ func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) {
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -169,7 +183,11 @@ func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -181,6 +199,8 @@ func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
@@ -202,16 +222,20 @@ func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
-				http.WithBody(new(assetrate.CreateAssetRateInput), handler.CreateOrUpdateAssetRate),
+				pkgHTTP.WithBody(new(assetrate.CreateAssetRateInput), handler.CreateOrUpdateAssetRate),
 			)
 
-			req := httptest.NewRequest("PUT", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(http.MethodPut, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -223,7 +247,9 @@ func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) {
 	}
 }
 
-func TestAssetRateHandler_GetAssetRateByExternalID(t *testing.T) {
+func TestAssetRateHandler_GetAssetRateByExternalID(t *testing.T) { //nolint:funlen
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		setupMocks     func(assetRateRepo *assetrate.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, externalID uuid.UUID)
@@ -261,7 +287,11 @@ func TestAssetRateHandler_GetAssetRateByExternalID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -283,7 +313,11 @@ func TestAssetRateHandler_GetAssetRateByExternalID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -305,7 +339,11 @@ func TestAssetRateHandler_GetAssetRateByExternalID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -317,6 +355,8 @@ func TestAssetRateHandler_GetAssetRateByExternalID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
@@ -340,15 +380,19 @@ func TestAssetRateHandler_GetAssetRateByExternalID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("external_id", externalID)
+
 					return c.Next()
 				},
 				handler.GetAssetRateByExternalID,
 			)
 
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates/"+externalID.String(), nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates/"+externalID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -360,7 +404,9 @@ func TestAssetRateHandler_GetAssetRateByExternalID(t *testing.T) {
 	}
 }
 
-func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) {
+func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) { //nolint:funlen
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		queryParams    string
@@ -384,14 +430,18 @@ func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				// Validate pagination structure exists
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InEpsilon(t, float64(10), limit, 1e-9)
 
 				// Validate items is empty array
 				items, ok := result["items"].([]any)
@@ -450,7 +500,11 @@ func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -470,7 +524,7 @@ func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) {
 				// Validate pagination
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(5), limit)
+				assert.InEpsilon(t, float64(5), limit, 1e-9)
 
 				// Validate cursor pagination fields
 				assert.Contains(t, result, "next_cursor", "response should contain next_cursor")
@@ -491,7 +545,11 @@ func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -503,6 +561,8 @@ func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
@@ -525,15 +585,19 @@ func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetAllAssetRatesByAssetCode,
 			)
 
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates/from/"+assetCode+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/asset-rates/from/"+assetCode+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -545,5 +609,5 @@ func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) {
 	}
 }
 
-// Ensure libPostgres.Pagination is used (referenced in handler)
+// Ensure libPostgres.Pagination is used (referenced in handler).
 var _ = libPostgres.Pagination{}

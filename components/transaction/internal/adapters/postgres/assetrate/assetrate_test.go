@@ -14,7 +14,7 @@ import (
 
 // =============================================================================
 // UNIT TESTS - Interface Compliance
-// =============================================================================
+// =============================================================================.
 
 func TestAssetRatePostgreSQLRepository_ImplementsRepository(t *testing.T) {
 	t.Parallel()
@@ -26,10 +26,14 @@ func TestAssetRatePostgreSQLRepository_ImplementsRepository(t *testing.T) {
 
 // =============================================================================
 // UNIT TESTS - Model Transformations
-// =============================================================================
+// =============================================================================.
 
 func TestAssetRatePostgreSQLModel_ToEntity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("with_all_fields_populated", func(t *testing.T) {
+		t.Parallel()
+
 		source := "Central Bank"
 
 		model := &AssetRatePostgreSQLModel{
@@ -56,9 +60,9 @@ func TestAssetRatePostgreSQLModel_ToEntity(t *testing.T) {
 		assert.Equal(t, model.ExternalID, entity.ExternalID)
 		assert.Equal(t, model.From, entity.From)
 		assert.Equal(t, model.To, entity.To)
-		assert.Equal(t, model.Rate, entity.Rate)
+		assert.InEpsilon(t, model.Rate, entity.Rate, 1e-9)
 		require.NotNil(t, entity.Scale, "Scale should be converted to pointer")
-		assert.Equal(t, model.RateScale, *entity.Scale)
+		assert.InEpsilon(t, model.RateScale, *entity.Scale, 1e-9)
 		assert.Equal(t, model.Source, entity.Source)
 		assert.Equal(t, model.TTL, entity.TTL)
 		assert.Equal(t, model.CreatedAt, entity.CreatedAt)
@@ -66,6 +70,8 @@ func TestAssetRatePostgreSQLModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("with_optional_fields_nil", func(t *testing.T) {
+		t.Parallel()
+
 		model := &AssetRatePostgreSQLModel{
 			ID:             "assetrate-456",
 			OrganizationID: "org-123",
@@ -88,14 +94,16 @@ func TestAssetRatePostgreSQLModel_ToEntity(t *testing.T) {
 		assert.Empty(t, entity.ExternalID)
 		assert.Equal(t, model.From, entity.From)
 		assert.Equal(t, model.To, entity.To)
-		assert.Equal(t, model.Rate, entity.Rate)
+		assert.InEpsilon(t, model.Rate, entity.Rate, 1e-9)
 		require.NotNil(t, entity.Scale)
-		assert.Equal(t, model.RateScale, *entity.Scale)
+		assert.InDelta(t, model.RateScale, *entity.Scale, 1e-9)
 		assert.Nil(t, entity.Source)
 		assert.Equal(t, 0, entity.TTL)
 	})
 
 	t.Run("with_zero_rate_scale", func(t *testing.T) {
+		t.Parallel()
+
 		// Verifies that zero RateScale is correctly converted to Scale pointer
 		model := &AssetRatePostgreSQLModel{
 			ID:             "assetrate-zero",
@@ -114,12 +122,16 @@ func TestAssetRatePostgreSQLModel_ToEntity(t *testing.T) {
 
 		require.NotNil(t, entity)
 		require.NotNil(t, entity.Scale, "Scale should not be nil even when RateScale is 0")
-		assert.Equal(t, 0.0, *entity.Scale)
+		assert.InDelta(t, 0.0, *entity.Scale, 1e-9)
 	})
 }
 
 func TestAssetRatePostgreSQLModel_FromEntity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("with_all_fields_populated", func(t *testing.T) {
+		t.Parallel()
+
 		source := "External API"
 		scale := 2.0
 
@@ -148,8 +160,8 @@ func TestAssetRatePostgreSQLModel_FromEntity(t *testing.T) {
 		assert.Equal(t, entity.ExternalID, model.ExternalID)
 		assert.Equal(t, entity.From, model.From)
 		assert.Equal(t, entity.To, model.To)
-		assert.Equal(t, entity.Rate, model.Rate)
-		assert.Equal(t, *entity.Scale, model.RateScale)
+		assert.InEpsilon(t, entity.Rate, model.Rate, 1e-9)
+		assert.InEpsilon(t, *entity.Scale, model.RateScale, 1e-9)
 		assert.Equal(t, entity.Source, model.Source)
 		assert.Equal(t, entity.TTL, model.TTL)
 		assert.Equal(t, entity.CreatedAt, model.CreatedAt)
@@ -158,6 +170,8 @@ func TestAssetRatePostgreSQLModel_FromEntity(t *testing.T) {
 	})
 
 	t.Run("with_optional_fields_nil", func(t *testing.T) {
+		t.Parallel()
+
 		scale := 0.0
 
 		entity := &AssetRate{
@@ -181,13 +195,15 @@ func TestAssetRatePostgreSQLModel_FromEntity(t *testing.T) {
 		assert.Empty(t, model.ExternalID)
 		assert.Equal(t, entity.From, model.From)
 		assert.Equal(t, entity.To, model.To)
-		assert.Equal(t, entity.Rate, model.Rate)
-		assert.Equal(t, *entity.Scale, model.RateScale)
+		assert.InEpsilon(t, entity.Rate, model.Rate, 1e-9)
+		assert.InDelta(t, *entity.Scale, model.RateScale, 1e-9)
 		assert.Nil(t, model.Source)
 		assert.Equal(t, 0, model.TTL)
 	})
 
 	t.Run("generates_uuid_v7", func(t *testing.T) {
+		t.Parallel()
+
 		scale := 2.0
 
 		entity := &AssetRate{
@@ -202,8 +218,11 @@ func TestAssetRatePostgreSQLModel_FromEntity(t *testing.T) {
 			UpdatedAt:      time.Now(),
 		}
 
-		var model1 AssetRatePostgreSQLModel
-		var model2 AssetRatePostgreSQLModel
+		var (
+			model1 AssetRatePostgreSQLModel
+			model2 AssetRatePostgreSQLModel
+		)
+
 		model1.FromEntity(entity)
 		model2.FromEntity(entity)
 

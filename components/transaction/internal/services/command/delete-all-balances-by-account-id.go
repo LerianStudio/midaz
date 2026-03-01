@@ -9,15 +9,17 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/attribute"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // DeleteAllBalancesByAccountID delete all balances by account id in the repository.
@@ -51,17 +53,17 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		if err != nil {
 			if errors.Is(err, redis.Nil) {
 				continue
-			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance by key on redis", err)
-
-				logger.Errorf("Error getting balance by key on redis: %v", err)
-
-				return err
 			}
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance by key on redis", err)
+
+			logger.Errorf("Error getting balance by key on redis: %v", err)
+
+			return err
 		}
 
 		if cacheBalance != nil {
-			err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "ListBalanceByAccountIDAndKey")
+			err = fmt.Errorf("delete all balances by account id: %w", pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "ListBalanceByAccountIDAndKey"))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance cannot be deleted because there is transactions happening.", err)
 
@@ -71,7 +73,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		}
 
 		if !balance.Available.IsZero() || !balance.OnHold.IsZero() {
-			err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "DeleteAllBalancesByAccountID")
+			err = fmt.Errorf("delete all balances by account id: %w", pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "DeleteAllBalancesByAccountID"))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance cannot be deleted because it still has funds in it.", err)
 
@@ -111,7 +113,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 	return nil
 }
 
-func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, allow bool) (err error) {
+func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, allow bool) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.toggle_balance_transfers")
@@ -121,19 +123,14 @@ func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, l
 
 	allowTransfer := utils.BoolPtr(allow)
 
-	defer func() {
-		if err == nil {
-			return
-		}
-
+	err := uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, accountID, allowTransfer)
+	if err != nil {
 		if rollbackErr := uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, accountID, utils.BoolPtr(!allow)); rollbackErr != nil {
 			logger.Errorf("Failed to rollback transfer permissions for account %s: %v", accountID.String(), rollbackErr)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to rollback balance transfer permission", rollbackErr)
 		}
-	}()
 
-	if err = uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, accountID, allowTransfer); err != nil {
 		return err
 	}
 

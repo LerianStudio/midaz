@@ -10,18 +10,22 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.uber.org/mock/gomock"
 )
 
-// TestGetOperationRouteByIDSuccess tests getting an operation route by ID successfully with metadata
+// TestGetOperationRouteByIDSuccess tests getting an operation route by ID successfully with metadata.
 func TestGetOperationRouteByIDSuccess(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -65,7 +69,7 @@ func TestGetOperationRouteByIDSuccess(t *testing.T) {
 
 	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, operationRouteID, result.ID)
 	assert.Equal(t, organizationID, result.OrganizationID)
@@ -77,8 +81,10 @@ func TestGetOperationRouteByIDSuccess(t *testing.T) {
 	assert.Equal(t, map[string]any{"key": "value", "type": "important"}, result.Metadata)
 }
 
-// TestGetOperationRouteByIDSuccessWithoutMetadata tests getting an operation route by ID successfully without metadata
+// TestGetOperationRouteByIDSuccessWithoutMetadata tests getting an operation route by ID successfully without metadata.
 func TestGetOperationRouteByIDSuccessWithoutMetadata(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -116,7 +122,7 @@ func TestGetOperationRouteByIDSuccessWithoutMetadata(t *testing.T) {
 
 	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, operationRouteID, result.ID)
 	assert.Equal(t, organizationID, result.OrganizationID)
@@ -128,15 +134,17 @@ func TestGetOperationRouteByIDSuccessWithoutMetadata(t *testing.T) {
 	assert.Nil(t, result.Metadata)
 }
 
-// TestGetOperationRouteByIDError tests getting an operation route by ID with database error
+// TestGetOperationRouteByIDError tests getting an operation route by ID with database error.
 func TestGetOperationRouteByIDError(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	expectedError := errors.New("database error")
+	expectedError := errors.New("database error") //nolint:err113
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -153,13 +161,15 @@ func TestGetOperationRouteByIDError(t *testing.T) {
 
 	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, expectedError, err)
 	assert.Nil(t, result)
 }
 
-// TestGetOperationRouteByIDNotFound tests getting an operation route by ID when not found (ErrDatabaseItemNotFound)
+// TestGetOperationRouteByIDNotFound tests getting an operation route by ID when not found (ErrDatabaseItemNotFound).
 func TestGetOperationRouteByIDNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -182,20 +192,22 @@ func TestGetOperationRouteByIDNotFound(t *testing.T) {
 
 	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "The provided operation route does not exist in our records")
 }
 
-// TestGetOperationRouteByIDMetadataError tests getting an operation route by ID with metadata error
+// TestGetOperationRouteByIDMetadataError tests getting an operation route by ID with metadata error.
 func TestGetOperationRouteByIDMetadataError(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	operationRouteID := uuid.New()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	metadataError := errors.New("metadata repository error")
+	metadataError := errors.New("metadata repository error") //nolint:err113
 
 	expectedOperationRoute := &mmodel.OperationRoute{
 		ID:             operationRouteID,
@@ -227,13 +239,15 @@ func TestGetOperationRouteByIDMetadataError(t *testing.T) {
 
 	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, nil, operationRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, metadataError, err)
 	assert.Nil(t, result)
 }
 
-// TestGetOperationRouteByIDWithPortfolioID tests getting an operation route by ID with portfolio ID parameter
+// TestGetOperationRouteByIDWithPortfolioID tests getting an operation route by ID with portfolio ID parameter.
 func TestGetOperationRouteByIDWithPortfolioID(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -278,7 +292,7 @@ func TestGetOperationRouteByIDWithPortfolioID(t *testing.T) {
 
 	result, err := uc.GetOperationRouteByID(context.Background(), organizationID, ledgerID, &portfolioID, operationRouteID)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, operationRouteID, result.ID)
 	assert.Equal(t, "Portfolio Route", result.Title)

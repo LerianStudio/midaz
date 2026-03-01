@@ -8,25 +8,32 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/Masterminds/squirrel"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// whereOrgIDOffset is the positional offset from the end of the args slice to the organizationID parameter.
+// After appending (updatedAt, organizationID, ledgerID, id), organizationID is at len(args)-2.
+const whereOrgIDOffset = 2
 
 // Repository provides an interface for operations related to operation route entities.
 // It defines methods for creating, retrieving, updating, and deleting operation routes.
@@ -58,7 +65,7 @@ func NewOperationRoutePostgreSQLRepository(pc *libPostgres.PostgresConnection) *
 
 	_, err := c.connection.GetDB()
 	if err != nil {
-		panic("Failed to connect database")
+		panic("Failed to connect database") //nolint:forbidigo
 	}
 
 	return c
@@ -77,7 +84,7 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	record := &OperationRoutePostgreSQLModel{}
@@ -109,14 +116,14 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 
 			logger.Errorf("Failed to execute update query: %v", err)
 
-			return nil, err
+			return nil, err //nolint:wrapcheck
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	spanExec.End()
@@ -127,7 +134,7 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -137,7 +144,7 @@ func (r *OperationRoutePostgreSQLRepository) Create(ctx context.Context, organiz
 
 		logger.Warnf("Failed to create operation route. Rows affected is 0: %v", err)
 
-		return nil, err
+		return nil, err //nolint:wrapcheck
 	}
 
 	return record.ToEntity(), nil
@@ -157,7 +164,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	query := `SELECT id, organization_id, ledger_id, title, description, code, operation_type, account_rule_type, account_rule_valid_if, created_at, updated_at, deleted_at 
@@ -194,14 +201,14 @@ func (r *OperationRoutePostgreSQLRepository) FindByID(ctx context.Context, organ
 
 			logger.Warnf("Failed to scan operation route: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan operation route", err)
 
 		logger.Errorf("Failed to scan operation route: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to scan row: %w", err)
 	}
 
 	return operationRoute.ToEntity(), nil
@@ -225,7 +232,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	query := squirrel.Select("id", "organization_id", "ledger_id", "title", "description", "code", "operation_type", "account_rule_type", "account_rule_valid_if", "created_at", "updated_at", "deleted_at").
@@ -240,7 +247,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_ids.query")
@@ -251,7 +258,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 	defer rows.Close()
 
@@ -282,7 +289,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 
 			logger.Errorf("Failed to scan operation route: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
 		operationRoutes = append(operationRoutes, operationRoute.ToEntity())
@@ -294,7 +301,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to perform database operation: %w", err)
 	}
 
 	var missingIDs []string
@@ -314,7 +321,7 @@ func (r *OperationRoutePostgreSQLRepository) FindByIDs(ctx context.Context, orga
 
 		logger.Warnf("Operation route(s) not found: %v", missingIDsStr)
 
-		return nil, err
+		return nil, err //nolint:wrapcheck
 	}
 
 	return operationRoutes, nil
@@ -334,7 +341,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	record := &OperationRoutePostgreSQLModel{}
@@ -378,7 +385,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
 	query := `UPDATE operation_route SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-whereOrgIDOffset) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
@@ -395,14 +402,14 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 
 			logger.Warnf("Failed to execute update query: %v", err)
 
-			return nil, err
+			return nil, err //nolint:wrapcheck
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	spanExec.End()
@@ -413,7 +420,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -423,7 +430,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 
 		logger.Warnf("Failed to update operation route. Rows affected is 0: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -442,7 +449,7 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return err
+		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	query := "UPDATE operation_route SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
@@ -457,7 +464,7 @@ func (r *OperationRoutePostgreSQLRepository) Delete(ctx context.Context, organiz
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return err
+		return fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	spanExec.End()
@@ -480,7 +487,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	var operationRoutes []*mmodel.OperationRoute
@@ -495,7 +502,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 			logger.Errorf("Failed to decode cursor: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to decode cursor: %w", err)
 		}
 	}
 
@@ -519,7 +526,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to build query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -531,7 +538,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to execute query: %w", err)
 	}
 	defer rows.Close()
 
@@ -556,7 +563,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 			logger.Errorf("Failed to scan operation route: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to scan row: %w", err)
 		}
 
 		operationRoutes = append(operationRoutes, operationRoute.ToEntity())
@@ -567,7 +574,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to perform database operation: %w", err)
 	}
 
 	hasPagination := len(operationRoutes) > filter.Limit
@@ -583,7 +590,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 
 			logger.Errorf("Failed to calculate cursor: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to calculate cursor: %w", err)
 		}
 	}
 
@@ -604,7 +611,7 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return false, err
+		return false, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	query := `SELECT EXISTS(SELECT 1 FROM operation_transaction_route WHERE operation_route_id = $1 AND deleted_at IS NULL)`
@@ -623,7 +630,7 @@ func (r *OperationRoutePostgreSQLRepository) HasTransactionRouteLinks(ctx contex
 
 		logger.Errorf("Failed to scan exists result: %v", err)
 
-		return false, err
+		return false, fmt.Errorf("failed to scan row: %w", err)
 	}
 
 	return exists, nil
@@ -643,7 +650,7 @@ func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	query := `SELECT transaction_route_id FROM operation_transaction_route WHERE operation_route_id = $1 AND deleted_at IS NULL ORDER BY created_at`
@@ -658,7 +665,7 @@ func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 	defer rows.Close()
 
@@ -672,7 +679,7 @@ func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context
 
 			logger.Errorf("Failed to scan transaction route ID: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
 		transactionRouteIDs = append(transactionRouteIDs, transactionRouteID)
@@ -683,7 +690,7 @@ func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to perform database operation: %w", err)
 	}
 
 	return transactionRouteIDs, nil

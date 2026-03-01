@@ -6,10 +6,12 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
@@ -24,7 +26,7 @@ func (uc *UseCase) DeleteMetadataIndex(ctx context.Context, entityName, indexNam
 	logger.Infof("Initializing the delete metadata index operation: entity=%s, index=%s", entityName, indexName)
 
 	if !strings.HasPrefix(indexName, "metadata.") {
-		err := pkg.ValidateBusinessError(constant.ErrMetadataIndexDeletionForbidden, "metadata_index")
+		err := fmt.Errorf("delete metadata index: %w", pkg.ValidateBusinessError(constant.ErrMetadataIndexDeletionForbidden, "metadata_index"))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid index name format", err)
 

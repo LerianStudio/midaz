@@ -11,17 +11,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-func TestGetAllOperationsByAccount(t *testing.T) {
+func TestGetAllOperationsByAccount(t *testing.T) { //nolint:funlen
+	t.Parallel()
+
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	accountID := libCommons.GenerateUUIDv7()
@@ -38,19 +43,16 @@ func TestGetAllOperationsByAccount(t *testing.T) {
 		Prev: "prev",
 	}
 
-	t.Parallel()
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockOperationRepo := operation.NewMockRepository(ctrl)
-	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-
-	uc := UseCase{
-		OperationRepo: mockOperationRepo,
-		MetadataRepo:  mockMetadataRepo,
-	}
-
 	t.Run("with_metadata", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockOperationRepo := operation.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := UseCase{OperationRepo: mockOperationRepo, MetadataRepo: mockMetadataRepo}
+
 		op1ID := libCommons.GenerateUUIDv7().String()
 		op2ID := libCommons.GenerateUUIDv7().String()
 		operations := []*operation.Operation{
@@ -86,8 +88,8 @@ func TestGetAllOperationsByAccount(t *testing.T) {
 
 		result, cur, err := uc.GetAllOperationsByAccount(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.NoError(t, err)
-		assert.Equal(t, 2, len(result))
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
 		assert.Equal(t, mockCur, cur)
 
 		assert.Equal(t, "value1", result[0].Metadata["key1"])
@@ -95,6 +97,14 @@ func TestGetAllOperationsByAccount(t *testing.T) {
 	})
 
 	t.Run("empty_operations", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockOperationRepo := operation.NewMockRepository(ctrl)
+		uc := UseCase{OperationRepo: mockOperationRepo}
+
 		mockOperationRepo.
 			EXPECT().
 			FindAllByAccount(gomock.Any(), organizationID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination()).
@@ -103,12 +113,20 @@ func TestGetAllOperationsByAccount(t *testing.T) {
 
 		result, cur, err := uc.GetAllOperationsByAccount(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, result)
 		assert.Equal(t, mockCur, cur)
 	})
 
 	t.Run("repo_error_not_found", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockOperationRepo := operation.NewMockRepository(ctrl)
+		uc := UseCase{OperationRepo: mockOperationRepo}
+
 		mockOperationRepo.
 			EXPECT().
 			FindAllByAccount(gomock.Any(), organizationID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination()).
@@ -117,27 +135,44 @@ func TestGetAllOperationsByAccount(t *testing.T) {
 
 		result, cur, err := uc.GetAllOperationsByAccount(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "No operations were found")
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
 
 	t.Run("repo_error_generic", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockOperationRepo := operation.NewMockRepository(ctrl)
+		uc := UseCase{OperationRepo: mockOperationRepo}
+
 		mockOperationRepo.
 			EXPECT().
 			FindAllByAccount(gomock.Any(), organizationID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, errors.New("database connection error")).
+			Return(nil, libHTTP.CursorPagination{}, errors.New("database connection error")). //nolint:err113
 			Times(1)
 
 		result, cur, err := uc.GetAllOperationsByAccount(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
 
 	t.Run("metadata_error", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockOperationRepo := operation.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := UseCase{OperationRepo: mockOperationRepo, MetadataRepo: mockMetadataRepo}
+
 		operations := []*operation.Operation{{ID: libCommons.GenerateUUIDv7().String()}}
 
 		mockOperationRepo.
@@ -149,17 +184,26 @@ func TestGetAllOperationsByAccount(t *testing.T) {
 		mockMetadataRepo.
 			EXPECT().
 			FindByEntityIDs(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), gomock.Any()).
-			Return(nil, errors.New("metadata error")).
+			Return(nil, errors.New("metadata error")). //nolint:err113
 			Times(1)
 
 		result, cur, err := uc.GetAllOperationsByAccount(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
 
 	t.Run("partial_metadata", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockOperationRepo := operation.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := UseCase{OperationRepo: mockOperationRepo, MetadataRepo: mockMetadataRepo}
+
 		op1ID := libCommons.GenerateUUIDv7().String()
 		op2ID := libCommons.GenerateUUIDv7().String()
 		operations := []*operation.Operation{
@@ -189,8 +233,8 @@ func TestGetAllOperationsByAccount(t *testing.T) {
 
 		result, cur, err := uc.GetAllOperationsByAccount(context.TODO(), organizationID, ledgerID, accountID, filter)
 
-		assert.NoError(t, err)
-		assert.Equal(t, 2, len(result))
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
 		assert.Equal(t, mockCur, cur)
 
 		// op1 has metadata

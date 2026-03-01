@@ -8,12 +8,16 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	"github.com/google/uuid"
 )
 
+// ResolveBalanceShard determines which shard a balance belongs to using the manager (if available)
+// or falling back to the static router.
 func ResolveBalanceShard(
 	ctx context.Context,
 	router *shard.Router,
@@ -22,7 +26,7 @@ func ResolveBalanceShard(
 	alias, balanceKey string,
 ) (int, error) {
 	if router != nil && router.ShardCount() <= 0 {
-		return 0, fmt.Errorf("invalid shard count")
+		return 0, internalsharding.ErrInvalidShardCount
 	}
 
 	if manager != nil {
@@ -43,7 +47,7 @@ func ResolveBalanceShard(
 
 	if router != nil {
 		if router.ShardCount() <= 0 {
-			return 0, fmt.Errorf("invalid shard count")
+			return 0, internalsharding.ErrInvalidShardCount
 		}
 
 		return router.ResolveBalance(alias, balanceKey), nil
@@ -51,4 +55,3 @@ func ResolveBalanceShard(
 
 	return 0, nil
 }
-

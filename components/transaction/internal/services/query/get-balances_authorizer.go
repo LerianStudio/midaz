@@ -12,20 +12,29 @@ import (
 	"math"
 	"sort"
 
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-
 	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
 
-const authorizerRejectionBalanceNotFound = "BALANCE_NOT_FOUND"
+const (
+	authorizerRejectionBalanceNotFound = "BALANCE_NOT_FOUND"
+	// authorizerScaleValuesPerOp is the number of scale values extracted per balance operation
+	// (amount value, available balance, on-hold balance).
+	authorizerScaleValuesPerOp = 3
+)
 
-func (uc *UseCase) processAuthorizerAtomicOperation(
+// ErrAuthorizerNotEnabled is returned when the authorizer is accessed but not enabled.
+var ErrAuthorizerNotEnabled = errors.New("authorizer is not enabled")
+
+func (uc *UseCase) processAuthorizerAtomicOperation( //nolint:gocyclo,cyclop
 	ctx context.Context,
 	organizationID, ledgerID, transactionID uuid.UUID,
 	transactionStatus string,
@@ -34,10 +43,10 @@ func (uc *UseCase) processAuthorizerAtomicOperation(
 	mapBalances map[string]*mmodel.Balance,
 ) ([]*mmodel.Balance, error) {
 	if uc.Authorizer == nil || !uc.Authorizer.Enabled() {
-		return nil, fmt.Errorf("authorizer is not enabled")
+		return nil, ErrAuthorizerNotEnabled
 	}
 
-	scaleValues := make([]decimal.Decimal, 0, len(balanceOperations)*3)
+	scaleValues := make([]decimal.Decimal, 0, len(balanceOperations)*authorizerScaleValuesPerOp)
 	for _, op := range balanceOperations {
 		if op.Balance == nil {
 			continue
@@ -52,7 +61,7 @@ func (uc *UseCase) processAuthorizerAtomicOperation(
 	}
 
 	if scale > pkgTransaction.MaxAllowedScale {
-		return nil, pkg.ValidateBusinessError(constant.ErrPrecisionOverflow, "validateBalance")
+		return nil, fmt.Errorf("process authorizer atomic operation: %w", pkg.ValidateBusinessError(constant.ErrPrecisionOverflow, "validateBalance"))
 	}
 
 	operations, err := buildAuthorizerOperations(balanceOperations, scale)
@@ -71,25 +80,28 @@ func (uc *UseCase) processAuthorizerAtomicOperation(
 
 	resp, err := uc.Authorizer.Authorize(ctx, request)
 	if err != nil {
-		return nil, pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer")
+		return nil, fmt.Errorf("process authorizer atomic operation: %w", pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer"))
 	}
 
-	if !resp.GetAuthorized() && resp.GetRejectionCode() == authorizerRejectionBalanceNotFound {
-		if err := uc.loadAuthorizerBalancesForOperations(ctx, organizationID, ledgerID, balanceOperations); err != nil {
-			if isConsumerLagStaleBalanceError(err) {
-				return nil, err
+	if !resp.GetAuthorized() && resp.GetRejectionCode() == authorizerRejectionBalanceNotFound { //nolint:nestif
+		if loadErr := uc.loadAuthorizerBalancesForOperations(ctx, organizationID, ledgerID, balanceOperations); loadErr != nil {
+			if isConsumerLagStaleBalanceError(loadErr) {
+				return nil, loadErr
 			}
 
-			return nil, pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer")
+			return nil, fmt.Errorf("process authorizer atomic operation: %w", pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer"))
 		}
 
 		resp, err = uc.Authorizer.Authorize(ctx, request)
 		if err != nil {
-			return nil, pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer")
+			return nil, fmt.Errorf("process authorizer atomic operation: %w", pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer"))
 		}
 	}
 
 	if !resp.GetAuthorized() {
+		logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
+		logger.Warnf("Authorizer rejected transaction %s: code=%s", transactionID, resp.GetRejectionCode())
+
 		return nil, mapAuthorizerRejection(resp.GetRejectionCode())
 	}
 
@@ -216,12 +228,12 @@ func balanceToRedis(b *mmodel.Balance) mmodel.BalanceRedis {
 func mapAuthorizerRejection(rejectionCode string) error {
 	switch rejectionCode {
 	case "INSUFFICIENT_FUNDS", "AMOUNT_EXCEEDS_HOLD":
-		return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
+		return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance") //nolint:wrapcheck
 	case "BALANCE_NOT_FOUND", "ACCOUNT_INELIGIBLE":
-		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "validateBalance")
+		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "validateBalance") //nolint:wrapcheck
 	case "INTERNAL_ERROR":
-		return pkg.ValidateBusinessError(constant.ErrInternalServer, "authorizer")
+		return pkg.ValidateBusinessError(constant.ErrInternalServer, "authorizer") //nolint:wrapcheck
 	default:
-		return pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer")
+		return pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer") //nolint:wrapcheck
 	}
 }

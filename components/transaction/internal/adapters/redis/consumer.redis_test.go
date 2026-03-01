@@ -9,25 +9,42 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
+
+var (
+	errWrappedRedisNil = fmt.Errorf("wrapped: %s", redis.Nil.Error())
+	errUppercaseNil    = errors.New("REDIS: NIL")
+	errBoom            = errors.New("boom")
+)
+
+func testLogger(t *testing.T) libLog.Logger {
+	t.Helper()
+
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
+
+	return logger
+}
 
 func TestIsRedisNilError(t *testing.T) {
 	t.Parallel()
@@ -44,7 +61,7 @@ func TestIsRedisNilError(t *testing.T) {
 		},
 		{
 			name: "wrapped redis nil",
-			err:  errors.New("wrapped: " + redis.Nil.Error()),
+			err:  errWrappedRedisNil,
 			want: false,
 		},
 		{
@@ -54,12 +71,12 @@ func TestIsRedisNilError(t *testing.T) {
 		},
 		{
 			name: "uppercase redis nil",
-			err:  errors.New("REDIS: NIL"),
+			err:  errUppercaseNil,
 			want: false,
 		},
 		{
 			name: "other error",
-			err:  errors.New("boom"),
+			err:  errBoom,
 			want: false,
 		},
 		{
@@ -70,7 +87,6 @@ func TestIsRedisNilError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.want, isRedisNilError(tt.err))
@@ -91,7 +107,7 @@ func (f *failOnCallRedisClient) fail(method string) {
 		"For NOTED transactions, the Lua script should be skipped entirely.", method)
 }
 
-// Override commonly used methods to detect unexpected calls
+// Override commonly used methods to detect unexpected calls.
 func (f *failOnCallRedisClient) Eval(ctx context.Context, script string, keys []string, args ...any) *redis.Cmd {
 	f.fail("Eval")
 	return nil
@@ -109,6 +125,7 @@ func (f *failOnCallRedisClient) ScriptLoad(ctx context.Context, script string) *
 
 func newFailOnCallConnection(t *testing.T) *libRedis.RedisConnection {
 	t.Helper()
+
 	return &libRedis.RedisConnection{
 		Client:    &failOnCallRedisClient{t: t},
 		Connected: true,
@@ -228,11 +245,12 @@ func TestProcessBalanceAtomicOperation_NotedStatus(t *testing.T) {
 func TestProcessBalanceAtomicOperation_PersistsLegacyUnscaledPayload(t *testing.T) {
 	mini, err := miniredis.Run()
 	require.NoError(t, err)
+
 	defer mini.Close()
 
 	repo, err := NewConsumerRedis(&libRedis.RedisConnection{
 		Address: []string{mini.Addr()},
-		Logger:  libZap.InitializeLogger(),
+		Logger:  testLogger(t),
 	}, false, nil)
 	require.NoError(t, err)
 
@@ -280,8 +298,8 @@ func TestProcessBalanceAtomicOperation_PersistsLegacyUnscaledPayload(t *testing.
 
 	rawPayload, err := mini.Get(internalKey)
 	require.NoError(t, err)
-	assert.False(t, strings.Contains(rawPayload, "\"scale\""))
-	assert.False(t, strings.Contains(rawPayload, "\"Scale\""))
+	assert.NotContains(t, rawPayload, "\"scale\"")
+	assert.NotContains(t, rawPayload, "\"Scale\"")
 
 	var persisted mmodel.BalanceRedis
 	require.NoError(t, json.Unmarshal([]byte(rawPayload), &persisted))
@@ -292,11 +310,12 @@ func TestProcessBalanceAtomicOperation_PersistsLegacyUnscaledPayload(t *testing.
 func TestProcessBalanceAtomicOperation_ReleaseApprovedMatchesGoRecompute(t *testing.T) {
 	mini, err := miniredis.Run()
 	require.NoError(t, err)
+
 	defer mini.Close()
 
 	repo, err := NewConsumerRedis(&libRedis.RedisConnection{
 		Address: []string{mini.Addr()},
-		Logger:  libZap.InitializeLogger(),
+		Logger:  testLogger(t),
 	}, false, nil)
 	require.NoError(t, err)
 
@@ -368,7 +387,7 @@ func TestCheckOrAcquireIdempotencyKey_AcquiresOnMissingKey(t *testing.T) {
 
 	repo, err := NewConsumerRedis(&libRedis.RedisConnection{
 		Address: []string{mini.Addr()},
-		Logger:  libZap.InitializeLogger(),
+		Logger:  testLogger(t),
 	}, false, nil)
 	require.NoError(t, err)
 
@@ -394,7 +413,7 @@ func TestPreWarmExternalBalances_ShardedCoverage(t *testing.T) {
 	router := shard.NewRouter(8)
 	repo, err := NewConsumerRedis(&libRedis.RedisConnection{
 		Address: []string{mini.Addr()},
-		Logger:  libZap.InitializeLogger(),
+		Logger:  testLogger(t),
 	}, false, router)
 	require.NoError(t, err)
 
@@ -449,6 +468,7 @@ func TestSetPipeline_ValidatesInputSizes(t *testing.T) {
 func TestSetPipeline_SuccessPath(t *testing.T) {
 	mini, err := miniredis.Run()
 	require.NoError(t, err)
+
 	defer mini.Close()
 
 	conn := &libRedis.RedisConnection{

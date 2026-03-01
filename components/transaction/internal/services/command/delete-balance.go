@@ -6,12 +6,15 @@ package command
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/google/uuid"
 )
 
 // DeleteBalance delete balance in the repository.
@@ -33,7 +36,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 	}
 
 	if balance != nil && (!balance.Available.IsZero() || !balance.OnHold.IsZero()) {
-		err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "DeleteBalance")
+		err = fmt.Errorf("delete balance: %w", pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "DeleteBalance"))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance cannot be deleted because it still has funds in it.", err)
 		logger.Warnf("Error deleting balance: %v", err)
 

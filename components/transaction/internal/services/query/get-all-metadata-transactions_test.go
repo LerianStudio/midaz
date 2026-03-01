@@ -10,21 +10,26 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.uber.org/mock/gomock"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.uber.org/mock/gomock"
 )
 
-// TestGetAllMetadataTransactions is responsible to test GetAllMetadataTransactions with success and error
+// TestGetAllMetadataTransactions is responsible to test GetAllMetadataTransactions with success and error.
 func TestGetAllMetadataTransactions(t *testing.T) {
+	t.Parallel()
+
 	collection := reflect.TypeOf(transaction.Transaction{}).Name()
 	filter := http.QueryHeader{
 		Metadata: &bson.M{"metadata": 1},
@@ -32,9 +37,8 @@ func TestGetAllMetadataTransactions(t *testing.T) {
 		Page:     1,
 	}
 
-	t.Parallel()
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	t.Cleanup(ctrl.Finish)
 
 	mockMetadataRepo := mongodb.NewMockRepository(gomock.NewController(t))
 	uc := UseCase{
@@ -42,6 +46,8 @@ func TestGetAllMetadataTransactions(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
 		mockMetadataRepo.
 			EXPECT().
 			FindList(gomock.Any(), collection, filter).
@@ -49,27 +55,31 @@ func TestGetAllMetadataTransactions(t *testing.T) {
 			Times(1)
 		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, res, 1)
 	})
 
 	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
+
 		errMSG := "errDatabaseItemNotFound"
 		mockMetadataRepo.
 			EXPECT().
 			FindList(gomock.Any(), collection, filter).
-			Return(nil, errors.New(errMSG)).
+			Return(nil, errors.New(errMSG)). //nolint:err113
 			Times(1)
 		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
 
-		assert.EqualError(t, err, errMSG)
+		require.EqualError(t, err, errMSG)
 		assert.Nil(t, res)
 	})
 }
 
 // TestGetAllMetadataTransactionsWithOperations tests that operations are populated for transactions
-// retrieved by metadata filtering in the GetAllMetadataTransactions method
+// retrieved by metadata filtering in the GetAllMetadataTransactions method.
 func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -96,12 +106,12 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 		{
 			ID:       primitive.NewObjectID(),
 			EntityID: txID1Str,
-			Data:     map[string]interface{}{"key": "value"},
+			Data:     map[string]any{"key": "value"},
 		},
 		{
 			ID:       primitive.NewObjectID(),
 			EntityID: txID2Str,
-			Data:     map[string]interface{}{"key": "value"},
+			Data:     map[string]any{"key": "value"},
 		},
 	}
 
@@ -168,7 +178,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 
 	result, _, err := uc.GetAllMetadataTransactions(context.Background(), orgID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Len(t, result, 2)
 
@@ -195,6 +205,8 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 // returns an empty (non-nil) slice, the use case returns no transactions and no error,
 // and does not call the transaction repository.
 func TestGetAllMetadataTransactions_NoMetadata(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -220,7 +232,7 @@ func TestGetAllMetadataTransactions_NoMetadata(t *testing.T) {
 
 	result, cur, err := uc.GetAllMetadataTransactions(context.Background(), uuid.UUID{}, uuid.UUID{}, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 }

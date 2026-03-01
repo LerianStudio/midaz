@@ -9,11 +9,17 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
+)
+
+// Sentinel errors for test assertions.
+var (
+	errTestPublishFailed = errors.New("publish failed")
 )
 
 func TestSendLogTransactionAuditQueue(t *testing.T) {
@@ -37,7 +43,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 			Amount: operation.Amount{
 				Value: &amountValue,
 			},
-			Metadata: map[string]interface{}{"key": "value"},
+			Metadata: map[string]any{"key": "value"},
 		},
 		{
 			ID:             uuid.New().String(),
@@ -94,7 +100,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 
 		brokerRepo.EXPECT().
 			ProducerDefault(gomock.Any(), "test-audit-topic", transactionID.String(), gomock.Any()).
-			Return(nil, errors.New("publish failed")).
+			Return(nil, errTestPublishFailed).
 			Times(1)
 
 		uc.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, transactionID)
@@ -122,5 +128,4 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 
 		uc.SendLogTransactionAuditQueue(ctx, []*operation.Operation{&broken}, organizationID, ledgerID, transactionID)
 	})
-
 }

@@ -14,6 +14,8 @@ import (
 )
 
 func TestJSON_Value(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		json    JSON
@@ -59,6 +61,8 @@ func TestJSON_Value(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			value, err := tt.json.Value()
 
 			if tt.wantErr {
@@ -78,6 +82,8 @@ func TestJSON_Value(t *testing.T) {
 }
 
 func TestJSON_Scan(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    any
@@ -125,7 +131,10 @@ func TestJSON_Scan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var j JSON
+
 			err := j.Scan(tt.input)
 
 			if tt.wantErr {
@@ -140,6 +149,8 @@ func TestJSON_Scan(t *testing.T) {
 }
 
 func TestJSON_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	original := JSON{
 		"string":  "hello",
 		"number":  float64(123),
@@ -152,6 +163,7 @@ func TestJSON_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	var restored JSON
+
 	err = restored.Scan(value)
 	require.NoError(t, err)
 
@@ -162,6 +174,8 @@ func TestJSON_RoundTrip(t *testing.T) {
 }
 
 func TestMetadataMongoDBModel_ToEntity(t *testing.T) {
+	t.Parallel()
+
 	objectID := primitive.NewObjectID()
 	now := time.Now().UTC().Truncate(time.Second)
 
@@ -213,6 +227,8 @@ func TestMetadataMongoDBModel_ToEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			entity := tt.model.ToEntity()
 
 			require.NotNil(t, entity)
@@ -227,6 +243,8 @@ func TestMetadataMongoDBModel_ToEntity(t *testing.T) {
 }
 
 func TestMetadataMongoDBModel_FromEntity(t *testing.T) {
+	t.Parallel()
+
 	objectID := primitive.NewObjectID()
 	now := time.Now().UTC().Truncate(time.Second)
 
@@ -260,7 +278,10 @@ func TestMetadataMongoDBModel_FromEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var model MetadataMongoDBModel
+
 			err := model.FromEntity(tt.entity)
 
 			require.NoError(t, err)
@@ -275,6 +296,8 @@ func TestMetadataMongoDBModel_FromEntity(t *testing.T) {
 }
 
 func TestMetadataMongoDBModel_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	objectID := primitive.NewObjectID()
 	now := time.Now().UTC().Truncate(time.Second)
 
@@ -291,6 +314,7 @@ func TestMetadataMongoDBModel_RoundTrip(t *testing.T) {
 	}
 
 	var model MetadataMongoDBModel
+
 	err := model.FromEntity(original)
 	require.NoError(t, err)
 

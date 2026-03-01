@@ -6,12 +6,16 @@ package query
 
 import (
 	"context"
+	"fmt"
+	"math"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	"github.com/google/uuid"
 )
 
 func (uc *UseCase) shouldEnforceConsumerLagFence() bool {
@@ -45,6 +49,10 @@ func (uc *UseCase) ensureConsumerLagFenceForAliases(
 			continue
 		}
 
+		if shardID > math.MaxInt32 {
+			shardID = 0
+		}
+
 		partition := int32(shardID)
 		if _, alreadyChecked := checkedPartitions[partition]; alreadyChecked {
 			continue
@@ -53,7 +61,7 @@ func (uc *UseCase) ensureConsumerLagFenceForAliases(
 		checkedPartitions[partition] = struct{}{}
 
 		if !uc.LagChecker.IsPartitionCaughtUp(ctx, uc.BalanceOperationsTopic, partition) {
-			return pkg.ValidateBusinessError(constant.ErrConsumerLagStaleBalance, "GetAccountAndLock")
+			return fmt.Errorf("consumer lag fence: %w", pkg.ValidateBusinessError(constant.ErrConsumerLagStaleBalance, "GetAccountAndLock"))
 		}
 	}
 
@@ -75,7 +83,7 @@ func (uc *UseCase) ensureConsumerLagFenceForPartitions(ctx context.Context, part
 		checkedPartitions[partition] = struct{}{}
 
 		if !uc.LagChecker.IsPartitionCaughtUp(ctx, uc.BalanceOperationsTopic, partition) {
-			return pkg.ValidateBusinessError(constant.ErrConsumerLagStaleBalance, "loadAuthorizerBalancesForOperations")
+			return fmt.Errorf("consumer lag fence: %w", pkg.ValidateBusinessError(constant.ErrConsumerLagStaleBalance, "loadAuthorizerBalancesForOperations"))
 		}
 	}
 

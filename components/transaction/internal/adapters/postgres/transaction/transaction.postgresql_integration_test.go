@@ -521,7 +521,7 @@ func TestIntegration_Transaction_ConcurrentWrites(t *testing.T) {
 }
 
 // TestIntegration_Transaction_Idempotency tests that duplicate transactions
-// are rejected by the unique constraint.
+// are ignored idempotently by ON CONFLICT DO NOTHING.
 func TestIntegration_Transaction_Idempotency(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -548,9 +548,10 @@ func TestIntegration_Transaction_Idempotency(t *testing.T) {
 	require.NoError(t, err)
 	t.Logf("First attempt: created transaction %s", created.ID)
 
-	// Second attempt: try to create again with same ID (should fail)
-	_, duplicateErr := infra.repo.Create(ctx, tx)
-	assert.Error(t, duplicateErr, "duplicate transaction should be rejected")
+	// Second attempt: try to create again with same ID (idempotent skip)
+	duplicateCreated, duplicateErr := infra.repo.Create(ctx, tx)
+	assert.NoError(t, duplicateErr, "duplicate transaction should be handled idempotently")
+	assert.Nil(t, duplicateCreated, "duplicate insert should not create a new transaction")
 
 	// Verify original transaction is unchanged
 	found, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, idempotencyID))

@@ -7,21 +7,30 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 )
+
+// ErrNilValidatePayload is returned when the transaction validate payload is nil.
+var ErrNilValidatePayload = errors.New("invalid transaction payload: validate is nil")
+
+// ErrNilBalance is returned when a balance in the transaction payload is nil.
+var ErrNilBalance = errors.New("invalid transaction payload: nil balance")
 
 // GetBalances methods responsible to get balances from a database.
 func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string) ([]*mmodel.Balance, error) {
@@ -31,11 +40,10 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 	defer span.End()
 
 	if validate == nil {
-		err := fmt.Errorf("invalid transaction payload: validate is nil")
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate payload", err)
-		logger.Error("Failed to validate payload", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate payload", ErrNilValidatePayload)
+		logger.Error("Failed to validate payload", ErrNilValidatePayload)
 
-		return nil, err
+		return nil, ErrNilValidatePayload
 	}
 
 	balances := make([]*mmodel.Balance, 0)
@@ -195,16 +203,15 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	defer span.End()
 
 	if validate == nil {
-		err := fmt.Errorf("invalid transaction payload: validate is nil")
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate payload", err)
-		logger.Error("Failed to validate payload", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate payload", ErrNilValidatePayload)
+		logger.Error("Failed to validate payload", ErrNilValidatePayload)
 
-		return nil, err
+		return nil, ErrNilValidatePayload
 	}
 
 	for i, balance := range balances {
 		if balance == nil {
-			err := fmt.Errorf("invalid transaction payload: nil balance at index %d", i)
+			err := fmt.Errorf("at index %d: %w", i, ErrNilBalance)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate payload", err)
 			logger.Error("Failed to validate payload", err)
 
@@ -476,7 +483,7 @@ func (uc *UseCase) materializePreSplitBalances(ctx context.Context, keysByAlias 
 	for alias, keys := range keysByAlias {
 		template, ok := templateByAlias[alias]
 		if !ok {
-			return pkg.ValidateBusinessError(constant.ErrEntityNotFound, "Balance")
+			return fmt.Errorf("materialize pre-split balances: %w", pkg.ValidateBusinessError(constant.ErrEntityNotFound, "Balance"))
 		}
 
 		for balanceKey := range keys {

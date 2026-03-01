@@ -149,7 +149,7 @@ type AssetRate struct {
 	Metadata map[string]any `json:"metadata"`
 } // @name AssetRate
 
-// ToEntity converts an TransactionPostgreSQLModel to entity Transaction
+// ToEntity converts an TransactionPostgreSQLModel to entity Transaction.
 func (a *AssetRatePostgreSQLModel) ToEntity() *AssetRate {
 	assetRate := &AssetRate{
 		ID:             a.ID,
@@ -169,7 +169,7 @@ func (a *AssetRatePostgreSQLModel) ToEntity() *AssetRate {
 	return assetRate
 }
 
-// FromEntity converts an entity AssetRate to AssetRatePostgreSQLModel
+// FromEntity converts an entity AssetRate to AssetRatePostgreSQLModel.
 func (a *AssetRatePostgreSQLModel) FromEntity(assetRate *AssetRate) {
 	*a = AssetRatePostgreSQLModel{
 		ID:             libCommons.GenerateUUIDv7().String(),

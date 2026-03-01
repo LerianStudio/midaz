@@ -10,16 +10,17 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 )
 
-func TestGetTransactionByID(t *testing.T) {
+func TestGetTransactionByID(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	organizationID := uuid.New()
@@ -88,9 +89,9 @@ func TestGetTransactionByID(t *testing.T) {
 			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
 				mockTxRepo.EXPECT().
 					Find(gomock.Any(), organizationID, ledgerID, transactionID).
-					Return(nil, errors.New("database connection error"))
+					Return(nil, errors.New("database connection error")) //nolint:err113
 			},
-			expectedErr:     errors.New("database connection error"),
+			expectedErr:     errors.New("database connection error"), //nolint:err113
 			expectNilResult: true,
 			expectedMeta:    nil,
 		},
@@ -102,9 +103,9 @@ func TestGetTransactionByID(t *testing.T) {
 					Return(newBaseTran(), nil)
 				mockMetaRepo.EXPECT().
 					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
-					Return(nil, errors.New("mongodb connection error"))
+					Return(nil, errors.New("mongodb connection error")) //nolint:err113
 			},
-			expectedErr:     errors.New("mongodb connection error"),
+			expectedErr:     errors.New("mongodb connection error"), //nolint:err113
 			expectNilResult: true,
 			expectedMeta:    nil,
 		},
@@ -113,6 +114,7 @@ func TestGetTransactionByID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -132,6 +134,7 @@ func TestGetTransactionByID(t *testing.T) {
 				require.Error(t, err)
 				assert.Equal(t, tt.expectedErr.Error(), err.Error())
 				assert.Nil(t, result)
+
 				return
 			}
 
@@ -156,7 +159,7 @@ func TestGetTransactionByID(t *testing.T) {
 	}
 }
 
-func TestGetTransactionWithOperationsByID(t *testing.T) {
+func TestGetTransactionWithOperationsByID(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	organizationID := uuid.New()
@@ -230,9 +233,9 @@ func TestGetTransactionWithOperationsByID(t *testing.T) {
 			setupMocks: func(mockTxRepo *transaction.MockRepository, mockMetaRepo *mongodb.MockRepository) {
 				mockTxRepo.EXPECT().
 					FindWithOperations(gomock.Any(), organizationID, ledgerID, transactionID).
-					Return(nil, errors.New("database connection error"))
+					Return(nil, errors.New("database connection error")) //nolint:err113
 			},
-			expectedErr:     errors.New("database connection error"),
+			expectedErr:     errors.New("database connection error"), //nolint:err113
 			expectNilResult: true,
 			expectedMeta:    nil,
 			expectedOpCount: 0,
@@ -245,9 +248,9 @@ func TestGetTransactionWithOperationsByID(t *testing.T) {
 					Return(newBaseTran([]*operation.Operation{{ID: "op1"}, {ID: "op2"}}), nil)
 				mockMetaRepo.EXPECT().
 					FindByEntity(gomock.Any(), reflect.TypeFor[transaction.Transaction]().Name(), transactionID.String()).
-					Return(nil, errors.New("mongodb connection error"))
+					Return(nil, errors.New("mongodb connection error")) //nolint:err113
 			},
-			expectedErr:     errors.New("mongodb connection error"),
+			expectedErr:     errors.New("mongodb connection error"), //nolint:err113
 			expectNilResult: true,
 			expectedMeta:    nil,
 			expectedOpCount: 0,
@@ -257,6 +260,7 @@ func TestGetTransactionWithOperationsByID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -276,6 +280,7 @@ func TestGetTransactionWithOperationsByID(t *testing.T) {
 				require.Error(t, err)
 				assert.Equal(t, tt.expectedErr.Error(), err.Error())
 				assert.Nil(t, result)
+
 				return
 			}
 

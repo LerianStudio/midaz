@@ -10,16 +10,19 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestGetTransactionFromIdempotencyCache_CacheHit(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -41,10 +44,11 @@ func TestGetTransactionFromIdempotencyCache_CacheHit(t *testing.T) {
 		Description:    "Test transaction",
 		Status:         transaction.Status{Code: "APPROVED"},
 	}
-	expectedJSON, _ := json.Marshal(expectedTran)
+	expectedJSON, marshalErr := json.Marshal(expectedTran)
+	require.NoError(t, marshalErr)
 
 	reverseKey := utils.IdempotencyReverseKey(organizationID, ledgerID, transactionID.String())
-	internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, idempotencyKey)
+	internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, idempotencyKey)
 
 	mockRedisRepo.EXPECT().
 		Get(gomock.Any(), reverseKey).
@@ -65,6 +69,8 @@ func TestGetTransactionFromIdempotencyCache_CacheHit(t *testing.T) {
 }
 
 func TestGetTransactionFromIdempotencyCache_ReverseKeyNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -92,6 +98,8 @@ func TestGetTransactionFromIdempotencyCache_ReverseKeyNotFound(t *testing.T) {
 }
 
 func TestGetTransactionFromIdempotencyCache_ReverseKeyError(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -109,7 +117,7 @@ func TestGetTransactionFromIdempotencyCache_ReverseKeyError(t *testing.T) {
 
 	mockRedisRepo.EXPECT().
 		Get(gomock.Any(), reverseKey).
-		Return("", errors.New("redis connection error")).
+		Return("", errors.New("redis connection error")). //nolint:err113
 		Times(1)
 
 	result, found := uc.GetTransactionFromIdempotencyCache(context.Background(), organizationID, ledgerID, transactionID)
@@ -119,6 +127,8 @@ func TestGetTransactionFromIdempotencyCache_ReverseKeyError(t *testing.T) {
 }
 
 func TestGetTransactionFromIdempotencyCache_IdempotencyResponseNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -134,7 +144,7 @@ func TestGetTransactionFromIdempotencyCache_IdempotencyResponseNotFound(t *testi
 	}
 
 	reverseKey := utils.IdempotencyReverseKey(organizationID, ledgerID, transactionID.String())
-	internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, idempotencyKey)
+	internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, idempotencyKey)
 
 	mockRedisRepo.EXPECT().
 		Get(gomock.Any(), reverseKey).
@@ -153,6 +163,8 @@ func TestGetTransactionFromIdempotencyCache_IdempotencyResponseNotFound(t *testi
 }
 
 func TestGetTransactionFromIdempotencyCache_IdempotencyResponseError(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -168,7 +180,7 @@ func TestGetTransactionFromIdempotencyCache_IdempotencyResponseError(t *testing.
 	}
 
 	reverseKey := utils.IdempotencyReverseKey(organizationID, ledgerID, transactionID.String())
-	internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, idempotencyKey)
+	internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, idempotencyKey)
 
 	mockRedisRepo.EXPECT().
 		Get(gomock.Any(), reverseKey).
@@ -177,7 +189,7 @@ func TestGetTransactionFromIdempotencyCache_IdempotencyResponseError(t *testing.
 
 	mockRedisRepo.EXPECT().
 		Get(gomock.Any(), internalKey).
-		Return("", errors.New("redis connection error")).
+		Return("", errors.New("redis connection error")). //nolint:err113
 		Times(1)
 
 	result, found := uc.GetTransactionFromIdempotencyCache(context.Background(), organizationID, ledgerID, transactionID)
@@ -187,6 +199,8 @@ func TestGetTransactionFromIdempotencyCache_IdempotencyResponseError(t *testing.
 }
 
 func TestGetTransactionFromIdempotencyCache_UnmarshalError(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -202,7 +216,7 @@ func TestGetTransactionFromIdempotencyCache_UnmarshalError(t *testing.T) {
 	}
 
 	reverseKey := utils.IdempotencyReverseKey(organizationID, ledgerID, transactionID.String())
-	internalKey := libCommons.IdempotencyInternalKey(organizationID, ledgerID, idempotencyKey)
+	internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, idempotencyKey)
 
 	mockRedisRepo.EXPECT().
 		Get(gomock.Any(), reverseKey).

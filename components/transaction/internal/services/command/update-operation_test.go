@@ -10,15 +10,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
+// Sentinel errors for test assertions.
+var (
+	errTestDBConnectionUO    = errors.New("database connection error")
+	errTestMongoConnectionUO = errors.New("mongodb connection error")
+)
+
+//nolint:funlen
 func TestUpdateOperation(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -111,8 +120,10 @@ func TestUpdateOperation(t *testing.T) {
 			},
 			expectedErr: nil,
 			checkError: func(t *testing.T, err error) {
+				t.Helper()
+
 				var entityNotFoundError pkg.EntityNotFoundError
-				assert.True(t, errors.As(err, &entityNotFoundError), "expected EntityNotFoundError")
+				require.ErrorAs(t, err, &entityNotFoundError, "expected EntityNotFoundError")
 				assert.Equal(t, "Operation", entityNotFoundError.EntityType)
 			},
 		},
@@ -126,10 +137,10 @@ func TestUpdateOperation(t *testing.T) {
 					Update(gomock.Any(), organizationID, ledgerID, transactionID, operationID, &operation.Operation{
 						Description: "Updated operation description",
 					}).
-					Return(nil, errors.New("database connection error")).
+					Return(nil, errTestDBConnectionUO).
 					Times(1)
 			},
-			expectedErr: errors.New("database connection error"),
+			expectedErr: errTestDBConnectionUO,
 		},
 		{
 			name: "metadata update error",
@@ -165,10 +176,10 @@ func TestUpdateOperation(t *testing.T) {
 					Update(gomock.Any(), "Operation", operationID.String(), map[string]any{
 						"key1": "value1",
 					}).
-					Return(errors.New("mongodb connection error")).
+					Return(errTestMongoConnectionUO).
 					Times(1)
 			},
-			expectedErr: errors.New("mongodb connection error"),
+			expectedErr: errTestMongoConnectionUO,
 		},
 	}
 
@@ -179,18 +190,19 @@ func TestUpdateOperation(t *testing.T) {
 			result, err := uc.UpdateOperation(context.Background(), organizationID, ledgerID, transactionID, operationID, tt.input)
 
 			if tt.checkError != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				tt.checkError(t, err)
 				assert.Nil(t, result)
+
 				return
 			}
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Equal(t, tt.expectedErr.Error(), err.Error())
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.expectedResult.ID, result.ID)
 				assert.Equal(t, tt.expectedResult.Description, result.Description)

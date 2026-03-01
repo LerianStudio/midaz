@@ -6,14 +6,17 @@ package query
 
 import (
 	"context"
+	"errors"
+
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 )
 
 // GetOrCreateTransactionRouteCache retrieves a transaction route cache from Redis or database with fallback.
@@ -29,7 +32,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 	internalKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	cachedValue, err := uc.RedisRepo.GetBytes(ctx, internalKey)
-	if err != nil && err != redis.Nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		logger.Warnf("Error retrieving binary transaction route from cache: %v", err.Error())
 	}
 
@@ -49,7 +52,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 	foundTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
-		if err == services.ErrDatabaseItemNotFound {
+		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			msg := "Transaction route not found in database"
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, msg, err)

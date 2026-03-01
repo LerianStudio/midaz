@@ -10,18 +10,30 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	midazpkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
+// Sentinel errors for test assertions.
+var (
+	errTestListBalances      = errors.New("list balances error")
+	errTestRedis             = errors.New("redis error")
+	errTestUpdatePermissions = errors.New("update permissions error")
+	errTestDeleteBalances    = errors.New("delete balances error")
+)
+
+//nolint:funlen
 func TestDeleteAllBalancesByAccountID(t *testing.T) {
 	ctx := context.Background()
 	organizationID := uuid.New()
@@ -31,7 +43,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 
 	t.Run("list balances error", func(t *testing.T) {
 		uc, mockBalanceRepo, _ := setupDeleteAllBalancesUseCase(t)
-		expectedErr := errors.New("list balances error")
+		expectedErr := errTestListBalances
 
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
@@ -49,12 +61,12 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 			Return([]*mmodel.Balance{}, nil)
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("redis lookup error", func(t *testing.T) {
 		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
-		expectedErr := errors.New("redis error")
+		expectedErr := errTestRedis
 		balanceItem := newTestBalance(decimal.NewFromInt(1), decimal.Zero)
 
 		mockBalanceRepo.EXPECT().
@@ -82,8 +94,9 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 
 		var validationErr midazpkg.ValidationError
-		assert.Error(t, err)
-		assert.True(t, errors.As(err, &validationErr))
+
+		require.Error(t, err)
+		require.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
 	})
 
@@ -101,15 +114,16 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 
 		var validationErr midazpkg.ValidationError
-		assert.Error(t, err)
-		assert.True(t, errors.As(err, &validationErr))
+
+		require.Error(t, err)
+		require.ErrorAs(t, err, &validationErr)
 		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
 	})
 
 	t.Run("toggle balance transfers error", func(t *testing.T) {
 		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
 		balanceItem := newTestBalance(decimal.Zero, decimal.Zero)
-		expectedErr := errors.New("update permissions error")
+		expectedErr := errTestUpdatePermissions
 
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
@@ -125,6 +139,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 				assert.NotNil(t, update.AllowSending)
 				assert.False(t, *update.AllowReceiving)
 				assert.False(t, *update.AllowSending)
+
 				return expectedErr
 			})
 		secondCall := mockBalanceRepo.EXPECT().
@@ -134,6 +149,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 				assert.NotNil(t, update.AllowSending)
 				assert.True(t, *update.AllowReceiving)
 				assert.True(t, *update.AllowSending)
+
 				return nil
 			})
 		gomock.InOrder(firstCall, secondCall)
@@ -145,7 +161,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 	t.Run("delete balances error rolls back transfers", func(t *testing.T) {
 		uc, mockBalanceRepo, mockRedisRepo := setupDeleteAllBalancesUseCase(t)
 		balanceItem := newTestBalance(decimal.Zero, decimal.Zero)
-		expectedErr := errors.New("delete balances error")
+		expectedErr := errTestDeleteBalances
 
 		mockBalanceRepo.EXPECT().
 			ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
@@ -159,6 +175,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 			DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, update mmodel.UpdateBalance) error {
 				assert.False(t, *update.AllowReceiving)
 				assert.False(t, *update.AllowSending)
+
 				return nil
 			})
 		mockBalanceRepo.EXPECT().
@@ -169,6 +186,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 			DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, update mmodel.UpdateBalance) error {
 				assert.True(t, *update.AllowReceiving)
 				assert.True(t, *update.AllowSending)
+
 				return nil
 			})
 
@@ -192,6 +210,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 			DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, update mmodel.UpdateBalance) error {
 				assert.False(t, *update.AllowReceiving)
 				assert.False(t, *update.AllowSending)
+
 				return nil
 			})
 		mockBalanceRepo.EXPECT().
@@ -199,11 +218,12 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 			DoAndReturn(func(_ context.Context, _, _ uuid.UUID, ids []uuid.UUID) error {
 				assert.Len(t, ids, 1)
 				assert.Equal(t, expectedID, ids[0])
+
 				return nil
 			})
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -252,16 +272,17 @@ func TestToggleBalanceTransfers(t *testing.T) {
 				assert.NotNil(t, update.AllowSending)
 				assert.True(t, *update.AllowReceiving)
 				assert.True(t, *update.AllowSending)
+
 				return nil
 			})
 
 		err := uc.toggleBalanceTransfers(ctx, organizationID, ledgerID, accountID, true)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("error triggers rollback with opposite permissions", func(t *testing.T) {
 		uc, mockBalanceRepo, _ := setupDeleteAllBalancesUseCase(t)
-		expectedErr := errors.New("update permissions error")
+		expectedErr := errTestUpdatePermissions
 
 		firstCall := mockBalanceRepo.EXPECT().
 			UpdateAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
@@ -270,6 +291,7 @@ func TestToggleBalanceTransfers(t *testing.T) {
 				assert.NotNil(t, update.AllowSending)
 				assert.False(t, *update.AllowReceiving)
 				assert.False(t, *update.AllowSending)
+
 				return expectedErr
 			})
 		secondCall := mockBalanceRepo.EXPECT().
@@ -279,6 +301,7 @@ func TestToggleBalanceTransfers(t *testing.T) {
 				assert.NotNil(t, update.AllowSending)
 				assert.True(t, *update.AllowReceiving)
 				assert.True(t, *update.AllowSending)
+
 				return nil
 			})
 		gomock.InOrder(firstCall, secondCall)
@@ -303,17 +326,18 @@ func TestUpdateBalanceTransferPermissions(t *testing.T) {
 			DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, update mmodel.UpdateBalance) error {
 				assert.Equal(t, allow, update.AllowReceiving)
 				assert.Equal(t, allow, update.AllowSending)
+
 				return nil
 			})
 
 		err := uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, accountID, allow)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("returns error from repository", func(t *testing.T) {
 		uc, mockBalanceRepo, _ := setupDeleteAllBalancesUseCase(t)
 		allow := boolPtr(false)
-		expectedErr := errors.New("update permissions error")
+		expectedErr := errTestUpdatePermissions
 
 		mockBalanceRepo.EXPECT().
 			UpdateAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).

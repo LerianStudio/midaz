@@ -10,22 +10,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
-func TestGetBalanceAtTimestamp(t *testing.T) {
+func TestGetBalanceAtTimestamp(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	t.Run("success_returns_balance_with_created_at_from_current_balance", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -94,6 +98,8 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 	})
 
 	t.Run("future_timestamp_returns_error", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -109,12 +115,14 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 
 		result, err := uc.GetBalanceAtTimestamp(context.Background(), orgID, ledgerID, balanceID, futureTimestamp)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), constant.ErrInvalidTimestamp.Error())
 	})
 
 	t.Run("balance_not_found_returns_error", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -136,7 +144,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 
 		result, err := uc.GetBalanceAtTimestamp(context.Background(), orgID, ledgerID, balanceID, timestamp)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "entity")
 	})
@@ -152,14 +160,14 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		}{
 			{
 				name:              "balance_repo_error",
-				balanceRepoErr:    errors.New("balance database error"),
+				balanceRepoErr:    errors.New("balance database error"), //nolint:err113
 				operationRepoErr:  nil,
 				setupOperationExp: false,
 			},
 			{
 				name:              "operation_repo_error",
 				balanceRepoErr:    nil,
-				operationRepoErr:  errors.New("operation database error"),
+				operationRepoErr:  errors.New("operation database error"), //nolint:err113
 				setupOperationExp: true,
 			},
 		}
@@ -205,13 +213,15 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 
 				result, err := uc.GetBalanceAtTimestamp(context.Background(), orgID, ledgerID, balanceID, timestamp)
 
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 			})
 		}
 	})
 
 	t.Run("no_operation_before_timestamp_and_balance_exists_returns_zero_balance", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -264,6 +274,8 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 	})
 
 	t.Run("no_operation_and_balance_created_after_timestamp_returns_error", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -296,13 +308,15 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 
 		result, err := uc.GetBalanceAtTimestamp(context.Background(), orgID, ledgerID, balanceID, timestamp)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		// Error message contains info about no balance data at timestamp
 		assert.Contains(t, err.Error(), "balance data")
 	})
 
 	t.Run("nil_balance_amounts_default_to_zero", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 

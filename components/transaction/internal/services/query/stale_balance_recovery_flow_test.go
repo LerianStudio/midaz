@@ -11,20 +11,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 func TestRecoverLaggedBalancesForAliases(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	t.Cleanup(ctrl.Finish)
 
 	ctx := context.Background()
 	orgID := uuid.New()
@@ -34,6 +37,8 @@ func TestRecoverLaggedBalancesForAliases(t *testing.T) {
 	partition := int32(router.ResolveBalance("@alice", "default"))
 
 	t.Run("returns original aliases when partition is caught up", func(t *testing.T) {
+		t.Parallel()
+
 		uc := &UseCase{
 			ConsumerLagFenceEnabled: true,
 			LagChecker:              &stubLagChecker{caughtUpByPartition: map[int32]bool{partition: true}},
@@ -49,6 +54,8 @@ func TestRecoverLaggedBalancesForAliases(t *testing.T) {
 	})
 
 	t.Run("recovers lagged alias and caches it", func(t *testing.T) {
+		t.Parallel()
+
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 		recoveredBalance := &mmodel.Balance{
@@ -89,12 +96,14 @@ func TestRecoverLaggedBalancesForAliases(t *testing.T) {
 	})
 
 	t.Run("propagates recoverer error", func(t *testing.T) {
+		t.Parallel()
+
 		uc := &UseCase{
 			ConsumerLagFenceEnabled: true,
 			LagChecker:              &stubLagChecker{caughtUpByPartition: map[int32]bool{partition: false}},
 			ShardRouter:             router,
 			BalanceOperationsTopic:  "ledger.balance.operations",
-			StaleBalanceRecoverer:   &stubStaleBalanceRecoverer{err: errors.New("replay failed")},
+			StaleBalanceRecoverer:   &stubStaleBalanceRecoverer{err: errors.New("replay failed")}, //nolint:err113
 		}
 
 		_, _, err := uc.recoverLaggedBalancesForAliases(ctx, orgID, ledgerID, []string{aliasWithKey})
@@ -118,6 +127,8 @@ func (f fixedRecoverer) RecoverLaggedAliases(
 }
 
 func TestRecoverLaggedBalancesForAliases_ConcurrentCalls(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	orgID := uuid.New()
 	ledgerID := uuid.New()
@@ -148,10 +159,12 @@ func TestRecoverLaggedBalancesForAliases_ConcurrentCalls(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
+
 	errCh := make(chan error, 8)
 
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
+
 		go func() {
 			defer wg.Done()
 
@@ -162,7 +175,7 @@ func TestRecoverLaggedBalancesForAliases_ConcurrentCalls(t *testing.T) {
 			}
 
 			if len(recovered) != 1 || len(remaining) != 0 {
-				errCh <- errors.New("unexpected recovery result")
+				errCh <- errors.New("unexpected recovery result") //nolint:err113
 			}
 		}()
 	}

@@ -8,20 +8,22 @@ import (
 	"context"
 	"testing"
 
-	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
-	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
 
-func TestApplyExternalPreSplitBalanceKeys(t *testing.T) {
+func TestApplyExternalPreSplitBalanceKeys(t *testing.T) { //nolint:funlen
 	t.Run("inflow external source gets shard key from destination", func(t *testing.T) {
 		ctx := context.Background()
 		organizationID := uuid.New()
@@ -143,6 +145,7 @@ func TestApplyExternalPreSplitBalanceKeys(t *testing.T) {
 		require.NoError(t, err)
 
 		client := goredis.NewClient(&goredis.Options{Addr: mini.Addr()})
+
 		t.Cleanup(func() {
 			require.NoError(t, client.Close())
 			mini.Close()

@@ -7,21 +7,24 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
 )
 
-// GetAllTransactions fetch all Transactions from the repository
+// GetAllTransactions fetch all Transactions from the repository.
 func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -35,13 +38,13 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		logger.Errorf("Error getting transactions on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+			wrappedErr := fmt.Errorf("get all transactions: %w", pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name()))
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo", wrappedErr)
 
-			logger.Warnf("Error getting transactions on repo: %v", err)
+			logger.Warnf("Error getting transactions on repo: %v", wrappedErr)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, wrappedErr
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo", err)
@@ -60,13 +63,13 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 	metadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+		wrappedErr := fmt.Errorf("get all transactions: %w", pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name()))
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb transaction", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb transaction", wrappedErr)
 
-		logger.Warnf("Error getting metadata on mongodb transaction: %v", err)
+		logger.Warnf("Error getting metadata on mongodb transaction: %v", wrappedErr)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, wrappedErr
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))
@@ -108,7 +111,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 	return trans, cur, nil
 }
 
-// enrichOperationsWithMetadata retrieves and assigns metadata to operations
+// enrichOperationsWithMetadata retrieves and assigns metadata to operations.
 func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations []*operation.Operation, operationIDs []string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -138,6 +141,7 @@ func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations 
 	return nil
 }
 
+// GetOperationsByTransaction retrieves all operations for a given transaction.
 func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, filter http.QueryHeader) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

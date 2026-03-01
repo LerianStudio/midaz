@@ -7,15 +7,18 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"math"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
 )
 
-func (uc *UseCase) recoverLaggedBalancesForAliases(
+func (uc *UseCase) recoverLaggedBalancesForAliases( //nolint:gocyclo,cyclop
 	ctx context.Context,
 	organizationID, ledgerID uuid.UUID,
 	aliases []string,
@@ -38,6 +41,10 @@ func (uc *UseCase) recoverLaggedBalancesForAliases(
 		if err != nil {
 			logger.Warnf("Stale-balance recovery skipped alias %s due to shard resolution error: %v", aliasWithKey, err)
 			continue
+		}
+
+		if shardID > math.MaxInt32 {
+			shardID = 0
 		}
 
 		partition := int32(shardID)

@@ -6,23 +6,25 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-func TestGetAccountBalancesAtTimestamp(t *testing.T) {
+func TestGetAccountBalancesAtTimestamp(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	tests := []struct {
@@ -31,7 +33,7 @@ func TestGetAccountBalancesAtTimestamp(t *testing.T) {
 		setupMocks      func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID, timestamp time.Time) []*mmodel.Balance
 		expectError     bool
 		errorContains   string
-		validateResults func(t *testing.T, results []*mmodel.Balance, mockBalances []*mmodel.Balance)
+		validateResults func(t *testing.T, results, mockBalances []*mmodel.Balance)
 	}{
 		{
 			name:            "Success_returns_balances_at_timestamp",
@@ -66,7 +68,8 @@ func TestGetAccountBalancesAtTimestamp(t *testing.T) {
 				return balances
 			},
 			expectError: false,
-			validateResults: func(t *testing.T, results []*mmodel.Balance, mockBalances []*mmodel.Balance) {
+			validateResults: func(t *testing.T, results, mockBalances []*mmodel.Balance) {
+				t.Helper()
 				require.Len(t, results, 1)
 				result := results[0]
 				expected := mockBalances[0]
@@ -88,7 +91,8 @@ func TestGetAccountBalancesAtTimestamp(t *testing.T) {
 			},
 			expectError:   true,
 			errorContains: constant.ErrInvalidTimestamp.Error(),
-			validateResults: func(t *testing.T, results []*mmodel.Balance, mockBalances []*mmodel.Balance) {
+			validateResults: func(t *testing.T, results, mockBalances []*mmodel.Balance) {
+				t.Helper()
 				assert.Nil(t, results)
 			},
 		},
@@ -103,7 +107,8 @@ func TestGetAccountBalancesAtTimestamp(t *testing.T) {
 				return []*mmodel.Balance{}
 			},
 			expectError: false,
-			validateResults: func(t *testing.T, results []*mmodel.Balance, mockBalances []*mmodel.Balance) {
+			validateResults: func(t *testing.T, results, mockBalances []*mmodel.Balance) {
+				t.Helper()
 				assert.Empty(t, results)
 			},
 		},
@@ -113,12 +118,13 @@ func TestGetAccountBalancesAtTimestamp(t *testing.T) {
 			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID, timestamp time.Time) []*mmodel.Balance {
 				balanceRepo.EXPECT().
 					ListByAccountIDAtTimestamp(gomock.Any(), orgID, ledgerID, accountID, timestamp).
-					Return(nil, errors.New("database error"))
+					Return(nil, services.ErrDatabaseItemNotFound)
 
 				return nil
 			},
 			expectError: true,
-			validateResults: func(t *testing.T, results []*mmodel.Balance, mockBalances []*mmodel.Balance) {
+			validateResults: func(t *testing.T, results, mockBalances []*mmodel.Balance) {
+				t.Helper()
 				assert.Nil(t, results)
 			},
 		},
@@ -169,11 +175,13 @@ func TestGetAccountBalancesAtTimestamp(t *testing.T) {
 				return balances
 			},
 			expectError: false,
-			validateResults: func(t *testing.T, results []*mmodel.Balance, mockBalances []*mmodel.Balance) {
+			validateResults: func(t *testing.T, results, mockBalances []*mmodel.Balance) {
+				t.Helper()
 				require.Len(t, results, 2)
 
 				// Find balances by key for deterministic validation
 				var defaultBalance, savingsBalance *mmodel.Balance
+
 				for _, r := range results {
 					switch r.Key {
 					case "default":
@@ -217,6 +225,7 @@ func TestGetAccountBalancesAtTimestamp(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
+
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}

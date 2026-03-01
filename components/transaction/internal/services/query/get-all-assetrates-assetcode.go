@@ -6,16 +6,19 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
 )
 
 // GetAllAssetRatesByAssetCode returns all asset rates by asset codes.
@@ -28,24 +31,24 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 	logger.Infof("Trying to get asset rate by source asset code: %s and target asset codes: %v", fromAssetCode, filter.ToAssetCodes)
 
 	if err := utils.ValidateCode(fromAssetCode); err != nil {
-		err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+		wrappedErr := fmt.Errorf("get all asset rates by asset code: %w", pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name()))
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'from' asset code", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'from' asset code", wrappedErr)
 
-		logger.Warnf("Error validating 'from' asset code: %v", err)
+		logger.Warnf("Error validating 'from' asset code: %v", wrappedErr)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, wrappedErr
 	}
 
 	for _, toAssetCode := range filter.ToAssetCodes {
 		if err := utils.ValidateCode(toAssetCode); err != nil {
-			err := pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+			wrappedErr := fmt.Errorf("get all asset rates by asset code: %w", pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name()))
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'to' asset codes", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate 'to' asset codes", wrappedErr)
 
-			logger.Warnf("Error validating 'to' asset codes: %v", err)
+			logger.Warnf("Error validating 'to' asset codes: %v", wrappedErr)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, wrappedErr
 		}
 	}
 

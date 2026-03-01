@@ -6,15 +6,18 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 )
 
 // GetBalanceAtTimestamp retrieves the balance state at a specific point in time.
@@ -29,7 +32,7 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 
 	// Validate timestamp is not in the future (use UTC for consistent comparison)
 	if timestamp.After(time.Now().UTC()) {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidTimestamp, "Balance", timestamp.Format(time.RFC3339))
+		err := fmt.Errorf("get balance at timestamp: %w", pkg.ValidateBusinessError(constant.ErrInvalidTimestamp, "Balance", timestamp.Format(time.RFC3339)))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Timestamp is in the future", err)
 		logger.Warnf("Timestamp is in the future: %s", timestamp)
 
@@ -58,7 +61,7 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 	// No operation found before the timestamp - check if balance existed and return initial state
 	if operation == nil {
 		if currentBalance.CreatedAt.After(timestamp) {
-			err := pkg.ValidateBusinessError(constant.ErrNoBalanceDataAtTimestamp, timestamp.Format(time.RFC3339))
+			err := fmt.Errorf("get balance at timestamp: %w", pkg.ValidateBusinessError(constant.ErrNoBalanceDataAtTimestamp, timestamp.Format(time.RFC3339)))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No balance data available for the specified timestamp", err)
 			logger.Warnf("Balance %s was created after timestamp %s (created_at: %s)", balanceID, timestamp, currentBalance.CreatedAt)
 

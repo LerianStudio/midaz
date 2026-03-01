@@ -10,20 +10,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-func TestGetAllTransactions(t *testing.T) {
+func TestGetAllTransactions(t *testing.T) { //nolint:funlen
+	t.Parallel()
+
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	filter := http.QueryHeader{
@@ -39,19 +44,16 @@ func TestGetAllTransactions(t *testing.T) {
 		Prev: "prev",
 	}
 
-	t.Parallel()
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockTransactionRepo := transaction.NewMockRepository(ctrl)
-	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-
-	uc := UseCase{
-		TransactionRepo: mockTransactionRepo,
-		MetadataRepo:    mockMetadataRepo,
-	}
-
 	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockTransactionRepo := transaction.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := UseCase{TransactionRepo: mockTransactionRepo, MetadataRepo: mockMetadataRepo}
+
 		transactionID := uuid.New()
 
 		operations := []*operation.Operation{
@@ -127,7 +129,7 @@ func TestGetAllTransactions(t *testing.T) {
 
 		result, cur, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.Equal(t, mockCur, cur)
 		assert.Equal(t, map[string]any{"key": "value"}, result[0].Metadata)
@@ -140,21 +142,37 @@ func TestGetAllTransactions(t *testing.T) {
 	})
 
 	t.Run("Error_FindAll", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockTransactionRepo := transaction.NewMockRepository(ctrl)
+		uc := UseCase{TransactionRepo: mockTransactionRepo}
+
 		mockTransactionRepo.
 			EXPECT().
 			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, errors.New("database error")).
+			Return(nil, libHTTP.CursorPagination{}, errors.New("database error")). //nolint:err113
 			Times(1)
 
 		result, cur, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 		assert.Contains(t, err.Error(), "database error")
 	})
 
 	t.Run("Error_ItemNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockTransactionRepo := transaction.NewMockRepository(ctrl)
+		uc := UseCase{TransactionRepo: mockTransactionRepo}
+
 		mockTransactionRepo.
 			EXPECT().
 			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination()).
@@ -163,13 +181,22 @@ func TestGetAllTransactions(t *testing.T) {
 
 		result, cur, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 		assert.Contains(t, err.Error(), "No transactions were found")
 	})
 
 	t.Run("Error_Metadata", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		t.Cleanup(ctrl.Finish)
+
+		mockTransactionRepo := transaction.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := UseCase{TransactionRepo: mockTransactionRepo, MetadataRepo: mockMetadataRepo}
+
 		trans := []*transaction.Transaction{
 			{
 				ID:             uuid.New().String(),
@@ -188,19 +215,19 @@ func TestGetAllTransactions(t *testing.T) {
 		mockMetadataRepo.
 			EXPECT().
 			FindByEntityIDs(gomock.Any(), "Transaction", []string{trans[0].ID}).
-			Return(nil, errors.New("metadata error")).
+			Return(nil, errors.New("metadata error")). //nolint:err113
 			Times(1)
 
 		result, cur, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 		assert.Contains(t, err.Error(), "No transactions were found")
 	})
 }
 
-func TestGetOperationsByTransaction(t *testing.T) {
+func TestGetOperationsByTransaction(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	organizationID := libCommons.GenerateUUIDv7()
@@ -284,16 +311,17 @@ func TestGetOperationsByTransaction(t *testing.T) {
 			setupMocks: func(mockOpRepo *operation.MockRepository, mockMetaRepo *mongodb.MockRepository) {
 				mockOpRepo.EXPECT().
 					FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
-					Return(nil, libHTTP.CursorPagination{}, errors.New("database error")).
+					Return(nil, libHTTP.CursorPagination{}, errors.New("database error")). //nolint:err113
 					Times(1)
 			},
-			expectedErr: errors.New("database error"),
+			expectedErr: errors.New("database error"), //nolint:err113
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -316,13 +344,14 @@ func TestGetOperationsByTransaction(t *testing.T) {
 			result, err := uc.GetOperationsByTransaction(context.Background(), organizationID, ledgerID, tran, filter)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedErr.Error())
 				assert.Nil(t, result)
+
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Len(t, result.Source, tt.expectedSourceLen)
 			assert.Len(t, result.Destination, tt.expectedDestLen)

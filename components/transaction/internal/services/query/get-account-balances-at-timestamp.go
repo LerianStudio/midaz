@@ -6,14 +6,17 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // GetAccountBalancesAtTimestamp retrieves all balance states for an account at a specific point in time.
@@ -29,7 +32,7 @@ func (uc *UseCase) GetAccountBalancesAtTimestamp(ctx context.Context, organizati
 
 	// Validate timestamp is not in the future (use UTC for consistent comparison)
 	if timestamp.After(time.Now().UTC()) {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidTimestamp, "Balance", timestamp.Format(time.RFC3339))
+		err := fmt.Errorf("get account balances at timestamp: %w", pkg.ValidateBusinessError(constant.ErrInvalidTimestamp, "Balance", timestamp.Format(time.RFC3339)))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Timestamp is in the future", err)
 		logger.Warnf("Timestamp is in the future: %s", timestamp)
 

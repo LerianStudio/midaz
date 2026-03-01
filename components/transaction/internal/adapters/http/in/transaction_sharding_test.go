@@ -12,12 +12,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
+
+	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
 func intPtr(v int) *int {
@@ -34,7 +36,7 @@ func TestMigrateAccountShardReturnsBadRequestWhenContextIDsMissing(t *testing.T)
 		return handler.MigrateAccountShard(&migrateAccountShardInput{Alias: "@alice", TargetShard: intPtr(1)}, c)
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/migrate", nil)
+	req := httptest.NewRequest(http.MethodPost, "/migrate", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
@@ -59,7 +61,7 @@ func TestMigrateAccountShardReturnsBadRequestOnInvalidPayload(t *testing.T) {
 		return handler.MigrateAccountShard(nil, c)
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/migrate", nil)
+	req := httptest.NewRequest(http.MethodPost, "/migrate", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
@@ -83,7 +85,7 @@ func TestMigrateAccountShardReturnsBadRequestWhenLedgerIDMissing(t *testing.T) {
 		return handler.MigrateAccountShard(&migrateAccountShardInput{Alias: "@alice", TargetShard: intPtr(0)}, c)
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/migrate", nil)
+	req := httptest.NewRequest(http.MethodPost, "/migrate", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
@@ -126,7 +128,7 @@ func TestMigrateAccountShardReturnsBadRequestWhenTargetShardMissing(t *testing.T
 		return handler.MigrateAccountShard(&migrateAccountShardInput{Alias: "@alice", TargetShard: nil}, c)
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/migrate", nil)
+	req := httptest.NewRequest(http.MethodPost, "/migrate", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
@@ -151,7 +153,7 @@ func TestMigrateAccountShardReturnsServiceUnavailableWhenCommandMissing(t *testi
 		return handler.MigrateAccountShard(&migrateAccountShardInput{Alias: "@alice", TargetShard: intPtr(1)}, c)
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/migrate", nil)
+	req := httptest.NewRequest(http.MethodPost, "/migrate", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
@@ -207,6 +209,7 @@ func TestShardingRebalanceRoutesRequireControlPlaneToken(t *testing.T) {
 
 			resp, err := app.Test(req)
 			require.NoError(t, err)
+
 			body, readErr := io.ReadAll(resp.Body)
 			require.NoError(t, readErr)
 			require.NoError(t, resp.Body.Close())
@@ -261,10 +264,12 @@ func TestShardingRebalanceRoutesValidateControlPlaneToken(t *testing.T) {
 			if tc.body != "" {
 				unauthorizedReq.Header.Set("Content-Type", "application/json")
 			}
+
 			unauthorizedReq.Header.Set("X-Sharding-Token", "wrong-token")
 
 			resp, err := app.Test(unauthorizedReq)
 			require.NoError(t, err)
+
 			unauthorizedBody, readErr := io.ReadAll(resp.Body)
 			require.NoError(t, readErr)
 			require.NoError(t, resp.Body.Close())
@@ -275,10 +280,12 @@ func TestShardingRebalanceRoutesValidateControlPlaneToken(t *testing.T) {
 			if tc.body != "" {
 				authorizedReq.Header.Set("Content-Type", "application/json")
 			}
+
 			authorizedReq.Header.Set("X-Sharding-Token", "12345678901234567890123456789012")
 
 			resp, err = app.Test(authorizedReq)
 			require.NoError(t, err)
+
 			authorizedBody, readErr := io.ReadAll(resp.Body)
 			require.NoError(t, readErr)
 			require.NoError(t, resp.Body.Close())

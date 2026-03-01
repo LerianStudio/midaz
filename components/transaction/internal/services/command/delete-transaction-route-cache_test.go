@@ -9,15 +9,22 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestDeleteTransactionRouteCache_Success tests successful cache deletion
+var errRedisConnection = errors.New("redis connection error")
+
+// TestDeleteTransactionRouteCache_Success tests successful cache deletion.
 func TestDeleteTransactionRouteCache_Success(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -42,8 +49,10 @@ func TestDeleteTransactionRouteCache_Success(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestDeleteTransactionRouteCache_RedisError tests error handling when Redis Del fails
+// TestDeleteTransactionRouteCache_RedisError tests error handling when Redis Del fails.
 func TestDeleteTransactionRouteCache_RedisError(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -51,7 +60,6 @@ func TestDeleteTransactionRouteCache_RedisError(t *testing.T) {
 	ledgerID := libCommons.GenerateUUIDv7()
 	transactionRouteID := libCommons.GenerateUUIDv7()
 
-	redisError := errors.New("redis connection error")
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	uc := &UseCase{
 		RedisRepo: mockRedisRepo,
@@ -61,17 +69,19 @@ func TestDeleteTransactionRouteCache_RedisError(t *testing.T) {
 
 	mockRedisRepo.EXPECT().
 		Del(gomock.Any(), expectedKey).
-		Return(redisError).
+		Return(errRedisConnection).
 		Times(1)
 
 	err := uc.DeleteTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.Error(t, err)
-	assert.Equal(t, redisError, err)
+	require.Error(t, err)
+	assert.Equal(t, errRedisConnection, err)
 }
 
-// TestDeleteTransactionRouteCache_ContextCancelled tests error handling when context is cancelled
+// TestDeleteTransactionRouteCache_ContextCancelled tests error handling when context is cancelled.
 func TestDeleteTransactionRouteCache_ContextCancelled(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -96,6 +106,6 @@ func TestDeleteTransactionRouteCache_ContextCancelled(t *testing.T) {
 
 	err := uc.DeleteTransactionRouteCache(ctx, organizationID, ledgerID, transactionRouteID)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
 }

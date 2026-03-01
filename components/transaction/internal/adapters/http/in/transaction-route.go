@@ -5,24 +5,27 @@
 package in
 
 import (
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
+// TransactionRouteHandler handles HTTP requests for transaction route operations.
 type TransactionRouteHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
 }
 
-// Create a Transaction Route.
+// CreateTransactionRoute creates a new Transaction Route.
 //
 //	@Summary		Create Transaction Route
 //	@Description	Endpoint to create a new Transaction Route.
@@ -48,10 +51,20 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_route")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
 
-	payload := i.(*mmodel.CreateTransactionRouteInput)
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	payload, ok := i.(*mmodel.CreateTransactionRouteInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
@@ -80,7 +93,7 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 	return http.Created(c, transactionRoute)
 }
 
-// Get a Transaction Route by ID.
+// GetTransactionRouteByID retrieves a Transaction Route by ID.
 //
 //	@Summary		Get Transaction Route by ID
 //	@Description	Endpoint to get a Transaction Route by its ID.
@@ -107,9 +120,20 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 	ctx, span := tracer.Start(ctx, "handler.get_transaction_route_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("transaction_route_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	id, ok := c.Locals("transaction_route_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid transaction_route_id"))
+	}
 
 	logger.Infof("Request to get transaction route with ID: %s", id.String())
 
@@ -125,7 +149,7 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 	return http.OK(c, transactionRoute)
 }
 
-// Update a Transaction Route.
+// UpdateTransactionRoute updates a Transaction Route by ID.
 //
 //	@Summary		Update Transaction Route
 //	@Description	Endpoint to update a Transaction Route by its ID.
@@ -152,13 +176,27 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 	ctx, span := tracer.Start(ctx, "handler.update_transaction_route")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("transaction_route_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	id, ok := c.Locals("transaction_route_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid transaction_route_id"))
+	}
 
 	logger.Infof("Request to update transaction route with ID: %s", id.String())
 
-	payload := i.(*mmodel.UpdateTransactionRouteInput)
+	payload, ok := i.(*mmodel.UpdateTransactionRouteInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
@@ -196,7 +234,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 	return http.OK(c, transactionRoute)
 }
 
-// Delete a Transaction Route by ID.
+// DeleteTransactionRouteByID deletes a Transaction Route by ID.
 //
 //	@Summary		Delete Transaction Route by ID
 //	@Description	Endpoint to delete a Transaction Route by its ID.
@@ -223,9 +261,20 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 	ctx, span := tracer.Start(ctx, "handler.delete_transaction_route_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("transaction_route_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
+
+	id, ok := c.Locals("transaction_route_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid transaction_route_id"))
+	}
 
 	logger.Infof("Request to delete transaction route with ID: %s", id.String())
 
@@ -247,7 +296,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 	return http.NoContent(c)
 }
 
-// Get all Transaction Routes.
+// GetAllTransactionRoutes retrieves all Transaction Routes.
 //
 //	@Summary		Get all Transaction Routes
 //	@Description	Endpoint to get all Transaction Routes with optional metadata filtering.
@@ -277,8 +326,15 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 	ctx, span := tracer.Start(ctx, "handler.get_all_transaction_routes")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, ok := c.Locals("organization_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid organization_id"))
+	}
+
+	ledgerID, ok := c.Locals("ledger_id").(uuid.UUID)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid ledger_id"))
+	}
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {

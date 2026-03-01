@@ -10,21 +10,24 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.uber.org/mock/gomock"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.uber.org/mock/gomock"
 )
 
-func TestGetAllMetadataTransactionRoutes(t *testing.T) {
+func TestGetAllMetadataTransactionRoutes(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	organizationID := uuid.New()
@@ -45,6 +48,8 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 	}
 
 	t.Run("success_with_metadata_filtering", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -103,7 +108,7 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 
 		result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expectedCursor, cursor)
 		assert.Len(t, result, 2)
 		assert.Equal(t, transactionRouteID1, result[0].ID)
@@ -113,6 +118,8 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 	})
 
 	t.Run("metadata_repo_error", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -125,7 +132,7 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 
 		mockMetadataRepo.EXPECT().
 			FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
-			Return(nil, errors.New("metadata repository error"))
+			Return(nil, errors.New("metadata repository error")) //nolint:err113
 
 		result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
@@ -133,11 +140,13 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
 
 		var entityNotFoundError pkg.EntityNotFoundError
-		assert.True(t, errors.As(err, &entityNotFoundError))
+		require.ErrorAs(t, err, &entityNotFoundError)
 		assert.Equal(t, "0106", entityNotFoundError.Code)
 	})
 
 	t.Run("metadata_returns_nil", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -158,11 +167,13 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
 
 		var entityNotFoundError pkg.EntityNotFoundError
-		assert.True(t, errors.As(err, &entityNotFoundError))
+		require.ErrorAs(t, err, &entityNotFoundError)
 		assert.Equal(t, "0106", entityNotFoundError.Code)
 	})
 
 	t.Run("transaction_route_repo_error", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -187,17 +198,19 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 
 		mockTransactionRouteRepo.EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-			Return(nil, libHTTP.CursorPagination{}, errors.New("database error"))
+			Return(nil, libHTTP.CursorPagination{}, errors.New("database error")) //nolint:err113
 
 		result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "database error", err.Error())
 	})
 
 	t.Run("transaction_route_not_found", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -230,7 +243,7 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
 
 		var entityNotFoundError pkg.EntityNotFoundError
-		assert.True(t, errors.As(err, &entityNotFoundError))
+		require.ErrorAs(t, err, &entityNotFoundError)
 		assert.Equal(t, "0106", entityNotFoundError.Code)
 	})
 }

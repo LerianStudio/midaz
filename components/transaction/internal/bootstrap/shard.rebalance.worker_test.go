@@ -10,13 +10,15 @@ import (
 	"testing"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+
+	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 )
 
 func newMockWorkerLogger(t *testing.T) libLog.Logger {
@@ -372,7 +374,7 @@ func TestShardRebalanceWorkerRebalanceOnceReturnsPermitError(t *testing.T) {
 			{OrganizationID: organizationID, LedgerID: ledgerID, Alias: "@alice", Load: 150},
 		},
 		isolationCounts: map[int]int64{},
-		permitErr:       errors.New("redis unavailable"),
+		permitErr:       errors.New("redis unavailable"), //nolint:err113
 	}
 
 	worker := NewShardRebalanceWorker(newMockWorkerLogger(t), manager, shard.NewRouter(2), time.Second, time.Minute, 1.5, 4, 0.7, 200)
@@ -385,7 +387,7 @@ func TestShardRebalanceWorkerRebalanceOnceReturnsPermitError(t *testing.T) {
 func TestShardRebalanceWorkerRebalanceOnceReturnsLoadError(t *testing.T) {
 	t.Parallel()
 
-	manager := &fakeRebalanceManager{loadsErr: errors.New("load error")}
+	manager := &fakeRebalanceManager{loadsErr: errors.New("load error")} //nolint:err113
 	worker := NewShardRebalanceWorker(newMockWorkerLogger(t), manager, shard.NewRouter(2), time.Second, time.Minute, 1.5, 4, 0.7, 200)
 
 	err := worker.rebalanceOnce(context.Background())
@@ -398,7 +400,7 @@ func TestShardRebalanceWorkerRebalanceOnceReturnsHotAccountError(t *testing.T) {
 
 	manager := &fakeRebalanceManager{
 		loads:  []internalsharding.ShardLoad{{ShardID: 0, Load: 220}, {ShardID: 1, Load: 40}},
-		hotErr: errors.New("hot account error"),
+		hotErr: errors.New("hot account error"), //nolint:err113
 	}
 	worker := NewShardRebalanceWorker(newMockWorkerLogger(t), manager, shard.NewRouter(2), time.Second, time.Minute, 1.5, 4, 0.7, 200)
 
@@ -416,7 +418,7 @@ func TestShardRebalanceWorkerRebalanceOnceReturnsIsolationError(t *testing.T) {
 	manager := &fakeRebalanceManager{
 		loads:        []internalsharding.ShardLoad{{ShardID: 0, Load: 220}, {ShardID: 1, Load: 40}},
 		hotAccounts:  []internalsharding.HotAccount{{OrganizationID: organizationID, LedgerID: ledgerID, Alias: "@alice", Load: 150}},
-		isolationErr: errors.New("isolation error"),
+		isolationErr: errors.New("isolation error"), //nolint:err113
 	}
 	worker := NewShardRebalanceWorker(newMockWorkerLogger(t), manager, shard.NewRouter(2), time.Second, time.Minute, 1.5, 4, 0.7, 200)
 
@@ -446,7 +448,7 @@ func TestShardRebalanceWorkerRebalanceOnceContinuesAfterMigrationError(t *testin
 		migrateResult:   &internalsharding.MigrationResult{Alias: "@next", SourceShard: 0, TargetShard: 2, MigratedKeys: 1},
 	}
 
-	originalMigrateErr := errors.New("migration failed")
+	originalMigrateErr := errors.New("migration failed") //nolint:err113
 	called := 0
 	manager.migrateFn = func(_ context.Context, organizationID, ledgerID uuid.UUID, alias string, targetShard int, _ []string) (*internalsharding.MigrationResult, error) {
 		called++
@@ -469,7 +471,7 @@ func TestShardRebalanceWorkerRebalanceOnceContinuesAfterMigrationError(t *testin
 func TestShardRebalanceWorkerRebalanceOnceReturnsPauseStateError(t *testing.T) {
 	t.Parallel()
 
-	manager := &fakeRebalanceManager{pausedErr: errors.New("pause read error")}
+	manager := &fakeRebalanceManager{pausedErr: errors.New("pause read error")} //nolint:err113
 	worker := NewShardRebalanceWorker(newMockWorkerLogger(t), manager, shard.NewRouter(2), time.Second, time.Minute, 1.5, 4, 0.7, 200)
 
 	err := worker.rebalanceOnce(context.Background())
@@ -494,7 +496,7 @@ func TestShardRebalanceWorkerRebalanceOnceContinuesWhenIsolationMarkFails(t *tes
 		},
 		permitByAlias:   map[string]bool{"@whale": true},
 		isolationCounts: map[int]int64{},
-		markErr:         errors.New("mark failed"),
+		markErr:         errors.New("mark failed"), //nolint:err113
 	}
 
 	worker := NewShardRebalanceWorker(newMockWorkerLogger(t), manager, shard.NewRouter(3), time.Second, time.Minute, 1.5, 4, 0.7, 200)

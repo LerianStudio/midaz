@@ -8,19 +8,23 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// CreateBalance creates a balance entry for an account.
 func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -97,7 +101,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 		}
 
 		if !existsDefault {
-			berr := pkg.ValidateBusinessError(constant.ErrDefaultBalanceNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+			berr := fmt.Errorf("create balance sync: %w", pkg.ValidateBusinessError(constant.ErrDefaultBalanceNotFound, reflect.TypeOf(mmodel.Balance{}).Name()))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Default balance not found", berr)
 
 			logger.Errorf("Default balance not found: %v", berr)
@@ -107,7 +111,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 
 		// Validate additional balance rules for external account type.
 		if input.AccountType == constant.ExternalAccountType && !shard.IsExternalBalanceKey(normalizedKey) {
-			err := pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, reflect.TypeOf(mmodel.Balance{}).Name(), input.Alias)
+			err := fmt.Errorf("create balance sync: %w", pkg.ValidateBusinessError(constant.ErrAdditionalBalanceNotAllowed, reflect.TypeOf(mmodel.Balance{}).Name(), input.Alias))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Additional balance not allowed for external account type", err)
 
@@ -127,7 +131,7 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 	}
 
 	if existsKey {
-		err := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), normalizedKey)
+		err := fmt.Errorf("create balance sync: %w", pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, reflect.TypeOf(mmodel.Balance{}).Name(), normalizedKey))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance key already exists", err)
 

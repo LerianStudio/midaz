@@ -17,19 +17,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+	"github.com/shopspring/decimal"
+	"golang.org/x/sync/errgroup"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
-	"github.com/shopspring/decimal"
-	"golang.org/x/sync/errgroup"
 )
 
 //go:embed scripts/balance_atomic_operation_v2.lua
@@ -44,7 +46,11 @@ var unscheduleSyncedBalanceLua string
 //go:embed scripts/idempotency_check.lua
 var idempotencyCheckLua string
 
+// TransactionBackupQueue is the Redis hash key used as a fallback backup queue for transaction data.
 const TransactionBackupQueue = "backup_queue:{transactions}"
+
+// ErrShardRouterNil is returned when sharding is enabled but the shard router is nil.
+var ErrShardRouterNil = errors.New("shard router is nil while sharding is enabled")
 
 const crossShardExecutionTimeout = 5 * time.Second
 
@@ -125,6 +131,7 @@ func NewConsumerRedis(rc *libRedis.RedisConnection, balanceSyncEnabled bool, sha
 	return r, nil
 }
 
+// Set stores a string value in Redis with the given key and TTL.
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -135,7 +142,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
-		return err
+		return fmt.Errorf("get redis client: %w", err)
 	}
 
 	normalizedTTL := normalizeRedisTTL(ttl)
@@ -146,7 +153,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set on redis", err)
 
-		return err
+		return fmt.Errorf("set redis key: %w", err)
 	}
 
 	return nil
@@ -166,7 +173,7 @@ func (rr *RedisConsumerRepository) PreWarmExternalBalances(
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get redis client: %w", err)
 	}
 
 	pipe := rds.Pipeline()
@@ -215,7 +222,7 @@ func (rr *RedisConsumerRepository) PreWarmExternalBalances(
 	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("execute redis pipeline: %w", err)
 	}
 
 	coverage := make(map[string]ExternalPreSplitCoverage, len(coverageSet))
@@ -229,10 +236,13 @@ func (rr *RedisConsumerRepository) PreWarmExternalBalances(
 	return coverage, nil
 }
 
+// ErrSetPipelineLengthMismatch is returned when keys, values and ttls have different lengths.
+var ErrSetPipelineLengthMismatch = errors.New("set pipeline: keys, values and ttls must have equal length")
+
 // SetPipeline performs multiple SET operations in a single Redis pipeline round-trip.
 func (rr *RedisConsumerRepository) SetPipeline(ctx context.Context, keys, values []string, ttls []time.Duration) error {
 	if len(keys) != len(values) || len(keys) != len(ttls) {
-		return fmt.Errorf("set pipeline: keys, values and ttls must have equal length")
+		return ErrSetPipelineLengthMismatch
 	}
 
 	if len(keys) == 0 {
@@ -241,7 +251,7 @@ func (rr *RedisConsumerRepository) SetPipeline(ctx context.Context, keys, values
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get redis client: %w", err)
 	}
 
 	pipe := rds.Pipeline()
@@ -249,9 +259,11 @@ func (rr *RedisConsumerRepository) SetPipeline(ctx context.Context, keys, values
 		pipe.Set(ctx, keys[i], values[i], normalizeRedisTTL(ttls[i]))
 	}
 
-	_, err = pipe.Exec(ctx)
+	if _, err = pipe.Exec(ctx); err != nil {
+		return fmt.Errorf("execute redis pipeline: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // CheckOrAcquireIdempotencyKey atomically checks idempotency key content and
@@ -261,7 +273,7 @@ func (rr *RedisConsumerRepository) SetPipeline(ctx context.Context, keys, values
 func (rr *RedisConsumerRepository) CheckOrAcquireIdempotencyKey(ctx context.Context, key string, ttl time.Duration) (existingValue string, acquired bool, err error) {
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		return "", false, err
+		return "", false, fmt.Errorf("get redis client: %w", err)
 	}
 
 	ttlSeconds := normalizeRedisTTLSeconds(ttl)
@@ -274,7 +286,7 @@ func (rr *RedisConsumerRepository) CheckOrAcquireIdempotencyKey(ctx context.Cont
 	}
 
 	if err != nil {
-		return "", false, err
+		return "", false, fmt.Errorf("run idempotency check script: %w", err)
 	}
 
 	if result == nil {
@@ -291,6 +303,7 @@ func (rr *RedisConsumerRepository) CheckOrAcquireIdempotencyKey(ctx context.Cont
 	}
 }
 
+// SetNX sets a value in Redis only if the key does not already exist.
 func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -301,7 +314,7 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
-		return false, err
+		return false, fmt.Errorf("get redis client: %w", err)
 	}
 
 	normalizedTTL := normalizeRedisTTL(ttl)
@@ -312,12 +325,13 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set nx on redis", err)
 
-		return false, err
+		return false, fmt.Errorf("setnx redis key: %w", err)
 	}
 
 	return isLocked, nil
 }
 
+// Get retrieves a string value from Redis for the given key.
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -330,7 +344,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 		logger.Errorf("Failed to connect on redis: %v", err)
 
-		return "", err
+		return "", fmt.Errorf("get redis client: %w", err)
 	}
 
 	val, err := rds.Get(ctx, key).Result()
@@ -339,7 +353,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 		logger.Errorf("Failed to get on redis: %v", err)
 
-		return "", err
+		return "", fmt.Errorf("get redis key: %w", err)
 	}
 
 	return val, nil
@@ -364,7 +378,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 
 		logger.Errorf("Failed to get redis: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get redis client: %w", err)
 	}
 
 	res, err := rds.MGet(ctx, keys...).Result()
@@ -373,7 +387,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 
 		logger.Errorf("Failed to mget on redis: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("mget redis keys: %w", err)
 	}
 
 	out := make(map[string]string, len(keys))
@@ -398,6 +412,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 	return out, nil
 }
 
+// Del removes a key from Redis.
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -408,14 +423,14 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to del redis", err)
 
-		return err
+		return fmt.Errorf("get redis client: %w", err)
 	}
 
 	val, err := rds.Del(ctx, key).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to del on redis", err)
 
-		return err
+		return fmt.Errorf("del redis key: %w", err)
 	}
 
 	logger.Infof("value : %v", val)
@@ -423,6 +438,7 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	return nil
 }
 
+// Incr atomically increments the integer value stored at key and returns the new value.
 func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -441,6 +457,7 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	return rds.Incr(ctx, key).Val()
 }
 
+// ProcessBalanceAtomicOperation executes the balance atomic operation Lua script for the given transaction.
 func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -453,7 +470,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 		logger.Errorf("Failed to get redis: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get redis client: %w", err)
 	}
 
 	// Build mapBalances lookup and handle NOTED early return.
@@ -462,7 +479,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 	for _, blcs := range balancesOperation {
 		if blcs.Balance == nil {
-			return nil, fmt.Errorf("nil balance for operation alias %s", blcs.Alias)
+			return nil, fmt.Errorf("nil balance for operation alias %s", blcs.Alias) //nolint:err113
 		}
 
 		mapBalances[blcs.Alias] = blcs.Balance
@@ -479,7 +496,10 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	}
 
 	// Collect scale values only when we will actually use them (non-NOTED path).
-	scaleValues := make([]decimal.Decimal, 0, len(balancesOperation)*3)
+	// 3 decimal values per operation: Amount, Available, OnHold.
+	const scaleValuesPerOperation = 3
+
+	scaleValues := make([]decimal.Decimal, 0, len(balancesOperation)*scaleValuesPerOperation)
 
 	for _, blcs := range balancesOperation {
 		scaleValues = append(scaleValues, blcs.Amount.Value, blcs.Balance.Available, blcs.Balance.OnHold)
@@ -497,7 +517,8 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	// silent precision loss or arithmetic errors inside the Redis Lua script.
 	if scale > pkgTransaction.MaxAllowedScale {
 		logger.Errorf("Transaction scale %d exceeds maximum %d (high-precision amounts not supported in integer mode)", scale, pkgTransaction.MaxAllowedScale)
-		return nil, pkg.ValidateBusinessError(constant.ErrPrecisionOverflow, "validateBalance")
+
+		return nil, fmt.Errorf("validate balance scale: %w", pkg.ValidateBusinessError(constant.ErrPrecisionOverflow, "validateBalance"))
 	}
 
 	// ── Sharded path: per-shard Lua execution with cross-shard orchestration ──
@@ -812,7 +833,7 @@ func (rr *RedisConsumerRepository) executeShardGroupsConcurrently(
 	}
 
 	if err := g.Wait(); err != nil {
-		return results, completed, err
+		return results, completed, fmt.Errorf("parallel shard execution: %w", err)
 	}
 
 	return results, completed, nil
@@ -901,7 +922,7 @@ func (rr *RedisConsumerRepository) buildOperationArgs(
 
 	for _, blcs := range operations {
 		if blcs.Balance == nil {
-			return nil, fmt.Errorf("nil balance for operation alias %s", blcs.Alias)
+			return nil, fmt.Errorf("nil balance for operation alias %s", blcs.Alias) //nolint:err113
 		}
 
 		allowSending := 0
@@ -916,17 +937,17 @@ func (rr *RedisConsumerRepository) buildOperationArgs(
 
 		amountInt, err := pkgTransaction.ScaleToInt(blcs.Amount.Value, scale)
 		if err != nil {
-			return nil, pkg.ValidateBusinessError(constant.ErrPrecisionOverflow, "validateBalance")
+			return nil, fmt.Errorf("scale amount: %w", pkg.ValidateBusinessError(constant.ErrPrecisionOverflow, "validateBalance"))
 		}
 
 		availableInt, err := pkgTransaction.ScaleToInt(blcs.Balance.Available, scale)
 		if err != nil {
-			return nil, pkg.ValidateBusinessError(constant.ErrPrecisionOverflow, "validateBalance")
+			return nil, fmt.Errorf("scale available: %w", pkg.ValidateBusinessError(constant.ErrPrecisionOverflow, "validateBalance"))
 		}
 
 		onHoldInt, err := pkgTransaction.ScaleToInt(blcs.Balance.OnHold, scale)
 		if err != nil {
-			return nil, pkg.ValidateBusinessError(constant.ErrPrecisionOverflow, "validateBalance")
+			return nil, fmt.Errorf("scale on hold: %w", pkg.ValidateBusinessError(constant.ErrPrecisionOverflow, "validateBalance"))
 		}
 
 		args = append(args,
@@ -970,7 +991,7 @@ func (rr *RedisConsumerRepository) parseBalanceResults(
 	case []byte:
 		balanceJSON = v
 	default:
-		return nil, fmt.Errorf("unexpected result type from Redis: %T", result)
+		return nil, fmt.Errorf("unexpected result type from Redis: %T", result) //nolint:err113
 	}
 
 	var blcsRedis []mmodel.BalanceRedis
@@ -1024,15 +1045,15 @@ func (rr *RedisConsumerRepository) classifyLuaError(err error) error {
 	errMsg := err.Error()
 
 	if strings.Contains(errMsg, constant.ErrInsufficientFunds.Error()) {
-		return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
+		return fmt.Errorf("lua error: %w", pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance"))
 	}
 
 	if strings.Contains(errMsg, constant.ErrBalanceUpdateFailed.Error()) {
-		return pkg.ValidateBusinessError(constant.ErrBalanceUpdateFailed, "validateBalance")
+		return fmt.Errorf("lua error: %w", pkg.ValidateBusinessError(constant.ErrBalanceUpdateFailed, "validateBalance"))
 	}
 
 	if strings.Contains(errMsg, constant.ErrPrecisionOverflow.Error()) {
-		return pkg.ValidateBusinessError(constant.ErrPrecisionOverflow, "validateBalance")
+		return fmt.Errorf("lua error: %w", pkg.ValidateBusinessError(constant.ErrPrecisionOverflow, "validateBalance"))
 	}
 
 	return err
@@ -1104,6 +1125,9 @@ type shardOpGroup struct {
 	hasCredit  bool
 }
 
+// shardSortWeightCreditOnly is the sort weight for credit-only or neither shards (last to execute).
+const shardSortWeightCreditOnly = 2
+
 // shardSortWeight returns a sort priority for shard classification:
 // 0 = debit-only (execute first), 1 = mixed, 2 = credit-only (execute last).
 func shardSortWeight(hasDebit, hasCredit bool) int {
@@ -1115,9 +1139,10 @@ func shardSortWeight(hasDebit, hasCredit bool) int {
 		return 1
 	}
 
-	return 2
+	return shardSortWeightCreditOnly
 }
 
+// SetBytes stores binary data in Redis with the given key and TTL.
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -1128,7 +1153,7 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
-		return err
+		return fmt.Errorf("get redis client: %w", err)
 	}
 
 	normalizedTTL := normalizeRedisTTL(ttl)
@@ -1139,12 +1164,13 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set bytes on redis", err)
 
-		return err
+		return fmt.Errorf("set bytes redis key: %w", err)
 	}
 
 	return nil
 }
 
+// GetBytes retrieves binary data from Redis for the given key.
 func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]byte, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -1155,14 +1181,14 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get redis client: %w", err)
 	}
 
 	val, err := rds.Get(ctx, key).Bytes()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get bytes on redis", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get bytes redis key: %w", err)
 	}
 
 	logger.Infof("Retrieved binary data of length: %d bytes", len(val))
@@ -1183,7 +1209,7 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
 
-		return err
+		return fmt.Errorf("get redis client: %w", err)
 	}
 
 	queueKey := rr.resolveBackupQueueForKey(key)
@@ -1191,7 +1217,7 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 	if err := rds.HSet(ctx, queueKey, key, msg).Err(); err != nil {
 		logger.Warnf("Failed to hset message: %v", err)
 
-		return err
+		return fmt.Errorf("hset message to queue %s: %w", queueKey, err)
 	}
 
 	logger.Infof("Message saved to %s with field ID: %s", queueKey, key)
@@ -1210,7 +1236,7 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get redis client: %w", err)
 	}
 
 	queueKey := rr.resolveBackupQueueForKey(key)
@@ -1219,7 +1245,7 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 	if err != nil {
 		logger.Warnf("Failed to hget from %s: %v", queueKey, err)
 
-		return nil, err
+		return nil, fmt.Errorf("hget from queue: %w", err)
 	}
 
 	logger.Infof("Message read from %s with ID: %s", queueKey, key)
@@ -1239,7 +1265,7 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get redis client: %w", err)
 	}
 
 	// Collect all backup queue keys to scan
@@ -1313,7 +1339,7 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
 
-		return err
+		return fmt.Errorf("get redis client: %w", err)
 	}
 
 	queueKey := rr.resolveBackupQueueForKey(key)
@@ -1321,7 +1347,7 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	if err := rds.HDel(ctx, queueKey, key).Err(); err != nil {
 		logger.Warnf("Failed to hdel from %s: %v", queueKey, err)
 
-		return err
+		return fmt.Errorf("hdel from queue: %w", err)
 	}
 
 	logger.Infof("Message with ID %s removed from %s", key, queueKey)
@@ -1354,7 +1380,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get redis client: %w", err)
 	}
 
 	script := redis.NewScript(getBalancesNearExpirationLua)
@@ -1466,7 +1492,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 	if err != nil {
 		logger.Warnf("Failed to get redis client: %v", err)
 
-		return err
+		return fmt.Errorf("get redis client: %w", err)
 	}
 
 	// Determine the correct schedule key and lock prefix.
@@ -1479,7 +1505,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 	if err != nil {
 		logger.Warnf("Failed to run unschedule_synced_balance.lua for %s: %v", member, err)
 
-		return err
+		return fmt.Errorf("unschedule synced balance: %w", err)
 	}
 
 	logger.Infof("Unscheduled synced balance: %s", member)
@@ -1582,6 +1608,7 @@ func normalizeRedisTTLSeconds(ttl time.Duration) int64 {
 	return seconds
 }
 
+// ListBalanceByKey retrieves a balance from Redis using the organization, ledger, and balance key.
 func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -1594,14 +1621,14 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 
 		logger.Errorf("Failed to connect on redis: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get redis client: %w", err)
 	}
 
 	var internalKey string
 
 	if rr.shardingEnabled {
 		if rr.shardRouter == nil {
-			return nil, fmt.Errorf("shard router is nil while sharding is enabled")
+			return nil, ErrShardRouterNil
 		}
 
 		accountAlias, balanceKey := shard.SplitAliasAndBalanceKey(key)
@@ -1617,7 +1644,7 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 
 		logger.Errorf("Failed to get balance on redis: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get balance from redis: %w", err)
 	}
 
 	var balanceRedis mmodel.BalanceRedis
@@ -1627,7 +1654,7 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 
 		logger.Errorf("Failed to unmarshal balance on redis: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("unmarshal balance: %w", err)
 	}
 
 	// Available/OnHold are automatically unscaled by BalanceRedis.UnmarshalJSON

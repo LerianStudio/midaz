@@ -10,17 +10,26 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
+)
+
+var (
+	errLuaInsufficientFunds = errors.New("ERR 0018")
+	errLuaBalanceNotFound   = errors.New("ERR 0061")
+	errLuaPrecisionOverflow = errors.New("ERR 0142")
+	errLuaRandomRedis       = errors.New("ERR some random Redis error")
 )
 
 type overrideLookupClient struct {
@@ -39,7 +48,7 @@ func (c *overrideLookupClient) HGet(_ context.Context, _, _ string) *goredis.Str
 
 // =============================================================================
 // UNIT TESTS — extractShardID
-// =============================================================================
+// =============================================================================.
 
 func TestExtractShardID(t *testing.T) {
 	t.Parallel()
@@ -68,6 +77,7 @@ func TestExtractShardID(t *testing.T) {
 			gotID, gotFound := extractShardID(tt.key)
 
 			assert.Equal(t, tt.wantFound, gotFound, "found mismatch for key %q", tt.key)
+
 			if gotFound {
 				assert.Equal(t, tt.wantID, gotID, "shard ID mismatch for key %q", tt.key)
 			}
@@ -77,7 +87,7 @@ func TestExtractShardID(t *testing.T) {
 
 // =============================================================================
 // UNIT TESTS — parseLuaStringArray
-// =============================================================================
+// =============================================================================.
 
 func TestParseLuaStringArray(t *testing.T) {
 	t.Parallel()
@@ -170,7 +180,7 @@ func TestActiveShardCount(t *testing.T) {
 
 // =============================================================================
 // UNIT TESTS — shardSortWeight
-// =============================================================================
+// =============================================================================.
 
 func TestShardSortWeight(t *testing.T) {
 	t.Parallel()
@@ -183,7 +193,7 @@ func TestShardSortWeight(t *testing.T) {
 
 // =============================================================================
 // UNIT TESTS — classifyLuaError
-// =============================================================================
+// =============================================================================.
 
 func TestClassifyLuaError(t *testing.T) {
 	t.Parallel()
@@ -193,7 +203,7 @@ func TestClassifyLuaError(t *testing.T) {
 	t.Run("insufficient funds (0018) returns UnprocessableOperationError", func(t *testing.T) {
 		t.Parallel()
 
-		result := repo.classifyLuaError(errors.New("ERR 0018"))
+		result := repo.classifyLuaError(errLuaInsufficientFunds)
 
 		var unprocessable pkg.UnprocessableOperationError
 		require.ErrorAs(t, result, &unprocessable)
@@ -203,7 +213,7 @@ func TestClassifyLuaError(t *testing.T) {
 	t.Run("balance update failed (0061) returns EntityNotFoundError", func(t *testing.T) {
 		t.Parallel()
 
-		result := repo.classifyLuaError(errors.New("ERR 0061"))
+		result := repo.classifyLuaError(errLuaBalanceNotFound)
 
 		var notFound pkg.EntityNotFoundError
 		require.ErrorAs(t, result, &notFound)
@@ -213,7 +223,7 @@ func TestClassifyLuaError(t *testing.T) {
 	t.Run("precision overflow (0142) returns UnprocessableOperationError", func(t *testing.T) {
 		t.Parallel()
 
-		result := repo.classifyLuaError(errors.New("ERR 0142"))
+		result := repo.classifyLuaError(errLuaPrecisionOverflow)
 
 		var unprocessable pkg.UnprocessableOperationError
 		require.ErrorAs(t, result, &unprocessable)
@@ -223,16 +233,15 @@ func TestClassifyLuaError(t *testing.T) {
 	t.Run("unknown error passes through unchanged", func(t *testing.T) {
 		t.Parallel()
 
-		original := errors.New("ERR some random Redis error")
-		result := repo.classifyLuaError(original)
+		result := repo.classifyLuaError(errLuaRandomRedis)
 
-		assert.Equal(t, original, result, "unknown errors should pass through")
+		assert.Equal(t, errLuaRandomRedis, result, "unknown errors should pass through")
 	})
 }
 
 // =============================================================================
 // UNIT TESTS — buildOperationArgs
-// =============================================================================
+// =============================================================================.
 
 func TestBuildOperationArgs_NilBalance(t *testing.T) {
 	t.Parallel()
@@ -254,7 +263,7 @@ func TestBuildOperationArgs_NilBalance(t *testing.T) {
 	args, err := repo.buildOperationArgs(ops, 0, "ACTIVE", 2)
 
 	assert.Nil(t, args, "should return nil args")
-	assert.Error(t, err, "should return error for nil balance")
+	require.Error(t, err, "should return error for nil balance")
 	assert.Contains(t, err.Error(), "nil balance", "error should mention nil balance")
 }
 
@@ -283,7 +292,7 @@ func TestBuildOperationArgs_ValidOperation(t *testing.T) {
 
 // =============================================================================
 // UNIT TESTS — parseBalanceResults
-// =============================================================================
+// =============================================================================.
 
 func TestParseBalanceResults_EmptyArray(t *testing.T) {
 	t.Parallel()
@@ -329,7 +338,7 @@ func TestParseBalanceResults_UnsupportedType(t *testing.T) {
 
 	_, err := repo.parseBalanceResults(context.Background(), 12345, map[string]*mmodel.Balance{})
 
-	assert.Error(t, err, "unsupported result type should return error")
+	require.Error(t, err, "unsupported result type should return error")
 	assert.Contains(t, err.Error(), "unexpected result type")
 }
 
@@ -360,7 +369,7 @@ func TestResolveBalanceShardWithOverrides_IgnoresOutOfRangeOverride(t *testing.T
 
 // =============================================================================
 // UNIT TESTS — resolveBackupQueueForKey
-// =============================================================================
+// =============================================================================.
 
 func TestResolveBackupQueueForKey(t *testing.T) {
 	t.Parallel()
@@ -434,7 +443,7 @@ func TestResolveBackupQueueForKey(t *testing.T) {
 
 // =============================================================================
 // HELPERS
-// =============================================================================
+// =============================================================================.
 
 func newTestOp(orgID, ledgerID uuid.UUID, alias, operation string, amount decimal.Decimal) mmodel.BalanceOperation {
 	balanceID := libCommons.GenerateUUIDv7().String()

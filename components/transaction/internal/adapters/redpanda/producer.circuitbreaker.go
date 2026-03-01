@@ -7,6 +7,7 @@ package redpanda
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
@@ -92,7 +93,7 @@ func (p *CircuitBreakerProducer) executeWithCircuit(operation func() (any, error
 	result, err := p.cbManager.Execute(CircuitBreakerServiceName, operation)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return nil, err
+			return nil, fmt.Errorf("circuit breaker execute: %w", err)
 		}
 
 		state := p.cbManager.GetState(CircuitBreakerServiceName)
@@ -101,7 +102,7 @@ func (p *CircuitBreakerProducer) executeWithCircuit(operation func() (any, error
 			return nil, ErrServiceUnavailable
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("circuit breaker execute: %w", err)
 	}
 
 	if result == nil {
@@ -159,5 +160,9 @@ func (p *CircuitBreakerProducer) Close() error {
 		return nil
 	}
 
-	return p.underlying.Close()
+	if err := p.underlying.Close(); err != nil {
+		return fmt.Errorf("closing underlying producer: %w", err)
+	}
+
+	return nil
 }

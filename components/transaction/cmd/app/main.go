@@ -10,6 +10,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
 )
 

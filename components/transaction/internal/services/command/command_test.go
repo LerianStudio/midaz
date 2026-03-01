@@ -8,6 +8,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -15,11 +18,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestNewUseCase(t *testing.T) {
+	t.Parallel()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -39,7 +42,7 @@ func TestNewUseCase(t *testing.T) {
 		AssetRateRepo:   mockAssetRateRepo,
 		BalanceRepo:     mockBalanceRepo,
 		MetadataRepo:    mockMetadataRepo,
-		BrokerRepo:    mockBrokerRepo,
+		BrokerRepo:      mockBrokerRepo,
 		RedisRepo:       mockRedisRepo,
 	}
 

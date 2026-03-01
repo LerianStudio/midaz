@@ -8,26 +8,37 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/Masterminds/squirrel"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// whereOrgIDOffset is the positional offset from the end of the args slice to the organizationID parameter.
+// After appending (updatedAt, organizationID, ledgerID, id), organizationID is at len(args)-2.
+const whereOrgIDOffset = 2
+
+// placeholderStartOffset is the starting positional parameter index ($2) for IN-clause placeholders
+// when $1 is reserved for the primary key (e.g., transactionRouteID).
+const placeholderStartOffset = 2
 
 // Repository provides an interface for operations related to transaction route entities.
 // It defines methods for creating transaction routes.
@@ -35,7 +46,7 @@ import (
 //go:generate mockgen --destination=transactionroute.postgresql_mock.go --package=transactionroute . Repository
 type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error)
-	FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error)
+	FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.TransactionRoute, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID, toRemove []uuid.UUID) error
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error)
@@ -56,7 +67,7 @@ func NewTransactionRoutePostgreSQLRepository(pc *libPostgres.PostgresConnection)
 
 	_, err := c.connection.GetDB()
 	if err != nil {
-		panic("Failed to connect database")
+		panic("Failed to connect database") //nolint:forbidigo
 	}
 
 	return c
@@ -77,7 +88,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	record := &TransactionRoutePostgreSQLModel{}
@@ -89,7 +100,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 
 		logger.Errorf("Failed to begin transaction: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
 	defer func() {
@@ -124,14 +135,14 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 
 			logger.Errorf("Failed to execute insert transaction route query: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to execute query: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert transaction route query", err)
 
 		logger.Errorf("Failed to execute insert transaction route query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -140,7 +151,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -150,7 +161,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 
 		logger.Warnf("Failed to create transaction route. Rows affected is 0: %v", err)
 
-		return nil, err
+		return nil, err //nolint:wrapcheck
 	}
 
 	spanExec.End()
@@ -178,14 +189,14 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 
 					logger.Errorf("Failed to insert operation route relation: %v", err)
 
-					return nil, err
+					return nil, err //nolint:wrapcheck
 				}
 
 				libOpentelemetry.HandleSpanError(&spanRelations, "Failed to insert operation route relation", err)
 
 				logger.Errorf("Failed to insert operation route relation: %v", err)
 
-				return nil, err
+				return nil, fmt.Errorf("failed to perform database operation: %w", err)
 			}
 		}
 	}
@@ -195,7 +206,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 
 		logger.Errorf("Failed to commit transaction: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -203,7 +214,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 
 // FindByID retrieves a transaction route by its ID including its operation routes.
 // It returns the transaction route if found, otherwise it returns an error.
-func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
+func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_route_by_id")
@@ -215,7 +226,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	subQuery := squirrel.Select(
@@ -246,7 +257,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_id.query")
@@ -258,7 +269,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 	defer rows.Close()
 
@@ -318,14 +329,14 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 
 				logger.Warnf("%s: %v", "Transaction route not found", err)
 
-				return nil, err
+				return nil, err //nolint:wrapcheck
 			}
 
 			libOpentelemetry.HandleSpanError(&span, errMsg, err)
 
 			logger.Errorf("%s: %v", errMsg, err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to perform database operation: %w", err)
 		}
 
 		if transactionRoute == nil {
@@ -346,7 +357,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to perform database operation: %w", err)
 	}
 
 	if transactionRoute == nil {
@@ -358,7 +369,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 
 		logger.Warnf("%s: %v", logMsg, err)
 
-		return nil, err
+		return nil, err //nolint:wrapcheck
 	}
 
 	return transactionRoute, nil
@@ -379,7 +390,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -388,7 +399,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 
 		logger.Errorf("Failed to begin transaction: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
 	defer func() {
@@ -424,7 +435,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
 	query := `UPDATE transaction_route SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-whereOrgIDOffset) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
@@ -441,14 +452,14 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 
 			logger.Errorf("Failed to execute update query: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to execute query: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -457,7 +468,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -467,7 +478,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 
 		logger.Errorf("Failed to update transaction route. Rows affected is 0: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	spanExec.End()
@@ -479,7 +490,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 
 			logger.Errorf("Failed to update operation route relationships: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("failed to perform database operation: %w", err)
 		}
 	}
 
@@ -488,7 +499,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 
 		logger.Errorf("Failed to commit transaction: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -509,7 +520,7 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return err
+		return fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
@@ -521,7 +532,7 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 
 		logger.Errorf("Failed to begin transaction: %v", err)
 
-		return err
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
 	defer func() {
@@ -540,7 +551,7 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 
 		logger.Errorf("Failed to execute delete query: %v", err)
 
-		return err
+		return fmt.Errorf("failed to execute query: %w", err)
 	}
 
 	err = r.updateOperationRouteRelationships(ctx, tx, id, make([]uuid.UUID, 0), toRemove)
@@ -549,7 +560,7 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 
 		logger.Errorf("Failed to update operation route relationships: %v", err)
 
-		return err
+		return fmt.Errorf("failed to perform database operation: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -557,7 +568,7 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 
 		logger.Errorf("Failed to commit transaction: %v", err)
 
-		return err
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
@@ -576,7 +587,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
 	var transactionRoutes []*mmodel.TransactionRoute
@@ -589,7 +600,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to decode cursor: %w", err)
 		}
 	}
 
@@ -612,7 +623,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to build query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -624,7 +635,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to execute query: %w", err)
 	}
 	defer rows.Close()
 
@@ -645,7 +656,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 
 			logger.Errorf("Failed to scan transaction route: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to scan row: %w", err)
 		}
 
 		transactionRoutes = append(transactionRoutes, transactionRoute.ToEntity())
@@ -656,7 +667,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to perform database operation: %w", err)
 	}
 
 	hasPagination := len(transactionRoutes) > filter.Limit
@@ -672,14 +683,14 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 
 			logger.Errorf("Failed to calculate cursor: %v", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("failed to calculate cursor: %w", err)
 		}
 	}
 
 	return transactionRoutes, cur, nil
 }
 
-// updateOperationRouteRelationships handles the complex logic of updating operation route relationships within an existing transaction
+// updateOperationRouteRelationships handles the complex logic of updating operation route relationships within an existing transaction.
 func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships(ctx context.Context, tx interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
@@ -699,7 +710,7 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 		deleteArgs := make([]any, len(toRemove)+1)
 
 		for i, id := range toRemove {
-			placeholders[i] = "$" + strconv.Itoa(i+2)
+			placeholders[i] = "$" + strconv.Itoa(i+placeholderStartOffset)
 			deleteArgs[i+1] = id
 		}
 
@@ -717,7 +728,7 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 
 			logger.Errorf("Failed to soft delete operation route relationships: %v", err)
 
-			return err
+			return fmt.Errorf("failed to execute query: %w", err)
 		}
 
 		spanDelete.End()
@@ -747,14 +758,14 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 
 					logger.Errorf("Failed to create operation route relationship: %v", err)
 
-					return err
+					return err //nolint:wrapcheck
 				}
 
 				libOpentelemetry.HandleSpanError(&spanCreate, "Failed to create operation route relationship", err)
 
 				logger.Errorf("Failed to create operation route relationship: %v", err)
 
-				return err
+				return fmt.Errorf("failed to perform database operation: %w", err)
 			}
 		}
 

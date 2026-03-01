@@ -6,44 +6,59 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/google/uuid"
 
 	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	"github.com/google/uuid"
 )
 
+var (
+	errShardManagerNotConfigured      = errors.New("shard manager not configured")
+	errBalanceRepositoryNotConfigured = errors.New("balance repository not configured")
+	errAliasRequired                  = errors.New("alias is required")
+)
+
+// ShardRebalanceStatus holds the current state of the shard rebalancer.
 type ShardRebalanceStatus struct {
 	Paused bool                         `json:"paused"`
 	Loads  []internalsharding.ShardLoad `json:"loads"`
 }
 
+// SetShardRebalancePaused pauses or resumes the shard rebalancer.
 func (uc *UseCase) SetShardRebalancePaused(ctx context.Context, paused bool) error {
 	if uc == nil || uc.ShardManager == nil {
-		return fmt.Errorf("shard manager not configured")
+		return errShardManagerNotConfigured
 	}
 
-	return uc.ShardManager.SetRebalancerPaused(ctx, paused)
+	if err := uc.ShardManager.SetRebalancerPaused(ctx, paused); err != nil {
+		return fmt.Errorf("failed to set rebalancer paused: %w", err)
+	}
+
+	return nil
 }
 
+// GetShardRebalanceStatus returns the current shard rebalance status.
 func (uc *UseCase) GetShardRebalanceStatus(ctx context.Context) (*ShardRebalanceStatus, error) {
 	if uc == nil || uc.ShardManager == nil || uc.ShardRouter == nil {
-		return nil, fmt.Errorf("shard manager not configured")
+		return nil, errShardManagerNotConfigured
 	}
 
 	paused, err := uc.ShardManager.IsRebalancerPaused(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to check rebalancer paused: %w", err)
 	}
 
 	loads, err := uc.ShardManager.GetShardLoads(ctx, uc.ShardRouter.ShardCount(), 0)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get shard loads: %w", err)
 	}
 
 	if loads == nil {
@@ -53,6 +68,7 @@ func (uc *UseCase) GetShardRebalanceStatus(ctx context.Context) (*ShardRebalance
 	return &ShardRebalanceStatus{Paused: paused, Loads: loads}, nil
 }
 
+// MigrateAccountShard migrates an account's balances to a different shard.
 func (uc *UseCase) MigrateAccountShard(
 	ctx context.Context,
 	organizationID, ledgerID uuid.UUID,
@@ -60,27 +76,27 @@ func (uc *UseCase) MigrateAccountShard(
 	targetShard int,
 ) (*internalsharding.MigrationResult, error) {
 	if uc == nil || uc.ShardManager == nil || uc.ShardRouter == nil {
-		return nil, fmt.Errorf("shard manager not configured")
+		return nil, errShardManagerNotConfigured
 	}
 
 	if uc.BalanceRepo == nil {
-		return nil, fmt.Errorf("balance repository not configured")
+		return nil, errBalanceRepositoryNotConfigured
 	}
 
 	if alias == "" {
-		return nil, fmt.Errorf("alias is required")
+		return nil, errAliasRequired
 	}
 
 	if strings.ContainsAny(alias, "*?[]") {
-		return nil, pkg.ValidateBusinessError(constant.ErrAccountAliasInvalid, "alias")
+		return nil, pkg.ValidateBusinessError(constant.ErrAccountAliasInvalid, "alias") //nolint:wrapcheck
 	}
 
 	if targetShard < 0 || targetShard >= uc.ShardRouter.ShardCount() {
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "targetShard")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "targetShard") //nolint:wrapcheck
 	}
 
 	if shard.IsExternal(alias) {
-		return nil, pkg.ValidateBusinessError(constant.ErrAccountAliasInvalid, "alias")
+		return nil, pkg.ValidateBusinessError(constant.ErrAccountAliasInvalid, "alias") //nolint:wrapcheck
 	}
 
 	balances, err := uc.BalanceRepo.ListByAliases(ctx, organizationID, ledgerID, []string{alias})
@@ -89,7 +105,7 @@ func (uc *UseCase) MigrateAccountShard(
 	}
 
 	if len(balances) == 0 {
-		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name()) //nolint:wrapcheck
 	}
 
 	balanceKeys := make([]string, 0, len(balances))
@@ -101,5 +117,10 @@ func (uc *UseCase) MigrateAccountShard(
 		balanceKeys = append(balanceKeys, balance.Key)
 	}
 
-	return uc.ShardManager.MigrateAccount(ctx, organizationID, ledgerID, alias, targetShard, balanceKeys)
+	result, err := uc.ShardManager.MigrateAccount(ctx, organizationID, ledgerID, alias, targetShard, balanceKeys)
+	if err != nil {
+		return nil, fmt.Errorf("failed to migrate account shard: %w", err)
+	}
+
+	return result, nil
 }

@@ -105,7 +105,9 @@ func setupTestInfra(t *testing.T) *testInfra {
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
-	metadataRepo := mongodb.NewMetadataMongoDBRepository(infra.mongoConn)
+	metadataRepo, err := mongodb.NewMetadataMongoDBRepository(infra.mongoConn)
+	require.NoError(t, err, "failed to create MongoDB metadata repository")
+
 	redisRepo, err := redis.NewConsumerRedis(infra.redisConn, false, nil)
 	require.NoError(t, err, "failed to create Redis repository")
 
@@ -628,7 +630,9 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
-	metadataRepo := mongodb.NewMetadataMongoDBRepository(infra.mongoConn)
+	metadataRepo, err := mongodb.NewMetadataMongoDBRepository(infra.mongoConn)
+	require.NoError(t, err, "failed to create MongoDB metadata repository")
+
 	redisRepo, err := redis.NewConsumerRedis(infra.redisConn, false, nil)
 	require.NoError(t, err, "failed to create Redis repository")
 
@@ -2238,14 +2242,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 // Flow:
 // 1. First request with X-Idempotency header creates transaction
 // 2. Second request with same key but different payload returns 409
-//
-// SKIPPED: This test documents EXPECTED behavior, but conflict detection is NOT implemented.
-// Current behavior: same key + different payload returns 201 with cached response (replay).
-// The hash parameter in CreateOrCheckIdempotencyKey is only used as fallback key when
-// X-Idempotency header is not provided - it is never stored or compared.
 func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
-	t.Skip("PENDING: Conflict detection not implemented - same key returns cached response regardless of payload")
-
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}

@@ -8,29 +8,32 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation" //nolint:depguard
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	pkgHTTP "github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
-func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) {
+func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		queryParams    string
@@ -50,14 +53,17 @@ func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				// Validate pagination structure exists
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InEpsilon(t, float64(10), limit, 1e-9)
 
 				// Validate items is empty array
 				items, ok := result["items"].([]any)
@@ -129,7 +135,10 @@ func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -151,7 +160,7 @@ func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) {
 				// Validate pagination
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(5), limit)
+				assert.InEpsilon(t, float64(5), limit, 1e-9)
 
 				// Validate cursor pagination fields
 				assert.Contains(t, result, "next_cursor", "response should contain next_cursor")
@@ -210,7 +219,10 @@ func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -240,7 +252,10 @@ func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -275,15 +290,19 @@ func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
+
 					return c.Next()
 				},
 				handler.GetAllOperationsByAccount,
 			)
 
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String()+"/operations"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String()+"/operations"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -295,7 +314,7 @@ func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) {
 	}
 }
 
-func TestOperationHandler_GetOperationByAccount(t *testing.T) {
+func TestOperationHandler_GetOperationByAccount(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		setupMocks     func(operationRepo *operation.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID, accountID, operationID uuid.UUID)
@@ -344,7 +363,10 @@ func TestOperationHandler_GetOperationByAccount(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -371,7 +393,10 @@ func TestOperationHandler_GetOperationByAccount(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -393,7 +418,10 @@ func TestOperationHandler_GetOperationByAccount(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -430,15 +458,19 @@ func TestOperationHandler_GetOperationByAccount(t *testing.T) {
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("account_id", accountID)
 					c.Locals("operation_id", operationID)
+
 					return c.Next()
 				},
 				handler.GetOperationByAccount,
 			)
 
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String()+"/operations/"+operationID.String(), nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String()+"/operations/"+operationID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -450,7 +482,7 @@ func TestOperationHandler_GetOperationByAccount(t *testing.T) {
 	}
 }
 
-func TestOperationHandler_UpdateOperation(t *testing.T) {
+func TestOperationHandler_UpdateOperation(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		jsonBody       string
@@ -540,7 +572,10 @@ func TestOperationHandler_UpdateOperation(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -567,7 +602,10 @@ func TestOperationHandler_UpdateOperation(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -592,7 +630,10 @@ func TestOperationHandler_UpdateOperation(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -636,16 +677,20 @@ func TestOperationHandler_UpdateOperation(t *testing.T) {
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("transaction_id", transactionID)
 					c.Locals("operation_id", operationID)
+
 					return c.Next()
 				},
-				http.WithBody(new(operation.UpdateOperationInput), handler.UpdateOperation),
+				pkgHTTP.WithBody(new(operation.UpdateOperationInput), handler.UpdateOperation),
 			)
 
-			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/operations/"+operationID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/operations/"+operationID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -657,5 +702,5 @@ func TestOperationHandler_UpdateOperation(t *testing.T) {
 	}
 }
 
-// Ensure libPostgres.Pagination is used (referenced in handler)
+// Ensure libPostgres.Pagination is used (referenced in handler).
 var _ = libPostgres.Pagination{}

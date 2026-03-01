@@ -6,16 +6,18 @@ package query
 
 import (
 	"context"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
-// GetAllMetadataIndexes returns all metadata indexes, optionally filtered by entity name
+// GetAllMetadataIndexes returns all metadata indexes, optionally filtered by entity name.
 func (uc *UseCase) GetAllMetadataIndexes(ctx context.Context, filter http.QueryHeader) ([]*mmodel.MetadataIndex, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -30,7 +32,7 @@ func (uc *UseCase) GetAllMetadataIndexes(ctx context.Context, filter http.QueryH
 
 	if filter.EntityName != nil && *filter.EntityName != "" {
 		if !mmodel.IsValidMetadataIndexEntity(*filter.EntityName) {
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidEntityName, "MetadataIndex")
+			return nil, fmt.Errorf("get all metadata indexes: %w", pkg.ValidateBusinessError(constant.ErrInvalidEntityName, "MetadataIndex"))
 		}
 
 		entitiesToQuery = []string{*filter.EntityName}

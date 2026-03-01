@@ -10,21 +10,24 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.uber.org/mock/gomock"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.uber.org/mock/gomock"
 )
 
-func TestGetAllMetadataOperationRoutes(t *testing.T) {
+func TestGetAllMetadataOperationRoutes(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	organizationID := uuid.New()
@@ -45,6 +48,8 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 	}
 
 	t.Run("success_with_metadata_filtering", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -100,7 +105,7 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 
 		result, cursor, err := uc.GetAllMetadataOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expectedCursor, cursor)
 		assert.Len(t, result, 2)
 		assert.Equal(t, operationRouteID1, result[0].ID)
@@ -110,6 +115,8 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 	})
 
 	t.Run("metadata_repo_error", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -122,7 +129,7 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 
 		mockMetadataRepo.EXPECT().
 			FindList(gomock.Any(), reflect.TypeOf(mmodel.OperationRoute{}).Name(), gomock.Any()).
-			Return(nil, errors.New("metadata repository error"))
+			Return(nil, errors.New("metadata repository error")) //nolint:err113
 
 		result, cursor, err := uc.GetAllMetadataOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
@@ -130,11 +137,13 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
 
 		var entityNotFoundError pkg.EntityNotFoundError
-		assert.True(t, errors.As(err, &entityNotFoundError))
+		require.ErrorAs(t, err, &entityNotFoundError)
 		assert.Equal(t, "0102", entityNotFoundError.Code)
 	})
 
 	t.Run("metadata_returns_nil", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -155,11 +164,13 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
 
 		var entityNotFoundError pkg.EntityNotFoundError
-		assert.True(t, errors.As(err, &entityNotFoundError))
+		require.ErrorAs(t, err, &entityNotFoundError)
 		assert.Equal(t, "0102", entityNotFoundError.Code)
 	})
 
 	t.Run("operation_route_repo_error", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -184,17 +195,19 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 
 		mockOperationRouteRepo.EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-			Return(nil, libHTTP.CursorPagination{}, errors.New("database error"))
+			Return(nil, libHTTP.CursorPagination{}, errors.New("database error")) //nolint:err113
 
 		result, cursor, err := uc.GetAllMetadataOperationRoutes(context.Background(), organizationID, ledgerID, filter)
 
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "database error", err.Error())
 	})
 
 	t.Run("operation_route_not_found", func(t *testing.T) {
+		t.Parallel()
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -227,7 +240,7 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
 
 		var entityNotFoundError pkg.EntityNotFoundError
-		assert.True(t, errors.As(err, &entityNotFoundError))
+		require.ErrorAs(t, err, &entityNotFoundError)
 		assert.Equal(t, "0102", entityNotFoundError.Code)
 	})
 }

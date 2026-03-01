@@ -78,7 +78,7 @@ func TestIsRetryableBatchBalanceUpdateError(t *testing.T) {
 	t.Run("generic_error_is_not_retryable", func(t *testing.T) {
 		t.Parallel()
 
-		err := errors.New("some random error")
+		err := errors.New("some random error") //nolint:err113
 		assert.False(t, isRetryableBatchBalanceUpdateError(err))
 	})
 
@@ -121,7 +121,7 @@ func TestRetryableErrorConstants(t *testing.T) {
 	t.Run("max_retries_constant_is_positive", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Greater(t, balanceUpdateMaxRetries, 0, "balanceUpdateMaxRetries must be > 0")
+		assert.Positive(t, balanceUpdateMaxRetries, "balanceUpdateMaxRetries must be > 0")
 		assert.Equal(t, 4, balanceUpdateMaxRetries, "balanceUpdateMaxRetries should be 4")
 	})
 }

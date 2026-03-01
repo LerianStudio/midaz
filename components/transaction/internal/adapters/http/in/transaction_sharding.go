@@ -7,11 +7,13 @@ package in
 import (
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
 type migrateAccountShardInput struct {
@@ -19,6 +21,7 @@ type migrateAccountShardInput struct {
 	TargetShard *int   `json:"targetShard" validate:"required,min=0"`
 }
 
+// PauseShardRebalance pauses the shard rebalancer.
 func (handler *TransactionHandler) PauseShardRebalance(c *fiber.Ctx) error {
 	if handler == nil || handler.Command == nil {
 		return fiber.NewError(fiber.StatusServiceUnavailable, "transaction command service is unavailable")
@@ -43,6 +46,7 @@ func (handler *TransactionHandler) PauseShardRebalance(c *fiber.Ctx) error {
 	return http.OK(c, fiber.Map{"paused": true})
 }
 
+// ResumeShardRebalance resumes the shard rebalancer.
 func (handler *TransactionHandler) ResumeShardRebalance(c *fiber.Ctx) error {
 	if handler == nil || handler.Command == nil {
 		return fiber.NewError(fiber.StatusServiceUnavailable, "transaction command service is unavailable")
@@ -67,6 +71,7 @@ func (handler *TransactionHandler) ResumeShardRebalance(c *fiber.Ctx) error {
 	return http.OK(c, fiber.Map{"paused": false})
 }
 
+// GetShardRebalanceStatus retrieves the current shard rebalancer status.
 func (handler *TransactionHandler) GetShardRebalanceStatus(c *fiber.Ctx) error {
 	if handler == nil || handler.Command == nil {
 		return fiber.NewError(fiber.StatusServiceUnavailable, "transaction command service is unavailable")
@@ -92,6 +97,7 @@ func (handler *TransactionHandler) GetShardRebalanceStatus(c *fiber.Ctx) error {
 	return http.OK(c, status)
 }
 
+// MigrateAccountShard migrates an account to a target shard.
 func (handler *TransactionHandler) MigrateAccountShard(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

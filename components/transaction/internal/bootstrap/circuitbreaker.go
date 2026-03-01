@@ -16,6 +16,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 )
 

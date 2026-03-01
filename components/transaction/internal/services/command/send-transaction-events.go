@@ -11,15 +11,18 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+// Source identifies the event source in transaction event messages.
 const (
 	Source    string = "midaz"
 	EventType string = "transaction"
 )
 
+// SendTransactionEvents publishes transaction lifecycle events to the broker.
 func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.Transaction) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

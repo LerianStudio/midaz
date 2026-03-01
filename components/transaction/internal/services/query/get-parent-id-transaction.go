@@ -8,10 +8,12 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/google/uuid"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/google/uuid"
 )
 
 // GetParentByTransactionID gets data in the repository.

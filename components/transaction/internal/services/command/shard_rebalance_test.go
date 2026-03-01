@@ -9,7 +9,15 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
@@ -17,12 +25,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/alicebob/miniredis/v2"
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
+)
+
+// Sentinel errors for test assertions.
+var (
+	errTestRepoUnavailable = errors.New("repository unavailable")
 )
 
 func newTestShardManagerWithClient(t *testing.T) (*internalsharding.Manager, redis.UniversalClient) {
@@ -39,6 +46,7 @@ func newTestShardManagerWithClient(t *testing.T) (*internalsharding.Manager, red
 		if err != nil {
 			require.ErrorIs(t, err, redis.ErrClosed)
 		}
+
 		mini.Close()
 	})
 
@@ -143,7 +151,7 @@ func TestMigrateAccountShardReturnsRepoError(t *testing.T) {
 
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	repoErr := errors.New("repository unavailable")
+	repoErr := errTestRepoUnavailable
 
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 	mockBalanceRepo.EXPECT().

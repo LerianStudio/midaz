@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 func TestBalancePostgreSQLModel_ToEntity(t *testing.T) {
@@ -354,7 +355,7 @@ func TestBalancePostgreSQLModel_FromEntity(t *testing.T) {
 	}
 }
 
-// TestBalancePostgreSQLModel_RoundTrip tests that ToEntity and FromEntity are inverses
+// TestBalancePostgreSQLModel_RoundTrip tests that ToEntity and FromEntity are inverses.
 func TestBalancePostgreSQLModel_RoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -446,7 +447,7 @@ func TestBalancePostgreSQLModel_RoundTrip(t *testing.T) {
 	})
 }
 
-// timePtr is a helper to get a pointer to a time.Time
+// timePtr is a helper to get a pointer to a time.Time.
 func timePtr(t time.Time) *time.Time {
 	return &t
 }

@@ -10,12 +10,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/shopspring/decimal"
-	"go.uber.org/mock/gomock"
+)
+
+// Sentinel errors for test assertions.
+var (
+	errTestPublishFailedSTE = errors.New("publish failed")
 )
 
 func TestSendTransactionEvents(t *testing.T) {
@@ -77,7 +84,7 @@ func TestSendTransactionEvents(t *testing.T) {
 		brokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		brokerRepo.EXPECT().
 			ProducerDefault(gomock.Any(), "test-events-topic", tran.ID, gomock.Any()).
-			Return(nil, errors.New("publish failed")).
+			Return(nil, errTestPublishFailedSTE).
 			Times(1)
 
 		uc := &UseCase{BrokerRepo: brokerRepo, EventsTopic: "test-events-topic", EventsEnabled: true}

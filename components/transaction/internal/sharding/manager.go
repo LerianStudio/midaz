@@ -6,6 +6,7 @@ package sharding
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -13,15 +14,29 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 )
 
+var (
+	// ErrInvalidShardCount is returned when the shard count is zero or negative.
+	ErrInvalidShardCount = errors.New("invalid shard count")
+	// ErrAliasRequired is returned when the alias is empty.
+	ErrAliasRequired = errors.New("alias is required")
+	// ErrInvalidIsolationMemberFormat is returned when an isolation set member cannot be parsed.
+	ErrInvalidIsolationMemberFormat = errors.New("invalid isolation member format")
+	// ErrEmptyAlias is returned when the parsed alias component of an isolation member is empty.
+	ErrEmptyAlias = errors.New("empty alias")
+)
+
+// Config holds configuration for the sharding Manager.
 type Config struct {
 	RouteCacheTTL      time.Duration
 	MigrationLockTTL   time.Duration
@@ -34,16 +49,27 @@ type Config struct {
 	AccountMigrationCooldown time.Duration
 }
 
+// Default configuration constants for the sharding Manager.
+const (
+	defaultMigrationLockTTLSec         = 30
+	defaultMigrationDrainWaitMs        = 10
+	defaultMigrationWaitMaxMs          = 75
+	defaultMetricsWindowSec            = 60
+	defaultIsolationTTLMin             = 30
+	defaultShardMigrationCooldownSec   = 10
+	defaultAccountMigrationCooldownMin = 5
+)
+
 func defaultConfig() Config {
 	return Config{
 		RouteCacheTTL:            0,
-		MigrationLockTTL:         30 * time.Second,
-		MigrationDrainWait:       10 * time.Millisecond,
-		MigrationWaitMax:         75 * time.Millisecond,
-		MetricsWindow:            60 * time.Second,
-		IsolationTTL:             30 * time.Minute,
-		ShardMigrationCooldown:   10 * time.Second,
-		AccountMigrationCooldown: 5 * time.Minute,
+		MigrationLockTTL:         defaultMigrationLockTTLSec * time.Second,
+		MigrationDrainWait:       defaultMigrationDrainWaitMs * time.Millisecond,
+		MigrationWaitMax:         defaultMigrationWaitMaxMs * time.Millisecond,
+		MetricsWindow:            defaultMetricsWindowSec * time.Second,
+		IsolationTTL:             defaultIsolationTTLMin * time.Minute,
+		ShardMigrationCooldown:   defaultShardMigrationCooldownSec * time.Second,
+		AccountMigrationCooldown: defaultAccountMigrationCooldownMin * time.Minute,
 	}
 }
 
@@ -52,6 +78,7 @@ type routeCacheEntry struct {
 	expiresAt time.Time
 }
 
+// Manager provides shard routing, migration, and load tracking functionality.
 type Manager struct {
 	conn   *libRedis.RedisConnection
 	router *shard.Router
@@ -63,11 +90,13 @@ type Manager struct {
 	routeCache map[string]routeCacheEntry
 }
 
+// ShardLoad represents the observed load on a single shard.
 type ShardLoad struct {
 	ShardID int
 	Load    int64
 }
 
+// HotAccount represents an account that has generated significant load on a shard.
 type HotAccount struct {
 	OrganizationID uuid.UUID
 	LedgerID       uuid.UUID
@@ -75,6 +104,7 @@ type HotAccount struct {
 	Load           int64
 }
 
+// MigrationResult describes the outcome of a shard account migration.
 type MigrationResult struct {
 	Alias        string
 	SourceShard  int
@@ -82,6 +112,7 @@ type MigrationResult struct {
 	MigratedKeys int
 }
 
+// NewManager creates a new sharding Manager. Returns nil if conn or router is nil.
 func NewManager(conn *libRedis.RedisConnection, router *shard.Router, logger libLog.Logger, cfg Config) *Manager {
 	if conn == nil || router == nil {
 		return nil
@@ -130,10 +161,12 @@ func NewManager(conn *libRedis.RedisConnection, router *shard.Router, logger lib
 	}
 }
 
+// Enabled reports whether the Manager has been initialized with valid dependencies.
 func (m *Manager) Enabled() bool {
 	return m != nil && m.router != nil && m.conn != nil
 }
 
+// ResolveBalanceShard resolves the shard ID for a given balance key.
 func (m *Manager) ResolveBalanceShard(ctx context.Context, organizationID, ledgerID uuid.UUID, alias, balanceKey string) (int, error) {
 	if !m.Enabled() {
 		return 0, nil
@@ -141,7 +174,7 @@ func (m *Manager) ResolveBalanceShard(ctx context.Context, organizationID, ledge
 
 	shardCount := m.router.ShardCount()
 	if shardCount <= 0 {
-		return 0, fmt.Errorf("invalid shard count")
+		return 0, ErrInvalidShardCount
 	}
 
 	if shard.IsExternal(alias) && shard.IsExternalBalanceKey(balanceKey) {
@@ -154,21 +187,21 @@ func (m *Manager) ResolveBalanceShard(ctx context.Context, organizationID, ledge
 
 	rds, err := m.conn.GetClient(ctx)
 	if err != nil {
-		return m.router.ResolveBalance(alias, balanceKey), err
+		return m.router.ResolveBalance(alias, balanceKey), fmt.Errorf("resolve balance shard: get redis client: %w", err)
 	}
 
 	raw, err := rds.HGet(ctx, utils.ShardRoutingKey(organizationID, ledgerID), alias).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return m.router.ResolveBalance(alias, balanceKey), nil
 		}
 
-		return m.router.ResolveBalance(alias, balanceKey), err
+		return m.router.ResolveBalance(alias, balanceKey), fmt.Errorf("resolve balance shard: hget routing key: %w", err)
 	}
 
 	shardID, err := strconv.Atoi(raw)
 	if err != nil {
-		return m.router.ResolveBalance(alias, balanceKey), err
+		return m.router.ResolveBalance(alias, balanceKey), fmt.Errorf("resolve balance shard: parse shard id: %w", err)
 	}
 
 	if shardID < 0 || shardID >= shardCount {
@@ -180,6 +213,7 @@ func (m *Manager) ResolveBalanceShard(ctx context.Context, organizationID, ledge
 	return shardID, nil
 }
 
+// WaitForAliasesUnlocked blocks until all provided aliases are no longer locked for migration.
 func (m *Manager) WaitForAliasesUnlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) error {
 	if !m.Enabled() || len(aliases) == 0 {
 		return nil
@@ -200,7 +234,7 @@ func (m *Manager) WaitForAliasesUnlocked(ctx context.Context, organizationID, le
 
 	rds, err := m.conn.GetClient(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("wait for aliases unlocked: get redis client: %w", err)
 	}
 
 	deadline := time.Now().Add(m.cfg.MigrationWaitMax)
@@ -211,7 +245,7 @@ func (m *Manager) WaitForAliasesUnlocked(ctx context.Context, organizationID, le
 		for alias := range unique {
 			exists, existsErr := rds.Exists(ctx, utils.MigrationLockKey(organizationID, ledgerID, alias)).Result()
 			if existsErr != nil {
-				return existsErr
+				return fmt.Errorf("wait for aliases unlocked: exists check: %w", existsErr)
 			}
 
 			if exists > 0 {
@@ -225,48 +259,49 @@ func (m *Manager) WaitForAliasesUnlocked(ctx context.Context, organizationID, le
 		}
 
 		if time.Now().After(deadline) {
-			return fmt.Errorf("account migration in progress for alias %s", lockedAlias)
+			return fmt.Errorf("account migration in progress for alias %s", lockedAlias) //nolint:err113
 		}
 
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("wait for aliases unlocked: %w", ctx.Err())
 		case <-time.After(1 * time.Millisecond):
 		}
 	}
 }
 
+// SetRoutingOverride explicitly routes an alias to a specific shard, overriding the default hash assignment.
 func (m *Manager) SetRoutingOverride(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string, shardID int) error {
 	if !m.Enabled() {
 		return nil
 	}
 
 	if alias == "" {
-		return fmt.Errorf("alias is required")
+		return ErrAliasRequired
 	}
 
 	if shardID < 0 {
-		return fmt.Errorf("invalid shard id %d", shardID)
+		return fmt.Errorf("invalid shard id %d", shardID) //nolint:err113
 	}
 
 	shardCount := m.router.ShardCount()
 	if shardCount <= 0 {
-		return fmt.Errorf("invalid shard count")
+		return ErrInvalidShardCount
 	}
 
 	rds, err := m.conn.GetClient(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("set routing override: get redis client: %w", err)
 	}
 
 	if shardID >= shardCount {
-		return fmt.Errorf("invalid shard id %d", shardID)
+		return fmt.Errorf("invalid shard id %d", shardID) //nolint:err113
 	}
 
 	normalized := shardID
 
 	if err := rds.HSet(ctx, utils.ShardRoutingKey(organizationID, ledgerID), alias, strconv.Itoa(normalized)).Err(); err != nil {
-		return err
+		return fmt.Errorf("set routing override: hset: %w", err)
 	}
 
 	_, _ = rds.Publish(ctx, utils.ShardRoutingUpdatesChannel(organizationID, ledgerID), fmt.Sprintf("%s:%d", alias, normalized)).Result()
@@ -276,6 +311,7 @@ func (m *Manager) SetRoutingOverride(ctx context.Context, organizationID, ledger
 	return nil
 }
 
+// MigrateAccount moves an alias from its current shard to the specified target shard.
 func (m *Manager) MigrateAccount(
 	ctx context.Context,
 	organizationID, ledgerID uuid.UUID,
@@ -298,7 +334,7 @@ func (m *Manager) MigrateAccount(
 
 	rds, err := m.conn.GetClient(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("migrate account: get redis client: %w", err)
 	}
 
 	migrationKey := utils.MigrationLockKey(organizationID, ledgerID, alias)
@@ -306,14 +342,14 @@ func (m *Manager) MigrateAccount(
 
 	locked, err := rds.SetNX(ctx, migrationKey, lockValue, m.cfg.MigrationLockTTL).Result()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("migrate account: acquire lock: %w", err)
 	}
 
 	if !locked {
-		return nil, fmt.Errorf("migration already in progress for alias %s", alias)
+		return nil, fmt.Errorf("migration already in progress for alias %s", alias) //nolint:err113
 	}
 
-	defer m.clearMigrationLock(rds, migrationKey, alias)
+	defer m.clearMigrationLock(ctx, rds, migrationKey, alias)
 
 	migratedKeys, err := m.executeMigration(ctx, rds, sourceShard, targetShard, organizationID, ledgerID, alias, knownBalanceKeys)
 	if err != nil {
@@ -328,6 +364,7 @@ func (m *Manager) MigrateAccount(
 	}, nil
 }
 
+// RecordShardAliasLoad records a load metric for the given alias on the given shard.
 func (m *Manager) RecordShardAliasLoad(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string, shardID int, weight int64) error {
 	if !m.Enabled() || alias == "" || weight <= 0 {
 		return nil
@@ -335,7 +372,7 @@ func (m *Manager) RecordShardAliasLoad(ctx context.Context, organizationID, ledg
 
 	rds, err := m.conn.GetClient(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("record shard alias load: get redis client: %w", err)
 	}
 
 	nowSec := time.Now().Unix()
@@ -345,17 +382,22 @@ func (m *Manager) RecordShardAliasLoad(ctx context.Context, organizationID, ledg
 	metricsKey := utils.ShardMetricsKey(shardID)
 	hotAccountsBucketKey := utils.ShardHotAccountsBucketKey(shardID)
 
+	const metricsRetentionMultiplier = 2
+
 	pipe := rds.Pipeline()
 	pipe.HIncrBy(ctx, metricsKey, bucket, weight)
-	pipe.Expire(ctx, metricsKey, 2*m.cfg.MetricsWindow)
+	pipe.Expire(ctx, metricsKey, metricsRetentionMultiplier*m.cfg.MetricsWindow)
 	pipe.HIncrBy(ctx, hotAccountsBucketKey, accountBucketField, weight)
-	pipe.Expire(ctx, hotAccountsBucketKey, 2*m.cfg.MetricsWindow)
+	pipe.Expire(ctx, hotAccountsBucketKey, metricsRetentionMultiplier*m.cfg.MetricsWindow)
 
-	_, err = pipe.Exec(ctx)
+	if _, err = pipe.Exec(ctx); err != nil {
+		return fmt.Errorf("record shard alias load: exec pipeline: %w", err)
+	}
 
-	return err
+	return nil
 }
 
+// GetShardLoads returns the total request load observed on each shard within the given window.
 func (m *Manager) GetShardLoads(ctx context.Context, shardCount int, window time.Duration) ([]ShardLoad, error) {
 	if !m.Enabled() {
 		return nil, nil
@@ -371,7 +413,7 @@ func (m *Manager) GetShardLoads(ctx context.Context, shardCount int, window time
 
 	rds, err := m.conn.GetClient(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get shard loads: get redis client: %w", err)
 	}
 
 	nowSec := time.Now().Unix()
@@ -384,12 +426,12 @@ func (m *Manager) GetShardLoads(ctx context.Context, shardCount int, window time
 
 		buckets, getErr := rds.HGetAll(ctx, key).Result()
 		if getErr != nil {
-			if getErr == redis.Nil {
+			if errors.Is(getErr, redis.Nil) {
 				loads = append(loads, ShardLoad{ShardID: shardID, Load: 0})
 				continue
 			}
 
-			return nil, getErr
+			return nil, fmt.Errorf("get shard loads: hgetall: %w", getErr)
 		}
 
 		var total int64
@@ -422,6 +464,7 @@ func (m *Manager) GetShardLoads(ctx context.Context, shardCount int, window time
 	return loads, nil
 }
 
+// TopHotAccounts returns the top-N accounts by load on the given shard within the window.
 func (m *Manager) TopHotAccounts(ctx context.Context, shardID int, window time.Duration, limit int) ([]HotAccount, error) {
 	if !m.Enabled() {
 		return nil, nil
@@ -437,16 +480,16 @@ func (m *Manager) TopHotAccounts(ctx context.Context, shardID int, window time.D
 
 	rds, err := m.conn.GetClient(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("top hot accounts: get redis client: %w", err)
 	}
 
 	buckets, err := rds.HGetAll(ctx, utils.ShardHotAccountsBucketKey(shardID)).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("top hot accounts: hgetall: %w", err)
 	}
 
 	if len(buckets) == 0 {
@@ -469,6 +512,7 @@ func (m *Manager) TopHotAccounts(ctx context.Context, shardID int, window time.D
 	return hotAccounts[:limit], nil
 }
 
+// SetRebalancerPaused sets the rebalancer paused flag in Redis.
 func (m *Manager) SetRebalancerPaused(ctx context.Context, paused bool) error {
 	if !m.Enabled() {
 		return nil
@@ -476,7 +520,7 @@ func (m *Manager) SetRebalancerPaused(ctx context.Context, paused bool) error {
 
 	rds, err := m.conn.GetClient(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("set rebalancer paused: get redis client: %w", err)
 	}
 
 	value := "0"
@@ -484,9 +528,14 @@ func (m *Manager) SetRebalancerPaused(ctx context.Context, paused bool) error {
 		value = "1"
 	}
 
-	return rds.Set(ctx, utils.ShardRebalanceStateKey(), value, 0).Err()
+	if err := rds.Set(ctx, utils.ShardRebalanceStateKey(), value, 0).Err(); err != nil {
+		return fmt.Errorf("set rebalancer paused: set: %w", err)
+	}
+
+	return nil
 }
 
+// IsRebalancerPaused returns true if the rebalancer has been paused via SetRebalancerPaused.
 func (m *Manager) IsRebalancerPaused(ctx context.Context) (bool, error) {
 	if !m.Enabled() {
 		return false, nil
@@ -494,21 +543,23 @@ func (m *Manager) IsRebalancerPaused(ctx context.Context) (bool, error) {
 
 	rds, err := m.conn.GetClient(ctx)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("is rebalancer paused: get redis client: %w", err)
 	}
 
 	value, err := rds.Get(ctx, utils.ShardRebalanceStateKey()).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return false, nil
 		}
 
-		return false, err
+		return false, fmt.Errorf("is rebalancer paused: get: %w", err)
 	}
 
 	return value == "1", nil
 }
 
+// TryAcquireRebalancePermits atomically acquires the source shard, target shard,
+// and account cooldown locks. Returns false (without error) when any lock is held.
 func (m *Manager) TryAcquireRebalancePermits(ctx context.Context, sourceShard, targetShard int, account HotAccount) (bool, error) {
 	if !m.Enabled() {
 		return false, nil
@@ -516,7 +567,7 @@ func (m *Manager) TryAcquireRebalancePermits(ctx context.Context, sourceShard, t
 
 	rds, err := m.conn.GetClient(ctx)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("try acquire rebalance permits: get redis client: %w", err)
 	}
 
 	sourceKey := utils.ShardRebalanceShardCooldownKey(sourceShard)
@@ -525,7 +576,7 @@ func (m *Manager) TryAcquireRebalancePermits(ctx context.Context, sourceShard, t
 
 	sourceOK, err := rds.SetNX(ctx, sourceKey, "1", m.cfg.ShardMigrationCooldown).Result()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("try acquire rebalance permits: source setnx: %w", err)
 	}
 
 	if !sourceOK {
@@ -536,7 +587,7 @@ func (m *Manager) TryAcquireRebalancePermits(ctx context.Context, sourceShard, t
 	if err != nil {
 		_, _ = rds.Del(ctx, sourceKey).Result()
 
-		return false, err
+		return false, fmt.Errorf("try acquire rebalance permits: target setnx: %w", err)
 	}
 
 	if !targetOK {
@@ -549,7 +600,7 @@ func (m *Manager) TryAcquireRebalancePermits(ctx context.Context, sourceShard, t
 	if err != nil {
 		_, _ = rds.Del(ctx, sourceKey, targetKey).Result()
 
-		return false, err
+		return false, fmt.Errorf("try acquire rebalance permits: account setnx: %w", err)
 	}
 
 	if !accountOK {
@@ -561,6 +612,7 @@ func (m *Manager) TryAcquireRebalancePermits(ctx context.Context, sourceShard, t
 	return true, nil
 }
 
+// GetShardIsolationCounts returns the number of isolated accounts per shard.
 func (m *Manager) GetShardIsolationCounts(ctx context.Context, shardCount int) (map[int]int64, error) {
 	counts := make(map[int]int64)
 
@@ -574,15 +626,15 @@ func (m *Manager) GetShardIsolationCounts(ctx context.Context, shardCount int) (
 
 	rds, err := m.conn.GetClient(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get shard isolation counts: get redis client: %w", err)
 	}
 
 	for shardID := 0; shardID < shardCount; shardID++ {
 		setKey := utils.ShardIsolationSetKey(shardID)
 
 		members, membersErr := rds.SMembers(ctx, setKey).Result()
-		if membersErr != nil && membersErr != redis.Nil {
-			return nil, membersErr
+		if membersErr != nil && !errors.Is(membersErr, redis.Nil) {
+			return nil, fmt.Errorf("get shard isolation counts: smembers: %w", membersErr)
 		}
 
 		activeCount, countErr := m.countActiveIsolationMembers(ctx, rds, setKey, shardID, members)
@@ -596,6 +648,7 @@ func (m *Manager) GetShardIsolationCounts(ctx context.Context, shardCount int) (
 	return counts, nil
 }
 
+// MarkAccountIsolated records that the given account has been isolated to the specified shard.
 func (m *Manager) MarkAccountIsolated(ctx context.Context, account HotAccount, shardID int) error {
 	if !m.Enabled() {
 		return nil
@@ -607,7 +660,7 @@ func (m *Manager) MarkAccountIsolated(ctx context.Context, account HotAccount, s
 
 	rds, err := m.conn.GetClient(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("mark account isolated: get redis client: %w", err)
 	}
 
 	member := fmt.Sprintf("%s:%s:%s", account.OrganizationID.String(), account.LedgerID.String(), account.Alias)
@@ -623,9 +676,12 @@ func (m *Manager) MarkAccountIsolated(ctx context.Context, account HotAccount, s
 	pipe := rds.Pipeline()
 	pipe.SAdd(ctx, utils.ShardIsolationSetKey(shardID), member)
 	pipe.Set(ctx, accountKey, strconv.Itoa(shardID), m.cfg.IsolationTTL)
-	_, err = pipe.Exec(ctx)
 
-	return err
+	if _, err = pipe.Exec(ctx); err != nil {
+		return fmt.Errorf("mark account isolated: exec pipeline: %w", err)
+	}
+
+	return nil
 }
 
 func (m *Manager) getRouteCache(organizationID, ledgerID uuid.UUID, alias string) (int, bool) {
@@ -666,23 +722,25 @@ func (m *Manager) setRouteCache(organizationID, ledgerID uuid.UUID, alias string
 }
 
 func parseIsolationMember(member string) (uuid.UUID, uuid.UUID, string, error) {
-	parts := strings.SplitN(member, ":", 3)
-	if len(parts) != 3 {
-		return uuid.Nil, uuid.Nil, "", fmt.Errorf("invalid isolation member format")
+	const isolationMemberParts = 3
+
+	parts := strings.SplitN(member, ":", isolationMemberParts)
+	if len(parts) != isolationMemberParts {
+		return uuid.Nil, uuid.Nil, "", ErrInvalidIsolationMemberFormat
 	}
 
 	organizationID, orgErr := uuid.Parse(parts[0])
 	if orgErr != nil {
-		return uuid.Nil, uuid.Nil, "", orgErr
+		return uuid.Nil, uuid.Nil, "", fmt.Errorf("parse isolation member org id: %w", orgErr)
 	}
 
 	ledgerID, ledgerErr := uuid.Parse(parts[1])
 	if ledgerErr != nil {
-		return uuid.Nil, uuid.Nil, "", ledgerErr
+		return uuid.Nil, uuid.Nil, "", fmt.Errorf("parse isolation member ledger id: %w", ledgerErr)
 	}
 
 	if parts[2] == "" {
-		return uuid.Nil, uuid.Nil, "", fmt.Errorf("empty alias")
+		return uuid.Nil, uuid.Nil, "", ErrEmptyAlias
 	}
 
 	return organizationID, ledgerID, parts[2], nil
@@ -714,9 +772,11 @@ func (m *Manager) collectBalanceKeys(
 		keySet[constant.DefaultBalanceKey] = struct{}{}
 	}
 
+	const scanCount = 500
+
 	pattern := utils.BalanceShardKey(sourceShard, organizationID, ledgerID, alias+"#*")
 
-	iter := rds.Scan(ctx, 0, pattern, 500).Iterator()
+	iter := rds.Scan(ctx, 0, pattern, scanCount).Iterator()
 	for iter.Next(ctx) {
 		rawKey := iter.Val()
 
@@ -741,7 +801,7 @@ func (m *Manager) collectBalanceKeys(
 	}
 
 	if err := iter.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("collect balance keys: scan: %w", err)
 	}
 
 	balanceKeys := make([]string, 0, len(keySet))

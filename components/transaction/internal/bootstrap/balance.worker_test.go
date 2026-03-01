@@ -11,29 +11,31 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
-// newTestLogger creates a real logger for tests (no-op by using high log level filtering)
+// newTestLogger creates a real logger for tests (no-op by using high log level filtering).
 func newTestLogger() libLog.Logger {
 	return &libLog.GoLogger{Level: libLog.FatalLevel}
 }
 
-// --- Tests for NewBalanceSyncWorker ---
+// --- Tests for NewBalanceSyncWorker ---.
 
 func TestNewBalanceSyncWorker(t *testing.T) {
 	t.Parallel()
@@ -80,7 +82,7 @@ func TestNewBalanceSyncWorker(t *testing.T) {
 	}
 }
 
-// --- Tests for extractIDsFromMember ---
+// --- Tests for extractIDsFromMember ---.
 
 func TestExtractIDsFromMember(t *testing.T) {
 	t.Parallel()
@@ -161,6 +163,7 @@ func TestExtractIDsFromMember(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsgContains)
+
 				return
 			}
 
@@ -171,7 +174,7 @@ func TestExtractIDsFromMember(t *testing.T) {
 	}
 }
 
-// --- Tests for waitOrDone ---
+// --- Tests for waitOrDone ---.
 
 func TestWaitOrDone(t *testing.T) {
 	t.Parallel()
@@ -226,7 +229,7 @@ func TestWaitOrDone(t *testing.T) {
 	}
 }
 
-// --- Tests for waitUntilDue ---
+// --- Tests for waitUntilDue ---.
 
 func TestWaitUntilDue(t *testing.T) {
 	t.Parallel()
@@ -276,7 +279,7 @@ func TestWaitUntilDue(t *testing.T) {
 	}
 }
 
-// --- Tests for shouldShutdown ---
+// --- Tests for shouldShutdown ---.
 
 func TestShouldShutdown(t *testing.T) {
 	t.Parallel()
@@ -317,7 +320,7 @@ func TestShouldShutdown(t *testing.T) {
 	}
 }
 
-// --- Tests for processBalancesToExpire ---
+// --- Tests for processBalancesToExpire ---.
 
 func TestProcessBalancesToExpire_NoMembers(t *testing.T) {
 	t.Parallel()
@@ -357,7 +360,7 @@ func TestProcessBalancesToExpire_ErrorGettingKeys(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockRedisRepo.EXPECT().
 		GetBalanceSyncKeys(gomock.Any(), int64(5)).
-		Return(nil, errors.New("redis connection error")).
+		Return(nil, errors.New("redis connection error")). //nolint:err113
 		Times(1)
 
 	useCase := &command.UseCase{
@@ -442,17 +445,15 @@ func TestProcessBalancesToExpire_ShutdownDuringProcessing(t *testing.T) {
 	assert.True(t, result, "should return true when shutdown detected")
 }
 
-// --- Tests for processBalanceToExpire ---
+// --- Tests for processBalanceToExpire ---.
 
-// mockRedisClient is a stub for redis.UniversalClient used in tests
+// mockRedisClient is a stub for redis.UniversalClient used in tests.
 type mockRedisClient struct {
 	goredis.UniversalClient
 	ttlResult            time.Duration
 	ttlErr               error
 	getResult            string
 	getErr               error
-	zRemResult           int64
-	zRemErr              error
 	zRangeWithScoresData map[string][]goredis.Z
 	zRangeWithScoresErr  map[string]error
 	zRangeCallKeys       []string
@@ -462,23 +463,27 @@ type mockRedisClient struct {
 
 func (m *mockRedisClient) TTL(ctx context.Context, key string) *goredis.DurationCmd {
 	m.ttlCallCount++
+
 	cmd := goredis.NewDurationCmd(ctx, time.Second, "TTL", key)
 	if m.ttlErr != nil {
 		cmd.SetErr(m.ttlErr)
 	} else {
 		cmd.SetVal(m.ttlResult)
 	}
+
 	return cmd
 }
 
 func (m *mockRedisClient) Get(ctx context.Context, key string) *goredis.StringCmd {
 	m.getCallCount++
+
 	cmd := goredis.NewStringCmd(ctx, "GET", key)
 	if m.getErr != nil {
 		cmd.SetErr(m.getErr)
 	} else {
 		cmd.SetVal(m.getResult)
 	}
+
 	return cmd
 }
 
@@ -501,6 +506,7 @@ func (m *mockRedisClient) ZRangeWithScores(ctx context.Context, key string, star
 	}
 
 	cmd.SetVal([]goredis.Z{})
+
 	return cmd
 }
 
@@ -573,7 +579,7 @@ func TestProcessBalanceToExpire_TTLError(t *testing.T) {
 	}
 
 	mockClient := &mockRedisClient{
-		ttlErr: errors.New("TTL error"),
+		ttlErr: errors.New("TTL error"), //nolint:err113
 	}
 
 	// Should return early after TTL error
@@ -668,7 +674,7 @@ func TestProcessBalanceToExpire_GetError(t *testing.T) {
 
 	mockClient := &mockRedisClient{
 		ttlResult: 100 * time.Second,
-		getErr:    errors.New("GET error"),
+		getErr:    errors.New("GET error"), //nolint:err113
 	}
 
 	worker.processBalanceToExpire(context.Background(), mockClient, "some:key")
@@ -772,7 +778,7 @@ func TestProcessBalanceToExpire_SyncError(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Sync(gomock.Any(), orgID, ledgerID, gomock.Any()).
-		Return(false, errors.New("sync error")).
+		Return(false, errors.New("sync error")). //nolint:err113
 		Times(1)
 
 	useCase := &command.UseCase{
@@ -905,7 +911,7 @@ func TestProcessBalanceToExpire_SyncSkipped(t *testing.T) {
 	assert.Equal(t, 1, mockClient.getCallCount)
 }
 
-// --- Tests for TTL sentinel values ---
+// --- Tests for TTL sentinel values ---.
 
 func TestProcessBalanceToExpire_TTLSentinelNegativeTwo(t *testing.T) {
 	t.Parallel()
@@ -941,7 +947,7 @@ func TestProcessBalanceToExpire_TTLSentinelNegativeTwo(t *testing.T) {
 	assert.Equal(t, 0, mockClient.getCallCount, "GET should not be called for TTL=-2")
 }
 
-// --- Property-based test for extractIDsFromMember ---
+// --- Property-based test for extractIDsFromMember ---.
 
 func TestProperty_ExtractIDsFromMember_ValidKeys(t *testing.T) {
 	t.Parallel()

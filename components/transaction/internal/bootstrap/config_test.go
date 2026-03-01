@@ -5,13 +5,16 @@
 package bootstrap
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestEnvFallback(t *testing.T) {
@@ -94,7 +97,6 @@ func TestParseSeedBrokers(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.want, redpanda.ParseSeedBrokers(tt.raw))
@@ -118,7 +120,6 @@ func TestResolveBrokerOperationTimeout(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.want, resolveBrokerOperationTimeout(tt.raw))
@@ -143,18 +144,18 @@ func TestEnforcePostgresSSLMode(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			err := enforcePostgresSSLMode(tt.envName, tt.sslMode, "DB_TRANSACTION_SSLMODE")
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMatch)
+
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -174,7 +175,6 @@ func TestShouldAutoRecoverDirtyMigration(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -192,14 +192,13 @@ func TestParseDirtyMigrationVersion(t *testing.T) {
 		want  int64
 		found bool
 	}{
-		{name: "dirty version parsed", err: fmt.Errorf("migration failed: Dirty database version 13. Fix and force version."), want: 13, found: true},
-		{name: "wrapped dirty version parsed", err: fmt.Errorf("bootstrap failed: %w", fmt.Errorf("migration failed: Dirty database version 22. Fix and force version.")), want: 22, found: true},
-		{name: "non dirty error", err: fmt.Errorf("connection refused"), want: 0, found: false},
+		{name: "dirty version parsed", err: errors.New("migration failed: dirty database version 13. fix and force version"), want: 13, found: true},                                             //nolint:err113
+		{name: "wrapped dirty version parsed", err: fmt.Errorf("bootstrap failed: %w", errors.New("migration failed: dirty database version 22. fix and force version")), want: 22, found: true}, //nolint:err113
+		{name: "non dirty error", err: errors.New("connection refused"), want: 0, found: false},                                                                                                  //nolint:err113
 		{name: "nil error", err: nil, want: 0, found: false},
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

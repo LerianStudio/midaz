@@ -9,14 +9,16 @@ import (
 	"testing"
 	"time"
 
-	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
 
 // ptr is a helper function that returns a pointer to the given value.
@@ -62,6 +64,7 @@ func TestStatus_IsEmpty(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			result := tt.status.IsEmpty()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -423,7 +426,7 @@ func TestTransactionPostgreSQLModel_FromEntity(t *testing.T) {
 			if tt.expectGeneratedID {
 				assert.NotEmpty(t, model.ID)
 				_, err := uuid.Parse(model.ID)
-				assert.NoError(t, err, "Generated ID should be valid UUID")
+				require.NoError(t, err, "Generated ID should be valid UUID")
 			} else {
 				assert.Equal(t, tt.expectedIDOverride, model.ID)
 			}
@@ -584,6 +587,8 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 				Description: "Minimal transaction",
 			},
 			validate: func(t *testing.T, result *pkgTransaction.Transaction) {
+				t.Helper()
+
 				assert.Equal(t, "Minimal transaction", result.Description)
 				assert.Empty(t, result.ChartOfAccountsGroupName)
 				assert.Empty(t, result.Code)
@@ -603,6 +608,8 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 				TransactionDate:          transactionDate,
 			},
 			validate: func(t *testing.T, result *pkgTransaction.Transaction) {
+				t.Helper()
+
 				assert.Equal(t, "FUNDING", result.ChartOfAccountsGroupName)
 				assert.Equal(t, "Full transaction", result.Description)
 				assert.Equal(t, "TX-001", result.Code)
@@ -653,12 +660,15 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *pkgTransaction.Transaction) {
+				t.Helper()
+
 				assert.Equal(t, "Transaction with send", result.Description)
 				assert.Equal(t, "USD", result.Send.Asset)
 				assert.True(t, result.Send.Value.Equal(decimal.NewFromInt(1000)))
 
 				// Verify IsFrom is set to true for all From entries
 				require.Len(t, result.Send.Source.From, 2)
+
 				for _, from := range result.Send.Source.From {
 					assert.True(t, from.IsFrom, "IsFrom should be true for From entries")
 				}
@@ -674,6 +684,8 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 				Send:        nil,
 			},
 			validate: func(t *testing.T, result *pkgTransaction.Transaction) {
+				t.Helper()
+
 				assert.Equal(t, "No send", result.Description)
 				// Send should be empty/zero value
 				assert.True(t, result.Send.Value.IsZero())
@@ -729,6 +741,8 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				t.Helper()
+
 				assert.Equal(t, "Original credit transaction", result.Description)
 				assert.Equal(t, "REVENUE", result.ChartOfAccountsGroupName)
 				assert.False(t, result.Pending, "Reversal should not be pending")
@@ -768,6 +782,8 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				t.Helper()
+
 				assert.Equal(t, "Original debit transaction", result.Description)
 				assert.False(t, result.Pending)
 
@@ -820,6 +836,8 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				t.Helper()
+
 				assert.Equal(t, "Mixed operations transaction", result.Description)
 				assert.Equal(t, "BRL", result.Send.Asset)
 				assert.True(t, result.Send.Value.Equal(totalAmount))
@@ -856,6 +874,8 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 				Operations:  []*operation.Operation{},
 			},
 			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				t.Helper()
+
 				assert.Equal(t, "Empty operations", result.Description)
 				assert.Equal(t, "EUR", result.Send.Asset)
 				assert.Empty(t, result.Send.Source.From)
@@ -906,6 +926,8 @@ func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *pkgTransaction.Transaction) {
+				t.Helper()
+
 				assert.Equal(t, "Minimal inflow", result.Description)
 				assert.Equal(t, "USD", result.Send.Asset)
 				assert.True(t, result.Send.Value.Equal(decimal.NewFromInt(500)))
@@ -961,6 +983,8 @@ func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *pkgTransaction.Transaction) {
+				t.Helper()
+
 				assert.Equal(t, "FUNDING", result.ChartOfAccountsGroupName)
 				assert.Equal(t, "Full inflow", result.Description)
 				assert.Equal(t, "INF-001", result.Code)
@@ -997,6 +1021,8 @@ func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *pkgTransaction.Transaction) {
+				t.Helper()
+
 				// Verify external account uses correct asset
 				require.Len(t, result.Send.Source.From, 1)
 				assert.Equal(t, cn.DefaultExternalAccountAliasPrefix+"EUR", result.Send.Source.From[0].AccountAlias)
@@ -1049,6 +1075,8 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *pkgTransaction.Transaction) {
+				t.Helper()
+
 				assert.Equal(t, "Minimal outflow", result.Description)
 				assert.Equal(t, "USD", result.Send.Asset)
 				assert.True(t, result.Send.Value.Equal(decimal.NewFromInt(500)))
@@ -1104,6 +1132,8 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *pkgTransaction.Transaction) {
+				t.Helper()
+
 				assert.Equal(t, "WITHDRAWAL", result.ChartOfAccountsGroupName)
 				assert.Equal(t, "Full outflow", result.Description)
 				assert.Equal(t, "OUT-001", result.Code)
@@ -1118,6 +1148,7 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 
 				// Verify multiple From entries have IsFrom=true
 				require.Len(t, result.Send.Source.From, 2)
+
 				for _, from := range result.Send.Source.From {
 					assert.True(t, from.IsFrom, "All From entries should have IsFrom=true")
 				}
@@ -1144,6 +1175,8 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *pkgTransaction.Transaction) {
+				t.Helper()
+
 				// Verify external account uses correct asset
 				require.Len(t, result.Send.Distribute.To, 1)
 				assert.Equal(t, cn.DefaultExternalAccountAliasPrefix+"EUR", result.Send.Distribute.To[0].AccountAlias)
@@ -1172,6 +1205,8 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 				},
 			},
 			validate: func(t *testing.T, result *pkgTransaction.Transaction) {
+				t.Helper()
+
 				assert.False(t, result.Pending, "Pending flag should be false")
 			},
 		},
