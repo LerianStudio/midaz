@@ -9,11 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestCreateOrganization(t *testing.T) {
@@ -119,10 +121,10 @@ func TestCreateOrganization(t *testing.T) {
 			result, err := uc.CreateOrganization(ctx, tt.input)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.expectedOrg.LegalName, result.LegalName)
 				assert.Equal(t, tt.expectedOrg.DoingBusinessAs, result.DoingBusinessAs)

@@ -9,6 +9,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
@@ -19,12 +24,20 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestCreateAccountScenarios tests various scenarios for the CreateAccount function
+var (
+	errCreateAccount       = errors.New("failed to create account")
+	errPortfolioNotFound   = errors.New("portfolio not found")
+	errParentNotFound      = errors.New("parent account not found")
+	errAccMetadataCreation = errors.New("metadata creation error")
+	errAccGRPCBalance      = errors.New("grpc create balance error")
+	errDBConnection        = errors.New("database connection error")
+)
+
+// TestCreateAccountScenarios tests various scenarios for the CreateAccount function.
+//
+//nolint:funlen
 func TestCreateAccountScenarios(t *testing.T) {
 	// Helper function to create a new UseCase with mocks
 	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *mongodb.MockRepository, *accounttype.MockRepository, *mbootstrap.MockBalancePort) {
@@ -88,6 +101,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = uuid.New().String()
+
 						return &out, nil
 					}).AnyTimes()
 
@@ -137,6 +151,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = uuid.New().String()
+
 						return &out, nil
 					}).AnyTimes()
 
@@ -183,6 +198,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = uuid.New().String()
+
 						return &out, nil
 					}).AnyTimes()
 
@@ -229,6 +245,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = uuid.New().String()
+
 						return &out, nil
 					}).AnyTimes()
 
@@ -312,6 +329,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = uuid.New().String()
+
 						return &out, nil
 					}).AnyTimes()
 
@@ -354,6 +372,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = uuid.New().String()
+
 						return &out, nil
 					}).AnyTimes()
 
@@ -392,7 +411,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("failed to create account")).AnyTimes()
+					Return(nil, errCreateAccount).AnyTimes()
 			},
 			expectedErr:  "failed to create account",
 			expectedName: "",
@@ -435,6 +454,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 			if envValue == "{{organizationID}}:{{ledgerID}},other-org:other-ledger" {
 				envValue = organizationID.String() + ":" + ledgerID.String() + ",other-org:other-ledger"
 			}
+
 			t.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
 
 			// Reset controller for each test to avoid interference
@@ -446,22 +466,24 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalance)
 
-			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
+			acct, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedErr)
-				assert.Nil(t, account)
+				assert.Nil(t, acct)
 			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, account)
-				assert.Equal(t, tt.expectedName, account.Name)
+				require.NoError(t, err)
+				assert.NotNil(t, acct)
+				assert.Equal(t, tt.expectedName, acct.Name)
 			}
 		})
 	}
 }
 
-// TestCreateAccountEdgeCases tests edge cases for the CreateAccount function
+// TestCreateAccountEdgeCases tests edge cases for the CreateAccount function.
+//
+//nolint:funlen
 func TestCreateAccountEdgeCases(t *testing.T) {
 	// Helper function to create a new UseCase with mocks
 	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *mongodb.MockRepository, *accounttype.MockRepository, *mbootstrap.MockBalancePort) {
@@ -535,6 +557,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = uuid.New().String()
+
 						return &out, nil
 					}).AnyTimes()
 
@@ -570,7 +593,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockPortfolioRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("portfolio not found")).AnyTimes()
+					Return(nil, errPortfolioNotFound).AnyTimes()
 			},
 			expectError:  true,
 			expectedErr:  "portfolio not found",
@@ -610,6 +633,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = uuid.New().String()
+
 						return &out, nil
 					}).AnyTimes()
 
@@ -645,7 +669,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("parent account not found")).AnyTimes()
+					Return(nil, errParentNotFound).AnyTimes()
 			},
 			expectError:  true,
 			expectedErr:  "parent account",
@@ -686,7 +710,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				Name:      "Test Account",
 				Type:      "deposit",
 				AssetCode: "USD",
-				Metadata: map[string]interface{}{
+				Metadata: map[string]any{
 					"key1": "value1",
 				},
 			},
@@ -709,12 +733,13 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = uuid.New().String()
+
 						return &out, nil
 					}).AnyTimes()
 
 				mockMetadataRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(errors.New("metadata creation error")).AnyTimes()
+					Return(errAccMetadataCreation).AnyTimes()
 
 				mockBalance.EXPECT().
 					CreateBalanceSync(gomock.Any(), gomock.Any()).
@@ -750,6 +775,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = uuid.New().String()
+
 						return &out, nil
 					}).AnyTimes()
 
@@ -759,7 +785,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 				mockBalance.EXPECT().
 					CreateBalanceSync(gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("grpc create balance error")).Times(1)
+					Return(nil, errAccGRPCBalance).Times(1)
 
 				mockAccountRepo.EXPECT().
 					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -775,7 +801,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				Name:      "Test Account",
 				Type:      "deposit",
 				AssetCode: "USD",
-				Metadata: map[string]interface{}{
+				Metadata: map[string]any{
 					"key1": "value1",
 					"key2": "value2",
 				},
@@ -799,6 +825,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = uuid.New().String()
+
 						return &out, nil
 					}).AnyTimes()
 
@@ -831,22 +858,24 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalance)
 
-			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
+			acct, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedErr)
-				assert.Nil(t, account)
+				assert.Nil(t, acct)
 			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, account)
-				assert.Equal(t, tt.expectedName, account.Name)
+				require.NoError(t, err)
+				assert.NotNil(t, acct)
+				assert.Equal(t, tt.expectedName, acct.Name)
 			}
 		})
 	}
 }
 
-// TestCreateAccountValidationEdgeCases tests edge cases for accounting validation in CreateAccount
+// TestCreateAccountValidationEdgeCases tests edge cases for accounting validation in CreateAccount.
+//
+//nolint:funlen
 func TestCreateAccountValidationEdgeCases(t *testing.T) {
 	// Helper function to create a new UseCase with mocks
 	setupTest := func(ctrl *gomock.Controller) (*UseCase, *asset.MockRepository, *portfolio.MockRepository, *account.MockRepository, *mongodb.MockRepository, *accounttype.MockRepository, *mbootstrap.MockBalancePort) {
@@ -913,6 +942,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = uuid.New().String()
+
 						return &out, nil
 					}).AnyTimes()
 
@@ -963,6 +993,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = uuid.New().String()
+
 						return &out, nil
 					}).AnyTimes()
 
@@ -993,7 +1024,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 
 				mockAccountTypeRepo.EXPECT().
 					FindByKey(gomock.Any(), organizationID, ledgerID, "deposit").
-					Return(nil, errors.New("database connection error")).
+					Return(nil, errDBConnection).
 					Times(1)
 
 				// Asset repo expectation to handle any unexpected calls
@@ -1014,6 +1045,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 			if envValue == "{{organizationID}}:{{ledgerID}},other-org:other-ledger" {
 				envValue = organizationID.String() + ":" + ledgerID.String() + ",other-org:other-ledger"
 			}
+
 			t.Setenv("ACCOUNT_TYPE_VALIDATION", envValue)
 
 			ctrl := gomock.NewController(t)
@@ -1024,22 +1056,22 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 
 			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalance)
 
-			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
+			acct, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedErr)
-				assert.Nil(t, account)
+				assert.Nil(t, acct)
 			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, account)
-				assert.Equal(t, tt.expectedName, account.Name)
+				require.NoError(t, err)
+				assert.NotNil(t, acct)
+				assert.Equal(t, tt.expectedName, acct.Name)
 			}
 		})
 	}
 }
 
-// TestCreateAccountBlockedFlag ensures the blocked flag is persisted when provided
+// TestCreateAccountBlockedFlag ensures the blocked flag is persisted when provided.
 func TestCreateAccountBlockedFlag(t *testing.T) {
 	t.Setenv("ACCOUNT_TYPE_VALIDATION", "")
 
@@ -1083,6 +1115,7 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 		DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 			out := *in
 			out.ID = uuid.New().String()
+
 			return &out, nil
 		}).AnyTimes()
 
@@ -1104,6 +1137,7 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 	}
 
 	token := "Bearer test-token"
+
 	acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, input, token)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

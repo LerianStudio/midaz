@@ -41,7 +41,10 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Acco
 		Logger:                  logger,
 	}
 
-	return NewAccountTypePostgreSQLRepository(conn)
+	repo, err := NewAccountTypePostgreSQLRepository(conn)
+	require.NoError(t, err)
+
+	return repo
 }
 
 // ============================================================================

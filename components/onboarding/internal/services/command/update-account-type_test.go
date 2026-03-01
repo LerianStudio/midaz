@@ -11,18 +11,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestUpdateAccountTypeSuccess tests updating account type successfully
+var (
+	errAccTypeDB             = errors.New("database error")
+	errAccTypeMetadataUpdate = errors.New("metadata update failed")
+)
+
+// TestUpdateAccountTypeSuccess tests updating account type successfully.
 func TestUpdateAccountTypeSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -69,9 +77,10 @@ func TestUpdateAccountTypeSuccess(t *testing.T) {
 
 	mockAccountTypeRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, accountTypeID, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, orgID, ledID, id interface{}, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
+		DoAndReturn(func(ctx context.Context, orgID, ledID, id any, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
 			assert.Equal(t, payload.Name, accountType.Name)
 			assert.Equal(t, payload.Description, accountType.Description)
+
 			return expectedAccountType, nil
 		}).
 		Times(1)
@@ -88,14 +97,14 @@ func TestUpdateAccountTypeSuccess(t *testing.T) {
 
 	result, err := uc.UpdateAccountType(context.Background(), organizationID, ledgerID, accountTypeID, payload)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedAccountType.Name, result.Name)
 	assert.Equal(t, expectedAccountType.Description, result.Description)
 	assert.Equal(t, expectedMergedMetadata, result.Metadata)
 }
 
-// TestUpdateAccountTypeSuccessWithoutMetadata tests updating account type successfully without metadata
+// TestUpdateAccountTypeSuccessWithoutMetadata tests updating account type successfully without metadata.
 func TestUpdateAccountTypeSuccessWithoutMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -131,9 +140,10 @@ func TestUpdateAccountTypeSuccessWithoutMetadata(t *testing.T) {
 
 	mockAccountTypeRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, accountTypeID, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, orgID, ledID, id interface{}, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
+		DoAndReturn(func(ctx context.Context, orgID, ledID, id any, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
 			assert.Equal(t, payload.Name, accountType.Name)
 			assert.Equal(t, payload.Description, accountType.Description)
+
 			return expectedAccountType, nil
 		}).
 		Times(1)
@@ -146,14 +156,14 @@ func TestUpdateAccountTypeSuccessWithoutMetadata(t *testing.T) {
 
 	result, err := uc.UpdateAccountType(context.Background(), organizationID, ledgerID, accountTypeID, payload)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedAccountType.Name, result.Name)
 	assert.Equal(t, expectedAccountType.Description, result.Description)
 	assert.Equal(t, map[string]any{}, result.Metadata)
 }
 
-// TestUpdateAccountTypeError tests database error handling
+// TestUpdateAccountTypeError tests database error handling.
 func TestUpdateAccountTypeError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -175,7 +185,7 @@ func TestUpdateAccountTypeError(t *testing.T) {
 		MetadataRepo:    mockMetadataRepo,
 	}
 
-	expectedError := errors.New("database error")
+	expectedError := errAccTypeDB
 
 	mockAccountTypeRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, accountTypeID, gomock.Any()).
@@ -184,12 +194,12 @@ func TestUpdateAccountTypeError(t *testing.T) {
 
 	result, err := uc.UpdateAccountType(context.Background(), organizationID, ledgerID, accountTypeID, payload)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Equal(t, expectedError, err)
+	require.ErrorIs(t, err, expectedError)
 }
 
-// TestUpdateAccountTypeNotFound tests handling of account type not found
+// TestUpdateAccountTypeNotFound tests handling of account type not found.
 func TestUpdateAccountTypeNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -220,12 +230,12 @@ func TestUpdateAccountTypeNotFound(t *testing.T) {
 
 	result, err := uc.UpdateAccountType(context.Background(), organizationID, ledgerID, accountTypeID, payload)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Equal(t, expectedErr, err)
+	require.ErrorIs(t, err, expectedErr)
 }
 
-// TestUpdateAccountTypeMetadataError tests handling metadata update error
+// TestUpdateAccountTypeMetadataError tests handling metadata update error.
 func TestUpdateAccountTypeMetadataError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -258,7 +268,7 @@ func TestUpdateAccountTypeMetadataError(t *testing.T) {
 		MetadataRepo:    mockMetadataRepo,
 	}
 
-	metadataError := errors.New("metadata update failed")
+	metadataError := errAccTypeMetadataUpdate
 
 	mockAccountTypeRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, accountTypeID, gomock.Any()).
@@ -277,12 +287,12 @@ func TestUpdateAccountTypeMetadataError(t *testing.T) {
 
 	result, err := uc.UpdateAccountType(context.Background(), organizationID, ledgerID, accountTypeID, payload)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, metadataError, err)
 }
 
-// TestUpdateAccountTypePartialUpdate tests updating account type with partial input
+// TestUpdateAccountTypePartialUpdate tests updating account type with partial input.
 func TestUpdateAccountTypePartialUpdate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -340,9 +350,10 @@ func TestUpdateAccountTypePartialUpdate(t *testing.T) {
 
 			mockAccountTypeRepo.EXPECT().
 				Update(gomock.Any(), organizationID, ledgerID, accountTypeID, gomock.Any()).
-				DoAndReturn(func(ctx context.Context, orgID, ledID, id interface{}, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
+				DoAndReturn(func(ctx context.Context, orgID, ledID, id any, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
 					assert.Equal(t, tc.payload.Name, accountType.Name)
 					assert.Equal(t, tc.payload.Description, accountType.Description)
+
 					return expectedAccountType, nil
 				}).
 				Times(1)
@@ -354,14 +365,14 @@ func TestUpdateAccountTypePartialUpdate(t *testing.T) {
 
 			result, err := uc.UpdateAccountType(context.Background(), organizationID, ledgerID, accountTypeID, tc.payload)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Equal(t, expectedAccountType, result)
 		})
 	}
 }
 
-// TestUpdateAccountTypeEmptyInput tests updating account type with empty input
+// TestUpdateAccountTypeEmptyInput tests updating account type with empty input.
 func TestUpdateAccountTypeEmptyInput(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -396,9 +407,10 @@ func TestUpdateAccountTypeEmptyInput(t *testing.T) {
 
 	mockAccountTypeRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, accountTypeID, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, orgID, ledID, id interface{}, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
-			assert.Equal(t, "", accountType.Name)
-			assert.Equal(t, "", accountType.Description)
+		DoAndReturn(func(ctx context.Context, orgID, ledID, id any, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
+			assert.Empty(t, accountType.Name)
+			assert.Empty(t, accountType.Description)
+
 			return expectedAccountType, nil
 		}).
 		Times(1)
@@ -410,7 +422,7 @@ func TestUpdateAccountTypeEmptyInput(t *testing.T) {
 
 	result, err := uc.UpdateAccountType(context.Background(), organizationID, ledgerID, accountTypeID, payload)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedAccountType, result)
 }

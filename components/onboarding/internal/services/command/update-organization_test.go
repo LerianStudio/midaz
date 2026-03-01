@@ -9,15 +9,19 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
+
+var errOrgMetadataUpdate = errors.New("metadata update error")
 
 func TestUpdateOrganizationByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -109,7 +113,7 @@ func TestUpdateOrganizationByID(t *testing.T) {
 					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
 				mockMetadataRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(errors.New("metadata update error"))
+					Return(errOrgMetadataUpdate)
 			},
 			expectErr: true,
 		},
@@ -123,10 +127,10 @@ func TestUpdateOrganizationByID(t *testing.T) {
 			result, err := uc.UpdateOrganizationByID(ctx, tt.orgID, tt.input)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.input.LegalName, result.LegalName)
 				assert.Equal(t, tt.input.Address, result.Address)

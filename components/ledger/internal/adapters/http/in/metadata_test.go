@@ -10,18 +10,27 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
+var (
+	errIndexAlreadyExists = errors.New("index already exists")
+	errDatabaseError      = errors.New("database error")
+	errConnectionRefused  = errors.New("connection refused")
+	errIndexNotFound      = errors.New("index not found")
+)
+
+func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	tests := []struct {
@@ -116,14 +125,13 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
 				transaction.EXPECT().
 					CreateIndex(gomock.Any(), "transaction", gomock.Any()).
-					Return(nil, errors.New("index already exists"))
+					Return(nil, errIndexAlreadyExists)
 			},
 			expectedStatus: fiber.StatusInternalServerError,
 		},
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -150,11 +158,13 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 			require.NoError(t, err)
 
 			url := "/v1/settings/metadata-indexes/entities/" + tt.entityName
-			req := httptest.NewRequest("POST", url, bytes.NewReader(body))
+			req := httptest.NewRequest(http.MethodPost, url, bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := app.Test(req)
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
@@ -163,6 +173,7 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 				require.NoError(t, err)
 
 				var result mmodel.MetadataIndex
+
 				err = json.Unmarshal(respBody, &result)
 				require.NoError(t, err)
 
@@ -195,7 +206,6 @@ func TestMetadataIndexHandler_CreateMetadataIndex_InvalidPayload(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -217,11 +227,13 @@ func TestMetadataIndexHandler_CreateMetadataIndex_InvalidPayload(t *testing.T) {
 				return handler.CreateMetadataIndex(tt.payload, c)
 			})
 
-			req := httptest.NewRequest("POST", "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader([]byte("{}")))
+			req := httptest.NewRequest(http.MethodPost, "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader([]byte("{}")))
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := app.Test(req)
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 		})
@@ -257,16 +269,18 @@ func TestMetadataIndexHandler_CreateMetadataIndex_EmptyEntityName(t *testing.T) 
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest("POST", "/v1/settings/metadata-indexes/entities", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/v1/settings/metadata-indexes/entities", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 
+	defer resp.Body.Close()
+
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
 
-func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
+func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) { //nolint:gocognit,gocyclo,cyclop,funlen
 	t.Parallel()
 
 	tests := []struct {
@@ -293,6 +307,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 			},
 			expectedStatus: fiber.StatusOK,
 			validateBody: func(t *testing.T, result []*mmodel.MetadataIndex) {
+				t.Helper()
 				require.Len(t, result, 1)
 				assert.Equal(t, "metadata.tier_1", result[0].IndexName)
 				assert.Equal(t, "transaction", result[0].EntityName)
@@ -313,6 +328,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 			},
 			expectedStatus: fiber.StatusOK,
 			validateBody: func(t *testing.T, result []*mmodel.MetadataIndex) {
+				t.Helper()
 				require.Len(t, result, 1)
 				assert.Equal(t, "account", result[0].EntityName)
 			},
@@ -327,6 +343,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 			},
 			expectedStatus: fiber.StatusOK,
 			validateBody: func(t *testing.T, result []*mmodel.MetadataIndex) {
+				t.Helper()
 				assert.Empty(t, result)
 			},
 		},
@@ -344,7 +361,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
 				transaction.EXPECT().
 					FindAllIndexes(gomock.Any(), "operation").
-					Return(nil, errors.New("database error"))
+					Return(nil, errDatabaseError)
 			},
 			expectedStatus: fiber.StatusInternalServerError,
 		},
@@ -360,6 +377,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 								{IndexName: "metadata.category_1", MetadataKey: "category"},
 							}, nil
 						}
+
 						return []*mmodel.MetadataIndex{}, nil
 					}).
 					AnyTimes()
@@ -372,24 +390,30 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 								{IndexName: "metadata.tier_1", MetadataKey: "tier"},
 							}, nil
 						}
+
 						return []*mmodel.MetadataIndex{}, nil
 					}).
 					AnyTimes()
 			},
 			expectedStatus: fiber.StatusOK,
 			validateBody: func(t *testing.T, result []*mmodel.MetadataIndex) {
+				t.Helper()
 				require.GreaterOrEqual(t, len(result), 2)
 
 				var foundAccount, foundTransaction bool
+
 				for _, idx := range result {
 					assert.NotEmpty(t, idx.EntityName)
+
 					if idx.EntityName == "account" && idx.MetadataKey == "category" {
 						foundAccount = true
 					}
+
 					if idx.EntityName == "transaction" && idx.MetadataKey == "tier" {
 						foundTransaction = true
 					}
 				}
+
 				assert.True(t, foundAccount, "should contain account index")
 				assert.True(t, foundTransaction, "should contain transaction index")
 			},
@@ -402,13 +426,15 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 					FindAllIndexes(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ context.Context, collection string) ([]*mmodel.MetadataIndex, error) {
 						if collection == "organization" {
-							return nil, errors.New("connection refused")
+							return nil, errConnectionRefused
 						}
+
 						if collection == "ledger" {
 							return []*mmodel.MetadataIndex{
 								{IndexName: "metadata.env_1", MetadataKey: "env"},
 							}, nil
 						}
+
 						return []*mmodel.MetadataIndex{}, nil
 					}).
 					AnyTimes()
@@ -420,13 +446,16 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 			},
 			expectedStatus: fiber.StatusOK,
 			validateBody: func(t *testing.T, result []*mmodel.MetadataIndex) {
+				t.Helper()
 				// Should still return results from non-failing collections
 				var foundLedger bool
+
 				for _, idx := range result {
 					if idx.EntityName == "ledger" && idx.MetadataKey == "env" {
 						foundLedger = true
 					}
 				}
+
 				assert.True(t, foundLedger, "should contain ledger index despite other failures")
 			},
 		},
@@ -446,13 +475,13 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 			},
 			expectedStatus: fiber.StatusOK,
 			validateBody: func(t *testing.T, result []*mmodel.MetadataIndex) {
+				t.Helper()
 				assert.Empty(t, result)
 			},
 		},
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -475,10 +504,12 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 				return handler.GetAllMetadataIndexes(c)
 			})
 
-			req := httptest.NewRequest("GET", "/v1/settings/metadata-indexes"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/settings/metadata-indexes"+tt.queryParams, http.NoBody)
 
 			resp, err := app.Test(req)
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
@@ -487,6 +518,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 				require.NoError(t, err)
 
 				var result []*mmodel.MetadataIndex
+
 				err = json.Unmarshal(respBody, &result)
 				require.NoError(t, err)
 
@@ -553,14 +585,13 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 			setupMocks: func(onboarding, transaction *mbootstrap.MockMetadataIndexRepository) {
 				transaction.EXPECT().
 					DeleteIndex(gomock.Any(), "transaction", "metadata.tier_1").
-					Return(errors.New("index not found"))
+					Return(errIndexNotFound)
 			},
 			expectedStatus: fiber.StatusInternalServerError,
 		},
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -584,10 +615,12 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 			})
 
 			url := "/v1/settings/metadata-indexes/entities/" + tt.entityName + "/key/" + tt.indexKey
-			req := httptest.NewRequest("DELETE", url, nil)
+			req := httptest.NewRequest(http.MethodDelete, url, http.NoBody)
 
 			resp, err := app.Test(req)
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 		})
@@ -616,10 +649,12 @@ func TestMetadataIndexHandler_DeleteMetadataIndex_EmptyEntityName(t *testing.T) 
 		return handler.DeleteMetadataIndex(c)
 	})
 
-	req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/entities", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/v1/settings/metadata-indexes/entities", http.NoBody)
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
 
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
@@ -646,10 +681,12 @@ func TestMetadataIndexHandler_DeleteMetadataIndex_EmptyIndexKey(t *testing.T) {
 		return handler.DeleteMetadataIndex(c)
 	})
 
-	req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/entities/transaction/key", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/v1/settings/metadata-indexes/entities/transaction/key", http.NoBody)
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+
+	defer resp.Body.Close()
 
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }

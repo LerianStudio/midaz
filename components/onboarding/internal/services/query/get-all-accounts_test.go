@@ -6,19 +6,21 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
+//nolint:funlen
 func TestGetAllAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -88,7 +90,7 @@ func TestGetAllAccount(t *testing.T) {
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
-			expectedErr:      errors.New("No accounts were found in the search. Please review the search criteria and try again."),
+			expectedErr:      errNoAccountsFound,
 			expectedAccounts: nil,
 		},
 		{
@@ -96,10 +98,10 @@ func TestGetAllAccount(t *testing.T) {
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
-					Return(nil, errors.New("failed to retrieve accounts")).
+					Return(nil, errFailedToRetrieveAccounts).
 					Times(1)
 			},
-			expectedErr:      errors.New("failed to retrieve accounts"),
+			expectedErr:      errFailedToRetrieveAccounts,
 			expectedAccounts: nil,
 		},
 		{
@@ -115,10 +117,10 @@ func TestGetAllAccount(t *testing.T) {
 
 				mockMetadataRepo.EXPECT().
 					FindByEntityIDs(gomock.Any(), "Account", []string{"acc1", "acc2"}).
-					Return(nil, errors.New("failed to retrieve metadata")).
+					Return(nil, errFailedToRetrieveMetadata).
 					Times(1)
 			},
-			expectedErr:      errors.New("No accounts were found in the search. Please review the search criteria and try again."),
+			expectedErr:      errNoAccountsFound,
 			expectedAccounts: nil,
 		},
 	}
@@ -129,14 +131,15 @@ func TestGetAllAccount(t *testing.T) {
 
 			result, err := uc.GetAllAccount(ctx, organizationID, ledgerID, &portfolioID, filter)
 
-			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+			if tt.expectedErr != nil { //nolint:nestif
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedErr.Error())
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
-				assert.Equal(t, len(tt.expectedAccounts), len(result))
+				assert.Len(t, result, len(tt.expectedAccounts))
+
 				for i, account := range result {
 					assert.Equal(t, tt.expectedAccounts[i].ID, account.ID)
 					assert.Equal(t, tt.expectedAccounts[i].Metadata, account.Metadata)
@@ -145,6 +148,7 @@ func TestGetAllAccount(t *testing.T) {
 						if account.Blocked == nil {
 							t.Fatalf("expected blocked to be non-nil for account %s", account.ID)
 						}
+
 						assert.Equal(t, *tt.expectedAccounts[i].Blocked, *account.Blocked)
 					}
 				}

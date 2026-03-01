@@ -6,18 +6,20 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
+//nolint:funlen
 func TestGetAccountTypeByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -59,7 +61,7 @@ func TestGetAccountTypeByID(t *testing.T) {
 
 		result, err := uc.GetAccountTypeByID(ctx, organizationID, ledgerID, accountTypeID)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, accountTypeID, result.ID)
 		assert.Equal(t, "Test Account Type", result.Name)
@@ -89,7 +91,7 @@ func TestGetAccountTypeByID(t *testing.T) {
 
 		result, err := uc.GetAccountTypeByID(ctx, organizationID, ledgerID, accountTypeID)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, accountTypeID, result.ID)
 		assert.Equal(t, "Test Account Type", result.Name)
@@ -107,7 +109,7 @@ func TestGetAccountTypeByID(t *testing.T) {
 
 		result, err := uc.GetAccountTypeByID(ctx, organizationID, ledgerID, accountTypeID)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 	})
 
@@ -118,11 +120,11 @@ func TestGetAccountTypeByID(t *testing.T) {
 
 		mockAccountTypeRepo.EXPECT().
 			FindByID(gomock.Any(), organizationID, ledgerID, accountTypeID).
-			Return(nil, errors.New("database connection error"))
+			Return(nil, errDatabaseConnectionError)
 
 		result, err := uc.GetAccountTypeByID(ctx, organizationID, ledgerID, accountTypeID)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 	})
 
@@ -145,11 +147,11 @@ func TestGetAccountTypeByID(t *testing.T) {
 
 		mockMetadataRepo.EXPECT().
 			FindByEntity(gomock.Any(), "AccountType", accountTypeID.String()).
-			Return(nil, errors.New("metadata retrieval error"))
+			Return(nil, errMetadataRetrievalError)
 
 		result, err := uc.GetAccountTypeByID(ctx, organizationID, ledgerID, accountTypeID)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 	})
 }

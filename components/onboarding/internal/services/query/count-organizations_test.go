@@ -6,15 +6,16 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestCountOrganizations(t *testing.T) {
@@ -59,7 +60,7 @@ func TestCountOrganizations(t *testing.T) {
 			mockSetup: func() {
 				mockOrganizationRepo.EXPECT().
 					Count(gomock.Any()).
-					Return(int64(0), errors.New("database error"))
+					Return(int64(0), errDatabaseError)
 			},
 			expectErr:      true,
 			expectedResult: 0,
@@ -73,12 +74,13 @@ func TestCountOrganizations(t *testing.T) {
 			result, err := uc.CountOrganizations(context.Background())
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.expectedError != nil {
-					assert.Equal(t, tt.expectedError.Error(), err.Error())
+					require.ErrorContains(t, err, tt.expectedError.Error())
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expectedResult, result)
 			}
 		})

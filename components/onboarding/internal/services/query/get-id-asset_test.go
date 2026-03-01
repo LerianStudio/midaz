@@ -6,16 +6,17 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestGetAssetByID(t *testing.T) {
@@ -86,7 +87,7 @@ func TestGetAssetByID(t *testing.T) {
 					Return(&mmodel.Asset{ID: assetID.String(), Name: "Test Asset", Status: mmodel.Status{Code: "active"}}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("metadata retrieval error"))
+					Return(nil, errMetadataRetrievalError)
 			},
 			expectErr:      true,
 			expectedResult: nil,
@@ -101,10 +102,10 @@ func TestGetAssetByID(t *testing.T) {
 			result, err := uc.GetAssetByID(ctx, tt.organizationID, tt.ledgerID, tt.assetID)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 			}
 		})

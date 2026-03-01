@@ -10,16 +10,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
+var (
+	errCreateAsset      = errors.New("failed to create asset")
+	errAssetGRPCBalance = errors.New("grpc create balance error")
+	errDefaultBalance   = errors.New("default balance could not be created")
+	errPreSplitShard    = errors.New("pre-split shard failure")
+	errInvalidType      = errors.New("0040 - The provided 'type' is not valid. Accepted types are currency, crypto, commodities, or others. Please provide a valid type.") //nolint:revive,staticcheck // business error message
+)
+
+//nolint:funlen
 func TestCreateAsset(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -130,7 +142,7 @@ func TestCreateAsset(t *testing.T) {
 					Return(nil).Times(1)
 			},
 
-			expectedErr: errors.New("0040 - The provided 'type' is not valid. Accepted types are currency, crypto, commodities, or others. Please provide a valid type."),
+			expectedErr: errInvalidType,
 			expectedRes: nil,
 		},
 		{
@@ -152,10 +164,10 @@ func TestCreateAsset(t *testing.T) {
 
 				mockAssetRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("failed to create asset")).
+					Return(nil, errCreateAsset).
 					Times(1)
 			},
-			expectedErr: errors.New("failed to create asset"),
+			expectedErr: errCreateAsset,
 			expectedRes: nil,
 		},
 		{
@@ -194,21 +206,23 @@ func TestCreateAsset(t *testing.T) {
 					Times(1)
 
 				createdAccountID := uuid.New().String()
+
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 						out := *in
 						out.ID = createdAccountID
+
 						return &out, nil
 					}).
 					Times(1)
 
 				mockBalanceGRPC.EXPECT().
 					CreateBalanceSync(gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("grpc create balance error")).
+					Return(nil, errAssetGRPCBalance).
 					Times(1)
 			},
-			expectedErr: errors.New("default balance could not be created"),
+			expectedErr: errDefaultBalance,
 			expectedRes: nil,
 		},
 	}
@@ -221,11 +235,11 @@ func TestCreateAsset(t *testing.T) {
 			result, err := uc.CreateAsset(ctx, organizationID, ledgerID, tt.input, token)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedErr.Error())
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.expectedRes.Name, result.Name)
 				assert.Equal(t, tt.expectedRes.Code, result.Code)
@@ -236,6 +250,7 @@ func TestCreateAsset(t *testing.T) {
 
 	t.Run("failure - all external pre-split balances fail", func(t *testing.T) {
 		uc.ExternalPreSplitShardCount = 2
+
 		t.Cleanup(func() {
 			uc.ExternalPreSplitShardCount = 0
 		})
@@ -275,11 +290,13 @@ func TestCreateAsset(t *testing.T) {
 			Times(1)
 
 		createdAccountID := uuid.New().String()
+
 		mockAccountRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
 				out := *in
 				out.ID = createdAccountID
+
 				return &out, nil
 			}).
 			Times(1)
@@ -291,16 +308,16 @@ func TestCreateAsset(t *testing.T) {
 				Times(1),
 			mockBalanceGRPC.EXPECT().
 				CreateBalanceSync(gomock.Any(), gomock.Any()).
-				Return(nil, errors.New("pre-split shard failure")).
+				Return(nil, errPreSplitShard).
 				Times(1),
 			mockBalanceGRPC.EXPECT().
 				CreateBalanceSync(gomock.Any(), gomock.Any()).
-				Return(nil, errors.New("pre-split shard failure")).
+				Return(nil, errPreSplitShard).
 				Times(1),
 		)
 
 		result, err := uc.CreateAsset(ctx, organizationID, ledgerID, input, "Bearer test-token")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "could not be created")
 		assert.Nil(t, result)
 	})

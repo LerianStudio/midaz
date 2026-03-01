@@ -9,15 +9,23 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
+var (
+	errAssetMetadataUpdate = errors.New("metadata update error")
+	errAssetUpdate         = errors.New("update error")
+)
+
+//nolint:funlen
 func TestUpdateAssetByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -104,7 +112,7 @@ func TestUpdateAssetByID(t *testing.T) {
 					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
 				mockMetadataRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(errors.New("metadata update error"))
+					Return(errAssetMetadataUpdate)
 			},
 			expectErr: true,
 		},
@@ -123,7 +131,7 @@ func TestUpdateAssetByID(t *testing.T) {
 			mockSetup: func() {
 				mockAssetRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("update error"))
+					Return(nil, errAssetUpdate)
 			},
 			expectErr: true,
 		},
@@ -137,10 +145,10 @@ func TestUpdateAssetByID(t *testing.T) {
 			result, err := uc.UpdateAssetByID(ctx, tt.organizationID, tt.ledgerID, tt.assetID, tt.input)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.input.Name, result.Name)
 				assert.Equal(t, tt.input.Status, result.Status)

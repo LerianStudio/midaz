@@ -12,15 +12,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // TestIntegration_GetAllAccount_PaginationUnion verifies that the union of all
@@ -43,7 +44,8 @@ func TestIntegration_GetAllAccount_PaginationUnion(t *testing.T) {
 		Logger:                  logger,
 	}
 
-	accountRepo := account.NewAccountPostgreSQLRepository(conn)
+	accountRepo, err := account.NewAccountPostgreSQLRepository(conn)
+	require.NoError(t, err)
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -127,7 +129,8 @@ func TestIntegration_GetAllAccount_PaginationStableOrder(t *testing.T) {
 		Logger:                  logger,
 	}
 
-	accountRepo := account.NewAccountPostgreSQLRepository(conn)
+	accountRepo, err := account.NewAccountPostgreSQLRepository(conn)
+	require.NoError(t, err)
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -6,16 +6,17 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestGetAllLedgers(t *testing.T) {
@@ -74,10 +75,10 @@ func TestGetAllLedgers(t *testing.T) {
 			setupMocks: func() {
 				mockLedgerRepo.EXPECT().
 					FindAll(gomock.Any(), organizationID, filter.ToOffsetPagination()).
-					Return(nil, errors.New("No ledgers were found in the search. Please review the search criteria and try again.")).
+					Return(nil, errNoLedgersFound).
 					Times(1)
 			},
-			expectedErr:     errors.New("No ledgers were found in the search. Please review the search criteria and try again."),
+			expectedErr:     errNoLedgersFound,
 			expectedLedgers: nil,
 		},
 		{
@@ -85,10 +86,10 @@ func TestGetAllLedgers(t *testing.T) {
 			setupMocks: func() {
 				mockLedgerRepo.EXPECT().
 					FindAll(gomock.Any(), organizationID, filter.ToOffsetPagination()).
-					Return(nil, errors.New("failed to retrieve ledgers")).
+					Return(nil, errFailedToRetrieveLedgers).
 					Times(1)
 			},
-			expectedErr:     errors.New("failed to retrieve ledgers"),
+			expectedErr:     errFailedToRetrieveLedgers,
 			expectedLedgers: nil,
 		},
 		{
@@ -104,10 +105,10 @@ func TestGetAllLedgers(t *testing.T) {
 
 				mockMetadataRepo.EXPECT().
 					FindByEntityIDs(gomock.Any(), "Ledger", []string{"ledger1", "ledger2"}).
-					Return(nil, errors.New("failed to retrieve metadata")).
+					Return(nil, errFailedToRetrieveMetadata).
 					Times(1)
 			},
-			expectedErr:     errors.New("No ledgers were found in the search. Please review the search criteria and try again."),
+			expectedErr:     errNoLedgersFound,
 			expectedLedgers: nil,
 		},
 	}
@@ -119,13 +120,14 @@ func TestGetAllLedgers(t *testing.T) {
 			result, err := uc.GetAllLedgers(ctx, organizationID, filter)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedErr.Error())
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
-				assert.Equal(t, len(tt.expectedLedgers), len(result))
+				assert.Len(t, result, len(tt.expectedLedgers))
+
 				for i, ledger := range result {
 					assert.Equal(t, tt.expectedLedgers[i].ID, ledger.ID)
 					assert.Equal(t, tt.expectedLedgers[i].Metadata, ledger.Metadata)

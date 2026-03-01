@@ -9,11 +9,17 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
+)
+
+var (
+	errDeleteLedger   = errors.New("failed to delete ledger")
+	errLedgerNotFound = errors.New("The provided ledger ID does not exist in our records. Please verify the ledger ID and try again.") //nolint:revive,staticcheck // business error message
 )
 
 func TestDeleteLedgerByID(t *testing.T) {
@@ -53,17 +59,17 @@ func TestDeleteLedgerByID(t *testing.T) {
 					Return(services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
-			expectedErr: errors.New("The provided ledger ID does not exist in our records. Please verify the ledger ID and try again."),
+			expectedErr: errLedgerNotFound,
 		},
 		{
 			name: "failure - repository error",
 			setupMocks: func() {
 				mockLedgerRepo.EXPECT().
 					Delete(gomock.Any(), organizationID, ledgerID).
-					Return(errors.New("failed to delete ledger")).
+					Return(errDeleteLedger).
 					Times(1)
 			},
-			expectedErr: errors.New("failed to delete ledger"),
+			expectedErr: errDeleteLedger,
 		},
 	}
 
@@ -74,10 +80,10 @@ func TestDeleteLedgerByID(t *testing.T) {
 			err := uc.DeleteLedgerByID(ctx, organizationID, ledgerID)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedErr.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

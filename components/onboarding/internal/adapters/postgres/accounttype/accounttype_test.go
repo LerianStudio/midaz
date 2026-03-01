@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 func TestAccountTypePostgreSQLModel_ToEntity(t *testing.T) {

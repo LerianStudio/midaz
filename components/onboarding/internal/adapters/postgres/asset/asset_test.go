@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 func TestAssetPostgreSQLModel_ToEntity(t *testing.T) {
@@ -179,8 +180,11 @@ func TestAssetPostgreSQLModel_FromEntity(t *testing.T) {
 			UpdatedAt:      time.Now(),
 		}
 
-		var model1 AssetPostgreSQLModel
-		var model2 AssetPostgreSQLModel
+		var (
+			model1 AssetPostgreSQLModel
+			model2 AssetPostgreSQLModel
+		)
+
 		model1.FromEntity(entity)
 		model2.FromEntity(entity)
 

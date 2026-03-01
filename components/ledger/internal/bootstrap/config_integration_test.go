@@ -338,6 +338,8 @@ func setEnvFromContainers(t *testing.T, addresses *ContainerAddresses) {
 	t.Setenv("PLUGIN_AUTH_ENABLED", "false")
 	t.Setenv("ENABLE_TELEMETRY", "false")
 	t.Setenv("BALANCE_SYNC_WORKER_ENABLED", "false")
+	t.Setenv("CONSUMER_ENABLED", "true")
+	t.Setenv("DEDICATED_CONSUMER_ENABLED", "false")
 }
 
 // TestInitServers_WithAllDependencies_Succeeds tests that InitServers successfully

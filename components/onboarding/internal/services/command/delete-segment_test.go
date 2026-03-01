@@ -9,11 +9,17 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
+)
+
+var (
+	errDeleteSegment = errors.New("failed to delete segment")
+	errSegNotFound   = errors.New("The provided segment ID does not exist in our records. Please verify the segment ID and try again.") //nolint:revive,staticcheck // business error message
 )
 
 func TestDeleteSegmentByID(t *testing.T) {
@@ -54,17 +60,17 @@ func TestDeleteSegmentByID(t *testing.T) {
 					Return(services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
-			expectedErr: errors.New("The provided segment ID does not exist in our records. Please verify the segment ID and try again."),
+			expectedErr: errSegNotFound,
 		},
 		{
 			name: "failure - repository error",
 			setupMocks: func() {
 				mockSegmentRepo.EXPECT().
 					Delete(gomock.Any(), organizationID, ledgerID, segmentID).
-					Return(errors.New("failed to delete segment")).
+					Return(errDeleteSegment).
 					Times(1)
 			},
-			expectedErr: errors.New("failed to delete segment"),
+			expectedErr: errDeleteSegment,
 		},
 	}
 
@@ -75,10 +81,10 @@ func TestDeleteSegmentByID(t *testing.T) {
 			err := uc.DeleteSegmentByID(ctx, organizationID, ledgerID, segmentID)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedErr.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

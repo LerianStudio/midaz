@@ -6,16 +6,18 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestListAccountsByAlias(t *testing.T) {
@@ -64,7 +66,7 @@ func TestListAccountsByAlias(t *testing.T) {
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
-			expectedErr:      errors.New("The accounts could not be retrieved using the specified aliases. Please verify the aliases for accuracy and try again."),
+			expectedErr:      errAccountsNotRetrievedByAliases,
 			expectedAccounts: nil,
 		},
 		{
@@ -72,10 +74,10 @@ func TestListAccountsByAlias(t *testing.T) {
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
 					ListAccountsByAlias(gomock.Any(), organizationID, ledgerID, aliases).
-					Return(nil, errors.New("failed to retrieve accounts")).
+					Return(nil, errFailedToRetrieveAccounts).
 					Times(1)
 			},
-			expectedErr:      errors.New("failed to retrieve accounts"),
+			expectedErr:      errFailedToRetrieveAccounts,
 			expectedAccounts: nil,
 		},
 	}
@@ -87,13 +89,14 @@ func TestListAccountsByAlias(t *testing.T) {
 			result, err := uc.ListAccountsByAlias(ctx, organizationID, ledgerID, aliases)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedErr.Error())
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
-				assert.Equal(t, len(tt.expectedAccounts), len(result))
+				assert.Len(t, result, len(tt.expectedAccounts))
+
 				for i, account := range result {
 					assert.Equal(t, tt.expectedAccounts[i].Alias, account.Alias)
 				}

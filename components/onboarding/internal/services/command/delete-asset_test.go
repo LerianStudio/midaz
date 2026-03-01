@@ -9,14 +9,17 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
+
+var errListAccounts = errors.New("error listing accounts")
 
 func TestDeleteAssetByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -82,7 +85,7 @@ func TestDeleteAssetByID(t *testing.T) {
 					Return(&mmodel.Asset{ID: uuid.New().String(), Code: "asset123"}, nil)
 				mockAccountRepo.EXPECT().
 					ListAccountsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("error listing accounts"))
+					Return(nil, errListAccounts)
 			},
 			expectErr: true,
 		},
@@ -96,9 +99,9 @@ func TestDeleteAssetByID(t *testing.T) {
 			err := uc.DeleteAssetByID(ctx, tt.organizationID, tt.ledgerID, tt.assetID)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

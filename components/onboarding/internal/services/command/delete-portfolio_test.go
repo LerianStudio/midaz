@@ -9,11 +9,17 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
+)
+
+var (
+	errDeletePortfolio = errors.New("failed to delete portfolio")
+	errPortNotFound    = errors.New("The provided portfolio ID does not exist in our records. Please verify the portfolio ID and try again.") //nolint:revive,staticcheck // business error message
 )
 
 func TestDeletePortfolioByID(t *testing.T) {
@@ -54,17 +60,17 @@ func TestDeletePortfolioByID(t *testing.T) {
 					Return(services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
-			expectedErr: errors.New("The provided portfolio ID does not exist in our records. Please verify the portfolio ID and try again."),
+			expectedErr: errPortNotFound,
 		},
 		{
 			name: "failure - repository error",
 			setupMocks: func() {
 				mockPortfolioRepo.EXPECT().
 					Delete(gomock.Any(), organizationID, ledgerID, portfolioID).
-					Return(errors.New("failed to delete portfolio")).
+					Return(errDeletePortfolio).
 					Times(1)
 			},
-			expectedErr: errors.New("failed to delete portfolio"),
+			expectedErr: errDeletePortfolio,
 		},
 	}
 
@@ -75,10 +81,10 @@ func TestDeletePortfolioByID(t *testing.T) {
 			err := uc.DeletePortfolioByID(ctx, organizationID, ledgerID, portfolioID)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedErr.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

@@ -9,11 +9,19 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 )
 
+var (
+	errRetrieveMetadata = errors.New("failed to retrieve metadata")
+	errUpdateMetadata   = errors.New("failed to update metadata")
+)
+
+//nolint:funlen
 func TestUpdateMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -84,6 +92,7 @@ func TestUpdateMetadata(t *testing.T) {
 							"key3": "value3",
 						}
 						assert.Equal(t, expectedMerged, updatedMetadata)
+
 						return nil
 					}).
 					Times(1)
@@ -101,10 +110,10 @@ func TestUpdateMetadata(t *testing.T) {
 			setupMocks: func() {
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), entityName, entityID).
-					Return(nil, errors.New("failed to retrieve metadata")).
+					Return(nil, errRetrieveMetadata).
 					Times(1)
 			},
-			expectedErr:      errors.New("failed to retrieve metadata"),
+			expectedErr:      errRetrieveMetadata,
 			expectedMetadata: nil,
 		},
 		{
@@ -120,10 +129,10 @@ func TestUpdateMetadata(t *testing.T) {
 
 				mockMetadataRepo.EXPECT().
 					Update(gomock.Any(), entityName, entityID, gomock.Any()).
-					Return(errors.New("failed to update metadata")).
+					Return(errUpdateMetadata).
 					Times(1)
 			},
-			expectedErr:      errors.New("failed to update metadata"),
+			expectedErr:      errUpdateMetadata,
 			expectedMetadata: nil,
 		},
 	}
@@ -135,11 +144,11 @@ func TestUpdateMetadata(t *testing.T) {
 			result, err := uc.UpdateMetadata(ctx, entityName, entityID, tt.inputMetadata)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedErr.Error())
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.expectedMetadata, result)
 			}

@@ -6,17 +6,18 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestGetAllMetadataAccountType_Success(t *testing.T) {
@@ -51,7 +52,7 @@ func TestGetAllMetadataAccountType_Success(t *testing.T) {
 	ctx := context.Background()
 	result, pagination, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.NotNil(t, pagination)
 	assert.Len(t, result, 1)
@@ -77,12 +78,12 @@ func TestGetAllMetadataAccountType_MetadataRepoError(t *testing.T) {
 
 	mockMetadataRepo.EXPECT().
 		FindList(gomock.Any(), "AccountType", gomock.Any()).
-		Return(nil, errors.New("metadata repo error"))
+		Return(nil, errMetadataRepoError)
 
 	ctx := context.Background()
 	result, _, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }
 
@@ -111,12 +112,12 @@ func TestGetAllMetadataAccountType_AccountTypeRepoError(t *testing.T) {
 
 	mockAccountTypeRepo.EXPECT().
 		ListByIDs(gomock.Any(), organizationID, ledgerID, gomock.Eq([]uuid.UUID{validUUID})).
-		Return(nil, errors.New("account type repo error"))
+		Return(nil, errAccountTypeRepoError)
 
 	ctx := context.Background()
 	result, _, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }
 
@@ -150,7 +151,7 @@ func TestGetAllMetadataAccountType_DatabaseItemNotFound(t *testing.T) {
 	ctx := context.Background()
 	result, _, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }
 
@@ -189,7 +190,7 @@ func TestGetAllMetadataAccountType_MultipleAccountTypes(t *testing.T) {
 	ctx := context.Background()
 	result, pagination, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.NotNil(t, pagination)
 	assert.Len(t, result, 2)
@@ -233,7 +234,7 @@ func TestGetAllMetadataAccountType_PartialMetadataMatch(t *testing.T) {
 	ctx := context.Background()
 	result, pagination, err := uc.GetAllMetadataAccountType(ctx, organizationID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.NotNil(t, pagination)
 	assert.Len(t, result, 2)

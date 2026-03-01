@@ -38,7 +38,10 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Ledg
 		Logger:                  logger,
 	}
 
-	return NewLedgerPostgreSQLRepository(conn)
+	repo, err := NewLedgerPostgreSQLRepository(conn)
+	require.NoError(t, err)
+
+	return repo
 }
 
 // ============================================================================

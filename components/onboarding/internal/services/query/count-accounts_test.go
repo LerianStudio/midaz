@@ -6,13 +6,14 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 )
 
 func TestCountAccounts(t *testing.T) {
@@ -53,12 +54,12 @@ func TestCountAccounts(t *testing.T) {
 			setupMock: func(mockRepo *account.MockRepository) {
 				mockRepo.EXPECT().
 					Count(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(int64(0), errors.New("database error"))
+					Return(int64(0), errDatabaseError)
 			},
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			expectedCount:  0,
-			expectedError:  errors.New("database error"),
+			expectedError:  errDatabaseError,
 		},
 	}
 
@@ -77,10 +78,10 @@ func TestCountAccounts(t *testing.T) {
 			count, err := uc.CountAccounts(context.Background(), tc.organizationID, tc.ledgerID)
 
 			if tc.expectedError != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tc.expectedError.Error(), err.Error())
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.expectedError.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tc.expectedCount, count)
 			}
 		})

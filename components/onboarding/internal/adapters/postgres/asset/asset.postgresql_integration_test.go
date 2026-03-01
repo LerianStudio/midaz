@@ -42,7 +42,10 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Asse
 		Logger:                  logger,
 	}
 
-	return NewAssetPostgreSQLRepository(conn)
+	repo, err := NewAssetPostgreSQLRepository(conn)
+	require.NoError(t, err)
+
+	return repo
 }
 
 // ============================================================================

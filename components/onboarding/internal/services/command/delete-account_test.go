@@ -9,14 +9,22 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
+)
+
+var (
+	errItemNotFound      = errors.New("errDatabaseItemNotFound")
+	errDelete            = errors.New("delete error")
+	errForbiddenExternal = errors.New("0074 - Accounts of type 'external' cannot be deleted or modified as they are used for traceability with external systems. Please review your request and ensure operations are only performed on internal accounts.") //nolint:revive,staticcheck // business error message
 )
 
 func TestDeleteAccountByID(t *testing.T) {
@@ -74,7 +82,7 @@ func TestDeleteAccountByID(t *testing.T) {
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
-			expectedErr: errors.New("errDatabaseItemNotFound"),
+			expectedErr: errItemNotFound,
 		},
 		{
 			name:        "failure - forbidden external account manipulation",
@@ -85,7 +93,7 @@ func TestDeleteAccountByID(t *testing.T) {
 					Return(&mmodel.Account{ID: accountID.String(), Type: "external"}, nil).
 					Times(1)
 			},
-			expectedErr: errors.New("0074 - Accounts of type 'external' cannot be deleted or modified as they are used for traceability with external systems. Please review your request and ensure operations are only performed on internal accounts."),
+			expectedErr: errForbiddenExternal,
 		},
 		{
 			name:        "failure - delete operation error",
@@ -103,10 +111,10 @@ func TestDeleteAccountByID(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Delete(gomock.Any(), organizationID, ledgerID, &portfolioID, accountID).
-					Return(errors.New("delete error")).
+					Return(errDelete).
 					Times(1)
 			},
-			expectedErr: errors.New("delete error"),
+			expectedErr: errDelete,
 		},
 	}
 
@@ -120,16 +128,16 @@ func TestDeleteAccountByID(t *testing.T) {
 
 			// Validações
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedErr.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
 }
 
-// TestDeleteAccountByIDSuccess is responsible to test DeleteAccountByID with success
+// TestDeleteAccountByIDSuccess is responsible to test DeleteAccountByID with success.
 func TestDeleteAccountByIDSuccess(t *testing.T) {
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
@@ -139,17 +147,20 @@ func TestDeleteAccountByIDSuccess(t *testing.T) {
 		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AccountRepo.(*account.MockRepository).
+	mockRepo, ok := uc.AccountRepo.(*account.MockRepository)
+	require.True(t, ok, "expected AccountRepo to be *account.MockRepository")
+
+	mockRepo.
 		EXPECT().
 		Delete(gomock.Any(), organizationID, ledgerID, &portfolioID, id).
 		Return(nil).
 		Times(1)
 	err := uc.AccountRepo.Delete(context.TODO(), organizationID, ledgerID, &portfolioID, id)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
-// TestDeleteAccountByIDWithoutPortfolioSuccess is responsible to test DeleteAccountByID without portfolio with success
+// TestDeleteAccountByIDWithoutPortfolioSuccess is responsible to test DeleteAccountByID without portfolio with success.
 func TestDeleteAccountByIDWithoutPortfolioSuccess(t *testing.T) {
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
@@ -158,35 +169,40 @@ func TestDeleteAccountByIDWithoutPortfolioSuccess(t *testing.T) {
 		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AccountRepo.(*account.MockRepository).
+	mockRepo, ok := uc.AccountRepo.(*account.MockRepository)
+	require.True(t, ok, "expected AccountRepo to be *account.MockRepository")
+
+	mockRepo.
 		EXPECT().
 		Delete(gomock.Any(), organizationID, ledgerID, nil, id).
 		Return(nil).
 		Times(1)
 	err := uc.AccountRepo.Delete(context.TODO(), organizationID, ledgerID, nil, id)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
-// TestDeleteAccountByIDError is responsible to test DeleteAccountByID with error
+// TestDeleteAccountByIDError is responsible to test DeleteAccountByID with error.
 func TestDeleteAccountByIDError(t *testing.T) {
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	portfolioID := libCommons.GenerateUUIDv7()
 	id := libCommons.GenerateUUIDv7()
-	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
 		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AccountRepo.(*account.MockRepository).
+	mockRepo, ok := uc.AccountRepo.(*account.MockRepository)
+	require.True(t, ok, "expected AccountRepo to be *account.MockRepository")
+
+	mockRepo.
 		EXPECT().
 		Delete(gomock.Any(), organizationID, ledgerID, &portfolioID, id).
-		Return(errors.New(errMSG)).
+		Return(errDelete).
 		Times(1)
 	err := uc.AccountRepo.Delete(context.TODO(), organizationID, ledgerID, &portfolioID, id)
 
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
+	require.Error(t, err)
+	require.ErrorIs(t, err, errDelete)
 }

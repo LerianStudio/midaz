@@ -10,13 +10,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+var errSegRepository = errors.New("repository error")
+
+//nolint:funlen
 func TestCreateSegment(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -84,7 +89,7 @@ func TestCreateSegment(t *testing.T) {
 			mockSetup: func() {
 				mockRepo.EXPECT().
 					FindByName(gomock.Any(), gomock.Any(), gomock.Any(), "Failing Segment").
-					Return(false, errors.New("repository error"))
+					Return(false, errSegRepository)
 			},
 			expectErr:    true,
 			expectedProd: nil,
@@ -131,10 +136,10 @@ func TestCreateSegment(t *testing.T) {
 			result, err := uc.CreateSegment(ctx, tt.organizationID, tt.ledgerID, tt.input)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.expectedProd.Name, result.Name)
 				assert.Equal(t, tt.expectedProd.Status.Code, result.Status.Code)

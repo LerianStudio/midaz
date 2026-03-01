@@ -6,16 +6,17 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestCountPortfolios(t *testing.T) {
@@ -62,7 +63,7 @@ func TestCountPortfolios(t *testing.T) {
 			mockSetup: func() {
 				mockPortfolioRepo.EXPECT().
 					Count(gomock.Any(), organizationID, ledgerID).
-					Return(int64(0), errors.New("database error"))
+					Return(int64(0), errDatabaseError)
 			},
 			expectErr:      true,
 			expectedResult: 0,
@@ -76,12 +77,13 @@ func TestCountPortfolios(t *testing.T) {
 			result, err := uc.CountPortfolios(context.Background(), organizationID, ledgerID)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.expectedError != nil {
-					assert.Equal(t, tt.expectedError.Error(), err.Error())
+					require.ErrorContains(t, err, tt.expectedError.Error())
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expectedResult, result)
 			}
 		})

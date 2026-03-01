@@ -6,16 +6,17 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestGetAllMetadataOrganizations(t *testing.T) {
@@ -68,7 +69,7 @@ func TestGetAllMetadataOrganizations(t *testing.T) {
 					}, nil)
 				mockOrganizationRepo.EXPECT().
 					ListByIDs(gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
-					Return(nil, errors.New("database error"))
+					Return(nil, errDatabaseError)
 			},
 			expectErr:      true,
 			expectedResult: nil,
@@ -83,10 +84,10 @@ func TestGetAllMetadataOrganizations(t *testing.T) {
 			result, err := uc.GetAllMetadataOrganizations(ctx, tt.filter)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 			}
 		})

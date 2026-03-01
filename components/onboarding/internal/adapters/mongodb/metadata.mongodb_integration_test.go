@@ -35,7 +35,10 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
 
 	// Use constructor to validate connection via GetDB()
-	return NewMetadataMongoDBRepository(conn)
+	repo, err := NewMetadataMongoDBRepository(conn)
+	require.NoError(t, err, "failed to create metadata MongoDB repository")
+
+	return repo
 }
 
 // ============================================================================
@@ -807,7 +810,9 @@ func setupChaosInfra(t *testing.T) *chaosTestInfra {
 
 	// Create repository using constructor (validates connection via GetDB())
 	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
-	repo := NewMetadataMongoDBRepository(conn)
+
+	repo, err := NewMetadataMongoDBRepository(conn)
+	require.NoError(t, err, "failed to create metadata MongoDB repository")
 
 	// Create chaos orchestrator
 	chaosOrch := chaos.NewOrchestrator(t)
@@ -854,7 +859,8 @@ func setupNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	}
 
 	// Create repository (uses constructor to validate connection via GetDB())
-	repo := NewMetadataMongoDBRepository(conn)
+	repo, repoErr := NewMetadataMongoDBRepository(conn)
+	require.NoError(t, repoErr, "failed to create metadata MongoDB repository")
 
 	return &networkChaosTestInfra{
 		chaosInfra:  chaosInfra,

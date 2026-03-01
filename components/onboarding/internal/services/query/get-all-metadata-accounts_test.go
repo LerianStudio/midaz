@@ -6,20 +6,21 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
+//nolint:funlen
 func TestGetAllMetadataAccounts(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -68,10 +69,12 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
+				t.Helper()
 				require.Len(t, result, 2)
 
 				// Verify metadata was attached correctly
 				accMap := make(map[string]*mmodel.Account)
+
 				for _, acc := range result {
 					accMap[acc.ID] = acc
 				}
@@ -105,6 +108,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
+				t.Helper()
 				require.Len(t, result, 1)
 				assert.NotNil(t, result[0].Metadata["user"])
 			},
@@ -128,6 +132,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
+				t.Helper()
 				require.Len(t, result, 1)
 				assert.Equal(t, acc1ID.String(), result[0].ID)
 				assert.Equal(t, "value", result[0].Metadata["key"])
@@ -154,7 +159,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
 					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return(nil, errors.New("mongodb connection failed"))
+					Return(nil, errMongodbConnectionFailed)
 			},
 			expectErr:   true,
 			errContains: "No accounts were found",
@@ -190,7 +195,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 					}, nil)
 				mockAccountRepo.EXPECT().
 					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("database connection timeout"))
+					Return(nil, errDatabaseConnectionTimeout)
 			},
 			expectErr:   true,
 			errContains: "database connection timeout",
@@ -216,6 +221,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
+				t.Helper()
 				require.Len(t, result, 1, "should return only accounts found in postgres")
 				assert.Equal(t, acc1ID.String(), result[0].ID)
 				assert.Equal(t, true, result[0].Metadata["found"])
@@ -233,12 +239,14 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			if tt.expectErr {
 				require.Error(t, err)
 				assert.Nil(t, result)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, result)
+
 				if tt.validate != nil {
 					tt.validate(t, result)
 				}

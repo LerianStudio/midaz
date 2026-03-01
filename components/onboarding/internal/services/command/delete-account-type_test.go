@@ -10,15 +10,18 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
+
+var errAccTypeRepository = errors.New("repository error")
 
 func TestDeleteAccountTypeByIDSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -41,7 +44,7 @@ func TestDeleteAccountTypeByIDSuccess(t *testing.T) {
 
 	err := uc.DeleteAccountTypeByID(context.Background(), organizationID, ledgerID, id)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestDeleteAccountTypeByIDNotFound(t *testing.T) {
@@ -67,8 +70,8 @@ func TestDeleteAccountTypeByIDNotFound(t *testing.T) {
 
 	err := uc.DeleteAccountTypeByID(context.Background(), organizationID, ledgerID, id)
 
-	assert.Error(t, err)
-	assert.Equal(t, expectedErr.Error(), err.Error())
+	require.Error(t, err)
+	require.ErrorContains(t, err, expectedErr.Error())
 }
 
 func TestDeleteAccountTypeByIDError(t *testing.T) {
@@ -85,7 +88,7 @@ func TestDeleteAccountTypeByIDError(t *testing.T) {
 	ledgerID := uuid.New()
 	id := uuid.New()
 
-	expectedErr := errors.New("repository error")
+	expectedErr := errAccTypeRepository
 
 	mockAccountTypeRepo.EXPECT().
 		Delete(gomock.Any(), organizationID, ledgerID, id).
@@ -94,6 +97,6 @@ func TestDeleteAccountTypeByIDError(t *testing.T) {
 
 	err := uc.DeleteAccountTypeByID(context.Background(), organizationID, ledgerID, id)
 
-	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
+	require.Error(t, err)
+	require.ErrorIs(t, err, expectedErr)
 }

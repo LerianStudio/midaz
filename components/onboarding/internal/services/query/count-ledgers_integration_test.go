@@ -11,15 +11,16 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // TestIntegration_CountLedgers_Monotonic verifies that ledger count never decreases
@@ -43,7 +44,8 @@ func TestIntegration_CountLedgers_Monotonic(t *testing.T) {
 		Logger:                  logger,
 	}
 
-	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(conn)
+	ledgerRepo, err := ledger.NewLedgerPostgreSQLRepository(conn)
+	require.NoError(t, err)
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -103,7 +105,8 @@ func TestIntegration_CountLedgers_IsolatedByOrganization(t *testing.T) {
 		Logger:                  logger,
 	}
 
-	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(conn)
+	ledgerRepo, err := ledger.NewLedgerPostgreSQLRepository(conn)
+	require.NoError(t, err)
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

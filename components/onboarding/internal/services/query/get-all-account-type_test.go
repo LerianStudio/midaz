@@ -6,12 +6,17 @@ package query
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
@@ -19,12 +24,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.uber.org/mock/gomock"
 )
 
-// TestGetAllAccountTypeSuccess tests getting all account types successfully with metadata
+// TestGetAllAccountTypeSuccess tests getting all account types successfully with metadata.
 func TestGetAllAccountTypeSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -103,7 +105,7 @@ func TestGetAllAccountTypeSuccess(t *testing.T) {
 
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedCursor, cur)
 	assert.Len(t, result, 2)
 
@@ -117,7 +119,7 @@ func TestGetAllAccountTypeSuccess(t *testing.T) {
 	assert.Equal(t, map[string]any(expectedMetadata[1].Data), result[1].Metadata)
 }
 
-// TestGetAllAccountTypeSuccessWithoutMetadata tests getting all account types successfully without metadata
+// TestGetAllAccountTypeSuccessWithoutMetadata tests getting all account types successfully without metadata.
 func TestGetAllAccountTypeSuccessWithoutMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -169,14 +171,14 @@ func TestGetAllAccountTypeSuccessWithoutMetadata(t *testing.T) {
 
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedAccountTypes, result)
 	assert.Equal(t, expectedCursor, cur)
 	assert.Len(t, result, 1)
 	assert.Nil(t, result[0].Metadata)
 }
 
-// TestGetAllAccountTypeNotFound tests getting all account types when no results found
+// TestGetAllAccountTypeNotFound tests getting all account types when no results found.
 func TestGetAllAccountTypeNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -204,20 +206,20 @@ func TestGetAllAccountTypeNotFound(t *testing.T) {
 
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
 
-	assert.Error(t, err)
-	assert.Equal(t, expectedBusinessError, err)
+	require.Error(t, err)
+	require.ErrorContains(t, err, expectedBusinessError.Error())
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 }
 
-// TestGetAllAccountTypeRepoError tests getting all account types with database error
+// TestGetAllAccountTypeRepoError tests getting all account types with database error.
 func TestGetAllAccountTypeRepoError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
-	expectedError := errors.New("database connection error")
+	expectedError := errDatabaseConnectionError
 
 	filter := http.QueryHeader{
 		Limit:     10,
@@ -236,13 +238,13 @@ func TestGetAllAccountTypeRepoError(t *testing.T) {
 
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
 
-	assert.Error(t, err)
-	assert.Equal(t, expectedError, err)
+	require.Error(t, err)
+	require.ErrorContains(t, err, expectedError.Error())
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 }
 
-// TestGetAllAccountTypeMetadataError tests getting all account types with metadata error
+// TestGetAllAccountTypeMetadataError tests getting all account types with metadata error.
 func TestGetAllAccountTypeMetadataError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -271,7 +273,7 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 		Prev: "prev_cursor",
 	}
 
-	metadataError := errors.New("metadata service error")
+	metadataError := errMetadataServiceError
 	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
 	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
@@ -297,13 +299,13 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
 
-	assert.Error(t, err)
-	assert.Equal(t, expectedBusinessError, err)
+	require.Error(t, err)
+	require.ErrorContains(t, err, expectedBusinessError.Error())
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 }
 
-// TestGetAllAccountTypeEmpty tests getting all account types when empty results
+// TestGetAllAccountTypeEmpty tests getting all account types when empty results.
 func TestGetAllAccountTypeEmpty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -342,13 +344,13 @@ func TestGetAllAccountTypeEmpty(t *testing.T) {
 
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedAccountTypes, result)
 	assert.Equal(t, expectedCursor, cur)
-	assert.Len(t, result, 0)
+	assert.Empty(t, result)
 }
 
-// TestGetAllAccountTypeWithDifferentPagination tests getting all account types with different pagination settings
+// TestGetAllAccountTypeWithDifferentPagination tests getting all account types with different pagination settings.
 func TestGetAllAccountTypeWithDifferentPagination(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -411,14 +413,14 @@ func TestGetAllAccountTypeWithDifferentPagination(t *testing.T) {
 
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedCursor, cur)
 	assert.Len(t, result, 1)
 	assert.Equal(t, expectedAccountTypes[0].ID, result[0].ID)
 	assert.Equal(t, map[string]any(expectedMetadata[0].Data), result[0].Metadata)
 }
 
-// TestGetAllAccountTypeWithMetadataFilter tests getting all account types with metadata filter
+// TestGetAllAccountTypeWithMetadataFilter tests getting all account types with metadata filter.
 func TestGetAllAccountTypeWithMetadataFilter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -483,7 +485,7 @@ func TestGetAllAccountTypeWithMetadataFilter(t *testing.T) {
 
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedCursor, cur)
 	assert.Len(t, result, 1)
 	assert.Equal(t, expectedAccountTypes[0].ID, result[0].ID)

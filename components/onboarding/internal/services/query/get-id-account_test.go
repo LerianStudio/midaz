@@ -6,16 +6,17 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestGetAccountByID(t *testing.T) {
@@ -94,7 +95,7 @@ func TestGetAccountByID(t *testing.T) {
 					Return(&mmodel.Account{ID: accountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("metadata retrieval error"))
+					Return(nil, errMetadataRetrievalError)
 			},
 			expectErr:      true,
 			expectedResult: nil,
@@ -109,10 +110,10 @@ func TestGetAccountByID(t *testing.T) {
 			result, err := uc.GetAccountByID(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.accountID)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 				// Validate critical fields
 				assert.Equal(t, tt.expectedResult.ID, result.ID)

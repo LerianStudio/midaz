@@ -10,12 +10,20 @@ import (
 	"testing"
 	"time"
 
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+)
+
+var (
+	errDatabase     = errors.New("database error")
+	errInsertLedger = errors.New("failed to insert ledger")
 )
 
 func TestCreateLedger(t *testing.T) {
@@ -89,10 +97,10 @@ func TestCreateLedger(t *testing.T) {
 			mockSetup: func() {
 				mockLedgerRepo.EXPECT().
 					FindByName(gomock.Any(), organizationID, "Finance Ledger").
-					Return(false, errors.New("database error")).
+					Return(false, errDatabase).
 					Times(1)
 			},
-			expectedErr: errors.New("database error"),
+			expectedErr: errDatabase,
 			expectedRes: nil,
 		},
 		{
@@ -112,10 +120,10 @@ func TestCreateLedger(t *testing.T) {
 
 				mockLedgerRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("failed to insert ledger")).
+					Return(nil, errInsertLedger).
 					Times(1)
 			},
-			expectedErr: errors.New("failed to insert ledger"),
+			expectedErr: errInsertLedger,
 			expectedRes: nil,
 		},
 	}
@@ -126,11 +134,11 @@ func TestCreateLedger(t *testing.T) {
 
 			result, err := uc.CreateLedger(ctx, organizationID, tt.input)
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedErr.Error())
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.expectedRes.Name, result.Name)
 				assert.Equal(t, tt.expectedRes.Status.Code, result.Status.Code)

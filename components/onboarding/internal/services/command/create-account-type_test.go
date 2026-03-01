@@ -11,17 +11,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// TestCreateAccountTypeSuccess tests creating account type successfully
+var (
+	errAccountTypeDB    = errors.New("failed to create account type in database")
+	errMetadataCreation = errors.New("failed to create metadata")
+)
+
+// TestCreateAccountTypeSuccess tests creating account type successfully.
 func TestCreateAccountTypeSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -56,7 +64,7 @@ func TestCreateAccountTypeSuccess(t *testing.T) {
 
 	mockAccountTypeRepo.EXPECT().
 		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, orgID, ledID interface{}, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
+		DoAndReturn(func(ctx context.Context, orgID, ledID any, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
 			assert.NotZero(t, accountType.CreatedAt)
 			assert.NotZero(t, accountType.UpdatedAt)
 			assert.Equal(t, accountType.CreatedAt, accountType.UpdatedAt)
@@ -67,16 +75,15 @@ func TestCreateAccountTypeSuccess(t *testing.T) {
 
 	result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedAccountType, result)
 }
 
-// TestCreateAccountTypeError tests creating account type with database error
+// TestCreateAccountTypeError tests creating account type with database error.
 func TestCreateAccountTypeError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	errMsg := "failed to create account type in database"
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 
@@ -94,17 +101,17 @@ func TestCreateAccountTypeError(t *testing.T) {
 
 	mockAccountTypeRepo.EXPECT().
 		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(nil, errors.New(errMsg)).
+		Return(nil, errAccountTypeDB).
 		Times(1)
 
 	result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
 
-	assert.Error(t, err)
-	assert.Equal(t, errMsg, err.Error())
+	require.Error(t, err)
+	require.ErrorContains(t, err, errAccountTypeDB.Error())
 	assert.Nil(t, result)
 }
 
-// TestCreateAccountTypeValidatesInput tests that input fields are properly validated and set
+// TestCreateAccountTypeValidatesInput tests that input fields are properly validated and set.
 func TestCreateAccountTypeValidatesInput(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -143,7 +150,7 @@ func TestCreateAccountTypeValidatesInput(t *testing.T) {
 
 			mockAccountTypeRepo.EXPECT().
 				Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-				DoAndReturn(func(ctx context.Context, orgID, ledID interface{}, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
+				DoAndReturn(func(ctx context.Context, orgID, ledID any, accountType *mmodel.AccountType) (*mmodel.AccountType, error) {
 					assert.Equal(t, tc.payload.Name, accountType.Name)
 					assert.Equal(t, tc.payload.Description, accountType.Description)
 					assert.Equal(t, tc.payload.KeyValue, accountType.KeyValue)
@@ -159,13 +166,13 @@ func TestCreateAccountTypeValidatesInput(t *testing.T) {
 
 			result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, tc.payload)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 		})
 	}
 }
 
-// TestCreateAccountTypeDuplicateKeyValue tests creating account type with a duplicate key value
+// TestCreateAccountTypeDuplicateKeyValue tests creating account type with a duplicate key value.
 func TestCreateAccountTypeDuplicateKeyValue(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -194,12 +201,12 @@ func TestCreateAccountTypeDuplicateKeyValue(t *testing.T) {
 
 	result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
 
-	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
+	require.Error(t, err)
+	require.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, result)
 }
 
-// TestCreateAccountTypeWithMetadata tests creating account type with metadata successfully
+// TestCreateAccountTypeWithMetadata tests creating account type with metadata successfully.
 func TestCreateAccountTypeWithMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -253,18 +260,19 @@ func TestCreateAccountTypeWithMetadata(t *testing.T) {
 			assert.Equal(t, expectedAccountType.ID.String(), meta.EntityID)
 			assert.Equal(t, expectedMetadata["category"], meta.Data["category"])
 			assert.Equal(t, expectedMetadata["order"], meta.Data["order"])
+
 			return nil
 		}).
 		Times(1)
 
 	result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedMetadata, result.Metadata)
 }
 
-// TestCreateAccountTypeMetadataError tests creating account type with metadata creation error
+// TestCreateAccountTypeMetadataError tests creating account type with metadata creation error.
 func TestCreateAccountTypeMetadataError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -292,7 +300,7 @@ func TestCreateAccountTypeMetadataError(t *testing.T) {
 		UpdatedAt:      time.Now(),
 	}
 
-	metadataErr := errors.New("failed to create metadata")
+	metadataErr := errMetadataCreation
 
 	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -314,7 +322,7 @@ func TestCreateAccountTypeMetadataError(t *testing.T) {
 
 	result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
 
-	assert.Error(t, err)
-	assert.Equal(t, metadataErr, err)
+	require.Error(t, err)
+	require.ErrorIs(t, err, metadataErr)
 	assert.Nil(t, result)
 }

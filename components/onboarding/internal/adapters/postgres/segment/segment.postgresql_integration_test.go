@@ -42,7 +42,10 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Segm
 		Logger:                  logger,
 	}
 
-	return NewSegmentPostgreSQLRepository(conn)
+	repo, err := NewSegmentPostgreSQLRepository(conn)
+	require.NoError(t, err)
+
+	return repo
 }
 
 // ============================================================================

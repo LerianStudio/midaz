@@ -42,7 +42,10 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Orga
 		Logger:                  logger,
 	}
 
-	return NewOrganizationPostgreSQLRepository(conn)
+	repo, err := NewOrganizationPostgreSQLRepository(conn)
+	require.NoError(t, err)
+
+	return repo
 }
 
 // ============================================================================

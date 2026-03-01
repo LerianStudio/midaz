@@ -9,15 +9,20 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
+var errAccMetadataUpdate = errors.New("metadata update error")
+
+//nolint:funlen
 func TestUpdateAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -117,7 +122,7 @@ func TestUpdateAccount(t *testing.T) {
 					Return(nil, nil)
 				mockMetadataRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(errors.New("metadata update error"))
+					Return(errAccMetadataUpdate)
 			},
 			expectErr: true,
 		},
@@ -131,10 +136,10 @@ func TestUpdateAccount(t *testing.T) {
 			result, err := uc.UpdateAccount(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.accountID, tt.input)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.input.Name, result.Name)
 				assert.Equal(t, tt.input.Status, result.Status)
@@ -143,7 +148,7 @@ func TestUpdateAccount(t *testing.T) {
 	}
 }
 
-// Test updating blocked flag when provided (true)
+// Test updating blocked flag when provided (true).
 func TestUpdateAccount_BlockedProvidedTrue(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -168,7 +173,7 @@ func TestUpdateAccount_BlockedProvidedTrue(t *testing.T) {
 
 	mockAccountRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
 			if acc.Blocked == nil || !*acc.Blocked {
 				t.Fatalf("expected acc.Blocked to be true and non-nil")
 			}
@@ -193,14 +198,15 @@ func TestUpdateAccount_BlockedProvidedTrue(t *testing.T) {
 	ctx := context.Background()
 	result, err := uc.UpdateAccount(ctx, organizationID, ledgerID, nil, accountID, inp)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
+
 	if result.Blocked == nil || !*result.Blocked {
 		t.Fatalf("expected result.Blocked true, got nil/false")
 	}
 }
 
-// Test that omitting blocked does not send a value to repository (remains nil)
+// Test that omitting blocked does not send a value to repository (remains nil).
 func TestUpdateAccount_BlockedOmitted(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -223,10 +229,11 @@ func TestUpdateAccount_BlockedOmitted(t *testing.T) {
 
 	mockAccountRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
 			if acc.Blocked != nil {
 				t.Fatalf("expected acc.Blocked to be nil when omitted")
 			}
+
 			return &mmodel.Account{ID: accountID.String(), Name: "Updated Account"}, nil
 		})
 
@@ -246,11 +253,11 @@ func TestUpdateAccount_BlockedOmitted(t *testing.T) {
 
 	ctx := context.Background()
 	result, err := uc.UpdateAccount(ctx, organizationID, ledgerID, nil, accountID, inp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 }
 
-// Test that updating an external account is forbidden
+// Test that updating an external account is forbidden.
 func TestUpdateAccount_ExternalForbidden(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -275,6 +282,6 @@ func TestUpdateAccount_ExternalForbidden(t *testing.T) {
 	ctx := context.Background()
 	result, err := uc.UpdateAccount(ctx, organizationID, ledgerID, nil, accountID, inp)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 }

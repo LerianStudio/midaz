@@ -10,10 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 )
+
+var errMetaCreation = errors.New("failed to create metadata")
 
 func TestCreateMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -55,12 +59,14 @@ func TestCreateMetadata(t *testing.T) {
 					CreatedAt: time.Now(),
 					UpdatedAt: time.Now(),
 				}
+
 				mockMetadataRepo.EXPECT().
 					Create(gomock.Any(), "TestEntity", gomock.Any()).
 					DoAndReturn(func(ctx context.Context, entityName string, metadata *mongodb.Metadata) error {
 						assert.Equal(t, meta.EntityID, metadata.EntityID)
 						assert.Equal(t, meta.EntityName, metadata.EntityName)
 						assert.Equal(t, meta.Data, metadata.Data)
+
 						return nil
 					}).
 					Times(1)
@@ -82,10 +88,10 @@ func TestCreateMetadata(t *testing.T) {
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
 					Create(gomock.Any(), "TestEntity", gomock.Any()).
-					Return(errors.New("failed to create metadata")).
+					Return(errMetaCreation).
 					Times(1)
 			},
-			expectedErr:  errors.New("failed to create metadata"),
+			expectedErr:  errMetaCreation,
 			expectedMeta: nil,
 		},
 		{
@@ -95,7 +101,7 @@ func TestCreateMetadata(t *testing.T) {
 			metadata:     nil,
 			mockSetup:    func() {},
 			expectedErr:  nil,
-			expectedMeta: nil,
+			expectedMeta: map[string]any{},
 		},
 	}
 
@@ -106,11 +112,11 @@ func TestCreateMetadata(t *testing.T) {
 			result, err := uc.CreateMetadata(ctx, tt.entityName, tt.entityID, tt.metadata)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedErr.Error())
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expectedMeta, result)
 			}
 		})

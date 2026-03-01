@@ -6,16 +6,17 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestGetLedgerByID(t *testing.T) {
@@ -82,7 +83,7 @@ func TestGetLedgerByID(t *testing.T) {
 					Return(&mmodel.Ledger{ID: ledgerID.String(), Name: "Test Ledger", Status: mmodel.Status{Code: "active"}}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("metadata retrieval error"))
+					Return(nil, errMetadataRetrievalError)
 			},
 			expectErr:      true,
 			expectedResult: nil,
@@ -97,10 +98,10 @@ func TestGetLedgerByID(t *testing.T) {
 			result, err := uc.GetLedgerByID(ctx, tt.organizationID, tt.ledgerID)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 			}
 		})

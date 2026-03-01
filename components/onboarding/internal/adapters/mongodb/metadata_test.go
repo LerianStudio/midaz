@@ -126,6 +126,7 @@ func TestJSON_Scan(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var j JSON
+
 			err := j.Scan(tt.input)
 
 			if tt.wantErr {
@@ -152,6 +153,7 @@ func TestJSON_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	var restored JSON
+
 	err = restored.Scan(value)
 	require.NoError(t, err)
 
@@ -262,6 +264,7 @@ func TestMetadataMongoDBModel_FromEntity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var model MetadataMongoDBModel
+
 			err := model.FromEntity(tt.entity)
 
 			require.NoError(t, err)
@@ -292,6 +295,7 @@ func TestMetadataMongoDBModel_RoundTrip(t *testing.T) {
 	}
 
 	var model MetadataMongoDBModel
+
 	err := model.FromEntity(original)
 	require.NoError(t, err)
 

@@ -9,13 +9,20 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
+)
+
+var (
+	errPortMetadataUpdate = errors.New("metadata update error")
+	errPortUpdate         = errors.New("update error")
 )
 
 func TestUpdatePortfolioByID(t *testing.T) {
@@ -98,7 +105,7 @@ func TestUpdatePortfolioByID(t *testing.T) {
 					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
 				mockMetadataRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(errors.New("metadata update error"))
+					Return(errPortMetadataUpdate)
 			},
 			expectErr: true,
 		},
@@ -115,7 +122,7 @@ func TestUpdatePortfolioByID(t *testing.T) {
 			mockSetup: func() {
 				mockPortfolioRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("update error"))
+					Return(nil, errPortUpdate)
 			},
 			expectErr: true,
 		},
@@ -129,10 +136,10 @@ func TestUpdatePortfolioByID(t *testing.T) {
 			result, err := uc.UpdatePortfolioByID(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.input)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.input.Name, result.Name)
 				assert.Equal(t, tt.input.Status, result.Status)

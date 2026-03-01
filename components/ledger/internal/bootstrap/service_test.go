@@ -7,15 +7,17 @@ package bootstrap
 import (
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
-	"github.com/LerianStudio/midaz/v3/components/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+
+	"github.com/LerianStudio/midaz/v3/components/onboarding"
+	"github.com/LerianStudio/midaz/v3/components/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 )
 
 // StubRunnable is a stub implementation of mbootstrap.Runnable for testing.
@@ -47,7 +49,7 @@ func (s *StubService) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository 
 	return s.metadataIndexRepo
 }
 
-// Ensure StubService implements onboarding.OnboardingService
+// Ensure StubService implements onboarding.OnboardingService.
 var _ onboarding.OnboardingService = (*StubService)(nil)
 
 // StubTransactionService is a stub implementation of transaction.TransactionService for testing.
@@ -75,7 +77,7 @@ func (s *StubTransactionService) GetRouteRegistrar() func(*fiber.App) {
 	return func(app *fiber.App) {}
 }
 
-// Ensure StubTransactionService implements transaction.TransactionService
+// Ensure StubTransactionService implements transaction.TransactionService.
 var _ transaction.TransactionService = (*StubTransactionService)(nil)
 
 // TestService_GetRunnables_ReturnsAllComponents verifies that Service.Run()
@@ -83,7 +85,8 @@ var _ transaction.TransactionService = (*StubTransactionService)(nil)
 // This is a unit test that uses stubs to verify the composition logic.
 func TestService_GetRunnables_ReturnsAllComponents(t *testing.T) {
 	// Arrange
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
 
 	// Create stub runnables for onboarding
 	onboardingRunnable := &StubRunnable{name: "onboarding-server"}
@@ -117,8 +120,10 @@ func TestService_GetRunnables_ReturnsAllComponents(t *testing.T) {
 	totalRunnables := len(onboardingResult) + len(transactionResult)
 
 	// Assert
-	assert.Equal(t, 1, len(onboardingResult), "Onboarding should have 1 runnable")
-	assert.Equal(t, 3, len(transactionResult), "Transaction should have 3 runnables (no gRPC in unified mode)")
+	assert.NotNil(t, service.Logger, "Logger should be set")
+	assert.NotNil(t, service.Telemetry, "Telemetry should be set")
+	assert.Len(t, onboardingResult, 1, "Onboarding should have 1 runnable")
+	assert.Len(t, transactionResult, 3, "Transaction should have 3 runnables (no gRPC in unified mode)")
 	assert.Equal(t, 4, totalRunnables, "Total runnables should be 4")
 
 	// Verify specific runnable names
@@ -187,10 +192,13 @@ func TestInitServers_UnifiedMode_MetadataIndexRepoWiring(t *testing.T) {
 func TestService_CompositionContract(t *testing.T) {
 	t.Run("Service struct has required fields", func(t *testing.T) {
 		// Arrange & Act
+		logger, err := libZap.InitializeLoggerWithError()
+		require.NoError(t, err)
+
 		service := &Service{
 			OnboardingService:  &StubService{},
 			TransactionService: &StubTransactionService{},
-			Logger:             libZap.InitializeLogger(),
+			Logger:             logger,
 			Telemetry:          &libOpentelemetry.Telemetry{},
 		}
 

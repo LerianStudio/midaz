@@ -6,17 +6,18 @@ package query
 
 import (
 	"context"
-	"errors"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestGetAllAssets(t *testing.T) {
@@ -79,7 +80,7 @@ func TestGetAllAssets(t *testing.T) {
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
-			expectedErr:    errors.New("No assets were found in the search. Please review the search criteria and try again."),
+			expectedErr:    errNoAssetsFound,
 			expectedAssets: nil,
 		},
 		{
@@ -87,10 +88,10 @@ func TestGetAllAssets(t *testing.T) {
 			setupMocks: func() {
 				mockAssetRepo.EXPECT().
 					FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
-					Return(nil, errors.New("failed to retrieve assets")).
+					Return(nil, errFailedToRetrieveAssets).
 					Times(1)
 			},
-			expectedErr:    errors.New("failed to retrieve assets"),
+			expectedErr:    errFailedToRetrieveAssets,
 			expectedAssets: nil,
 		},
 		{
@@ -106,10 +107,10 @@ func TestGetAllAssets(t *testing.T) {
 
 				mockMetadataRepo.EXPECT().
 					FindByEntityIDs(gomock.Any(), "Asset", []string{"asset1", "asset2"}).
-					Return(nil, errors.New("failed to retrieve metadata")).
+					Return(nil, errFailedToRetrieveMetadata).
 					Times(1)
 			},
-			expectedErr:    errors.New("No assets were found in the search. Please review the search criteria and try again."),
+			expectedErr:    errNoAssetsFound,
 			expectedAssets: nil,
 		},
 	}
@@ -121,13 +122,14 @@ func TestGetAllAssets(t *testing.T) {
 			result, err := uc.GetAllAssets(ctx, organizationID, ledgerID, filter)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedErr.Error())
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
-				assert.Equal(t, len(tt.expectedAssets), len(result))
+				assert.Len(t, result, len(tt.expectedAssets))
+
 				for i, asset := range result {
 					assert.Equal(t, tt.expectedAssets[i].ID, asset.ID)
 					assert.Equal(t, tt.expectedAssets[i].Metadata, asset.Metadata)

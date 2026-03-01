@@ -42,7 +42,10 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Port
 		Logger:                  logger,
 	}
 
-	return NewPortfolioPostgreSQLRepository(conn)
+	repo, err := NewPortfolioPostgreSQLRepository(conn)
+	require.NoError(t, err)
+
+	return repo
 }
 
 // ============================================================================

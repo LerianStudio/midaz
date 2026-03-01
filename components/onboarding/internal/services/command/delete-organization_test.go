@@ -9,11 +9,17 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
+)
+
+var (
+	errDeleteOrganization = errors.New("failed to delete organization")
+	errOrgNotFound        = errors.New("The provided organization ID does not exist in our records. Please verify the organization ID and try again.") //nolint:revive,staticcheck // business error message
 )
 
 func TestDeleteOrganizationByID(t *testing.T) {
@@ -52,17 +58,17 @@ func TestDeleteOrganizationByID(t *testing.T) {
 					Return(services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
-			expectedErr: errors.New("The provided organization ID does not exist in our records. Please verify the organization ID and try again."),
+			expectedErr: errOrgNotFound,
 		},
 		{
 			name: "failure - repository error",
 			setupMocks: func() {
 				mockOrganizationRepo.EXPECT().
 					Delete(gomock.Any(), organizationID).
-					Return(errors.New("failed to delete organization")).
+					Return(errDeleteOrganization).
 					Times(1)
 			},
-			expectedErr: errors.New("failed to delete organization"),
+			expectedErr: errDeleteOrganization,
 		},
 	}
 
@@ -73,10 +79,10 @@ func TestDeleteOrganizationByID(t *testing.T) {
 			err := uc.DeleteOrganizationByID(ctx, organizationID)
 
 			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedErr.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
