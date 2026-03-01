@@ -11,13 +11,16 @@ import (
 	"syscall"
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	"github.com/LerianStudio/lib-commons/v3/commons/opentelemetry/metrics"
 	tmconsumer "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/consumer"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // multiTenantConsumerRunnable adapts *tmconsumer.MultiTenantConsumer to the
 // mbootstrap.Runnable interface so the Launcher can manage its lifecycle.
 type multiTenantConsumerRunnable struct {
-	consumer *tmconsumer.MultiTenantConsumer
+	consumer       *tmconsumer.MultiTenantConsumer
+	metricsFactory *metrics.MetricsFactory // nil when telemetry disabled; used for tenant_consumers_active gauge
 }
 
 // Run implements mbootstrap.Runnable.
@@ -31,7 +34,24 @@ func (r *multiTenantConsumerRunnable) Run(_ *libCommons.Launcher) error {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
-	return r.consumer.Run(ctx)
+	if err := r.consumer.Run(ctx); err != nil {
+		stop()
+		return err
+	}
+
+	// Emit tenant_consumers_active gauge: 1 = consumer running
+	if r.metricsFactory != nil {
+		r.metricsFactory.Gauge(utils.TenantConsumersActive).Set(ctx, 1)
+	}
+
+	<-ctx.Done()
+	stop()
+
+	// Emit tenant_consumers_active gauge: 0 = consumer stopping
+	if r.metricsFactory != nil {
+		r.metricsFactory.Gauge(utils.TenantConsumersActive).Set(context.Background(), 0)
+	}
+
+	return r.consumer.Close()
 }

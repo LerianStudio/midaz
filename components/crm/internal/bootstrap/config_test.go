@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,28 +40,28 @@ func TestConfig_MultiTenantFields(t *testing.T) {
 			envTag:    "MULTI_TENANT_TIMEOUT",
 		},
 		{
-			name:      "has MultiTenantCacheTTL int field",
-			fieldName: "MultiTenantCacheTTL",
+			name:      "has MultiTenantIdleTimeoutSec int field",
+			fieldName: "MultiTenantIdleTimeoutSec",
 			fieldType: "int",
-			envTag:    "MULTI_TENANT_CACHE_TTL",
+			envTag:    "MULTI_TENANT_IDLE_TIMEOUT_SEC",
 		},
 		{
-			name:      "has MultiTenantCacheSize int field",
-			fieldName: "MultiTenantCacheSize",
+			name:      "has MultiTenantMaxTenantPools int field",
+			fieldName: "MultiTenantMaxTenantPools",
 			fieldType: "int",
-			envTag:    "MULTI_TENANT_CACHE_SIZE",
+			envTag:    "MULTI_TENANT_MAX_TENANT_POOLS",
 		},
 		{
-			name:      "has MultiTenantRetryMax int field",
-			fieldName: "MultiTenantRetryMax",
+			name:      "has MultiTenantCircuitBreakerThreshold int field",
+			fieldName: "MultiTenantCircuitBreakerThreshold",
 			fieldType: "int",
-			envTag:    "MULTI_TENANT_RETRY_MAX",
+			envTag:    "MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD",
 		},
 		{
-			name:      "has MultiTenantRetryDelay int field",
-			fieldName: "MultiTenantRetryDelay",
+			name:      "has MultiTenantCircuitBreakerTimeoutSec int field",
+			fieldName: "MultiTenantCircuitBreakerTimeoutSec",
 			fieldType: "int",
-			envTag:    "MULTI_TENANT_RETRY_DELAY",
+			envTag:    "MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC",
 		},
 	}
 
@@ -90,14 +91,14 @@ func TestConfig_MultiTenantDefaults(t *testing.T) {
 		"MultiTenantURL must default to empty string (zero value)")
 	assert.Zero(t, cfg.MultiTenantTimeout,
 		"MultiTenantTimeout must default to zero (zero value)")
-	assert.Zero(t, cfg.MultiTenantCacheTTL,
-		"MultiTenantCacheTTL must default to zero (zero value)")
-	assert.Zero(t, cfg.MultiTenantCacheSize,
-		"MultiTenantCacheSize must default to zero (zero value)")
-	assert.Zero(t, cfg.MultiTenantRetryMax,
-		"MultiTenantRetryMax must default to zero (zero value)")
-	assert.Zero(t, cfg.MultiTenantRetryDelay,
-		"MultiTenantRetryDelay must default to zero (zero value)")
+	assert.Zero(t, cfg.MultiTenantIdleTimeoutSec,
+		"MultiTenantIdleTimeoutSec must default to zero (zero value)")
+	assert.Zero(t, cfg.MultiTenantMaxTenantPools,
+		"MultiTenantMaxTenantPools must default to zero (zero value)")
+	assert.Zero(t, cfg.MultiTenantCircuitBreakerThreshold,
+		"MultiTenantCircuitBreakerThreshold must default to zero (zero value)")
+	assert.Zero(t, cfg.MultiTenantCircuitBreakerTimeoutSec,
+		"MultiTenantCircuitBreakerTimeoutSec must default to zero (zero value)")
 }
 
 func TestInitTenantMiddleware(t *testing.T) {
@@ -143,11 +144,11 @@ func TestInitTenantMiddleware(t *testing.T) {
 		{
 			name: "returns non-nil middleware with all config options set",
 			cfg: &Config{
-				MultiTenantEnabled:  true,
-				MultiTenantURL:      "http://tenant-manager:8080",
-				MultiTenantTimeout:  30,
-				MultiTenantCacheTTL: 300,
-				MultiTenantRetryMax: 3,
+				MultiTenantEnabled:                 true,
+				MultiTenantURL:                     "http://tenant-manager:8080",
+				MultiTenantTimeout:                 30,
+				MultiTenantIdleTimeoutSec:          300,
+				MultiTenantCircuitBreakerThreshold: 3,
 			},
 			expectNil: false,
 		},
@@ -157,7 +158,7 @@ func TestInitTenantMiddleware(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := newMockLogger()
 
-			mw, err := initTenantMiddleware(tt.cfg, logger)
+			mw, err := initTenantMiddleware(tt.cfg, logger, nil)
 
 			if tt.expectErrMsg != "" {
 				require.Error(t, err)
@@ -227,7 +228,7 @@ func TestInitTenantMiddleware_URLWhitespaceVariations(t *testing.T) {
 			}
 			logger := newMockLogger()
 
-			mw, err := initTenantMiddleware(cfg, logger)
+			mw, err := initTenantMiddleware(cfg, logger, nil)
 
 			if tt.expectErrMsg != "" {
 				require.Error(t, err, "initTenantMiddleware should return error for whitespace-only URL")
@@ -281,7 +282,7 @@ func TestInitTenantMiddleware_DisabledIgnoresInvalidURL(t *testing.T) {
 			}
 			logger := newMockLogger()
 
-			mw, err := initTenantMiddleware(cfg, logger)
+			mw, err := initTenantMiddleware(cfg, logger, nil)
 
 			require.NoError(t, err,
 				"initTenantMiddleware must not error when disabled, regardless of URL value")
@@ -289,6 +290,66 @@ func TestInitTenantMiddleware_DisabledIgnoresInvalidURL(t *testing.T) {
 				"initTenantMiddleware must return nil when disabled")
 		})
 	}
+}
+
+// =============================================================================
+// Metrics Instrumentation Tests
+// =============================================================================
+
+func TestInitTenantMiddleware_MetricsEmission(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil_telemetry_does_not_panic", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			MultiTenantEnabled: true,
+			MultiTenantURL:     "http://tenant-manager:8080",
+		}
+		logger := newMockLogger()
+
+		// Passing nil telemetry must not panic; metrics are no-op.
+		mw, err := initTenantMiddleware(cfg, logger, nil)
+
+		require.NoError(t, err)
+		assert.NotNil(t, mw,
+			"middleware must be non-nil even when telemetry is nil")
+	})
+
+	t.Run("nil_telemetry_with_disabled_does_not_panic", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			MultiTenantEnabled: false,
+		}
+		logger := newMockLogger()
+
+		// When disabled, nil telemetry must be perfectly safe (early return path).
+		mw, err := initTenantMiddleware(cfg, logger, nil)
+
+		require.NoError(t, err)
+		assert.Nil(t, mw,
+			"middleware must be nil when multi-tenant is disabled")
+	})
+
+	t.Run("telemetry_with_nil_metrics_factory_does_not_panic", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			MultiTenantEnabled: true,
+			MultiTenantURL:     "http://tenant-manager:8080",
+		}
+		logger := newMockLogger()
+
+		// Telemetry struct with nil MetricsFactory must be safely guarded.
+		telemetry := &libOpentelemetry.Telemetry{}
+
+		mw, err := initTenantMiddleware(cfg, logger, telemetry)
+
+		require.NoError(t, err)
+		assert.NotNil(t, mw,
+			"middleware must be non-nil even when MetricsFactory is nil")
+	})
 }
 
 // mockLogger implements libLog.Logger for testing.

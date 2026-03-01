@@ -45,13 +45,13 @@ type Config struct {
 	EncryptSecretKey        string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
 	AuthAddress             string `env:"PLUGIN_AUTH_ADDRESS"`
 	AuthEnabled             bool   `env:"PLUGIN_AUTH_ENABLED"`
-	MultiTenantEnabled      bool   `env:"MULTI_TENANT_ENABLED"`
-	MultiTenantURL          string `env:"MULTI_TENANT_URL"`
-	MultiTenantTimeout      int    `env:"MULTI_TENANT_TIMEOUT"`   // seconds
-	MultiTenantCacheTTL     int    `env:"MULTI_TENANT_CACHE_TTL"` // seconds
-	MultiTenantCacheSize    int    `env:"MULTI_TENANT_CACHE_SIZE"`
-	MultiTenantRetryMax     int    `env:"MULTI_TENANT_RETRY_MAX"`
-	MultiTenantRetryDelay   int    `env:"MULTI_TENANT_RETRY_DELAY"` // seconds
+	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED"`
+	MultiTenantURL                      string `env:"MULTI_TENANT_URL"`
+	MultiTenantTimeout                  int    `env:"MULTI_TENANT_TIMEOUT"`                    // seconds (HTTP client timeout)
+	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`           // seconds before idle connection eviction
+	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`           // max concurrent tenant pools
+	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`  // failures before circuit opens
+	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"` // seconds before circuit resets
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -159,7 +159,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(cfg.AuthAddress, cfg.AuthEnabled, &logger)
 
-	tenantMiddleware, err := initTenantMiddleware(cfg, logger)
+	tenantMiddleware, err := initTenantMiddleware(cfg, logger, telemetry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize tenant middleware: %w", err)
 	}

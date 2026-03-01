@@ -62,11 +62,10 @@ func TestConfig_MultiTenantFields_Defaults(t *testing.T) {
 
 	// Assert: multi-tenant defaults to disabled (opt-in)
 	assert.False(t, cfg.MultiTenantEnabled, "MultiTenantEnabled should default to false")
-	assert.Empty(t, cfg.TenantManagerURL, "TenantManagerURL should default to empty")
-	assert.Empty(t, cfg.TenantServiceName, "TenantServiceName should default to empty")
-	assert.Empty(t, cfg.TenantEnvironment, "TenantEnvironment should default to empty")
-	assert.Zero(t, cfg.TenantCBFailures, "TenantCBFailures should default to zero (safe defaults applied at usage site)")
-	assert.Zero(t, cfg.TenantCBTimeout, "TenantCBTimeout should default to zero (safe defaults applied at usage site)")
+	assert.Empty(t, cfg.MultiTenantURL, "MultiTenantURL should default to empty")
+	assert.Empty(t, cfg.MultiTenantEnvironment, "MultiTenantEnvironment should default to empty")
+	assert.Zero(t, cfg.MultiTenantCircuitBreakerThreshold, "MultiTenantCircuitBreakerThreshold should default to zero (safe defaults applied at usage site)")
+	assert.Zero(t, cfg.MultiTenantCircuitBreakerTimeoutSec, "MultiTenantCircuitBreakerTimeoutSec should default to zero (safe defaults applied at usage site)")
 }
 
 // TestConfig_MultiTenantEnvParsing verifies that the multi-tenant Config fields
@@ -108,19 +107,19 @@ func TestConfig_MultiTenantEnvParsing(t *testing.T) {
 			name: "enabled_without_url_returns_error",
 			envVars: map[string]string{
 				"MULTI_TENANT_ENABLED": "true",
-				"TENANT_MANAGER_URL":   "",
+				"MULTI_TENANT_URL":     "",
 			},
 			wantErr:         true,
-			wantErrContains: "TENANT_MANAGER_URL",
+			wantErrContains: "MULTI_TENANT_URL",
 		},
 		{
 			name: "enabled_with_empty_url_returns_error",
 			envVars: map[string]string{
 				"MULTI_TENANT_ENABLED": "true",
-				// TENANT_MANAGER_URL not set at all
+				// MULTI_TENANT_URL not set at all
 			},
 			wantErr:         true,
-			wantErrContains: "TENANT_MANAGER_URL",
+			wantErrContains: "MULTI_TENANT_URL",
 		},
 	}
 
@@ -142,7 +141,7 @@ func TestConfig_MultiTenantEnvParsing(t *testing.T) {
 			if tt.wantErr {
 				// When multi-tenant is enabled, URL must be required at config validation
 				assert.True(t, cfg.MultiTenantEnabled, "MultiTenantEnabled should be true for error cases")
-				assert.Empty(t, cfg.TenantManagerURL, "TenantManagerURL should be empty for error cases")
+				assert.Empty(t, cfg.MultiTenantURL, "MultiTenantURL should be empty for error cases")
 			}
 
 			if tt.wantTenantClientNil {
@@ -218,7 +217,7 @@ func TestConfig_MultiTenantEnabled_FromEnv(t *testing.T) {
 //
 // This test complements TestInitServersWithOptions_MultiTenant which only validates Config
 // struct population. This test verifies the BEHAVIOR: that the running function rejects
-// the call when MULTI_TENANT_ENABLED=true and TENANT_MANAGER_URL is absent or blank.
+// the call when MULTI_TENANT_ENABLED=true and MULTI_TENANT_URL is absent or blank.
 func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 	// Note: t.Parallel() removed because sub-tests use t.Setenv which is
 	// incompatible with parallel ancestors (Go testing restriction).
@@ -238,10 +237,10 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 			envVars: map[string]string{
 				"MULTI_TENANT_ENABLED": "true",
 				"PLUGIN_AUTH_ENABLED":  "true",
-				// TENANT_MANAGER_URL intentionally not set
+				// MULTI_TENANT_URL intentionally not set
 			},
 			wantErr:         true,
-			wantErrContains: "TENANT_MANAGER_URL",
+			wantErrContains: "MULTI_TENANT_URL",
 		},
 		{
 			// AC-2: Explicitly set to empty string is also rejected.
@@ -249,10 +248,10 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 			envVars: map[string]string{
 				"MULTI_TENANT_ENABLED": "true",
 				"PLUGIN_AUTH_ENABLED":  "true",
-				"TENANT_MANAGER_URL":   "",
+				"MULTI_TENANT_URL":     "",
 			},
 			wantErr:         true,
-			wantErrContains: "TENANT_MANAGER_URL",
+			wantErrContains: "MULTI_TENANT_URL",
 		},
 		{
 			// Edge case: whitespace-only URL is rejected by strings.TrimSpace guard.
@@ -260,10 +259,10 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 			envVars: map[string]string{
 				"MULTI_TENANT_ENABLED": "true",
 				"PLUGIN_AUTH_ENABLED":  "true",
-				"TENANT_MANAGER_URL":   "   ",
+				"MULTI_TENANT_URL":     "   ",
 			},
 			wantErr:         true,
-			wantErrContains: "TENANT_MANAGER_URL",
+			wantErrContains: "MULTI_TENANT_URL",
 		},
 		{
 			// AC-3: Disabled flag short-circuits all multi-tenant logic — no error
@@ -271,7 +270,7 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 			name: "disabled_no_url_no_error_from_validation",
 			envVars: map[string]string{
 				"MULTI_TENANT_ENABLED": "false",
-				// TENANT_MANAGER_URL intentionally not set
+				// MULTI_TENANT_URL intentionally not set
 			},
 			// Function will fail later at transaction/DB init, not at multi-tenant check.
 			wantErr:         true,
@@ -312,48 +311,48 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 }
 
 // TestConfig_MultiTenantCBDefaults verifies the circuit breaker config fields
-// (TenantCBFailures, TenantCBTimeout) have zero defaults and are correctly
+// (MultiTenantCircuitBreakerThreshold, MultiTenantCircuitBreakerTimeoutSec) have zero defaults and are correctly
 // populated from environment variables.
 func TestConfig_MultiTenantCBDefaults(t *testing.T) {
 	// Note: t.Parallel() removed because sub-tests use t.Setenv which is
 	// incompatible with parallel ancestors (Go testing restriction).
 
 	tests := []struct {
-		name           string
-		envVars        map[string]string
-		wantCBFailures int
-		wantCBTimeout  int
+		name            string
+		envVars         map[string]string
+		wantCBThreshold int
+		wantCBTimeout   int
 	}{
 		{
-			name:           "zero_defaults_when_env_not_set",
-			envVars:        map[string]string{},
-			wantCBFailures: 0,
-			wantCBTimeout:  0,
+			name:            "zero_defaults_when_env_not_set",
+			envVars:         map[string]string{},
+			wantCBThreshold: 0,
+			wantCBTimeout:   0,
 		},
 		{
-			name: "cb_failures_set_from_env",
+			name: "cb_threshold_set_from_env",
 			envVars: map[string]string{
-				"TENANT_CB_FAILURES": "5",
+				"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD": "5",
 			},
-			wantCBFailures: 5,
-			wantCBTimeout:  0,
+			wantCBThreshold: 5,
+			wantCBTimeout:   0,
 		},
 		{
 			name: "cb_timeout_set_from_env",
 			envVars: map[string]string{
-				"TENANT_CB_TIMEOUT": "30",
+				"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC": "30",
 			},
-			wantCBFailures: 0,
-			wantCBTimeout:  30,
+			wantCBThreshold: 0,
+			wantCBTimeout:   30,
 		},
 		{
 			name: "both_cb_fields_set_from_env",
 			envVars: map[string]string{
-				"TENANT_CB_FAILURES": "3",
-				"TENANT_CB_TIMEOUT":  "60",
+				"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD":   "3",
+				"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC": "60",
 			},
-			wantCBFailures: 3,
-			wantCBTimeout:  60,
+			wantCBThreshold: 3,
+			wantCBTimeout:   60,
 		},
 	}
 
@@ -369,10 +368,10 @@ func TestConfig_MultiTenantCBDefaults(t *testing.T) {
 			err := libCommons.SetConfigFromEnvVars(cfg)
 			require.NoError(t, err, "SetConfigFromEnvVars should not fail")
 
-			assert.Equal(t, tt.wantCBFailures, cfg.TenantCBFailures,
-				"TenantCBFailures should match expected value")
-			assert.Equal(t, tt.wantCBTimeout, cfg.TenantCBTimeout,
-				"TenantCBTimeout should match expected value")
+			assert.Equal(t, tt.wantCBThreshold, cfg.MultiTenantCircuitBreakerThreshold,
+				"MultiTenantCircuitBreakerThreshold should match expected value")
+			assert.Equal(t, tt.wantCBTimeout, cfg.MultiTenantCircuitBreakerTimeoutSec,
+				"MultiTenantCircuitBreakerTimeoutSec should match expected value")
 		})
 	}
 }
@@ -440,11 +439,11 @@ func FuzzConfig_MultiTenantEnvParsing(f *testing.F) {
 		}
 
 		t.Setenv("MULTI_TENANT_ENABLED", enabled)
-		t.Setenv("TENANT_MANAGER_URL", url)
-		t.Setenv("TENANT_SERVICE_NAME", service)
-		t.Setenv("TENANT_ENVIRONMENT", env)
-		t.Setenv("TENANT_CB_FAILURES", cbFailures)
-		t.Setenv("TENANT_CB_TIMEOUT", cbTimeout)
+		t.Setenv("MULTI_TENANT_URL", url)
+		t.Setenv("MULTI_TENANT_SERVICE_NAME", service)
+		t.Setenv("MULTI_TENANT_ENVIRONMENT", env)
+		t.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD", cbFailures)
+		t.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC", cbTimeout)
 
 		cfg := &Config{}
 		_ = libCommons.SetConfigFromEnvVars(cfg)
@@ -452,7 +451,7 @@ func FuzzConfig_MultiTenantEnvParsing(f *testing.F) {
 }
 
 // FuzzConfig_MultiTenantValidation verifies that the validation logic that guards
-// TenantManagerURL never panics for any URL value when MULTI_TENANT_ENABLED is true.
+// MultiTenantURL never panics for any URL value when MULTI_TENANT_ENABLED is true.
 func FuzzConfig_MultiTenantValidation(f *testing.F) {
 	f.Add("")
 	f.Add("http://localhost:4003")
@@ -473,12 +472,12 @@ func FuzzConfig_MultiTenantValidation(f *testing.F) {
 		}
 
 		t.Setenv("MULTI_TENANT_ENABLED", "true")
-		t.Setenv("TENANT_MANAGER_URL", url)
+		t.Setenv("MULTI_TENANT_URL", url)
 
 		cfg := &Config{}
 		_ = libCommons.SetConfigFromEnvVars(cfg)
 
-		if cfg.MultiTenantEnabled && cfg.TenantManagerURL == "" {
+		if cfg.MultiTenantEnabled && cfg.MultiTenantURL == "" {
 			return
 		}
 	})
@@ -494,11 +493,11 @@ func FuzzConfig_MultiTenantValidation(f *testing.F) {
 func TestProperty_Config_DisabledModeIsIdentity(t *testing.T) {
 	mtKeys := []string{
 		"MULTI_TENANT_ENABLED",
-		"TENANT_MANAGER_URL",
-		"TENANT_SERVICE_NAME",
-		"TENANT_ENVIRONMENT",
-		"TENANT_CB_FAILURES",
-		"TENANT_CB_TIMEOUT",
+		"MULTI_TENANT_URL",
+		"MULTI_TENANT_SERVICE_NAME",
+		"MULTI_TENANT_ENVIRONMENT",
+		"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD",
+		"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC",
 	}
 
 	baseline := &Config{}
@@ -550,11 +549,11 @@ func TestProperty_Config_DisabledModeIsIdentity(t *testing.T) {
 		defer cleanupMTKeys(saved)
 
 		_ = os.Setenv("MULTI_TENANT_ENABLED", "false")
-		_ = os.Setenv("TENANT_MANAGER_URL", url)
-		_ = os.Setenv("TENANT_SERVICE_NAME", service)
-		_ = os.Setenv("TENANT_ENVIRONMENT", env)
-		_ = os.Setenv("TENANT_CB_FAILURES", cbFailures)
-		_ = os.Setenv("TENANT_CB_TIMEOUT", cbTimeout)
+		_ = os.Setenv("MULTI_TENANT_URL", url)
+		_ = os.Setenv("MULTI_TENANT_SERVICE_NAME", service)
+		_ = os.Setenv("MULTI_TENANT_ENVIRONMENT", env)
+		_ = os.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD", cbFailures)
+		_ = os.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC", cbTimeout)
 
 		withMT := &Config{}
 		if err := libCommons.SetConfigFromEnvVars(withMT); err != nil {
@@ -573,7 +572,7 @@ func TestProperty_Config_DisabledModeIsIdentity(t *testing.T) {
 }
 
 // TestProperty_Config_EnabledEmptyURLAlwaysErrors verifies that when
-// MultiTenantEnabled=true and TenantManagerURL is empty, the validation
+// MultiTenantEnabled=true and MultiTenantURL is empty, the validation
 // guard always evaluates to the error branch.
 func TestProperty_Config_EnabledEmptyURLAlwaysErrors(t *testing.T) {
 	property := func(service, env string, cbFailures, cbTimeout uint8) bool {
@@ -590,26 +589,28 @@ func TestProperty_Config_EnabledEmptyURLAlwaysErrors(t *testing.T) {
 		}
 
 		cfg := &Config{
-			MultiTenantEnabled: true,
-			TenantManagerURL:   "",
-			TenantServiceName:  service,
-			TenantEnvironment:  env,
-			TenantCBFailures:   int(cbFailures),
-			TenantCBTimeout:    int(cbTimeout),
+			MultiTenantEnabled:                  true,
+			MultiTenantURL:                      "",
+			MultiTenantEnvironment:              env,
+			MultiTenantCircuitBreakerThreshold:  int(cbFailures),
+			MultiTenantCircuitBreakerTimeoutSec: int(cbTimeout),
 		}
 
-		return cfg.MultiTenantEnabled && cfg.TenantManagerURL == ""
+		// service is generated but not used since ApplicationName constant is used instead
+		_ = service
+
+		return cfg.MultiTenantEnabled && cfg.MultiTenantURL == ""
 	}
 
 	require.NoError(t, quick.Check(property, &quick.Config{MaxCount: 100}),
 		"property TestProperty_Config_EnabledEmptyURLAlwaysErrors must hold for all inputs")
 }
 
-// TestProperty_Config_CBFieldsNonNegative verifies that TenantCBFailures and
-// TenantCBTimeout are always >= 0 when the env vars contain non-negative
+// TestProperty_Config_CBFieldsNonNegative verifies that MultiTenantCircuitBreakerThreshold and
+// MultiTenantCircuitBreakerTimeoutSec are always >= 0 when the env vars contain non-negative
 // decimal integer strings.
 func TestProperty_Config_CBFieldsNonNegative(t *testing.T) {
-	cbKeys := []string{"TENANT_CB_FAILURES", "TENANT_CB_TIMEOUT"}
+	cbKeys := []string{"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD", "MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"}
 
 	cleanupCBKeys := func(saved map[string]string) {
 		for _, k := range cbKeys {
@@ -634,15 +635,15 @@ func TestProperty_Config_CBFieldsNonNegative(t *testing.T) {
 
 		defer cleanupCBKeys(saved)
 
-		_ = os.Setenv("TENANT_CB_FAILURES", failuresStr)
-		_ = os.Setenv("TENANT_CB_TIMEOUT", timeoutStr)
+		_ = os.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD", failuresStr)
+		_ = os.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC", timeoutStr)
 
 		cfg := &Config{}
 		if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
 			return true
 		}
 
-		return cfg.TenantCBFailures >= 0 && cfg.TenantCBTimeout >= 0
+		return cfg.MultiTenantCircuitBreakerThreshold >= 0 && cfg.MultiTenantCircuitBreakerTimeoutSec >= 0
 	}
 
 	require.NoError(t, quick.Check(property, &quick.Config{MaxCount: 100}),

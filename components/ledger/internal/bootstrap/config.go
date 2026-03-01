@@ -32,9 +32,10 @@ const ApplicationName = "ledger"
 
 // Config is the top level configuration struct for the unified ledger component.
 type Config struct {
-	EnvName  string `env:"ENV_NAME"`
-	LogLevel string `env:"LOG_LEVEL"`
-	Version  string `env:"VERSION"`
+	ApplicationName string `env:"APPLICATION_NAME"`
+	EnvName         string `env:"ENV_NAME"`
+	LogLevel        string `env:"LOG_LEVEL"`
+	Version         string `env:"VERSION"`
 
 	// Server configuration - unified port for all APIs
 	ServerAddress string `env:"SERVER_ADDRESS" envDefault:":3002"`
@@ -52,12 +53,13 @@ type Config struct {
 	AuthHost    string `env:"PLUGIN_AUTH_HOST"`
 
 	// Multi-tenant configuration
-	MultiTenantEnabled bool   `env:"MULTI_TENANT_ENABLED"`
-	TenantManagerURL   string `env:"TENANT_MANAGER_URL"`
-	TenantServiceName  string `env:"TENANT_SERVICE_NAME"`
-	TenantEnvironment  string `env:"TENANT_ENVIRONMENT"`
-	TenantCBFailures   int    `env:"TENANT_CB_FAILURES"`
-	TenantCBTimeout    int    `env:"TENANT_CB_TIMEOUT"`
+	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED"`
+	MultiTenantURL                      string `env:"MULTI_TENANT_URL"`
+	MultiTenantEnvironment              string `env:"MULTI_TENANT_ENVIRONMENT"`
+	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`
+	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"`
+	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
+	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -148,30 +150,30 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	var tenantClient *tmclient.Client
 
 	if cfg.MultiTenantEnabled {
-		if strings.TrimSpace(cfg.TenantManagerURL) == "" {
-			return nil, fmt.Errorf("TENANT_MANAGER_URL is required when MULTI_TENANT_ENABLED=true")
+		if strings.TrimSpace(cfg.MultiTenantURL) == "" {
+			return nil, fmt.Errorf("MULTI_TENANT_URL is required when MULTI_TENANT_ENABLED=true")
 		}
 
 		// Apply safe defaults for circuit breaker when not configured
-		cbFailures := cfg.TenantCBFailures
-		if cbFailures <= 0 {
-			cbFailures = 5
+		cbThreshold := cfg.MultiTenantCircuitBreakerThreshold
+		if cbThreshold <= 0 {
+			cbThreshold = 5
 		}
 
-		cbTimeout := cfg.TenantCBTimeout
-		if cbTimeout <= 0 {
-			cbTimeout = 30
+		cbTimeoutSec := cfg.MultiTenantCircuitBreakerTimeoutSec
+		if cbTimeoutSec <= 0 {
+			cbTimeoutSec = 30
 		}
 
 		tenantClient = tmclient.NewClient(
-			cfg.TenantManagerURL,
+			cfg.MultiTenantURL,
 			ledgerLogger,
-			tmclient.WithCircuitBreaker(cbFailures, time.Duration(cbTimeout)*time.Second),
+			tmclient.WithCircuitBreaker(cbThreshold, time.Duration(cbTimeoutSec)*time.Second),
 		)
 
 		ledgerLogger.WithFields(
-			"service", cfg.TenantServiceName,
-			"environment", cfg.TenantEnvironment,
+			"service", cfg.ApplicationName,
+			"environment", cfg.MultiTenantEnvironment,
 			"tenant_manager_configured", true,
 		).Info("Multi-tenant mode enabled")
 	}
@@ -189,9 +191,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		CircuitBreakerStateListener: stateListener,
 		MultiTenantEnabled:          cfg.MultiTenantEnabled,
 		TenantClient:                tenantClient,
-		TenantServiceName:           cfg.TenantServiceName,
-		TenantEnvironment:           cfg.TenantEnvironment,
-		TenantManagerURL:            cfg.TenantManagerURL,
+		TenantServiceName:           cfg.ApplicationName,
+		TenantEnvironment:           cfg.MultiTenantEnvironment,
+		TenantManagerURL:            cfg.MultiTenantURL,
 	}
 
 	// Initialize transaction module first to get the BalancePort
@@ -222,8 +224,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalancePort:        balancePort,
 		MultiTenantEnabled: cfg.MultiTenantEnabled,
 		TenantClient:       tenantClient,
-		TenantServiceName:  cfg.TenantServiceName,
-		TenantEnvironment:  cfg.TenantEnvironment,
+		TenantServiceName:  cfg.ApplicationName,
+		TenantEnvironment:  cfg.MultiTenantEnvironment,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize onboarding module: %w", err)
