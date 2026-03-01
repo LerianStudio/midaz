@@ -31,7 +31,14 @@ func (r *multiTenantConsumerRunnable) Run(_ *libCommons.Launcher) error {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
-	return r.consumer.Run(ctx)
+	if err := r.consumer.Run(ctx); err != nil {
+		stop()
+		return err
+	}
+
+	<-ctx.Done()
+	stop()
+
+	return r.consumer.Close()
 }

@@ -430,6 +430,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			BalancePort:  commandUseCase,
 			MetadataPort: mgo.metadataRepo,
 		},
+		pgManager:               pg.pgManager,
+		mongoManager:            mgo.mongoManager,
 		commandUseCase:          commandUseCase,
 		queryUseCase:            queryUseCase,
 		multiTenantConsumerPort: rmq.multiTenantConsumer,

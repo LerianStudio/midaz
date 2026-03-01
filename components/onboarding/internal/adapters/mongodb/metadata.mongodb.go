@@ -61,23 +61,7 @@ func NewMetadataMongoDBRepository(mc *libMongo.MongoConnection) *MetadataMongoDB
 // In multi-tenant mode, the middleware injects a tenant-specific *mongo.Database into context.
 // In single-tenant mode (or when no tenant context exists), falls back to the static connection.
 func (mmr *MetadataMongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, error) {
-	db, err := tmcore.GetMongoForTenant(ctx)
-	if err == nil && db != nil {
-		return db, nil
-	}
-
-	// Only fall back to static connection when no tenant context exists.
-	// Propagate unexpected errors (e.g., context canceled) to callers.
-	if err != nil && !errors.Is(err, tmcore.ErrTenantContextRequired) {
-		return nil, err
-	}
-
-	client, err := mmr.connection.GetDB(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.Database(strings.ToLower(mmr.Database)), nil
+	return tmcore.ResolveMongo(ctx, mmr.connection, mmr.Database)
 }
 
 // Create inserts a new metadata entity into mongodb.
