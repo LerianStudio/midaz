@@ -7,20 +7,21 @@ package mgrpc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"strings"
 	"time"
 
-	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
+	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 )
 
 // GRPCConnection is a struct which deal with gRPC connections.
@@ -35,7 +36,7 @@ func (c *GRPCConnection) Connect() error {
 	conn, err := grpc.NewClient(c.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		c.Logger.Error("Failed to connect on gRPC", zap.Error(err))
-		return err
+		return fmt.Errorf("grpc new client: %w", err)
 	}
 
 	c.Logger.Info("Connected to gRPC ✅ ")
@@ -60,7 +61,7 @@ func (c *GRPCConnection) GetNewClient() (*grpc.ClientConn, error) {
 // ContextMetadataInjection injects OpenTelemetry trace context and optional authorization
 // into the outgoing gRPC context. It preserves existing metadata and appends:
 // - traceparent/tracestate (W3C propagated via OpenTelemetry)
-// - authorization (JWT), when provided
+// - authorization (JWT), when provided.
 func (c *GRPCConnection) ContextMetadataInjection(ctx context.Context, token string) context.Context {
 	// Inject W3C trace context into gRPC metadata
 	ctx = libOpentelemetry.InjectGRPCContext(ctx)
@@ -96,13 +97,13 @@ func getHealthCheckTimeout() time.Duration {
 
 	timeout, err := time.ParseDuration(timeoutStr)
 	if err != nil {
-		log.Printf("Warning: invalid GRPC_HEALTH_CHECK_TIMEOUT value '%s', using default %v", timeoutStr, defaultHealthCheckTimeout)
+		log.Printf("Warning: invalid GRPC_HEALTH_CHECK_TIMEOUT value, using default %v", defaultHealthCheckTimeout)
 
 		return defaultHealthCheckTimeout
 	}
 
 	if timeout <= 0 {
-		log.Printf("Warning: non-positive GRPC_HEALTH_CHECK_TIMEOUT value '%s', using default %v", timeoutStr, defaultHealthCheckTimeout)
+		log.Printf("Warning: non-positive GRPC_HEALTH_CHECK_TIMEOUT value, using default %v", defaultHealthCheckTimeout)
 
 		return defaultHealthCheckTimeout
 	}

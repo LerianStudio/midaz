@@ -5,19 +5,26 @@
 package transaction
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/shopspring/decimal"
 )
 
+// ErrPrecisionLoss is returned when an amount has more decimal places than the specified scale allows.
+var ErrPrecisionLoss = errors.New("amount precision exceeds scale")
+
+// ErrScaledOverflow is returned when a scaled amount exceeds the maximum safe integer for float64 arithmetic.
+var ErrScaledOverflow = errors.New("scaled amount exceeds maximum safe integer")
+
 const (
-	// MaxSafeInteger is the maximum integer value that can be represented exactly in a float64 (used by Lua 5.1)
+	// MaxSafeInteger is the maximum integer value that can be represented exactly in a float64 (used by Lua 5.1).
 	MaxSafeInteger int64 = 9007199254740992 // 2^53
 
-	// MaxScaledDigits is the maximum number of digits in a scaled integer value
+	// MaxScaledDigits is the maximum number of digits in a scaled integer value.
 	MaxScaledDigits = 15
 
-	// DefaultScale is used when no scale is specified (2 for fiat currencies)
+	// DefaultScale is used when no scale is specified (2 for fiat currencies).
 	DefaultScale int32 = 2
 
 	// MaxAllowedScale is the maximum supported scale for integer arithmetic.
@@ -32,7 +39,7 @@ const (
 // as an integer without loss of precision. For example:
 // - "1500.50" → 2
 // - "0.00000001" → 8
-// - "1500" → 0
+// - "1500" → 0.
 func DetermineScale(d decimal.Decimal) int32 {
 	exp := d.Exponent()
 	if exp >= 0 {
@@ -64,21 +71,21 @@ func ScaleToInt(d decimal.Decimal, scale int32) (int64, error) {
 	scaled := d.Shift(scale) // multiply by 10^scale
 
 	if scaled.Exponent() < 0 {
-		// Still has fractional part after scaling — this means precision loss
-		return 0, fmt.Errorf("amount %s has more decimal places than scale %d allows", d.String(), scale)
+		// Still has fractional part after scaling — this means precision loss.
+		return 0, fmt.Errorf("%w: %s has more decimal places than scale %d allows", ErrPrecisionLoss, d.String(), scale)
 	}
 
 	val := scaled.IntPart()
 
 	if val > MaxSafeInteger || val < -MaxSafeInteger {
-		return 0, fmt.Errorf("scaled amount %d exceeds maximum safe integer %d (original: %s, scale: %d)", val, MaxSafeInteger, d.String(), scale)
+		return 0, fmt.Errorf("%w: %d (original: %s, scale: %d, limit: %d)", ErrScaledOverflow, val, d.String(), scale, MaxSafeInteger)
 	}
 
 	return val, nil
 }
 
 // IntToDecimal converts a scaled int64 back to a decimal.Decimal at the given scale.
-// For example: IntToDecimal(150050, 2) → "1500.50"
+// For example: IntToDecimal(150050, 2) → "1500.50".
 func IntToDecimal(val int64, scale int32) decimal.Decimal {
 	return decimal.New(val, -scale)
 }

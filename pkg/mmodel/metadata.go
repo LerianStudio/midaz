@@ -6,7 +6,7 @@ package mmodel
 
 import "time"
 
-// validMetadataIndexEntities contains the valid entity names for metadata indexes
+// validMetadataIndexEntities contains the valid entity names for metadata indexes.
 var validMetadataIndexEntities = map[string]bool{
 	"transaction":       true,
 	"operation":         true,
@@ -14,12 +14,12 @@ var validMetadataIndexEntities = map[string]bool{
 	"transaction_route": true,
 }
 
-// IsValidMetadataIndexEntity checks if the entity name is valid for metadata index operations
+// IsValidMetadataIndexEntity checks if the entity name is valid for metadata index operations.
 func IsValidMetadataIndexEntity(entityName string) bool {
 	return validMetadataIndexEntities[entityName]
 }
 
-// GetValidMetadataIndexEntities returns a slice of valid entity names for metadata indexes
+// GetValidMetadataIndexEntities returns a slice of valid entity names for metadata indexes.
 func GetValidMetadataIndexEntities() []string {
 	entities := make([]string, 0, len(validMetadataIndexEntities))
 	for entity := range validMetadataIndexEntities {

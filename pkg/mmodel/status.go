@@ -16,7 +16,7 @@ type Status struct {
 	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status" maxLength:"256"`
 } // @name Status
 
-// IsEmpty method that set empty or nil in fields
+// IsEmpty method that set empty or nil in fields.
 func (s Status) IsEmpty() bool {
 	return s.Code == "" && s.Description == nil
 }

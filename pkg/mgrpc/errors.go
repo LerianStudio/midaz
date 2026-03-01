@@ -6,13 +6,14 @@ package mgrpc
 
 import (
 	"context"
-	"fmt"
+
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
-	"google.golang.org/grpc/codes"
-	grpcstatus "google.golang.org/grpc/status"
 )
 
 // MapAuthGRPCError maps gRPC auth errors to domain errors and logs raw details.
@@ -34,7 +35,7 @@ func MapAuthGRPCError(ctx context.Context, err error, code, title, operation str
 		mapped := pkg.UnauthorizedError{
 			Code:    code,
 			Title:   title,
-			Message: fmt.Sprintf("%s: unauthorized", operation),
+			Message: operation + ": unauthorized",
 			Err:     err,
 		}
 
@@ -47,7 +48,7 @@ func MapAuthGRPCError(ctx context.Context, err error, code, title, operation str
 		mapped := pkg.ForbiddenError{
 			Code:    code,
 			Title:   title,
-			Message: fmt.Sprintf("%s: forbidden", operation),
+			Message: operation + ": forbidden",
 			Err:     err,
 		}
 

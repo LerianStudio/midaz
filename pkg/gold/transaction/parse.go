@@ -8,22 +8,32 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v3/pkg/gold/parser"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/shopspring/decimal"
+
+	"github.com/LerianStudio/midaz/v3/pkg/gold/parser"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
 
+// uuidIndexThird is the index of the third UUID token in a rate rule (from, to, externalId).
+const uuidIndexThird = 2
+
+// TransactionVisitor implements the ANTLR visitor pattern for transaction DSL parsing.
 type TransactionVisitor struct {
 	*parser.BaseTransactionVisitor
 }
 
+// NewTransactionVisitor creates a new visitor for walking a transaction parse tree.
 func NewTransactionVisitor() *TransactionVisitor {
 	return new(TransactionVisitor)
 }
 
+// Visit dispatches to the concrete visitor method for the given parse tree node.
 func (v *TransactionVisitor) Visit(tree antlr.ParseTree) any { return tree.Accept(v) }
 
+// VisitTransaction visits the root transaction node and assembles a Transaction struct.
+//
+//nolint:forcetypeassert // ANTLR visitor pattern requires type assertions on parse tree nodes.
 func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) any {
 	var description string
 	if ctx.Description() != nil {
@@ -59,10 +69,12 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 	return transaction
 }
 
+// VisitVisitChartOfAccountsGroupName extracts the chart-of-accounts group name UUID.
 func (v *TransactionVisitor) VisitVisitChartOfAccountsGroupName(ctx *parser.ChartOfAccountsGroupNameContext) any {
 	return ctx.UUID().GetText()
 }
 
+// VisitCode extracts the optional transaction code UUID.
 func (v *TransactionVisitor) VisitCode(ctx *parser.CodeContext) any {
 	if ctx.UUID() != nil {
 		return ctx.UUID().GetText()
@@ -71,6 +83,7 @@ func (v *TransactionVisitor) VisitCode(ctx *parser.CodeContext) any {
 	return nil
 }
 
+// VisitPending extracts the optional pending boolean flag.
 func (v *TransactionVisitor) VisitPending(ctx *parser.PendingContext) any {
 	if ctx.TrueOrFalse() != nil {
 		pending, _ := strconv.ParseBool(ctx.TrueOrFalse().GetText())
@@ -80,14 +93,19 @@ func (v *TransactionVisitor) VisitPending(ctx *parser.PendingContext) any {
 	return false
 }
 
+// VisitDescription extracts and trims the quoted description string.
 func (v *TransactionVisitor) VisitDescription(ctx *parser.DescriptionContext) any {
 	return strings.Trim(ctx.STRING().GetText(), "\"")
 }
 
+// VisitVisitChartOfAccounts extracts the chart-of-accounts UUID.
 func (v *TransactionVisitor) VisitVisitChartOfAccounts(ctx *parser.ChartOfAccountsContext) any {
 	return ctx.UUID().GetText()
 }
 
+// VisitMetadata visits all key-value pairs and assembles the metadata map.
+//
+//nolint:forcetypeassert // ANTLR visitor pattern requires type assertions on parse tree nodes.
 func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
 	metadata := make(map[string]any, len(ctx.AllPair()))
 
@@ -99,6 +117,7 @@ func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
 	return metadata
 }
 
+// VisitPair extracts a single key-value metadata pair.
 func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
 	return pkgTransaction.Metadata{
 		Key:   ctx.Key().GetText(),
@@ -106,6 +125,7 @@ func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
 	}
 }
 
+// VisitValueOrVariable extracts either an integer literal or a variable reference.
 func (v *TransactionVisitor) VisitValueOrVariable(ctx *parser.ValueOrVariableContext) any {
 	if ctx.INT() != nil {
 		return ctx.INT().GetText()
@@ -114,6 +134,9 @@ func (v *TransactionVisitor) VisitValueOrVariable(ctx *parser.ValueOrVariableCon
 	return ctx.VARIABLE().GetText()
 }
 
+// VisitSend visits the send block and assembles the Send struct with asset, value, source, and distribution.
+//
+//nolint:forcetypeassert // ANTLR visitor pattern requires type assertions on parse tree nodes.
 func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	asset := ctx.UUID().GetText()
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
@@ -130,6 +153,9 @@ func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	}
 }
 
+// VisitSource visits the source block and collects all from-entries.
+//
+//nolint:forcetypeassert // ANTLR visitor pattern requires type assertions on parse tree nodes.
 func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 	var remaining string
 	if ctx.REMAINING() != nil {
@@ -149,6 +175,7 @@ func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 	}
 }
 
+// VisitAccount extracts the account identifier from UUID, ACCOUNT, or VARIABLE tokens.
 func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
 	switch {
 	case ctx.UUID() != nil:
@@ -162,10 +189,13 @@ func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
 	}
 }
 
+// VisitRate extracts the exchange rate definition with externalID, from, to, and value.
+//
+//nolint:forcetypeassert // ANTLR visitor pattern requires type assertions on parse tree nodes.
 func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 	externalID := ctx.UUID(0).GetText()
 	from := ctx.UUID(1).GetText()
-	to := ctx.UUID(2).GetText()
+	to := ctx.UUID(uuidIndexThird).GetText()
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
 
 	value, _ := decimal.NewFromString(val)
@@ -178,10 +208,14 @@ func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 	}
 }
 
+// VisitRemaining extracts the remaining keyword text, trimming colons.
 func (v *TransactionVisitor) VisitRemaining(ctx *parser.RemainingContext) any {
 	return strings.Trim(ctx.GetText(), ":")
 }
 
+// VisitAmount extracts the amount block with asset code and decimal value.
+//
+//nolint:forcetypeassert // ANTLR visitor pattern requires type assertions on parse tree nodes.
 func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	asset := ctx.UUID().GetText()
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
@@ -194,8 +228,12 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	}
 }
 
+// VisitShareInt extracts a simple percentage share (e.g., "50%").
+//
+//nolint:forcetypeassert // ANTLR visitor pattern requires type assertions on parse tree nodes.
 func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
-	percentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable().(*parser.ValueOrVariableContext)).(string), 10, 64)
+	valStr := v.VisitValueOrVariable(ctx.ValueOrVariable().(*parser.ValueOrVariableContext)).(string)
+	percentage, _ := strconv.ParseInt(valStr, 10, 64)
 
 	return pkgTransaction.Share{
 		Percentage:             percentage,
@@ -203,9 +241,15 @@ func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 	}
 }
 
+// VisitShareIntOfInt extracts a compound percentage share (e.g., "50% of 80%").
+//
+//nolint:forcetypeassert // ANTLR visitor pattern requires type assertions on parse tree nodes.
 func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext) any {
-	percentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string), 10, 64)
-	percentageOfPercentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string), 10, 64)
+	valStr0 := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
+	percentage, _ := strconv.ParseInt(valStr0, 10, 64)
+
+	valStr1 := v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string)
+	percentageOfPercentage, _ := strconv.ParseInt(valStr1, 10, 64)
 
 	return pkgTransaction.Share{
 		Percentage:             percentage,
@@ -213,6 +257,9 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 	}
 }
 
+// VisitFrom visits a source from-entry and assembles the FromTo struct with amount, share, or remaining.
+//
+//nolint:forcetypeassert // ANTLR visitor pattern requires type assertions on parse tree nodes.
 func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 	account := v.VisitAccount(ctx.Account().(*parser.AccountContext)).(string)
 
@@ -265,6 +312,9 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 	}
 }
 
+// VisitTo visits a destination to-entry and assembles the FromTo struct with amount, share, or remaining.
+//
+//nolint:forcetypeassert // ANTLR visitor pattern requires type assertions on parse tree nodes.
 func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 	account := v.VisitAccount(ctx.Account().(*parser.AccountContext)).(string)
 
@@ -317,6 +367,9 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 	}
 }
 
+// VisitDistribute visits the distribute block and collects all to-entries.
+//
+//nolint:forcetypeassert // ANTLR visitor pattern requires type assertions on parse tree nodes.
 func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any {
 	var remaining string
 	if ctx.REMAINING() != nil {
@@ -336,6 +389,7 @@ func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any 
 	}
 }
 
+// Parse parses a transaction DSL string and returns the resulting Transaction struct.
 func Parse(dsl string) any {
 	input := antlr.NewInputStream(dsl)
 	lexer := parser.NewTransactionLexer(input)

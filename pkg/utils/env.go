@@ -91,10 +91,12 @@ func GetUint32FromIntWithDefault(value int, defaultValue uint32) uint32 {
 
 // GetFloat64FromIntPercentWithDefault converts an int percentage (0-100) to float64 ratio (0.0-1.0),
 // returning the default if value is out of range (<=0 or >100).
-// Example: 50 -> 0.5, 75 -> 0.75
+// Example: 50 -> 0.5, 75 -> 0.75.
 func GetFloat64FromIntPercentWithDefault(value int, defaultValue float64) float64 {
-	if value > 0 && value <= 100 {
-		return float64(value) / 100.0
+	const maxPercent = 100
+
+	if value > 0 && value <= maxPercent {
+		return float64(value) / float64(maxPercent)
 	}
 
 	return defaultValue

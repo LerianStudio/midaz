@@ -22,7 +22,7 @@ type Date struct {
 	time.Time
 }
 
-// dateFormats lists the formats we accept, in order of preference
+// dateFormats lists the formats we accept, in order of preference.
 var dateFormats = []string{
 	time.RFC3339,          // "2006-01-02T15:04:05Z07:00"
 	"2006-01-02T15:04:05", // RFC3339 without timezone

@@ -13,8 +13,9 @@ import (
 	"sync"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/gofiber/fiber/v2"
+
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 )
 
 // securityLogger is a package-level structured logger for security-related events.
@@ -22,8 +23,12 @@ var securityLogger libLog.Logger = &libLog.GoLogger{Level: libLog.WarnLevel}
 
 const deniedCORSOrigin = "https://denied.invalid"
 
-const SwaggerTokenCookieName = "midaz_swagger_token"
-const ShardingControlTokenHeader = "X-Sharding-Token"
+// SwaggerTokenCookieName is the cookie name used for Swagger UI authentication.
+// ShardingControlTokenHeader is the HTTP header name used for sharding admin authentication.
+const (
+	SwaggerTokenCookieName     = "midaz_swagger_token"
+	ShardingControlTokenHeader = "X-Sharding-Token"
+)
 
 const knownPlaceholderToken = "change-me-to-a-32-char-or-longer-secret"
 
@@ -34,6 +39,7 @@ const (
 	defaultShardingRateLimitMax       = 30
 	defaultShardingRateLimitWindow    = time.Minute
 	minShardingAdminTokenLength       = 32
+	minEntropyCharClasses             = 3
 )
 
 type swaggerRateLimiterState struct {
@@ -74,6 +80,7 @@ var swaggerLimiterState = newSwaggerRateLimiterState()
 // is a defense-in-depth measure.
 var shardingLimiterState = newSwaggerRateLimiterState()
 
+// CORSAllowedOrigins returns the allowed CORS origins based on environment configuration.
 func CORSAllowedOrigins() string {
 	origins := strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGINS"))
 	if origins == "" {
@@ -121,6 +128,7 @@ func CORSAllowedOrigins() string {
 	return "http://localhost,http://127.0.0.1,https://localhost,https://127.0.0.1"
 }
 
+// SecurityHeadersMiddleware adds security-related HTTP headers to every response.
 func SecurityHeadersMiddleware(c *fiber.Ctx) error {
 	c.Set("X-Content-Type-Options", "nosniff")
 	c.Set("X-Frame-Options", "DENY")
@@ -139,6 +147,7 @@ func SecurityHeadersMiddleware(c *fiber.Ctx) error {
 	return c.Next()
 }
 
+// ParseCommaSeparated splits a comma-separated string and returns trimmed non-empty values.
 func ParseCommaSeparated(raw string) []string {
 	parts := strings.Split(raw, ",")
 	parsed := make([]string, 0, len(parts))
@@ -153,6 +162,7 @@ func ParseCommaSeparated(raw string) []string {
 	return parsed
 }
 
+// SwaggerEnabled returns whether the Swagger UI should be served.
 func SwaggerEnabled() bool {
 	raw := os.Getenv("SWAGGER_ENABLED")
 	if strings.TrimSpace(raw) == "" {
@@ -162,6 +172,7 @@ func SwaggerEnabled() bool {
 	return IsTruthyString(raw)
 }
 
+// SwaggerRateLimitMiddleware returns a Fiber middleware that enforces per-IP rate limits for Swagger endpoints.
 func SwaggerRateLimitMiddleware() fiber.Handler {
 	limit := defaultSwaggerRateLimitMax
 	if parsed, err := strconv.Atoi(strings.TrimSpace(os.Getenv("SWAGGER_RATE_LIMIT_MAX"))); err == nil && parsed > 0 {
@@ -182,6 +193,7 @@ func SwaggerRateLimitMiddleware() fiber.Handler {
 	}
 }
 
+// SwaggerTokenAuthorized checks whether the provided token matches the configured Swagger auth token.
 func SwaggerTokenAuthorized(provided string) bool {
 	token := strings.TrimSpace(os.Getenv("SWAGGER_AUTH_TOKEN"))
 	if token == "" {
@@ -193,6 +205,7 @@ func SwaggerTokenAuthorized(provided string) bool {
 	return subtle.ConstantTimeCompare([]byte(token), []byte(provided)) == 1
 }
 
+// SwaggerRequestToken extracts the Swagger authentication token from the request header or cookie.
 func SwaggerRequestToken(c *fiber.Ctx) string {
 	token := strings.TrimSpace(c.Get("X-Swagger-Token"))
 	if token != "" {
@@ -202,6 +215,7 @@ func SwaggerRequestToken(c *fiber.Ctx) string {
 	return strings.TrimSpace(c.Cookies(SwaggerTokenCookieName))
 }
 
+// ShardingControlPlaneMiddleware returns a Fiber middleware that authenticates and rate-limits sharding admin requests.
 func ShardingControlPlaneMiddleware() fiber.Handler {
 	limit := defaultShardingRateLimitMax
 	if parsed, err := strconv.Atoi(strings.TrimSpace(os.Getenv("SHARDING_ADMIN_RATE_LIMIT_MAX"))); err == nil && parsed > 0 {
@@ -215,7 +229,7 @@ func ShardingControlPlaneMiddleware() fiber.Handler {
 
 	configuredToken := strings.TrimSpace(os.Getenv("SHARDING_ADMIN_TOKEN"))
 	if configuredToken != "" && len(configuredToken) >= minShardingAdminTokenLength && configuredToken != knownPlaceholderToken {
-		if !hasMinimumEntropy(configuredToken, 3) {
+		if !hasMinimumEntropy(configuredToken, minEntropyCharClasses) {
 			securityLogger.Warn("WARNING: Sharding admin token has low entropy (fewer than 3 character classes). Consider using a stronger token.")
 		}
 	}

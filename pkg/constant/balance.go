@@ -4,6 +4,7 @@
 
 package constant
 
+// Balance-related constants.
 const (
 	DefaultBalanceKey = "default"
 )

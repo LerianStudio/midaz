@@ -6,15 +6,20 @@ package fence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 )
+
+// ErrMissingEndOffset is returned when the end offset for a topic partition cannot be found.
+var ErrMissingEndOffset = errors.New("missing end offset")
 
 const defaultLagCacheTTL = 500 * time.Millisecond
 
@@ -131,6 +136,7 @@ func (c *FranzConsumerLagChecker) IsPartitionCaughtUp(ctx context.Context, topic
 	lag, err := c.PartitionLag(ctx, topic, partition)
 	if err != nil {
 		logger, _, _, _ := libCommons.NewTrackingFromContext(ctx)
+
 		mode := "fail-closed"
 		if c.failOpen {
 			mode = "fail-open"
@@ -151,6 +157,7 @@ func (c *FranzConsumerLagChecker) fetchLag(ctx context.Context, topic string, pa
 	}
 
 	committed := int64(0)
+
 	if offsetResp, ok := fetched.Lookup(topic, partition); ok {
 		if offsetResp.Err != nil {
 			return 0, fmt.Errorf("fetch offset response for topic=%s partition=%d: %w", topic, partition, offsetResp.Err)
@@ -169,7 +176,7 @@ func (c *FranzConsumerLagChecker) fetchLag(ctx context.Context, topic string, pa
 
 	endOffset, exists := endOffsets.Lookup(topic, partition)
 	if !exists {
-		return 0, fmt.Errorf("missing end offset for topic=%s partition=%d", topic, partition)
+		return 0, fmt.Errorf("%w for topic=%s partition=%d", ErrMissingEndOffset, topic, partition)
 	}
 
 	if endOffset.Err != nil {
@@ -196,10 +203,12 @@ func topicPartitionKey(topic string, partition int32) string {
 // NoopConsumerLagChecker always reports partitions as caught up.
 type NoopConsumerLagChecker struct{}
 
+// PartitionLag always returns zero lag for the noop checker.
 func (NoopConsumerLagChecker) PartitionLag(_ context.Context, _ string, _ int32) (int64, error) {
 	return 0, nil
 }
 
+// IsPartitionCaughtUp always returns true for the noop checker.
 func (NoopConsumerLagChecker) IsPartitionCaughtUp(_ context.Context, _ string, _ int32) bool {
 	return true
 }

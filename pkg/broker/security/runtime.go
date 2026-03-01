@@ -5,9 +5,12 @@
 package security
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 )
+
+// ErrInsecureSkipVerifyInProduction is returned when TLS_INSECURE_SKIP_VERIFY=true in a production environment.
+var ErrInsecureSkipVerifyInProduction = errors.New("TLS_INSECURE_SKIP_VERIFY=true is only allowed in explicitly non-production environments")
 
 // RuntimeConfig contains runtime policy inputs used to validate Redpanda security posture.
 type RuntimeConfig struct {
@@ -31,8 +34,10 @@ func IsNonProductionEnvironment(envName string) bool {
 
 // ValidateRuntimeConfig validates Redpanda transport/auth settings for the given environment.
 func ValidateRuntimeConfig(cfg RuntimeConfig) ([]string, error) {
+	const maxWarnings = 3
+
 	nonProduction := IsNonProductionEnvironment(cfg.Environment)
-	warnings := make([]string, 0, 3)
+	warnings := make([]string, 0, maxWarnings)
 
 	if !cfg.TLSEnabled && !nonProduction {
 		warnings = append(warnings, "TLS is disabled in a production-like environment")
@@ -47,7 +52,7 @@ func ValidateRuntimeConfig(cfg RuntimeConfig) ([]string, error) {
 	}
 
 	if !nonProduction {
-		return warnings, fmt.Errorf("TLS_INSECURE_SKIP_VERIFY=true is only allowed in explicitly non-production environments")
+		return warnings, ErrInsecureSkipVerifyInProduction
 	}
 
 	warnings = append(warnings, "TLS_INSECURE_SKIP_VERIFY=true: server certificate verification is disabled")

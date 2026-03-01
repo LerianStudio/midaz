@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
 )
 
+// Balance sync Redis key constants.
 const (
 	BalanceSyncScheduleKey = "schedule:{transactions}:balance-sync"
 	BalanceSyncLockPrefix  = "lock:{transactions}:balance-sync:"
@@ -24,7 +26,7 @@ const (
 )
 
 // TransactionInternalKey returns a key with the following format to be used on redis cluster:
-// "transaction:{transactions}:organizationID:ledgerID:key"
+// "transaction:{transactions}:organizationID:ledgerID:key".
 func TransactionInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 	var builder strings.Builder
 
@@ -44,7 +46,7 @@ func TransactionInternalKey(organizationID, ledgerID uuid.UUID, key string) stri
 }
 
 // BalanceInternalKey returns a key with the following format to be used on redis cluster:
-// "balance:{transactions}:organizationID:ledgerID:key"
+// "balance:{transactions}:organizationID:ledgerID:key".
 func BalanceInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 	var builder strings.Builder
 
@@ -83,7 +85,7 @@ func IdempotencyReverseKey(organizationID, ledgerID uuid.UUID, transactionID str
 }
 
 // IdempotencyInternalKey returns a key with the following format to be used on redis cluster:
-// "idempotency:{organizationID:ledgerID:key}"
+// "idempotency:{organizationID:ledgerID:key}".
 func IdempotencyInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 	var builder strings.Builder
 
@@ -101,7 +103,7 @@ func IdempotencyInternalKey(organizationID, ledgerID uuid.UUID, key string) stri
 }
 
 // AccountingRoutesInternalKey returns a key with the following format to be used on redis cluster:
-// "accounting_routes:{organizationID:ledgerID:key}"
+// "accounting_routes:{organizationID:ledgerID:key}".
 func AccountingRoutesInternalKey(organizationID, ledgerID, key uuid.UUID) string {
 	var builder strings.Builder
 
@@ -164,7 +166,7 @@ func RedisConsumerLockKey(organizationID, ledgerID uuid.UUID, transactionID stri
 // These functions use {shard_N} hash tags instead of {transactions}.
 // Each shard's keys land on a different Redis Cluster hash slot,
 // enabling parallel Lua execution across N shards.
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------.
 
 // BalanceShardKey returns a shard-aware balance key:
 // "balance:{shard_N}:organizationID:ledgerID:aliasKey"
@@ -226,7 +228,7 @@ func BackupQueueShardKey(shardID int) string {
 		shardID = 0
 	}
 
-	return fmt.Sprintf("backup_queue:%s", shard.HashTag(shardID))
+	return "backup_queue:" + shard.HashTag(shardID)
 }
 
 // BalanceSyncScheduleShardKey returns a shard-aware balance sync schedule key:
@@ -252,19 +254,19 @@ func BalanceSyncLockShardPrefix(shardID int) string {
 }
 
 // ShardRoutingKey returns the routing override table key for an org/ledger pair:
-// "shard_routing:{organizationID:ledgerID}"
+// "shard_routing:{organizationID:ledgerID}".
 func ShardRoutingKey(organizationID, ledgerID uuid.UUID) string {
 	return fmt.Sprintf("shard_routing:{%s:%s}", organizationID.String(), ledgerID.String())
 }
 
 // ShardRoutingUpdatesChannel returns the pub/sub channel for routing updates:
-// "shard_routing_updates:{organizationID:ledgerID}"
+// "shard_routing_updates:{organizationID:ledgerID}".
 func ShardRoutingUpdatesChannel(organizationID, ledgerID uuid.UUID) string {
 	return fmt.Sprintf("shard_routing_updates:{%s:%s}", organizationID.String(), ledgerID.String())
 }
 
 // MigrationLockKey returns the migration freeze key for an account alias:
-// "migration:{organizationID:ledgerID}:alias"
+// "migration:{organizationID:ledgerID}:alias".
 func MigrationLockKey(organizationID, ledgerID uuid.UUID, alias string) string {
 	return fmt.Sprintf("migration:{%s:%s}:%s", organizationID.String(), ledgerID.String(), alias)
 }
@@ -277,7 +279,7 @@ func ShardMetricsKey(shardID int) string {
 		shardID = 0
 	}
 
-	return fmt.Sprintf("shard_metrics:%s", shard.HashTag(shardID))
+	return "shard_metrics:" + shard.HashTag(shardID)
 }
 
 // ShardHotAccountsBucketKey returns the shard rolling hot-account counters key:
@@ -288,7 +290,7 @@ func ShardHotAccountsBucketKey(shardID int) string {
 		shardID = 0
 	}
 
-	return fmt.Sprintf("shard_hot_accounts_bucket:%s", shard.HashTag(shardID))
+	return "shard_hot_accounts_bucket:" + shard.HashTag(shardID)
 }
 
 // ShardRebalanceStateKey returns the global rebalance state key.
@@ -318,7 +320,7 @@ func ShardIsolationSetKey(shardID int) string {
 		shardID = 0
 	}
 
-	return fmt.Sprintf("shard_isolation:%s", shard.HashTag(shardID))
+	return "shard_isolation:" + shard.HashTag(shardID)
 }
 
 // ShardIsolationAccountKey returns the dedicated shard marker for an account.

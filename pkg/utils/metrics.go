@@ -6,7 +6,9 @@ package utils
 
 import "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry/metrics"
 
+// Metric definitions for OpenTelemetry instrumentation.
 var (
+	// BalanceSynced counts the number of balance synchronization operations.
 	BalanceSynced = metrics.Metric{
 		Name:        "balance_synced",
 		Unit:        "1",
@@ -14,7 +16,7 @@ var (
 	}
 
 	// CircuitBreakerState indicates the current state of the broker circuit breaker.
-	// Values: 0 = closed (healthy), 1 = open (unhealthy), 2 = half-open (recovering)
+	// Values: 0 = closed (healthy), 1 = open (unhealthy), 2 = half-open (recovering).
 	CircuitBreakerState = metrics.Metric{
 		Name:        "circuit_breaker_state",
 		Unit:        "1",

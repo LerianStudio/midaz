@@ -5,18 +5,22 @@
 package transaction
 
 import (
-	"github.com/LerianStudio/midaz/v3/pkg/gold/parser"
 	"github.com/antlr4-go/antlr/v4"
+
+	"github.com/LerianStudio/midaz/v3/pkg/gold/parser"
 )
 
+// TransactionListener implements the ANTLR parse tree listener for transaction DSL validation.
 type TransactionListener struct {
 	*parser.BaseTransactionListener
 }
 
+// NewTransaction creates a new TransactionListener for DSL validation.
 func NewTransaction() *TransactionListener {
 	return new(TransactionListener)
 }
 
+// Validate parses the given DSL string and returns any lexer or parser errors found.
 func Validate(dsl string) *Error {
 	lexerErrors := &Error{}
 	input := antlr.NewInputStream(dsl)

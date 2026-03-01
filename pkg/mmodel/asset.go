@@ -38,7 +38,7 @@ type CreateAssetInput struct {
 //     "symbol": "$",
 //     "isoNumeric": "840"
 //   }
-// }
+// }.
 
 // UpdateAssetInput is a struct design to encapsulate request update payload data.
 //
@@ -67,7 +67,7 @@ type UpdateAssetInput struct {
 //     "isoNumeric": "840",
 //     "updated": true
 //   }
-// }
+// }.
 
 // Asset is a struct designed to encapsulate payload data.
 //

@@ -4,6 +4,7 @@
 
 package constant
 
+// Operation type constants.
 const (
 	DEBIT   = "DEBIT"
 	CREDIT  = "CREDIT"

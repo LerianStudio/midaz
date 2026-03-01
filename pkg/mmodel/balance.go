@@ -6,14 +6,22 @@ package mmodel
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
+
+// ErrUnsupportedAvailableType is returned when the Available field has an unsupported JSON type.
+var ErrUnsupportedAvailableType = errors.New("unsupported type for available field")
+
+// ErrUnsupportedOnHoldType is returned when the OnHold field has an unsupported JSON type.
+var ErrUnsupportedOnHoldType = errors.New("unsupported type for onHold field")
 
 // Balance is a struct designed to encapsulate response payload data.
 //
@@ -177,7 +185,7 @@ type BalanceHistory struct {
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 } // @name BalanceHistory
 
-// ToHistoryResponse converts a Balance to BalanceHistory (without permission flags)
+// ToHistoryResponse converts a Balance to BalanceHistory (without permission flags).
 func (b *Balance) ToHistoryResponse() *BalanceHistory {
 	return &BalanceHistory{
 		ID:             b.ID,
@@ -196,7 +204,7 @@ func (b *Balance) ToHistoryResponse() *BalanceHistory {
 	}
 }
 
-// ToTransactionBalance converts mmodel.Balance to pkgTransaction.Balance
+// ToTransactionBalance converts mmodel.Balance to pkgTransaction.Balance.
 func (b *Balance) ToTransactionBalance() *pkgTransaction.Balance {
 	return &pkgTransaction.Balance{
 		ID:             b.ID,
@@ -353,7 +361,7 @@ type CreateBalanceInput struct {
 	AllowReceiving bool
 }
 
-// IDtoUUID is a func that convert UUID string to uuid.UUID
+// IDtoUUID is a func that convert UUID string to uuid.UUID.
 func (b *Balance) IDtoUUID() uuid.UUID {
 	return uuid.MustParse(b.ID)
 }
@@ -425,8 +433,8 @@ type BalanceRedis struct {
 	Scale int32 `json:"scale,omitempty"`
 }
 
-// UnmarshalJSON is a custom unmarshal function for BalanceRedis
-func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
+// UnmarshalJSON is a custom unmarshal function for BalanceRedis.
+func (b *BalanceRedis) UnmarshalJSON(data []byte) error { //nolint:gocyclo,cyclop // complexity inherent to multi-type JSON deserialization
 	type Alias BalanceRedis
 
 	aux := struct {
@@ -447,7 +455,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	case string:
 		decimalValue, err := decimal.NewFromString(v)
 		if err != nil {
-			return fmt.Errorf("err to converter available field from string to decimal: %v", err)
+			return fmt.Errorf("err to converter available field from string to decimal: %w", err)
 		}
 
 		b.Available = decimalValue
@@ -456,7 +464,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			f, err := v.Float64()
 			if err != nil {
-				return fmt.Errorf("err to converter available field from json.Number: %v", err)
+				return fmt.Errorf("err to converter available field from json.Number: %w", err)
 			}
 
 			b.Available = decimal.NewFromFloat(f)
@@ -466,7 +474,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	default:
 		f, ok := v.(float64)
 		if !ok {
-			return fmt.Errorf("type unsuported to available: %T", v)
+			return fmt.Errorf("%w: %T", ErrUnsupportedAvailableType, v)
 		}
 
 		b.Available = decimal.NewFromFloat(f)
@@ -478,7 +486,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	case string:
 		decimalValue, err := decimal.NewFromString(v)
 		if err != nil {
-			return fmt.Errorf("err to converter onHold field from string to decimal: %v", err)
+			return fmt.Errorf("err to converter onHold field from string to decimal: %w", err)
 		}
 
 		b.OnHold = decimalValue
@@ -487,7 +495,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			f, err := v.Float64()
 			if err != nil {
-				return fmt.Errorf("err to converter onHold field from json.Number: %v", err)
+				return fmt.Errorf("err to converter onHold field from json.Number: %w", err)
 			}
 
 			b.OnHold = decimal.NewFromFloat(f)
@@ -497,7 +505,7 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	default:
 		f, ok := v.(float64)
 		if !ok {
-			return fmt.Errorf("type unsuported to  onHold: %T", v)
+			return fmt.Errorf("%w: %T", ErrUnsupportedOnHoldType, v)
 		}
 
 		b.OnHold = decimal.NewFromFloat(f)
@@ -550,7 +558,7 @@ type BalanceErrorResponse struct {
 	}
 }
 
-// BalanceOperation represents a balance operation with associated metadata for transaction processing on redis by cache-aside
+// BalanceOperation represents a balance operation with associated metadata for transaction processing on redis by cache-aside.
 type BalanceOperation struct {
 	Balance     *Balance
 	Alias       string
@@ -563,7 +571,7 @@ type BalanceOperation struct {
 	ShardID int
 }
 
-// TransactionRedisQueue represents a transaction queue for cache-aside
+// TransactionRedisQueue represents a transaction queue for cache-aside.
 type TransactionRedisQueue struct {
 	HeaderID          string                     `json:"header_id"`
 	TransactionID     uuid.UUID                  `json:"transaction_id"`

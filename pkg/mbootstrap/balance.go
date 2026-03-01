@@ -7,8 +7,9 @@ package mbootstrap
 import (
 	"context"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 //go:generate mockgen --destination=balance_mock.go --package=mbootstrap . BalancePort

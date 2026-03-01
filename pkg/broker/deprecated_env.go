@@ -25,7 +25,9 @@ func DeprecatedBrokerEnvVariables(environ []string) []string {
 	seen := make(map[string]struct{})
 
 	for _, envPair := range environ {
-		parts := strings.SplitN(envPair, "=", 2)
+		const envPairParts = 2
+
+		parts := strings.SplitN(envPair, "=", envPairParts)
 		if len(parts) == 0 {
 			continue
 		}

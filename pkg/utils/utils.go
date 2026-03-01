@@ -10,7 +10,17 @@ import (
 	"unicode"
 )
 
-// ValidateCountryAddress validate if country in object address contains in countries list using ISO 3166-1 alpha-2
+// Sentinel validation errors returned by field validators.
+var (
+	ErrInvalidCountry      = errors.New("0032")
+	ErrInvalidAccountType  = errors.New("0066")
+	ErrInvalidAssetType    = errors.New("0040")
+	ErrCodeContainsNonChar = errors.New("0033")
+	ErrCodeNotUppercase    = errors.New("0004")
+	ErrInvalidCurrency     = errors.New("0005")
+)
+
+// ValidateCountryAddress validate if country in object address contains in countries list using ISO 3166-1 alpha-2.
 func ValidateCountryAddress(country string) error {
 	countries := []string{
 		"AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AQ", "AR", "AS", "AT", "AU", "AW", "AX", "AZ",
@@ -30,47 +40,48 @@ func ValidateCountryAddress(country string) error {
 	}
 
 	if !slices.Contains(countries, country) {
-		return errors.New("0032")
+		return ErrInvalidCountry
 	}
 
 	return nil
 }
 
-// ValidateAccountType validate type values of accounts
+// ValidateAccountType validate type values of accounts.
 func ValidateAccountType(t string) error {
 	types := []string{"deposit", "savings", "loans", "marketplace", "creditCard"}
 
 	if !slices.Contains(types, t) {
-		return errors.New("0066")
+		return ErrInvalidAccountType
 	}
 
 	return nil
 }
 
-// ValidateType validate type values of currencies
+// ValidateType validate type values of currencies.
 func ValidateType(t string) error {
 	types := []string{"crypto", "currency", "commodity", "others"}
 
 	if !slices.Contains(types, t) {
-		return errors.New("0040")
+		return ErrInvalidAssetType
 	}
 
 	return nil
 }
 
+// ValidateCode validates that all characters in the code are uppercase letters.
 func ValidateCode(code string) error {
 	for _, r := range code {
 		if !unicode.IsLetter(r) {
-			return errors.New("0033")
+			return ErrCodeContainsNonChar
 		} else if !unicode.IsUpper(r) {
-			return errors.New("0004")
+			return ErrCodeNotUppercase
 		}
 	}
 
 	return nil
 }
 
-// ValidateCurrency validate if code contains in currencies list using ISO 4217
+// ValidateCurrency validate if code contains in currencies list using ISO 4217.
 func ValidateCurrency(code string) error {
 	currencies := []string{
 		"AED", "AFN", "ALL", "AMD", "ANG", "AOA", "ARS", "AUD", "AWG", "AZN", "BAM", "BBD", "BDT", "BGN", "BHD", "BIF", "BMD", "BND", "BOB",
@@ -85,7 +96,7 @@ func ValidateCurrency(code string) error {
 	}
 
 	if !slices.Contains(currencies, code) {
-		return errors.New("0005")
+		return ErrInvalidCurrency
 	}
 
 	return nil

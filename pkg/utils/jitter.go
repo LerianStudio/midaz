@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// Retry and backoff configuration constants.
 const (
 	MaxRetries     = 5
 	InitialBackoff = 500 * time.Millisecond

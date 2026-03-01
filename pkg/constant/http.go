@@ -4,6 +4,7 @@
 
 package constant
 
+// UUIDPathParameters is the list of path parameter names expected to contain UUID values.
 var UUIDPathParameters = []string{
 	"id",
 	"organization_id",
@@ -25,6 +26,7 @@ var UUIDPathParameters = []string{
 	"related_party_id",
 }
 
+// HTTP header constants.
 const (
 	XTotalCount   = "X-Total-Count"
 	ContentLength = "Content-Length"

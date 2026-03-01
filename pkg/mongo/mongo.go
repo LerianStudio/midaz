@@ -7,11 +7,14 @@ package mongo
 import (
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/iancoleman/strcase"
 	"go.mongodb.org/mongo-driver/bson"
+
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 )
 
+// BuildDocumentToPatch creates a MongoDB update document with $set and $unset operations
+// based on the provided update fields and fields to remove.
 func BuildDocumentToPatch(updateDocument bson.M, fieldsToRemove []string) bson.M {
 	flatDocument := bson.M{}
 	flattenBSONM(updateDocument, "", flatDocument)
@@ -64,7 +67,7 @@ func flattenBSONM(m bson.M, prefix string, flat bson.M) {
 }
 
 // shouldUnset Checks if the key should be "unset" (removed) based on the fieldsToRemove array.
-// If the field to be removed is "addresses.primary", we remove "addresses.primary" as well as "addresses.primary.*"
+// If the field to be removed is "addresses.primary", we remove "addresses.primary" as well as "addresses.primary.*".
 func shouldUnset(key string, fieldsToRemove []string) bool {
 	if len(fieldsToRemove) > 0 {
 		for _, f := range fieldsToRemove {
@@ -83,35 +86,37 @@ func shouldUnset(key string, fieldsToRemove []string) bool {
 // This function extracts the actual port and parameters from such configurations.
 // If MONGO_PARAMETERS is already set, it takes precedence over embedded parameters.
 func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger) (string, string) {
-	actualPort := port
-	if idx := strings.IndexAny(port, "/?"); idx != -1 {
-		actualPort = port[:idx]
-		embeddedParams := strings.TrimLeft(port[idx+1:], "/?")
-
-		if parameters != "" {
-			if logger != nil {
-				logger.Warnf(
-					"MongoDB parameters embedded in MONGO_PORT detected but ignored "+
-						"(MONGO_PARAMETERS takes precedence). Remove embedded parameters from MONGO_PORT. "+
-						"Sanitized port=%s",
-					actualPort,
-				)
-			}
-
-			return actualPort, parameters
-		}
-
-		if logger != nil {
-			logger.Warnf(
-				"MongoDB parameters embedded in MONGO_PORT detected. "+
-					"Update environment variables to use the MONGO_PARAMETERS environment variable. "+
-					"Sanitized port=%s",
-				actualPort,
-			)
-		}
-
-		return actualPort, embeddedParams
+	idx := strings.IndexAny(port, "/?")
+	if idx == -1 {
+		return port, parameters
 	}
 
-	return actualPort, parameters
+	actualPort := port[:idx]
+	embeddedParams := strings.TrimLeft(port[idx+1:], "/?")
+
+	if parameters != "" {
+		logWarnIfNotNil(logger,
+			"MongoDB parameters embedded in MONGO_PORT detected but ignored "+
+				"(MONGO_PARAMETERS takes precedence). Remove embedded parameters from MONGO_PORT. "+
+				"Sanitized port=%s",
+			actualPort,
+		)
+
+		return actualPort, parameters
+	}
+
+	logWarnIfNotNil(logger,
+		"MongoDB parameters embedded in MONGO_PORT detected. "+
+			"Update environment variables to use the MONGO_PARAMETERS environment variable. "+
+			"Sanitized port=%s",
+		actualPort,
+	)
+
+	return actualPort, embeddedParams
+}
+
+func logWarnIfNotNil(logger libLog.Logger, format string, args ...any) {
+	if logger != nil {
+		logger.Warnf(format, args...)
+	}
 }

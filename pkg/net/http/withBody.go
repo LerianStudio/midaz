@@ -13,11 +13,6 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	en2 "github.com/go-playground/validator/translations/en"
@@ -25,6 +20,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"gopkg.in/go-playground/validator.v9"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
+	"github.com/LerianStudio/midaz/v3/pkg"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
 
 // DecodeHandlerFunc is a handler which works with withBody decorator.
@@ -37,6 +39,8 @@ type PayloadContextValue string
 
 // ConstructorFunc representing a constructor of any type.
 type ConstructorFunc func() any
+
+const jsonTagSplitLimit = 2
 
 // decoderHandler decodes payload coming from requests.
 type decoderHandler struct {
@@ -151,33 +155,45 @@ func ValidateStruct(s any) error {
 
 	err := v.Struct(s)
 	if err != nil {
-		for _, fieldError := range err.(validator.ValidationErrors) {
+		for _, fieldError := range func() validator.ValidationErrors {
+			var target validator.ValidationErrors
+
+			_ = errors.As(err, &target)
+
+			return target
+		}() {
 			switch fieldError.Tag() {
 			case "keymax":
-				return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
+				return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param()) //nolint:wrapcheck
 			case "valuemax":
-				return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
+				return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param()) //nolint:wrapcheck
 			case "nonested":
-				return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
+				return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans)) //nolint:wrapcheck
 			case "singletransactiontype":
-				return pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans))
+				return pkg.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans)) //nolint:wrapcheck
 			case "invalidstrings":
-				return pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param())
+				return pkg.ValidateBusinessError(cn.ErrInvalidAccountType, "", fieldError.Translate(trans), fieldError.Param()) //nolint:wrapcheck
 			case "invalidaliascharacters":
-				return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param())
+				return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "", fieldError.Translate(trans), fieldError.Param()) //nolint:wrapcheck
 			case "invalidaccounttype":
-				return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
+				return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans)) //nolint:wrapcheck
 			}
 		}
 
-		errPtr := malformedRequestErr(err.(validator.ValidationErrors), trans)
+		errPtr := malformedRequestErr(func() validator.ValidationErrors {
+			var target validator.ValidationErrors
+
+			_ = errors.As(err, &target)
+
+			return target
+		}(), trans)
 
 		return &errPtr
 	}
 
 	// Generic null-byte validation across all string fields in the payload
 	if violations := validateNoNullBytes(s); len(violations) > 0 {
-		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
+		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{}) //nolint:wrapcheck
 	}
 
 	return nil
@@ -185,7 +201,7 @@ func ValidateStruct(s any) error {
 
 // ParseUUIDPathParameters globally, considering all path parameters are UUIDs and adding them to the span attributes
 // entityName is a snake_case string used to identify id name, for example the "organization" entity name will result in "app.request.organization_id"
-// otherwise the path parameter "id" in a request for example "/v1/organizations/:id" will be parsed as "app.request.id"
+// otherwise the path parameter "id" in a request for example "/v1/organizations/:id" will be parsed as "app.request.id".
 func ParseUUIDPathParameters(entityName string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		for param, value := range c.AllParams() {
@@ -209,7 +225,7 @@ func ParseUUIDPathParameters(entityName string) fiber.Handler {
 	}
 }
 
-//nolint:ireturn
+//nolint:ireturn,funlen
 func newValidator() (*validator.Validate, ut.Translator) {
 	locale := en.New()
 	uni := ut.New(locale, locale)
@@ -219,11 +235,12 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	v := validator.New()
 
 	if err := en2.RegisterDefaultTranslations(v, trans); err != nil {
-		panic(err)
+		// newValidator is called during initialization; a registration failure is unrecoverable.
+		panic(err) //nolint:forbidigo
 	}
 
 	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		name := strings.SplitN(fld.Tag.Get("json"), ",", jsonTagSplitLimit)[0]
 		if name == "-" {
 			return ""
 		}
@@ -349,12 +366,12 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	return v, trans
 }
 
-// validateMetadataNestedValues checks if there are nested metadata structures
+// validateMetadataNestedValues checks if there are nested metadata structures.
 func validateMetadataNestedValues(fl validator.FieldLevel) bool {
 	return fl.Field().Kind() != reflect.Map
 }
 
-// validateMetadataKeyMaxLength checks if metadata key (always a string) length is allowed
+// validateMetadataKeyMaxLength checks if metadata key (always a string) length is allowed.
 func validateMetadataKeyMaxLength(fl validator.FieldLevel) bool {
 	limitParam := fl.Param()
 
@@ -369,7 +386,7 @@ func validateMetadataKeyMaxLength(fl validator.FieldLevel) bool {
 	return len(fl.Field().String()) <= limit
 }
 
-// validateMetadataValueMaxLength checks metadata value max length
+// validateMetadataValueMaxLength checks metadata value max length.
 func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
 	limitParam := fl.Param()
 
@@ -399,9 +416,13 @@ func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
 	return len(value) <= limit
 }
 
-// validateSingleTransactionType checks if a transaction has only one type of transaction (amount, share, or remaining)
+// validateSingleTransactionType checks if a transaction has only one type of transaction (amount, share, or remaining).
 func validateSingleTransactionType(fl validator.FieldLevel) bool {
-	arrField := fl.Field().Interface().([]pkgTransaction.FromTo)
+	arrField, ok := fl.Field().Interface().([]pkgTransaction.FromTo)
+	if !ok {
+		return false
+	}
+
 	for _, f := range arrField {
 		count := 0
 		if f.Amount != nil {
@@ -424,16 +445,22 @@ func validateSingleTransactionType(fl validator.FieldLevel) bool {
 	return true
 }
 
-// validateProhibitedExternalAccountPrefix
+// validateProhibitedExternalAccountPrefix checks if the value contains the prohibited external account prefix.
 func validateProhibitedExternalAccountPrefix(fl validator.FieldLevel) bool {
-	f := fl.Field().Interface().(string)
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
 
 	return !strings.Contains(f, cn.DefaultExternalAccountAliasPrefix)
 }
 
-// validateInvalidAliasCharacters validate if it has invalid characters on alias. only permit a-zA-Z0-9@:_-
+// validateInvalidAliasCharacters validate if it has invalid characters on alias. only permit a-zA-Z0-9@:_-.
 func validateInvalidAliasCharacters(fl validator.FieldLevel) bool {
-	f := fl.Field().Interface().(string)
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
 
 	validChars := regexp.MustCompile(cn.AccountAliasAcceptedChars)
 
@@ -468,7 +495,7 @@ func validateNoWhitespaces(fl validator.FieldLevel) bool {
 // Rules:
 // - Must start with a letter
 // - Only alphanumeric characters and underscores allowed
-// - No dots, $, or MongoDB reserved prefixes
+// - No dots, $, or MongoDB reserved prefixes.
 func validateMetadataKeyFormat(fl validator.FieldLevel) bool {
 	f, ok := fl.Field().Interface().(string)
 	if !ok {
@@ -492,16 +519,16 @@ func validateMetadataKeyFormat(fl validator.FieldLevel) bool {
 	return true
 }
 
-// formatErrorFieldName formats metadata field error names for error messages
+// formatErrorFieldName formats metadata field error names for error messages.
 func formatErrorFieldName(text string) string {
-	re, _ := regexp.Compile(`\.(.+)$`)
+	re := regexp.MustCompile(`\.(.+)$`)
 
 	matches := re.FindStringSubmatch(text)
 	if len(matches) > 1 {
 		return matches[1]
-	} else {
-		return text
 	}
+
+	return text
 }
 
 func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) pkg.ValidationKnownFieldsError {
@@ -619,7 +646,7 @@ func jsonFieldName(f reflect.StructField) string {
 	return name
 }
 
-// parseMetadata For compliance with RFC7396 JSON Merge Patch
+// parseMetadata For compliance with RFC7396 JSON Merge Patch.
 func parseMetadata(s any, originalMap map[string]any) {
 	val := reflect.ValueOf(s)
 	if val.Kind() != reflect.Ptr || val.Elem().Kind() != reflect.Struct {
@@ -640,7 +667,7 @@ func parseMetadata(s any, originalMap map[string]any) {
 
 // FindUnknownFields finds fields that are present in the original map but not in the marshaled map.
 //
-//nolint:gocognit,gocyclo
+//nolint:gocognit,gocyclo,cyclop
 func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 	diffFields := make(map[string]any)
 
@@ -782,6 +809,8 @@ func areDatesEqual(a, b string) bool {
 }
 
 // compareSlices compares two slices and returns differences.
+//
+//nolint:nestif
 func compareSlices(original, marshaled []any) []any {
 	var diff []any
 
@@ -814,9 +843,14 @@ func compareSlices(original, marshaled []any) []any {
 	return diff
 }
 
-// validateInvalidStrings checks if a string contains any of the invalid strings (case-insensitive)
+// validateInvalidStrings checks if a string contains any of the invalid strings (case-insensitive).
 func validateInvalidStrings(fl validator.FieldLevel) bool {
-	f := strings.ToLower(fl.Field().Interface().(string))
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
+
+	f = strings.ToLower(f)
 
 	invalidStrings := strings.Split(fl.Param(), ",")
 

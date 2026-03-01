@@ -4,6 +4,7 @@
 
 package constant
 
+// Account-related constants.
 const (
 	DefaultExternalAccountAliasPrefix = "@external/"
 	ExternalAccountType               = "external"

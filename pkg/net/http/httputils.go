@@ -6,24 +6,27 @@ package http
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
-// QueryHeader entity from query parameter from get apis
+// QueryHeader entity from query parameter from get apis.
 type QueryHeader struct {
 	Metadata                            *bson.M
 	Limit                               int
@@ -50,7 +53,7 @@ type QueryHeader struct {
 	RelatedPartyRole                    *string
 }
 
-// Pagination entity from query parameter from get apis
+// Pagination entity from query parameter from get apis.
 type Pagination struct {
 	Limit     int
 	Page      int
@@ -60,11 +63,18 @@ type Pagination struct {
 	EndDate   time.Time
 }
 
-const defaultMaxIdempotencyTTLSeconds = 86400
+const (
+	defaultMaxIdempotencyTTLSeconds = 86400
+	defaultPaginationLimit          = 10
+	defaultPage                     = 1
+	defaultMaxPaginationLimit       = 100
+	defaultMaxDateRangeMonths       = 1
+	maxMetadataValueLength          = 2000
+)
 
 // ValidateParameters validate and return struct of default parameters
 //
-//nolint:gocyclo
+//nolint:gocyclo,cyclop,funlen
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
 		metadata                            *bson.M
@@ -74,8 +84,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		startDate                           time.Time
 		endDate                             time.Time
 		cursor                              string
-		limit                               = 10
-		page                                = 1
+		limit                               = defaultPaginationLimit
+		page                                = defaultPage
 		sortOrder                           = "asc"
 		useMetadata                         = false
 		holderID                            *string
@@ -108,14 +118,14 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case strings.Contains(key, "start_date"):
 			parsedDate, _, err := libCommons.ParseDateTime(value, false)
 			if err != nil {
-				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", "start_date", "yyyy-mm-dd or yyyy-mm-dd hh:mm:ss")
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", "start_date", "yyyy-mm-dd or yyyy-mm-dd hh:mm:ss") //nolint:wrapcheck
 			}
 
 			startDate = parsedDate
 		case strings.Contains(key, "end_date"):
 			parsedDate, _, err := libCommons.ParseDateTime(value, true)
 			if err != nil {
-				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", "end_date", "yyyy-mm-dd or yyyy-mm-dd hh:mm:ss")
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", "end_date", "yyyy-mm-dd or yyyy-mm-dd hh:mm:ss") //nolint:wrapcheck
 			}
 
 			endDate = parsedDate
@@ -165,7 +175,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	if !libCommons.IsNilOrEmpty(&portfolioID) {
 		_, err := uuid.Parse(portfolioID)
 		if err != nil {
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "portfolio_id")
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "portfolio_id") //nolint:wrapcheck
 		}
 	}
 
@@ -206,7 +216,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 // Returns error if dates are invalid, out of order, or only one is provided.
 func validateDates(startDate, endDate *time.Time) error {
 	// Limits query range to prevent expensive DB operations on large datasets
-	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
+	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", defaultMaxDateRangeMonths))
 
 	if startDate.IsZero() && endDate.IsZero() {
 		now := time.Now()
@@ -225,36 +235,36 @@ func validateDates(startDate, endDate *time.Time) error {
 
 	if (!startDate.IsZero() && endDate.IsZero()) ||
 		(startDate.IsZero() && !endDate.IsZero()) {
-		return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, "")
+		return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, "") //nolint:wrapcheck
 	}
 
 	if !libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*startDate, nil, false)) || !libCommons.IsValidDateTime(libCommons.NormalizeDateTime(*endDate, nil, true)) {
-		return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
+		return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "") //nolint:wrapcheck
 	}
 
 	if !libCommons.IsInitialDateBeforeFinalDate(*startDate, *endDate) {
-		return pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, "")
+		return pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, "") //nolint:wrapcheck
 	}
 
 	return nil
 }
 
-// ValidatePagination validate pagination parameters
+// validatePagination validates pagination parameters.
 func validatePagination(cursor, sortOrder string, limit int) error {
-	maxPaginationLimit := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
+	maxPaginationLimit := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", defaultMaxPaginationLimit))
 
 	if limit > maxPaginationLimit {
-		return pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
+		return pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit) //nolint:wrapcheck
 	}
 
 	if (sortOrder != string(constant.Asc)) && (sortOrder != string(constant.Desc)) {
-		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
+		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "") //nolint:wrapcheck
 	}
 
 	if !libCommons.IsNilOrEmpty(&cursor) {
 		_, err := libHTTP.DecodeCursor(cursor)
 		if err != nil {
-			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
+			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor") //nolint:wrapcheck
 		}
 	}
 
@@ -265,6 +275,7 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 	ikey := c.Get(libConstants.IdempotencyKey)
 	iTTL := c.Get(libConstants.IdempotencyTTL)
+
 	maxTTLSeconds := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_IDEMPOTENCY_TTL_SECONDS", defaultMaxIdempotencyTTLSeconds))
 	if maxTTLSeconds <= 0 {
 		maxTTLSeconds = defaultMaxIdempotencyTTLSeconds
@@ -285,36 +296,33 @@ func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 	return ikey, ttl
 }
 
-// GetFileFromHeader method that get file from header and give a string fom this dsl gold file
+// GetFileFromHeader method that get file from header and give a string fom this dsl gold file.
 func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	fileHeader, err := ctx.FormFile(libConstants.DSL)
 	if err != nil {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "")
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "") //nolint:wrapcheck
 	}
 
 	if !strings.Contains(fileHeader.Filename, libConstants.FileExtension) {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename) //nolint:wrapcheck
 	}
 
 	if fileHeader.Size == 0 {
-		return "", pkg.ValidateBusinessError(constant.ErrEmptyDSLFile, "", fileHeader.Filename)
+		return "", pkg.ValidateBusinessError(constant.ErrEmptyDSLFile, "", fileHeader.Filename) //nolint:wrapcheck
 	}
 
 	file, err := fileHeader.Open()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to open uploaded file %s: %w", fileHeader.Filename, err)
 	}
 
 	defer func(file multipart.File) {
-		err := file.Close()
-		if err != nil {
-			panic(0)
-		}
+		_ = file.Close()
 	}(file)
 
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, file); err != nil {
-		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename) //nolint:wrapcheck
 	}
 
 	fileString := buf.String()
@@ -322,6 +330,7 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	return fileString, nil
 }
 
+// ToOffsetPagination converts a QueryHeader into offset-based Pagination.
 func (qh *QueryHeader) ToOffsetPagination() Pagination {
 	return Pagination{
 		Limit:     qh.Limit,
@@ -332,6 +341,7 @@ func (qh *QueryHeader) ToOffsetPagination() Pagination {
 	}
 }
 
+// ToCursorPagination converts a QueryHeader into cursor-based Pagination.
 func (qh *QueryHeader) ToCursorPagination() Pagination {
 	return Pagination{
 		Limit:     qh.Limit,
@@ -342,6 +352,7 @@ func (qh *QueryHeader) ToCursorPagination() Pagination {
 	}
 }
 
+// GetBooleanParam extracts a boolean query parameter from the Fiber context.
 func GetBooleanParam(c *fiber.Ctx, queryParamName string) bool {
 	return strings.ToLower(c.Query(queryParamName, "false")) == "true"
 }
@@ -371,22 +382,22 @@ func ValidateMetadataValue(value any) (any, error) {
 func validateMetadataValueWithDepth(value any, depth int) (any, error) {
 	const maxDepth = 10
 	if depth > maxDepth {
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "") //nolint:wrapcheck
 	}
 
 	switch v := value.(type) {
 	case string:
-		if len(v) > 2000 {
-			return nil, pkg.ValidateBusinessError(constant.ErrMetadataValueLengthExceeded, "")
+		if len(v) > maxMetadataValueLength {
+			return nil, pkg.ValidateBusinessError(constant.ErrMetadataValueLengthExceeded, "") //nolint:wrapcheck
 		}
 
 		return v, nil
 	case float64, int, int64, float32, bool:
 		return v, nil
 	case nil:
-		return nil, nil
+		return nil, nil //nolint:nilnil
 	case map[string]any:
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "")
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidMetadataNesting, "") //nolint:wrapcheck
 	case []any:
 		validatedArray := make([]any, 0, len(v))
 		for _, item := range v {
@@ -400,6 +411,6 @@ func validateMetadataValueWithDepth(value any, depth int) (any, error) {
 
 		return validatedArray, nil
 	default:
-		return nil, pkg.ValidateBusinessError(constant.ErrBadRequest, "")
+		return nil, pkg.ValidateBusinessError(constant.ErrBadRequest, "") //nolint:wrapcheck
 	}
 }

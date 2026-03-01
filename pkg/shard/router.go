@@ -40,7 +40,7 @@ const (
 	ExternalPrefix = "@external/"
 
 	// ExternalBalanceKeyPrefix identifies pre-split external balance keys.
-	// Example: shard_3
+	// Example: shard_3.
 	ExternalBalanceKeyPrefix = "shard_"
 )
 
@@ -175,7 +175,7 @@ func ParseExternalBalanceShardID(key string) (int, bool) {
 // All Redis keys for a shard MUST include this tag to ensure they
 // map to the same hash slot, enabling atomic Lua EVAL across them.
 //
-// Example: HashTag(3) → "{shard_3}"
+// Example: HashTag(3) → "{shard_3}".
 func HashTag(shardID int) string {
 	return fmt.Sprintf("{shard_%d}", shardID)
 }
@@ -183,7 +183,7 @@ func HashTag(shardID int) string {
 // ExtractAccountAlias strips the balance key suffix from an alias#key string.
 // Input:  "@user_123#default" → "@user_123"
 // Input:  "@external/USD#default" → "@external/USD"
-// Input:  "@user_123" → "@user_123" (no-op if no #)
+// Input:  "@user_123" → "@user_123" (no-op if no #).
 func ExtractAccountAlias(aliasKey string) string {
 	if idx := strings.IndexByte(aliasKey, '#'); idx >= 0 {
 		return aliasKey[:idx]
@@ -212,8 +212,10 @@ func ExtractAccountAlias(aliasKey string) string {
 // the "index#alias#balanceKey" format (with a numeric index prefix) and returns
 // a single string "alias#balanceKey" rather than splitting into two values.
 func SplitAliasAndBalanceKey(aliasWithKey string) (alias, balanceKey string) {
-	parts := strings.SplitN(aliasWithKey, "#", 2)
-	if len(parts) == 2 {
+	const splitParts = 2
+
+	parts := strings.SplitN(aliasWithKey, "#", splitParts)
+	if len(parts) == splitParts {
 		key := parts[1]
 		if key == "" {
 			key = constant.DefaultBalanceKey

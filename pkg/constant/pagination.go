@@ -4,9 +4,10 @@
 
 package constant
 
+// Order is a type that represents the ordering of a list.
 type Order string
 
-// Order is a type that represents the ordering of a list.
+// Order values for sorting results.
 const (
 	Asc  Order = "asc"
 	Desc Order = "desc"

@@ -5,6 +5,7 @@
 package mmodel
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -68,18 +69,18 @@ type UpdateTransactionRouteInput struct {
 	OperationRoutes *[]uuid.UUID `json:"operationRoutes,omitempty"`
 } // @name UpdateTransactionRouteInput
 
-// TransactionRouteCache represents the cache structure for transaction routes in Redis
+// TransactionRouteCache represents the cache structure for transaction routes in Redis.
 type TransactionRouteCache struct {
 	Source      map[string]OperationRouteCache `json:"source"`
 	Destination map[string]OperationRouteCache `json:"destination"`
 }
 
-// OperationRouteCache represents the cached data for a single operation route
+// OperationRouteCache represents the cached data for a single operation route.
 type OperationRouteCache struct {
 	Account *AccountCache `json:"account,omitempty"`
 }
 
-// AccountCache represents the cached account rule data
+// AccountCache represents the cached account rule data.
 type AccountCache struct {
 	RuleType string `json:"ruleType"`
 	ValidIf  any    `json:"validIf"`
@@ -117,12 +118,21 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 	return cacheData
 }
 
-// FromMsgpack parses msgpack binary data into TransactionRouteCache
+// FromMsgpack parses msgpack binary data into TransactionRouteCache.
 func (trcd *TransactionRouteCache) FromMsgpack(data []byte) error {
-	return msgpack.Unmarshal(data, trcd)
+	if err := msgpack.Unmarshal(data, trcd); err != nil {
+		return fmt.Errorf("unmarshal transaction route cache: %w", err)
+	}
+
+	return nil
 }
 
-// ToMsgpack converts TransactionRouteCache to msgpack binary data
+// ToMsgpack converts TransactionRouteCache to msgpack binary data.
 func (trcd TransactionRouteCache) ToMsgpack() ([]byte, error) {
-	return msgpack.Marshal(trcd)
+	data, err := msgpack.Marshal(trcd)
+	if err != nil {
+		return nil, fmt.Errorf("marshal transaction route cache: %w", err)
+	}
+
+	return data, nil
 }

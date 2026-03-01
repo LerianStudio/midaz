@@ -7,6 +7,7 @@ package security
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +17,14 @@ import (
 	"github.com/twmb/franz-go/pkg/sasl"
 	"github.com/twmb/franz-go/pkg/sasl/plain"
 	"github.com/twmb/franz-go/pkg/sasl/scram"
+)
+
+// Sentinel errors for TLS/SASL configuration validation.
+var (
+	ErrTLSCAFileNotAFile        = errors.New("redpanda tls ca file must be a file path")
+	ErrTLSCANoCertificates      = errors.New("parse redpanda tls ca file: no valid certificates found")
+	ErrSASLCredentialsMissing   = errors.New("redpanda sasl enabled but username/password are empty")
+	ErrUnsupportedSASLMechanism = errors.New("unsupported redpanda sasl mechanism")
 )
 
 // Config controls optional TLS/SASL settings for Redpanda franz-go clients.
@@ -31,7 +40,9 @@ type Config struct {
 
 // BuildFranzGoOptions returns franz-go options for TLS/SASL authentication.
 func BuildFranzGoOptions(cfg Config) ([]kgo.Opt, error) {
-	options := make([]kgo.Opt, 0, 2)
+	const initialCap = 2
+
+	options := make([]kgo.Opt, 0, initialCap)
 
 	if cfg.TLSEnabled {
 		tlsConfig, err := buildTLSConfig(cfg)
@@ -55,9 +66,9 @@ func BuildFranzGoOptions(cfg Config) ([]kgo.Opt, error) {
 }
 
 func buildTLSConfig(cfg Config) (*tls.Config, error) {
-	tlsConfig := &tls.Config{ //nolint:gosec // InsecureSkipVerify is explicitly controlled by env configuration.
+	tlsConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: cfg.TLSInsecureSkipVerify,
+		InsecureSkipVerify: cfg.TLSInsecureSkipVerify, //nolint:gosec // controlled by operator configuration
 	}
 
 	if strings.TrimSpace(cfg.TLSCAFile) == "" {
@@ -65,12 +76,14 @@ func buildTLSConfig(cfg Config) (*tls.Config, error) {
 	}
 
 	caPath := filepath.Clean(cfg.TLSCAFile)
+
 	info, err := os.Stat(caPath)
 	if err != nil {
 		return nil, fmt.Errorf("stat redpanda tls ca file: %w", err)
 	}
+
 	if info.IsDir() {
-		return nil, fmt.Errorf("redpanda tls ca file must be a file path")
+		return nil, ErrTLSCAFileNotAFile
 	}
 
 	caPEM, err := os.ReadFile(caPath)
@@ -82,12 +95,13 @@ func buildTLSConfig(cfg Config) (*tls.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load system cert pool: %w", err)
 	}
+
 	if rootCAs == nil {
 		rootCAs = x509.NewCertPool()
 	}
 
 	if ok := rootCAs.AppendCertsFromPEM(caPEM); !ok {
-		return nil, fmt.Errorf("parse redpanda tls ca file: no valid certificates found")
+		return nil, ErrTLSCANoCertificates
 	}
 
 	tlsConfig.RootCAs = rootCAs
@@ -97,7 +111,7 @@ func buildTLSConfig(cfg Config) (*tls.Config, error) {
 
 func buildSASLMechanism(cfg Config) (sasl.Mechanism, error) {
 	if strings.TrimSpace(cfg.SASLUsername) == "" || strings.TrimSpace(cfg.SASLPassword) == "" {
-		return nil, fmt.Errorf("redpanda sasl enabled but username/password are empty")
+		return nil, ErrSASLCredentialsMissing
 	}
 
 	mechanism := strings.ToUpper(strings.TrimSpace(cfg.SASLMechanism))
@@ -115,6 +129,6 @@ func buildSASLMechanism(cfg Config) (sasl.Mechanism, error) {
 	case "SCRAM-SHA-512":
 		return auth.AsSha512Mechanism(), nil
 	default:
-		return nil, fmt.Errorf("unsupported redpanda sasl mechanism: %s", cfg.SASLMechanism)
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedSASLMechanism, cfg.SASLMechanism)
 	}
 }

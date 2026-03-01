@@ -5,23 +5,27 @@
 package http
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"runtime/debug"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 )
 
 type recoverMiddleware struct {
 	Logger libLog.Logger
 }
 
+// RecoverMiddlewareOption is a functional option for configuring the recover middleware.
 type RecoverMiddlewareOption func(r *recoverMiddleware)
 
+// WithRecoverLogger returns a RecoverMiddlewareOption that sets the logger for the recover middleware.
 func WithRecoverLogger(logger libLog.Logger) RecoverMiddlewareOption {
 	return func(r *recoverMiddleware) {
 		r.Logger = logger
@@ -40,6 +44,10 @@ func buildRecoverOpts(opts ...RecoverMiddlewareOption) *recoverMiddleware {
 	return mid
 }
 
+// errPanicRecovered is a sentinel error for recovered panics.
+var errPanicRecovered = errors.New("panic recovered")
+
+// WithRecover returns a Fiber middleware that recovers from panics and returns an HTTP 500 response.
 func WithRecover(opts ...RecoverMiddlewareOption) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		mid := buildRecoverOpts(opts...)
@@ -55,7 +63,7 @@ func WithRecover(opts ...RecoverMiddlewareOption) fiber.Handler {
 				}
 
 				stack := debug.Stack()
-				panicErr := fmt.Errorf("panic recovered: %v", r)
+				panicErr := fmt.Errorf("%w: %v", errPanicRecovered, r)
 
 				logger.Errorf("Panic recovered: %v\nStack trace:\n%s", r, string(stack))
 

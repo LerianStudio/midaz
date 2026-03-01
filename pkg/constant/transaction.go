@@ -4,6 +4,7 @@
 
 package constant
 
+// Transaction status constants.
 const (
 	CREATED             = "CREATED"
 	APPROVED            = "APPROVED"

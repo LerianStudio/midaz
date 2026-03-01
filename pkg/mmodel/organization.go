@@ -249,7 +249,7 @@ type Address struct {
 
 // IsEmpty method determines if an Address is empty or nil in all fields
 //
-// Returns true if all fields of the address are empty or nil, false otherwise
+// Returns true if all fields of the address are empty or nil, false otherwise.
 func (a Address) IsEmpty() bool {
 	return a.Line1 == "" && a.Line2 == nil && a.ZipCode == "" && a.City == "" && a.State == "" && a.Country == ""
 }

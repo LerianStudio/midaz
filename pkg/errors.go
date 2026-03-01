@@ -243,7 +243,10 @@ func (r ValidationUnknownFieldsError) Error() string {
 // UnknownFields is a map of unknown fields and their error messages.
 type UnknownFields map[string]any
 
-// Methods to create errors for different scenarios:
+// ErrEmptyValidationFields is returned when all validation field maps are empty.
+var ErrEmptyValidationFields = errors.New("expected knownInvalidFields, unknownFields and requiredFields to be non-empty")
+
+// Methods to create errors for different scenarios:.
 
 // ValidateInternalError validates the error and returns an appropriate InternalServerError.
 //
@@ -294,7 +297,7 @@ func ValidateUnmarshallingError(err error) error {
 // - An error indicating the validation result, which could be a ValidationUnknownFieldsError or a ValidationKnownFieldsError.
 func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string]string, entityType string, unknownFields map[string]any) error {
 	if len(unknownFields) == 0 && len(knownInvalidFields) == 0 && len(requiredFields) == 0 {
-		return errors.New("expected knownInvalidFields, unknownFields and requiredFields to be non-empty")
+		return ErrEmptyValidationFields
 	}
 
 	if len(unknownFields) > 0 {
@@ -335,7 +338,7 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 //
 // Returns:
 //   - error: The appropriate business error with code, title, and message.
-func ValidateBusinessError(err error, entityType string, args ...any) error {
+func ValidateBusinessError(err error, entityType string, args ...any) error { //nolint:funlen
 	errorMap := map[error]error{
 		constant.ErrDuplicateLedger: EntityConflictError{
 			EntityType: entityType,
@@ -1246,8 +1249,10 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 	return err
 }
 
-func formatInvalidDatetimeMessage(args ...interface{}) string {
-	if len(args) >= 2 {
+func formatInvalidDatetimeMessage(args ...any) string {
+	const minDatetimeArgs = 2
+
+	if len(args) >= minDatetimeArgs {
 		return fmt.Sprintf(
 			"The '%v' parameter is in the incorrect format. Please use the '%v' format and try again.",
 			args[0],
@@ -1258,6 +1263,8 @@ func formatInvalidDatetimeMessage(args ...interface{}) string {
 	return "The datetime parameter is in the incorrect format. Please use the 'yyyy-mm-dd or yyyy-mm-dd hh:mm:ss' format and try again."
 }
 
+// HandleKnownBusinessValidationErrors checks if the error matches a known business validation
+// error and returns the corresponding structured error.
 func HandleKnownBusinessValidationErrors(err error) error {
 	switch {
 	case err.Error() == constant.ErrTransactionAmbiguous.Error():

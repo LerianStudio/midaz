@@ -36,6 +36,7 @@ type Balance struct {
 	Metadata       map[string]any  `json:"metadata,omitempty"`
 } // @name Balance
 
+// Responses holds the validated transaction totals, account aliases, and operation routing.
 type Responses struct {
 	Total               decimal.Decimal
 	Asset               string
@@ -110,7 +111,7 @@ type Rate struct {
 	ExternalID string          `json:"externalId" validate:"uuid,required" example:"00000000-0000-0000-0000-000000000000"`
 } // @name Rate
 
-// IsEmpty method that set empty or nil in fields
+// IsEmpty method that set empty or nil in fields.
 func (r Rate) IsEmpty() bool {
 	return r.ExternalID == "" && r.From == "" && r.To == "" && r.Value.IsZero()
 }

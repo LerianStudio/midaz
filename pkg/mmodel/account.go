@@ -255,7 +255,7 @@ type Account struct {
 
 // IDtoUUID converts the account's string ID to a UUID object
 //
-// Returns the UUID representation of the account's ID
+// Returns the UUID representation of the account's ID.
 func (a *Account) IDtoUUID() uuid.UUID {
 	return uuid.MustParse(a.ID)
 }

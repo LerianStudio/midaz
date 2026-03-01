@@ -8,12 +8,14 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 )
 
+// Error holds DSL compilation errors collected during lexing and parsing phases.
 type Error struct {
 	*antlr.DefaultErrorListener
 	Errors []CompileError
 	Source string
 }
 
+// CompileError represents a single compilation error with location and message details.
 type CompileError struct {
 	Line    int
 	Column  int
@@ -21,6 +23,7 @@ type CompileError struct {
 	Source  string
 }
 
+// SyntaxError implements the antlr.ErrorListener interface to collect syntax errors.
 func (t *Error) SyntaxError(recognizer antlr.Recognizer, offendingSymbol any, line, column int, msg string, e antlr.RecognitionException) {
 	t.Errors = append(t.Errors, CompileError{
 		Line:    line,
