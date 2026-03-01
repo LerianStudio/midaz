@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,23 +76,33 @@ var (
 		Unit:        "1",
 		Description: "Total failed publish attempts to Redpanda.",
 	}
+	authorizeLatencySLOBreachesTotal = libMetrics.Metric{
+		Name:        "authorizer_authorize_latency_slo_breaches_total",
+		Unit:        "1",
+		Description: "Total authorization requests above configured latency SLO (telemetry-only, no behavior trigger).",
+	}
 )
 
 type authorizerMetrics struct {
-	factory *libMetrics.MetricsFactory
-	logger  libLog.Logger
+	factory             *libMetrics.MetricsFactory
+	logger              libLog.Logger
+	authorizeLatencySLO time.Duration
 }
 
 func (m *authorizerMetrics) Enabled() bool {
 	return m != nil && m.factory != nil
 }
 
-func newAuthorizerMetrics(telemetry *libOpentelemetry.Telemetry, logger libLog.Logger) *authorizerMetrics {
-	if telemetry == nil {
-		return &authorizerMetrics{logger: logger}
+func newAuthorizerMetrics(telemetry *libOpentelemetry.Telemetry, logger libLog.Logger, authorizeLatencySLO time.Duration) *authorizerMetrics {
+	if authorizeLatencySLO <= 0 {
+		authorizeLatencySLO = 150 * time.Millisecond
 	}
 
-	return &authorizerMetrics{factory: telemetry.MetricsFactory, logger: logger}
+	if telemetry == nil {
+		return &authorizerMetrics{logger: logger, authorizeLatencySLO: authorizeLatencySLO}
+	}
+
+	return &authorizerMetrics{factory: telemetry.MetricsFactory, logger: logger, authorizeLatencySLO: authorizeLatencySLO}
 }
 
 func (m *authorizerMetrics) RecordAuthorize(
@@ -123,6 +134,16 @@ func (m *authorizerMetrics) RecordAuthorize(
 	m.factory.Histogram(authorizeLatencyMs).WithLabels(labels).Record(ctx, durationMillis(latency))
 	m.factory.Histogram(authorizeOperationsPerRequest).WithLabels(map[string]string{"method": method}).Record(ctx, int64(operationCount))
 	m.factory.Histogram(authorizeShardsTouchedPerRequest).WithLabels(map[string]string{"method": method}).Record(ctx, int64(shardCount))
+
+	if m.authorizeLatencySLO > 0 && latency > m.authorizeLatencySLO {
+		sloLabels := map[string]string{
+			"method":        method,
+			"result":        result,
+			"pending":       boolLabel(pending),
+			"slo_target_ms": strconv.FormatInt(durationMillis(m.authorizeLatencySLO), 10),
+		}
+		m.factory.Counter(authorizeLatencySLOBreachesTotal).WithLabels(sloLabels).AddOne(ctx)
+	}
 }
 
 func (m *authorizerMetrics) RecordPublish(ctx context.Context, topic string, err error, latency time.Duration) {

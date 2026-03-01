@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -42,11 +43,14 @@ type Observer interface {
 
 // Engine provides in-memory transaction authorization with shard-ordered locking.
 type Engine struct {
-	router  *shard.Router
-	workers []*shardWorker
-	wal     wal.Writer
-	observe Observer
-	loaded  atomic.Int64
+	router    *shard.Router
+	workers   []*shardWorker
+	wal       wal.Writer
+	observe   Observer
+	loaded    atomic.Int64
+	prepStore *preparedTxStore
+	stopOnce  sync.Once
+	stopCh    chan struct{}
 }
 
 func New(router *shard.Router, walWriter wal.Writer) *Engine {
@@ -63,7 +67,17 @@ func New(router *shard.Router, walWriter wal.Writer) *Engine {
 		workers = append(workers, &shardWorker{balances: make(map[string]*Balance)})
 	}
 
-	return &Engine{router: router, workers: workers, wal: walWriter}
+	eng := &Engine{
+		router:    router,
+		workers:   workers,
+		wal:       walWriter,
+		prepStore: newPreparedTxStore(DefaultPrepareTimeout, DefaultMaxPreparedTx),
+		stopCh:    make(chan struct{}),
+	}
+
+	go eng.reapExpiredPrepared()
+
+	return eng
 }
 
 func (e *Engine) SetWALWriter(writer wal.Writer) {
@@ -85,6 +99,40 @@ func (e *Engine) SetObserver(observer Observer) {
 	}
 
 	e.observe = observer
+}
+
+func (e *Engine) ConfigurePreparedTxStore(timeout time.Duration, maxPending int) {
+	if e == nil || e.prepStore == nil {
+		return
+	}
+
+	e.prepStore.mu.Lock()
+	defer e.prepStore.mu.Unlock()
+
+	if timeout > 0 {
+		e.prepStore.timeout = timeout
+	}
+
+	if maxPending > 0 {
+		e.prepStore.max = maxPending
+	}
+}
+
+func (e *Engine) ConfigurePreparedTxRetention(committedTTL time.Duration, maxCommitRetries int) {
+	if e == nil || e.prepStore == nil {
+		return
+	}
+
+	e.prepStore.mu.Lock()
+	defer e.prepStore.mu.Unlock()
+
+	if committedTTL > 0 {
+		e.prepStore.committedTTL = committedTTL
+	}
+
+	if maxCommitRetries > 0 {
+		e.prepStore.maxRetries = maxCommitRetries
+	}
 }
 
 func (e *Engine) ShardCount() int {
@@ -209,6 +257,16 @@ type preparedOperation struct {
 	hasChange      bool
 }
 
+type authorizationDraft struct {
+	normalized    []*authorizerv1.BalanceOperation
+	prepared      []preparedOperation
+	orderedShards []int
+	changedOps    int
+}
+
+// Authorize is the fast-path single-instance authorization.
+// It prepares and commits in one call (no cross-shard coordination needed).
+// For cross-shard transactions, the gRPC service uses PrepareAuthorize + CommitPrepared directly.
 func (e *Engine) Authorize(req *authorizerv1.AuthorizeRequest) (*authorizerv1.AuthorizeResponse, error) {
 	return e.authorize(req, true)
 }
@@ -222,6 +280,65 @@ func (e *Engine) authorize(req *authorizerv1.AuthorizeRequest, persistWAL bool) 
 		return &authorizerv1.AuthorizeResponse{Authorized: true}, nil
 	}
 
+	draft, rejection, releaseLocks, err := e.prepareAuthorization(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if rejection != nil {
+		releaseLocks()
+		return rejection, nil
+	}
+
+	defer releaseLocks()
+
+	organizationID := req.GetOrganizationId()
+	ledgerID := req.GetLedgerId()
+	pending := req.GetPending()
+	transactionStatus := req.GetTransactionStatus()
+
+	if persistWAL && draft.changedOps > 0 {
+		mutations := buildWALMutations(draft.prepared)
+
+		err := e.wal.Append(wal.Entry{
+			TransactionID:     req.GetTransactionId(),
+			OrganizationID:    organizationID,
+			LedgerID:          ledgerID,
+			Pending:           pending,
+			TransactionStatus: transactionStatus,
+			Operations:        draft.normalized,
+			Mutations:         mutations,
+		})
+		if err != nil {
+			if e.observe != nil {
+				e.observe.ObserveWALAppendFailure(err)
+			}
+
+			return nil, fmt.Errorf("append wal entry: %w", err)
+		}
+	}
+
+	for _, op := range draft.prepared {
+		if !op.hasChange {
+			continue
+		}
+
+		op.balance.Available = op.postAvail
+		op.balance.OnHold = op.postHold
+		op.balance.Version++
+	}
+
+	releaseLocks()
+
+	snapshots := buildAuthorizeSnapshots(draft.prepared)
+
+	return &authorizerv1.AuthorizeResponse{
+		Authorized: true,
+		Balances:   snapshots,
+	}, nil
+}
+
+func (e *Engine) prepareAuthorization(req *authorizerv1.AuthorizeRequest) (*authorizationDraft, *authorizerv1.AuthorizeResponse, func(), error) {
 	normalized := normalizeExternalOperations(req.Operations, e.router)
 	organizationID := req.GetOrganizationId()
 	ledgerID := req.GetLedgerId()
@@ -272,7 +389,6 @@ func (e *Engine) authorize(req *authorizerv1.AuthorizeRequest, persistWAL bool) 
 
 		locksReleased = true
 	}
-	defer releaseLocks()
 
 	prepared := make([]preparedOperation, 0, len(normalized))
 	staged := make(map[*Balance]*Balance, len(normalized))
@@ -294,11 +410,11 @@ func (e *Engine) authorize(req *authorizerv1.AuthorizeRequest, persistWAL bool) 
 
 		actualBalance, ok := e.workers[workerID].balances[lookupKey]
 		if !ok {
-			return &authorizerv1.AuthorizeResponse{
+			return nil, &authorizerv1.AuthorizeResponse{
 				Authorized:       false,
 				RejectionCode:    RejectionBalanceNotFound,
 				RejectionMessage: "balance not found",
-			}, nil
+			}, releaseLocks, nil
 		}
 
 		workingBalance, ok := staged[actualBalance]
@@ -309,11 +425,11 @@ func (e *Engine) authorize(req *authorizerv1.AuthorizeRequest, persistWAL bool) 
 
 		amount, err := rescaleAmount(op.GetAmount(), op.GetScale(), workingBalance.Scale)
 		if err != nil {
-			return &authorizerv1.AuthorizeResponse{
+			return nil, &authorizerv1.AuthorizeResponse{
 				Authorized:       false,
 				RejectionCode:    RejectionInternalError,
 				RejectionMessage: err.Error(),
-			}, nil
+			}, releaseLocks, nil
 		}
 
 		preAvail := workingBalance.Available
@@ -336,11 +452,11 @@ func (e *Engine) authorize(req *authorizerv1.AuthorizeRequest, persistWAL bool) 
 			postHold,
 		)
 		if !ok {
-			return &authorizerv1.AuthorizeResponse{
+			return nil, &authorizerv1.AuthorizeResponse{
 				Authorized:       false,
 				RejectionCode:    rejectionCode,
 				RejectionMessage: rejectionMessage,
-			}, nil
+			}, releaseLocks, nil
 		}
 
 		workingBalance.Available = postAvail
@@ -372,45 +488,12 @@ func (e *Engine) authorize(req *authorizerv1.AuthorizeRequest, persistWAL bool) 
 		})
 	}
 
-	if persistWAL && changedOperations > 0 {
-		mutations := buildWALMutations(prepared)
-
-		err := e.wal.Append(wal.Entry{
-			TransactionID:     req.GetTransactionId(),
-			OrganizationID:    organizationID,
-			LedgerID:          ledgerID,
-			Pending:           pending,
-			TransactionStatus: transactionStatus,
-			Operations:        normalized,
-			Mutations:         mutations,
-		})
-		if err != nil {
-			if e.observe != nil {
-				e.observe.ObserveWALAppendFailure(err)
-			}
-
-			return nil, fmt.Errorf("append wal entry: %w", err)
-		}
-	}
-
-	for _, op := range prepared {
-		if !op.hasChange {
-			continue
-		}
-
-		op.balance.Available = op.postAvail
-		op.balance.OnHold = op.postHold
-		op.balance.Version++
-	}
-
-	releaseLocks()
-
-	snapshots := buildAuthorizeSnapshots(prepared)
-
-	return &authorizerv1.AuthorizeResponse{
-		Authorized: true,
-		Balances:   snapshots,
-	}, nil
+	return &authorizationDraft{
+		normalized:    normalized,
+		prepared:      prepared,
+		orderedShards: orderedShards,
+		changedOps:    changedOperations,
+	}, nil, releaseLocks, nil
 }
 
 func buildAuthorizeSnapshots(prepared []preparedOperation) []*authorizerv1.BalanceSnapshot {
@@ -664,6 +747,231 @@ func applyOperation(available, onHold int64, pending bool, transactionStatus, op
 	}
 
 	return available, onHold
+}
+
+// Close stops the auto-abort goroutine. Safe to call multiple times.
+func (e *Engine) Close() {
+	if e == nil {
+		return
+	}
+
+	e.stopOnce.Do(func() {
+		close(e.stopCh)
+	})
+}
+
+// PrepareAuthorize validates operations and holds shard locks without committing.
+// The returned PreparedTx handle must be completed via CommitPrepared or AbortPrepared.
+// If validation fails, locks are released immediately and no handle is returned.
+func (e *Engine) PrepareAuthorize(req *authorizerv1.AuthorizeRequest) (*PreparedTx, *authorizerv1.AuthorizeResponse, error) {
+	if e == nil || e.router == nil {
+		return nil, nil, errors.New("authorizer engine is not initialized")
+	}
+
+	if req == nil || len(req.Operations) == 0 {
+		return nil, &authorizerv1.AuthorizeResponse{Authorized: true}, nil
+	}
+
+	draft, rejection, releaseLocks, err := e.prepareAuthorization(req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if rejection != nil {
+		releaseLocks()
+		return nil, rejection, nil
+	}
+
+	// Validation passed. Build the PreparedTx handle and hold locks.
+	txID := "ptx-" + uuid.NewString()
+
+	ptx := &PreparedTx{
+		ID:            txID,
+		Request:       req,
+		normalized:    draft.normalized,
+		prepared:      draft.prepared,
+		changedOps:    draft.changedOps,
+		orderedShards: draft.orderedShards,
+		createdAt:     time.Now(),
+	}
+
+	if err := e.prepStore.Put(ptx); err != nil {
+		// Extremely unlikely (ID collision). Release locks and fail.
+		releaseLocks()
+
+		return nil, nil, err
+	}
+
+	// Build response snapshots for the caller (the prepare response).
+	snapshots := buildAuthorizeSnapshots(draft.prepared)
+
+	return ptx, &authorizerv1.AuthorizeResponse{
+		Authorized: true,
+		Balances:   snapshots,
+	}, nil
+}
+
+// CommitPrepared writes the WAL entry, mutates live balances, and releases locks.
+// Returns the balance snapshots after mutation.
+// Idempotent: replaying CommitPrepared for an already committed prepared_tx_id
+// returns the original committed response.
+func (e *Engine) CommitPrepared(txID string) (*authorizerv1.AuthorizeResponse, error) {
+	ptx, committedResp, found := e.prepStore.TakeForCommit(txID)
+	if !found {
+		return nil, fmt.Errorf("%w: %s", ErrPreparedTxNotFound, txID)
+	}
+
+	if committedResp != nil {
+		return committedResp, nil
+	}
+
+	if ptx == nil {
+		return nil, fmt.Errorf("commit prepared %s: prepared transaction is nil", txID)
+	}
+
+	lockHoldStart := ptx.createdAt
+	releaseLocks := true
+
+	defer func() {
+		if !releaseLocks {
+			return
+		}
+
+		if e.observe != nil {
+			e.observe.ObserveAuthorizeLockHold(len(ptx.orderedShards), time.Since(lockHoldStart))
+		}
+
+		for i := len(ptx.orderedShards) - 1; i >= 0; i-- {
+			e.workers[ptx.orderedShards[i]].mu.Unlock()
+		}
+	}()
+
+	// Write WAL entry.
+	if ptx.changedOps > 0 {
+		mutations := buildWALMutations(ptx.prepared)
+
+		err := e.wal.Append(wal.Entry{
+			TransactionID:     ptx.Request.GetTransactionId(),
+			OrganizationID:    ptx.Request.GetOrganizationId(),
+			LedgerID:          ptx.Request.GetLedgerId(),
+			Pending:           ptx.Request.GetPending(),
+			TransactionStatus: ptx.Request.GetTransactionStatus(),
+			Operations:        ptx.normalized,
+			Mutations:         mutations,
+		})
+		if err != nil {
+			if e.observe != nil {
+				e.observe.ObserveWALAppendFailure(err)
+			}
+
+			if putBackErr := e.prepStore.PutBack(ptx); putBackErr != nil {
+				return nil, fmt.Errorf(
+					"commit prepared %s: WAL append failed: %w (also failed to preserve prepared state: %v)",
+					txID,
+					err,
+					putBackErr,
+				)
+			}
+
+			releaseLocks = false
+
+			return nil, fmt.Errorf("commit prepared %s: WAL append failed: %w", txID, err)
+		}
+	}
+
+	// Mutate live balances.
+	for _, op := range ptx.prepared {
+		if !op.hasChange {
+			continue
+		}
+
+		op.balance.Available = op.postAvail
+		op.balance.OnHold = op.postHold
+		op.balance.Version++
+	}
+
+	snapshots := buildAuthorizeSnapshots(ptx.prepared)
+	resp := &authorizerv1.AuthorizeResponse{
+		Authorized: true,
+		Balances:   snapshots,
+	}
+
+	e.prepStore.MarkCommitted(txID, resp)
+
+	return resp, nil
+}
+
+// AbortPrepared releases locks without mutating any state.
+// Returns an error if the transaction ID is not found.
+func (e *Engine) AbortPrepared(txID string) error {
+	ptx, err := e.prepStore.TakeForAbort(txID)
+	if err != nil {
+		if errors.Is(err, ErrPreparedTxNotFound) {
+			return fmt.Errorf("%w: %s", ErrPreparedTxNotFound, txID)
+		}
+
+		return fmt.Errorf("%w: %s", err, txID)
+	}
+
+	if e.observe != nil {
+		e.observe.ObserveAuthorizeLockHold(len(ptx.orderedShards), time.Since(ptx.createdAt))
+	}
+
+	for i := len(ptx.orderedShards) - 1; i >= 0; i-- {
+		e.workers[ptx.orderedShards[i]].mu.Unlock()
+	}
+
+	return nil
+}
+
+// reapExpiredPrepared runs as a goroutine and auto-aborts any prepared transactions
+// that exceed the timeout. This prevents lock starvation if a coordinator crashes
+// before calling CommitPrepared or AbortPrepared.
+func (e *Engine) reapExpiredPrepared() {
+	ticker := time.NewTicker(preparedCleanupInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-e.stopCh:
+			return
+		case <-ticker.C:
+			expired := e.prepStore.Expired()
+			for _, ptx := range expired {
+				if e.observe != nil {
+					e.observe.ObserveAuthorizeLockHold(len(ptx.orderedShards), time.Since(ptx.createdAt))
+				}
+
+				for i := len(ptx.orderedShards) - 1; i >= 0; i-- {
+					e.workers[ptx.orderedShards[i]].mu.Unlock()
+				}
+			}
+		}
+	}
+}
+
+// ResolveOperationShards normalizes external operations and groups them by shard ID.
+// This exposes the same normalization logic used internally by PrepareAuthorize,
+// allowing the gRPC service layer to detect cross-shard transactions and route
+// operations to the correct authorizer instance before invoking the 2PC protocol.
+func (e *Engine) ResolveOperationShards(ops []*authorizerv1.BalanceOperation) map[int][]*authorizerv1.BalanceOperation {
+	if e == nil || e.router == nil || len(ops) == 0 {
+		return nil
+	}
+
+	normalized := normalizeExternalOperations(ops, e.router)
+
+	result := make(map[int][]*authorizerv1.BalanceOperation, len(normalized))
+	for _, op := range normalized {
+		if op == nil {
+			continue
+		}
+
+		shardID := e.router.ResolveBalance(op.GetAccountAlias(), op.GetBalanceKey())
+		result[shardID] = append(result[shardID], op)
+	}
+
+	return result
 }
 
 func rescaleAmount(amount int64, fromScale, toScale int32) (int64, error) {

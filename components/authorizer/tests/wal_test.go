@@ -26,6 +26,7 @@ func TestWALAppendAndRecovery(t *testing.T) {
 
 	router := shard.NewRouter(8)
 	liveEngine := engine.New(router, writer)
+	defer liveEngine.Close()
 	liveEngine.UpsertBalances(seedRecoveryBalances())
 
 	resp, err := liveEngine.Authorize(&authorizerv1.AuthorizeRequest{
@@ -49,6 +50,7 @@ func TestWALAppendAndRecovery(t *testing.T) {
 	require.Len(t, entries, 1)
 
 	recoveryEngine := engine.New(router, wal.NewNoopWriter())
+	defer recoveryEngine.Close()
 	recoveryEngine.UpsertBalances(seedRecoveryBalances())
 
 	require.NoError(t, recoveryEngine.ReplayEntries(entries))

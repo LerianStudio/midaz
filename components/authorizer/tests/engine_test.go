@@ -29,6 +29,7 @@ func (failingWALWriter) Close() error {
 
 func TestAuthorizeSingleDebitCredit(t *testing.T) {
 	e := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
+	defer e.Close()
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",
@@ -83,6 +84,7 @@ func TestAuthorizeSingleDebitCredit(t *testing.T) {
 
 func TestAuthorizeInsufficientFunds(t *testing.T) {
 	e := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
+	defer e.Close()
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",
@@ -122,6 +124,7 @@ func TestAuthorizeInsufficientFunds(t *testing.T) {
 
 func TestAuthorizeVersionMonotonic(t *testing.T) {
 	e := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
+	defer e.Close()
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",
@@ -162,6 +165,7 @@ func TestAuthorizeVersionMonotonic(t *testing.T) {
 
 func TestAuthorizeConcurrentSameShard(t *testing.T) {
 	e := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
+	defer e.Close()
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",
@@ -197,7 +201,6 @@ func TestAuthorizeConcurrentSameShard(t *testing.T) {
 					{OperationAlias: "0#@alice#default", AccountAlias: "@alice", BalanceKey: "default", Amount: 10, Scale: 2, Operation: constant.DEBIT},
 				},
 			})
-
 			if err != nil {
 				errCh <- err
 				return
@@ -227,6 +230,7 @@ func TestAuthorizePreSplitExternalAccount(t *testing.T) {
 	externalKey := router.ResolveExternalBalanceKey("@alice")
 
 	e := engine.New(router, wal.NewNoopWriter())
+	defer e.Close()
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",
@@ -289,6 +293,7 @@ func TestAuthorizePreSplitExternalAccount(t *testing.T) {
 
 func TestAuthorizeExternalCreditCannotBecomePositive(t *testing.T) {
 	e := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
+	defer e.Close()
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",
@@ -349,6 +354,7 @@ func TestAuthorizeExternalCreditCannotBecomePositive(t *testing.T) {
 
 func TestAuthorizeFailClosedWhenWALAppendFails(t *testing.T) {
 	e := engine.New(shard.NewRouter(8), failingWALWriter{})
+	defer e.Close()
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",
