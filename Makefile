@@ -76,7 +76,8 @@ K6_DIR ?= ./tests/k6
 K6_REPO_URL ?= https://github.com/LerianStudio/k6.git
 K6_REPO_LOCAL ?= ../k6
 K6_SCENARIO_DIR ?= tests/v3.x.x/tps_api_first_accounting
-BENCH_PROFILE ?= load
+BENCH_PROFILE ?=
+PROFILE ?= $(if $(BENCH_PROFILE),$(BENCH_PROFILE),load)
 BENCH_ENVIRONMENT ?= midaz-bench
 BENCH_AUTH_ENABLED ?= false
 BENCH_LOG ?= OFF
@@ -87,28 +88,28 @@ BENCH_ACCOUNTS_PER_TYPE ?= 5
 BENCH_FUND_AMOUNT ?= 1000000.00
 BENCH_TRANSACTION_AMOUNT ?= 10.00
 
-ifeq ($(BENCH_PROFILE),smoke)
+ifeq ($(PROFILE),smoke)
 BENCH_PROFILE_TPS := 10
 BENCH_PROFILE_DURATION := 10s
 BENCH_PROFILE_PRE_VUS := 5
 BENCH_PROFILE_MAX_VUS := 20
-else ifeq ($(BENCH_PROFILE),load)
+else ifeq ($(PROFILE),load)
 BENCH_PROFILE_TPS := 500
-BENCH_PROFILE_DURATION := 30s
+BENCH_PROFILE_DURATION := 10s
 BENCH_PROFILE_PRE_VUS := 200
 BENCH_PROFILE_MAX_VUS := 1000
-else ifeq ($(BENCH_PROFILE),stress)
-BENCH_PROFILE_TPS := 1500
-BENCH_PROFILE_DURATION := 60s
-BENCH_PROFILE_PRE_VUS := 600
-BENCH_PROFILE_MAX_VUS := 4000
-else ifeq ($(BENCH_PROFILE),100k)
+else ifeq ($(PROFILE),stress)
+BENCH_PROFILE_TPS := 20000
+BENCH_PROFILE_DURATION := 10s
+BENCH_PROFILE_PRE_VUS := 2000
+BENCH_PROFILE_MAX_VUS := 8000
+else ifeq ($(PROFILE),100k)
 BENCH_PROFILE_TPS := 100000
-BENCH_PROFILE_DURATION := 100s
+BENCH_PROFILE_DURATION := 10s
 BENCH_PROFILE_PRE_VUS := 5000
-BENCH_PROFILE_MAX_VUS := 10000
+BENCH_PROFILE_MAX_VUS := 20000
 else
-$(error Invalid BENCH_PROFILE='$(BENCH_PROFILE)'. Use smoke, load, stress, or 100k)
+$(error Invalid PROFILE='$(PROFILE)'. Use smoke, load, stress, or 100k)
 endif
 
 BENCH_TPS ?= $(BENCH_PROFILE_TPS)
@@ -178,20 +179,19 @@ help:
 	@echo "  make transaction COMMAND=<cmd>    - Run command in transaction component"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
-	@echo "  make k6-sync                      - Clone/update tests/k6 load-test repository"
-	@echo "  make k6-bench                     - Start/check bench stack, run API-first k6 setup + load"
-	@echo "  make k6-bench-validate            - Validate persisted benchmark data + invariants"
-	@echo "  make k6-bench-monitor             - Stream Redpanda consumer lag as CSV"
+	@echo "  make k6-run PROFILE=<p>           - Sync k6 repo, start stack, run benchmark (profiles: smoke, load, stress, 100k)"
+	@echo "  make k6-validate                  - Validate persisted benchmark data + invariants"
+	@echo "  make k6-monitor                   - Stream Redpanda consumer lag as CSV"
 	@echo ""
 	@echo "  make up/start/stop/down now control the benchmark-ready infra stack (4 ledgers + 2 authorizers + nginx)"
 	@echo ""
-	@echo "  k6-bench vars (defaults):"
-	@echo "    BENCH_PROFILE=$(BENCH_PROFILE) BENCH_ENVIRONMENT=$(BENCH_ENVIRONMENT)"
+	@echo "  k6-run vars (defaults):"
+	@echo "    PROFILE=$(PROFILE) BENCH_ENVIRONMENT=$(BENCH_ENVIRONMENT)"
 	@echo "    BENCH_TPS=$(BENCH_TPS) BENCH_DURATION=$(BENCH_DURATION) BENCH_PRE_VUS=$(BENCH_PRE_VUS) BENCH_MAX_VUS=$(BENCH_MAX_VUS)"
 	@echo "    BENCH_AUTH_ENABLED=$(BENCH_AUTH_ENABLED) BENCH_BUILD_STACK=$(BENCH_BUILD_STACK)"
 	@echo "    BENCH_NAMESPACE=<auto> BENCH_ORG_COUNT=$(BENCH_ORG_COUNT) BENCH_LEDGERS_PER_ORG=$(BENCH_LEDGERS_PER_ORG) BENCH_ACCOUNTS_PER_TYPE=$(BENCH_ACCOUNTS_PER_TYPE)"
 	@echo "    BENCH_FUND_AMOUNT=$(BENCH_FUND_AMOUNT) BENCH_TRANSACTION_AMOUNT=$(BENCH_TRANSACTION_AMOUNT)"
-	@echo "    profiles: smoke(10/10s/5/20) load(500/30s/200/1000) stress(1500/60s/600/4000) 100k(1000/100s/400/3000)"
+	@echo "    profiles: smoke(10tps/10s) load(500tps/10s) stress(20000tps/10s) 100k(100000tps/10s)"
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
@@ -558,26 +558,14 @@ logs:
 	@echo "=== Benchmark-ready infrastructure logs ==="
 	@cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
 
-.PHONY: k6-sync k6-bench-stack k6-bench-run k6-bench k6-bench-validate k6-bench-monitor
+.PHONY: k6-run k6-validate k6-monitor bench-run bench-validate bench-monitor
 
-k6-sync:
-	$(call print_title,Syncing k6 repository)
-	@mkdir -p ./tests
-	@if [ -d "$(K6_DIR)/.git" ]; then \
-		echo "Updating existing k6 repo in $(K6_DIR)..."; \
-		git -C "$(K6_DIR)" pull --ff-only; \
-	elif [ -d "$(K6_REPO_LOCAL)/.git" ]; then \
-		echo "Cloning k6 from local path $(K6_REPO_LOCAL)..."; \
-		git clone "$(K6_REPO_LOCAL)" "$(K6_DIR)"; \
-	else \
-		echo "Cloning k6 from $(K6_REPO_URL)..."; \
-		git clone "$(K6_REPO_URL)" "$(K6_DIR)"; \
-	fi
-
-k6-bench-stack:
-	$(call print_title,Starting benchmark stack)
+k6-run:
+	$(call print_title,Running k6 benchmark [$(PROFILE)])
+	$(call check_command,k6,"Install k6 with: brew install k6")
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_command,curl,"Install curl from https://curl.se/")
+	@# ── start bench stack ─────────────────────────────────────────
 	@if [ "$(BENCH_BUILD_STACK)" = "true" ]; then \
 		echo "Bringing up benchmark stack with image rebuild..."; \
 		$(MAKE) rebuild-up; \
@@ -589,23 +577,27 @@ k6-bench-stack:
 		status=$$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3010/health || true); \
 		if [ "$$status" = "200" ]; then \
 			echo "Benchmark gateway is healthy on :3010"; \
-			exit 0; \
+			break; \
+		fi; \
+		if [ "$$i" = "10" ]; then \
+			echo "Error: benchmark gateway did not become healthy on :3010"; \
+			exit 1; \
 		fi; \
 		sleep 2; \
-	done; \
-	echo "Error: benchmark gateway did not become healthy on :3010"; \
-	exit 1
-
-k6-bench-run:
-	$(call print_title,Running API-first k6 benchmark suite)
-	$(call check_command,k6,"Install k6 with: brew install k6")
+	done
+	@# ── run k6 suite ──────────────────────────────────────────────
 	@if [ ! -d "$(K6_DIR)/$(K6_SCENARIO_DIR)" ]; then \
 		echo "Error: k6 scenario directory not found: $(K6_DIR)/$(K6_SCENARIO_DIR)"; \
 		exit 1; \
 	fi
 	@namespace="$(BENCH_NAMESPACE)"; \
 	if [ -z "$$namespace" ]; then namespace="api_$$(date +%s)"; fi; \
-	echo "Using API-first benchmark namespace=$$namespace"; \
+	echo ""; \
+	echo "Profile   = $(PROFILE)"; \
+	echo "TPS       = $(BENCH_TPS)  Duration = $(BENCH_DURATION)"; \
+	echo "VUs       = $(BENCH_PRE_VUS) pre / $(BENCH_MAX_VUS) max"; \
+	echo "Namespace = $$namespace"; \
+	echo ""; \
 	( cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
 	for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
 	k6 run \
@@ -646,17 +638,21 @@ k6-bench-run:
 	-e PRE_VUS=$(BENCH_PRE_VUS) \
 	-e MAX_VUS=$(BENCH_MAX_VUS) \
 	003_transactions.js )
+	@echo "[ok] k6 benchmark complete (profile=$(PROFILE))"
 
-k6-bench: k6-sync k6-bench-stack k6-bench-run
-	@echo "[ok] API-first benchmark stack and k6 suite completed"
-
-k6-bench-validate:
+k6-validate:
 	@echo "Validating benchmark results..."
 	@bash tests/k6/scripts/validate_bench.sh
 
-k6-bench-monitor:
+k6-monitor:
 	@echo "Monitoring consumer lag (Ctrl+C to stop)..."
 	@bash tests/k6/scripts/monitor_lag.sh
+
+bench-run: k6-run
+
+bench-validate: k6-validate
+
+bench-monitor: k6-monitor
 
 # Component-specific command execution
 .PHONY: infra onboarding transaction ledger all-components
