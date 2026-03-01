@@ -159,7 +159,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(cfg.AuthAddress, cfg.AuthEnabled, &logger)
 
-	tenantMiddleware, err := initTenantMiddleware(cfg, logger)
+	tenantMiddleware, err := initTenantMiddleware(cfg, logger, telemetry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize tenant middleware: %w", err)
 	}

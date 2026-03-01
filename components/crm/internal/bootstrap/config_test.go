@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -157,7 +158,7 @@ func TestInitTenantMiddleware(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := newMockLogger()
 
-			mw, err := initTenantMiddleware(tt.cfg, logger)
+			mw, err := initTenantMiddleware(tt.cfg, logger, nil)
 
 			if tt.expectErrMsg != "" {
 				require.Error(t, err)
@@ -227,7 +228,7 @@ func TestInitTenantMiddleware_URLWhitespaceVariations(t *testing.T) {
 			}
 			logger := newMockLogger()
 
-			mw, err := initTenantMiddleware(cfg, logger)
+			mw, err := initTenantMiddleware(cfg, logger, nil)
 
 			if tt.expectErrMsg != "" {
 				require.Error(t, err, "initTenantMiddleware should return error for whitespace-only URL")
@@ -281,7 +282,7 @@ func TestInitTenantMiddleware_DisabledIgnoresInvalidURL(t *testing.T) {
 			}
 			logger := newMockLogger()
 
-			mw, err := initTenantMiddleware(cfg, logger)
+			mw, err := initTenantMiddleware(cfg, logger, nil)
 
 			require.NoError(t, err,
 				"initTenantMiddleware must not error when disabled, regardless of URL value")
@@ -289,6 +290,66 @@ func TestInitTenantMiddleware_DisabledIgnoresInvalidURL(t *testing.T) {
 				"initTenantMiddleware must return nil when disabled")
 		})
 	}
+}
+
+// =============================================================================
+// Metrics Instrumentation Tests
+// =============================================================================
+
+func TestInitTenantMiddleware_MetricsEmission(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil_telemetry_does_not_panic", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			MultiTenantEnabled: true,
+			MultiTenantURL:     "http://tenant-manager:8080",
+		}
+		logger := newMockLogger()
+
+		// Passing nil telemetry must not panic; metrics are no-op.
+		mw, err := initTenantMiddleware(cfg, logger, nil)
+
+		require.NoError(t, err)
+		assert.NotNil(t, mw,
+			"middleware must be non-nil even when telemetry is nil")
+	})
+
+	t.Run("nil_telemetry_with_disabled_does_not_panic", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			MultiTenantEnabled: false,
+		}
+		logger := newMockLogger()
+
+		// When disabled, nil telemetry must be perfectly safe (early return path).
+		mw, err := initTenantMiddleware(cfg, logger, nil)
+
+		require.NoError(t, err)
+		assert.Nil(t, mw,
+			"middleware must be nil when multi-tenant is disabled")
+	})
+
+	t.Run("telemetry_with_nil_metrics_factory_does_not_panic", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &Config{
+			MultiTenantEnabled: true,
+			MultiTenantURL:     "http://tenant-manager:8080",
+		}
+		logger := newMockLogger()
+
+		// Telemetry struct with nil MetricsFactory must be safely guarded.
+		telemetry := &libOpentelemetry.Telemetry{}
+
+		mw, err := initTenantMiddleware(cfg, logger, telemetry)
+
+		require.NoError(t, err)
+		assert.NotNil(t, mw,
+			"middleware must be non-nil even when MetricsFactory is nil")
+	})
 }
 
 // mockLogger implements libLog.Logger for testing.

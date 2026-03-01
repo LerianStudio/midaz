@@ -81,7 +81,7 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 
 				logger := newMockLogger()
 
-				mw, err := initTenantMiddleware(tt.cfg, logger)
+				mw, err := initTenantMiddleware(tt.cfg, logger, nil)
 
 				require.NoError(t, err,
 					"initTenantMiddleware must not return error when multi-tenant is disabled")
@@ -101,7 +101,7 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 		}
 		logger := newMockLogger()
 
-		mw, err := initTenantMiddleware(cfg, logger)
+		mw, err := initTenantMiddleware(cfg, logger, nil)
 
 		require.NoError(t, err,
 			"single-tenant mode must not attempt Tenant Manager connection")
