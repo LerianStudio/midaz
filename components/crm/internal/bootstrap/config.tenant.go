@@ -39,10 +39,10 @@ func initTenantMiddleware(cfg *Config, logger libLog.Logger) (fiber.Handler, err
 			tmclient.WithTimeout(time.Duration(cfg.MultiTenantTimeout)*time.Second))
 	}
 
-	if cfg.MultiTenantRetryMax > 0 {
+	if cfg.MultiTenantCircuitBreakerThreshold > 0 {
 		clientOpts = append(clientOpts,
-			tmclient.WithCircuitBreaker(cfg.MultiTenantRetryMax,
-				time.Duration(cfg.MultiTenantRetryDelay)*time.Second))
+			tmclient.WithCircuitBreaker(cfg.MultiTenantCircuitBreakerThreshold,
+				time.Duration(cfg.MultiTenantCircuitBreakerTimeoutSec)*time.Second))
 	}
 
 	tmClient := tmclient.NewClient(mtURL, logger, clientOpts...)
@@ -55,13 +55,13 @@ func initTenantMiddleware(cfg *Config, logger libLog.Logger) (fiber.Handler, err
 		tmmongo.WithLogger(logger),
 	)
 
-	if cfg.MultiTenantCacheSize > 0 {
-		mongoOpts = append(mongoOpts, tmmongo.WithMaxTenantPools(cfg.MultiTenantCacheSize))
+	if cfg.MultiTenantMaxTenantPools > 0 {
+		mongoOpts = append(mongoOpts, tmmongo.WithMaxTenantPools(cfg.MultiTenantMaxTenantPools))
 	}
 
-	if cfg.MultiTenantCacheTTL > 0 {
+	if cfg.MultiTenantIdleTimeoutSec > 0 {
 		mongoOpts = append(mongoOpts,
-			tmmongo.WithIdleTimeout(time.Duration(cfg.MultiTenantCacheTTL)*time.Second))
+			tmmongo.WithIdleTimeout(time.Duration(cfg.MultiTenantIdleTimeoutSec)*time.Second))
 	}
 
 	mongoManager := tmmongo.NewManager(tmClient, in.ApplicationName, mongoOpts...)

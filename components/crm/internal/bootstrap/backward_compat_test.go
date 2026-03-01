@@ -39,14 +39,14 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 			"MultiTenantURL must default to empty string")
 		assert.Zero(t, cfg.MultiTenantTimeout,
 			"MultiTenantTimeout must default to zero")
-		assert.Zero(t, cfg.MultiTenantCacheTTL,
-			"MultiTenantCacheTTL must default to zero")
-		assert.Zero(t, cfg.MultiTenantCacheSize,
-			"MultiTenantCacheSize must default to zero")
-		assert.Zero(t, cfg.MultiTenantRetryMax,
-			"MultiTenantRetryMax must default to zero")
-		assert.Zero(t, cfg.MultiTenantRetryDelay,
-			"MultiTenantRetryDelay must default to zero")
+		assert.Zero(t, cfg.MultiTenantIdleTimeoutSec,
+			"MultiTenantIdleTimeoutSec must default to zero")
+		assert.Zero(t, cfg.MultiTenantMaxTenantPools,
+			"MultiTenantMaxTenantPools must default to zero")
+		assert.Zero(t, cfg.MultiTenantCircuitBreakerThreshold,
+			"MultiTenantCircuitBreakerThreshold must default to zero")
+		assert.Zero(t, cfg.MultiTenantCircuitBreakerTimeoutSec,
+			"MultiTenantCircuitBreakerTimeoutSec must default to zero")
 	})
 
 	t.Run("initTenantMiddleware_returns_nil_when_disabled", func(t *testing.T) {
@@ -117,13 +117,13 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 		// This ensures backward compat: all fields must be optional (no envDefault
 		// that forces multi-tenant on).
 		expectedFields := map[string]string{
-			"MultiTenantEnabled":    "MULTI_TENANT_ENABLED",
-			"MultiTenantURL":        "MULTI_TENANT_URL",
-			"MultiTenantTimeout":    "MULTI_TENANT_TIMEOUT",
-			"MultiTenantCacheTTL":   "MULTI_TENANT_CACHE_TTL",
-			"MultiTenantCacheSize":  "MULTI_TENANT_CACHE_SIZE",
-			"MultiTenantRetryMax":   "MULTI_TENANT_RETRY_MAX",
-			"MultiTenantRetryDelay": "MULTI_TENANT_RETRY_DELAY",
+			"MultiTenantEnabled":                  "MULTI_TENANT_ENABLED",
+			"MultiTenantURL":                      "MULTI_TENANT_URL",
+			"MultiTenantTimeout":                  "MULTI_TENANT_TIMEOUT",
+			"MultiTenantIdleTimeoutSec":           "MULTI_TENANT_IDLE_TIMEOUT_SEC",
+			"MultiTenantMaxTenantPools":           "MULTI_TENANT_MAX_TENANT_POOLS",
+			"MultiTenantCircuitBreakerThreshold":  "MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD",
+			"MultiTenantCircuitBreakerTimeoutSec": "MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC",
 		}
 
 		cfg := &Config{}

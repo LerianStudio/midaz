@@ -39,28 +39,28 @@ func TestConfig_MultiTenantFields(t *testing.T) {
 			envTag:    "MULTI_TENANT_TIMEOUT",
 		},
 		{
-			name:      "has MultiTenantCacheTTL int field",
-			fieldName: "MultiTenantCacheTTL",
+			name:      "has MultiTenantIdleTimeoutSec int field",
+			fieldName: "MultiTenantIdleTimeoutSec",
 			fieldType: "int",
-			envTag:    "MULTI_TENANT_CACHE_TTL",
+			envTag:    "MULTI_TENANT_IDLE_TIMEOUT_SEC",
 		},
 		{
-			name:      "has MultiTenantCacheSize int field",
-			fieldName: "MultiTenantCacheSize",
+			name:      "has MultiTenantMaxTenantPools int field",
+			fieldName: "MultiTenantMaxTenantPools",
 			fieldType: "int",
-			envTag:    "MULTI_TENANT_CACHE_SIZE",
+			envTag:    "MULTI_TENANT_MAX_TENANT_POOLS",
 		},
 		{
-			name:      "has MultiTenantRetryMax int field",
-			fieldName: "MultiTenantRetryMax",
+			name:      "has MultiTenantCircuitBreakerThreshold int field",
+			fieldName: "MultiTenantCircuitBreakerThreshold",
 			fieldType: "int",
-			envTag:    "MULTI_TENANT_RETRY_MAX",
+			envTag:    "MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD",
 		},
 		{
-			name:      "has MultiTenantRetryDelay int field",
-			fieldName: "MultiTenantRetryDelay",
+			name:      "has MultiTenantCircuitBreakerTimeoutSec int field",
+			fieldName: "MultiTenantCircuitBreakerTimeoutSec",
 			fieldType: "int",
-			envTag:    "MULTI_TENANT_RETRY_DELAY",
+			envTag:    "MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC",
 		},
 	}
 
@@ -90,14 +90,14 @@ func TestConfig_MultiTenantDefaults(t *testing.T) {
 		"MultiTenantURL must default to empty string (zero value)")
 	assert.Zero(t, cfg.MultiTenantTimeout,
 		"MultiTenantTimeout must default to zero (zero value)")
-	assert.Zero(t, cfg.MultiTenantCacheTTL,
-		"MultiTenantCacheTTL must default to zero (zero value)")
-	assert.Zero(t, cfg.MultiTenantCacheSize,
-		"MultiTenantCacheSize must default to zero (zero value)")
-	assert.Zero(t, cfg.MultiTenantRetryMax,
-		"MultiTenantRetryMax must default to zero (zero value)")
-	assert.Zero(t, cfg.MultiTenantRetryDelay,
-		"MultiTenantRetryDelay must default to zero (zero value)")
+	assert.Zero(t, cfg.MultiTenantIdleTimeoutSec,
+		"MultiTenantIdleTimeoutSec must default to zero (zero value)")
+	assert.Zero(t, cfg.MultiTenantMaxTenantPools,
+		"MultiTenantMaxTenantPools must default to zero (zero value)")
+	assert.Zero(t, cfg.MultiTenantCircuitBreakerThreshold,
+		"MultiTenantCircuitBreakerThreshold must default to zero (zero value)")
+	assert.Zero(t, cfg.MultiTenantCircuitBreakerTimeoutSec,
+		"MultiTenantCircuitBreakerTimeoutSec must default to zero (zero value)")
 }
 
 func TestInitTenantMiddleware(t *testing.T) {
@@ -143,11 +143,11 @@ func TestInitTenantMiddleware(t *testing.T) {
 		{
 			name: "returns non-nil middleware with all config options set",
 			cfg: &Config{
-				MultiTenantEnabled:  true,
-				MultiTenantURL:      "http://tenant-manager:8080",
-				MultiTenantTimeout:  30,
-				MultiTenantCacheTTL: 300,
-				MultiTenantRetryMax: 3,
+				MultiTenantEnabled:                 true,
+				MultiTenantURL:                     "http://tenant-manager:8080",
+				MultiTenantTimeout:                 30,
+				MultiTenantIdleTimeoutSec:          300,
+				MultiTenantCircuitBreakerThreshold: 3,
 			},
 			expectNil: false,
 		},
