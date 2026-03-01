@@ -11,10 +11,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
 func TestTransformErrorCode(t *testing.T) {
@@ -131,6 +132,7 @@ func TestTransformResponseCode(t *testing.T) {
 
 			if changed {
 				var response map[string]any
+
 				err := json.Unmarshal(result, &response)
 				require.NoError(t, err)
 				assert.Equal(t, tt.expectedCode, response["code"])
@@ -225,9 +227,10 @@ func TestErrorCodeTransformerMiddleware(t *testing.T) {
 				return c.Status(tt.handlerStatus).JSON(tt.handlerBody)
 			})
 
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 			resp, err := app.Test(req)
 			require.NoError(t, err)
+
 			defer resp.Body.Close()
 
 			// Verify status code
@@ -238,6 +241,7 @@ func TestErrorCodeTransformerMiddleware(t *testing.T) {
 			require.NoError(t, err)
 
 			var response map[string]any
+
 			err = json.Unmarshal(body, &response)
 			require.NoError(t, err)
 
@@ -263,15 +267,17 @@ func TestErrorCodeTransformerPreservesAllFields(t *testing.T) {
 		})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
 	var response map[string]any
+
 	err = json.Unmarshal(body, &response)
 	require.NoError(t, err)
 

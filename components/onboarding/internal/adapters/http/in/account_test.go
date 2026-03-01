@@ -7,14 +7,21 @@ package in
 import (
 	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account" //nolint:depguard // test requires mock from adapter package
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"   //nolint:depguard // test requires mock from adapter package
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -22,13 +29,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
+//nolint:funlen
 func TestAccountHandler_CreateAccount(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -69,6 +72,7 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 						acc.LedgerID = ledgerID.String()
 						acc.CreatedAt = time.Now()
 						acc.UpdatedAt = time.Now()
+
 						return acc, nil
 					}).
 					Times(1)
@@ -83,7 +87,10 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -116,7 +123,10 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -156,7 +166,10 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -194,6 +207,7 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				func(c *fiber.Ctx) error {
@@ -202,13 +216,16 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts", nil)
+			req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts", http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer test-token")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -220,6 +237,7 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestAccountHandler_GetAllAccounts(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -239,18 +257,21 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				// Validate page-based pagination structure exists
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InDelta(t, float64(10), limit, 0.01)
 
 				page, ok := result["page"].(float64)
 				require.True(t, ok, "page should be a number")
-				assert.Equal(t, float64(1), page)
+				assert.InDelta(t, float64(1), page, 0.01)
 			},
 		},
 		{
@@ -296,7 +317,10 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -316,11 +340,11 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 				// Validate page-based pagination
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(5), limit)
+				assert.InDelta(t, float64(5), limit, 0.01)
 
 				page, ok := result["page"].(float64)
 				require.True(t, ok, "page should be a number")
-				assert.Equal(t, float64(1), page)
+				assert.InDelta(t, float64(1), page, 0.01)
 			},
 		},
 		{
@@ -370,7 +394,10 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -398,7 +425,10 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -428,7 +458,10 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -450,7 +483,10 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -484,17 +520,21 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetAllAccounts,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -506,6 +546,7 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestAccountHandler_GetAccountByID(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -539,7 +580,10 @@ func TestAccountHandler_GetAccountByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -560,7 +604,10 @@ func TestAccountHandler_GetAccountByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -582,7 +629,10 @@ func TestAccountHandler_GetAccountByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -618,17 +668,21 @@ func TestAccountHandler_GetAccountByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", accountID)
+
 					return c.Next()
 				},
 				handler.GetAccountByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -640,6 +694,7 @@ func TestAccountHandler_GetAccountByID(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -678,7 +733,10 @@ func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -699,7 +757,10 @@ func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -722,7 +783,10 @@ func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -756,17 +820,21 @@ func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetAccountExternalByCode,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/external/"+tt.code, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/external/"+tt.code, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -778,6 +846,7 @@ func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -815,7 +884,10 @@ func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -835,7 +907,10 @@ func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -858,7 +933,10 @@ func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -892,17 +970,21 @@ func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetAccountByAlias,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/alias/"+tt.alias, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/alias/"+tt.alias, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -914,6 +996,7 @@ func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestAccountHandler_UpdateAccount(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -990,7 +1073,10 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -1013,7 +1099,10 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1056,7 +1145,10 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1081,7 +1173,10 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1124,6 +1219,7 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", accountID)
+
 					return c.Next()
 				},
 				func(c *fiber.Ctx) error {
@@ -1132,12 +1228,15 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), nil)
+			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1149,6 +1248,7 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -1197,7 +1297,10 @@ func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1219,7 +1322,10 @@ func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1255,17 +1361,21 @@ func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", accountID)
+
 					return c.Next()
 				},
 				handler.DeleteAccountByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("DELETE", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), nil)
+			req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1331,17 +1441,21 @@ func TestAccountHandler_CountAccounts(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.CountAccounts,
 			)
 
 			// Act
-			req := httptest.NewRequest("HEAD", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/metrics/count", nil)
+			req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/metrics/count", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.expectedStatus == 204 {

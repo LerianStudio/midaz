@@ -8,14 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 )
 
-func TestMongoDBModel_FromEntity(t *testing.T) {
+func TestMongoDBModel_FromEntity(t *testing.T) { //nolint:funlen // comprehensive model conversion test
 	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
 	holderID := uuid.New()
@@ -209,6 +210,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var model MongoDBModel
+
 			err := model.FromEntity(tt.holder, crypto)
 
 			if tt.wantErr {
@@ -290,6 +292,7 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 	}
 
 	var model MongoDBModel
+
 	err := model.FromEntity(originalHolder, crypto)
 	require.NoError(t, err)
 
@@ -352,6 +355,7 @@ func TestMongoDBModel_ToEntity_LegalPerson(t *testing.T) {
 	}
 
 	var model MongoDBModel
+
 	err := model.FromEntity(originalHolder, crypto)
 	require.NoError(t, err)
 
@@ -472,6 +476,7 @@ func TestMapAddressToEntity(t *testing.T) {
 			}
 
 			require.NotNil(t, result)
+
 			if tt.model.Line1 != nil {
 				assert.Equal(t, *tt.model.Line1, result.Line1)
 			} else {

@@ -6,21 +6,25 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-func TestCreateAlias(t *testing.T) {
+func TestCreateAlias(t *testing.T) { //nolint:funlen
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -231,21 +235,28 @@ func TestCreateAlias(t *testing.T) {
 			result, err := uc.CreateAlias(ctx, uuid.New().String(), testCase.holderID, testCase.input)
 
 			if testCase.expectedErr != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
-				if testCase.expectedErr != nil {
-					if validationErr, ok := err.(pkg.ValidationError); ok {
-						assert.Equal(t, testCase.expectedErr.Error(), validationErr.Code)
-					} else if conflictErr, ok := err.(pkg.EntityConflictError); ok {
-						assert.Equal(t, testCase.expectedErr.Error(), conflictErr.Code)
-					} else if notFoundErr, ok := err.(pkg.EntityNotFoundError); ok {
-						assert.Equal(t, testCase.expectedErr.Error(), notFoundErr.Code)
-					} else {
-						assert.Equal(t, testCase.expectedErr, err)
-					}
+
+				var (
+					validationErr pkg.ValidationError
+					conflictErr   pkg.EntityConflictError
+					notFoundErr   pkg.EntityNotFoundError
+				)
+
+				switch {
+				case errors.As(err, &validationErr):
+					assert.Equal(t, testCase.expectedErr.Error(), validationErr.Code)
+				case errors.As(err, &conflictErr):
+					assert.Equal(t, testCase.expectedErr.Error(), conflictErr.Code)
+				case errors.As(err, &notFoundErr):
+					assert.Equal(t, testCase.expectedErr.Error(), notFoundErr.Code)
+				default:
+					assert.ErrorIs(t, err, testCase.expectedErr)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
+
 				if testCase.expectedResult != nil {
 					assert.NotNil(t, result)
 					assert.Equal(t, testCase.expectedResult.ID, result.ID)

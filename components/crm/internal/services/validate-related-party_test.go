@@ -9,12 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/stretchr/testify/assert"
 )
 
-func TestValidateRelatedParty(t *testing.T) {
+func TestValidateRelatedParty(t *testing.T) { //nolint:funlen
 	uc := &UseCase{}
 
 	now := time.Now()
@@ -143,10 +145,10 @@ func TestValidateRelatedParty(t *testing.T) {
 			err := uc.ValidateRelatedParty(ctx, tc.party)
 
 			if tc.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErr.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

@@ -7,16 +7,17 @@ package holder
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
+
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 )
 
 // ============================================================================
 // buildHolderFilter Tests
-// ============================================================================
+// ============================================================================.
 
 func TestBuildHolderFilter_ExcludeDeleted(t *testing.T) {
 	t.Parallel()
@@ -56,9 +57,11 @@ func TestBuildHolderFilter_ExcludeDeleted(t *testing.T) {
 			require.NotNil(t, filter)
 
 			hasDeletedAt := false
+
 			for _, elem := range filter {
 				if elem.Key == "deleted_at" {
 					hasDeletedAt = true
+
 					assert.Nil(t, elem.Value, "deleted_at filter should check for nil")
 				}
 			}
@@ -125,9 +128,11 @@ func TestBuildHolderFilter_WithExternalID(t *testing.T) {
 			require.NotNil(t, filter)
 
 			hasExternalID := false
+
 			for _, elem := range filter {
 				if elem.Key == "external_id" {
 					hasExternalID = true
+
 					assert.Equal(t, tt.wantValue, elem.Value,
 						"external_id value should match")
 				}
@@ -193,6 +198,7 @@ func TestBuildHolderFilter_WithDocument(t *testing.T) {
 			require.NotNil(t, filter)
 
 			hasDocument := false
+
 			for _, elem := range filter {
 				if elem.Key == "search.document" {
 					hasDocument = true
@@ -276,6 +282,7 @@ func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 
 			// Collect found metadata keys
 			foundKeys := make(map[string]any)
+
 			for _, elem := range filter {
 				if elem.Key != "deleted_at" {
 					foundKeys[elem.Key] = elem.Value
@@ -286,6 +293,7 @@ func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 				for _, key := range tt.wantKeys {
 					assert.Contains(t, foundKeys, key,
 						"filter should contain metadata key: %s", key)
+
 					if tt.wantValues != nil {
 						assert.Equal(t, tt.wantValues[key], foundKeys[key],
 							"metadata value should match for key: %s", key)
@@ -420,9 +428,14 @@ func TestBuildHolderFilter_HashGeneration(t *testing.T) {
 
 	// Find the document hash in the filter
 	var foundHash string
+
 	for _, elem := range filter {
 		if elem.Key == "search.document" {
-			foundHash = elem.Value.(string)
+			hashVal, ok := elem.Value.(string)
+			require.True(t, ok, "search.document value should be a string")
+
+			foundHash = hashVal
+
 			break
 		}
 	}
@@ -434,9 +447,14 @@ func TestBuildHolderFilter_HashGeneration(t *testing.T) {
 	require.NoError(t, err)
 
 	var foundHash2 string
+
 	for _, elem := range filter2 {
 		if elem.Key == "search.document" {
-			foundHash2 = elem.Value.(string)
+			hashVal, ok := elem.Value.(string)
+			require.True(t, ok, "search.document value should be a string")
+
+			foundHash2 = hashVal
+
 			break
 		}
 	}

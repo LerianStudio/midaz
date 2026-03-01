@@ -9,12 +9,17 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
+
+var errUpdateHolderDatabase = errors.New("database error")
 
 func TestUpdateHolderByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -66,7 +71,7 @@ func TestUpdateHolderByID(t *testing.T) {
 			mockSetup: func() {
 				mockRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("database error"))
+					Return(nil, errUpdateHolderDatabase)
 			},
 			expectErr:      true,
 			expectedHolder: nil,
@@ -83,10 +88,10 @@ func TestUpdateHolderByID(t *testing.T) {
 			result, err := uc.UpdateHolderByID(ctx, "0194ffee-e14f-70f5-b400-04b7b7434131", holderID, testCase.input, fieldsToRemove)
 
 			if testCase.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, testCase.expectedHolder.Name, result.Name)
 				assert.Equal(t, testCase.expectedHolder.Document, result.Document)
 			}

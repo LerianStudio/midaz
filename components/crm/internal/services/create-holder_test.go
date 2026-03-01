@@ -9,12 +9,17 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
+
+var errDatabase = errors.New("database error")
 
 func TestCreateHolder(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -68,7 +73,7 @@ func TestCreateHolder(t *testing.T) {
 			mockSetup: func() {
 				mockRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("database error"))
+					Return(nil, errDatabase)
 			},
 			expectErr:      true,
 			expectedHolder: nil,
@@ -83,10 +88,10 @@ func TestCreateHolder(t *testing.T) {
 			result, err := uc.CreateHolder(ctx, "0194ffee-e14f-70f5-b400-04b7b7434131", testCase.input)
 
 			if testCase.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, testCase.expectedHolder.Name, result.Name)
 				assert.Equal(t, testCase.expectedHolder.Document, result.Document)
 			}

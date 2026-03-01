@@ -7,27 +7,30 @@ package in
 import (
 	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account" //nolint:depguard // test requires mock from adapter package
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"   //nolint:depguard // test requires mock from adapter package
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
+//nolint:funlen
 func TestHandler_CreateAsset(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -65,6 +68,7 @@ func TestHandler_CreateAsset(t *testing.T) {
 						a.ID = uuid.New().String()
 						a.CreatedAt = time.Now()
 						a.UpdatedAt = time.Now()
+
 						return a, nil
 					}).
 					Times(1)
@@ -93,7 +97,10 @@ func TestHandler_CreateAsset(t *testing.T) {
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -125,7 +132,10 @@ func TestHandler_CreateAsset(t *testing.T) {
 			},
 			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -163,7 +173,10 @@ func TestHandler_CreateAsset(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -201,6 +214,7 @@ func TestHandler_CreateAsset(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				func(c *fiber.Ctx) error {
@@ -209,13 +223,16 @@ func TestHandler_CreateAsset(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets", nil)
+			req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets", http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer test-token")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -227,6 +244,7 @@ func TestHandler_CreateAsset(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_UpdateAsset(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -287,7 +305,10 @@ func TestHandler_UpdateAsset(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -309,7 +330,10 @@ func TestHandler_UpdateAsset(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -343,7 +367,10 @@ func TestHandler_UpdateAsset(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -367,7 +394,10 @@ func TestHandler_UpdateAsset(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -410,6 +440,7 @@ func TestHandler_UpdateAsset(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", assetID)
+
 					return c.Next()
 				},
 				func(c *fiber.Ctx) error {
@@ -418,12 +449,15 @@ func TestHandler_UpdateAsset(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), nil)
+			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -435,6 +469,7 @@ func TestHandler_UpdateAsset(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_GetAssetByID(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -468,7 +503,10 @@ func TestHandler_GetAssetByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -488,7 +526,10 @@ func TestHandler_GetAssetByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -510,7 +551,10 @@ func TestHandler_GetAssetByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -546,17 +590,21 @@ func TestHandler_GetAssetByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", assetID)
+
 					return c.Next()
 				},
 				handler.GetAssetByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -568,6 +616,7 @@ func TestHandler_GetAssetByID(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_GetAllAssets(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -587,18 +636,21 @@ func TestHandler_GetAllAssets(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				// Validate pagination structure exists
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InDelta(t, float64(10), limit, 0.01)
 
 				page, ok := result["page"].(float64)
 				require.True(t, ok, "page should be a number")
-				assert.Equal(t, float64(1), page)
+				assert.InDelta(t, float64(1), page, 0.01)
 			},
 		},
 		{
@@ -644,7 +696,10 @@ func TestHandler_GetAllAssets(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -663,7 +718,7 @@ func TestHandler_GetAllAssets(t *testing.T) {
 				// Validate pagination
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(5), limit)
+				assert.InDelta(t, float64(5), limit, 0.01)
 			},
 		},
 		{
@@ -713,7 +768,10 @@ func TestHandler_GetAllAssets(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -741,7 +799,10 @@ func TestHandler_GetAllAssets(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -771,7 +832,10 @@ func TestHandler_GetAllAssets(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -793,7 +857,10 @@ func TestHandler_GetAllAssets(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -827,17 +894,21 @@ func TestHandler_GetAllAssets(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetAllAssets,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -849,6 +920,7 @@ func TestHandler_GetAllAssets(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_DeleteAssetByID(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -897,7 +969,10 @@ func TestHandler_DeleteAssetByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -919,7 +994,10 @@ func TestHandler_DeleteAssetByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -955,17 +1033,21 @@ func TestHandler_DeleteAssetByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", assetID)
+
 					return c.Next()
 				},
 				handler.DeleteAssetByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("DELETE", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), nil)
+			req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/"+assetID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1031,17 +1113,21 @@ func TestHandler_CountAssets(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.CountAssets,
 			)
 
 			// Act
-			req := httptest.NewRequest("HEAD", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/metrics/count", nil)
+			req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets/metrics/count", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.expectedStatus == 204 {

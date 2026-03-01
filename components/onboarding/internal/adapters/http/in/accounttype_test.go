@@ -8,27 +8,31 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	nethttp "net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype" //nolint:depguard // test requires mock from adapter package
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
+//nolint:funlen
 func TestHandler_CreateAccountType(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -50,6 +54,7 @@ func TestHandler_CreateAccountType(t *testing.T) {
 						at.ID = uuid.New()
 						at.CreatedAt = time.Now()
 						at.UpdatedAt = time.Now()
+
 						return at, nil
 					}).
 					Times(1)
@@ -57,7 +62,10 @@ func TestHandler_CreateAccountType(t *testing.T) {
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -82,7 +90,10 @@ func TestHandler_CreateAccountType(t *testing.T) {
 			},
 			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -108,7 +119,10 @@ func TestHandler_CreateAccountType(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -142,6 +156,7 @@ func TestHandler_CreateAccountType(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				http.WithBody(new(mmodel.CreateAccountTypeInput), handler.CreateAccountType),
@@ -151,12 +166,15 @@ func TestHandler_CreateAccountType(t *testing.T) {
 			bodyBytes, err := json.Marshal(tt.payload)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types", bytes.NewReader(bodyBytes))
+			req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types", bytes.NewReader(bodyBytes))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -168,6 +186,7 @@ func TestHandler_CreateAccountType(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_UpdateAccountType(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -224,7 +243,10 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -246,7 +268,10 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -280,7 +305,10 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -304,7 +332,10 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -347,6 +378,7 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", accountTypeID)
+
 					return c.Next()
 				},
 				http.WithBody(new(mmodel.UpdateAccountTypeInput), handler.UpdateAccountType),
@@ -356,12 +388,15 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 			bodyBytes, err := json.Marshal(tt.payload)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), bytes.NewReader(bodyBytes))
+			req := httptest.NewRequest(nethttp.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), bytes.NewReader(bodyBytes))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -373,6 +408,7 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_GetAccountTypeByID(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -404,7 +440,10 @@ func TestHandler_GetAccountTypeByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -423,7 +462,10 @@ func TestHandler_GetAccountTypeByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -445,7 +487,10 @@ func TestHandler_GetAccountTypeByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -481,17 +526,21 @@ func TestHandler_GetAccountTypeByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", accountTypeID)
+
 					return c.Next()
 				},
 				handler.GetAccountTypeByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), nil)
+			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -503,6 +552,7 @@ func TestHandler_GetAccountTypeByID(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_GetAllAccountTypes(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -528,14 +578,17 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				// Validate pagination structure exists
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InDelta(t, float64(10), limit, 0.01)
 			},
 		},
 		{
@@ -577,7 +630,10 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -595,7 +651,7 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 				// Validate pagination limit
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(5), limit)
+				assert.InDelta(t, float64(5), limit, 0.01)
 
 				// Validate cursor pagination
 				nextCursor, ok := result["next_cursor"].(string)
@@ -650,7 +706,10 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -678,7 +737,10 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -697,7 +759,10 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -720,7 +785,10 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -754,17 +822,21 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetAllAccountTypes,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types"+tt.queryParams, nil)
+			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types"+tt.queryParams, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -804,7 +876,10 @@ func TestHandler_DeleteAccountTypeByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -826,7 +901,10 @@ func TestHandler_DeleteAccountTypeByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -860,17 +938,21 @@ func TestHandler_DeleteAccountTypeByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", accountTypeID)
+
 					return c.Next()
 				},
 				handler.DeleteAccountTypeByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("DELETE", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), nil)
+			req := httptest.NewRequest(nethttp.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types/"+accountTypeID.String(), nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {

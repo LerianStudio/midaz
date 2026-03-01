@@ -7,26 +7,30 @@ package in
 import (
 	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio" //nolint:depguard // test requires mock from adapter package
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+//nolint:funlen
 func TestHandler_CreatePortfolio(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -50,6 +54,7 @@ func TestHandler_CreatePortfolio(t *testing.T) {
 						port.ID = uuid.New().String()
 						port.CreatedAt = time.Now()
 						port.UpdatedAt = time.Now()
+
 						return port, nil
 					}).
 					Times(1)
@@ -57,7 +62,10 @@ func TestHandler_CreatePortfolio(t *testing.T) {
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -101,7 +109,10 @@ func TestHandler_CreatePortfolio(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -135,6 +146,7 @@ func TestHandler_CreatePortfolio(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				func(c *fiber.Ctx) error {
@@ -143,12 +155,15 @@ func TestHandler_CreatePortfolio(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios", nil)
+			req := httptest.NewRequest(http.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios", http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -160,6 +175,7 @@ func TestHandler_CreatePortfolio(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_UpdatePortfolio(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -216,7 +232,10 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -256,7 +275,10 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -290,7 +312,10 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -314,7 +339,10 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -357,6 +385,7 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", portfolioID)
+
 					return c.Next()
 				},
 				func(c *fiber.Ctx) error {
@@ -365,12 +394,15 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/"+portfolioID.String(), nil)
+			req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/"+portfolioID.String(), http.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -382,6 +414,7 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_GetPortfolioByID(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -413,7 +446,10 @@ func TestHandler_GetPortfolioByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -450,7 +486,10 @@ func TestHandler_GetPortfolioByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -472,7 +511,10 @@ func TestHandler_GetPortfolioByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -508,17 +550,21 @@ func TestHandler_GetPortfolioByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", portfolioID)
+
 					return c.Next()
 				},
 				handler.GetPortfolioByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/"+portfolioID.String(), nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/"+portfolioID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -530,6 +576,7 @@ func TestHandler_GetPortfolioByID(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_GetAllPortfolios(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -549,18 +596,21 @@ func TestHandler_GetAllPortfolios(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				// Validate pagination structure exists
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InDelta(t, float64(10), limit, 0.01)
 
 				page, ok := result["page"].(float64)
 				require.True(t, ok, "page should be a number")
-				assert.Equal(t, float64(1), page)
+				assert.InDelta(t, float64(1), page, 0.01)
 			},
 		},
 		{
@@ -602,7 +652,10 @@ func TestHandler_GetAllPortfolios(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -620,7 +673,7 @@ func TestHandler_GetAllPortfolios(t *testing.T) {
 				// Validate pagination
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(5), limit)
+				assert.InDelta(t, float64(5), limit, 0.01)
 			},
 		},
 		{
@@ -666,7 +719,10 @@ func TestHandler_GetAllPortfolios(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -694,7 +750,10 @@ func TestHandler_GetAllPortfolios(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -724,7 +783,10 @@ func TestHandler_GetAllPortfolios(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -746,7 +808,10 @@ func TestHandler_GetAllPortfolios(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -780,17 +845,21 @@ func TestHandler_GetAllPortfolios(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetAllPortfolios,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios"+tt.queryParams, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios"+tt.queryParams, http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -830,7 +899,10 @@ func TestHandler_DeletePortfolioByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -852,7 +924,10 @@ func TestHandler_DeletePortfolioByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -886,17 +961,21 @@ func TestHandler_DeletePortfolioByID(t *testing.T) {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
 					c.Locals("id", portfolioID)
+
 					return c.Next()
 				},
 				handler.DeletePortfolioByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("DELETE", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/"+portfolioID.String(), nil)
+			req := httptest.NewRequest(http.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/"+portfolioID.String(), http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -962,17 +1041,21 @@ func TestHandler_CountPortfolios(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
+
 					return c.Next()
 				},
 				handler.CountPortfolios,
 			)
 
 			// Act
-			req := httptest.NewRequest("HEAD", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/metrics/count", nil)
+			req := httptest.NewRequest(http.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/portfolios/metrics/count", http.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.expectedStatus == 204 {
@@ -987,5 +1070,5 @@ func TestHandler_CountPortfolios(t *testing.T) {
 	}
 }
 
-// Ensure libPostgres.Pagination is used (referenced in handler)
+// Ensure libPostgres.Pagination is used (referenced in handler).
 var _ = libPostgres.Pagination{}

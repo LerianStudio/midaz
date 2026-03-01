@@ -8,27 +8,31 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	nethttp "net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger" //nolint:depguard // test requires mock from adapter package
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
+//nolint:funlen
 func TestHandler_CreateLedger(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -58,6 +62,7 @@ func TestHandler_CreateLedger(t *testing.T) {
 						led.ID = uuid.New().String()
 						led.CreatedAt = time.Now()
 						led.UpdatedAt = time.Now()
+
 						return led, nil
 					}).
 					Times(1)
@@ -65,7 +70,10 @@ func TestHandler_CreateLedger(t *testing.T) {
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -88,7 +96,10 @@ func TestHandler_CreateLedger(t *testing.T) {
 			},
 			expectedStatus: 409,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -118,7 +129,10 @@ func TestHandler_CreateLedger(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -158,12 +172,15 @@ func TestHandler_CreateLedger(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID.String()+"/ledgers", nil)
+			req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers", nethttp.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -175,6 +192,7 @@ func TestHandler_CreateLedger(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_UpdateLedger(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -229,7 +247,10 @@ func TestHandler_UpdateLedger(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -251,7 +272,10 @@ func TestHandler_UpdateLedger(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -285,7 +309,10 @@ func TestHandler_UpdateLedger(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -309,7 +336,10 @@ func TestHandler_UpdateLedger(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -350,6 +380,7 @@ func TestHandler_UpdateLedger(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("id", ledgerID)
+
 					return c.Next()
 				},
 				func(c *fiber.Ctx) error {
@@ -358,12 +389,15 @@ func TestHandler_UpdateLedger(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String(), nil)
+			req := httptest.NewRequest(nethttp.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String(), nethttp.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -375,6 +409,7 @@ func TestHandler_UpdateLedger(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_GetLedgerByID(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -405,7 +440,10 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -424,7 +462,10 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -446,7 +487,10 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -480,17 +524,21 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("id", ledgerID)
+
 					return c.Next()
 				},
 				handler.GetLedgerByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String(), nil)
+			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String(), nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -502,6 +550,7 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_GetAllLedgers(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -521,18 +570,21 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				// Validate pagination structure exists
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InDelta(t, float64(10), limit, 0.01)
 
 				page, ok := result["page"].(float64)
 				require.True(t, ok, "page should be a number")
-				assert.Equal(t, float64(1), page)
+				assert.InDelta(t, float64(1), page, 0.01)
 			},
 		},
 		{
@@ -572,7 +624,10 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -590,7 +645,7 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 				// Validate pagination
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(5), limit)
+				assert.InDelta(t, float64(5), limit, 0.01)
 			},
 		},
 		{
@@ -634,7 +689,10 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -662,7 +720,10 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -692,7 +753,10 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -714,7 +778,10 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -752,11 +819,14 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String()+"/ledgers"+tt.queryParams, nil)
+			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers"+tt.queryParams, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -768,6 +838,7 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_DeleteLedgerByID(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -799,7 +870,10 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -815,7 +889,10 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -838,7 +915,10 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -873,17 +953,21 @@ func TestHandler_DeleteLedgerByID(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("id", ledgerID)
+
 					return c.Next()
 				},
 				handler.DeleteLedgerByID,
 			)
 
 			// Act
-			req := httptest.NewRequest("DELETE", "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String(), nil)
+			req := httptest.NewRequest(nethttp.MethodDelete, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String(), nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -953,11 +1037,14 @@ func TestHandler_CountLedgers(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("HEAD", "/v1/organizations/"+orgID.String()+"/ledgers/metrics/count", nil)
+			req := httptest.NewRequest(nethttp.MethodHead, "/v1/organizations/"+orgID.String()+"/ledgers/metrics/count", nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.expectedStatus == 204 {
@@ -984,7 +1071,10 @@ func TestHandler_CreateLedger_Validation(t *testing.T) {
 			requestBody:    map[string]any{},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1029,12 +1119,15 @@ func TestHandler_CreateLedger_Validation(t *testing.T) {
 			bodyBytes, err := json.Marshal(tt.requestBody)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest("POST", "/v1/organizations/"+orgID.String()+"/ledgers", bytes.NewReader(bodyBytes))
+			req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations/"+orgID.String()+"/ledgers", bytes.NewReader(bodyBytes))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1046,5 +1139,5 @@ func TestHandler_CreateLedger_Validation(t *testing.T) {
 	}
 }
 
-// Ensure libPostgres.Pagination is used (referenced in handler)
+// Ensure libPostgres.Pagination is used (referenced in handler).
 var _ = libPostgres.Pagination{}

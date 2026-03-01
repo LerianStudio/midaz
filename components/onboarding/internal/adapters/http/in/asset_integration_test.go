@@ -95,13 +95,25 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
 
 	// Create repositories
-	orgRepo := organization.NewOrganizationPostgreSQLRepository(infra.pgConn)
-	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
-	assetRepo := asset.NewAssetPostgreSQLRepository(infra.pgConn)
-	accountRepo := account.NewAccountPostgreSQLRepository(infra.pgConn)
-	portfolioRepo := portfolio.NewPortfolioPostgreSQLRepository(infra.pgConn)
-	segmentRepo := segment.NewSegmentPostgreSQLRepository(infra.pgConn)
-	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
+	orgRepo, err := organization.NewOrganizationPostgreSQLRepository(infra.pgConn)
+	require.NoError(t, err, "failed to create organization repository")
+
+	ledgerRepo, err := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
+	require.NoError(t, err, "failed to create ledger repository")
+
+	assetRepo, err := asset.NewAssetPostgreSQLRepository(infra.pgConn)
+	require.NoError(t, err, "failed to create asset repository")
+
+	accountRepo, err := account.NewAccountPostgreSQLRepository(infra.pgConn)
+	require.NoError(t, err, "failed to create account repository")
+
+	portfolioRepo, err := portfolio.NewPortfolioPostgreSQLRepository(infra.pgConn)
+	require.NoError(t, err, "failed to create portfolio repository")
+
+	segmentRepo, err := segment.NewSegmentPostgreSQLRepository(infra.pgConn)
+	require.NoError(t, err, "failed to create segment repository")
+	metadataRepo, metadataErr := mongodb.NewMetadataMongoDBRepository(mongoConn)
+	require.NoError(t, metadataErr, "failed to create metadata MongoDB repository")
 
 	// Create use cases
 	commandUC := &command.UseCase{

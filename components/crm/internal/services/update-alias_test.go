@@ -10,18 +10,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-func TestUpdateAliasByID(t *testing.T) {
+var errUpdateAliasDatabase = errors.New("database error")
+
+func TestUpdateAliasByID(t *testing.T) { //nolint:funlen
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -190,9 +195,9 @@ func TestUpdateAliasByID(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
-					Return(nil, errors.New("database error"))
+					Return(nil, errUpdateAliasDatabase)
 			},
-			expectedErr:    errors.New("database error"),
+			expectedErr:    errUpdateAliasDatabase,
 			expectedResult: nil,
 		},
 		{
@@ -286,13 +291,15 @@ func TestUpdateAliasByID(t *testing.T) {
 			result, err := uc.UpdateAliasByID(ctx, uuid.New().String(), holderID, id, testCase.input, fieldsToRemove)
 
 			if testCase.expectedErr != nil {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
-				if validationErr, ok := err.(pkg.ValidationError); ok {
+
+				var validationErr pkg.ValidationError
+				if errors.As(err, &validationErr) {
 					assert.Equal(t, testCase.expectedErr.Error(), validationErr.Code)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, testCase.expectedResult.AccountID, result.AccountID)
 				assert.Equal(t, testCase.expectedResult.HolderID, result.HolderID)
 				assert.Equal(t, testCase.expectedResult.Document, result.Document)

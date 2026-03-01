@@ -9,19 +9,22 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
-func TestDeleteRelatedPartyByID(t *testing.T) {
-	t.Parallel()
+var errRepoGeneric = errors.New("connection refused")
 
+func TestDeleteRelatedPartyByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	t.Cleanup(ctrl.Finish)
+	defer ctrl.Finish()
 
 	mockAliasRepo := alias.NewMockRepository(ctrl)
 
@@ -33,8 +36,6 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 	holderID := libCommons.GenerateUUIDv7()
 	aliasID := libCommons.GenerateUUIDv7()
 	relatedPartyID := libCommons.GenerateUUIDv7()
-
-	errRepoGeneric := errors.New("connection refused")
 
 	testCases := []struct {
 		name           string
@@ -125,11 +126,11 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 			err := uc.DeleteRelatedPartyByID(ctx, tc.organizationID, tc.holderID, tc.aliasID, tc.relatedPartyID)
 
 			if tc.expectedError != nil {
-				assert.Error(t, err)
-				assert.ErrorIs(t, err, tc.expectedError)
+				require.Error(t, err)
+				require.ErrorIs(t, err, tc.expectedError)
 				assert.Contains(t, err.Error(), tc.errContains)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

@@ -8,10 +8,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	nethttp "net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
@@ -20,14 +27,9 @@ import (
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
-func TestAliasHandler_CreateAlias(t *testing.T) {
+func TestAliasHandler_CreateAlias(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		jsonBody       string
@@ -59,13 +61,17 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 					DoAndReturn(func(ctx any, org string, a *mmodel.Alias) (*mmodel.Alias, error) {
 						a.CreatedAt = time.Now()
 						a.UpdatedAt = time.Now()
+
 						return a, nil
 					}).
 					Times(1)
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -88,7 +94,10 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -126,7 +135,10 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -144,7 +156,10 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -162,7 +177,10 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -187,7 +205,10 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -212,7 +233,10 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -237,7 +261,10 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -261,7 +288,10 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -287,7 +317,10 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -320,17 +353,21 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("holder_id", holderID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
+
 					return c.Next()
 				},
 				http.WithBody(new(mmodel.CreateAliasInput), handler.CreateAlias),
 			)
 
-			req := httptest.NewRequest("POST", "/v1/holders/"+holderID.String()+"/aliases", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(nethttp.MethodPost, "/v1/holders/"+holderID.String()+"/aliases", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -342,7 +379,7 @@ func TestAliasHandler_CreateAlias(t *testing.T) {
 	}
 }
 
-func TestAliasHandler_GetAliasByID(t *testing.T) {
+func TestAliasHandler_GetAliasByID(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		includeDeleted string
@@ -375,7 +412,10 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -409,7 +449,10 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -429,7 +472,10 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -452,7 +498,10 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -485,6 +534,7 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 					c.Locals("holder_id", holderID)
 					c.Locals("id", aliasID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
+
 					return c.Next()
 				},
 				handler.GetAliasByID,
@@ -494,11 +544,15 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 			if tt.includeDeleted != "" {
 				url += "?include_deleted=" + tt.includeDeleted
 			}
-			req := httptest.NewRequest("GET", url, nil)
+
+			req := httptest.NewRequest(nethttp.MethodGet, url, nethttp.NoBody)
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -510,7 +564,7 @@ func TestAliasHandler_GetAliasByID(t *testing.T) {
 	}
 }
 
-func TestAliasHandler_UpdateAlias(t *testing.T) {
+func TestAliasHandler_UpdateAlias(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		jsonBody       string
@@ -546,7 +600,10 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -570,7 +627,10 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -595,7 +655,10 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -618,7 +681,10 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -641,7 +707,10 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -664,7 +733,10 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -686,7 +758,10 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -710,7 +785,10 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -743,17 +821,21 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 					c.Locals("holder_id", holderID)
 					c.Locals("id", aliasID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
+
 					return c.Next()
 				},
 				http.WithBody(new(mmodel.UpdateAliasInput), handler.UpdateAlias),
 			)
 
-			req := httptest.NewRequest("PATCH", "/v1/holders/"+holderID.String()+"/aliases/"+aliasID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(nethttp.MethodPatch, "/v1/holders/"+holderID.String()+"/aliases/"+aliasID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -765,7 +847,7 @@ func TestAliasHandler_UpdateAlias(t *testing.T) {
 	}
 }
 
-func TestAliasHandler_DeleteAliasByID(t *testing.T) {
+func TestAliasHandler_DeleteAliasByID(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		hardDelete     string
@@ -808,7 +890,10 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -831,7 +916,10 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -864,6 +952,7 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 					c.Locals("holder_id", holderID)
 					c.Locals("id", aliasID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
+
 					return c.Next()
 				},
 				handler.DeleteAliasByID,
@@ -873,11 +962,15 @@ func TestAliasHandler_DeleteAliasByID(t *testing.T) {
 			if tt.hardDelete != "" {
 				url += "?hard_delete=" + tt.hardDelete
 			}
-			req := httptest.NewRequest("DELETE", url, nil)
+
+			req := httptest.NewRequest(nethttp.MethodDelete, url, nethttp.NoBody)
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -917,7 +1010,10 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -939,7 +1035,10 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -974,17 +1073,21 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 					c.Locals("alias_id", aliasID)
 					c.Locals("related_party_id", relatedPartyID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
+
 					return c.Next()
 				},
 				handler.DeleteRelatedParty,
 			)
 
 			url := "/v1/holders/" + holderID.String() + "/aliases/" + aliasID.String() + "/related-parties/" + relatedPartyID.String()
-			req := httptest.NewRequest("DELETE", url, nil)
+			req := httptest.NewRequest(nethttp.MethodDelete, url, nethttp.NoBody)
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -996,7 +1099,7 @@ func TestAliasHandler_DeleteRelatedParty(t *testing.T) {
 	}
 }
 
-func TestAliasHandler_GetAllAliases(t *testing.T) {
+func TestAliasHandler_GetAllAliases(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		queryParams    string
@@ -1015,17 +1118,20 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InDelta(t, float64(10), limit, 0.001)
 
 				page, ok := result["page"].(float64)
 				require.True(t, ok, "page should be a number")
-				assert.Equal(t, float64(1), page)
+				assert.InDelta(t, float64(1), page, 0.001)
 			},
 		},
 		{
@@ -1068,7 +1174,10 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -1083,7 +1192,7 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(5), limit)
+				assert.InDelta(t, float64(5), limit, 0.001)
 			},
 		},
 		{
@@ -1101,7 +1210,10 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1135,11 +1247,14 @@ func TestAliasHandler_GetAllAliases(t *testing.T) {
 				handler.GetAllAliases,
 			)
 
-			req := httptest.NewRequest("GET", "/v1/aliases"+tt.queryParams, nil)
+			req := httptest.NewRequest(nethttp.MethodGet, "/v1/aliases"+tt.queryParams, nethttp.NoBody)
 			req.Header.Set("X-Organization-Id", orgID)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {

@@ -20,7 +20,7 @@ func TestInitServiceOrError_RedisError(t *testing.T) {
 	t.Setenv("REDIS_HOST", "localhost:9999") // Invalid port to force connection error
 
 	var (
-		service interface{}
+		service any
 		err     error
 	)
 
@@ -62,7 +62,7 @@ func TestInitServiceOrError_NoPanic(t *testing.T) {
 	t.Setenv("REDIS_HOST", "localhost:9999")
 
 	var (
-		service interface{}
+		service any
 		err     error
 	)
 
@@ -83,7 +83,7 @@ func TestInitServiceWithOptionsOrError_NilOptions(t *testing.T) {
 	t.Setenv("REDIS_HOST", "localhost:9999")
 
 	var (
-		service interface{}
+		service any
 		err     error
 	)
 

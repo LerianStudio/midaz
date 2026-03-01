@@ -9,16 +9,21 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-func TestGetAllAliases(t *testing.T) {
+var errGetAllAliasesDatabase = errors.New("database error")
+
+func TestGetAllAliases(t *testing.T) { //nolint:funlen
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -188,9 +193,9 @@ func TestGetAllAliases(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
-					Return(nil, errors.New("database error"))
+					Return(nil, errGetAllAliasesDatabase)
 			},
-			expectedErr:    errors.New("database error"),
+			expectedErr:    errGetAllAliasesDatabase,
 			expectedResult: nil,
 		},
 	}
@@ -203,9 +208,9 @@ func TestGetAllAliases(t *testing.T) {
 			accounts, err := uc.GetAllAliases(ctx, uuid.New().String(), testCase.holderId, query, false)
 
 			if testCase.expectedErr != nil {
-				assert.NotNil(t, err)
+				require.Error(t, err)
 			} else {
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, testCase.expectedResult, accounts)
 			}
 		})

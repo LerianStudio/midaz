@@ -9,16 +9,21 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-func TestGetAllHolders(t *testing.T) {
+var errGetAllHoldersDatabase = errors.New("database error")
+
+func TestGetAllHolders(t *testing.T) { //nolint:funlen
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -118,7 +123,7 @@ func TestGetAllHolders(t *testing.T) {
 			mockSetup: func() {
 				mockRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), query, false).
-					Return(nil, errors.New("database error"))
+					Return(nil, errGetAllHoldersDatabase)
 			},
 			expectErr:      true,
 			expectedResult: nil,
@@ -133,9 +138,9 @@ func TestGetAllHolders(t *testing.T) {
 			holders, err := uc.GetAllHolders(ctx, uuid.New().String(), testCase.filter, false)
 
 			if testCase.expectErr {
-				assert.NotNil(t, err)
+				require.Error(t, err)
 			} else {
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, testCase.expectedResult, holders)
 			}
 		})

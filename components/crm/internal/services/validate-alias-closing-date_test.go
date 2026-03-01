@@ -10,16 +10,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-func TestValidateAliasClosingDate(t *testing.T) {
+var errValidateClosingDatabase = errors.New("database error")
+
+func TestValidateAliasClosingDate(t *testing.T) { //nolint:funlen
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -113,7 +118,7 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Find(gomock.Any(), organizationID, holderID, aliasID, false).
-					Return(nil, errors.New("database error"))
+					Return(nil, errValidateClosingDatabase)
 			},
 			expectError: true,
 		},
@@ -145,12 +150,13 @@ func TestValidateAliasClosingDate(t *testing.T) {
 			err := uc.validateAliasClosingDate(ctx, organizationID, testCase.holderID, testCase.aliasID, testCase.closingDate)
 
 			if testCase.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if testCase.expectedError != nil {
 					assert.Contains(t, err.Error(), testCase.expectedError.Error())
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

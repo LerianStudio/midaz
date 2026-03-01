@@ -12,6 +12,7 @@ package authorizerv1
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -28,6 +29,9 @@ const (
 	BalanceAuthorizer_LoadBalances_FullMethodName             = "/authorizer.v1.BalanceAuthorizer/LoadBalances"
 	BalanceAuthorizer_GetBalance_FullMethodName               = "/authorizer.v1.BalanceAuthorizer/GetBalance"
 	BalanceAuthorizer_PublishBalanceOperations_FullMethodName = "/authorizer.v1.BalanceAuthorizer/PublishBalanceOperations"
+	BalanceAuthorizer_PrepareAuthorize_FullMethodName         = "/authorizer.v1.BalanceAuthorizer/PrepareAuthorize"
+	BalanceAuthorizer_CommitPrepared_FullMethodName           = "/authorizer.v1.BalanceAuthorizer/CommitPrepared"
+	BalanceAuthorizer_AbortPrepared_FullMethodName            = "/authorizer.v1.BalanceAuthorizer/AbortPrepared"
 )
 
 // BalanceAuthorizerClient is the client API for BalanceAuthorizer service.
@@ -39,6 +43,13 @@ type BalanceAuthorizerClient interface {
 	LoadBalances(ctx context.Context, in *LoadBalancesRequest, opts ...grpc.CallOption) (*LoadBalancesResponse, error)
 	GetBalance(ctx context.Context, in *GetBalanceRequest, opts ...grpc.CallOption) (*GetBalanceResponse, error)
 	PublishBalanceOperations(ctx context.Context, in *PublishBalanceOperationsRequest, opts ...grpc.CallOption) (*PublishBalanceOperationsResponse, error)
+	// 2PC methods for cross-shard authorization between authorizer instances.
+	// PrepareAuthorize validates operations and holds shard locks without committing.
+	PrepareAuthorize(ctx context.Context, in *AuthorizeRequest, opts ...grpc.CallOption) (*PrepareAuthorizeResponse, error)
+	// CommitPrepared writes WAL, mutates balances, and releases locks for a prepared transaction.
+	CommitPrepared(ctx context.Context, in *CommitPreparedRequest, opts ...grpc.CallOption) (*CommitPreparedResponse, error)
+	// AbortPrepared releases locks without any mutation for a prepared transaction.
+	AbortPrepared(ctx context.Context, in *AbortPreparedRequest, opts ...grpc.CallOption) (*AbortPreparedResponse, error)
 }
 
 type balanceAuthorizerClient struct {
@@ -102,6 +113,36 @@ func (c *balanceAuthorizerClient) PublishBalanceOperations(ctx context.Context, 
 	return out, nil
 }
 
+func (c *balanceAuthorizerClient) PrepareAuthorize(ctx context.Context, in *AuthorizeRequest, opts ...grpc.CallOption) (*PrepareAuthorizeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PrepareAuthorizeResponse)
+	err := c.cc.Invoke(ctx, BalanceAuthorizer_PrepareAuthorize_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *balanceAuthorizerClient) CommitPrepared(ctx context.Context, in *CommitPreparedRequest, opts ...grpc.CallOption) (*CommitPreparedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CommitPreparedResponse)
+	err := c.cc.Invoke(ctx, BalanceAuthorizer_CommitPrepared_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *balanceAuthorizerClient) AbortPrepared(ctx context.Context, in *AbortPreparedRequest, opts ...grpc.CallOption) (*AbortPreparedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AbortPreparedResponse)
+	err := c.cc.Invoke(ctx, BalanceAuthorizer_AbortPrepared_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BalanceAuthorizerServer is the server API for BalanceAuthorizer service.
 // All implementations must embed UnimplementedBalanceAuthorizerServer
 // for forward compatibility.
@@ -111,6 +152,13 @@ type BalanceAuthorizerServer interface {
 	LoadBalances(context.Context, *LoadBalancesRequest) (*LoadBalancesResponse, error)
 	GetBalance(context.Context, *GetBalanceRequest) (*GetBalanceResponse, error)
 	PublishBalanceOperations(context.Context, *PublishBalanceOperationsRequest) (*PublishBalanceOperationsResponse, error)
+	// 2PC methods for cross-shard authorization between authorizer instances.
+	// PrepareAuthorize validates operations and holds shard locks without committing.
+	PrepareAuthorize(context.Context, *AuthorizeRequest) (*PrepareAuthorizeResponse, error)
+	// CommitPrepared writes WAL, mutates balances, and releases locks for a prepared transaction.
+	CommitPrepared(context.Context, *CommitPreparedRequest) (*CommitPreparedResponse, error)
+	// AbortPrepared releases locks without any mutation for a prepared transaction.
+	AbortPrepared(context.Context, *AbortPreparedRequest) (*AbortPreparedResponse, error)
 	mustEmbedUnimplementedBalanceAuthorizerServer()
 }
 
@@ -135,6 +183,15 @@ func (UnimplementedBalanceAuthorizerServer) GetBalance(context.Context, *GetBala
 }
 func (UnimplementedBalanceAuthorizerServer) PublishBalanceOperations(context.Context, *PublishBalanceOperationsRequest) (*PublishBalanceOperationsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PublishBalanceOperations not implemented")
+}
+func (UnimplementedBalanceAuthorizerServer) PrepareAuthorize(context.Context, *AuthorizeRequest) (*PrepareAuthorizeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PrepareAuthorize not implemented")
+}
+func (UnimplementedBalanceAuthorizerServer) CommitPrepared(context.Context, *CommitPreparedRequest) (*CommitPreparedResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CommitPrepared not implemented")
+}
+func (UnimplementedBalanceAuthorizerServer) AbortPrepared(context.Context, *AbortPreparedRequest) (*AbortPreparedResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AbortPrepared not implemented")
 }
 func (UnimplementedBalanceAuthorizerServer) mustEmbedUnimplementedBalanceAuthorizerServer() {}
 func (UnimplementedBalanceAuthorizerServer) testEmbeddedByValue()                           {}
@@ -236,6 +293,60 @@ func _BalanceAuthorizer_PublishBalanceOperations_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BalanceAuthorizer_PrepareAuthorize_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthorizeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BalanceAuthorizerServer).PrepareAuthorize(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BalanceAuthorizer_PrepareAuthorize_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BalanceAuthorizerServer).PrepareAuthorize(ctx, req.(*AuthorizeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BalanceAuthorizer_CommitPrepared_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CommitPreparedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BalanceAuthorizerServer).CommitPrepared(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BalanceAuthorizer_CommitPrepared_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BalanceAuthorizerServer).CommitPrepared(ctx, req.(*CommitPreparedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BalanceAuthorizer_AbortPrepared_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AbortPreparedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BalanceAuthorizerServer).AbortPrepared(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BalanceAuthorizer_AbortPrepared_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BalanceAuthorizerServer).AbortPrepared(ctx, req.(*AbortPreparedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BalanceAuthorizer_ServiceDesc is the grpc.ServiceDesc for BalanceAuthorizer service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -258,6 +369,18 @@ var BalanceAuthorizer_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PublishBalanceOperations",
 			Handler:    _BalanceAuthorizer_PublishBalanceOperations_Handler,
+		},
+		{
+			MethodName: "PrepareAuthorize",
+			Handler:    _BalanceAuthorizer_PrepareAuthorize_Handler,
+		},
+		{
+			MethodName: "CommitPrepared",
+			Handler:    _BalanceAuthorizer_CommitPrepared_Handler,
+		},
+		{
+			MethodName: "AbortPrepared",
+			Handler:    _BalanceAuthorizer_AbortPrepared_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

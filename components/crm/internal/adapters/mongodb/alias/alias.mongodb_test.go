@@ -7,15 +7,16 @@ package alias
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
+
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 )
 
-func TestMongoDBRepository_buildAliasFilter(t *testing.T) {
+func TestMongoDBRepository_buildAliasFilter(t *testing.T) { //nolint:funlen // comprehensive filter test
 	t.Parallel()
 
 	crypto := testutils.SetupCrypto(t)
@@ -165,6 +166,7 @@ func TestMongoDBRepository_buildAliasFilter(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
+
 				return
 			}
 
@@ -211,9 +213,14 @@ func TestMongoDBRepository_buildAliasFilter_HashGeneration(t *testing.T) {
 
 	// Find the document hash in the filter
 	var foundHash string
+
 	for _, elem := range filter {
 		if elem.Key == "search.document" {
-			foundHash = elem.Value.(string)
+			hashVal, ok := elem.Value.(string)
+			require.True(t, ok, "search.document value should be a string")
+
+			foundHash = hashVal
+
 			break
 		}
 	}
@@ -246,12 +253,19 @@ func TestMongoDBRepository_buildAliasFilter_BankingDetailsHashes(t *testing.T) {
 	require.NoError(t, err)
 
 	var foundAccountHash, foundIbanHash string
+
 	for _, elem := range filter {
 		switch elem.Key {
 		case "search.banking_details_account":
-			foundAccountHash = elem.Value.(string)
+			hashVal, ok := elem.Value.(string)
+			require.True(t, ok, "banking_details_account value should be a string")
+
+			foundAccountHash = hashVal
 		case "search.banking_details_iban":
-			foundIbanHash = elem.Value.(string)
+			hashVal, ok := elem.Value.(string)
+			require.True(t, ok, "banking_details_iban value should be a string")
+
+			foundIbanHash = hashVal
 		}
 	}
 

@@ -8,14 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 )
 
-func TestMongoDBModel_FromEntity(t *testing.T) {
+func TestMongoDBModel_FromEntity(t *testing.T) { //nolint:funlen,gocognit,gocyclo,cyclop // comprehensive model conversion test
 	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
@@ -213,6 +214,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var model MongoDBModel
+
 			err := model.FromEntity(tt.alias, crypto)
 
 			if tt.wantErr {
@@ -267,7 +269,7 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 			}
 
 			// Verify banking details encryption
-			if tt.alias.BankingDetails != nil {
+			if tt.alias.BankingDetails != nil { //nolint:nestif // test verification block
 				require.NotNil(t, model.BankingDetails)
 
 				if tt.alias.BankingDetails.Account != nil {
@@ -289,9 +291,11 @@ func TestMongoDBModel_FromEntity(t *testing.T) {
 
 				// Verify search hashes for banking details
 				require.NotNil(t, model.Search)
+
 				if tt.alias.BankingDetails.Account != nil && *tt.alias.BankingDetails.Account != "" {
 					assert.NotNil(t, model.Search.BankingDetailsAccount, "Account hash should be generated")
 				}
+
 				if tt.alias.BankingDetails.IBAN != nil && *tt.alias.BankingDetails.IBAN != "" {
 					assert.NotNil(t, model.Search.BankingDetailsIBAN, "IBAN hash should be generated")
 				}
@@ -348,6 +352,7 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 	}
 
 	var model MongoDBModel
+
 	err := model.FromEntity(originalAlias, crypto)
 	require.NoError(t, err)
 
@@ -407,6 +412,7 @@ func TestMongoDBModel_ToEntity_NilBankingDetails(t *testing.T) {
 	}
 
 	var model MongoDBModel
+
 	err := model.FromEntity(originalAlias, crypto)
 	require.NoError(t, err)
 
@@ -434,6 +440,7 @@ func TestMongoDBModel_ToEntity_WithDeletedAt(t *testing.T) {
 	}
 
 	var model MongoDBModel
+
 	err := model.FromEntity(originalAlias, crypto)
 	require.NoError(t, err)
 
@@ -462,6 +469,7 @@ func TestMongoDBModel_ToEntity_NilRegulatoryFieldsAndRelatedParties(t *testing.T
 	}
 
 	var model MongoDBModel
+
 	err := model.FromEntity(originalAlias, crypto)
 	require.NoError(t, err)
 

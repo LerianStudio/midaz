@@ -11,11 +11,12 @@
 package authorizerv1
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -777,6 +778,267 @@ func (x *PublishBalanceOperationsResponse) GetMessage() string {
 	return ""
 }
 
+// 2PC messages for cross-shard authorization.
+type PrepareAuthorizeResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Authorized       bool                   `protobuf:"varint,1,opt,name=authorized,proto3" json:"authorized,omitempty"`
+	RejectionCode    string                 `protobuf:"bytes,2,opt,name=rejection_code,json=rejectionCode,proto3" json:"rejection_code,omitempty"`
+	RejectionMessage string                 `protobuf:"bytes,3,opt,name=rejection_message,json=rejectionMessage,proto3" json:"rejection_message,omitempty"`
+	PreparedTxId     string                 `protobuf:"bytes,4,opt,name=prepared_tx_id,json=preparedTxId,proto3" json:"prepared_tx_id,omitempty"`
+	Balances         []*BalanceSnapshot     `protobuf:"bytes,5,rep,name=balances,proto3" json:"balances,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *PrepareAuthorizeResponse) Reset() {
+	*x = PrepareAuthorizeResponse{}
+	mi := &file_proto_authorizer_v1_authorizer_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrepareAuthorizeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrepareAuthorizeResponse) ProtoMessage() {}
+
+func (x *PrepareAuthorizeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_authorizer_v1_authorizer_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PrepareAuthorizeResponse.ProtoReflect.Descriptor instead.
+func (*PrepareAuthorizeResponse) Descriptor() ([]byte, []int) {
+	return file_proto_authorizer_v1_authorizer_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *PrepareAuthorizeResponse) GetAuthorized() bool {
+	if x != nil {
+		return x.Authorized
+	}
+	return false
+}
+
+func (x *PrepareAuthorizeResponse) GetRejectionCode() string {
+	if x != nil {
+		return x.RejectionCode
+	}
+	return ""
+}
+
+func (x *PrepareAuthorizeResponse) GetRejectionMessage() string {
+	if x != nil {
+		return x.RejectionMessage
+	}
+	return ""
+}
+
+func (x *PrepareAuthorizeResponse) GetPreparedTxId() string {
+	if x != nil {
+		return x.PreparedTxId
+	}
+	return ""
+}
+
+func (x *PrepareAuthorizeResponse) GetBalances() []*BalanceSnapshot {
+	if x != nil {
+		return x.Balances
+	}
+	return nil
+}
+
+type CommitPreparedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PreparedTxId  string                 `protobuf:"bytes,1,opt,name=prepared_tx_id,json=preparedTxId,proto3" json:"prepared_tx_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommitPreparedRequest) Reset() {
+	*x = CommitPreparedRequest{}
+	mi := &file_proto_authorizer_v1_authorizer_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommitPreparedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommitPreparedRequest) ProtoMessage() {}
+
+func (x *CommitPreparedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_authorizer_v1_authorizer_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommitPreparedRequest.ProtoReflect.Descriptor instead.
+func (*CommitPreparedRequest) Descriptor() ([]byte, []int) {
+	return file_proto_authorizer_v1_authorizer_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *CommitPreparedRequest) GetPreparedTxId() string {
+	if x != nil {
+		return x.PreparedTxId
+	}
+	return ""
+}
+
+type CommitPreparedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Committed     bool                   `protobuf:"varint,1,opt,name=committed,proto3" json:"committed,omitempty"`
+	Balances      []*BalanceSnapshot     `protobuf:"bytes,2,rep,name=balances,proto3" json:"balances,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommitPreparedResponse) Reset() {
+	*x = CommitPreparedResponse{}
+	mi := &file_proto_authorizer_v1_authorizer_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommitPreparedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommitPreparedResponse) ProtoMessage() {}
+
+func (x *CommitPreparedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_authorizer_v1_authorizer_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommitPreparedResponse.ProtoReflect.Descriptor instead.
+func (*CommitPreparedResponse) Descriptor() ([]byte, []int) {
+	return file_proto_authorizer_v1_authorizer_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CommitPreparedResponse) GetCommitted() bool {
+	if x != nil {
+		return x.Committed
+	}
+	return false
+}
+
+func (x *CommitPreparedResponse) GetBalances() []*BalanceSnapshot {
+	if x != nil {
+		return x.Balances
+	}
+	return nil
+}
+
+type AbortPreparedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PreparedTxId  string                 `protobuf:"bytes,1,opt,name=prepared_tx_id,json=preparedTxId,proto3" json:"prepared_tx_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AbortPreparedRequest) Reset() {
+	*x = AbortPreparedRequest{}
+	mi := &file_proto_authorizer_v1_authorizer_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AbortPreparedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AbortPreparedRequest) ProtoMessage() {}
+
+func (x *AbortPreparedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_authorizer_v1_authorizer_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AbortPreparedRequest.ProtoReflect.Descriptor instead.
+func (*AbortPreparedRequest) Descriptor() ([]byte, []int) {
+	return file_proto_authorizer_v1_authorizer_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *AbortPreparedRequest) GetPreparedTxId() string {
+	if x != nil {
+		return x.PreparedTxId
+	}
+	return ""
+}
+
+type AbortPreparedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Aborted       bool                   `protobuf:"varint,1,opt,name=aborted,proto3" json:"aborted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AbortPreparedResponse) Reset() {
+	*x = AbortPreparedResponse{}
+	mi := &file_proto_authorizer_v1_authorizer_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AbortPreparedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AbortPreparedResponse) ProtoMessage() {}
+
+func (x *AbortPreparedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_authorizer_v1_authorizer_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AbortPreparedResponse.ProtoReflect.Descriptor instead.
+func (*AbortPreparedResponse) Descriptor() ([]byte, []int) {
+	return file_proto_authorizer_v1_authorizer_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *AbortPreparedResponse) GetAborted() bool {
+	if x != nil {
+		return x.Aborted
+	}
+	return false
+}
+
 var File_proto_authorizer_v1_authorizer_proto protoreflect.FileDescriptor
 
 const file_proto_authorizer_v1_authorizer_proto_rawDesc = "" +
@@ -859,14 +1121,34 @@ const file_proto_authorizer_v1_authorizer_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"Z\n" +
 	" PublishBalanceOperationsResponse\x12\x1c\n" +
 	"\tpublished\x18\x01 \x01(\bR\tpublished\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\xe6\x03\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xf0\x01\n" +
+	"\x18PrepareAuthorizeResponse\x12\x1e\n" +
+	"\n" +
+	"authorized\x18\x01 \x01(\bR\n" +
+	"authorized\x12%\n" +
+	"\x0erejection_code\x18\x02 \x01(\tR\rrejectionCode\x12+\n" +
+	"\x11rejection_message\x18\x03 \x01(\tR\x10rejectionMessage\x12$\n" +
+	"\x0eprepared_tx_id\x18\x04 \x01(\tR\fpreparedTxId\x12:\n" +
+	"\bbalances\x18\x05 \x03(\v2\x1e.authorizer.v1.BalanceSnapshotR\bbalances\"=\n" +
+	"\x15CommitPreparedRequest\x12$\n" +
+	"\x0eprepared_tx_id\x18\x01 \x01(\tR\fpreparedTxId\"r\n" +
+	"\x16CommitPreparedResponse\x12\x1c\n" +
+	"\tcommitted\x18\x01 \x01(\bR\tcommitted\x12:\n" +
+	"\bbalances\x18\x02 \x03(\v2\x1e.authorizer.v1.BalanceSnapshotR\bbalances\"<\n" +
+	"\x14AbortPreparedRequest\x12$\n" +
+	"\x0eprepared_tx_id\x18\x01 \x01(\tR\fpreparedTxId\"1\n" +
+	"\x15AbortPreparedResponse\x12\x18\n" +
+	"\aaborted\x18\x01 \x01(\bR\aaborted2\xff\x05\n" +
 	"\x11BalanceAuthorizer\x12N\n" +
 	"\tAuthorize\x12\x1f.authorizer.v1.AuthorizeRequest\x1a .authorizer.v1.AuthorizeResponse\x12X\n" +
 	"\x0fAuthorizeStream\x12\x1f.authorizer.v1.AuthorizeRequest\x1a .authorizer.v1.AuthorizeResponse(\x010\x01\x12W\n" +
 	"\fLoadBalances\x12\".authorizer.v1.LoadBalancesRequest\x1a#.authorizer.v1.LoadBalancesResponse\x12Q\n" +
 	"\n" +
 	"GetBalance\x12 .authorizer.v1.GetBalanceRequest\x1a!.authorizer.v1.GetBalanceResponse\x12{\n" +
-	"\x18PublishBalanceOperations\x12..authorizer.v1.PublishBalanceOperationsRequest\x1a/.authorizer.v1.PublishBalanceOperationsResponseBCZAgithub.com/LerianStudio/midaz/v3/proto/authorizer/v1;authorizerv1b\x06proto3"
+	"\x18PublishBalanceOperations\x12..authorizer.v1.PublishBalanceOperationsRequest\x1a/.authorizer.v1.PublishBalanceOperationsResponse\x12\\\n" +
+	"\x10PrepareAuthorize\x12\x1f.authorizer.v1.AuthorizeRequest\x1a'.authorizer.v1.PrepareAuthorizeResponse\x12]\n" +
+	"\x0eCommitPrepared\x12$.authorizer.v1.CommitPreparedRequest\x1a%.authorizer.v1.CommitPreparedResponse\x12Z\n" +
+	"\rAbortPrepared\x12#.authorizer.v1.AbortPreparedRequest\x1a$.authorizer.v1.AbortPreparedResponseBCZAgithub.com/LerianStudio/midaz/v3/proto/authorizer/v1;authorizerv1b\x06proto3"
 
 var (
 	file_proto_authorizer_v1_authorizer_proto_rawDescOnce sync.Once
@@ -880,7 +1162,7 @@ func file_proto_authorizer_v1_authorizer_proto_rawDescGZIP() []byte {
 	return file_proto_authorizer_v1_authorizer_proto_rawDescData
 }
 
-var file_proto_authorizer_v1_authorizer_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_proto_authorizer_v1_authorizer_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_proto_authorizer_v1_authorizer_proto_goTypes = []any{
 	(*AuthorizeRequest)(nil),                 // 0: authorizer.v1.AuthorizeRequest
 	(*BalanceOperation)(nil),                 // 1: authorizer.v1.BalanceOperation
@@ -892,30 +1174,43 @@ var file_proto_authorizer_v1_authorizer_proto_goTypes = []any{
 	(*GetBalanceResponse)(nil),               // 7: authorizer.v1.GetBalanceResponse
 	(*PublishBalanceOperationsRequest)(nil),  // 8: authorizer.v1.PublishBalanceOperationsRequest
 	(*PublishBalanceOperationsResponse)(nil), // 9: authorizer.v1.PublishBalanceOperationsResponse
-	nil,                                      // 10: authorizer.v1.AuthorizeRequest.MetadataEntry
-	nil,                                      // 11: authorizer.v1.PublishBalanceOperationsRequest.HeadersEntry
+	(*PrepareAuthorizeResponse)(nil),         // 10: authorizer.v1.PrepareAuthorizeResponse
+	(*CommitPreparedRequest)(nil),            // 11: authorizer.v1.CommitPreparedRequest
+	(*CommitPreparedResponse)(nil),           // 12: authorizer.v1.CommitPreparedResponse
+	(*AbortPreparedRequest)(nil),             // 13: authorizer.v1.AbortPreparedRequest
+	(*AbortPreparedResponse)(nil),            // 14: authorizer.v1.AbortPreparedResponse
+	nil,                                      // 15: authorizer.v1.AuthorizeRequest.MetadataEntry
+	nil,                                      // 16: authorizer.v1.PublishBalanceOperationsRequest.HeadersEntry
 }
 var file_proto_authorizer_v1_authorizer_proto_depIdxs = []int32{
 	1,  // 0: authorizer.v1.AuthorizeRequest.operations:type_name -> authorizer.v1.BalanceOperation
-	10, // 1: authorizer.v1.AuthorizeRequest.metadata:type_name -> authorizer.v1.AuthorizeRequest.MetadataEntry
+	15, // 1: authorizer.v1.AuthorizeRequest.metadata:type_name -> authorizer.v1.AuthorizeRequest.MetadataEntry
 	3,  // 2: authorizer.v1.AuthorizeResponse.balances:type_name -> authorizer.v1.BalanceSnapshot
 	3,  // 3: authorizer.v1.GetBalanceResponse.balance:type_name -> authorizer.v1.BalanceSnapshot
-	11, // 4: authorizer.v1.PublishBalanceOperationsRequest.headers:type_name -> authorizer.v1.PublishBalanceOperationsRequest.HeadersEntry
-	0,  // 5: authorizer.v1.BalanceAuthorizer.Authorize:input_type -> authorizer.v1.AuthorizeRequest
-	0,  // 6: authorizer.v1.BalanceAuthorizer.AuthorizeStream:input_type -> authorizer.v1.AuthorizeRequest
-	4,  // 7: authorizer.v1.BalanceAuthorizer.LoadBalances:input_type -> authorizer.v1.LoadBalancesRequest
-	6,  // 8: authorizer.v1.BalanceAuthorizer.GetBalance:input_type -> authorizer.v1.GetBalanceRequest
-	8,  // 9: authorizer.v1.BalanceAuthorizer.PublishBalanceOperations:input_type -> authorizer.v1.PublishBalanceOperationsRequest
-	2,  // 10: authorizer.v1.BalanceAuthorizer.Authorize:output_type -> authorizer.v1.AuthorizeResponse
-	2,  // 11: authorizer.v1.BalanceAuthorizer.AuthorizeStream:output_type -> authorizer.v1.AuthorizeResponse
-	5,  // 12: authorizer.v1.BalanceAuthorizer.LoadBalances:output_type -> authorizer.v1.LoadBalancesResponse
-	7,  // 13: authorizer.v1.BalanceAuthorizer.GetBalance:output_type -> authorizer.v1.GetBalanceResponse
-	9,  // 14: authorizer.v1.BalanceAuthorizer.PublishBalanceOperations:output_type -> authorizer.v1.PublishBalanceOperationsResponse
-	10, // [10:15] is the sub-list for method output_type
-	5,  // [5:10] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	16, // 4: authorizer.v1.PublishBalanceOperationsRequest.headers:type_name -> authorizer.v1.PublishBalanceOperationsRequest.HeadersEntry
+	3,  // 5: authorizer.v1.PrepareAuthorizeResponse.balances:type_name -> authorizer.v1.BalanceSnapshot
+	3,  // 6: authorizer.v1.CommitPreparedResponse.balances:type_name -> authorizer.v1.BalanceSnapshot
+	0,  // 7: authorizer.v1.BalanceAuthorizer.Authorize:input_type -> authorizer.v1.AuthorizeRequest
+	0,  // 8: authorizer.v1.BalanceAuthorizer.AuthorizeStream:input_type -> authorizer.v1.AuthorizeRequest
+	4,  // 9: authorizer.v1.BalanceAuthorizer.LoadBalances:input_type -> authorizer.v1.LoadBalancesRequest
+	6,  // 10: authorizer.v1.BalanceAuthorizer.GetBalance:input_type -> authorizer.v1.GetBalanceRequest
+	8,  // 11: authorizer.v1.BalanceAuthorizer.PublishBalanceOperations:input_type -> authorizer.v1.PublishBalanceOperationsRequest
+	0,  // 12: authorizer.v1.BalanceAuthorizer.PrepareAuthorize:input_type -> authorizer.v1.AuthorizeRequest
+	11, // 13: authorizer.v1.BalanceAuthorizer.CommitPrepared:input_type -> authorizer.v1.CommitPreparedRequest
+	13, // 14: authorizer.v1.BalanceAuthorizer.AbortPrepared:input_type -> authorizer.v1.AbortPreparedRequest
+	2,  // 15: authorizer.v1.BalanceAuthorizer.Authorize:output_type -> authorizer.v1.AuthorizeResponse
+	2,  // 16: authorizer.v1.BalanceAuthorizer.AuthorizeStream:output_type -> authorizer.v1.AuthorizeResponse
+	5,  // 17: authorizer.v1.BalanceAuthorizer.LoadBalances:output_type -> authorizer.v1.LoadBalancesResponse
+	7,  // 18: authorizer.v1.BalanceAuthorizer.GetBalance:output_type -> authorizer.v1.GetBalanceResponse
+	9,  // 19: authorizer.v1.BalanceAuthorizer.PublishBalanceOperations:output_type -> authorizer.v1.PublishBalanceOperationsResponse
+	10, // 20: authorizer.v1.BalanceAuthorizer.PrepareAuthorize:output_type -> authorizer.v1.PrepareAuthorizeResponse
+	12, // 21: authorizer.v1.BalanceAuthorizer.CommitPrepared:output_type -> authorizer.v1.CommitPreparedResponse
+	14, // 22: authorizer.v1.BalanceAuthorizer.AbortPrepared:output_type -> authorizer.v1.AbortPreparedResponse
+	15, // [15:23] is the sub-list for method output_type
+	7,  // [7:15] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_proto_authorizer_v1_authorizer_proto_init() }
@@ -929,7 +1224,7 @@ func file_proto_authorizer_v1_authorizer_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_authorizer_v1_authorizer_proto_rawDesc), len(file_proto_authorizer_v1_authorizer_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

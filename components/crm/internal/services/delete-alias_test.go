@@ -9,12 +9,16 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 )
+
+var errDeleteDatabase = errors.New("database error")
 
 func TestDeleteAliasByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -54,9 +58,9 @@ func TestDeleteAliasByID(t *testing.T) {
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
 					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
-					Return(errors.New("database error"))
+					Return(errDeleteDatabase)
 			},
-			expectedError: errors.New("database error"),
+			expectedError: errDeleteDatabase,
 		},
 	}
 

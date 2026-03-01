@@ -8,11 +8,18 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	nethttp "net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
@@ -21,14 +28,9 @@ import (
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
-func TestHolderHandler_CreateHolder(t *testing.T) {
+func TestHolderHandler_CreateHolder(t *testing.T) { //nolint:funlen,gocyclo,cyclop
 	tests := []struct {
 		name           string
 		jsonBody       string
@@ -58,13 +60,17 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 					DoAndReturn(func(ctx any, org string, h *mmodel.Holder) (*mmodel.Holder, error) {
 						h.CreatedAt = time.Now()
 						h.UpdatedAt = time.Now()
+
 						return h, nil
 					}).
 					Times(1)
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -103,21 +109,27 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 						if h.ExternalID == nil || *h.ExternalID != "EXT-123" {
 							return false
 						}
+
 						if h.Metadata == nil || h.Metadata["key"] != "value" {
 							return false
 						}
+
 						return true
 					})).
 					DoAndReturn(func(ctx any, org string, h *mmodel.Holder) (*mmodel.Holder, error) {
 						h.CreatedAt = time.Now()
 						h.UpdatedAt = time.Now()
+
 						return h, nil
 					}).
 					Times(1)
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -148,7 +160,10 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -167,7 +182,10 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -186,7 +204,10 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -205,7 +226,10 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -226,7 +250,10 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -247,7 +274,10 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -281,11 +311,14 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 				http.WithBody(new(mmodel.CreateHolderInput), handler.CreateHolder),
 			)
 
-			req := httptest.NewRequest("POST", "/v1/holders", bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(nethttp.MethodPost, "/v1/holders", bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -297,7 +330,7 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 	}
 }
 
-func TestHolderHandler_GetHolderByID(t *testing.T) {
+func TestHolderHandler_GetHolderByID(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		includeDeleted string
@@ -327,7 +360,10 @@ func TestHolderHandler_GetHolderByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -361,7 +397,10 @@ func TestHolderHandler_GetHolderByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -380,7 +419,10 @@ func TestHolderHandler_GetHolderByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -403,7 +445,10 @@ func TestHolderHandler_GetHolderByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -434,6 +479,7 @@ func TestHolderHandler_GetHolderByID(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("id", holderID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
+
 					return c.Next()
 				},
 				handler.GetHolderByID,
@@ -443,10 +489,14 @@ func TestHolderHandler_GetHolderByID(t *testing.T) {
 			if tt.includeDeleted != "" {
 				url += "?include_deleted=" + tt.includeDeleted
 			}
-			req := httptest.NewRequest("GET", url, nil)
+
+			req := httptest.NewRequest(nethttp.MethodGet, url, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -458,7 +508,7 @@ func TestHolderHandler_GetHolderByID(t *testing.T) {
 	}
 }
 
-func TestHolderHandler_UpdateHolder(t *testing.T) {
+func TestHolderHandler_UpdateHolder(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		jsonBody       string
@@ -492,7 +542,10 @@ func TestHolderHandler_UpdateHolder(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -531,7 +584,10 @@ func TestHolderHandler_UpdateHolder(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -552,7 +608,10 @@ func TestHolderHandler_UpdateHolder(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -577,7 +636,10 @@ func TestHolderHandler_UpdateHolder(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -609,16 +671,20 @@ func TestHolderHandler_UpdateHolder(t *testing.T) {
 					c.Locals("id", holderID)
 					c.Locals("patchRemove", []string{})
 					c.Request().Header.Set("X-Organization-Id", orgID)
+
 					return c.Next()
 				},
 				http.WithBody(new(mmodel.UpdateHolderInput), handler.UpdateHolder),
 			)
 
-			req := httptest.NewRequest("PATCH", "/v1/holders/"+holderID.String(), bytes.NewBufferString(tt.jsonBody))
+			req := httptest.NewRequest(nethttp.MethodPatch, "/v1/holders/"+holderID.String(), bytes.NewBufferString(tt.jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -630,7 +696,7 @@ func TestHolderHandler_UpdateHolder(t *testing.T) {
 	}
 }
 
-func TestHolderHandler_DeleteHolderByID(t *testing.T) {
+func TestHolderHandler_DeleteHolderByID(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		hardDelete     string
@@ -683,7 +749,10 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -707,7 +776,10 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -730,7 +802,10 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -758,7 +833,10 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -791,6 +869,7 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 				func(c *fiber.Ctx) error {
 					c.Locals("id", holderID)
 					c.Request().Header.Set("X-Organization-Id", orgID)
+
 					return c.Next()
 				},
 				handler.DeleteHolderByID,
@@ -800,10 +879,14 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 			if tt.hardDelete != "" {
 				url += "?hard_delete=" + tt.hardDelete
 			}
-			req := httptest.NewRequest("DELETE", url, nil)
+
+			req := httptest.NewRequest(nethttp.MethodDelete, url, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -815,7 +898,7 @@ func TestHolderHandler_DeleteHolderByID(t *testing.T) {
 	}
 }
 
-func TestHolderHandler_GetAllHolders(t *testing.T) {
+func TestHolderHandler_GetAllHolders(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		name           string
 		queryParams    string
@@ -834,17 +917,20 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InDelta(t, float64(10), limit, 0.001)
 
 				page, ok := result["page"].(float64)
 				require.True(t, ok, "page should be a number")
-				assert.Equal(t, float64(1), page)
+				assert.InDelta(t, float64(1), page, 0.001)
 			},
 		},
 		{
@@ -883,7 +969,10 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -900,7 +989,7 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(5), limit)
+				assert.InDelta(t, float64(5), limit, 0.001)
 			},
 		},
 		{
@@ -930,7 +1019,10 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -954,7 +1046,10 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -979,7 +1074,10 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -995,7 +1093,10 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1011,7 +1112,10 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -1033,13 +1137,16 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(0), limit)
+				assert.InDelta(t, float64(0), limit, 0.001)
 			},
 		},
 		{
@@ -1056,13 +1163,16 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(-5), limit)
+				assert.InDelta(t, float64(-5), limit, 0.001)
 			},
 		},
 		{
@@ -1079,13 +1189,16 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				page, ok := result["page"].(float64)
 				require.True(t, ok, "page should be a number")
-				assert.Equal(t, float64(-1), page)
+				assert.InDelta(t, float64(-1), page, 0.001)
 			},
 		},
 		{
@@ -1102,13 +1215,16 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(0), limit)
+				assert.InDelta(t, float64(0), limit, 0.001)
 			},
 		},
 	}
@@ -1137,10 +1253,13 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 				handler.GetAllHolders,
 			)
 
-			req := httptest.NewRequest("GET", "/v1/holders"+tt.queryParams, nil)
+			req := httptest.NewRequest(nethttp.MethodGet, "/v1/holders"+tt.queryParams, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {

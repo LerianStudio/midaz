@@ -9,28 +9,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	nethttp "net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization" //nolint:depguard // test requires mock from adapter package
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
+//nolint:funlen
 func TestHandler_CreateOrganization(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -58,6 +62,7 @@ func TestHandler_CreateOrganization(t *testing.T) {
 						org.ID = uuid.New().String()
 						org.CreatedAt = time.Now()
 						org.UpdatedAt = time.Now()
+
 						return org, nil
 					}).
 					Times(1)
@@ -65,7 +70,10 @@ func TestHandler_CreateOrganization(t *testing.T) {
 			},
 			expectedStatus: 201,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -88,7 +96,10 @@ func TestHandler_CreateOrganization(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -117,7 +128,10 @@ func TestHandler_CreateOrganization(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -151,12 +165,15 @@ func TestHandler_CreateOrganization(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("POST", "/v1/organizations", nil)
+			req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", nethttp.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -168,6 +185,7 @@ func TestHandler_CreateOrganization(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_UpdateOrganization(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -220,7 +238,10 @@ func TestHandler_UpdateOrganization(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -242,7 +263,10 @@ func TestHandler_UpdateOrganization(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -276,7 +300,10 @@ func TestHandler_UpdateOrganization(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -300,7 +327,10 @@ func TestHandler_UpdateOrganization(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -347,12 +377,15 @@ func TestHandler_UpdateOrganization(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("PATCH", "/v1/organizations/"+orgID.String(), nil)
+			req := httptest.NewRequest(nethttp.MethodPatch, "/v1/organizations/"+orgID.String(), nethttp.NoBody)
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -364,6 +397,7 @@ func TestHandler_UpdateOrganization(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_GetOrganizationByID(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -394,7 +428,10 @@ func TestHandler_GetOrganizationByID(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -413,7 +450,10 @@ func TestHandler_GetOrganizationByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -435,7 +475,10 @@ func TestHandler_GetOrganizationByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -473,11 +516,14 @@ func TestHandler_GetOrganizationByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+orgID.String(), nil)
+			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations/"+orgID.String(), nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -489,6 +535,7 @@ func TestHandler_GetOrganizationByID(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_GetAllOrganizations(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -508,18 +555,21 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
 				// Validate pagination structure exists
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(10), limit)
+				assert.InDelta(t, float64(10), limit, 0.01)
 
 				page, ok := result["page"].(float64)
 				require.True(t, ok, "page should be a number")
-				assert.Equal(t, float64(1), page)
+				assert.InDelta(t, float64(1), page, 0.01)
 			},
 		},
 		{
@@ -559,7 +609,10 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -577,7 +630,7 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 				// Validate pagination
 				limit, ok := result["limit"].(float64)
 				require.True(t, ok, "limit should be a number")
-				assert.Equal(t, float64(5), limit)
+				assert.InDelta(t, float64(5), limit, 0.01)
 			},
 		},
 		{
@@ -621,7 +674,10 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var result map[string]any
+
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
@@ -649,7 +705,10 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -679,7 +738,10 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -701,7 +763,10 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err, "error response should be valid JSON")
 
@@ -731,11 +796,14 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			app.Get("/v1/organizations", handler.GetAllOrganizations)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations"+tt.queryParams, nil)
+			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations"+tt.queryParams, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -747,6 +815,7 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 	}
 }
 
+//nolint:funlen
 func TestHandler_DeleteOrganizationByID(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -778,7 +847,10 @@ func TestHandler_DeleteOrganizationByID(t *testing.T) {
 			},
 			expectedStatus: 404,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -794,7 +866,10 @@ func TestHandler_DeleteOrganizationByID(t *testing.T) {
 			},
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -817,7 +892,10 @@ func TestHandler_DeleteOrganizationByID(t *testing.T) {
 			},
 			expectedStatus: 500,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -856,11 +934,14 @@ func TestHandler_DeleteOrganizationByID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("DELETE", "/v1/organizations/"+orgID.String(), nil)
+			req := httptest.NewRequest(nethttp.MethodDelete, "/v1/organizations/"+orgID.String(), nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -922,11 +1003,14 @@ func TestHandler_CountOrganizations(t *testing.T) {
 			app.Head("/v1/organizations/metrics/count", handler.CountOrganizations)
 
 			// Act
-			req := httptest.NewRequest("HEAD", "/v1/organizations/metrics/count", nil)
+			req := httptest.NewRequest(nethttp.MethodHead, "/v1/organizations/metrics/count", nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.expectedStatus == 204 {
@@ -953,7 +1037,10 @@ func TestHandler_GetOrganizationByID_InvalidUUID(t *testing.T) {
 			pathID:         "not-a-uuid",
 			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
+				t.Helper()
+
 				var errResp map[string]any
+
 				err := json.Unmarshal(body, &errResp)
 				require.NoError(t, err)
 
@@ -986,11 +1073,14 @@ func TestHandler_GetOrganizationByID_InvalidUUID(t *testing.T) {
 			)
 
 			// Act
-			req := httptest.NewRequest("GET", "/v1/organizations/"+tt.pathID, nil)
+			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations/"+tt.pathID, nethttp.NoBody)
 			resp, err := app.Test(req)
 
 			// Assert
 			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 
 			if tt.validateBody != nil {
@@ -1002,7 +1092,7 @@ func TestHandler_GetOrganizationByID_InvalidUUID(t *testing.T) {
 	}
 }
 
-// Ensure libPostgres.Pagination is used (referenced in handler)
+// Ensure libPostgres.Pagination is used (referenced in handler).
 var _ = libPostgres.Pagination{}
 
 // TestProperty_Organization_FieldLengths tests that various field lengths don't cause 5xx errors.
@@ -1021,6 +1111,7 @@ func TestProperty_Organization_FieldLengths(t *testing.T) {
 			org.ID = uuid.New().String()
 			org.CreatedAt = time.Now()
 			org.UpdatedAt = time.Now()
+
 			return org, nil
 		}).
 		AnyTimes()
@@ -1036,11 +1127,14 @@ func TestProperty_Organization_FieldLengths(t *testing.T) {
 		if n == 0 {
 			return ""
 		}
+
 		letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-")
+
 		b := make([]rune, n)
 		for i := range b {
 			b[i] = letters[i%len(letters)]
 		}
+
 		return string(b)
 	}
 
@@ -1073,12 +1167,15 @@ func TestProperty_Organization_FieldLengths(t *testing.T) {
 			app.Post("/v1/organizations", http.WithBody(new(mmodel.CreateOrganizationInput), handler.CreateOrganization))
 
 			body, _ := json.Marshal(payload)
-			req := httptest.NewRequest("POST", "/v1/organizations", bytes.NewBuffer(body))
+			req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
 			req.Header.Set("Content-Type", "application/json")
 			resp, err := app.Test(req)
 
 			// Property: should never return 5xx for any field length
 			require.NoError(t, err, "request should not error")
+
+			defer resp.Body.Close()
+
 			if resp.StatusCode >= 500 {
 				respBody, _ := io.ReadAll(resp.Body)
 				t.Fatalf("server returned 5xx for nameLen=%d docLen=%d: status=%d body=%s",
@@ -1125,7 +1222,7 @@ func TestProperty_Headers_InvalidFormats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/v1/organizations", nil)
+			req := httptest.NewRequest(nethttp.MethodGet, "/v1/organizations", nethttp.NoBody)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}
@@ -1134,6 +1231,9 @@ func TestProperty_Headers_InvalidFormats(t *testing.T) {
 
 			// Property: should never return 5xx for any header format
 			require.NoError(t, err, "request should not error")
+
+			defer resp.Body.Close()
+
 			if resp.StatusCode >= 500 {
 				t.Fatalf("server returned 5xx for headers %v: status=%d", tt.headers, resp.StatusCode)
 			}
@@ -1156,6 +1256,7 @@ func TestProperty_ContentType_Variations(t *testing.T) {
 			org.ID = uuid.New().String()
 			org.CreatedAt = time.Now()
 			org.UpdatedAt = time.Now()
+
 			return org, nil
 		}).
 		AnyTimes()
@@ -1188,7 +1289,8 @@ func TestProperty_ContentType_Variations(t *testing.T) {
 			app.Post("/v1/organizations", http.WithBody(new(mmodel.CreateOrganizationInput), handler.CreateOrganization))
 
 			body, _ := json.Marshal(payload)
-			req := httptest.NewRequest("POST", "/v1/organizations", bytes.NewBuffer(body))
+
+			req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
 			if ct != "" {
 				req.Header.Set("Content-Type", ct)
 			}
@@ -1197,6 +1299,9 @@ func TestProperty_ContentType_Variations(t *testing.T) {
 
 			// Property: should never return 5xx for any Content-Type
 			require.NoError(t, err, "request should not error")
+
+			defer resp.Body.Close()
+
 			if resp.StatusCode >= 500 {
 				t.Fatalf("server returned 5xx for Content-Type=%q: status=%d", ct, resp.StatusCode)
 			}
@@ -1220,6 +1325,7 @@ func TestProperty_Headers_MissingContentType(t *testing.T) {
 			org.ID = uuid.New().String()
 			org.CreatedAt = time.Now()
 			org.UpdatedAt = time.Now()
+
 			return org, nil
 		}).
 		AnyTimes()
@@ -1236,11 +1342,13 @@ func TestProperty_Headers_MissingContentType(t *testing.T) {
 
 	// POST with JSON body but no Content-Type header
 	body := []byte(`{"legalName":"Test Org","legalDocument":"12345678901234","address":{"country":"US"}}`)
-	req := httptest.NewRequest("POST", "/v1/organizations", bytes.NewBuffer(body))
+	req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
 	// Explicitly NOT setting Content-Type
 
 	resp, err := app.Test(req)
 	require.NoError(t, err, "request should not error")
+
+	defer resp.Body.Close()
 
 	// Property: should not return 5xx
 	assert.Less(t, resp.StatusCode, 500, "missing Content-Type should not cause 5xx")
@@ -1261,6 +1369,7 @@ func TestProperty_Headers_DuplicateContentType(t *testing.T) {
 			org.ID = uuid.New().String()
 			org.CreatedAt = time.Now()
 			org.UpdatedAt = time.Now()
+
 			return org, nil
 		}).
 		AnyTimes()
@@ -1276,13 +1385,15 @@ func TestProperty_Headers_DuplicateContentType(t *testing.T) {
 	app.Post("/v1/organizations", http.WithBody(new(mmodel.CreateOrganizationInput), handler.CreateOrganization))
 
 	body := []byte(`{"legalName":"Test Org","legalDocument":"12345678901234","address":{"country":"US"}}`)
-	req := httptest.NewRequest("POST", "/v1/organizations", bytes.NewBuffer(body))
+	req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
 	// Add duplicate Content-Type headers
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Content-Type", "application/json")
 
 	resp, err := app.Test(req)
 	require.NoError(t, err, "request should not error")
+
+	defer resp.Body.Close()
 
 	// Property: should not return 5xx even with duplicate headers
 	assert.Less(t, resp.StatusCode, 500, "duplicate Content-Type should not cause 5xx")
@@ -1303,6 +1414,7 @@ func TestProperty_Headers_DuplicateXRequestId(t *testing.T) {
 			org.ID = uuid.New().String()
 			org.CreatedAt = time.Now()
 			org.UpdatedAt = time.Now()
+
 			return org, nil
 		}).
 		AnyTimes()
@@ -1318,7 +1430,7 @@ func TestProperty_Headers_DuplicateXRequestId(t *testing.T) {
 	app.Post("/v1/organizations", http.WithBody(new(mmodel.CreateOrganizationInput), handler.CreateOrganization))
 
 	body := []byte(`{"legalName":"Test Org","legalDocument":"12345678901234","address":{"country":"US"}}`)
-	req := httptest.NewRequest("POST", "/v1/organizations", bytes.NewBuffer(body))
+	req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	// Add duplicate X-Request-Id headers
 	req.Header.Add("X-Request-Id", "req-123")
@@ -1327,13 +1439,15 @@ func TestProperty_Headers_DuplicateXRequestId(t *testing.T) {
 	resp, err := app.Test(req)
 	require.NoError(t, err, "request should not error")
 
+	defer resp.Body.Close()
+
 	// Property: should not return 5xx even with duplicate X-Request-Id
 	assert.Less(t, resp.StatusCode, 500, "duplicate X-Request-Id should not cause 5xx")
 }
 
 // FuzzCreateOrganization_LegalName tests that various legalName inputs don't cause
 // server errors (5xx) and are properly validated. This is a native Go fuzz test.
-// Run with: go test -fuzz=FuzzCreateOrganization_LegalName ./components/onboarding/internal/adapters/http/in/
+// Run with: go test -fuzz=FuzzCreateOrganization_LegalName ./components/onboarding/internal/adapters/http/in/.
 func FuzzCreateOrganization_LegalName(f *testing.F) {
 	// Seed corpus with edge cases
 	f.Add("Acme, Inc.")                // valid name
@@ -1364,6 +1478,7 @@ func FuzzCreateOrganization_LegalName(f *testing.F) {
 				org.ID = uuid.New().String()
 				org.CreatedAt = time.Now()
 				org.UpdatedAt = time.Now()
+
 				return org, nil
 			}).
 			AnyTimes()
@@ -1392,13 +1507,16 @@ func FuzzCreateOrganization_LegalName(f *testing.F) {
 			},
 		)
 
-		req := httptest.NewRequest("POST", "/v1/organizations", nil)
+		req := httptest.NewRequest(nethttp.MethodPost, "/v1/organizations", nethttp.NoBody)
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := app.Test(req)
 
 		// Property: handler should never panic (covered by test execution)
 		// Property: should never return 5xx for any input
 		require.NoError(t, err, "request should not error")
+
+		defer resp.Body.Close()
+
 		if resp.StatusCode >= 500 {
 			body, _ := io.ReadAll(resp.Body)
 			t.Fatalf("server returned 5xx for legalName=%q: status=%d body=%s",
@@ -1406,11 +1524,12 @@ func FuzzCreateOrganization_LegalName(f *testing.F) {
 		}
 
 		// Property: if accepted (201), response must contain ID
-		if resp.StatusCode == 201 {
+		if resp.StatusCode == nethttp.StatusCreated {
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			var result map[string]any
+
 			err = json.Unmarshal(body, &result)
 			require.NoError(t, err)
 
