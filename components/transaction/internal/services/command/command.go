@@ -76,6 +76,9 @@ type UseCase struct {
 
 	// EventsTopic is the topic for transaction events.
 	EventsTopic string
+	// DecisionEventsTopic is the topic for decision lifecycle events.
+	// When empty, decision events fall back to EventsTopic.
+	DecisionEventsTopic string
 	// EventsEnabled controls transaction event publication.
 	EventsEnabled bool
 
@@ -96,6 +99,11 @@ type UseCase struct {
 	// effects (Redis cleanup, event publishing) before the consumer worker moves
 	// on. Zero means use the default (2s).
 	BatchSideEffectsTimeout time.Duration
+
+	// DecisionLifecycleSyncForTests forces synchronous decision lifecycle event
+	// dispatch in tests to enable deterministic event-order assertions.
+	// Production code should keep this false.
+	DecisionLifecycleSyncForTests bool
 
 	// IdempotencyReplayTimeout is the maximum time to poll Redis for an in-flight
 	// idempotency value before giving up. Zero means use the default (75ms).

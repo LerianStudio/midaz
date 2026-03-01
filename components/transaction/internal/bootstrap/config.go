@@ -10,10 +10,17 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/twmb/franz-go/pkg/kgo"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -24,6 +31,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+
 	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
 	grpcOut "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
@@ -45,14 +53,19 @@ import (
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	"github.com/twmb/franz-go/pkg/kgo"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// ApplicationName is the name of the transaction application.
 const ApplicationName = "transaction"
+
+var (
+	// ErrSchemaMigrationsEmpty is returned when schema_migrations has no rows.
+	ErrSchemaMigrationsEmpty = errors.New("schema_migrations has no rows")
+	// ErrConsumerModeConflict is returned when both CONSUMER_ENABLED and DEDICATED_CONSUMER_ENABLED are true.
+	ErrConsumerModeConflict = errors.New("CONSUMER_ENABLED must be false when DEDICATED_CONSUMER_ENABLED=true")
+	// ErrConsumerModeNotSet is returned when neither CONSUMER_ENABLED nor DEDICATED_CONSUMER_ENABLED is true.
+	ErrConsumerModeNotSet = errors.New("invalid consumer mode: set either CONSUMER_ENABLED=true or DEDICATED_CONSUMER_ENABLED=true")
+)
 
 var dirtyMigrationVersionPattern = regexp.MustCompile(`(?i)dirty database version\s+(\d+)`)
 
@@ -62,22 +75,42 @@ func initLogger(opts *Options) (libLog.Logger, error) {
 		return opts.Logger, nil
 	}
 
-	return libZap.InitializeLoggerWithError()
+	logger, err := libZap.InitializeLoggerWithError()
+	if err != nil {
+		return nil, fmt.Errorf("initialize logger: %w", err)
+	}
+
+	return logger, nil
+}
+
+func isNilStateChangeListener(listener libCircuitBreaker.StateChangeListener) bool {
+	if listener == nil {
+		return true
+	}
+
+	v := reflect.ValueOf(listener)
+
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
 }
 
 func resolveCircuitBreakerStateListener(
 	opts *Options,
 	metricStateListener libCircuitBreaker.StateChangeListener,
 ) libCircuitBreaker.StateChangeListener {
-	if metricStateListener == nil {
-		if opts != nil {
+	if isNilStateChangeListener(metricStateListener) {
+		if opts != nil && !isNilStateChangeListener(opts.CircuitBreakerStateListener) {
 			return opts.CircuitBreakerStateListener
 		}
 
 		return nil
 	}
 
-	if opts != nil && opts.CircuitBreakerStateListener != nil {
+	if opts != nil && !isNilStateChangeListener(opts.CircuitBreakerStateListener) {
 		return &compositeStateListener{
 			listeners: []libCircuitBreaker.StateChangeListener{
 				metricStateListener,
@@ -111,7 +144,7 @@ func enforcePostgresSSLMode(envName, sslMode, envVar string) error {
 		return nil
 	}
 
-	return fmt.Errorf("%s=disable is not allowed in production-like environments", envVar)
+	return fmt.Errorf("%s=disable is not allowed in production-like environments", envVar) //nolint:err113
 }
 
 func shouldAutoRecoverDirtyMigration(envName string) bool {
@@ -129,7 +162,7 @@ func parseDirtyMigrationVersion(err error) (int64, bool) {
 	}
 
 	matches := dirtyMigrationVersionPattern.FindStringSubmatch(err.Error())
-	if len(matches) != 2 {
+	if len(matches) != 2 { //nolint:mnd // regex match: full match + 1 capture group = 2
 		return 0, false
 	}
 
@@ -142,8 +175,10 @@ func parseDirtyMigrationVersion(err error) (int64, bool) {
 }
 
 func migrationRepairStatements(version int64) []string {
+	const migrationVersionWithConcurrentIndex = 13
+
 	switch version {
-	case 13:
+	case migrationVersionWithConcurrentIndex:
 		return []string{"DROP INDEX CONCURRENTLY IF EXISTS idx_operation_account"}
 	default:
 		return nil
@@ -160,7 +195,7 @@ func readMigrationState(ctx context.Context, db *sql.DB) (int64, bool, error) {
 
 	if err := row.Scan(&version, &dirty); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, false, fmt.Errorf("schema_migrations has no rows")
+			return 0, false, ErrSchemaMigrationsEmpty
 		}
 
 		return 0, false, fmt.Errorf("failed to read schema_migrations: %w", err)
@@ -170,7 +205,9 @@ func readMigrationState(ctx context.Context, db *sql.DB) (int64, bool, error) {
 }
 
 func recoverDirtyMigration(connectionString string, expectedVersion int64, logger libLog.Logger) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	const migrationRecoveryTimeoutSecs = 60
+
+	ctx, cancel := context.WithTimeout(context.Background(), migrationRecoveryTimeoutSecs*time.Second)
 	defer cancel()
 
 	db, err := sql.Open("pgx", connectionString)
@@ -239,30 +276,31 @@ func recoverDirtyMigration(connectionString string, expectedVersion int64, logge
 }
 
 func ensurePostgresConnectionReady(cfg *Config, connection *libPostgres.PostgresConnection, logger libLog.Logger) error {
-	if _, err := connection.GetDB(); err == nil {
+	_, err := connection.GetDB()
+	if err == nil {
 		return nil
-	} else {
-		version, dirty := parseDirtyMigrationVersion(err)
-		if !dirty {
-			return fmt.Errorf("failed to initialize transaction PostgreSQL connection: %w", err)
-		}
-
-		if !shouldAutoRecoverDirtyMigration(cfg.EnvName) {
-			return fmt.Errorf("dirty PostgreSQL migration detected at version %d in environment %q: %w", version, cfg.EnvName, err)
-		}
-
-		logger.Warnf("Dirty PostgreSQL migration detected at version %d. Attempting automatic recovery in environment %q", version, cfg.EnvName)
-
-		if recoveryErr := recoverDirtyMigration(connection.ConnectionStringPrimary, version, logger); recoveryErr != nil {
-			return fmt.Errorf("failed to recover dirty PostgreSQL migration version %d: %w", version, recoveryErr)
-		}
-
-		if _, retryErr := connection.GetDB(); retryErr != nil {
-			return fmt.Errorf("failed to initialize transaction PostgreSQL connection after dirty migration recovery: %w", retryErr)
-		}
-
-		logger.Infof("PostgreSQL dirty migration recovery succeeded for version %d", version)
 	}
+
+	version, dirty := parseDirtyMigrationVersion(err)
+	if !dirty {
+		return fmt.Errorf("failed to initialize transaction PostgreSQL connection: %w", err)
+	}
+
+	if !shouldAutoRecoverDirtyMigration(cfg.EnvName) {
+		return fmt.Errorf("dirty PostgreSQL migration detected at version %d in environment %q: %w", version, cfg.EnvName, err)
+	}
+
+	logger.Warnf("Dirty PostgreSQL migration detected at version %d. Attempting automatic recovery in environment %q", version, cfg.EnvName)
+
+	if recoveryErr := recoverDirtyMigration(connection.ConnectionStringPrimary, version, logger); recoveryErr != nil {
+		return fmt.Errorf("failed to recover dirty PostgreSQL migration version %d: %w", version, recoveryErr)
+	}
+
+	if _, retryErr := connection.GetDB(); retryErr != nil {
+		return fmt.Errorf("failed to initialize transaction PostgreSQL connection after dirty migration recovery: %w", retryErr)
+	}
+
+	logger.Infof("PostgreSQL dirty migration recovery succeeded for version %d", version)
 
 	return nil
 }
@@ -353,7 +391,9 @@ func initProducerWithCircuitBreaker(
 	}
 
 	var metricStateListener libCircuitBreaker.StateChangeListener
-	if telemetry != nil && telemetry.MetricsFactory != nil {
+
+	switch {
+	case telemetry != nil && telemetry.MetricsFactory != nil:
 		metricStateListener, err = redpanda.NewMetricStateListener(telemetry.MetricsFactory)
 		if err != nil {
 			if closeErr := rawProducer.Close(); closeErr != nil {
@@ -362,13 +402,14 @@ func initProducerWithCircuitBreaker(
 
 			return nil, fmt.Errorf("failed to create metric state listener: %w", err)
 		}
-	} else {
+	default:
 		logger.Warn("Telemetry metrics factory unavailable; circuit breaker metrics listener disabled")
 	}
 
 	stateListener := resolveCircuitBreakerStateListener(opts, metricStateListener)
 	operationTimeout := resolveBrokerOperationTimeout(cfg.BrokerOperationTimeout)
 
+	//nolint:mnd // circuit breaker defaults: well-known tuning constants
 	cbConfig := redpanda.CircuitBreakerConfig{
 		ConsecutiveFailures: utils.GetUint32FromIntWithDefault(cfg.BrokerCircuitBreakerConsecutiveFailures, 15),
 		FailureRatio:        utils.GetFloat64FromIntPercentWithDefault(cfg.BrokerCircuitBreakerFailureRatio, 0.5),
@@ -430,15 +471,13 @@ func initConsumerLagChecker(
 		SASLPassword:          cfg.RedpandaSASLPassword,
 	}
 
-	clientOpts := []kgo.Opt{
-		kgo.SeedBrokers(brokers...),
-	}
-
 	securityOptions, err := redpanda.BuildSecurityOptions(securityConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to configure consumer lag checker security: %w", err)
 	}
 
+	clientOpts := make([]kgo.Opt, 0, 1+len(securityOptions))
+	clientOpts = append(clientOpts, kgo.SeedBrokers(brokers...))
 	clientOpts = append(clientOpts, securityOptions...)
 
 	client, err := kgo.NewClient(clientOpts...)
@@ -531,11 +570,13 @@ func newShardRebalanceWorker(
 		return nil
 	}
 
+	const percentDivisor = 100.0
+
 	interval := time.Duration(cfg.ShardRebalanceIntervalSeconds) * time.Second
 	window := time.Duration(cfg.ShardRebalanceWindowSeconds) * time.Second
-	threshold := float64(cfg.ShardRebalanceThresholdPercent) / 100.0
+	threshold := float64(cfg.ShardRebalanceThresholdPercent) / percentDivisor
 	candidateLimit := cfg.ShardRebalanceCandidateLimit
-	isolationShare := float64(cfg.ShardRebalanceIsolationSharePercent) / 100.0
+	isolationShare := float64(cfg.ShardRebalanceIsolationSharePercent) / percentDivisor
 	isolationMinLoad := cfg.ShardRebalanceIsolationMinLoad
 
 	worker := NewShardRebalanceWorker(
@@ -562,6 +603,7 @@ func newShardRebalanceWorker(
 	return worker
 }
 
+//nolint:gocyclo,cyclop // pre-warm setup with multiple validation steps and error paths
 func preWarmExternalPreSplitBalances(
 	cfg *Config,
 	logger libLog.Logger,
@@ -587,12 +629,14 @@ func preWarmExternalPreSplitBalances(
 		return fmt.Errorf("invalid EXTERNAL_PRESPLIT_LEDGER_ID: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	const preWarmTimeoutSecs = 10
+
+	ctx, cancel := context.WithTimeout(context.Background(), preWarmTimeoutSecs*time.Second)
 	defer cancel()
 
 	externalBalances, err := balanceRepo.ListExternalByOrganizationLedger(ctx, organizationID, ledgerID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to list external balances: %w", err)
 	}
 
 	if len(externalBalances) == 0 {
@@ -607,7 +651,7 @@ func preWarmExternalPreSplitBalances(
 
 	coverageByAlias, err := redisRepo.PreWarmExternalBalances(ctx, organizationID, ledgerID, externalBalances, preWarmTTL)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to pre-warm external balances in Redis: %w", err)
 	}
 
 	for alias, coverage := range coverageByAlias {
@@ -745,7 +789,9 @@ func initRedisConnection(cfg *Config, logger libLog.Logger) *libRedis.RedisConne
 
 // ensureMongoIndexes creates entity_id indexes on known base collections.
 func ensureMongoIndexes(mongoConnection *libMongo.MongoConnection, logger libLog.Logger) {
-	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
+	const ensureIndexesTimeoutSecs = 60
+
+	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), ensureIndexesTimeoutSecs*time.Second)
 	defer cancelEnsureIndexes()
 
 	indexModel := mongo.IndexModel{
@@ -938,7 +984,7 @@ func configureConsumerRoutes(cfg *Config, logger libLog.Logger, telemetry *libOp
 // Config is the top level configuration struct for the entire application.
 // Supports prefixed env vars (DB_TRANSACTION_*) with fallback to non-prefixed (DB_*) for backward compatibility.
 type Config struct {
-	EnvName  string `env:"ENV_NAME" default:"development"`
+	EnvName  string `env:"ENV_NAME"`
 	LogLevel string `env:"LOG_LEVEL"`
 	Version  string `env:"VERSION" default:"v3"`
 
@@ -1014,6 +1060,7 @@ type Config struct {
 	RedpandaBalanceCreateTopic          string `env:"REDPANDA_BALANCE_CREATE_TOPIC" default:"ledger.balance.create"`
 	RedpandaBalanceOperationsTopic      string `env:"REDPANDA_BALANCE_OPS_TOPIC" default:"ledger.balance.operations"`
 	RedpandaEventsTopic                 string `env:"REDPANDA_EVENTS_TOPIC" default:"ledger.transaction.events"`
+	RedpandaDecisionEventsTopic         string `env:"REDPANDA_DECISION_EVENTS_TOPIC"`
 	RedpandaAuditTopic                  string `env:"REDPANDA_AUDIT_TOPIC" default:"ledger.audit.log"`
 	RedpandaConsumerGroup               string `env:"REDPANDA_CONSUMER_GROUP" default:"midaz-balance-projector"`
 	RedpandaNumbersOfWorkers            int    `env:"REDPANDA_NUMBERS_OF_WORKERS" default:"5"`
@@ -1071,6 +1118,7 @@ type Config struct {
 	AuthorizerRoutingMode               string `env:"AUTHORIZER_ROUTING_MODE" default:"single"`
 	AuthorizerInstances                 string `env:"AUTHORIZER_INSTANCES" default:""`
 	AuthorizerShardRanges               string `env:"AUTHORIZER_SHARD_RANGES" default:""`
+	AuthorizerPoolSize                  int    `env:"AUTHORIZER_POOL_SIZE" default:"4"`
 	BalanceSyncWorkerEnabled            bool   `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
 	BalanceSyncMaxWorkers               int    `env:"BALANCE_SYNC_MAX_WORKERS"`
 	ShardRebalanceWorkerEnabled         bool   `env:"SHARD_REBALANCE_WORKER_ENABLED" default:"false"`
@@ -1085,6 +1133,15 @@ type Config struct {
 	// Resolved once at startup and injected into UseCase to avoid per-request os.Getenv overhead.
 	TransactionAsync bool `env:"TRANSACTION_ASYNC" default:"false"`
 
+	// ConsumerEnabled controls whether this process starts Redpanda consumers and background workers.
+	// Set to false when running the dedicated consumer service separately (components/consumer).
+	// Default true for backward compatibility with standalone and unified ledger modes.
+	ConsumerEnabled bool `env:"CONSUMER_ENABLED" default:"true"`
+
+	// DedicatedConsumerEnabled is a deployment guardrail indicating that a standalone
+	// consumer service is running. When true, API processes must set CONSUMER_ENABLED=false.
+	DedicatedConsumerEnabled bool `env:"DEDICATED_CONSUMER_ENABLED" default:"false"`
+
 	// Redis Cluster sharding (Phase 2A)
 	// Set REDIS_SHARD_COUNT > 0 to enable per-shard Lua execution.
 	// Default 0 = sharding disabled (legacy single-slot mode).
@@ -1094,7 +1151,7 @@ type Config struct {
 	ConsumerMaxDBTPS            int  `env:"CONSUMER_MAX_DB_TPS" default:"0"`
 	ConsumerMaxDBBurst          int  `env:"CONSUMER_MAX_DB_BURST" default:"100"`
 	ConsumerLagFenceEnabled     bool `env:"CONSUMER_LAG_FENCE_ENABLED" default:"true"`
-	ConsumerLagFenceFailOpen    bool `env:"CONSUMER_LAG_FENCE_FAIL_OPEN" default:"true"`
+	ConsumerLagFenceFailOpen    bool `env:"CONSUMER_LAG_FENCE_FAIL_OPEN" default:"false"`
 	ConsumerLagCacheTTLMS       int  `env:"CONSUMER_LAG_CACHE_TTL_MS" default:"500"`
 
 	ConsumerBatchEnabled         bool `env:"CONSUMER_BATCH_ENABLED" default:"false"`
@@ -1140,12 +1197,30 @@ type Options struct {
 	CircuitBreakerStateListener libCircuitBreaker.StateChangeListener
 }
 
+func validateConsumerModeConfig(cfg *Config) error {
+	if cfg == nil {
+		return nil
+	}
+
+	if cfg.DedicatedConsumerEnabled && cfg.ConsumerEnabled {
+		return ErrConsumerModeConflict
+	}
+
+	if !cfg.DedicatedConsumerEnabled && !cfg.ConsumerEnabled {
+		return ErrConsumerModeNotSet
+	}
+
+	return nil
+}
+
 // InitServers initiate http and grpc servers.
 func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
 }
 
 // InitServersWithOptions initiates http and grpc servers with optional dependency injection.
+//
+//nolint:gocognit,gocyclo,cyclop // This function initializes all service dependencies; complexity is inherent.
 func InitServersWithOptions(opts *Options) (*Service, error) {
 	cfg := &Config{}
 
@@ -1153,7 +1228,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	cleanupFuncs := make([]func(), 0, 8)
+	if err := validateConsumerModeConfig(cfg); err != nil {
+		return nil, err
+	}
+
+	const maxCleanupFuncs = 8
+
+	cleanupFuncs := make([]func(), 0, maxCleanupFuncs)
 
 	success := false
 
@@ -1249,7 +1330,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	operationRoutePostgreSQLRepository := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
 	transactionRoutePostgreSQLRepository := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnection)
 
-	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
+	metadataMongoDBRepository, err := mongodb.NewMetadataMongoDBRepository(mongoConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize metadata MongoDB repository: %w", err)
+	}
 
 	ensureMongoIndexes(mongoConnection, logger)
 
@@ -1277,6 +1361,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalanceOperationsTopic:   cfg.RedpandaBalanceOperationsTopic,
 		BalanceCreateTopic:       cfg.RedpandaBalanceCreateTopic,
 		EventsTopic:              cfg.RedpandaEventsTopic,
+		DecisionEventsTopic:      cfg.RedpandaDecisionEventsTopic,
 		EventsEnabled:            cfg.TransactionEventsEnabled,
 		AuditTopic:               cfg.RedpandaAuditTopic,
 		AuditLogEnabled:          cfg.AuditLogEnabled,
@@ -1319,6 +1404,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			Instances:   cfg.AuthorizerInstances,
 			ShardRanges: cfg.AuthorizerShardRanges,
 			ShardCount:  cfg.RedisShardCount,
+			PoolSize:    cfg.AuthorizerPoolSize,
 		},
 		logger,
 	)
@@ -1365,9 +1451,31 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:   queryUseCase,
 	}
 
-	routes := configureConsumerRoutes(cfg, logger, telemetry, seedBrokers)
+	var (
+		multiQueueConsumer *MultiQueueConsumer
+		redisConsumer      *RedisQueueConsumer
+		balanceSyncWorker  *BalanceSyncWorker
+	)
 
-	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
+	resolvedBalanceSyncWorkerEnabled := false
+
+	var shardRebalanceWorker *ShardRebalanceWorker
+
+	resolvedShardRebalanceWorkerEnabled := false
+
+	if cfg.ConsumerEnabled {
+		routes := configureConsumerRoutes(cfg, logger, telemetry, seedBrokers)
+		multiQueueConsumer = NewMultiQueueConsumer(routes, useCase)
+		redisConsumer = NewRedisQueueConsumer(logger, *transactionHandler)
+
+		balanceSyncWorker = newBalanceSyncWorker(cfg, logger, redisConnection, useCase, balanceSyncWorkerEnabled)
+		resolvedBalanceSyncWorkerEnabled = balanceSyncWorkerEnabled && balanceSyncWorker != nil
+
+		shardRebalanceWorker = newShardRebalanceWorker(cfg, logger, shardManager, shardRouter, shardRebalanceWorkerEnabled)
+		resolvedShardRebalanceWorkerEnabled = shardRebalanceWorker != nil
+	} else {
+		logger.Info("Skipping consumer and worker initialization because CONSUMER_ENABLED=false")
+	}
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
@@ -1380,15 +1488,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, useCase, queryUseCase)
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
 
-	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
-
 	if err := preWarmExternalPreSplitBalances(cfg, logger, balancePostgreSQLRepository, redisConsumerRepository); err != nil {
 		logger.Warnf("External pre-split Redis pre-warm failed: %v", err)
 	}
-
-	balanceSyncWorker := newBalanceSyncWorker(cfg, logger, redisConnection, useCase, balanceSyncWorkerEnabled)
-	shardRebalanceWorker := newShardRebalanceWorker(cfg, logger, shardManager, shardRouter, shardRebalanceWorkerEnabled)
-	resolvedShardRebalanceWorkerEnabled := shardRebalanceWorker != nil
 
 	service := &Service{
 		Server:                      server,
@@ -1396,10 +1498,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MultiQueueConsumer:          multiQueueConsumer,
 		RedisQueueConsumer:          redisConsumer,
 		BalanceSyncWorker:           balanceSyncWorker,
-		BalanceSyncWorkerEnabled:    balanceSyncWorkerEnabled,
+		BalanceSyncWorkerEnabled:    resolvedBalanceSyncWorkerEnabled,
 		ShardRebalanceWorker:        shardRebalanceWorker,
 		ShardRebalanceWorkerEnabled: resolvedShardRebalanceWorkerEnabled,
 		CircuitBreakerManager:       brokerInfra.circuitBreakerManager,
+		ConsumerEnabled:             cfg.ConsumerEnabled,
 		Logger:                      logger,
 		Ports: Ports{
 			BalancePort:  useCase,
@@ -1433,6 +1536,10 @@ type compositeStateListener struct {
 // OnStateChange notifies all registered listeners of the state change.
 func (c *compositeStateListener) OnStateChange(serviceName string, from, to libCircuitBreaker.State) {
 	for _, listener := range c.listeners {
+		if isNilStateChangeListener(listener) {
+			continue
+		}
+
 		listener.OnStateChange(serviceName, from, to)
 	}
 }

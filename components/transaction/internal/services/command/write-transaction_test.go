@@ -6,9 +6,17 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -20,13 +28,18 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
-// testData holds common test data used across multiple tests
+// Sentinel errors for write-transaction tests.
+var (
+	errAuthorizerUnavailable     = errors.New("authorizer unavailable")
+	errBrokerConnectionFailed    = errors.New("broker connection failed")
+	errDatabaseConnectionFailed  = errors.New("database connection failed")
+	errFailedToUpdateBalancesW   = errors.New("failed to update balances")
+	errFailedToCreateTransaction = errors.New("failed to create transaction")
+)
+
+// testData holds common test data used across multiple tests.
 type testData struct {
 	organizationID   uuid.UUID
 	ledgerID         uuid.UUID
@@ -46,6 +59,44 @@ type stubAuthorizerPublisher struct {
 	lastPayload      []byte
 }
 
+func setupDecisionEventCapture(t *testing.T, mockBrokerRepo *redpanda.MockProducerRepository, expected int, topic string) <-chan string {
+	t.Helper()
+
+	actions := make(chan string, expected)
+
+	mockBrokerRepo.EXPECT().
+		ProducerDefault(gomock.Any(), topic, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ string, payload []byte) (*string, error) {
+			event := mmodel.Event{}
+			require.NoError(t, json.Unmarshal(payload, &event))
+
+			actions <- event.Action
+
+			return nil, nil
+		}).
+		Times(expected)
+
+	return actions
+}
+
+func collectDecisionActions(t *testing.T, actions <-chan string, expected int) []string {
+	t.Helper()
+
+	collected := make([]string, 0, expected)
+	timeout := time.After(2 * time.Second)
+
+	for len(collected) < expected {
+		select {
+		case action := <-actions:
+			collected = append(collected, action)
+		case <-timeout:
+			t.Fatalf("timed out waiting for %d decision lifecycle events, got %d", expected, len(collected))
+		}
+	}
+
+	return collected
+}
+
 func (s *stubAuthorizerPublisher) Enabled() bool {
 	return s.enabled
 }
@@ -59,7 +110,7 @@ func (s *stubAuthorizerPublisher) PublishBalanceOperations(_ context.Context, to
 	return s.publishErr
 }
 
-// createTestData creates common test data for transaction write tests
+// createTestData creates common test data for transaction write tests.
 func createTestData(organizationID, ledgerID uuid.UUID) *testData {
 	transactionID := uuid.New().String()
 
@@ -131,20 +182,6 @@ func createTestData(organizationID, ledgerID uuid.UUID) *testData {
 	}
 }
 
-// setupMocksForFallback sets up all mocks needed for CreateBalanceTransactionOperationsAsync
-// which is called as a fallback when broker publishing fails
-func setupMocksForFallback(
-	mockBalanceRepo *balance.MockRepository,
-	mockTransactionRepo *transaction.MockRepository,
-	mockMetadataRepo *mongodb.MockRepository,
-	mockBrokerRepo *redpanda.MockProducerRepository,
-	mockRedisRepo *redis.MockRedisRepository,
-	tran *transaction.Transaction,
-	organizationID, ledgerID uuid.UUID,
-) {
-	setupMocksForFallbackWithOperation(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockBrokerRepo, mockRedisRepo, nil, tran, organizationID, ledgerID)
-}
-
 func setupMocksForFallbackWithOperation(
 	mockBalanceRepo *balance.MockRepository,
 	mockTransactionRepo *transaction.MockRepository,
@@ -204,7 +241,9 @@ func setupMocksForFallbackWithOperation(
 		AnyTimes()
 }
 
-// TestWriteTransaction tests the routing logic that decides between async and sync execution
+// TestWriteTransaction tests the routing logic that decides between async and sync execution.
+//
+//nolint:funlen
 func TestWriteTransaction(t *testing.T) {
 	t.Run("routes_to_async_when_flag_true", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -233,11 +272,10 @@ func TestWriteTransaction(t *testing.T) {
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("routes_to_sync_when_flag_false", func(t *testing.T) {
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -267,12 +305,11 @@ func TestWriteTransaction(t *testing.T) {
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("routes_to_sync_when_flag_default", func(t *testing.T) {
 		// TransactionAsync defaults to false - should route to sync
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -302,12 +339,11 @@ func TestWriteTransaction(t *testing.T) {
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("routes_to_sync_when_flag_false_explicitly", func(t *testing.T) {
 		// TransactionAsync is explicitly false - should route to sync
-
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -337,7 +373,7 @@ func TestWriteTransaction(t *testing.T) {
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("returns_error_when_transaction_is_nil", func(t *testing.T) {
@@ -345,12 +381,14 @@ func TestWriteTransaction(t *testing.T) {
 
 		err := uc.WriteTransaction(context.Background(), uuid.New(), uuid.New(), &pkgTransaction.Transaction{}, &pkgTransaction.Responses{}, nil, nil)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "transaction is nil")
 	})
 }
 
-// TestWriteTransactionAsync tests the async queue publishing with fallback behavior
+// TestWriteTransactionAsync tests the async queue publishing with fallback behavior.
+//
+//nolint:funlen
 func TestWriteTransactionAsync(t *testing.T) {
 	t.Run("authorizer_enabled_publishes_without_local_broker", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -375,7 +413,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 1, authorizer.publishCalls)
 		assert.Equal(t, "test-topic", authorizer.lastTopic)
 		assert.Equal(t, td.transactionID, authorizer.lastPartitionKey)
@@ -414,7 +452,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, strconv.Itoa(3), authorizer.lastPartitionKey)
 	})
 
@@ -425,7 +463,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
-		authorizer := &stubAuthorizerPublisher{enabled: true, publishErr: errors.New("authorizer unavailable")}
+		authorizer := &stubAuthorizerPublisher{enabled: true, publishErr: errAuthorizerUnavailable}
 
 		uc := &UseCase{
 			BrokerRepo:             mockBrokerRepo,
@@ -446,7 +484,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 1, authorizer.publishCalls)
 	})
 
@@ -476,7 +514,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("broker_fails_fallback_to_db_succeeds", func(t *testing.T) {
@@ -508,7 +546,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 		// Broker producer fails - triggers fallback
 		mockBrokerRepo.EXPECT().
 			ProducerDefaultWithContext(gomock.Any(), "test-topic", td.transactionID, gomock.Any()).
-			Return(nil, errors.New("broker connection failed")).
+			Return(nil, errBrokerConnectionFailed).
 			Times(1)
 
 		// Setup mocks for fallback path (CreateBalanceTransactionOperationsAsync)
@@ -517,7 +555,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		// Should succeed via fallback
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("broker_fails_fallback_to_db_fails", func(t *testing.T) {
@@ -547,7 +585,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 		// Broker producer fails - triggers fallback
 		mockBrokerRepo.EXPECT().
 			ProducerDefaultWithContext(gomock.Any(), "test-topic", td.transactionID, gomock.Any()).
-			Return(nil, errors.New("broker connection failed")).
+			Return(nil, errBrokerConnectionFailed).
 			Times(1)
 
 		// Mock RedisRepo.ListBalanceByKey for stale balance check
@@ -560,16 +598,21 @@ func TestWriteTransactionAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
+		mockTransactionRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(td.tran, nil).
+			Times(1)
+
 		// Fallback also fails - BalancesUpdate returns error
 		mockBalanceRepo.EXPECT().
 			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(errors.New("database connection failed")).
+			Return(errDatabaseConnectionFailed).
 			Times(1)
 
 		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
 		// Should return error from fallback
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "database connection failed")
 	})
 
@@ -600,7 +643,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("returns_error_when_msgpack_marshal_fails", func(t *testing.T) {
@@ -624,7 +667,42 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
-		assert.Error(t, err)
+		require.Error(t, err)
+	})
+
+	t.Run("marshal_error_emits_requested_and_declined_decision_events", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		actions := setupDecisionEventCapture(t, mockBrokerRepo, 2, "test-events-topic")
+
+		uc := &UseCase{
+			BrokerRepo:                    mockBrokerRepo,
+			RedisRepo:                     mockRedisRepo,
+			BalanceOperationsTopic:        "test-topic",
+			EventsTopic:                   "test-events-topic",
+			EventsEnabled:                 true,
+			DecisionLifecycleSyncForTests: true,
+		}
+
+		ctx := context.Background()
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		td := createTestData(organizationID, ledgerID)
+		td.transactionInput.Metadata = map[string]any{"unsupported": make(chan int)}
+
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+
+		require.Error(t, err)
+
+		observed := collectDecisionActions(t, actions, 2)
+		assert.Equal(t, []string{
+			string(pkgTransaction.DecisionLifecycleActionAuthorizationRequested),
+			string(pkgTransaction.DecisionLifecycleActionAuthorizationDeclined),
+		}, observed)
 	})
 
 	t.Run("returns_error_when_transaction_is_nil", func(t *testing.T) {
@@ -632,12 +710,14 @@ func TestWriteTransactionAsync(t *testing.T) {
 
 		err := uc.WriteTransactionAsync(context.Background(), uuid.New(), uuid.New(), &pkgTransaction.Transaction{}, &pkgTransaction.Responses{}, nil, nil)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "transaction is nil")
 	})
 }
 
-// TestWriteTransactionSync tests the synchronous direct DB write path
+// TestWriteTransactionSync tests the synchronous direct DB write path.
+//
+//nolint:funlen
 func TestWriteTransactionSync(t *testing.T) {
 	t.Run("success_writes_directly_to_db", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -669,7 +749,7 @@ func TestWriteTransactionSync(t *testing.T) {
 
 		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("error_propagates_from_balance_update", func(t *testing.T) {
@@ -705,15 +785,20 @@ func TestWriteTransactionSync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
+		mockTransactionRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(td.tran, nil).
+			Times(1)
+
 		// BalancesUpdate fails
 		mockBalanceRepo.EXPECT().
 			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(errors.New("failed to update balances")).
+			Return(errFailedToUpdateBalancesW).
 			Times(1)
 
 		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to update balances")
 	})
 
@@ -750,21 +835,15 @@ func TestWriteTransactionSync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
-		// BalancesUpdate succeeds
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
-
 		// TransactionRepo.Create fails (not a duplicate key error)
 		mockTransactionRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
-			Return(nil, errors.New("failed to create transaction")).
+			Return(nil, errFailedToCreateTransaction).
 			Times(1)
 
 		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create transaction")
 	})
 
@@ -872,22 +951,82 @@ func TestWriteTransactionSync(t *testing.T) {
 
 		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, balances, tran)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
+	})
+
+	t.Run("sync_processing_failure_emits_posting_failed_without_decline", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+		mockTransactionRepo := transaction.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
+		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+		actions := setupDecisionEventCapture(t, mockBrokerRepo, 3, "test-events-topic")
+
+		ctx := context.Background()
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		td := createTestData(organizationID, ledgerID)
+
+		uc := &UseCase{
+			BalanceRepo:                   mockBalanceRepo,
+			TransactionRepo:               mockTransactionRepo,
+			MetadataRepo:                  mockMetadataRepo,
+			BrokerRepo:                    mockBrokerRepo,
+			RedisRepo:                     mockRedisRepo,
+			EventsTopic:                   "test-events-topic",
+			EventsEnabled:                 true,
+			DecisionLifecycleSyncForTests: true,
+		}
+
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
+			Return(nil, nil).
+			AnyTimes()
+		mockRedisRepo.EXPECT().
+			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias2").
+			Return(nil, nil).
+			AnyTimes()
+
+		mockTransactionRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(td.tran, nil).
+			Times(1)
+
+		mockBalanceRepo.EXPECT().
+			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(errFailedToUpdateBalancesW).
+			Times(1)
+
+		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+
+		require.Error(t, err)
+
+		observed := collectDecisionActions(t, actions, 3)
+		assert.Equal(t, []string{
+			string(pkgTransaction.DecisionLifecycleActionAuthorizationRequested),
+			string(pkgTransaction.DecisionLifecycleActionAuthorizationApproved),
+			string(pkgTransaction.DecisionLifecycleActionPostingFailed),
+		}, observed)
+		assert.NotContains(t, observed, string(pkgTransaction.DecisionLifecycleActionAuthorizationDeclined))
 	})
 }
 
 func TestExtractPrimaryDebitRoute(t *testing.T) {
 	t.Run("returns empty when transaction is nil", func(t *testing.T) {
 		alias, balanceKey := extractPrimaryDebitRoute(nil)
-		assert.Equal(t, "", alias)
-		assert.Equal(t, "", balanceKey)
+		assert.Empty(t, alias)
+		assert.Empty(t, balanceKey)
 	})
 
 	t.Run("returns empty when operations are empty", func(t *testing.T) {
 		tran := &transaction.Transaction{}
 		alias, balanceKey := extractPrimaryDebitRoute(tran)
-		assert.Equal(t, "", alias)
-		assert.Equal(t, "", balanceKey)
+		assert.Empty(t, alias)
+		assert.Empty(t, balanceKey)
 	})
 
 	t.Run("prefers internal debit alias", func(t *testing.T) {

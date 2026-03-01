@@ -6,20 +6,25 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
+
+	"github.com/google/uuid"
+	"github.com/vmihailenco/msgpack/v5"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/google/uuid"
-	"github.com/vmihailenco/msgpack/v5"
 )
+
+var errTransactionNil = errors.New("transaction is nil")
 
 // RELEASE NOTE: TransactionAsync and BalanceOperationsTopic are resolved once at startup (not per-request).
 // Changing these env vars requires a pod restart to take effect.
@@ -27,7 +32,7 @@ import (
 // WriteTransaction routes the transaction to sync or async execution.
 func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
 	if tran == nil {
-		return fmt.Errorf("transaction is nil")
+		return errTransactionNil
 	}
 
 	if uc.TransactionAsync {
@@ -39,9 +44,9 @@ func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerI
 
 // WriteTransactionAsync publishes the transaction payload to Redpanda
 // for asynchronous processing. Falls back to direct DB write if queue fails.
-func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
+func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) (retErr error) {
 	if tran == nil {
-		return fmt.Errorf("transaction is nil")
+		return errTransactionNil
 	}
 
 	logger, tracer, reqID, _ := libCommons.NewTrackingFromContext(ctx)
@@ -49,40 +54,26 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 	ctx, span := tracer.Start(ctx, "command.write_transaction_async")
 	defer span.End()
 
-	queueData := make([]mmodel.QueueData, 0, 1)
-
-	value := transaction.TransactionProcessingPayload{
-		Validate:    validate,
-		Balances:    blc,
-		Transaction: tran,
-		Input:       transactionInput,
+	decisionContract := pkgTransaction.DefaultDecisionContract()
+	emitDecisionEvent := func(action pkgTransaction.DecisionLifecycleAction) {
+		uc.dispatchDecisionLifecycleEvent(ctx, tran, decisionContract, action, defaultDispatchTimeout)
 	}
 
-	marshal, err := msgpack.Marshal(value)
+	emitDecisionEvent(pkgTransaction.DecisionLifecycleActionAuthorizationRequested)
+
+	authorizationApproved := false
+
+	defer func() {
+		if retErr != nil && !authorizationApproved {
+			emitDecisionEvent(pkgTransaction.DecisionLifecycleActionAuthorizationDeclined)
+		}
+	}()
+
+	queueMessage, message, err := marshalTransactionQueue(organizationID, ledgerID, decisionContract, transactionInput, validate, blc, tran)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to marshal transaction to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to marshal transaction queue payload", err)
 
-		logger.Errorf("Failed to marshal validate to JSON string: %s", err.Error())
-
-		return err
-	}
-
-	queueData = append(queueData, mmodel.QueueData{
-		ID:    tran.IDtoUUID(),
-		Value: marshal,
-	})
-
-	queueMessage := mmodel.Queue{
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		QueueData:      queueData,
-	}
-
-	message, err := msgpack.Marshal(queueMessage)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to marshal broker message struct", err)
-
-		logger.Errorf("Failed to marshal broker message struct")
+		logger.Errorf("Failed to marshal transaction queue payload: %s", err.Error())
 
 		return err
 	}
@@ -106,6 +97,11 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 		publishErr := uc.Authorizer.PublishBalanceOperations(ctx, topic, partitionKey, message, headers)
 		if publishErr == nil {
 			logger.Infof("Transaction sent successfully via authorizer publisher: %s", tran.ID)
+
+			authorizationApproved = true
+
+			emitDecisionEvent(pkgTransaction.DecisionLifecycleActionAuthorizationApproved)
+
 			return nil
 		}
 
@@ -125,6 +121,10 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 
 		logger.Infof("Trying to send message directly to database: %s", tran.ID)
 
+		authorizationApproved = true
+
+		emitDecisionEvent(pkgTransaction.DecisionLifecycleActionAuthorizationApproved)
+
 		// Use original context for fallback - it still has remaining HTTP timeout
 		err = uc.CreateBalanceTransactionOperationsAsync(ctx, queueMessage)
 		if err != nil {
@@ -142,7 +142,53 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 
 	logger.Infof("Transaction sent successfully to broker topic=%s id=%s", topic, tran.ID)
 
+	authorizationApproved = true
+
+	emitDecisionEvent(pkgTransaction.DecisionLifecycleActionAuthorizationApproved)
+
 	return nil
+}
+
+// marshalTransactionQueue builds the transaction processing payload and queue
+// message, returning both the structured queue and its msgpack-serialized form.
+func marshalTransactionQueue(
+	organizationID, ledgerID uuid.UUID,
+	decisionContract pkgTransaction.DecisionContract,
+	transactionInput *pkgTransaction.Transaction,
+	validate *pkgTransaction.Responses,
+	blc []*mmodel.Balance,
+	tran *transaction.Transaction,
+) (mmodel.Queue, []byte, error) {
+	value := transaction.TransactionProcessingPayload{
+		DecisionContract: decisionContract,
+		Validate:         validate,
+		Balances:         blc,
+		Transaction:      tran,
+		Input:            transactionInput,
+	}
+
+	marshal, err := msgpack.Marshal(value)
+	if err != nil {
+		return mmodel.Queue{}, nil, fmt.Errorf("failed to marshal transaction payload: %w", err)
+	}
+
+	queueData := []mmodel.QueueData{{
+		ID:    tran.IDtoUUID(),
+		Value: marshal,
+	}}
+
+	queueMessage := mmodel.Queue{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		QueueData:      queueData,
+	}
+
+	message, err := msgpack.Marshal(queueMessage)
+	if err != nil {
+		return mmodel.Queue{}, nil, fmt.Errorf("failed to marshal queue message: %w", err)
+	}
+
+	return queueMessage, message, nil
 }
 
 func extractPrimaryDebitRoute(tran *transaction.Transaction) (string, string) {
@@ -191,9 +237,9 @@ func extractPrimaryDebitRoute(tran *transaction.Transaction) (string, string) {
 
 // WriteTransactionSync performs direct database writes for balance updates,
 // transaction record creation, and operation records.
-func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) error {
+func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) (retErr error) {
 	if tran == nil {
-		return fmt.Errorf("transaction is nil")
+		return errTransactionNil
 	}
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -201,34 +247,34 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 	ctx, span := tracer.Start(ctx, "command.write_transaction_sync")
 	defer span.End()
 
-	queueData := make([]mmodel.QueueData, 0, 1)
+	decisionContract := pkgTransaction.DefaultDecisionContract()
 
-	value := transaction.TransactionProcessingPayload{
-		Validate:    validate,
-		Balances:    blc,
-		Transaction: tran,
-		Input:       transactionInput,
+	emitDecisionEvent := func(action pkgTransaction.DecisionLifecycleAction) {
+		uc.dispatchDecisionLifecycleEvent(ctx, tran, decisionContract, action, defaultDispatchTimeout)
 	}
 
-	marshal, err := msgpack.Marshal(value)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to marshal transaction to JSON string", err)
+	emitDecisionEvent(pkgTransaction.DecisionLifecycleActionAuthorizationRequested)
 
-		logger.Errorf("Failed to marshal validate to JSON string: %s", err.Error())
+	authorizationApproved := false
+
+	defer func() {
+		if retErr != nil && !authorizationApproved {
+			emitDecisionEvent(pkgTransaction.DecisionLifecycleActionAuthorizationDeclined)
+		}
+	}()
+
+	queueMessage, _, err := marshalTransactionQueue(organizationID, ledgerID, decisionContract, transactionInput, validate, blc, tran)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to marshal transaction queue payload", err)
+
+		logger.Errorf("Failed to marshal transaction queue payload: %s", err.Error())
 
 		return err
 	}
 
-	queueData = append(queueData, mmodel.QueueData{
-		ID:    tran.IDtoUUID(),
-		Value: marshal,
-	})
+	authorizationApproved = true
 
-	queueMessage := mmodel.Queue{
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		QueueData:      queueData,
-	}
+	emitDecisionEvent(pkgTransaction.DecisionLifecycleActionAuthorizationApproved)
 
 	err = uc.CreateBalanceTransactionOperationsAsync(ctx, queueMessage)
 	if err != nil {

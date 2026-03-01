@@ -6,11 +6,23 @@ package command
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/vmihailenco/msgpack/v5"
+	"go.opentelemetry.io/otel"
+	"go.uber.org/mock/gomock"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
@@ -21,16 +33,20 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/vmihailenco/msgpack/v5"
-	"go.uber.org/mock/gomock"
 )
 
-// Int64Ptr returns a pointer to the given int64 value
+// Sentinel errors for test assertions.
+var (
+	errFailedToUpdateBalances      = errors.New("failed to update balances")
+	errBatchInsertFailed           = errors.New("batch insert failed")
+	errDatabaseConnectionRefused   = errors.New("database connection refused")
+	errFailedToCreateOperationMeta = errors.New("failed to create operation metadata")
+	errFailedToCreateMetadata      = errors.New("failed to create metadata")
+	errRedisConnectionRefused      = errors.New("redis connection refused")
+	errRedisWriteFailed            = errors.New("redis write failed")
+)
+
+// Int64Ptr returns a pointer to the given int64 value.
 func Int64Ptr(v int64) *int64 {
 	return &v
 }
@@ -44,12 +60,50 @@ func mustMsgpackMarshal(t *testing.T, payload any) []byte {
 	return data
 }
 
+func setupLifecycleActionCapture(t *testing.T, mockBrokerRepo *redpanda.MockProducerRepository, expected int, topic string) <-chan string {
+	t.Helper()
+
+	actions := make(chan string, expected)
+
+	mockBrokerRepo.EXPECT().
+		ProducerDefault(gomock.Any(), topic, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ string, payload []byte) (*string, error) {
+			event := mmodel.Event{}
+			require.NoError(t, json.Unmarshal(payload, &event))
+
+			actions <- event.Action
+
+			return nil, nil
+		}).
+		Times(expected)
+
+	return actions
+}
+
+func collectLifecycleActions(t *testing.T, actions <-chan string, expected int) []string {
+	t.Helper()
+
+	collected := make([]string, 0, expected)
+	timeout := time.After(2 * time.Second)
+
+	for len(collected) < expected {
+		select {
+		case action := <-actions:
+			collected = append(collected, action)
+		case <-timeout:
+			t.Fatalf("timed out waiting for %d lifecycle events, got %d", expected, len(collected))
+		}
+	}
+
+	return collected
+}
+
 // NOTE: A previous helper `expectOperationNotFoundLookup` mocked OperationRepo.Find
 // with AnyTimes(), but CreateBalanceTransactionOperationsAsync never calls Find.
 // Operation idempotency is handled at the PostgreSQL level via ON CONFLICT (id) DO
 // NOTHING in CreateBatch. The dead mock was removed to avoid misleading future readers.
 
-// MockLogger is a mock implementation of logger for testing
+// MockLogger is a mock implementation of logger for testing.
 type MockLogger struct{}
 
 func (m *MockLogger) Debug(args ...any)                                        {}
@@ -71,6 +125,86 @@ func (m *MockLogger) Sync() error                                              {
 func (m *MockLogger) WithDefaultMessageTemplate(template string) libLog.Logger { return m }
 func (m *MockLogger) WithFields(args ...any) libLog.Logger                     { return m }
 
+type testBatchTx struct{}
+
+func (tx *testBatchTx) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+	return nil, nil //nolint:nilnil // test stub: caller never inspects the result
+}
+
+func (tx *testBatchTx) QueryContext(_ context.Context, _ string, _ ...any) (*sql.Rows, error) {
+	return nil, nil
+}
+
+func (tx *testBatchTx) Commit() error {
+	return nil
+}
+
+func (tx *testBatchTx) Rollback() error {
+	return nil
+}
+
+type batchCapableTransactionRepo struct {
+	*transaction.MockRepository
+	beginTxFn           func(context.Context) (sqlBatchTx, error)
+	createBatchWithTxFn func(context.Context, sqlExecQueryTx, []*transaction.Transaction) error
+}
+
+func (r *batchCapableTransactionRepo) BeginTx(ctx context.Context) (sqlBatchTx, error) {
+	if r.beginTxFn != nil {
+		return r.beginTxFn(ctx)
+	}
+
+	return &testBatchTx{}, nil
+}
+
+func (r *batchCapableTransactionRepo) CreateBatchWithTx(ctx context.Context, tx sqlExecQueryTx, transactions []*transaction.Transaction) error {
+	if r.createBatchWithTxFn != nil {
+		return r.createBatchWithTxFn(ctx, tx, transactions)
+	}
+
+	return nil
+}
+
+type batchCapableOperationRepo struct {
+	*operation.MockRepository
+	createBatchWithTxFn func(context.Context, interface {
+		ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	}, []*operation.Operation) error
+}
+
+func (r *batchCapableOperationRepo) CreateBatchWithTx(
+	ctx context.Context,
+	tx interface {
+		ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	},
+	operations []*operation.Operation,
+) error {
+	if r.createBatchWithTxFn != nil {
+		return r.createBatchWithTxFn(ctx, tx, operations)
+	}
+
+	return nil
+}
+
+type batchCapableBalanceRepo struct {
+	*balance.MockRepository
+	balancesUpdateWithTxFn func(context.Context, sqlExecQueryTx, uuid.UUID, uuid.UUID, []*mmodel.Balance) error
+}
+
+func (r *batchCapableBalanceRepo) BalancesUpdateWithTx(
+	ctx context.Context,
+	tx sqlExecQueryTx,
+	organizationID, ledgerID uuid.UUID,
+	balances []*mmodel.Balance,
+) error {
+	if r.balancesUpdateWithTxFn != nil {
+		return r.balancesUpdateWithTxFn(ctx, tx, organizationID, ledgerID, balances)
+	}
+
+	return nil
+}
+
+//nolint:funlen
 func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -151,7 +285,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{},
-			Metadata:       map[string]interface{}{},
+			Metadata:       map[string]any{},
 		}
 
 		transactionInput := &pkgTransaction.Transaction{}
@@ -183,6 +317,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
 			Return(nil, nil).
 			AnyTimes()
+
 		mockRedisRepo.EXPECT().
 			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias2").
 			Return(nil, nil).
@@ -221,7 +356,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("error_update_balances", func(t *testing.T) {
@@ -289,7 +424,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{},
-			Metadata:       map[string]interface{}{},
+			Metadata:       map[string]any{},
 		}
 
 		transactionInput := &pkgTransaction.Transaction{}
@@ -321,16 +456,21 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
+		mockTransactionRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(tran, nil).
+			Times(1)
+
 		// Mock BalanceRepo.BalancesUpdate to return an error
 		mockBalanceRepo.EXPECT().
 			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(errors.New("failed to update balances")).
+			Return(errFailedToUpdateBalances).
 			Times(1)
 
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to update balances")
 	})
 
@@ -393,7 +533,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{},
-			Metadata:       map[string]interface{}{},
+			Metadata:       map[string]any{},
 		}
 
 		transactionInput := &pkgTransaction.Transaction{}
@@ -425,29 +565,20 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil, nil).
 			AnyTimes()
 
-		// Mock BalanceRepo.BalancesUpdate
+		// Mock TransactionRepo.Create idempotent duplicate behavior (ON CONFLICT DO NOTHING)
+		mockTransactionRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(nil, nil).
+			Times(1)
+
 		mockBalanceRepo.EXPECT().
 			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil).
 			Times(1)
 
-		// Mock TransactionRepo.Create with duplicate key error
-		pgErr := &pgconn.PgError{Code: "23505"}
-		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(nil, pgErr).
-			Times(1)
-
-		// Mock MetadataRepo.Create for transaction metadata (should be called even with duplicate error)
 		mockMetadataRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil).
-			Times(1)
-
-		// Mock BrokerRepo.ProducerDefault for transaction events (goroutine will still be called)
-		mockBrokerRepo.EXPECT().
-			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil, nil).
 			AnyTimes()
 
 		// Mock RedisRepo.RemoveMessageFromQueue for removing transaction from queue
@@ -458,7 +589,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.NoError(t, err) // Duplicate key errors are handled gracefully
+		require.NoError(t, err) // Duplicate key errors are handled gracefully
 	})
 
 	t.Run("success_with_multiple_operations", func(t *testing.T) {
@@ -554,7 +685,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			BalanceAfter: operation.Balance{ // ensure version after is present
 				Version: Int64Ptr(2),
 			},
-			Metadata: map[string]interface{}{"key1": "value1"},
+			Metadata: map[string]any{"key1": "value1"},
 		}
 
 		Amount = decimal.NewFromInt(40)
@@ -575,7 +706,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			BalanceAfter: operation.Balance{ // ensure version after is present
 				Version: Int64Ptr(2),
 			},
-			Metadata: map[string]interface{}{"key2": "value2"},
+			Metadata: map[string]any{"key2": "value2"},
 		}
 
 		tran := &transaction.Transaction{
@@ -583,7 +714,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{operation1, operation2},
-			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
+			Metadata:       map[string]any{"transaction_key": "transaction_value"},
 		}
 
 		transactionInput := &pkgTransaction.Transaction{}
@@ -675,7 +806,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("error_creating_operation", func(t *testing.T) {
@@ -751,7 +882,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Amount: operation.Amount{
 				Value: &Amount,
 			},
-			Metadata: map[string]interface{}{"key1": "value1"},
+			Metadata: map[string]any{"key1": "value1"},
 		}
 
 		Amount = decimal.NewFromInt(40)
@@ -766,7 +897,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Amount: operation.Amount{
 				Value: &Amount,
 			},
-			Metadata: map[string]interface{}{"key2": "value2"},
+			Metadata: map[string]any{"key2": "value2"},
 		}
 
 		tran := &transaction.Transaction{
@@ -774,7 +905,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{operation1, operation2},
-			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
+			Metadata:       map[string]any{"transaction_key": "transaction_value"},
 		}
 
 		transactionInput := &pkgTransaction.Transaction{}
@@ -826,7 +957,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Times(1)
 
 		// Mock OperationRepo.CreateBatch to return an error
-		operationError := errors.New("batch insert failed")
+		operationError := errBatchInsertFailed
 		mockOperationRepo.EXPECT().
 			CreateBatch(gomock.Any(), gomock.Any()).
 			Return(operationError).
@@ -835,7 +966,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "batch insert failed")
 	})
 
@@ -912,7 +1043,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Amount: operation.Amount{
 				Value: &Amount,
 			},
-			Metadata: map[string]interface{}{"key1": "value1"},
+			Metadata: map[string]any{"key1": "value1"},
 		}
 
 		Amount = decimal.NewFromInt(50)
@@ -927,7 +1058,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Amount: operation.Amount{
 				Value: &Amount,
 			},
-			Metadata: map[string]interface{}{"key2": "value2"},
+			Metadata: map[string]any{"key2": "value2"},
 		}
 
 		tran := &transaction.Transaction{
@@ -935,7 +1066,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{operation1, operation2},
-			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
+			Metadata:       map[string]any{"transaction_key": "transaction_value"},
 		}
 
 		transactionInput := &pkgTransaction.Transaction{}
@@ -989,13 +1120,13 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		// Mock OperationRepo.CreateBatch to return a database connection error
 		mockOperationRepo.EXPECT().
 			CreateBatch(gomock.Any(), gomock.Any()).
-			Return(errors.New("database connection refused")).
+			Return(errDatabaseConnectionRefused).
 			Times(1)
 
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "database connection refused")
 	})
 
@@ -1066,7 +1197,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Amount: operation.Amount{
 				Value: &Amount,
 			},
-			Metadata: map[string]interface{}{"key1": "value1"},
+			Metadata: map[string]any{"key1": "value1"},
 		}
 
 		tran := &transaction.Transaction{
@@ -1074,7 +1205,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Operations:     []*operation.Operation{operation1},
-			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
+			Metadata:       map[string]any{"transaction_key": "transaction_value"},
 		}
 
 		transactionInput := &pkgTransaction.Transaction{}
@@ -1132,7 +1263,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Times(1)
 
 		// Mock MetadataRepo.Create for operation metadata to return an error
-		metadataError := errors.New("failed to create operation metadata")
+		metadataError := errFailedToCreateOperationMeta
 		mockMetadataRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(metadataError).
@@ -1141,9 +1272,372 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create operation metadata")
 	})
+}
+
+func TestCreateBalanceTransactionOperationsAsync_EmitsPostingFailedOnBalanceError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	actions := setupLifecycleActionCapture(t, mockBrokerRepo, 1, "test-decision-events")
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		BrokerRepo:      mockBrokerRepo,
+		RedisRepo:       mockRedisRepo,
+		EventsTopic:     "test-decision-events",
+		EventsEnabled:   true,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+
+	validate := &pkgTransaction.Responses{
+		Aliases: []string{"alias1"},
+		From: map[string]pkgTransaction.Amount{
+			"alias1": {
+				Asset: "USD",
+				Value: decimal.NewFromInt(50),
+			},
+		},
+	}
+
+	balances := []*mmodel.Balance{
+		{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "alias1",
+			Available:      decimal.NewFromInt(100),
+			OnHold:         decimal.Zero,
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			AssetCode:      "USD",
+		},
+	}
+
+	tran := &transaction.Transaction{
+		ID:             transactionID,
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         transaction.Status{Code: constant.CREATED},
+		Operations:     []*operation.Operation{},
+	}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: tran,
+		Validate:    validate,
+		Balances:    balances,
+		Input:       &pkgTransaction.Transaction{},
+	}
+
+	queue := mmodel.Queue{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		QueueData: []mmodel.QueueData{
+			{ID: uuid.New(), Value: mustMsgpackMarshal(t, payload)},
+		},
+	}
+
+	mockRedisRepo.EXPECT().
+		ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
+		Return(nil, nil).
+		AnyTimes()
+
+	mockTransactionRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		Return(tran, nil).
+		Times(1)
+
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(errFailedToUpdateBalances).
+		Times(1)
+
+	err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+
+	require.Error(t, err)
+	observed := collectLifecycleActions(t, actions, 1)
+	assert.Equal(t, []string{string(pkgTransaction.DecisionLifecycleActionPostingFailed)}, observed)
+}
+
+func TestCreateBalanceTransactionOperationsAsync_DuplicateReplaySuppressesPostingFailed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		BrokerRepo:      mockBrokerRepo,
+		RedisRepo:       mockRedisRepo,
+		EventsTopic:     "test-decision-events",
+		EventsEnabled:   true,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+
+	validate := &pkgTransaction.Responses{
+		Aliases: []string{"alias1"},
+		From: map[string]pkgTransaction.Amount{
+			"alias1": {
+				Asset: "USD",
+				Value: decimal.NewFromInt(50),
+			},
+		},
+	}
+
+	balances := []*mmodel.Balance{
+		{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "alias1",
+			Available:      decimal.NewFromInt(100),
+			OnHold:         decimal.Zero,
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			AssetCode:      "USD",
+		},
+	}
+
+	tran := &transaction.Transaction{
+		ID:             transactionID,
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         transaction.Status{Code: constant.CREATED},
+		Operations:     []*operation.Operation{},
+	}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: tran,
+		Validate:    validate,
+		Balances:    balances,
+		Input:       &pkgTransaction.Transaction{},
+	}
+
+	queue := mmodel.Queue{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		QueueData: []mmodel.QueueData{
+			{ID: uuid.New(), Value: mustMsgpackMarshal(t, payload)},
+		},
+	}
+
+	mockRedisRepo.EXPECT().
+		ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
+		Return(nil, nil).
+		AnyTimes()
+
+	mockTransactionRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		Times(1)
+
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(errFailedToUpdateBalances).
+		Times(1)
+
+	err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+
+	require.Error(t, err)
+}
+
+func TestEmitBatchPostingFailed_EmitsOnlyForNonNilTransactions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
+	actions := setupLifecycleActionCapture(t, mockBrokerRepo, 2, "test-decision-events")
+
+	uc := &UseCase{
+		BrokerRepo:    mockBrokerRepo,
+		EventsTopic:   "test-decision-events",
+		EventsEnabled: true,
+	}
+
+	processed := []processedTransactionBatchItem{
+		{
+			decisionContract: pkgTransaction.DefaultDecisionContract(),
+			transaction: &transaction.Transaction{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+			},
+		},
+		{
+			decisionContract: pkgTransaction.DefaultDecisionContract(),
+			transaction:      nil,
+		},
+		{
+			decisionContract: pkgTransaction.DefaultDecisionContract(),
+			transaction: &transaction.Transaction{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+			},
+		},
+	}
+
+	uc.emitBatchPostingFailed(context.Background(), &MockLogger{}, processed)
+
+	observed := collectLifecycleActions(t, actions, 2)
+	assert.ElementsMatch(t, []string{
+		string(pkgTransaction.DecisionLifecycleActionPostingFailed),
+		string(pkgTransaction.DecisionLifecycleActionPostingFailed),
+	}, observed)
+}
+
+func TestCreateBalanceTransactionOperationsBatch_OptimizedPath_EmitsPostingFailedAfterRetryExhaustion(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	baseTxRepo := transaction.NewMockRepository(ctrl)
+	baseOpRepo := operation.NewMockRepository(ctrl)
+	baseBalanceRepo := balance.NewMockRepository(ctrl)
+	mockBrokerRepo := redpanda.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+
+	retryAttempts := 0
+
+	txRepo := &batchCapableTransactionRepo{
+		MockRepository: baseTxRepo,
+		beginTxFn: func(context.Context) (sqlBatchTx, error) {
+			return &testBatchTx{}, nil
+		},
+		createBatchWithTxFn: func(context.Context, sqlExecQueryTx, []*transaction.Transaction) error {
+			retryAttempts++
+			return &pgconn.PgError{Code: "40P01", Message: "deadlock detected"}
+		},
+	}
+
+	opRepo := &batchCapableOperationRepo{MockRepository: baseOpRepo}
+	balanceRepo := &batchCapableBalanceRepo{
+		MockRepository: baseBalanceRepo,
+		balancesUpdateWithTxFn: func(context.Context, sqlExecQueryTx, uuid.UUID, uuid.UUID, []*mmodel.Balance) error {
+			return nil
+		},
+	}
+
+	actions := setupLifecycleActionCapture(t, mockBrokerRepo, 1, "test-decision-events")
+
+	uc := &UseCase{
+		TransactionRepo:               txRepo,
+		OperationRepo:                 opRepo,
+		BalanceRepo:                   balanceRepo,
+		BrokerRepo:                    mockBrokerRepo,
+		RedisRepo:                     mockRedisRepo,
+		EventsTopic:                   "test-decision-events",
+		EventsEnabled:                 true,
+		DecisionLifecycleSyncForTests: true,
+	}
+
+	baseTxRepo.EXPECT().
+		ListByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Return(nil, nil).
+		Times(1)
+
+	mockRedisRepo.EXPECT().
+		ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
+		Return(nil, nil).
+		AnyTimes()
+
+	validate := &pkgTransaction.Responses{
+		Aliases: []string{"alias1"},
+		From: map[string]pkgTransaction.Amount{
+			"alias1": {
+				Asset:           "USD",
+				Value:           decimal.NewFromInt(10),
+				Operation:       constant.DEBIT,
+				TransactionType: constant.CREATED,
+			},
+		},
+	}
+
+	balanceSnapshot := &mmodel.Balance{
+		ID:             uuid.New().String(),
+		AccountID:      uuid.New().String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Alias:          "alias1",
+		Available:      decimal.NewFromInt(100),
+		OnHold:         decimal.Zero,
+		Version:        1,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+		AssetCode:      "USD",
+	}
+
+	tran := &transaction.Transaction{
+		ID:             transactionID,
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         transaction.Status{Code: constant.CREATED},
+		Operations:     []*operation.Operation{},
+		Metadata:       map[string]any{},
+	}
+
+	payload := transaction.TransactionProcessingPayload{
+		DecisionContract: pkgTransaction.DefaultDecisionContract(),
+		Transaction:      tran,
+		Validate:         validate,
+		Balances:         []*mmodel.Balance{balanceSnapshot},
+		Input:            &pkgTransaction.Transaction{},
+	}
+
+	queue := mmodel.Queue{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		QueueData: []mmodel.QueueData{
+			{ID: uuid.New(), Value: mustMsgpackMarshal(t, payload)},
+		},
+	}
+
+	err := uc.CreateBalanceTransactionOperationsBatch(context.Background(), []mmodel.Queue{queue})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "deadlock detected")
+	assert.Equal(t, 3, retryAttempts)
+
+	observed := collectLifecycleActions(t, actions, 1)
+	assert.Equal(t, []string{string(pkgTransaction.DecisionLifecycleActionPostingFailed)}, observed)
 }
 
 func TestCreateMetadataAsync(t *testing.T) {
@@ -1170,17 +1664,17 @@ func TestCreateMetadataAsync(t *testing.T) {
 			Times(1)
 
 		err := uc.CreateMetadataAsync(ctx, logger, metadata, ID, collection)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("error", func(t *testing.T) {
 		mockMetadataRepo.EXPECT().
 			Create(gomock.Any(), collection, gomock.Any()).
-			Return(errors.New("failed to create metadata")).
+			Return(errFailedToCreateMetadata).
 			Times(1)
 
 		err := uc.CreateMetadataAsync(ctx, logger, metadata, ID, collection)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create metadata")
 	})
 }
@@ -1189,7 +1683,6 @@ func TestCreateBTOAsync(t *testing.T) {
 	// This test simply verifies that CreateBTOAsync doesn't panic
 	// Since it's just a wrapper around CreateBalanceTransactionOperationsAsync
 	// which is tested separately, we don't need to test it extensively
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -1248,7 +1741,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
 		Operations:     []*operation.Operation{},
-		Metadata:       map[string]interface{}{},
+		Metadata:       map[string]any{},
 	}
 
 	transactionInput := &pkgTransaction.Transaction{}
@@ -1313,6 +1806,7 @@ func TestCreateBTOAsync(t *testing.T) {
 	require.NoError(t, err)
 }
 
+//nolint:funlen
 func TestUpdateTransactionBackupOperations(t *testing.T) {
 	t.Run("success_updates_backup_with_operations", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -1333,6 +1827,19 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 		avail := decimal.NewFromFloat(500.00)
 		onHold := decimal.NewFromFloat(0)
 		version := int64(1)
+
+		balances := []*mmodel.Balance{{
+			ID:             "bal-1",
+			Alias:          "@alice",
+			Key:            "default",
+			AccountID:      "acc-1",
+			AssetCode:      "BRL",
+			Available:      avail,
+			OnHold:         onHold,
+			Version:        version,
+			AllowSending:   true,
+			AllowReceiving: true,
+		}}
 
 		operations := []*operation.Operation{
 			{
@@ -1369,16 +1876,21 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 			AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, _ string, raw []byte) error {
 				var queue mmodel.TransactionRedisQueue
+
 				err := json.Unmarshal(raw, &queue)
 				require.NoError(t, err)
 				assert.Len(t, queue.Operations, 1)
 				assert.Equal(t, "op-1", queue.Operations[0].ID)
 				assert.Equal(t, "DEBIT", queue.Operations[0].Type)
+				assert.Len(t, queue.Balances, 1)
+				assert.Equal(t, "@alice", queue.Balances[0].Alias)
+				assert.Equal(t, "default", queue.Balances[0].Key)
+
 				return nil
 			}).
 			Times(1)
 
-		uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID, operations)
+		uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID, balances, operations)
 	})
 
 	t.Run("read_failure_does_not_panic", func(t *testing.T) {
@@ -1395,11 +1907,11 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 
 		mockRedisRepo.EXPECT().
 			ReadMessageFromQueue(gomock.Any(), gomock.Any()).
-			Return(nil, errors.New("redis connection refused")).
+			Return(nil, errRedisConnectionRefused).
 			Times(1)
 
 		// Should not panic, just log and return
-		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-1", nil)
+		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-1", nil, nil)
 	})
 
 	t.Run("unmarshal_failure_does_not_panic", func(t *testing.T) {
@@ -1420,7 +1932,7 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 			Times(1)
 
 		// Should not panic, just log and return
-		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-2", nil)
+		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-2", nil, nil)
 	})
 
 	t.Run("write_failure_does_not_panic", func(t *testing.T) {
@@ -1444,11 +1956,11 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 
 		mockRedisRepo.EXPECT().
 			AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(errors.New("redis write failed")).
+			Return(errRedisWriteFailed).
 			Times(1)
 
 		// Should not panic, just log and return
-		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-3", []*operation.Operation{})
+		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-3", nil, []*operation.Operation{})
 	})
 
 	t.Run("updates_preflight_shard_and_legacy_backup", func(t *testing.T) {
@@ -1479,7 +1991,7 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 			AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).
 			Times(2)
 
-		uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID, []*operation.Operation{{ID: "op-1"}})
+		uc.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID, nil, []*operation.Operation{{ID: "op-1"}})
 	})
 }
 
@@ -1605,6 +2117,21 @@ func TestCreateBalanceTransactionOperationsAsync_RejectsNilValidate(t *testing.T
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "validate is nil")
+}
+
+func TestValidateTransactionProcessingPayload_NormalizesDecisionContract(t *testing.T) {
+	payload := &transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{Status: transaction.Status{Code: constant.CREATED}},
+		Validate:    &pkgTransaction.Responses{},
+		Balances:    []*mmodel.Balance{{Alias: "@alice#default"}},
+	}
+
+	err := validateTransactionProcessingPayload(payload)
+	require.NoError(t, err)
+	assert.Equal(t, pkgTransaction.DecisionEndpointModeSync, payload.DecisionContract.EndpointMode)
+	assert.Equal(t, pkgTransaction.GuaranteeModelSourceDurable, payload.DecisionContract.GuaranteeModel)
+	assert.Equal(t, pkgTransaction.DestinationBlockedPolicyCreditAnyway, payload.DecisionContract.DestinationBlockedPolicy)
+	assert.Equal(t, int64(150), payload.DecisionContract.DecisionLatencySLOMs)
 }
 
 func TestCreateBalanceTransactionOperationsBatch_FallbackWrapsErrors(t *testing.T) {
@@ -1780,7 +2307,7 @@ func TestBuildBatchBalanceUpdates_AccumulatesOutOfOrderSnapshots(t *testing.T) {
 
 // ---------------------------------------------------------------------------
 // Tests for CreateBalanceTransactionOperationsBatch
-// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------.
 
 // TestCreateBalanceTransactionOperationsBatch_FallbackToPerItem verifies that
 // when the underlying repositories do NOT implement the batch-optimized
@@ -1850,7 +2377,7 @@ func TestCreateBalanceTransactionOperationsBatch_FallbackToPerItem(t *testing.T)
 			LedgerID:       ledgerID.String(),
 			Status:         transaction.Status{Code: constant.CREATED},
 			Operations:     []*operation.Operation{},
-			Metadata:       map[string]interface{}{},
+			Metadata:       map[string]any{},
 		}
 		payload := transaction.TransactionProcessingPayload{
 			Transaction: tran,
@@ -1858,6 +2385,7 @@ func TestCreateBalanceTransactionOperationsBatch_FallbackToPerItem(t *testing.T)
 			Balances:    []*mmodel.Balance{bal},
 			Input:       &pkgTransaction.Transaction{},
 		}
+
 		return mmodel.Queue{
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
@@ -1903,7 +2431,7 @@ func TestCreateBalanceTransactionOperationsBatch_FallbackToPerItem(t *testing.T)
 		AnyTimes()
 
 	err := uc.CreateBalanceTransactionOperationsBatch(ctx, queues)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 // TestCreateBalanceTransactionOperationsBatch_EmptyInput verifies that an empty
@@ -1912,10 +2440,10 @@ func TestCreateBalanceTransactionOperationsBatch_EmptyInput(t *testing.T) {
 	uc := &UseCase{}
 
 	err := uc.CreateBalanceTransactionOperationsBatch(context.Background(), []mmodel.Queue{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = uc.CreateBalanceTransactionOperationsBatch(context.Background(), nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 // TestCreateBalanceTransactionOperationsBatch_ValidationErrors tests that
@@ -2090,6 +2618,7 @@ func TestCreateBalanceTransactionOperationsBatch_BatchGrouping(t *testing.T) {
 
 	// Build a lookup so we don't depend on map iteration order.
 	scopeMap := make(map[string]balanceBatchUpdateGroup, 2)
+
 	for _, g := range groups {
 		key := g.organizationID.String() + "|" + g.ledgerID.String()
 		scopeMap[key] = g
@@ -2191,7 +2720,7 @@ func TestCreateBalanceTransactionOperationsBatch_CumulativeBalanceApplication(t 
 
 	updated := groups[0].balances[0]
 
-	expectedAvailable := decimal.NewFromInt(initialAvailable - (debitPerTx * txCount)) // 1000 - 300 = 700
+	expectedAvailable := decimal.NewFromInt(initialAvailable - (debitPerTx * txCount)) // expected: 700
 	expectedVersion := int64(snapshotVersion + txCount)                                // 10 + 3 = 13
 
 	assert.True(t, updated.Available.Equal(expectedAvailable),
@@ -2305,7 +2834,7 @@ func TestCreateBalanceTransactionOperationsBatch_CumulativeBalanceApplication_Mi
 
 	updated := groups[0].balances[0]
 
-	// 1000 - 200 + 50 - 100 = 750
+	// Expected result: 750 (initial 1000 with debit 200, credit 50, debit 100).
 	assert.True(t, updated.Available.Equal(decimal.NewFromInt(750)),
 		"expected 750 but got %s", updated.Available)
 
@@ -2340,4 +2869,54 @@ func TestCreateBalanceTransactionOperationsBatch_FallbackCollectsAllErrors(t *te
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "batch item 0 failed")
 	assert.Contains(t, err.Error(), "batch item 1 failed")
+}
+
+func TestCreateOrUpdateTransaction_DuplicatePendingUpdatesStatus(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+	}
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+
+	tran := &transaction.Transaction{
+		ID:             txID.String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code: constant.CREATED,
+		},
+	}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: tran,
+		Validate: &pkgTransaction.Responses{
+			Pending: true,
+		},
+	}
+
+	mockTransactionRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		Times(1)
+
+	mockTransactionRepo.EXPECT().
+		Update(gomock.Any(), orgID, ledgerID, txID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, updated *transaction.Transaction) (*transaction.Transaction, error) {
+			require.Equal(t, constant.APPROVED, updated.Status.Code)
+			return updated, nil
+		}).
+		Times(1)
+
+	result, duplicate, err := uc.CreateOrUpdateTransaction(context.Background(), &MockLogger{}, otel.Tracer("test"), payload)
+	require.NoError(t, err)
+	require.True(t, duplicate)
+	require.NotNil(t, result)
+	require.Equal(t, constant.APPROVED, result.Status.Code)
 }

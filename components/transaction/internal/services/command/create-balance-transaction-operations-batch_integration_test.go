@@ -8,25 +8,32 @@ package command
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/vmihailenco/msgpack/v5"
+	"go.uber.org/mock/gomock"
+
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	redisadapter "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/vmihailenco/msgpack/v5"
 )
 
 func TestIntegration_CreateBalanceTransactionOperationsBatch_PersistsAllInSingleTx(t *testing.T) {
@@ -238,6 +245,190 @@ func TestIntegration_CreateBalanceTransactionOperationsBatch_RollsBackOnOperatio
 	bDst, findErr := balanceRepo.Find(ctx, organizationID, ledgerID, balanceDstID)
 	require.NoError(t, findErr)
 	assert.Equal(t, int64(1), bDst.Version, "balance version incremented by non-atomic per-item path")
+}
+
+func TestIntegration_CreateBalanceTransactionOperationsBatch_EmitsPostingFailedAfterRetryExhaustion(t *testing.T) {
+	pgContainer := pgtestutil.SetupContainer(t)
+	redisContainer := redistestutil.SetupContainer(t)
+
+	ctx := context.Background()
+
+	realTxRepo, realOpRepo, realBalanceRepo := createCommandPostgresRepos(t, pgContainer)
+	redisRepo := createCommandRedisRepo(t, redisContainer)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	brokerRepo := redpanda.NewMockProducerRepository(ctrl)
+	actions := setupIntegrationDecisionEventCapture(t, brokerRepo, 1, "test-decision-events")
+
+	retryAttempts := 0
+	txRepo := &integrationRetryableBatchTxRepository{
+		TransactionPostgreSQLRepository: realTxRepo,
+		createBatchWithTxFn: func(_ context.Context, _ sqlExecQueryTx, _ []*transaction.Transaction) error {
+			retryAttempts++
+			return &pgconn.PgError{Code: "40P01", Message: "integration injected deadlock"}
+		},
+	}
+	opRepo := &integrationBatchOperationRepository{OperationPostgreSQLRepository: realOpRepo}
+	balanceRepo := &integrationBatchBalanceRepository{BalancePostgreSQLRepository: realBalanceRepo}
+
+	uc := &UseCase{
+		TransactionRepo:               txRepo,
+		OperationRepo:                 opRepo,
+		BalanceRepo:                   balanceRepo,
+		RedisRepo:                     redisRepo,
+		BrokerRepo:                    brokerRepo,
+		EventsEnabled:                 true,
+		EventsTopic:                   "test-decision-events",
+		DecisionLifecycleSyncForTests: true,
+	}
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	balanceSrcID := pgtestutil.CreateTestBalance(t, pgContainer.DB, organizationID, ledgerID, uuid.New(), pgtestutil.BalanceParams{
+		Alias:          "@retry-src",
+		Key:            "default",
+		AssetCode:      "USD",
+		Available:      decimal.NewFromInt(1000),
+		OnHold:         decimal.Zero,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+	})
+	balanceDstID := pgtestutil.CreateTestBalance(t, pgContainer.DB, organizationID, ledgerID, uuid.New(), pgtestutil.BalanceParams{
+		Alias:          "@retry-dst",
+		Key:            "default",
+		AssetCode:      "USD",
+		Available:      decimal.NewFromInt(500),
+		OnHold:         decimal.Zero,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+	})
+
+	queue := buildBatchQueueMessage(t, batchQueueInput{
+		organizationID: organizationID,
+		ledgerID:       ledgerID,
+		transactionID:  uuid.New().String(),
+		txAmount:       decimal.NewFromInt(100),
+		fromAlias:      "0#@retry-src#default",
+		toAlias:        "1#@retry-dst#default",
+		fromBalanceID:  balanceSrcID,
+		toBalanceID:    balanceDstID,
+		fromAccountID:  uuid.New().String(),
+		toAccountID:    uuid.New().String(),
+		fromAvailable:  decimal.NewFromInt(1000),
+		toAvailable:    decimal.NewFromInt(500),
+	})
+
+	err := uc.CreateBalanceTransactionOperationsBatch(ctx, []mmodel.Queue{queue})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "integration injected deadlock")
+	assert.Equal(t, batchPersistMaxRetries, retryAttempts)
+
+	observed := collectIntegrationDecisionActions(t, actions, 1)
+	assert.Equal(t, []string{string(pkgTransaction.DecisionLifecycleActionPostingFailed)}, observed)
+
+	assertTableCount(t, pgContainer, "transaction", 0)
+	assertTableCount(t, pgContainer, "operation", 0)
+
+	bSrc, findErr := balanceRepo.Find(ctx, organizationID, ledgerID, balanceSrcID)
+	require.NoError(t, findErr)
+	assert.True(t, bSrc.Available.Equal(decimal.NewFromInt(1000)))
+	assert.Equal(t, int64(0), bSrc.Version)
+
+	bDst, findErr := balanceRepo.Find(ctx, organizationID, ledgerID, balanceDstID)
+	require.NoError(t, findErr)
+	assert.True(t, bDst.Available.Equal(decimal.NewFromInt(500)))
+	assert.Equal(t, int64(0), bDst.Version)
+}
+
+type integrationRetryableBatchTxRepository struct {
+	*transaction.TransactionPostgreSQLRepository
+	createBatchWithTxFn func(ctx context.Context, tx sqlExecQueryTx, transactions []*transaction.Transaction) error
+}
+
+func (r *integrationRetryableBatchTxRepository) BeginTx(ctx context.Context) (sqlBatchTx, error) {
+	return r.TransactionPostgreSQLRepository.BeginTx(ctx)
+}
+
+func (r *integrationRetryableBatchTxRepository) CreateBatchWithTx(ctx context.Context, tx sqlExecQueryTx, transactions []*transaction.Transaction) error {
+	if r.createBatchWithTxFn != nil {
+		return r.createBatchWithTxFn(ctx, tx, transactions)
+	}
+
+	return r.TransactionPostgreSQLRepository.CreateBatchWithTx(ctx, tx, transactions)
+}
+
+type integrationBatchOperationRepository struct {
+	*operation.OperationPostgreSQLRepository
+}
+
+func (r *integrationBatchOperationRepository) CreateBatchWithTx(
+	ctx context.Context,
+	tx interface {
+		ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	},
+	operations []*operation.Operation,
+) error {
+	return r.OperationPostgreSQLRepository.CreateBatchWithTx(ctx, tx, operations)
+}
+
+type integrationBatchBalanceRepository struct {
+	*balance.BalancePostgreSQLRepository
+}
+
+func (r *integrationBatchBalanceRepository) BalancesUpdateWithTx(
+	ctx context.Context,
+	tx sqlExecQueryTx,
+	organizationID, ledgerID uuid.UUID,
+	balances []*mmodel.Balance,
+) error {
+	return r.BalancePostgreSQLRepository.BalancesUpdateWithTx(ctx, tx, organizationID, ledgerID, balances)
+}
+
+func setupIntegrationDecisionEventCapture(
+	t *testing.T,
+	mockBrokerRepo *redpanda.MockProducerRepository,
+	expected int,
+	topic string,
+) <-chan string {
+	t.Helper()
+
+	actions := make(chan string, expected)
+
+	mockBrokerRepo.EXPECT().
+		ProducerDefault(gomock.Any(), topic, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ string, payload []byte) (*string, error) {
+			event := mmodel.Event{}
+			require.NoError(t, json.Unmarshal(payload, &event))
+			actions <- event.Action
+
+			return nil, nil
+		}).
+		Times(expected)
+
+	return actions
+}
+
+func collectIntegrationDecisionActions(t *testing.T, actions <-chan string, expected int) []string {
+	t.Helper()
+
+	collected := make([]string, 0, expected)
+	timeout := time.After(2 * time.Second)
+
+	for len(collected) < expected {
+		select {
+		case action := <-actions:
+			collected = append(collected, action)
+		case <-timeout:
+			t.Fatalf("timed out waiting for %d decision lifecycle events, got %d", expected, len(collected))
+		}
+	}
+
+	return collected
 }
 
 type batchQueueInput struct {

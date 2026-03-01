@@ -7,17 +7,19 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 type idempotencyLockChecker interface {
@@ -31,8 +33,14 @@ type redisPipelineSetter interface {
 const (
 	idempotencyReplayWaitTimeout = 200 * time.Millisecond
 	idempotencyReplayPollStep    = 15 * time.Millisecond
+	idempotencyHashKeySuffix     = ":hash"
 )
 
+// CreateOrCheckIdempotencyKey checks whether an idempotency key already exists
+// in Redis. If it does, the cached response is returned; otherwise, a new key
+// is claimed so the caller can proceed with the original request.
+//
+//nolint:gocognit,gocyclo,cyclop,nestif,funlen
 func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) (*string, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -46,6 +54,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	}
 
 	internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, key)
+	hashKey := internalKey + idempotencyHashKeySuffix
 
 	if checker, ok := uc.RedisRepo.(idempotencyLockChecker); ok {
 		existingValue, acquired, err := checker.CheckOrAcquireIdempotencyKey(ctx, internalKey, ttl)
@@ -58,7 +67,15 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 		}
 
 		if acquired {
+			if claimErr := uc.claimIdempotencyHash(ctx, hashKey, hash, key, ttl); claimErr != nil {
+				return nil, claimErr
+			}
+
 			return nil, nil
+		}
+
+		if hashErr := uc.ensureIdempotencyHashMatches(ctx, hashKey, hash, key); hashErr != nil {
+			return nil, hashErr
 		}
 
 		if !libCommons.IsNilOrEmpty(&existingValue) {
@@ -82,7 +99,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 			return resolvedValue, nil
 		}
 
-		err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
+		err = fmt.Errorf("create idempotency key: %w", pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key))
 
 		logger.Warn("Failed to create idempotency key because another request is still in flight")
 
@@ -99,6 +116,10 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	}
 
 	if !success {
+		if hashErr := uc.ensureIdempotencyHashMatches(ctx, hashKey, hash, key); hashErr != nil {
+			return nil, hashErr
+		}
+
 		value, err := uc.RedisRepo.Get(ctx, internalKey)
 		if err != nil && !errors.Is(err, redis.Nil) {
 			libOpentelemetry.HandleSpanError(&span, "Error to get idempotency key on redis failed", err)
@@ -129,11 +150,15 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 			return resolvedValue, nil
 		}
 
-		err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
+		err = fmt.Errorf("create idempotency key: %w", pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key))
 
 		logger.Warn("Failed to create idempotency key because another request is still in flight")
 
 		return nil, err
+	}
+
+	if claimErr := uc.claimIdempotencyHash(ctx, hashKey, hash, key, ttl); claimErr != nil {
+		return nil, claimErr
 	}
 
 	return nil, nil
@@ -159,20 +184,21 @@ func (uc *UseCase) SetIdempotencyValueAndMapping(
 	}
 
 	internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, key)
+	hashKey := internalKey + idempotencyHashKeySuffix
 	reverseKey := utils.IdempotencyReverseKey(organizationID, ledgerID, t.ID)
 
 	value, err := libCommons.StructToJSONString(t)
 	if err != nil {
 		logger.Errorf("Err to serialize transaction struct %v", err)
-		return err
+		return fmt.Errorf("failed to serialize transaction: %w", err)
 	}
 
 	if pipeline, ok := uc.RedisRepo.(redisPipelineSetter); ok {
 		if err := pipeline.SetPipeline(
 			ctx,
-			[]string{internalKey, reverseKey},
-			[]string{value, key},
-			[]time.Duration{resultTTL, mappingTTL},
+			[]string{internalKey, reverseKey, hashKey},
+			[]string{value, key, hash},
+			[]time.Duration{resultTTL, mappingTTL, resultTTL},
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Error setting idempotency values via redis pipeline", err)
 			logger.Errorf("Error setting idempotency values via redis pipeline: %s", err.Error())
@@ -197,7 +223,51 @@ func (uc *UseCase) SetIdempotencyValueAndMapping(
 		setErr = errors.Join(setErr, err)
 	}
 
+	if err := uc.RedisRepo.Set(ctx, hashKey, hash, resultTTL); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Error setting idempotency hash in redis", err)
+		logger.Errorf("Error setting idempotency hash in redis: %s", err.Error())
+		setErr = errors.Join(setErr, err)
+	}
+
 	return setErr
+}
+
+func (uc *UseCase) claimIdempotencyHash(ctx context.Context, hashKey, hash, key string, ttl time.Duration) error {
+	if uc == nil || uc.RedisRepo == nil || hash == "" {
+		return nil
+	}
+
+	claimed, err := uc.RedisRepo.SetNX(ctx, hashKey, hash, ttl)
+	if err != nil {
+		return err
+	}
+
+	if claimed {
+		return nil
+	}
+
+	return uc.ensureIdempotencyHashMatches(ctx, hashKey, hash, key)
+}
+
+func (uc *UseCase) ensureIdempotencyHashMatches(ctx context.Context, hashKey, hash, key string) error {
+	if uc == nil || uc.RedisRepo == nil || hash == "" {
+		return nil
+	}
+
+	existingHash, err := uc.RedisRepo.Get(ctx, hashKey)
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil
+		}
+
+		return err
+	}
+
+	if !libCommons.IsNilOrEmpty(&existingHash) && existingHash != hash {
+		return pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key) //nolint:wrapcheck
+	}
+
+	return nil
 }
 
 func (uc *UseCase) idempotencyReplayTimeout() time.Duration {

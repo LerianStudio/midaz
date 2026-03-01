@@ -5,10 +5,10 @@
 package bootstrap
 
 import (
-	"context"
-	"errors"
 	"io"
 	"sync"
+
+	"github.com/gofiber/fiber/v2"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -17,9 +17,9 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+
 	httpin "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
-	"github.com/gofiber/fiber/v2"
 )
 
 // Ports groups all external interface dependencies for the transaction service.
@@ -46,6 +46,11 @@ type Service struct {
 	ShardRebalanceWorkerEnabled bool
 	*CircuitBreakerManager
 	libLog.Logger
+
+	// ConsumerEnabled controls whether consumer runnables are included.
+	// When false, the Redpanda consumer, Redis queue consumer, and background workers
+	// are excluded. Used when a dedicated consumer service handles persistence.
+	ConsumerEnabled bool
 
 	// Ports groups all external interface dependencies.
 	Ports Ports
@@ -74,27 +79,32 @@ type Service struct {
 }
 
 // Run starts the application.
-// This is the only necessary code to run an app in main.go
+// This is the only necessary code to run an app in main.go.
 func (app *Service) Run() {
 	// Start circuit breaker health checker if enabled
-	if app.CircuitBreakerManager != nil {
+	if app.CircuitBreakerManager != nil && app.ConsumerEnabled {
 		app.CircuitBreakerManager.Start() //nolint:staticcheck // QF1008: explicit field access for clarity
 	}
 
 	opts := []libCommons.LauncherOption{
 		libCommons.WithLogger(app.Logger),
 		libCommons.RunApp("Fiber Service", app.Server),
-		libCommons.RunApp("Broker Consumer", app.MultiQueueConsumer),
-		libCommons.RunApp("Redis Queue Consumer", app.RedisQueueConsumer),
 		libCommons.RunApp("gRPC Server", app.ServerGRPC),
 	}
 
-	if app.BalanceSyncWorkerEnabled {
-		opts = append(opts, libCommons.RunApp("Balance Sync Worker", app.BalanceSyncWorker))
-	}
+	if app.ConsumerEnabled {
+		opts = append(opts,
+			libCommons.RunApp("Broker Consumer", app.MultiQueueConsumer),
+			libCommons.RunApp("Redis Queue Consumer", app.RedisQueueConsumer),
+		)
 
-	if app.ShardRebalanceWorkerEnabled && app.ShardRebalanceWorker != nil {
-		opts = append(opts, libCommons.RunApp("Shard Rebalance Worker", app.ShardRebalanceWorker))
+		if app.BalanceSyncWorkerEnabled && app.BalanceSyncWorker != nil {
+			opts = append(opts, libCommons.RunApp("Balance Sync Worker", app.BalanceSyncWorker))
+		}
+
+		if app.ShardRebalanceWorkerEnabled && app.ShardRebalanceWorker != nil {
+			opts = append(opts, libCommons.RunApp("Shard Rebalance Worker", app.ShardRebalanceWorker))
+		}
 	}
 
 	libCommons.NewLauncher(opts...).Run()
@@ -106,51 +116,16 @@ func (app *Service) Run() {
 
 // closeResources releases all external resources and returns any errors encountered.
 func (app *Service) closeResources() error {
-	var closeErrs []error
-
-	if app.CircuitBreakerManager != nil {
-		app.Stop()
-	}
-
-	if app.MultiQueueConsumer != nil && app.consumerRoutes != nil {
-		app.consumerRoutes.Stop()
-	}
-
-	if app.authorizerCloser != nil {
-		if err := app.authorizerCloser.Close(); err != nil {
-			closeErrs = append(closeErrs, err)
-		}
-	}
-
-	if app.brokerProducer != nil {
-		if err := app.brokerProducer.Close(); err != nil {
-			closeErrs = append(closeErrs, err)
-		}
-	}
-
-	if app.redisConnection != nil {
-		if err := app.redisConnection.Close(); err != nil {
-			closeErrs = append(closeErrs, err)
-		}
-	}
-
-	if app.postgresConnection != nil && app.postgresConnection.ConnectionDB != nil {
-		if err := (*app.postgresConnection.ConnectionDB).Close(); err != nil {
-			closeErrs = append(closeErrs, err)
-		}
-	}
-
-	if app.mongoConnection != nil && app.mongoConnection.DB != nil {
-		if err := app.mongoConnection.DB.Disconnect(context.Background()); err != nil {
-			closeErrs = append(closeErrs, err)
-		}
-	}
-
-	if app.telemetry != nil {
-		app.telemetry.ShutdownTelemetry()
-	}
-
-	return errors.Join(closeErrs...)
+	return closeSharedResources(closeResourcesParams{
+		circuitBreaker:     app.CircuitBreakerManager,
+		multiQueueConsumer: app.MultiQueueConsumer,
+		authorizerCloser:   app.authorizerCloser,
+		brokerProducer:     app.brokerProducer,
+		redisConnection:    app.redisConnection,
+		postgresConnection: app.postgresConnection,
+		mongoConnection:    app.mongoConnection,
+		telemetry:          app.telemetry,
+	})
 }
 
 // Close releases external resources created during service initialization.
@@ -175,14 +150,39 @@ func (app *Service) GetRunnables() []mbootstrap.RunnableConfig {
 
 // GetRunnablesWithOptions returns runnable components with optional gRPC exclusion.
 // When excludeGRPC is true, the gRPC server is not included (used in unified ledger mode).
+// When ConsumerEnabled is false, consumer and worker runnables are excluded (used when
+// a dedicated consumer service handles persistence separately).
 func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.RunnableConfig {
 	runnables := []mbootstrap.RunnableConfig{
 		{Name: "Transaction Fiber Server", Runnable: app.Server},
-		{Name: "Transaction Broker Consumer", Runnable: app.MultiQueueConsumer},
-		{Name: "Transaction Redis Consumer", Runnable: app.RedisQueueConsumer},
 	}
 
-	if app.BalanceSyncWorkerEnabled {
+	// Consumer runnables are only included when ConsumerEnabled is true.
+	// When a dedicated consumer service is deployed, the ledger sets CONSUMER_ENABLED=false
+	// to avoid duplicate message processing.
+	if !app.ConsumerEnabled {
+		app.Info("Consumer runnables disabled (CONSUMER_ENABLED=false). Persistence handled by dedicated consumer service.")
+	} else {
+		runnables = app.appendConsumerRunnables(runnables)
+	}
+
+	if !excludeGRPC {
+		runnables = append(runnables, mbootstrap.RunnableConfig{
+			Name: "Transaction gRPC Server", Runnable: app.ServerGRPC,
+		})
+	}
+
+	return runnables
+}
+
+// appendConsumerRunnables appends the consumer, worker and circuit breaker runnables.
+func (app *Service) appendConsumerRunnables(runnables []mbootstrap.RunnableConfig) []mbootstrap.RunnableConfig {
+	runnables = append(runnables,
+		mbootstrap.RunnableConfig{Name: "Transaction Broker Consumer", Runnable: app.MultiQueueConsumer},
+		mbootstrap.RunnableConfig{Name: "Transaction Redis Consumer", Runnable: app.RedisQueueConsumer},
+	)
+
+	if app.BalanceSyncWorkerEnabled && app.BalanceSyncWorker != nil {
 		runnables = append(runnables, mbootstrap.RunnableConfig{
 			Name: "Transaction Balance Sync Worker", Runnable: app.BalanceSyncWorker,
 		})
@@ -194,13 +194,6 @@ func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.Runna
 		})
 	}
 
-	if !excludeGRPC {
-		runnables = append(runnables, mbootstrap.RunnableConfig{
-			Name: "Transaction gRPC Server", Runnable: app.ServerGRPC,
-		})
-	}
-
-	// Add circuit breaker health checker as a runnable for unified ledger mode
 	if app.CircuitBreakerManager != nil {
 		runnables = append(runnables, mbootstrap.RunnableConfig{
 			Name: "Transaction Circuit Breaker Health Checker", Runnable: NewCircuitBreakerRunnable(app.CircuitBreakerManager),
@@ -241,5 +234,5 @@ func (app *Service) GetRouteRegistrar() func(*fiber.App) {
 	}
 }
 
-// Ensure Service implements mbootstrap.Service interface at compile time
+// Ensure Service implements mbootstrap.Service interface at compile time.
 var _ mbootstrap.Service = (*Service)(nil)

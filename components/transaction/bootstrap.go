@@ -10,11 +10,13 @@ package transaction
 import (
 	"fmt"
 
+	"github.com/gofiber/fiber/v2"
+
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v2/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
-	"github.com/gofiber/fiber/v2"
 )
 
 // TransactionService extends mbootstrap.Service with transaction-specific functionality.
@@ -54,7 +56,9 @@ type Options struct {
 func InitService() TransactionService {
 	service, err := InitServiceOrError()
 	if err != nil {
-		panic(fmt.Sprintf("transaction.InitService failed: %v", err))
+		// Panic is intentional here: this deprecated function's contract is to panic.
+		// Use InitServiceOrError for proper error handling.
+		panic(fmt.Sprintf("transaction.InitService failed: %v", err)) //nolint:forbidigo
 	}
 
 	return service
@@ -64,7 +68,12 @@ func InitService() TransactionService {
 // This is the recommended way to initialize the service as it allows callers to handle
 // initialization errors gracefully instead of panicking.
 func InitServiceOrError() (TransactionService, error) {
-	return bootstrap.InitServers()
+	svc, err := bootstrap.InitServers()
+	if err != nil {
+		return nil, fmt.Errorf("transaction: init servers: %w", err)
+	}
+
+	return svc, nil
 }
 
 // InitServiceWithOptionsOrError initializes the transaction service with custom options
@@ -74,8 +83,42 @@ func InitServiceWithOptionsOrError(opts *Options) (TransactionService, error) {
 		return InitServiceOrError()
 	}
 
-	return bootstrap.InitServersWithOptions(&bootstrap.Options{
+	svc, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
 		Logger:                      opts.Logger,
 		CircuitBreakerStateListener: opts.CircuitBreakerStateListener,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("transaction: init servers with options: %w", err)
+	}
+
+	return svc, nil
+}
+
+// ConsumerService is a standalone consumer that reads from Redpanda and persists
+// to PostgreSQL/MongoDB. It does not include HTTP or gRPC servers. This is used
+// by the dedicated consumer binary to cleanly separate the API path (ledger) from
+// the persistence path (consumer).
+type ConsumerService interface {
+	Run()
+	Close() error
+}
+
+// InitConsumerServiceOrError initializes the standalone consumer service.
+// This creates all infrastructure needed for Redpanda consumption and database
+// persistence without any HTTP or gRPC servers.
+func InitConsumerServiceOrError(opts *Options) (ConsumerService, error) {
+	var bopts *bootstrap.Options
+	if opts != nil {
+		bopts = &bootstrap.Options{
+			Logger:                      opts.Logger,
+			CircuitBreakerStateListener: opts.CircuitBreakerStateListener,
+		}
+	}
+
+	svc, err := bootstrap.InitConsumerWithOptions(bopts)
+	if err != nil {
+		return nil, fmt.Errorf("transaction: init consumer with options: %w", err)
+	}
+
+	return svc, nil
 }
