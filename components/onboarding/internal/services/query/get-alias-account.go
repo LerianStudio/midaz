@@ -7,15 +7,18 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // GetAccountByAlias get an Account from the repository by given alias (including soft-deleted ones).
@@ -38,10 +41,10 @@ func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledger
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account on repo by alias", err)
 
-			return nil, err
+			return nil, fmt.Errorf("getting account by alias: %w", err)
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("getting account by alias: %w", err)
 	}
 
 	if account != nil {
@@ -51,7 +54,7 @@ func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledger
 
 			logger.Errorf("Error get metadata on mongodb account: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("getting account by alias: %w", err)
 		}
 
 		if metadata != nil {

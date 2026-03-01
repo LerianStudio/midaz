@@ -9,9 +9,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 )
 
+// CreateMetadata persists metadata for the given entity when it is non-nil.
 func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -37,5 +39,5 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID stri
 		return metadata, nil
 	}
 
-	return nil, nil
+	return map[string]any{}, nil
 }

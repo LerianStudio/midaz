@@ -14,6 +14,7 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
@@ -107,7 +108,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		ConnectionStringSource: mongoSource,
 		Database:               cfg.MongoDBName,
 		Logger:                 logger,
-		MaxPoolSize:            uint64(cfg.MaxPoolSize),
+		MaxPoolSize:            uint64(cfg.MaxPoolSize), //nolint:gosec // MaxPoolSize is validated > 0 above
 	}
 
 	dataSecurity := &libCrypto.Crypto{

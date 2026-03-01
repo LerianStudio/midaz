@@ -9,10 +9,12 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gofiber/fiber/v2"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/gofiber/fiber/v2"
 )
 
 var swaggerConfigOnce sync.Once

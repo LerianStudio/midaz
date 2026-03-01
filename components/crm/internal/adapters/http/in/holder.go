@@ -5,18 +5,20 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/gofiber/fiber/v2"
+	"go.opentelemetry.io/otel/attribute"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	"github.com/gofiber/fiber/v2"
-	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
+// HolderHandler struct contains a holder use case for managing holder related operations.
 type HolderHandler struct {
 	Service *services.UseCase
 }
@@ -44,7 +46,11 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_holder")
 	defer span.End()
 
-	payload := p.(*mmodel.CreateHolderInput)
+	payload, ok := p.(*mmodel.CreateHolderInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
+
 	organizationID := c.Get("X-Organization-Id")
 
 	span.SetAttributes(
@@ -146,7 +152,11 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 	}
 
 	organizationID := c.Get("X-Organization-Id")
-	payload := p.(*mmodel.UpdateHolderInput)
+
+	payload, ok := p.(*mmodel.UpdateHolderInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
 
 	fieldsToRemove, ok := c.Locals("patchRemove").([]string)
 	if !ok {

@@ -6,18 +6,21 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // validateAliasClosingDate validates the closing date of an alias
-// It checks if the closing date is before the creation date
+// It checks if the closing date is before the creation date.
 func (uc *UseCase) validateAliasClosingDate(ctx context.Context, organizationID string, holderID, aliasId uuid.UUID, closingDate *mmodel.Date) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -38,7 +41,8 @@ func (uc *UseCase) validateAliasClosingDate(ctx context.Context, organizationID 
 
 	createdAtDate := mmodel.Date{Time: alias.CreatedAt}
 	if closingDate.Before(createdAtDate) {
-		return pkg.ValidateBusinessError(constant.ErrAliasClosingDateBeforeCreation, reflect.TypeOf(mmodel.Alias{}).Name())
+		return fmt.Errorf("closing date before creation date: %w",
+			pkg.ValidateBusinessError(constant.ErrAliasClosingDateBeforeCreation, reflect.TypeOf(mmodel.Alias{}).Name()))
 	}
 
 	return nil

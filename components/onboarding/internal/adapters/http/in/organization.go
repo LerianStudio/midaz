@@ -5,22 +5,23 @@
 package in
 
 import (
-	"fmt"
 	"os"
 	"reflect"
+	"strconv"
+
+	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // OrganizationHandler struct contains an organization use case for managing organization related operations.
@@ -53,7 +54,11 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 	ctx, span := tracer.Start(ctx, "handler.create_organization")
 	defer span.End()
 
-	payload := p.(*mmodel.CreateOrganizationInput)
+	payload, ok := p.(*mmodel.CreateOrganizationInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload type"))
+	}
+
 	logger.Infof("Request to create an organization with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
@@ -99,13 +104,21 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	ctx, span := tracer.Start(ctx, "handler.update_organization")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	logger.Infof("Initiating update of Organization with ID: %s", id.String())
 
-	payload := p.(*mmodel.UpdateOrganizationInput)
+	payload, ok := p.(*mmodel.UpdateOrganizationInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload type"))
+	}
+
 	logger.Infof("Request to update an organization with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -156,7 +169,11 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_organization_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	logger.Infof("Initiating retrieval of Organization with ID: %s", id.String())
 
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
@@ -285,7 +302,10 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_organization_by_id")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating removal of Organization with ID: %s", id.String())
 
@@ -346,7 +366,7 @@ func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully counted organizations: %d", count)
 
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.XTotalCount, strconv.FormatInt(count, baseDecimal))
 	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)

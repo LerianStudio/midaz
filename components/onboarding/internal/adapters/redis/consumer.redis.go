@@ -39,6 +39,7 @@ func NewConsumerRedis(rc *libRedis.RedisConnection) (*RedisConsumerRepository, e
 	return r, nil
 }
 
+// Set stores a key-value pair in Redis with the given TTL.
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -49,7 +50,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
-		return err
+		return fmt.Errorf("failed to get redis client: %w", err)
 	}
 
 	if ttl <= 0 {
@@ -62,16 +63,18 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	if statusCMD.Err() != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set on redis", statusCMD.Err())
 
-		return statusCMD.Err()
+		return fmt.Errorf("failed to set key in redis: %w", statusCMD.Err())
 	}
 
 	return nil
 }
 
+// Get retrieves a key from Redis.
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) error {
 	return nil
 }
 
+// Del removes a key from Redis.
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	return nil
 }

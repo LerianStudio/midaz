@@ -7,19 +7,22 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
 )
 
-// GetAllMetadataAssets fetch all Assets from the repository
+// GetAllMetadataAssets fetch all Assets from the repository.
 func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Asset, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -36,7 +39,7 @@ func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, led
 
 		logger.Warn("No metadata found")
 
-		return nil, err
+		return nil, fmt.Errorf("getting all metadata assets: %w", err)
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -58,12 +61,12 @@ func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, led
 
 			logger.Warn("No assets found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting all metadata assets: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get assets on repo", err)
 
-		return nil, err
+		return nil, fmt.Errorf("getting all metadata assets: %w", err)
 	}
 
 	for idx := range assets {

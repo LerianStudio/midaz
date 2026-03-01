@@ -8,13 +8,19 @@
 package onboarding
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/gofiber/fiber/v2"
+
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
-	"github.com/gofiber/fiber/v2"
 )
+
+// ErrUnifiedModeRequiresBalancePort is returned when unified mode is enabled but no BalancePort is provided.
+var ErrUnifiedModeRequiresBalancePort = errors.New("unified mode requires BalancePort to be provided")
 
 // OnboardingService extends mbootstrap.Service with onboarding-specific methods.
 // Use this interface when you need access to route registration for unified ledger mode.
@@ -73,7 +79,9 @@ type Options struct {
 func InitService() mbootstrap.Service {
 	service, err := InitServiceOrError()
 	if err != nil {
-		panic(fmt.Sprintf("onboarding.InitService failed: %v", err))
+		// Panic is intentional here: this deprecated function's contract is to panic.
+		// Use InitServiceOrError for proper error handling.
+		panic(fmt.Sprintf("onboarding.InitService failed: %v", err)) //nolint:forbidigo
 	}
 
 	return service
@@ -83,7 +91,12 @@ func InitService() mbootstrap.Service {
 // This is the recommended way to initialize the service as it allows callers to handle
 // initialization errors gracefully instead of panicking.
 func InitServiceOrError() (mbootstrap.Service, error) {
-	return bootstrap.InitServers()
+	svc, err := bootstrap.InitServers()
+	if err != nil {
+		return nil, fmt.Errorf("onboarding: init servers: %w", err)
+	}
+
+	return svc, nil
 }
 
 // InitServiceWithOptionsOrError initializes the onboarding service with custom options
@@ -91,16 +104,26 @@ func InitServiceOrError() (mbootstrap.Service, error) {
 // Returns OnboardingService which provides access to route registration.
 func InitServiceWithOptionsOrError(opts *Options) (OnboardingService, error) {
 	if opts == nil {
-		return bootstrap.InitServersWithOptions(nil)
+		svc, err := bootstrap.InitServersWithOptions(nil)
+		if err != nil {
+			return nil, fmt.Errorf("onboarding: init servers with nil options: %w", err)
+		}
+
+		return svc, nil
 	}
 
 	if opts.UnifiedMode && opts.BalancePort == nil {
-		return nil, fmt.Errorf("unified mode requires BalancePort to be provided")
+		return nil, ErrUnifiedModeRequiresBalancePort
 	}
 
-	return bootstrap.InitServersWithOptions(&bootstrap.Options{
+	svc, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
 		Logger:      opts.Logger,
 		UnifiedMode: opts.UnifiedMode,
 		BalancePort: opts.BalancePort,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("onboarding: init servers with options: %w", err)
+	}
+
+	return svc, nil
 }

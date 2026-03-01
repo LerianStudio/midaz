@@ -5,19 +5,21 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
+	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
+// AliasHandler struct contains an alias use case for managing alias related operations.
 type AliasHandler struct {
 	Service *services.UseCase
 }
@@ -46,7 +48,10 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_alias")
 	defer span.End()
 
-	payload := p.(*mmodel.CreateAliasInput)
+	payload, ok := p.(*mmodel.CreateAliasInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
 
 	holderID, err := http.GetUUIDFromLocals(c, "holder_id")
 	if err != nil {
@@ -168,7 +173,11 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 	}
 
 	organizationID := c.Get("X-Organization-Id")
-	payload := p.(*mmodel.UpdateAliasInput)
+
+	payload, ok := p.(*mmodel.UpdateAliasInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload"))
+	}
 
 	fieldsToRemove, ok := c.Locals("patchRemove").([]string)
 	if !ok {

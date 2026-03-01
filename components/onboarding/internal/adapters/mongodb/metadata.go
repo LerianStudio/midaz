@@ -13,7 +13,10 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// MetadataMongoDBModel represents the metadata into mongodb context
+// ErrTypeAssertionFailed is returned when a type assertion to []byte fails during scanning.
+var ErrTypeAssertionFailed = errors.New("type assertion to []byte failed")
+
+// MetadataMongoDBModel represents the metadata into mongodb context.
 type MetadataMongoDBModel struct {
 	ID         primitive.ObjectID `bson:"_id,omitempty"`
 	EntityID   string             `bson:"entity_id"`
@@ -33,25 +36,25 @@ type Metadata struct {
 	UpdatedAt  time.Time
 }
 
-// JSON document to save on mongodb
+// JSON document to save on mongodb.
 type JSON map[string]any
 
-// Value return marshall value data
+// Value return marshall value data.
 func (mj JSON) Value() (driver.Value, error) {
 	return json.Marshal(mj)
 }
 
-// Scan unmarshall value data
+// Scan unmarshall value data.
 func (mj *JSON) Scan(value any) error {
 	b, ok := value.([]byte)
 	if !ok {
-		return errors.New("type assertion to []byte failed")
+		return ErrTypeAssertionFailed
 	}
 
 	return json.Unmarshal(b, &mj)
 }
 
-// ToEntity converts an MetadataMongoDBModel to entity.Metadata
+// ToEntity converts an MetadataMongoDBModel to entity.Metadata.
 func (mmm *MetadataMongoDBModel) ToEntity() *Metadata {
 	return &Metadata{
 		ID:         mmm.ID,
@@ -63,7 +66,7 @@ func (mmm *MetadataMongoDBModel) ToEntity() *Metadata {
 	}
 }
 
-// FromEntity converts an entity.Metadata to MetadataMongoDBModel
+// FromEntity converts an entity.Metadata to MetadataMongoDBModel.
 func (mmm *MetadataMongoDBModel) FromEntity(md *Metadata) error {
 	mmm.ID = md.ID
 	mmm.EntityID = md.EntityID
@@ -75,7 +78,7 @@ func (mmm *MetadataMongoDBModel) FromEntity(md *Metadata) error {
 	return nil
 }
 
-// MetadataIndexMongoDBModel represents the metadata index into mongodb context
+// MetadataIndexMongoDBModel represents the metadata index into mongodb context.
 type MetadataIndexMongoDBModel struct {
 	ID          primitive.ObjectID `bson:"_id,omitempty"`
 	EntityName  string             `bson:"entity_name"`
@@ -86,7 +89,7 @@ type MetadataIndexMongoDBModel struct {
 	UpdatedAt   time.Time          `bson:"updated_at"`
 }
 
-// MongoDBIndexInfo represents the native MongoDB index structure returned by Indexes().List()
+// MongoDBIndexInfo represents the native MongoDB index structure returned by Indexes().List().
 type MongoDBIndexInfo struct {
 	Key    primitive.D `bson:"key"`
 	Name   string      `bson:"name"`
@@ -104,7 +107,7 @@ type MetadataIndex struct {
 	CreatedAt   time.Time
 }
 
-// ToEntity converts an MetadataIndexMongoDBModel to entity.MetadataIndex
+// ToEntity converts an MetadataIndexMongoDBModel to entity.MetadataIndex.
 func (mim *MetadataIndexMongoDBModel) ToEntity() *MetadataIndex {
 	return &MetadataIndex{
 		ID:          mim.ID,
@@ -116,7 +119,7 @@ func (mim *MetadataIndexMongoDBModel) ToEntity() *MetadataIndex {
 	}
 }
 
-// FromEntity converts an entity.MetadataIndex to MetadataIndexMongoDBModel
+// FromEntity converts an entity.MetadataIndex to MetadataIndexMongoDBModel.
 func (mim *MetadataIndexMongoDBModel) FromEntity(mi *MetadataIndex) error {
 	mim.ID = mi.ID
 	mim.EntityName = mi.EntityName

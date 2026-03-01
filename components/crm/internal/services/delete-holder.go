@@ -6,18 +6,21 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
-// DeleteHolderByID delete a holder by its ID
+// DeleteHolderByID delete a holder by its ID.
 func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, id uuid.UUID, hardDelete bool) error {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -37,11 +40,12 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 		libOpenTelemetry.HandleSpanError(&span, "Failed to check linked aliases for holder: %v", err)
 		logger.Errorf("Failed to check linked aliases for holder: %v", err)
 
-		return err
+		return fmt.Errorf("counting linked aliases for holder %s: %w", id.String(), err)
 	}
 
 	if count > 0 {
-		return pkg.ValidateBusinessError(cn.ErrHolderHasAliases, reflect.TypeOf(mmodel.Holder{}).Name())
+		return fmt.Errorf("holder %s has linked aliases: %w",
+			id.String(), pkg.ValidateBusinessError(cn.ErrHolderHasAliases, reflect.TypeOf(mmodel.Holder{}).Name()))
 	}
 
 	err = uc.HolderRepo.Delete(ctx, organizationID, id, hardDelete)
@@ -49,7 +53,7 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 		libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder by id: %v", err)
 		logger.Errorf("Failed to delete holder by id: %v", err)
 
-		return err
+		return fmt.Errorf("deleting holder %s: %w", id.String(), err)
 	}
 
 	return nil

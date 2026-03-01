@@ -7,15 +7,18 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // UpdatePortfolioByID update a portfolio from the repository by given id.
@@ -44,12 +47,12 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update portfolio on repo by id", err)
 
-			return nil, err
+			return nil, fmt.Errorf("update portfolio not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update portfolio on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("update portfolio: %w", err)
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), id.String(), upi.Metadata)

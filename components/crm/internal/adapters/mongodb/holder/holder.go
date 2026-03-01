@@ -5,14 +5,18 @@
 package holder
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
 )
 
+// MongoDBModel represents a holder document in MongoDB.
 type MongoDBModel struct {
 	ID            *uuid.UUID                 `bson:"_id,omitempty"`
 	ExternalID    *string                    `bson:"external_id,omitempty"`
@@ -30,12 +34,14 @@ type MongoDBModel struct {
 	DeletedAt     *time.Time                 `bson:"deleted_at"`
 }
 
+// AddressesMongoDBModel represents the addresses structure stored in MongoDB.
 type AddressesMongoDBModel struct {
 	Primary     *AddressMongoDBModel `bson:"primary,omitempty"`
 	Additional1 *AddressMongoDBModel `bson:"additional_1,omitempty"`
 	Additional2 *AddressMongoDBModel `bson:"additional_2,omitempty"`
 }
 
+// AddressMongoDBModel represents a single address stored in MongoDB.
 type AddressMongoDBModel struct {
 	Line1       *string `bson:"line_1,omitempty"`
 	Line2       *string `bson:"line_2,omitempty"`
@@ -47,6 +53,7 @@ type AddressMongoDBModel struct {
 	IsPrimary   *bool   `bson:"is_primary,omitempty"`
 }
 
+// ContactMongoDBModel represents contact information stored in MongoDB.
 type ContactMongoDBModel struct {
 	PrimaryEmail   *string `bson:"primary_email,omitempty"`
 	SecondaryEmail *string `bson:"secondary_email,omitempty"`
@@ -54,6 +61,7 @@ type ContactMongoDBModel struct {
 	OtherPhone     *string `bson:"other_phone,omitempty"`
 }
 
+// NaturalPersonMongoDBModel represents a natural person stored in MongoDB.
 type NaturalPersonMongoDBModel struct {
 	FavoriteName *string `bson:"favorite_name,omitempty"`
 	SocialName   *string `bson:"social_name,omitempty"`
@@ -66,6 +74,7 @@ type NaturalPersonMongoDBModel struct {
 	Status       *string `bson:"status,omitempty"`
 }
 
+// LegalPersonMongoDBModel represents a legal person stored in MongoDB.
 type LegalPersonMongoDBModel struct {
 	TradeName      *string                     `bson:"trade_name,omitempty"`
 	Activity       *string                     `bson:"activity,omitempty"`
@@ -76,6 +85,7 @@ type LegalPersonMongoDBModel struct {
 	Representative *RepresentativeMongoDBModel `bson:"representative,omitempty"`
 }
 
+// RepresentativeMongoDBModel represents a legal representative stored in MongoDB.
 type RepresentativeMongoDBModel struct {
 	Name     *string `bson:"name,omitempty"`
 	Document *string `bson:"document,omitempty"`
@@ -83,16 +93,16 @@ type RepresentativeMongoDBModel struct {
 	Role     *string `bson:"role,omitempty"`
 }
 
-// FromEntity maps a holder entity to a MongoDB Holder model
+// FromEntity maps a holder entity to a MongoDB Holder model.
 func (hmm *MongoDBModel) FromEntity(h *mmodel.Holder, ds *libCrypto.Crypto) error {
 	name, err := ds.Encrypt(h.Name)
 	if err != nil {
-		return err
+		return fmt.Errorf("encrypt holder name: %w", err)
 	}
 
 	document, err := ds.Encrypt(h.Document)
 	if err != nil {
-		return err
+		return fmt.Errorf("encrypt holder document: %w", err)
 	}
 
 	*hmm = MongoDBModel{
@@ -113,21 +123,21 @@ func (hmm *MongoDBModel) FromEntity(h *mmodel.Holder, ds *libCrypto.Crypto) erro
 	if h.Contact != nil {
 		hmm.Contact, err = mapContactFromEntity(ds, h.Contact)
 		if err != nil {
-			return err
+			return fmt.Errorf("map contact from entity: %w", err)
 		}
 	}
 
 	if h.NaturalPerson != nil {
 		hmm.NaturalPerson, err = mapNaturalPersonFromEntity(ds, h.NaturalPerson)
 		if err != nil {
-			return err
+			return fmt.Errorf("map natural person from entity: %w", err)
 		}
 	}
 
 	if h.LegalPerson != nil {
 		hmm.LegalPerson, err = mapLegalPersonFromEntity(ds, h.LegalPerson)
 		if err != nil {
-			return err
+			return fmt.Errorf("map legal person from entity: %w", err)
 		}
 	}
 
@@ -145,7 +155,7 @@ func (hmm *MongoDBModel) FromEntity(h *mmodel.Holder, ds *libCrypto.Crypto) erro
 	return nil
 }
 
-// mapAddressesFromEntity maps addresses entity to MongoDB model
+// mapAddressesFromEntity maps addresses entity to MongoDB model.
 func mapAddressesFromEntity(a *mmodel.Addresses) *AddressesMongoDBModel {
 	return &AddressesMongoDBModel{
 		Primary:     mapAddressFromEntity(a.Primary),
@@ -154,26 +164,26 @@ func mapAddressesFromEntity(a *mmodel.Addresses) *AddressesMongoDBModel {
 	}
 }
 
-// mapContactFromEntity maps contact entity to MongoDB model
+// mapContactFromEntity maps contact entity to MongoDB model.
 func mapContactFromEntity(ds *libCrypto.Crypto, c *mmodel.Contact) (*ContactMongoDBModel, error) {
 	primaryEmail, err := ds.Encrypt(c.PrimaryEmail)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encrypt primary email: %w", err)
 	}
 
 	secondaryEmail, err := ds.Encrypt(c.SecondaryEmail)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encrypt secondary email: %w", err)
 	}
 
 	mobilePhone, err := ds.Encrypt(c.MobilePhone)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encrypt mobile phone: %w", err)
 	}
 
 	otherPhone, err := ds.Encrypt(c.OtherPhone)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encrypt other phone: %w", err)
 	}
 
 	return &ContactMongoDBModel{
@@ -184,16 +194,16 @@ func mapContactFromEntity(ds *libCrypto.Crypto, c *mmodel.Contact) (*ContactMong
 	}, nil
 }
 
-// mapNaturalPersonFromEntity maps natural person entity to MongoDB model
+// mapNaturalPersonFromEntity maps natural person entity to MongoDB model.
 func mapNaturalPersonFromEntity(ds *libCrypto.Crypto, np *mmodel.NaturalPerson) (*NaturalPersonMongoDBModel, error) {
 	motherName, err := ds.Encrypt(np.MotherName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encrypt mother name: %w", err)
 	}
 
 	fatherName, err := ds.Encrypt(np.FatherName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encrypt father name: %w", err)
 	}
 
 	return &NaturalPersonMongoDBModel{
@@ -209,14 +219,14 @@ func mapNaturalPersonFromEntity(ds *libCrypto.Crypto, np *mmodel.NaturalPerson) 
 	}, nil
 }
 
-// mapLegalPersonFromEntity maps legal person entity to MongoDB model
+// mapLegalPersonFromEntity maps legal person entity to MongoDB model.
 func mapLegalPersonFromEntity(ds *libCrypto.Crypto, lp *mmodel.LegalPerson) (*LegalPersonMongoDBModel, error) {
 	var parsedFoundingDate *time.Time
 
 	if lp.FoundingDate != nil {
 		parsed, err := time.Parse("2006-01-02", *lp.FoundingDate)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse founding date: %w", err)
 		}
 
 		parsedFoundingDate = &parsed
@@ -234,17 +244,17 @@ func mapLegalPersonFromEntity(ds *libCrypto.Crypto, lp *mmodel.LegalPerson) (*Le
 	if lp.Representative != nil {
 		repName, err := ds.Encrypt(lp.Representative.Name)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("encrypt representative name: %w", err)
 		}
 
 		repDocument, err := ds.Encrypt(lp.Representative.Document)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("encrypt representative document: %w", err)
 		}
 
 		repEmail, err := ds.Encrypt(lp.Representative.Email)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("encrypt representative email: %w", err)
 		}
 
 		mongoLP.Representative = &RepresentativeMongoDBModel{
@@ -258,7 +268,7 @@ func mapLegalPersonFromEntity(ds *libCrypto.Crypto, lp *mmodel.LegalPerson) (*Le
 	return mongoLP, nil
 }
 
-// mapAddressFromEntity maps an address entity to MongoDB model
+// mapAddressFromEntity maps an address entity to MongoDB model.
 func mapAddressFromEntity(a *mmodel.Address) *AddressMongoDBModel {
 	if a == nil {
 		return nil
@@ -275,16 +285,16 @@ func mapAddressFromEntity(a *mmodel.Address) *AddressMongoDBModel {
 	}
 }
 
-// ToEntity maps a MongoDB model to a Holder entity
+// ToEntity maps a MongoDB model to a Holder entity.
 func (hmm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Holder, error) {
 	name, err := ds.Decrypt(hmm.Name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decrypt holder name: %w", err)
 	}
 
 	document, err := ds.Decrypt(hmm.Document)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decrypt holder document: %w", err)
 	}
 
 	holder := &mmodel.Holder{
@@ -306,7 +316,7 @@ func (hmm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Holder, error) 
 	if hmm.Contact != nil {
 		contact, err := mapContactToEntity(ds, hmm.Contact)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("map contact to entity: %w", err)
 		}
 
 		holder.Contact = contact
@@ -315,7 +325,7 @@ func (hmm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Holder, error) 
 	if hmm.NaturalPerson != nil {
 		np, err := mapNaturalPersonToEntity(ds, hmm.NaturalPerson)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("map natural person to entity: %w", err)
 		}
 
 		holder.NaturalPerson = np
@@ -324,7 +334,7 @@ func (hmm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Holder, error) 
 	if hmm.LegalPerson != nil {
 		lp, err := mapLegalPersonToEntity(ds, hmm.LegalPerson)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("map legal person to entity: %w", err)
 		}
 
 		holder.LegalPerson = lp
@@ -333,7 +343,7 @@ func (hmm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Holder, error) 
 	return holder, nil
 }
 
-// mapAddressesToEntity maps a MongoDB model to an Addresses entity
+// mapAddressesToEntity maps a MongoDB model to an Addresses entity.
 func mapAddressesToEntity(a *AddressesMongoDBModel) *mmodel.Addresses {
 	return &mmodel.Addresses{
 		Primary:     mapAddressToEntity(a.Primary),
@@ -342,26 +352,26 @@ func mapAddressesToEntity(a *AddressesMongoDBModel) *mmodel.Addresses {
 	}
 }
 
-// mapContactToEntity maps a MongoDB model to a Contact entity
+// mapContactToEntity maps a MongoDB model to a Contact entity.
 func mapContactToEntity(ds *libCrypto.Crypto, c *ContactMongoDBModel) (*mmodel.Contact, error) {
 	primaryEmail, err := ds.Decrypt(c.PrimaryEmail)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decrypt primary email: %w", err)
 	}
 
 	secondaryEmail, err := ds.Decrypt(c.SecondaryEmail)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decrypt secondary email: %w", err)
 	}
 
 	mobilePhone, err := ds.Decrypt(c.MobilePhone)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decrypt mobile phone: %w", err)
 	}
 
 	otherPhone, err := ds.Decrypt(c.OtherPhone)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decrypt other phone: %w", err)
 	}
 
 	return &mmodel.Contact{
@@ -372,16 +382,16 @@ func mapContactToEntity(ds *libCrypto.Crypto, c *ContactMongoDBModel) (*mmodel.C
 	}, nil
 }
 
-// mapNaturalPersonToEntity maps a MongoDB model to a NaturalPerson entity
+// mapNaturalPersonToEntity maps a MongoDB model to a NaturalPerson entity.
 func mapNaturalPersonToEntity(ds *libCrypto.Crypto, np *NaturalPersonMongoDBModel) (*mmodel.NaturalPerson, error) {
 	motherName, err := ds.Decrypt(np.MotherName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decrypt mother name: %w", err)
 	}
 
 	fatherName, err := ds.Decrypt(np.FatherName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decrypt father name: %w", err)
 	}
 
 	return &mmodel.NaturalPerson{
@@ -397,7 +407,7 @@ func mapNaturalPersonToEntity(ds *libCrypto.Crypto, np *NaturalPersonMongoDBMode
 	}, nil
 }
 
-// mapLegalPersonToEntity maps a MongoDB model to a LegalPerson entity
+// mapLegalPersonToEntity maps a MongoDB model to a LegalPerson entity.
 func mapLegalPersonToEntity(ds *libCrypto.Crypto, lp *LegalPersonMongoDBModel) (*mmodel.LegalPerson, error) {
 	var foundingDate *string
 
@@ -418,7 +428,7 @@ func mapLegalPersonToEntity(ds *libCrypto.Crypto, lp *LegalPersonMongoDBModel) (
 	if lp.Representative != nil {
 		rep, err := mapRepresentativeToEntity(ds, lp.Representative)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("map representative to entity: %w", err)
 		}
 
 		legalPerson.Representative = rep
@@ -427,21 +437,21 @@ func mapLegalPersonToEntity(ds *libCrypto.Crypto, lp *LegalPersonMongoDBModel) (
 	return legalPerson, nil
 }
 
-// mapRepresentativeToEntity maps a MongoDB model to a Representative entity
+// mapRepresentativeToEntity maps a MongoDB model to a Representative entity.
 func mapRepresentativeToEntity(ds *libCrypto.Crypto, rep *RepresentativeMongoDBModel) (*mmodel.Representative, error) {
 	representativeName, err := ds.Decrypt(rep.Name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decrypt representative name: %w", err)
 	}
 
 	representativeDocument, err := ds.Decrypt(rep.Document)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decrypt representative document: %w", err)
 	}
 
 	email, err := ds.Decrypt(rep.Email)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decrypt representative email: %w", err)
 	}
 
 	return &mmodel.Representative{
@@ -452,7 +462,7 @@ func mapRepresentativeToEntity(ds *libCrypto.Crypto, rep *RepresentativeMongoDBM
 	}, nil
 }
 
-// mapAddressToEntity maps a MongoDB model to an Address entity
+// mapAddressToEntity maps a MongoDB model to an Address entity.
 func mapAddressToEntity(a *AddressMongoDBModel) *mmodel.Address {
 	if a == nil {
 		return nil

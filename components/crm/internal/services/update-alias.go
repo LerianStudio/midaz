@@ -6,15 +6,19 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
+// UpdateAliasByID updates an existing alias by its ID.
 func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, uai *mmodel.UpdateAliasInput, fieldsToRemove []string) (*mmodel.Alias, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -58,7 +62,7 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 			libOpenTelemetry.HandleSpanError(&span, "Failed to fetch existing alias for related parties append", err)
 			logger.Errorf("Failed to fetch existing alias: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("fetching existing alias %s for related parties: %w", id.String(), err)
 		}
 
 		if existingAlias.RelatedParties == nil {
@@ -96,7 +100,7 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 		libOpenTelemetry.HandleSpanError(&span, "Failed to update alias", err)
 		logger.Errorf("Failed to update alias: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("updating alias %s: %w", id.String(), err)
 	}
 
 	return updatedAlias, nil

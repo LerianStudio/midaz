@@ -6,15 +6,18 @@ package services
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
-// GetHolderByID fetch a holder from the repository
+// GetHolderByID fetch a holder from the repository.
 func (uc *UseCase) GetHolderByID(ctx context.Context, organizationID string, id uuid.UUID, includeDeleted bool) (*mmodel.Holder, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -35,7 +38,7 @@ func (uc *UseCase) GetHolderByID(ctx context.Context, organizationID string, id 
 
 		logger.Errorf("Failed to get holder by id %v", id)
 
-		return nil, err
+		return nil, fmt.Errorf("finding holder %s: %w", id.String(), err)
 	}
 
 	return holder, nil

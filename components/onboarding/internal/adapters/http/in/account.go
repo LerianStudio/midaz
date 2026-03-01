@@ -5,19 +5,21 @@
 package in
 
 import (
-	"fmt"
+	"strconv"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // AccountHandler struct contains an account use case for managing account related operations.
@@ -51,10 +53,21 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 
 	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
-	payload := i.(*mmodel.CreateAccountInput)
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	payload, ok := i.(*mmodel.CreateAccountInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload type"))
+	}
+
 	portfolioID := payload.PortfolioID
 	logger.Infof("Request to create a Account with details: %#v", payload)
 
@@ -65,7 +78,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_account")
 	defer span.End()
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to convert payload to JSON string", err)
 
@@ -119,8 +132,15 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_accounts")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	var portfolioID *uuid.UUID
 
@@ -216,9 +236,20 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating retrieval of Account with Account ID: %s", id.String())
 
@@ -261,8 +292,16 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_account_external_by_code")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	code := c.Params("code")
 
 	alias := constant.DefaultExternalAccountAliasPrefix + code
@@ -308,8 +347,16 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_alias")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	alias := c.Params("alias")
 
 	logger.Infof("Initiating retrieval of Account with Account Alias: %s", alias)
@@ -357,16 +404,31 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_account")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating update of Account with ID: %s", id.String())
 
-	payload := i.(*mmodel.UpdateAccountInput)
+	payload, ok := i.(*mmodel.UpdateAccountInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload type"))
+	}
+
 	logger.Infof("Request to update an Account with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -419,9 +481,21 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_account_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	token := c.Get("Authorization")
 
 	logger.Infof("Initiating removal of Account with ID: %s", id.String())
@@ -462,8 +536,15 @@ func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.count_accounts")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Counting accounts for organization %s and ledger %s", organizationID, ledgerID)
 
@@ -478,7 +559,7 @@ func (handler *AccountHandler) CountAccounts(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully counted accounts for organization %s and ledger %s: %d", organizationID, ledgerID, count)
 
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.XTotalCount, strconv.FormatInt(count, baseDecimal))
 	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)

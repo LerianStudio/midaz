@@ -7,15 +7,18 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // DeletePortfolioByID deletes a portfolio from the repository by ids.
@@ -35,14 +38,14 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete portfolio on repo by id", err)
 
-			return err
+			return fmt.Errorf("delete portfolio not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete portfolio on repo by id", err)
 
 		logger.Errorf("Error deleting portfolio: %v", err)
 
-		return err
+		return fmt.Errorf("delete portfolio: %w", err)
 	}
 
 	return nil

@@ -8,25 +8,32 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/Masterminds/squirrel"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/lib/pq"
 )
+
+// whereClauseArgOffset is the number of positional args reserved for the WHERE clause
+// in update queries (organization_id, ledger_id, id).
+const whereClauseArgOffset = 2
 
 var segmentColumnList = []string{
 	"id",
@@ -60,7 +67,7 @@ type SegmentPostgreSQLRepository struct {
 }
 
 // NewSegmentPostgreSQLRepository returns a new instance of SegmentPostgreSQLRepository using the given Postgres connection.
-func NewSegmentPostgreSQLRepository(pc *libPostgres.PostgresConnection) *SegmentPostgreSQLRepository {
+func NewSegmentPostgreSQLRepository(pc *libPostgres.PostgresConnection) (*SegmentPostgreSQLRepository, error) {
 	c := &SegmentPostgreSQLRepository{
 		connection: pc,
 		tableName:  "segment",
@@ -68,10 +75,10 @@ func NewSegmentPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Segment
 
 	_, err := c.connection.GetDB()
 	if err != nil {
-		panic("Failed to connect database")
+		return nil, fmt.Errorf("failed to connect to segment database: %w", err)
 	}
 
-	return c
+	return c, nil
 }
 
 // Create a new segment entity into Postgresql and returns it.
@@ -87,7 +94,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	record := &SegmentPostgreSQLModel{}
@@ -115,14 +122,14 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 			logger.Errorf("Failed to execute update query: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validate pg error on create: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute insert: %w", err)
 	}
 
 	spanExec.End()
@@ -133,7 +140,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -143,7 +150,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 		logger.Warnf("Failed to create segment. Rows affected is 0: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("create segment no rows affected: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -162,7 +169,7 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return false, err
+		return false, fmt.Errorf("get db connection: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_segment_by_name.query")
@@ -183,7 +190,7 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 
 		spanQuery.End()
 
-		return false, err
+		return false, fmt.Errorf("build find by name query: %w", err)
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -192,7 +199,7 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return false, err
+		return false, fmt.Errorf("execute find by name query: %w", err)
 	}
 	defer rows.Close()
 
@@ -205,7 +212,13 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 
 		logger.Warnf("Failed to find segment by name: %v", err)
 
-		return true, err
+		return true, fmt.Errorf("duplicate segment name: %w", err)
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+
+		return false, fmt.Errorf("iterate find by name rows: %w", err)
 	}
 
 	return false, nil
@@ -224,7 +237,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	var segments []*mmodel.Segment
@@ -247,7 +260,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("build find all query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -258,7 +271,8 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
+		return nil, fmt.Errorf("execute find all query: %w",
+			pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name()))
 	}
 	defer rows.Close()
 
@@ -270,7 +284,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 			&segment.Status, &segment.StatusDescription, &segment.CreatedAt, &segment.UpdatedAt, &segment.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
-			return nil, err
+			return nil, fmt.Errorf("scan segment row: %w", err)
 		}
 
 		segments = append(segments, segment.ToEntity())
@@ -279,7 +293,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
-		return nil, err
+		return nil, fmt.Errorf("iterate segment rows: %w", err)
 	}
 
 	return segments, nil
@@ -296,7 +310,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	var segments []*mmodel.Segment
@@ -319,7 +333,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, fmt.Errorf("build find by ids query: %w", err)
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -328,7 +342,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute find by ids query: %w", err)
 	}
 	defer rows.Close()
 
@@ -340,7 +354,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 			&segment.Status, &segment.StatusDescription, &segment.CreatedAt, &segment.UpdatedAt, &segment.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
-			return nil, err
+			return nil, fmt.Errorf("scan segment row: %w", err)
 		}
 
 		segments = append(segments, segment.ToEntity())
@@ -349,7 +363,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
-		return nil, err
+		return nil, fmt.Errorf("iterate segment rows: %w", err)
 	}
 
 	return segments, nil
@@ -366,7 +380,7 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	segment := &SegmentPostgreSQLModel{}
@@ -387,7 +401,7 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, fmt.Errorf("build find query: %w", err)
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -403,12 +417,12 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 			logger.Warnf("Failed to scan row: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("segment not found: %w", err)
 		}
 
 		logger.Errorf("Failed to scan row: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("scan segment row: %w", err)
 	}
 
 	return segment.ToEntity(), nil
@@ -425,7 +439,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	record := &SegmentPostgreSQLModel{}
@@ -455,7 +469,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
 	query := `UPDATE segment SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-whereClauseArgOffset) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
@@ -472,14 +486,14 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 			logger.Errorf("Failed to execute update query: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validate pg error on update: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute update: %w", err)
 	}
 
 	spanExec.End()
@@ -490,7 +504,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -500,7 +514,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		logger.Warnf("Failed to update segment. Rows affected is 0: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("update segment no rows affected: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -519,7 +533,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return err
+		return fmt.Errorf("get db connection: %w", err)
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
@@ -531,7 +545,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to execute delete query: %v", err)
 
-		return err
+		return fmt.Errorf("execute delete: %w", err)
 	}
 
 	spanExec.End()
@@ -542,7 +556,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return err
+		return fmt.Errorf("get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -552,7 +566,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Warnf("Failed to delete segment. Rows affected is 0: %v", err)
 
-		return err
+		return fmt.Errorf("delete segment no rows affected: %w", err)
 	}
 
 	return nil
@@ -573,7 +587,7 @@ func (p *SegmentPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return count, err
+		return count, fmt.Errorf("get db connection: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
@@ -585,7 +599,7 @@ func (p *SegmentPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return count, err
+		return count, fmt.Errorf("execute count query: %w", err)
 	}
 
 	return count, nil

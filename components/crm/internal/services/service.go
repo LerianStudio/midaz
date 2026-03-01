@@ -9,6 +9,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 )
 
+// UseCase is the struct that contains the use case methods for the CRM service.
 type UseCase struct {
 	HolderRepo holder.Repository
 	AliasRepo  alias.Repository

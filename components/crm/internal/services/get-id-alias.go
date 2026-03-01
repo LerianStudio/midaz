@@ -6,15 +6,18 @@ package services
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
-// GetAliasByID retrieves alias by id and its holder id
+// GetAliasByID retrieves alias by id and its holder id.
 func (uc *UseCase) GetAliasByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Alias, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -36,7 +39,7 @@ func (uc *UseCase) GetAliasByID(ctx context.Context, organizationID string, hold
 
 		logger.Errorf("Failed to get alias by id %v", id)
 
-		return nil, err
+		return nil, fmt.Errorf("finding alias %s: %w", id.String(), err)
 	}
 
 	return alias, nil

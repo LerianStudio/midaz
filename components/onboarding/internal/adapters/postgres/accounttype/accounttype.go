@@ -9,11 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// AccountTypePostgreSQLModel represents the database model for account types
+// AccountTypePostgreSQLModel represents the database model for account types.
 type AccountTypePostgreSQLModel struct {
 	ID             uuid.UUID    `db:"id"`
 	OrganizationID uuid.UUID    `db:"organization_id"`
@@ -26,7 +27,7 @@ type AccountTypePostgreSQLModel struct {
 	DeletedAt      sql.NullTime `db:"deleted_at"`
 }
 
-// ToEntity converts the database model to a domain model
+// ToEntity converts the database model to a domain model.
 func (m *AccountTypePostgreSQLModel) ToEntity() *mmodel.AccountType {
 	e := &mmodel.AccountType{
 		ID:             m.ID,
@@ -46,7 +47,7 @@ func (m *AccountTypePostgreSQLModel) ToEntity() *mmodel.AccountType {
 	return e
 }
 
-// FromEntity converts a domain model to the database model
+// FromEntity converts a domain model to the database model.
 func (m *AccountTypePostgreSQLModel) FromEntity(accountType *mmodel.AccountType) {
 	m.ID = accountType.ID
 	m.OrganizationID = accountType.OrganizationID

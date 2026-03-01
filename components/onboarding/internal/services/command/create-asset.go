@@ -11,16 +11,18 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/google/uuid"
+	grpcMetadata "google.golang.org/grpc/metadata"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
-	grpcMetadata "google.golang.org/grpc/metadata"
 )
 
 // CreateAsset creates an asset and metadata synchronously and ensures an external
@@ -41,7 +43,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance service health check failed", err)
 		logger.Errorf("Balance service is unavailable: %v", err)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, reflect.TypeOf(mmodel.Asset{}).Name())
+		return nil, fmt.Errorf("balance health check: %w", pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, reflect.TypeOf(mmodel.Asset{}).Name()))
 	}
 
 	var status mmodel.Status
@@ -60,7 +62,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset type", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validate asset type: %w", err)
 	}
 
 	if err := uc.validateAssetCode(ctx, cii.Code); err != nil {
@@ -73,7 +75,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset currency", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validate currency code: %w", err)
 		}
 	}
 
@@ -139,6 +141,8 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 // createExternalAccountWithBalance creates an external account for a new asset
 // and provisions the default balance plus pre-split shard balances.
+//
+//nolint:funlen
 func (uc *UseCase) createExternalAccountWithBalance(
 	ctx context.Context,
 	organizationID, ledgerID uuid.UUID,
@@ -217,7 +221,7 @@ func (uc *UseCase) createExternalAccountWithBalance(
 			return err
 		}
 
-		return pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name())
+		return fmt.Errorf("create default balance: %w", pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name()))
 	}
 
 	logger.Infof("External account default balance created")
@@ -268,7 +272,7 @@ func (uc *UseCase) createExternalAccountWithBalance(
 		err := pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create external pre-split balances", err)
 
-		return err
+		return fmt.Errorf("create external pre-split balances: %w", err)
 	}
 
 	return nil
@@ -290,13 +294,13 @@ func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code", mapped)
 
-			return mapped
+			return fmt.Errorf("validate asset code format: %w", mapped)
 		case constant.ErrCodeUppercaseRequirement.Error():
 			mapped := pkg.ValidateBusinessError(constant.ErrCodeUppercaseRequirement, reflect.TypeOf(mmodel.Asset{}).Name())
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate asset code", mapped)
 
-			return mapped
+			return fmt.Errorf("validate asset code uppercase: %w", mapped)
 		}
 	}
 

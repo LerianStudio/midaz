@@ -7,15 +7,18 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // GetSegmentByID get a Segment from the repository by given id.
@@ -38,12 +41,12 @@ func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID,
 
 			logger.Warn("No segment found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting segment by id: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get segment on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("getting segment by id: %w", err)
 	}
 
 	if segment != nil {
@@ -55,7 +58,7 @@ func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID,
 
 			logger.Warn("No metadata found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting segment by id: %w", err)
 		}
 
 		if metadata != nil {

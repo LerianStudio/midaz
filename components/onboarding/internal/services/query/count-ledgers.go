@@ -7,18 +7,21 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
-// CountLedgers returns the total count of ledgers for a specific organization
+// CountLedgers returns the total count of ledgers for a specific organization.
 func (uc *UseCase) CountLedgers(ctx context.Context, organizationID uuid.UUID) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -38,12 +41,12 @@ func (uc *UseCase) CountLedgers(ctx context.Context, organizationID uuid.UUID) (
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count ledgers on repo", err)
 
-			return 0, err
+			return 0, fmt.Errorf("counting ledgers: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count ledgers on repo", err)
 
-		return 0, err
+		return 0, fmt.Errorf("counting ledgers: %w", err)
 	}
 
 	return count, nil

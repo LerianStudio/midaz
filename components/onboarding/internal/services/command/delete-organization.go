@@ -7,18 +7,21 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
-// DeleteOrganizationByID fetch a new organization from the repository
+// DeleteOrganizationByID fetch a new organization from the repository.
 func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -35,14 +38,14 @@ func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) err
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete organization on repo by id", err)
 
-			return err
+			return fmt.Errorf("delete organization not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete organization on repo by id", err)
 
 		logger.Errorf("Error deleting organization: %v", err)
 
-		return err
+		return fmt.Errorf("delete organization: %w", err)
 	}
 
 	return nil

@@ -7,10 +7,12 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -18,7 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
-// GetAllOrganizations fetch all Organizations from the repository
+// GetAllOrganizations fetch all Organizations from the repository.
 func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -38,12 +40,12 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHea
 
 			logger.Warn("No organizations found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting all organizations: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get organizations on repo", err)
 
-		return nil, err
+		return nil, fmt.Errorf("getting all organizations: %w", err)
 	}
 
 	if len(organizations) == 0 {
@@ -63,7 +65,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHea
 
 		logger.Warn("No metadata found")
 
-		return nil, err
+		return nil, fmt.Errorf("getting all organizations: %w", err)
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))

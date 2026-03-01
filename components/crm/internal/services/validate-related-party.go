@@ -6,11 +6,13 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -22,6 +24,7 @@ var validRelatedPartyRoles = map[string]bool{
 	"RESPONSIBLE_PARTY":    true,
 }
 
+// ValidateRelatedParty validates a single related party's fields.
 func (uc *UseCase) ValidateRelatedParty(ctx context.Context, party *mmodel.RelatedParty) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -32,32 +35,43 @@ func (uc *UseCase) ValidateRelatedParty(ctx context.Context, party *mmodel.Relat
 
 	if strings.TrimSpace(party.Document) == "" {
 		libOpenTelemetry.HandleSpanError(&span, "Related party document is required", cn.ErrRelatedPartyDocumentRequired)
-		return pkg.ValidateBusinessError(cn.ErrRelatedPartyDocumentRequired, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+
+		return fmt.Errorf("related party document is required: %w",
+			pkg.ValidateBusinessError(cn.ErrRelatedPartyDocumentRequired, reflect.TypeOf(mmodel.RelatedParty{}).Name()))
 	}
 
 	if strings.TrimSpace(party.Name) == "" {
 		libOpenTelemetry.HandleSpanError(&span, "Related party name is required", cn.ErrRelatedPartyNameRequired)
-		return pkg.ValidateBusinessError(cn.ErrRelatedPartyNameRequired, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+
+		return fmt.Errorf("related party name is required: %w",
+			pkg.ValidateBusinessError(cn.ErrRelatedPartyNameRequired, reflect.TypeOf(mmodel.RelatedParty{}).Name()))
 	}
 
 	if strings.TrimSpace(party.Role) == "" || !validRelatedPartyRoles[party.Role] {
 		libOpenTelemetry.HandleSpanError(&span, "Invalid related party role", cn.ErrInvalidRelatedPartyRole)
-		return pkg.ValidateBusinessError(cn.ErrInvalidRelatedPartyRole, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+
+		return fmt.Errorf("invalid related party role: %w",
+			pkg.ValidateBusinessError(cn.ErrInvalidRelatedPartyRole, reflect.TypeOf(mmodel.RelatedParty{}).Name()))
 	}
 
 	if party.StartDate.IsZero() {
 		libOpenTelemetry.HandleSpanError(&span, "Related party start date is required", cn.ErrRelatedPartyStartDateRequired)
-		return pkg.ValidateBusinessError(cn.ErrRelatedPartyStartDateRequired, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+
+		return fmt.Errorf("related party start date is required: %w",
+			pkg.ValidateBusinessError(cn.ErrRelatedPartyStartDateRequired, reflect.TypeOf(mmodel.RelatedParty{}).Name()))
 	}
 
 	if party.EndDate != nil && !party.EndDate.IsZero() && party.EndDate.Before(party.StartDate) {
 		libOpenTelemetry.HandleSpanError(&span, "End date must be after start date", cn.ErrRelatedPartyEndDateInvalid)
-		return pkg.ValidateBusinessError(cn.ErrRelatedPartyEndDateInvalid, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+
+		return fmt.Errorf("end date must be after start date: %w",
+			pkg.ValidateBusinessError(cn.ErrRelatedPartyEndDateInvalid, reflect.TypeOf(mmodel.RelatedParty{}).Name()))
 	}
 
 	return nil
 }
 
+// ValidateRelatedParties validates all related parties in the given slice.
 func (uc *UseCase) ValidateRelatedParties(ctx context.Context, parties []*mmodel.RelatedParty) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

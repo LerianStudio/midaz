@@ -7,15 +7,18 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // GetPortfolioByID get a Portfolio from the repository by given id.
@@ -38,12 +41,12 @@ func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerI
 
 			logger.Warn("No portfolio found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting portfolio by id: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get portfolio on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("getting portfolio by id: %w", err)
 	}
 
 	if portfolio != nil {
@@ -55,7 +58,7 @@ func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerI
 
 			logger.Warn("No metadata found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting portfolio by id: %w", err)
 		}
 
 		if metadata != nil {

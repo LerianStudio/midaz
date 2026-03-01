@@ -6,16 +6,19 @@ package services
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
+// GetAllAliases retrieves all aliases that match a query filter.
 func (uc *UseCase) GetAllAliases(ctx context.Context, organizationID string, holderID uuid.UUID, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Alias, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -36,7 +39,7 @@ func (uc *UseCase) GetAllAliases(ctx context.Context, organizationID string, hol
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get aliases", err)
 		logger.Errorf("Failed to get aliases: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("finding all aliases: %w", err)
 	}
 
 	return aliases, nil

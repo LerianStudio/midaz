@@ -6,15 +6,19 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
+// UpdateHolderByID updates an existing holder by its ID.
 func (uc *UseCase) UpdateHolderByID(ctx context.Context, organizationID string, id uuid.UUID, uhi *mmodel.UpdateHolderInput, fieldsToRemove []string) (*mmodel.Holder, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -46,7 +50,7 @@ func (uc *UseCase) UpdateHolderByID(ctx context.Context, organizationID string, 
 
 		logger.Errorf("Failed to update holder: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("updating holder %s: %w", id.String(), err)
 	}
 
 	return updatedHolder, nil

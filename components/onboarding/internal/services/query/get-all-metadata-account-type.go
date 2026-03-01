@@ -7,20 +7,23 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
 )
 
-// GetAllMetadataAccountType fetch all Account Types from the repository filtered by metadata
+// GetAllMetadataAccountType fetch all Account Types from the repository filtered by metadata.
 func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.AccountType, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -35,7 +38,7 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("getting all metadata account types: %w", err)
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -57,12 +60,12 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 
 			logger.Warn("No account types found")
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("getting all metadata account types: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account types on repo", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("getting all metadata account types: %w", err)
 	}
 
 	for i := range accountTypes {

@@ -5,11 +5,12 @@
 package bootstrap
 
 import (
+	"github.com/gofiber/fiber/v2"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libCommonsLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libCommonsOtel "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v2/commons/server"
-	"github.com/gofiber/fiber/v2"
 )
 
 // Server represents the http server for Ledger services.

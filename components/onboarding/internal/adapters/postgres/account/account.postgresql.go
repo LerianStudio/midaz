@@ -8,22 +8,25 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/Masterminds/squirrel"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var accountColumnList = []string{
@@ -71,7 +74,7 @@ type AccountPostgreSQLRepository struct {
 }
 
 // NewAccountPostgreSQLRepository returns a new instance of AccountPostgreSQLRepository using the given Postgres connection.
-func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *AccountPostgreSQLRepository {
+func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) (*AccountPostgreSQLRepository, error) {
 	c := &AccountPostgreSQLRepository{
 		connection: pc,
 		tableName:  "account",
@@ -79,10 +82,10 @@ func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Account
 
 	_, err := c.connection.GetDB()
 	if err != nil {
-		panic("Failed to connect database")
+		return nil, fmt.Errorf("failed to connect to account database: %w", err)
 	}
 
-	return c
+	return c, nil
 }
 
 // Create a new account entity into Postgresql and returns it.
@@ -98,7 +101,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	record := &AccountPostgreSQLModel{}
@@ -151,7 +154,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("build insert query: %w", err)
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
@@ -166,14 +169,14 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 			logger.Errorf("Failed to execute query: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validate pg error on create: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute insert: %w", err)
 	}
 
 	spanExec.End()
@@ -184,7 +187,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -194,7 +197,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 		logger.Warnf("Failed to create account: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("create account no rows affected: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -213,7 +216,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	var accounts []*mmodel.Account
@@ -242,7 +245,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("build find all query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -253,7 +256,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute find all query: %w", err)
 	}
 	defer rows.Close()
 
@@ -282,7 +285,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
-			return nil, err
+			return nil, fmt.Errorf("scan account row: %w", err)
 		}
 
 		accounts = append(accounts, acc.ToEntity())
@@ -293,7 +296,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("iterate account rows: %w", err)
 	}
 
 	return accounts, nil
@@ -312,7 +315,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	builder := squirrel.Select(accountColumnList...).
@@ -335,7 +338,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("build find query: %w", err)
 	}
 
 	acc := &AccountPostgreSQLModel{}
@@ -372,14 +375,14 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 			logger.Warnf("Failed to scan row: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("account not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		logger.Errorf("Failed to scan row: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("scan account row: %w", err)
 	}
 
 	return acc.ToEntity(), nil
@@ -398,7 +401,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	builder := squirrel.Select(accountColumnList...).
@@ -420,7 +423,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("build find with deleted query: %w", err)
 	}
 
 	acc := &AccountPostgreSQLModel{}
@@ -457,14 +460,14 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 
 			logger.Warnf("Failed to scan row: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("account not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		logger.Errorf("Failed to scan row: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("scan account row: %w", err)
 	}
 
 	return acc.ToEntity(), nil
@@ -483,7 +486,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	builder := squirrel.Select(accountColumnList...).
@@ -506,7 +509,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("build find alias query: %w", err)
 	}
 
 	acc := &AccountPostgreSQLModel{}
@@ -543,14 +546,14 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 
 			logger.Warnf("Failed to scan row: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("account alias not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		logger.Errorf("Failed to scan row: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("scan account row: %w", err)
 	}
 
 	return acc.ToEntity(), nil
@@ -569,7 +572,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return false, err
+		return false, fmt.Errorf("get db connection: %w", err)
 	}
 
 	builder := squirrel.Select("1").
@@ -588,7 +591,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return false, err
+		return false, fmt.Errorf("build find by alias query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_alias.query")
@@ -606,7 +609,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return false, err
+		return false, fmt.Errorf("execute find by alias query: %w", err)
 	}
 
 	spanQuery.End()
@@ -617,7 +620,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 	logger.Warnf("Alias is already taken: %v", alias)
 
-	return true, err
+	return true, fmt.Errorf("alias unavailable: %w", err)
 }
 
 // ListByIDs retrieves Accounts entities from the database using the provided IDs.
@@ -633,7 +636,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	var accounts []*mmodel.Account
@@ -657,7 +660,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("build list by ids query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
@@ -668,7 +671,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute list by ids query: %w", err)
 	}
 	defer rows.Close()
 
@@ -699,7 +702,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("scan account row: %w", err)
 		}
 
 		accounts = append(accounts, acc.ToEntity())
@@ -710,7 +713,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("iterate account rows: %w", err)
 	}
 
 	return accounts, nil
@@ -729,7 +732,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	var accounts []*mmodel.Account
@@ -750,7 +753,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("build list by alias query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_alias.query")
@@ -761,7 +764,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute list by alias query: %w", err)
 	}
 	defer rows.Close()
 
@@ -792,7 +795,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("scan account row: %w", err)
 		}
 
 		accounts = append(accounts, acc.ToEntity())
@@ -803,13 +806,15 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("iterate account rows: %w", err)
 	}
 
 	return accounts, nil
 }
 
 // Update an Account entity into Postgresql and returns the Account updated.
+//
+//nolint:gocyclo,cyclop
 func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -822,7 +827,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	record := &AccountPostgreSQLModel{}
@@ -879,7 +884,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("build update query: %w", err)
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
@@ -894,14 +899,14 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 			logger.Errorf("Failed to execute update query: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validate pg error on update: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute update: %w", err)
 	}
 
 	spanExec.End()
@@ -910,7 +915,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -920,7 +925,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		logger.Warnf("Failed to update account: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("update account no rows affected: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -939,7 +944,7 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return err
+		return fmt.Errorf("get db connection: %w", err)
 	}
 
 	builder := squirrel.Update(r.tableName).
@@ -960,7 +965,7 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return err
+		return fmt.Errorf("build delete query: %w", err)
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
@@ -970,7 +975,7 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		return fmt.Errorf("execute delete: %w", pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name()))
 	}
 
 	spanExec.End()
@@ -991,7 +996,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	var accounts []*mmodel.Account
@@ -1011,7 +1016,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("build list accounts by ids query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
@@ -1022,7 +1027,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute list accounts by ids query: %w", err)
 	}
 	defer rows.Close()
 
@@ -1053,7 +1058,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("scan account row: %w", err)
 		}
 
 		accounts = append(accounts, acc.ToEntity())
@@ -1064,7 +1069,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("iterate account rows: %w", err)
 	}
 
 	return accounts, nil
@@ -1083,7 +1088,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	var accounts []*mmodel.Account
@@ -1103,7 +1108,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("build list accounts by alias query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_alias.query")
@@ -1114,7 +1119,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute list accounts by alias query: %w", err)
 	}
 	defer rows.Close()
 
@@ -1145,7 +1150,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("scan account row: %w", err)
 		}
 
 		accounts = append(accounts, acc.ToEntity())
@@ -1156,7 +1161,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 		logger.Errorf("Failed to iterate rows: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("iterate account rows: %w", err)
 	}
 
 	return accounts, nil
@@ -1177,7 +1182,7 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return count, err
+		return count, fmt.Errorf("get db connection: %w", err)
 	}
 
 	builder := squirrel.Select("COUNT(*)").
@@ -1193,7 +1198,7 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return count, err
+		return count, fmt.Errorf("build count query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
@@ -1204,7 +1209,7 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return count, err
+		return count, fmt.Errorf("execute count query: %w", err)
 	}
 
 	spanQuery.End()

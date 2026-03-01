@@ -6,9 +6,14 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -18,6 +23,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+
 	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
@@ -34,12 +40,21 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// ApplicationName is the name of the onboarding component used for service identification.
 const ApplicationName = "onboarding"
+
+// ErrUnifiedModeRequiresBalancePort is returned when unified mode is enabled but no BalancePort is provided.
+var ErrUnifiedModeRequiresBalancePort = errors.New("unified mode requires BalancePort to be provided")
+
+const (
+	// initialCleanupCapacity is the initial capacity for the cleanup function slice.
+	initialCleanupCapacity = 4
+
+	// ensureIndexesTimeoutSeconds is the timeout in seconds for ensuring MongoDB indexes on startup.
+	ensureIndexesTimeoutSeconds = 60
+)
 
 // envFallback returns the prefixed value if not empty, otherwise returns the fallback value.
 func envFallback(prefixed, fallback string) string {
@@ -189,7 +204,7 @@ func InitServers() (*Service, error) {
 func resolveBalancePort(cfg *Config, opts *Options, logger libLog.Logger) (mbootstrap.BalancePort, error) {
 	if opts != nil && opts.UnifiedMode {
 		if opts.BalancePort == nil {
-			return nil, fmt.Errorf("unified mode requires BalancePort to be provided")
+			return nil, ErrUnifiedModeRequiresBalancePort
 		}
 
 		logger.Info("Running in UNIFIED MODE - using direct balance port (in-process calls)")
@@ -216,63 +231,30 @@ func resolveBalancePort(cfg *Config, opts *Options, logger libLog.Logger) (mboot
 
 	logger.Info("Running in MICROSERVICES MODE - using gRPC balance adapter (network calls)")
 
-	return grpcout.NewBalanceAdapter(grpcConnection), nil
+	adapter, err := grpcout.NewBalanceAdapter(grpcConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create balance adapter: %w", err)
+	}
+
+	return adapter, nil
 }
 
-// InitServersWithOptions initiates http servers with optional dependency injection.
-// When opts is nil or opts.UnifiedMode is false, uses gRPC for balance operations.
-// When opts.UnifiedMode is true, uses direct in-process calls (unified ledger mode).
-func InitServersWithOptions(opts *Options) (*Service, error) {
-	cfg := &Config{}
-
-	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
-		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
-	}
-
-	cleanupFuncs := make([]func(), 0, 4)
-
-	success := false
-
-	defer func() {
-		if success {
-			return
-		}
-
-		for i := len(cleanupFuncs) - 1; i >= 0; i-- {
-			cleanupFuncs[i]()
-		}
-	}()
-
-	var logger libLog.Logger
+// resolveLogger returns the provided logger from options, or creates a new one.
+func resolveLogger(opts *Options) (libLog.Logger, error) {
 	if opts != nil && opts.Logger != nil {
-		logger = opts.Logger
-	} else {
-		var err error
-
-		logger, err = libZap.InitializeLoggerWithError()
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize logger: %w", err)
-		}
+		return opts.Logger, nil
 	}
 
-	telemetry, err := libOpentelemetry.InitializeTelemetryWithError(&libOpentelemetry.TelemetryConfig{
-		LibraryName:               cfg.OtelLibraryName,
-		ServiceName:               cfg.OtelServiceName,
-		ServiceVersion:            cfg.OtelServiceVersion,
-		DeploymentEnv:             cfg.OtelDeploymentEnv,
-		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
-		EnableTelemetry:           cfg.EnableTelemetry,
-		Logger:                    logger,
-	})
+	logger, err := libZap.InitializeLoggerWithError()
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
+		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
-	cleanupFuncs = append(cleanupFuncs, func() {
-		telemetry.ShutdownTelemetry()
-	})
+	return logger, nil
+}
 
-	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
+// buildPostgresConnection creates and configures a PostgreSQL connection from config.
+func buildPostgresConnection(cfg *Config, logger libLog.Logger) *libPostgres.PostgresConnection {
 	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
 	dbUser := envFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
 	dbPassword := envFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
@@ -296,7 +278,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		dbReplicaHost, dbReplicaUser, dbReplicaPassword, dbReplicaName, dbReplicaPort, dbReplicaSSLMode)
 
-	postgresConnection := &libPostgres.PostgresConnection{
+	return &libPostgres.PostgresConnection{
 		ConnectionStringPrimary: postgreSourcePrimary,
 		ConnectionStringReplica: postgreSourceReplica,
 		PrimaryDBName:           dbName,
@@ -306,16 +288,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MaxOpenConnections:      maxOpenConns,
 		MaxIdleConnections:      maxIdleConns,
 	}
+}
 
-	cleanupFuncs = append(cleanupFuncs, func() {
-		if postgresConnection.ConnectionDB != nil {
-			if closeErr := (*postgresConnection.ConnectionDB).Close(); closeErr != nil {
-				logger.Warnf("Failed to close onboarding PostgreSQL connection during cleanup: %v", closeErr)
-			}
-		}
-	})
-
-	// Apply fallback for MongoDB prefixed env vars
+// buildMongoConnection creates and configures a MongoDB connection from config.
+func buildMongoConnection(cfg *Config, logger libLog.Logger) *libMongo.MongoConnection {
 	mongoURI := envFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
 	mongoHost := envFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
 	mongoName := envFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
@@ -325,35 +301,27 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	mongoParametersRaw := envFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
 	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
 
-	// Extract port and parameters for MongoDB connection (handles backward compatibility)
 	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
 
-	// Build MongoDB connection string using centralized utility (ensures correct format)
 	mongoSource := libMongo.BuildConnectionString(
 		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort, mongoParameters, logger)
 
-	// Safe conversion: use uint64 with default, only assign if positive
 	var mongoMaxPoolSize uint64 = 100
 	if mongoPoolSize > 0 {
 		mongoMaxPoolSize = uint64(mongoPoolSize)
 	}
 
-	mongoConnection := &libMongo.MongoConnection{
+	return &libMongo.MongoConnection{
 		ConnectionStringSource: mongoSource,
 		Database:               mongoName,
 		Logger:                 logger,
 		MaxPoolSize:            mongoMaxPoolSize,
 	}
+}
 
-	cleanupFuncs = append(cleanupFuncs, func() {
-		if mongoConnection.DB != nil {
-			if closeErr := mongoConnection.DB.Disconnect(context.Background()); closeErr != nil {
-				logger.Warnf("Failed to disconnect onboarding MongoDB client during cleanup: %v", closeErr)
-			}
-		}
-	})
-
-	redisConnection := &libRedis.RedisConnection{
+// buildRedisConnection creates and configures a Redis connection from config.
+func buildRedisConnection(cfg *Config, logger libLog.Logger) *libRedis.RedisConnection {
+	return &libRedis.RedisConnection{
 		Address:                      strings.Split(cfg.RedisHost, ","),
 		Password:                     cfg.RedisPassword,
 		DB:                           cfg.RedisDB,
@@ -377,30 +345,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
+}
 
-	cleanupFuncs = append(cleanupFuncs, func() {
-		if closeErr := redisConnection.Close(); closeErr != nil {
-			logger.Warnf("Failed to close onboarding Redis connection during cleanup: %v", closeErr)
-		}
-	})
-
-	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize redis: %w", err)
-	}
-
-	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
-	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(postgresConnection)
-	segmentPostgreSQLRepository := segment.NewSegmentPostgreSQLRepository(postgresConnection)
-	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(postgresConnection)
-	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
-	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)
-	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(postgresConnection)
-
-	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
-
-	// Ensure indexes also for known base collections on fresh installs
-	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
+// ensureMongoIndexes ensures entity_id indexes exist on all known collections.
+func ensureMongoIndexes(mongoConnection *libMongo.MongoConnection, logger libLog.Logger) {
+	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), ensureIndexesTimeoutSeconds*time.Second)
 	defer cancelEnsureIndexes()
 
 	indexModel := mongo.IndexModel{
@@ -415,6 +364,131 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
 		}
 	}
+}
+
+// InitServersWithOptions initiates http servers with optional dependency injection.
+// When opts is nil or opts.UnifiedMode is false, uses gRPC for balance operations.
+// When opts.UnifiedMode is true, uses direct in-process calls (unified ledger mode).
+//
+//nolint:gocyclo,cyclop
+func InitServersWithOptions(opts *Options) (*Service, error) {
+	cfg := &Config{}
+
+	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
+		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
+	}
+
+	cleanupFuncs := make([]func(), 0, initialCleanupCapacity)
+
+	success := false
+
+	defer func() {
+		if success {
+			return
+		}
+
+		for i := len(cleanupFuncs) - 1; i >= 0; i-- {
+			cleanupFuncs[i]()
+		}
+	}()
+
+	logger, err := resolveLogger(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	telemetry, err := libOpentelemetry.InitializeTelemetryWithError(&libOpentelemetry.TelemetryConfig{
+		LibraryName:               cfg.OtelLibraryName,
+		ServiceName:               cfg.OtelServiceName,
+		ServiceVersion:            cfg.OtelServiceVersion,
+		DeploymentEnv:             cfg.OtelDeploymentEnv,
+		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
+		EnableTelemetry:           cfg.EnableTelemetry,
+		Logger:                    logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
+	}
+
+	cleanupFuncs = append(cleanupFuncs, func() {
+		telemetry.ShutdownTelemetry()
+	})
+
+	postgresConnection := buildPostgresConnection(cfg, logger)
+
+	cleanupFuncs = append(cleanupFuncs, func() {
+		if postgresConnection.ConnectionDB != nil {
+			if closeErr := (*postgresConnection.ConnectionDB).Close(); closeErr != nil {
+				logger.Warnf("Failed to close onboarding PostgreSQL connection during cleanup: %v", closeErr)
+			}
+		}
+	})
+
+	mongoConnection := buildMongoConnection(cfg, logger)
+
+	cleanupFuncs = append(cleanupFuncs, func() {
+		if mongoConnection.DB != nil {
+			if closeErr := mongoConnection.DB.Disconnect(context.Background()); closeErr != nil {
+				logger.Warnf("Failed to disconnect onboarding MongoDB client during cleanup: %v", closeErr)
+			}
+		}
+	})
+
+	redisConnection := buildRedisConnection(cfg, logger)
+
+	cleanupFuncs = append(cleanupFuncs, func() {
+		if closeErr := redisConnection.Close(); closeErr != nil {
+			logger.Warnf("Failed to close onboarding Redis connection during cleanup: %v", closeErr)
+		}
+	})
+
+	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize redis: %w", err)
+	}
+
+	organizationPostgreSQLRepository, err := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize organization repository: %w", err)
+	}
+
+	ledgerPostgreSQLRepository, err := ledger.NewLedgerPostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize ledger repository: %w", err)
+	}
+
+	segmentPostgreSQLRepository, err := segment.NewSegmentPostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize segment repository: %w", err)
+	}
+
+	portfolioPostgreSQLRepository, err := portfolio.NewPortfolioPostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize portfolio repository: %w", err)
+	}
+
+	accountPostgreSQLRepository, err := account.NewAccountPostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize account repository: %w", err)
+	}
+
+	assetPostgreSQLRepository, err := asset.NewAssetPostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize asset repository: %w", err)
+	}
+
+	accountTypePostgreSQLRepository, err := accounttype.NewAccountTypePostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize account type repository: %w", err)
+	}
+
+	metadataMongoDBRepository, err := mongodb.NewMetadataMongoDBRepository(mongoConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MongoDB metadata repository: %w", err)
+	}
+
+	// Ensure indexes also for known base collections on fresh installs
+	ensureMongoIndexes(mongoConnection, logger)
 
 	balancePort, err := resolveBalancePort(cfg, opts, logger)
 	if err != nil {

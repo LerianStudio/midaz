@@ -7,15 +7,18 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // ListAccountsByIDs get Accounts from the repository by given ids.
@@ -38,12 +41,12 @@ func (uc *UseCase) ListAccountsByIDs(ctx context.Context, organizationID, ledger
 
 			logger.Warn("No accounts found")
 
-			return nil, err
+			return nil, fmt.Errorf("listing accounts by ids: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Accounts by ids", err)
 
-		return nil, err
+		return nil, fmt.Errorf("listing accounts by ids: %w", err)
 	}
 
 	return accounts, nil

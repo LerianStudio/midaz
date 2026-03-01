@@ -7,20 +7,23 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // UpdateAccountType updates an account type by its ID.
 // It returns the updated account type and an error if the operation fails.
-func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, input *mmodel.UpdateAccountTypeInput) (*mmodel.AccountType, error) {
+func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledgerID, id uuid.UUID, input *mmodel.UpdateAccountTypeInput) (*mmodel.AccountType, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_account_type")
@@ -44,12 +47,12 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account type on repo by id", err)
 
-			return nil, err
+			return nil, fmt.Errorf("update account type not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account type on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("update account type: %w", err)
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), id.String(), input.Metadata)

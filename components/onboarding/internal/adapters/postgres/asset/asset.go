@@ -9,10 +9,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// AssetPostgreSQLModel represents the entity Asset into SQL context in Database
+// AssetPostgreSQLModel represents the entity Asset into SQL context in Database.
 type AssetPostgreSQLModel struct {
 	ID                string
 	Name              string
@@ -28,7 +29,7 @@ type AssetPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// ToEntity converts an AssetPostgreSQLModel to entity response Asset
+// ToEntity converts an AssetPostgreSQLModel to entity response Asset.
 func (t *AssetPostgreSQLModel) ToEntity() *mmodel.Asset {
 	status := mmodel.Status{
 		Code:        t.Status,
@@ -55,7 +56,7 @@ func (t *AssetPostgreSQLModel) ToEntity() *mmodel.Asset {
 	return asset
 }
 
-// FromEntity converts a request entity Asset to AssetPostgreSQLModel
+// FromEntity converts a request entity Asset to AssetPostgreSQLModel.
 func (t *AssetPostgreSQLModel) FromEntity(asset *mmodel.Asset) {
 	*t = AssetPostgreSQLModel{
 		ID:                libCommons.GenerateUUIDv7().String(),

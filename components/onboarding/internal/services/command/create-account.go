@@ -7,25 +7,30 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"google.golang.org/grpc/metadata"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"google.golang.org/grpc/metadata"
 )
 
 // CreateAccount creates an account and metadata, then synchronously creates the default balance.
 // The balance is created via the BalancePort interface, which can be either local (in-process)
 // or remote (gRPC) depending on the deployment mode.
+//
+//nolint:gocyclo,cyclop,funlen
 func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -39,7 +44,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance service health check failed", err)
 		logger.Errorf("Balance service is unavailable: %v", err)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, reflect.TypeOf(mmodel.Account{}).Name())
+		return nil, fmt.Errorf("balance health check: %w", pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, reflect.TypeOf(mmodel.Account{}).Name()))
 	}
 
 	if err := uc.applyAccountingValidations(ctx, organizationID, ledgerID, cai.Type); err != nil {
@@ -61,7 +66,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		err := pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find asset", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validate asset code: %w", err)
 	}
 
 	var portfolioUUID uuid.UUID
@@ -86,14 +91,14 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 			err := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find parent account", err)
 
-			return nil, err
+			return nil, fmt.Errorf("find parent account: %w", err)
 		}
 
 		if acc.AssetCode != cai.AssetCode {
 			err := pkg.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate parent account", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validate parent account asset code: %w", err)
 		}
 	}
 
@@ -164,7 +169,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 			return nil, err
 		}
 
-		return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name())
+		return nil, fmt.Errorf("create default balance: %w", pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, reflect.TypeOf(mmodel.Account{}).Name()))
 	}
 
 	metadataDoc, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), acc.ID, cai.Metadata)
@@ -238,7 +243,7 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 		return nil
 	}
 
-	if strings.ToLower(key) == "external" {
+	if strings.EqualFold(key, "external") {
 		logger.Infof("External account type, skipping validation")
 
 		return nil
@@ -253,14 +258,14 @@ func (uc *UseCase) applyAccountingValidations(ctx context.Context, organizationI
 
 			logger.Warnf("Account type not found, invalid account type")
 
-			return err
+			return fmt.Errorf("validate account type: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account type", err)
 
 		logger.Errorf("Error finding account type: %v", err)
 
-		return err
+		return fmt.Errorf("find account type: %w", err)
 	}
 
 	return nil

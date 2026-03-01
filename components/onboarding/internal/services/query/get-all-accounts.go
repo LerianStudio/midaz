@@ -7,19 +7,22 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
 )
 
-// GetAllAccount fetch all Account from the repository
+// GetAllAccount fetch all Account from the repository.
 func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -39,12 +42,12 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get accounts on repo", err)
 
-			return nil, err
+			return nil, fmt.Errorf("getting all accounts: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get accounts on repo", err)
 
-		return nil, err
+		return nil, fmt.Errorf("getting all accounts: %w", err)
 	}
 
 	if len(accounts) == 0 {
@@ -62,7 +65,7 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
 
-		return nil, err
+		return nil, fmt.Errorf("getting all accounts: %w", err)
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))

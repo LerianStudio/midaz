@@ -7,14 +7,17 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
+	"github.com/google/uuid"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // GetAccountByID get an Account from the repository by given id.
@@ -33,10 +36,10 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 		logger.Errorf("Error getting account on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, fmt.Errorf("getting account by id: %w", pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name()))
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("getting account by id: %w", err)
 	}
 
 	if account != nil {
@@ -46,7 +49,7 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 
 			logger.Errorf("Error get metadata on mongodb account: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("getting account by id: %w", err)
 		}
 
 		if metadata != nil {

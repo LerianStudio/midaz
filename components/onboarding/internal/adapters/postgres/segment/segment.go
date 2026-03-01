@@ -9,10 +9,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// SegmentPostgreSQLModel represents the entity Segment into SQL context in Database
+// SegmentPostgreSQLModel represents the entity Segment into SQL context in Database.
 type SegmentPostgreSQLModel struct {
 	ID                string
 	Name              string
@@ -26,7 +27,7 @@ type SegmentPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// ToEntity converts an SegmentPostgreSQLModel to entity.Segment
+// ToEntity converts an SegmentPostgreSQLModel to entity.Segment.
 func (t *SegmentPostgreSQLModel) ToEntity() *mmodel.Segment {
 	status := mmodel.Status{
 		Code:        t.Status,
@@ -52,7 +53,7 @@ func (t *SegmentPostgreSQLModel) ToEntity() *mmodel.Segment {
 	return segment
 }
 
-// FromEntity converts an entity.Segment to SegmentPostgreSQLModel
+// FromEntity converts an entity.Segment to SegmentPostgreSQLModel.
 func (t *SegmentPostgreSQLModel) FromEntity(segment *mmodel.Segment) {
 	*t = SegmentPostgreSQLModel{
 		ID:                libCommons.GenerateUUIDv7().String(),

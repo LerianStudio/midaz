@@ -5,19 +5,20 @@
 package in
 
 import (
-	"fmt"
+	"strconv"
+
+	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // SegmentHandler struct contains a segment use case for managing segment related operations.
@@ -54,15 +55,26 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_segment")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating create of Segment with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String())
 
-	payload := i.(*mmodel.CreateSegmentInput)
+	payload, ok := i.(*mmodel.CreateSegmentInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload type"))
+	}
+
 	logger.Infof("Request to create a Segment with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -110,8 +122,15 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_segments")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Get Segments with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String())
 
@@ -201,9 +220,20 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_segment_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating retrieval of Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
@@ -250,16 +280,31 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_segment")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating update of Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
-	payload := i.(*mmodel.UpdateSegmentInput)
+	payload, ok := i.(*mmodel.UpdateSegmentInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload type"))
+	}
+
 	logger.Infof("Request to update an Segment with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -312,9 +357,20 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_segment_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating removal of Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
@@ -354,8 +410,15 @@ func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.count_segments")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Counting segments for organization %s and ledger %s", organizationID, ledgerID)
 
@@ -370,7 +433,7 @@ func (handler *SegmentHandler) CountSegments(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully counted segments for organization %s and ledger %s: %d", organizationID, ledgerID, count)
 
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.XTotalCount, strconv.FormatInt(count, baseDecimal))
 	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)

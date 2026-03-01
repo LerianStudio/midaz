@@ -6,11 +6,13 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -48,7 +50,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanAddressValidation, "Failed to validate country address", err)
 
-		return nil, err
+		return nil, fmt.Errorf("validate country address: %w", err)
 	}
 
 	spanAddressValidation.End()

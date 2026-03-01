@@ -5,7 +5,10 @@
 package bootstrap
 
 import (
+	"errors"
 	"fmt"
+
+	"github.com/google/uuid"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -13,12 +16,18 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
-	"github.com/google/uuid"
 )
 
+var (
+	errTransactionMetadataIndexPortNil = errors.New("failed to get MetadataIndexPort from transaction module")
+	errOnboardingMetadataIndexPortNil  = errors.New("failed to get MetadataIndexPort from onboarding module")
+)
+
+// ApplicationName is the service identifier used for logging and telemetry.
 const ApplicationName = "ledger"
 
 // Config is the top level configuration struct for the unified ledger component.
@@ -63,7 +72,7 @@ func InitServers() (*Service, error) {
 }
 
 // InitServersWithOptions initializes the unified ledger service with optional dependency injection.
-func InitServersWithOptions(opts *Options) (*Service, error) {
+func InitServersWithOptions(opts *Options) (*Service, error) { //nolint:gocyclo,cyclop
 	cfg := &Config{}
 
 	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
@@ -168,7 +177,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Get the metadata port from transaction for metadata index operations
 	transactionMetadataRepo := transactionService.GetMetadataIndexPort()
 	if transactionMetadataRepo == nil {
-		return nil, fmt.Errorf("failed to get MetadataIndexPort from transaction module")
+		return nil, errTransactionMetadataIndexPortNil
 	}
 
 	ledgerLogger.Info("Transaction module initialized, BalancePort and MetadataIndexPort available for in-process calls")
@@ -199,7 +208,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Get the metadata port from onboarding for metadata index operations
 	onboardingMetadataRepo := onboardingService.GetMetadataIndexPort()
 	if onboardingMetadataRepo == nil {
-		return nil, fmt.Errorf("failed to get MetadataIndexPort from onboarding module")
+		return nil, errOnboardingMetadataIndexPortNil
 	}
 
 	ledgerLogger.Info("Both metadata index repositories available for settings routes")

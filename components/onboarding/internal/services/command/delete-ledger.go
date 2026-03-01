@@ -7,18 +7,21 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
-// DeleteLedgerByID deletes a ledger from the repository
+// DeleteLedgerByID deletes a ledger from the repository.
 func (uc *UseCase) DeleteLedgerByID(ctx context.Context, organizationID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -35,14 +38,14 @@ func (uc *UseCase) DeleteLedgerByID(ctx context.Context, organizationID, id uuid
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete ledger on repo by id", err)
 
-			return err
+			return fmt.Errorf("delete ledger not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete ledger on repo by id", err)
 
 		logger.Errorf("Error deleting ledger: %v", err)
 
-		return err
+		return fmt.Errorf("delete ledger: %w", err)
 	}
 
 	return nil

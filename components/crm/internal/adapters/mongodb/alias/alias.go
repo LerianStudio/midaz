@@ -5,14 +5,18 @@
 package alias
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	libCrypto "github.com/LerianStudio/lib-commons/v2/commons/crypto"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/google/uuid"
 )
 
+// MongoDBModel represents an alias document in MongoDB.
 type MongoDBModel struct {
 	ID               *uuid.UUID                    `bson:"_id,omitempty"`
 	Document         *string                       `bson:"document,omitempty"`
@@ -30,6 +34,7 @@ type MongoDBModel struct {
 	DeletedAt        *time.Time                    `bson:"deleted_at"`
 }
 
+// SearchMongoDB holds hashed search fields for alias queries.
 type SearchMongoDB struct {
 	Document                            *string  `bson:"document,omitempty"`
 	BankingDetailsAccount               *string  `bson:"banking_details_account,omitempty"`
@@ -38,6 +43,7 @@ type SearchMongoDB struct {
 	RelatedPartyDocuments               []string `bson:"related_party_documents,omitempty"`
 }
 
+// BankingMongoDBModel represents banking details stored in MongoDB.
 type BankingMongoDBModel struct {
 	Branch      *string    `bson:"branch,omitempty"`
 	Account     *string    `bson:"account,omitempty"`
@@ -49,10 +55,12 @@ type BankingMongoDBModel struct {
 	BankID      *string    `bson:"bank_id,omitempty"`
 }
 
+// RegulatoryFieldsMongoDBModel represents regulatory fields stored in MongoDB.
 type RegulatoryFieldsMongoDBModel struct {
 	ParticipantDocument *string `bson:"participant_document,omitempty"`
 }
 
+// RelatedPartyMongoDBModel represents a related party stored in MongoDB.
 type RelatedPartyMongoDBModel struct {
 	ID        *uuid.UUID `bson:"_id"`
 	Document  *string    `bson:"document"`
@@ -66,12 +74,12 @@ type RelatedPartyMongoDBModel struct {
 func mapBankingDetailsFromEntity(bd *mmodel.BankingDetails, ds *libCrypto.Crypto) (*BankingMongoDBModel, *string, *string, error) {
 	account, err := ds.Encrypt(bd.Account)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("encrypt banking account: %w", err)
 	}
 
 	iban, err := ds.Encrypt(bd.IBAN)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("encrypt banking IBAN: %w", err)
 	}
 
 	model := &BankingMongoDBModel{
@@ -107,7 +115,7 @@ func mapBankingDetailsFromEntity(bd *mmodel.BankingDetails, ds *libCrypto.Crypto
 func mapRegulatoryFieldsFromEntity(rf *mmodel.RegulatoryFields, ds *libCrypto.Crypto) (*RegulatoryFieldsMongoDBModel, *string, error) {
 	participantDocument, err := ds.Encrypt(rf.ParticipantDocument)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("encrypt participant document: %w", err)
 	}
 
 	model := &RegulatoryFieldsMongoDBModel{
@@ -132,7 +140,7 @@ func mapRelatedPartiesFromEntity(parties []*mmodel.RelatedParty, ds *libCrypto.C
 	for i, rp := range parties {
 		encryptedDoc, err := ds.Encrypt(&rp.Document)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("encrypt related party document: %w", err)
 		}
 
 		var endDate *time.Time
@@ -156,11 +164,11 @@ func mapRelatedPartiesFromEntity(parties []*mmodel.RelatedParty, ds *libCrypto.C
 	return models, hashes, nil
 }
 
-// FromEntity maps an account entity to a MongoDB Alias model
+// FromEntity maps an account entity to a MongoDB Alias model.
 func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error {
 	document, err := ds.Encrypt(a.Document)
 	if err != nil {
-		return err
+		return fmt.Errorf("encrypt alias document: %w", err)
 	}
 
 	*amm = MongoDBModel{
@@ -185,7 +193,7 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error
 	if a.BankingDetails != nil {
 		bankingModel, accountHash, ibanHash, err := mapBankingDetailsFromEntity(a.BankingDetails, ds)
 		if err != nil {
-			return err
+			return fmt.Errorf("map banking details from entity: %w", err)
 		}
 
 		amm.BankingDetails = bankingModel
@@ -196,7 +204,7 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error
 	if a.RegulatoryFields != nil {
 		regulatoryModel, docHash, err := mapRegulatoryFieldsFromEntity(a.RegulatoryFields, ds)
 		if err != nil {
-			return err
+			return fmt.Errorf("map regulatory fields from entity: %w", err)
 		}
 
 		amm.RegulatoryFields = regulatoryModel
@@ -206,7 +214,7 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error
 	if len(a.RelatedParties) > 0 {
 		partiesModels, partiesHashes, err := mapRelatedPartiesFromEntity(a.RelatedParties, ds)
 		if err != nil {
-			return err
+			return fmt.Errorf("map related parties from entity: %w", err)
 		}
 
 		amm.RelatedParties = partiesModels
@@ -222,11 +230,11 @@ func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error
 	return nil
 }
 
-// ToEntity maps a MongoDB model to an Alias entity
+// ToEntity maps a MongoDB model to an Alias entity.
 func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	document, err := ds.Decrypt(amm.Document)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decrypt alias document: %w", err)
 	}
 
 	alias := &mmodel.Alias{
@@ -245,12 +253,12 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	if amm.BankingDetails != nil {
 		accountNumber, err := ds.Decrypt(amm.BankingDetails.Account)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("decrypt banking account: %w", err)
 		}
 
 		iban, err := ds.Decrypt(amm.BankingDetails.IBAN)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("decrypt banking IBAN: %w", err)
 		}
 
 		alias.BankingDetails = &mmodel.BankingDetails{
@@ -271,7 +279,7 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	if amm.RegulatoryFields != nil {
 		participantDocument, err := ds.Decrypt(amm.RegulatoryFields.ParticipantDocument)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("decrypt participant document: %w", err)
 		}
 
 		alias.RegulatoryFields = &mmodel.RegulatoryFields{
@@ -285,7 +293,7 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 		for i, rp := range amm.RelatedParties {
 			decryptedDoc, err := ds.Decrypt(rp.Document)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("decrypt related party document: %w", err)
 			}
 
 			docValue := ""

@@ -7,19 +7,22 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
 )
 
-// GetAllMetadataLedgers fetch all Ledgers from the repository
+// GetAllMetadataLedgers fetch all Ledgers from the repository.
 func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Ledger, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -36,7 +39,7 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 
 		logger.Warn("No metadata found")
 
-		return nil, err
+		return nil, fmt.Errorf("getting all metadata ledgers: %w", err)
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -58,12 +61,12 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 
 			logger.Warn("No ledgers found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting all metadata ledgers: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get ledgers on repo", err)
 
-		return nil, err
+		return nil, fmt.Errorf("getting all metadata ledgers: %w", err)
 	}
 
 	for i := range ledgers {

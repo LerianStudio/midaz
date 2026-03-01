@@ -7,18 +7,21 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
-// GetOrganizationByID fetch a new organization from the repository
+// GetOrganizationByID fetch a new organization from the repository.
 func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -38,12 +41,12 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmod
 
 			logger.Warn("No organization found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting organization by id: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get organization on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("getting organization by id: %w", err)
 	}
 
 	if organization != nil {
@@ -55,7 +58,7 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmod
 
 			logger.Warn("No metadata found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting organization by id: %w", err)
 		}
 
 		if metadata != nil {

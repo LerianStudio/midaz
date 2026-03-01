@@ -6,15 +6,19 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
+// CreateAlias creates a new alias for a holder in the repository.
 func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holderID uuid.UUID, cai *mmodel.CreateAliasInput) (*mmodel.Alias, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -90,7 +94,7 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		libOpenTelemetry.HandleSpanError(&span, "Failed to create alias", err)
 		logger.Errorf("Failed to create alias: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("creating alias: %w", err)
 	}
 
 	return createdAlias, nil

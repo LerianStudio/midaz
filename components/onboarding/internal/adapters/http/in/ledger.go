@@ -5,22 +5,23 @@
 package in
 
 import (
-	"fmt"
 	"os"
 	"reflect"
+	"strconv"
+
+	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // LedgerHandler struct contains a ledger use case for managing ledger related operations.
@@ -55,12 +56,19 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_ledger")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
-	payload := i.(*mmodel.CreateLedgerInput)
+	payload, ok := i.(*mmodel.CreateLedgerInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload type"))
+	}
+
 	logger.Infof("Request to create an ledger with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -101,8 +109,15 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_ledger_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating retrieval of Ledger with ID: %s", id.String())
 
@@ -150,7 +165,10 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_ledgers")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -240,15 +258,26 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_ledger")
 	defer span.End()
 
-	id := c.Locals("id").(uuid.UUID)
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	logger.Infof("Initiating update of Ledger with ID: %s", id.String())
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
-	payload := p.(*mmodel.UpdateLedgerInput)
+	payload, ok := p.(*mmodel.UpdateLedgerInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload type"))
+	}
+
 	logger.Infof("Request to update a Ledger with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -300,8 +329,15 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_ledger_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating removal of Ledeger with ID: %s", id.String())
 
@@ -350,7 +386,10 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.count_ledgers")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating count of all ledgers for organization: %s", organizationID)
 
@@ -365,7 +404,7 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully counted ledgers for organization %s: %d", organizationID, count)
 
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.XTotalCount, strconv.FormatInt(count, baseDecimal))
 	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)

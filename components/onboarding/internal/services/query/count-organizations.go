@@ -7,17 +7,19 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// CountOrganizations returns the total count of organizations
+// CountOrganizations returns the total count of organizations.
 func (uc *UseCase) CountOrganizations(ctx context.Context) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -37,12 +39,12 @@ func (uc *UseCase) CountOrganizations(ctx context.Context) (int64, error) {
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count organizations on repo", err)
 
-			return 0, err
+			return 0, fmt.Errorf("counting organizations: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count organizations on repo", err)
 
-		return 0, err
+		return 0, fmt.Errorf("counting organizations: %w", err)
 	}
 
 	return count, nil

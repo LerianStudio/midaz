@@ -6,14 +6,16 @@ package services
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
-// DeleteAliasByID removes an alias by its id and holder id
+// DeleteAliasByID removes an alias by its id and holder id.
 func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -34,7 +36,7 @@ func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, h
 		libOpenTelemetry.HandleSpanError(&span, "Failed to delete alias by id: %v", err)
 		logger.Errorf("Failed to delete alias by id: %v", err)
 
-		return err
+		return fmt.Errorf("deleting alias %s: %w", id.String(), err)
 	}
 
 	return nil

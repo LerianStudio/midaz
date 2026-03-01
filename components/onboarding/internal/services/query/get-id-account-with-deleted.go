@@ -7,15 +7,18 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // GetAccountByIDWithDeleted get an Account from the repository by given id (including soft-deleted ones).
@@ -38,12 +41,12 @@ func (uc *UseCase) GetAccountByIDWithDeleted(ctx context.Context, organizationID
 
 			logger.Warn("No account found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting account by id with deleted: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("getting account by id with deleted: %w", err)
 	}
 
 	if account != nil {
@@ -55,7 +58,7 @@ func (uc *UseCase) GetAccountByIDWithDeleted(ctx context.Context, organizationID
 
 			logger.Warn("No metadata found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting account by id with deleted: %w", err)
 		}
 
 		if metadata != nil {

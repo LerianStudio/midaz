@@ -10,10 +10,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// AccountPostgreSQLModel represents the entity Account into SQL context in Database
+// AccountPostgreSQLModel represents the entity Account into SQL context in Database.
 type AccountPostgreSQLModel struct {
 	ID                string
 	Name              string
@@ -35,7 +36,7 @@ type AccountPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// ToEntity converts an AccountPostgreSQLModel to a response entity Account
+// ToEntity converts an AccountPostgreSQLModel to a response entity Account.
 func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 	status := mmodel.Status{
 		Code:        t.Status,
@@ -69,7 +70,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 	return acc
 }
 
-// FromEntity converts a request entity Account to AccountPostgreSQLModel
+// FromEntity converts a request entity Account to AccountPostgreSQLModel.
 func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 	ID := libCommons.GenerateUUIDv7().String()
 	if account.ID != "" {

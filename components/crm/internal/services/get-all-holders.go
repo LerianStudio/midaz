@@ -6,15 +6,18 @@ package services
 
 import (
 	"context"
+	"fmt"
+
+	"go.opentelemetry.io/otel/attribute"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"go.opentelemetry.io/otel/attribute"
 )
 
-// GetAllHolders that match a query filter, and returns inside a paginated array
+// GetAllHolders that match a query filter, and returns inside a paginated array.
 func (uc *UseCase) GetAllHolders(ctx context.Context, organizationID string, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Holder, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -34,7 +37,7 @@ func (uc *UseCase) GetAllHolders(ctx context.Context, organizationID string, fil
 
 		logger.Errorf("Failed to get holders: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("finding all holders: %w", err)
 	}
 
 	return holders, nil

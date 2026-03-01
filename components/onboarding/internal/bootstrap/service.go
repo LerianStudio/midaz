@@ -9,6 +9,8 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/gofiber/fiber/v2"
+
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
@@ -16,9 +18,9 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+
 	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
-	"github.com/gofiber/fiber/v2"
 )
 
 // Ports groups all external interface dependencies for the onboarding service.
@@ -56,7 +58,7 @@ type Service struct {
 }
 
 // Run starts the application.
-// This is the only necessary code to run an app in main.go
+// This is the only necessary code to run an app in main.go.
 func (app *Service) Run() {
 	libCommons.NewLauncher(
 		libCommons.WithLogger(app.Logger),
@@ -137,5 +139,5 @@ func (app *Service) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
 	return app.Ports.MetadataPort
 }
 
-// Ensure Service implements mbootstrap.Service interface at compile time
+// Ensure Service implements mbootstrap.Service interface at compile time.
 var _ mbootstrap.Service = (*Service)(nil)

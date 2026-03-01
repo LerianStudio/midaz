@@ -7,15 +7,18 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // CountAccounts returns the number of accounts for the specified organization, ledger and optional portfolio.
@@ -36,12 +39,12 @@ func (uc *UseCase) CountAccounts(ctx context.Context, organizationID, ledgerID u
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count accounts on repo", err)
 
-			return 0, err
+			return 0, fmt.Errorf("counting accounts: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count accounts on repo", err)
 
-		return 0, err
+		return 0, fmt.Errorf("counting accounts: %w", err)
 	}
 
 	return count, nil

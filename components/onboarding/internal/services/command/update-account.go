@@ -7,15 +7,18 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // UpdateAccount update an account from the repository by given id.
@@ -37,7 +40,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	if accFound != nil && accFound.ID == id.String() && accFound.Type == "external" {
-		return nil, pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
+		return nil, fmt.Errorf("update external account: %w", pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name()))
 	}
 
 	account := &mmodel.Account{
@@ -61,12 +64,12 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account on repo by id", err)
 
-			return nil, err
+			return nil, fmt.Errorf("update account not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("update account: %w", err)
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String(), uai.Metadata)

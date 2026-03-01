@@ -9,10 +9,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// PortfolioPostgreSQLModel represents the entity Portfolio into SQL context in Database
+// PortfolioPostgreSQLModel represents the entity Portfolio into SQL context in Database.
 type PortfolioPostgreSQLModel struct {
 	ID                string
 	Name              string
@@ -27,7 +28,7 @@ type PortfolioPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// ToEntity converts an PortfolioPostgreSQLModel to entity.Portfolio
+// ToEntity converts an PortfolioPostgreSQLModel to entity.Portfolio.
 func (t *PortfolioPostgreSQLModel) ToEntity() *mmodel.Portfolio {
 	status := mmodel.Status{
 		Code:        t.Status,
@@ -54,7 +55,7 @@ func (t *PortfolioPostgreSQLModel) ToEntity() *mmodel.Portfolio {
 	return portfolio
 }
 
-// FromEntity converts an entity.Portfolio to PortfolioPostgreSQLModel
+// FromEntity converts an entity.Portfolio to PortfolioPostgreSQLModel.
 func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *mmodel.Portfolio) {
 	*t = PortfolioPostgreSQLModel{
 		ID:                libCommons.GenerateUUIDv7().String(),

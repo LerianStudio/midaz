@@ -16,7 +16,7 @@ type Service struct {
 }
 
 // Run starts the application.
-// This is the only necessary code to run an app in main.go
+// This is the only necessary code to run an app in main.go.
 func (app *Service) Run() {
 	libCommons.NewLauncher(
 		libCommons.WithLogger(app.Logger),

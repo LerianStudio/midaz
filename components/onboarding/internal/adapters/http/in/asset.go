@@ -5,19 +5,20 @@
 package in
 
 import (
-	"fmt"
+	"strconv"
+
+	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // AssetHandler struct contains a cqrs use case for managing asset in related operations.
@@ -54,16 +55,27 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_asset")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID.String())
 	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
 
-	payload := a.(*mmodel.CreateAssetInput)
+	payload, ok := a.(*mmodel.CreateAssetInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload type"))
+	}
+
 	logger.Infof("Request to create a Asset with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -115,8 +127,15 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_assets")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID.String())
 	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
@@ -207,9 +226,20 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_asset_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating retrieval of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
@@ -256,16 +286,31 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_asset")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating update of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
-	payload := a.(*mmodel.UpdateAssetInput)
+	payload, ok := a.(*mmodel.UpdateAssetInput)
+	if !ok {
+		return http.WithError(c, fiber.NewError(fiber.StatusBadRequest, "invalid payload type"))
+	}
+
 	logger.Infof("Request to update an Asset with details: %#v", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 	}
@@ -318,9 +363,20 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_asset_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating removal of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
@@ -360,8 +416,15 @@ func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.count_assets")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Infof("Initiating count of all assets for organization: %s, ledger: %s", organizationID, ledgerID)
 
@@ -376,7 +439,7 @@ func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully counted assets for organization %s, ledger %s: %d", organizationID, ledgerID, count)
 
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
+	c.Set(constant.XTotalCount, strconv.FormatInt(count, baseDecimal))
 	c.Set(constant.ContentLength, "0")
 
 	return http.NoContent(c)

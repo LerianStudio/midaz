@@ -8,26 +8,33 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/Masterminds/squirrel"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/lib/pq"
 )
+
+// whereClauseArgOffset is the number of positional args reserved for the WHERE clause
+// in update queries (organization_id, ledger_id, id).
+const whereClauseArgOffset = 2
 
 var accountTypeColumnList = []string{
 	"id",
@@ -61,7 +68,7 @@ type AccountTypePostgreSQLRepository struct {
 }
 
 // NewAccountTypePostgreSQLRepository creates a new instance of AccountTypePostgreSQLRepository.
-func NewAccountTypePostgreSQLRepository(pc *libPostgres.PostgresConnection) *AccountTypePostgreSQLRepository {
+func NewAccountTypePostgreSQLRepository(pc *libPostgres.PostgresConnection) (*AccountTypePostgreSQLRepository, error) {
 	c := &AccountTypePostgreSQLRepository{
 		connection: pc,
 		tableName:  "account_type",
@@ -69,10 +76,10 @@ func NewAccountTypePostgreSQLRepository(pc *libPostgres.PostgresConnection) *Acc
 
 	_, err := c.connection.GetDB()
 	if err != nil {
-		panic("Failed to connect database")
+		return nil, fmt.Errorf("failed to connect to account_type database: %w", err)
 	}
 
-	return c
+	return c, nil
 }
 
 // Create creates a new account type.
@@ -91,7 +98,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	record := &AccountTypePostgreSQLModel{}
@@ -117,12 +124,12 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute insert account type query", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validate pg error on create: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert account type query", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute insert: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -131,7 +138,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -139,7 +146,7 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to create account type. Rows affected is 0", err)
 
-		return nil, err
+		return nil, fmt.Errorf("create account type no rows affected: %w", err)
 	}
 
 	spanExec.End()
@@ -161,7 +168,7 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	var record AccountTypePostgreSQLModel
@@ -169,20 +176,20 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_id.query")
 
 	row := db.QueryRowContext(ctx, `
-		SELECT 
-			id, 
-			organization_id, 
-			ledger_id, 
-			name, 
-			description, 
-			key_value, 
-			created_at, 
-			updated_at, 
-			deleted_at 
-		FROM account_type 
-		WHERE id = $1 
-			AND organization_id = $2 
-			AND ledger_id = $3 
+		SELECT
+			id,
+			organization_id,
+			ledger_id,
+			name,
+			description,
+			key_value,
+			created_at,
+			updated_at,
+			deleted_at
+		FROM account_type
+		WHERE id = $1
+			AND organization_id = $2
+			AND ledger_id = $3
 			AND deleted_at IS NULL`,
 		id, organizationID, ledgerID)
 
@@ -201,10 +208,10 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to scan account type record", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, services.ErrDatabaseItemNotFound
+			return nil, fmt.Errorf("account type not found: %w", services.ErrDatabaseItemNotFound)
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("scan account type row: %w", err)
 	}
 
 	spanQuery.End()
@@ -226,7 +233,7 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	var record AccountTypePostgreSQLModel
@@ -234,20 +241,20 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_key.query")
 
 	row := db.QueryRowContext(ctx, `
-		SELECT 
-			id, 
-			organization_id, 
-			ledger_id, 
-			name, 
-			description, 
-			key_value, 
-			created_at, 
-			updated_at, 
-			deleted_at 
-		FROM account_type 
-		WHERE key_value = $1 
-			AND organization_id = $2 
-			AND ledger_id = $3 
+		SELECT
+			id,
+			organization_id,
+			ledger_id,
+			name,
+			description,
+			key_value,
+			created_at,
+			updated_at,
+			deleted_at
+		FROM account_type
+		WHERE key_value = $1
+			AND organization_id = $2
+			AND ledger_id = $3
 			AND deleted_at IS NULL`,
 		strings.ToLower(key), organizationID, ledgerID)
 
@@ -266,10 +273,10 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to scan account type record", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, services.ErrDatabaseItemNotFound
+			return nil, fmt.Errorf("account type not found by key: %w", services.ErrDatabaseItemNotFound)
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("scan account type row: %w", err)
 	}
 
 	spanQuery.End()
@@ -291,7 +298,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	record := &AccountTypePostgreSQLModel{}
@@ -315,7 +322,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 	args = append(args, time.Now(), organizationID, ledgerID, id)
 
 	query := `UPDATE account_type SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-whereClauseArgOffset) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
@@ -333,14 +340,14 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 
 			logger.Warnf("Failed to execute update query: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validate pg error on update: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute update: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -349,7 +356,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -357,7 +364,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to update account type. Rows affected is 0", err)
 
-		return nil, err
+		return nil, fmt.Errorf("update account type no rows affected: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -377,7 +384,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("get db connection: %w", err)
 	}
 
 	var accountTypes []*mmodel.AccountType
@@ -391,7 +398,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("decode cursor: %w", err)
 		}
 	}
 
@@ -412,7 +419,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("build find all query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -424,7 +431,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("execute find all query: %w", err)
 	}
 	defer rows.Close()
 
@@ -443,7 +450,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan account type record", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("scan account type row: %w", err)
 		}
 
 		accountTypes = append(accountTypes, record.ToEntity())
@@ -452,7 +459,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 
-		return nil, libHTTP.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, fmt.Errorf("iterate account type rows: %w", err)
 	}
 
 	hasPagination := len(accountTypes) > filter.Limit
@@ -465,7 +472,7 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 
-			return nil, libHTTP.CursorPagination{}, err
+			return nil, libHTTP.CursorPagination{}, fmt.Errorf("calculate cursor: %w", err)
 		}
 	}
 
@@ -486,28 +493,28 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	var accountTypes []*mmodel.AccountType
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
 
-	query := `SELECT 
-		id, 
-		organization_id, 
-		ledger_id, 
-		name, 
-		description, 
-		key_value, 
-		created_at, 
-		updated_at, 
-		deleted_at 
-	FROM account_type 
-	WHERE organization_id = $1 
-		AND ledger_id = $2 
-		AND id = ANY($3) 
-		AND deleted_at IS NULL 
+	query := `SELECT
+		id,
+		organization_id,
+		ledger_id,
+		name,
+		description,
+		key_value,
+		created_at,
+		updated_at,
+		deleted_at
+	FROM account_type
+	WHERE organization_id = $1
+		AND ledger_id = $2
+		AND id = ANY($3)
+		AND deleted_at IS NULL
 	ORDER BY created_at DESC`
 
 	rows, err := db.QueryContext(ctx, query, organizationID, ledgerID, pq.Array(ids))
@@ -516,7 +523,7 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute list by ids query: %w", err)
 	}
 	defer rows.Close()
 
@@ -537,7 +544,7 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan account type record", err)
 
-			return nil, err
+			return nil, fmt.Errorf("scan account type row: %w", err)
 		}
 
 		accountTypes = append(accountTypes, record.ToEntity())
@@ -546,7 +553,7 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 
-		return nil, err
+		return nil, fmt.Errorf("iterate account type rows: %w", err)
 	}
 
 	return accountTypes, nil
@@ -566,7 +573,7 @@ func (r *AccountTypePostgreSQLRepository) Delete(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return err
+		return fmt.Errorf("get db connection: %w", err)
 	}
 
 	query := "UPDATE account_type SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
@@ -580,7 +587,7 @@ func (r *AccountTypePostgreSQLRepository) Delete(ctx context.Context, organizati
 
 		logger.Errorf("Failed to execute delete query: %v", err)
 
-		return err
+		return fmt.Errorf("execute delete: %w", err)
 	}
 
 	spanExec.End()
@@ -591,11 +598,11 @@ func (r *AccountTypePostgreSQLRepository) Delete(ctx context.Context, organizati
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return err
+		return fmt.Errorf("get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		return services.ErrDatabaseItemNotFound
+		return fmt.Errorf("delete account type no rows affected: %w", services.ErrDatabaseItemNotFound)
 	}
 
 	return nil

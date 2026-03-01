@@ -6,13 +6,16 @@ package services
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 )
 
+// DeleteRelatedPartyByID removes a related party from an alias by its ID.
 func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID string, holderID, aliasID, relatedPartyID uuid.UUID) error {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -34,7 +37,7 @@ func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID st
 		libOpenTelemetry.HandleSpanError(&span, "Failed to delete related party", err)
 		logger.Errorf("Failed to delete related party: %v", err)
 
-		return err
+		return fmt.Errorf("deleting related party %s from alias %s: %w", relatedPartyID.String(), aliasID.String(), err)
 	}
 
 	logger.Infof("Successfully deleted related party: %v from alias: %v", relatedPartyID.String(), aliasID.String())

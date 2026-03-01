@@ -7,19 +7,22 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/google/uuid"
 )
 
-// GetAllPortfolio fetch all Portfolio from the repository
+// GetAllPortfolio fetch all Portfolio from the repository.
 func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -39,12 +42,12 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 
 			logger.Warn("No portfolios found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting all portfolios: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get portfolios on repo", err)
 
-		return nil, err
+		return nil, fmt.Errorf("getting all portfolios: %w", err)
 	}
 
 	if len(portfolios) == 0 {
@@ -64,7 +67,7 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 
 		logger.Warn("No metadata found")
 
-		return nil, err
+		return nil, fmt.Errorf("getting all portfolios: %w", err)
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))

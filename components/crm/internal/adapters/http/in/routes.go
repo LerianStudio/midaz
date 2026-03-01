@@ -5,26 +5,26 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	fiberSwagger "github.com/swaggo/fiber-swagger"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	fiberSwagger "github.com/swaggo/fiber-swagger"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 )
 
 const applicationName = "plugin-crm"
 
+// NewRouter register NewRouter routes to the Server.
 func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, hh *HolderHandler, ah *AliasHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.HandleFiberError(ctx, err)
-		},
+		ErrorHandler:          libHTTP.HandleFiberError,
 	})
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)
 

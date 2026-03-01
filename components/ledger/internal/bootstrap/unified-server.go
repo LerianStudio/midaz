@@ -7,16 +7,28 @@ package bootstrap
 import (
 	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	fiberSwagger "github.com/swaggo/fiber-swagger"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v2/commons/server"
+
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	fiberSwagger "github.com/swaggo/fiber-swagger"
+)
+
+const (
+	serverReadTimeout  = 30 * time.Second
+	serverWriteTimeout = 30 * time.Second
+	serverIdleTimeout  = 120 * time.Second
+	serverBodyLimit    = 4 * 1024 * 1024 // 4MB
+	serverBufferSize   = 8192
+	serverConcurrency  = 256 * 1024
+	corsMaxAge         = 300
 )
 
 // RouteRegistrar is a function that registers routes to an existing Fiber app.
@@ -44,16 +56,14 @@ func NewUnifiedServer(
 	app := fiber.New(fiber.Config{
 		AppName:               "Midaz Unified Ledger API",
 		DisableStartupMessage: true,
-		ReadTimeout:           30 * time.Second,
-		WriteTimeout:          30 * time.Second,
-		IdleTimeout:           120 * time.Second,
-		BodyLimit:             4 * 1024 * 1024, // 4MB
-		ReadBufferSize:        8192,
-		WriteBufferSize:       8192,
-		Concurrency:           256 * 1024,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.HandleFiberError(ctx, err)
-		},
+		ReadTimeout:           serverReadTimeout,
+		WriteTimeout:          serverWriteTimeout,
+		IdleTimeout:           serverIdleTimeout,
+		BodyLimit:             serverBodyLimit,
+		ReadBufferSize:        serverBufferSize,
+		WriteBufferSize:       serverBufferSize,
+		Concurrency:           serverConcurrency,
+		ErrorHandler:          libHTTP.HandleFiberError,
 	})
 
 	// Add common middleware (only once for all routes)
@@ -64,7 +74,7 @@ func NewUnifiedServer(
 		AllowMethods:  "GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD",
 		AllowHeaders:  "Origin,Content-Type,Accept,Authorization,X-Requested-With,X-Swagger-Token",
 		ExposeHeaders: "X-Request-Id",
-		MaxAge:        300,
+		MaxAge:        corsMaxAge,
 	}))
 	app.Use(utils.SecurityHeadersMiddleware)
 	app.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(logger)))

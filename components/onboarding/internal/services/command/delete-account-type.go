@@ -7,15 +7,18 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // DeleteAccountTypeByID deletes an account type by its ID.
@@ -38,12 +41,12 @@ func (uc *UseCase) DeleteAccountTypeByID(ctx context.Context, organizationID, le
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Account Type on repo", err)
 
-			return err
+			return fmt.Errorf("delete account type not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Account Type on repo", err)
 
-		return err
+		return fmt.Errorf("delete account type: %w", err)
 	}
 
 	logger.Infof("Successfully deleted Account Type with Account Type ID: %s", id.String())

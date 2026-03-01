@@ -9,24 +9,27 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
+
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/Masterminds/squirrel"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/lib/pq"
 )
 
 var organizationColumnList = []string{
@@ -62,7 +65,7 @@ type OrganizationPostgreSQLRepository struct {
 }
 
 // NewOrganizationPostgreSQLRepository returns a new instance of OrganizationPostgresRepository using the given Postgres connection.
-func NewOrganizationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *OrganizationPostgreSQLRepository {
+func NewOrganizationPostgreSQLRepository(pc *libPostgres.PostgresConnection) (*OrganizationPostgreSQLRepository, error) {
 	c := &OrganizationPostgreSQLRepository{
 		connection: pc,
 		tableName:  "organization",
@@ -70,10 +73,10 @@ func NewOrganizationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Or
 
 	_, err := c.connection.GetDB()
 	if err != nil {
-		panic("Failed to connect database")
+		return nil, fmt.Errorf("failed to connect to organization database: %w", err)
 	}
 
-	return c
+	return c, nil
 }
 
 // Create inserts a new Organization entity into Postgresql and returns the created Organization.
@@ -89,7 +92,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	record := &OrganizationPostgreSQLModel{}
@@ -99,7 +102,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to marshal address", err)
 
-		return nil, err
+		return nil, fmt.Errorf("marshal address: %w", err)
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
@@ -125,14 +128,14 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 			logger.Warnf("Failed to execute update query: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validate pg error on create: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute insert: %w", err)
 	}
 
 	spanExec.End()
@@ -143,7 +146,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -151,7 +154,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create organization. Rows affected is 0", err)
 
-		return nil, err
+		return nil, fmt.Errorf("create organization no rows affected: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -170,7 +173,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	record := &OrganizationPostgreSQLModel{}
@@ -200,7 +203,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to marshal address", err)
 
-			return nil, err
+			return nil, fmt.Errorf("marshal address: %w", err)
 		}
 
 		updates = append(updates, "address = $"+strconv.Itoa(len(args)+1))
@@ -236,14 +239,14 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 			logger.Warnf("Failed to execute update query: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("validate pg error on update: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		logger.Errorf("Failed to execute update query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute update: %w", err)
 	}
 
 	spanExec.End()
@@ -254,7 +257,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -262,7 +265,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update organization. Rows affected is 0", err)
 
-		return nil, err
+		return nil, fmt.Errorf("update organization no rows affected: %w", err)
 	}
 
 	return record.ToEntity(), nil
@@ -281,7 +284,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	organization := &OrganizationPostgreSQLModel{}
@@ -304,7 +307,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, fmt.Errorf("build find query: %w", err)
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -319,21 +322,21 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
 
-			return nil, err
+			return nil, fmt.Errorf("organization not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		logger.Errorf("Failed to scan row: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("scan organization row: %w", err)
 	}
 
 	err = json.Unmarshal([]byte(address), &organization.Address)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
 
-		return nil, err
+		return nil, fmt.Errorf("unmarshal address: %w", err)
 	}
 
 	return organization.ToEntity(), nil
@@ -352,7 +355,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	var organizations []*mmodel.Organization
@@ -373,7 +376,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 
 		logger.Errorf("Failed to build query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("build find all query: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -384,7 +387,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute find all query: %w", err)
 	}
 
 	spanQuery.End()
@@ -403,14 +406,14 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("scan organization row: %w", err)
 		}
 
 		err = json.Unmarshal([]byte(address), &organization.Address)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
 
-			return nil, err
+			return nil, fmt.Errorf("unmarshal address: %w", err)
 		}
 
 		organizations = append(organizations, organization.ToEntity())
@@ -419,7 +422,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
 
-		return nil, err
+		return nil, fmt.Errorf("iterate organization rows: %w", err)
 	}
 
 	return organizations, nil
@@ -442,7 +445,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("get db connection: %w", err)
 	}
 
 	var organizations []*mmodel.Organization
@@ -464,7 +467,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 		spanQuery.End()
 
-		return nil, err
+		return nil, fmt.Errorf("build list by ids query: %w", err)
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -473,7 +476,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return nil, err
+		return nil, fmt.Errorf("execute list by ids query: %w", err)
 	}
 	defer rows.Close()
 
@@ -491,14 +494,14 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 			logger.Errorf("Failed to scan row: %v", err)
 
-			return nil, err
+			return nil, fmt.Errorf("scan organization row: %w", err)
 		}
 
 		err = json.Unmarshal([]byte(address), &organization.Address)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
 
-			return nil, err
+			return nil, fmt.Errorf("unmarshal address: %w", err)
 		}
 
 		organizations = append(organizations, organization.ToEntity())
@@ -507,7 +510,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
 
-		return nil, err
+		return nil, fmt.Errorf("iterate organization rows: %w", err)
 	}
 
 	return organizations, nil
@@ -526,7 +529,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return err
+		return fmt.Errorf("get db connection: %w", err)
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
@@ -537,7 +540,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return err
+		return fmt.Errorf("execute delete: %w", err)
 	}
 
 	spanExec.End()
@@ -548,7 +551,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 
 		logger.Errorf("Failed to get rows affected: %v", err)
 
-		return err
+		return fmt.Errorf("get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -556,7 +559,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete organization. Rows affected is 0", err)
 
-		return err
+		return fmt.Errorf("delete organization no rows affected: %w", err)
 	}
 
 	return nil
@@ -577,7 +580,7 @@ func (r *OrganizationPostgreSQLRepository) Count(ctx context.Context) (int64, er
 
 		logger.Errorf("Failed to get database connection: %v", err)
 
-		return count, err
+		return count, fmt.Errorf("get db connection: %w", err)
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.count.query")
@@ -589,7 +592,7 @@ func (r *OrganizationPostgreSQLRepository) Count(ctx context.Context) (int64, er
 
 		logger.Errorf("Failed to execute query: %v", err)
 
-		return count, err
+		return count, fmt.Errorf("execute count query: %w", err)
 	}
 
 	return count, nil

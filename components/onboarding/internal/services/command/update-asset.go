@@ -7,19 +7,22 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // UpdateAssetByID update an asset from the repository by given id.
-func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, uii *mmodel.UpdateAssetInput) (*mmodel.Asset, error) {
+func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, uii *mmodel.UpdateAssetInput) (*mmodel.Asset, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_asset_by_id")
@@ -43,12 +46,12 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update asset on repo by id", err)
 
-			return nil, err
+			return nil, fmt.Errorf("update asset not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update asset on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("update asset: %w", err)
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), id.String(), uii.Metadata)

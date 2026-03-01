@@ -6,19 +6,22 @@ package out
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"google.golang.org/grpc/metadata"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
 	proto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"google.golang.org/grpc/metadata"
 )
 
 // Repository provides an interface for gRPC operations related to balance in the Transaction component.
@@ -30,21 +33,21 @@ type Repository interface {
 	CheckHealth(ctx context.Context) error
 }
 
-// BalanceGRPCRepository is a gRPC implementation for balance.proto
+// BalanceGRPCRepository is a gRPC implementation for balance.proto.
 type BalanceGRPCRepository struct {
 	conn *mgrpc.GRPCConnection
 }
 
 // NewBalanceGRPC returns a new instance of BalanceGRPCRepository using the given gRPC connection.
-func NewBalanceGRPC(c *mgrpc.GRPCConnection) *BalanceGRPCRepository {
+func NewBalanceGRPC(c *mgrpc.GRPCConnection) (*BalanceGRPCRepository, error) {
 	agrpc := &BalanceGRPCRepository{conn: c}
 
 	_, err := c.GetNewClient()
 	if err != nil {
-		panic("Failed to connect gRPC")
+		return nil, fmt.Errorf("failed to connect gRPC: %w", err)
 	}
 
-	return agrpc
+	return agrpc, nil
 }
 
 // CheckHealth verifies that the gRPC connection to the balance service is healthy.
@@ -72,7 +75,7 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 	if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "app.request.payload", req); err != nil {
 		libOpentelemetry.HandleSpanError(&spanClientReq, "Failed to convert BalanceRequest to JSON payload", err)
 
-		return nil, err
+		return nil, fmt.Errorf("set span attributes for create balance: %w", err)
 	}
 
 	// Inject trace context and propagate request_id and authorization (if provided)
@@ -84,7 +87,7 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 
 	if err != nil {
 		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrAccountCreationFailed.Error(), "Account Creation Failed", "Account could not be created")
-		if mapped != err {
+		if !errors.Is(mapped, err) {
 			return nil, mapped
 		}
 
@@ -115,7 +118,7 @@ func (b *BalanceGRPCRepository) DeleteAllBalancesByAccountID(ctx context.Context
 	ctxReq, spanClientReq := tracer.Start(ctx, "grpc.delete_all_balances_by_account_id.client_request")
 	if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "app.request.payload", req); err != nil {
 		libOpentelemetry.HandleSpanError(&spanClientReq, "Failed to convert DeleteAllBalancesByAccountIDRequest to JSON payload", err)
-		return err
+		return fmt.Errorf("set span attributes for delete balances: %w", err)
 	}
 
 	ctxReq = b.conn.ContextMetadataInjection(ctxReq, token)
@@ -126,7 +129,7 @@ func (b *BalanceGRPCRepository) DeleteAllBalancesByAccountID(ctx context.Context
 
 	if err != nil {
 		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrAccountBalanceDeletion.Error(), "All Balances Deletion Failed", "All balances could not be deleted")
-		if mapped != err {
+		if !errors.Is(mapped, err) {
 			return mapped
 		}
 
@@ -147,10 +150,15 @@ type BalanceAdapter struct {
 }
 
 // NewBalanceAdapter creates a new BalanceAdapter wrapping the given gRPC connection.
-func NewBalanceAdapter(c *mgrpc.GRPCConnection) *BalanceAdapter {
-	return &BalanceAdapter{
-		grpcRepo: NewBalanceGRPC(c),
+func NewBalanceAdapter(c *mgrpc.GRPCConnection) (*BalanceAdapter, error) {
+	grpcRepo, err := NewBalanceGRPC(c)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create balance gRPC repository: %w", err)
 	}
+
+	return &BalanceAdapter{
+		grpcRepo: grpcRepo,
+	}, nil
 }
 
 // extractAuthToken extracts the authorization token from context metadata.
@@ -234,5 +242,5 @@ func (a *BalanceAdapter) CheckHealth(ctx context.Context) error {
 	return a.grpcRepo.CheckHealth(ctx)
 }
 
-// Ensure BalanceAdapter implements mbootstrap.BalancePort at compile time
+// Ensure BalanceAdapter implements mbootstrap.BalancePort at compile time.
 var _ mbootstrap.BalancePort = (*BalanceAdapter)(nil)

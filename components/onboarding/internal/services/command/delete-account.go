@@ -7,17 +7,20 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
+	"google.golang.org/grpc/metadata"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
-	"google.golang.org/grpc/metadata"
 )
 
 // DeleteAccountByID deletes an account from the repository by ids.
@@ -41,7 +44,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 	}
 
 	if accFound != nil && accFound.ID == id.String() && accFound.Type == "external" {
-		return pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
+		return fmt.Errorf("delete external account: %w", pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name()))
 	}
 
 	// Inject authorization token into context metadata for downstream gRPC calls
@@ -62,7 +65,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 			return err
 		}
 
-		return pkg.ValidateBusinessError(constant.ErrAccountBalanceDeletion, reflect.TypeOf(mmodel.Account{}).Name())
+		return fmt.Errorf("delete account balances: %w", pkg.ValidateBusinessError(constant.ErrAccountBalanceDeletion, reflect.TypeOf(mmodel.Account{}).Name()))
 	}
 
 	if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
@@ -73,14 +76,14 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete account on repo by id", err)
 
-			return err
+			return fmt.Errorf("delete account not found: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete account on repo by id", err)
 
 		logger.Errorf("Error deleting account: %v", err)
 
-		return err
+		return fmt.Errorf("delete account: %w", err)
 	}
 
 	return nil

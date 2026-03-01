@@ -6,6 +6,7 @@ package in
 
 import (
 	"encoding/json"
+	"net/http"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -31,7 +32,7 @@ func ErrorCodeTransformer() fiber.Handler {
 
 		// Only transform error responses (4xx and 5xx)
 		statusCode := c.Response().StatusCode()
-		if statusCode < 400 {
+		if statusCode < http.StatusBadRequest {
 			return err
 		}
 

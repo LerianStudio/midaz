@@ -7,15 +7,18 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // GetAssetByID get an Asset from the repository by given id.
@@ -38,12 +41,12 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 
 			logger.Warn("No asset found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting asset by id: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get asset on repo by id", err)
 
-		return nil, err
+		return nil, fmt.Errorf("getting asset by id: %w", err)
 	}
 
 	if asset != nil {
@@ -55,7 +58,7 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 
 			logger.Warn("No metadata found")
 
-			return nil, err
+			return nil, fmt.Errorf("getting asset by id: %w", err)
 		}
 
 		if metadata != nil {

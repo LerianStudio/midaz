@@ -9,10 +9,11 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// LedgerPostgreSQLModel represents the entity.Ledger into SQL context in Database
+// LedgerPostgreSQLModel represents the entity.Ledger into SQL context in Database.
 type LedgerPostgreSQLModel struct {
 	ID                string
 	Name              string
@@ -25,7 +26,7 @@ type LedgerPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// ToEntity converts an LedgerPostgreSQLModel to entity.Ledger
+// ToEntity converts an LedgerPostgreSQLModel to entity.Ledger.
 func (t *LedgerPostgreSQLModel) ToEntity() *mmodel.Ledger {
 	status := mmodel.Status{
 		Code:        t.Status,
@@ -50,7 +51,7 @@ func (t *LedgerPostgreSQLModel) ToEntity() *mmodel.Ledger {
 	return ledger
 }
 
-// FromEntity converts an entity.Ledger to LedgerPostgreSQLModel
+// FromEntity converts an entity.Ledger to LedgerPostgreSQLModel.
 func (t *LedgerPostgreSQLModel) FromEntity(ledger *mmodel.Ledger) {
 	*t = LedgerPostgreSQLModel{
 		ID:                libCommons.GenerateUUIDv7().String(),

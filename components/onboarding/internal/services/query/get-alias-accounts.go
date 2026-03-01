@@ -7,15 +7,18 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
+
+	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/google/uuid"
 )
 
 // ListAccountsByAlias get Accounts from the repository by given alias.
@@ -38,12 +41,12 @@ func (uc *UseCase) ListAccountsByAlias(ctx context.Context, organizationID, ledg
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Accounts by aliases", err)
 
-			return nil, err
+			return nil, fmt.Errorf("listing accounts by alias: %w", err)
 		}
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Accounts by aliases", err)
 
-		return nil, err
+		return nil, fmt.Errorf("listing accounts by alias: %w", err)
 	}
 
 	return accounts, nil
