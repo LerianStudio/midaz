@@ -78,7 +78,11 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	// Skip when nil or "settings": {} to avoid an extra round-trip for defaults.
 	if !mmodel.LedgerSettingsIsDefault(cli.Settings) {
 		ledgerID, parseErr := uuid.Parse(led.ID)
-		if parseErr == nil {
+		if parseErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to parse ledger ID", parseErr)
+
+			logger.Errorf("Failed to parse ledger ID, Error: %s", parseErr.Error())
+		} else {
 			settingsMap := mmodel.LedgerSettingsToMap(*cli.Settings)
 			if updatedSettings, setErr := uc.UpdateLedgerSettings(ctx, organizationID, ledgerID, settingsMap); setErr != nil {
 				logger.Warnf("Ledger created but settings persistence failed (settings are optional): %v", setErr)

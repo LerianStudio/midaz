@@ -87,10 +87,7 @@ func LedgerSettingsIsDefault(s *LedgerSettings) bool {
 		return true
 	}
 
-	d := DefaultLedgerSettings()
-
-	return s.Accounting.ValidateAccountType == d.Accounting.ValidateAccountType &&
-		s.Accounting.ValidateRoutes == d.Accounting.ValidateRoutes
+	return *s == DefaultLedgerSettings()
 }
 
 // MergeSettingsWithDefaults merges persisted settings with default values.

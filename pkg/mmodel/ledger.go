@@ -27,7 +27,7 @@ type CreateLedgerInput struct {
 
 	// Dynamic configuration settings for this ledger. When nil, no settings are persisted (optional).
 	// example: {"accounting": {"validateAccountType": true}}
-	Settings *LedgerSettings `json:"settings,omitempty" validate:"omitempty,dive"`
+	Settings *LedgerSettings `json:"settings,omitempty" validate:"omitempty"`
 } // @name CreateLedgerInput
 
 // UpdateLedgerInput is a struct designed to encapsulate request update payload data.
