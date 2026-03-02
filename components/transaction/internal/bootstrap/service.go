@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	"github.com/LerianStudio/lib-commons/v3/commons/opentelemetry/metrics"
 	tmconsumer "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/consumer"
 	httpin "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
@@ -53,7 +54,8 @@ type Service struct {
 	// nil in single-tenant mode. Populated from pg.pgManager / mgo.mongoManager at construction.
 	pgManager               interface{}
 	mongoManager            interface{}
-	multiTenantConsumerPort interface{} // RabbitMQ consumer; nil until multi-tenant consumer is wired
+	multiTenantConsumerPort interface{}            // RabbitMQ consumer; nil until multi-tenant consumer is wired
+	metricsFactory          *metrics.MetricsFactory // nil in single-tenant mode or when telemetry disabled; for tenant consumer gauge
 
 	// Route registration dependencies (for unified ledger mode)
 	auth                    *middleware.AuthClient
@@ -82,7 +84,7 @@ func (app *Service) Run() {
 
 	// Use multi-tenant consumer if available, otherwise single-tenant
 	if app.MultiTenantConsumer != nil {
-		opts = append(opts, libCommons.RunApp("RabbitMQ Consumer", &multiTenantConsumerRunnable{consumer: app.MultiTenantConsumer}))
+		opts = append(opts, libCommons.RunApp("RabbitMQ Consumer", &multiTenantConsumerRunnable{consumer: app.MultiTenantConsumer, metricsFactory: app.metricsFactory}))
 	} else if app.MultiQueueConsumer != nil {
 		opts = append(opts, libCommons.RunApp("RabbitMQ Consumer", app.MultiQueueConsumer))
 	}
@@ -117,7 +119,7 @@ func (app *Service) GetRunnablesWithOptions(excludeGRPC bool) []mbootstrap.Runna
 	// Use multi-tenant consumer if available, otherwise single-tenant
 	if app.MultiTenantConsumer != nil {
 		runnables = append(runnables, mbootstrap.RunnableConfig{
-			Name: "Transaction RabbitMQ Consumer", Runnable: &multiTenantConsumerRunnable{consumer: app.MultiTenantConsumer},
+			Name: "Transaction RabbitMQ Consumer", Runnable: &multiTenantConsumerRunnable{consumer: app.MultiTenantConsumer, metricsFactory: app.metricsFactory},
 		})
 	} else if app.MultiQueueConsumer != nil {
 		runnables = append(runnables, mbootstrap.RunnableConfig{

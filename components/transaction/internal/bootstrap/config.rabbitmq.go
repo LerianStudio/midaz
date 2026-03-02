@@ -12,6 +12,7 @@ import (
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"github.com/LerianStudio/lib-commons/v3/commons/opentelemetry/metrics"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
 	tmconsumer "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/consumer"
@@ -23,6 +24,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // rabbitMQComponents holds all RabbitMQ-related components initialized during bootstrap.
@@ -34,8 +36,9 @@ type rabbitMQComponents struct {
 	multiQueueConsumer    *MultiQueueConsumer
 	multiTenantConsumer   *tmconsumer.MultiTenantConsumer
 	circuitBreakerManager *CircuitBreakerManager
-	pgManager             *tmpostgres.Manager // nil in single-tenant mode; used by consumer handler for per-tenant PG resolution
-	mongoManager          *tmmongo.Manager    // nil in single-tenant mode; used by consumer handler for per-tenant Mongo resolution
+	pgManager      *tmpostgres.Manager // nil in single-tenant mode; used by consumer handler for per-tenant PG resolution
+	mongoManager   *tmmongo.Manager    // nil in single-tenant mode; used by consumer handler for per-tenant Mongo resolution
+	metricsFactory *metrics.MetricsFactory // nil in single-tenant mode or when telemetry disabled; used for tenant metrics emission
 
 	// wireConsumer is a callback that wires the consumer with the UseCase.
 	// Must be called after UseCase creation because the handler needs UseCase.
@@ -54,7 +57,7 @@ func initRabbitMQ(
 	redisConnection *libRedis.RedisConnection,
 ) (*rabbitMQComponents, error) {
 	if opts != nil && opts.MultiTenantEnabled {
-		return initMultiTenantRabbitMQ(opts, cfg, logger, redisConnection)
+		return initMultiTenantRabbitMQ(opts, cfg, logger, telemetry, redisConnection)
 	}
 
 	return initSingleTenantRabbitMQ(opts, cfg, logger, telemetry)
@@ -67,6 +70,7 @@ func initMultiTenantRabbitMQ(
 	opts *Options,
 	cfg *Config,
 	logger libLog.Logger,
+	telemetry *libOpentelemetry.Telemetry,
 	redisConnection *libRedis.RedisConnection,
 ) (*rabbitMQComponents, error) {
 	logger.Info("Initializing multi-tenant RabbitMQ producer and consumer")
@@ -117,9 +121,16 @@ func initMultiTenantRabbitMQ(
 		return nil, fmt.Errorf("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE is required for multi-tenant consumer")
 	}
 
+	// Store metricsFactory for tenant metrics emission (nil-safe: checked before use)
+	var metricsFactory *metrics.MetricsFactory
+	if telemetry != nil {
+		metricsFactory = telemetry.MetricsFactory
+	}
+
 	rmqComponents := &rabbitMQComponents{
 		producerRepo:        producer,
 		multiTenantConsumer: consumer,
+		metricsFactory:      metricsFactory,
 	}
 
 	// wireConsumer registers the BTO handler on the MultiTenantConsumer.
@@ -135,7 +146,19 @@ func initMultiTenantRabbitMQ(
 					return err
 				}
 
-				return handlerBTO(ctx, delivery.Body, useCase)
+				if err := handlerBTO(ctx, delivery.Body, useCase); err != nil {
+					return err
+				}
+
+				// Emit message processed metric after successful handler execution
+				tenantID := tmcore.GetTenantIDFromContext(ctx)
+				if rmqComponents.metricsFactory != nil && tenantID != "" {
+					rmqComponents.metricsFactory.Counter(utils.TenantMessagesProcessedTotal).
+						WithAttributes(attribute.String("tenant", tenantID)).
+						AddOne(ctx)
+				}
+
+				return nil
 			},
 		)
 	}
@@ -160,7 +183,19 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 	if rmq.pgManager != nil {
 		db, err := rmq.pgManager.GetDB(ctx, tenantID)
 		if err != nil {
+			if rmq.metricsFactory != nil {
+				rmq.metricsFactory.Counter(utils.TenantConnectionErrorsTotal).
+					WithAttributes(attribute.String("tenant", tenantID), attribute.String("db", "postgresql")).
+					AddOne(ctx)
+			}
+
 			return ctx, fmt.Errorf("failed to resolve tenant PG connection for %s: %w", tenantID, err)
+		}
+
+		if rmq.metricsFactory != nil {
+			rmq.metricsFactory.Counter(utils.TenantConnectionsTotal).
+				WithAttributes(attribute.String("tenant", tenantID), attribute.String("db", "postgresql")).
+				AddOne(ctx)
 		}
 
 		ctx = tmcore.ContextWithModulePGConnection(ctx, ApplicationName, db)
@@ -169,7 +204,19 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 	if rmq.mongoManager != nil {
 		mongoDB, err := rmq.mongoManager.GetDatabaseForTenant(ctx, tenantID)
 		if err != nil {
+			if rmq.metricsFactory != nil {
+				rmq.metricsFactory.Counter(utils.TenantConnectionErrorsTotal).
+					WithAttributes(attribute.String("tenant", tenantID), attribute.String("db", "mongodb")).
+					AddOne(ctx)
+			}
+
 			return ctx, fmt.Errorf("failed to resolve tenant Mongo connection for %s: %w", tenantID, err)
+		}
+
+		if rmq.metricsFactory != nil {
+			rmq.metricsFactory.Counter(utils.TenantConnectionsTotal).
+				WithAttributes(attribute.String("tenant", tenantID), attribute.String("db", "mongodb")).
+				AddOne(ctx)
 		}
 
 		ctx = tmcore.ContextWithTenantMongo(ctx, mongoDB)

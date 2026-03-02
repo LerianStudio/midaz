@@ -386,6 +386,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			MetadataPort: mgo.metadataRepo,
 			SettingsPort: queryUseCase,
 		},
+		pgManager:           pg.pgManager,
+		mongoManager:        mgo.mongoManager,
 		auth:                auth,
 		accountHandler:      accountHandler,
 		portfolioHandler:    portfolioHandler,

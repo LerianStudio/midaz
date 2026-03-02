@@ -20,4 +20,34 @@ var (
 		Unit:        "1",
 		Description: "Current state of the circuit breaker (0=closed, 1=open, 2=half-open).",
 	}
+
+	// Multi-tenant metrics (canonical per Ring Standards multi-tenant.md)
+
+	// TenantConnectionsTotal counts total tenant connections created.
+	TenantConnectionsTotal = metrics.Metric{
+		Name:        "tenant_connections_total",
+		Unit:        "1",
+		Description: "Total tenant database connections created.",
+	}
+
+	// TenantConnectionErrorsTotal counts connection failures per tenant.
+	TenantConnectionErrorsTotal = metrics.Metric{
+		Name:        "tenant_connection_errors_total",
+		Unit:        "1",
+		Description: "Total tenant database connection failures.",
+	}
+
+	// TenantConsumersActive tracks active message consumers.
+	TenantConsumersActive = metrics.Metric{
+		Name:        "tenant_consumers_active",
+		Unit:        "1",
+		Description: "Number of active tenant message consumers.",
+	}
+
+	// TenantMessagesProcessedTotal counts messages processed per tenant.
+	TenantMessagesProcessedTotal = metrics.Metric{
+		Name:        "tenant_messages_processed_total",
+		Unit:        "1",
+		Description: "Total messages processed per tenant.",
+	}
 )

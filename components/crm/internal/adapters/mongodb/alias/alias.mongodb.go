@@ -75,31 +75,16 @@ func NewMongoDBRepository(connection *libMongo.MongoConnection, dataSecurity *li
 // In multi-tenant mode, the middleware injects a tenant-specific *mongo.Database into context.
 // In single-tenant mode (or when no tenant context exists), falls back to the static connection.
 func (am *MongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, error) {
-	db, err := tmcore.GetMongoForTenant(ctx)
-	if err == nil && db != nil {
-		return db, nil
-	}
-
-	// Only fall back to static connection when no tenant context exists.
-	// Propagate unexpected errors (e.g., context canceled) to callers.
-	if err != nil && !errors.Is(err, tmcore.ErrTenantContextRequired) {
-		return nil, err
-	}
-
-	// Fall through to static connection. This handles both:
-	// - ErrTenantContextRequired (no tenant middleware configured)
-	// - (nil, nil) from GetMongoForTenant (tenant context key present but DB is nil)
-
 	if am.connection == nil {
+		// Check tenant context when static connection is nil (multi-tenant mode without static fallback)
+		if db := tmcore.GetMongoFromContext(ctx); db != nil {
+			return db, nil
+		}
+
 		return nil, fmt.Errorf("no database connection available: multi-tenant context required but not present, and no static connection configured")
 	}
 
-	client, err := am.connection.GetDB(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.Database(strings.ToLower(am.Database)), nil
+	return tmcore.ResolveMongo(ctx, am.connection, am.Database)
 }
 
 // Create inserts an alias into mongo
