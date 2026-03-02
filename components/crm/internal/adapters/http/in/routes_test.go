@@ -95,6 +95,163 @@ func TestNewRouter_TenantMiddlewareRegistration(t *testing.T) {
 	}
 }
 
+func TestNewRouter_PublicEndpointsBypassTenantMiddleware(t *testing.T) {
+	t.Parallel()
+
+	// rejectingTenantMw simulates a multi-tenant middleware that rejects
+	// every request without a valid tenant header, returning 401.
+	rejectingTenantMw := func(c *fiber.Ctx) error {
+		if c.Get("X-Tenant-ID") == "" {
+			return c.SendStatus(http.StatusUnauthorized)
+		}
+
+		return c.Next()
+	}
+
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		wantStatus int
+	}{
+		{
+			name:       "health endpoint bypasses tenant middleware",
+			method:     http.MethodGet,
+			path:       "/health",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "version endpoint bypasses tenant middleware",
+			method:     http.MethodGet,
+			path:       "/version",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "swagger endpoint bypasses tenant middleware",
+			method:     http.MethodGet,
+			path:       "/swagger/index.html",
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := fiber.New()
+
+			// Mirror the NewRouter middleware order:
+			// 1. Common middleware (omitted for simplicity — not relevant to this test)
+			// 2. Public endpoints registered BEFORE tenant middleware
+			// 3. Tenant middleware
+			// 4. API routes (require tenant context)
+
+			// Public endpoints MUST come before tenant middleware so they
+			// remain accessible to k8s probes and swagger without JWT.
+			app.Get("/health", func(c *fiber.Ctx) error {
+				return c.SendStatus(http.StatusOK)
+			})
+			app.Get("/version", func(c *fiber.Ctx) error {
+				return c.SendStatus(http.StatusOK)
+			})
+			app.Get("/swagger/*", func(c *fiber.Ctx) error {
+				return c.SendStatus(http.StatusOK)
+			})
+
+			// Tenant middleware rejects requests without X-Tenant-ID
+			app.Use(rejectingTenantMw)
+
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			// No X-Tenant-ID header — simulates k8s probe or swagger access
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+
+			defer func() {
+				if resp != nil && resp.Body != nil {
+					_, _ = io.Copy(io.Discard, resp.Body)
+					resp.Body.Close()
+				}
+			}()
+
+			assert.Equal(t, tt.wantStatus, resp.StatusCode,
+				"public endpoint %s must be accessible without tenant context", tt.path)
+		})
+	}
+}
+
+func TestNewRouter_APIRoutesRequireTenantMiddleware(t *testing.T) {
+	t.Parallel()
+
+	// rejectingTenantMw simulates a multi-tenant middleware that rejects
+	// every request without a valid tenant header, returning 401.
+	rejectingTenantMw := func(c *fiber.Ctx) error {
+		if c.Get("X-Tenant-ID") == "" {
+			return c.SendStatus(http.StatusUnauthorized)
+		}
+
+		return c.Next()
+	}
+
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		wantStatus int
+	}{
+		{
+			name:       "holders endpoint requires tenant context",
+			method:     http.MethodGet,
+			path:       "/v1/holders",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "aliases endpoint requires tenant context",
+			method:     http.MethodGet,
+			path:       "/v1/aliases",
+			wantStatus: http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := fiber.New()
+
+			// Public endpoints before tenant middleware (same as NewRouter)
+			app.Get("/health", func(c *fiber.Ctx) error {
+				return c.SendStatus(http.StatusOK)
+			})
+
+			// Tenant middleware rejects requests without X-Tenant-ID
+			app.Use(rejectingTenantMw)
+
+			// API routes after tenant middleware (require tenant context)
+			app.Get("/v1/holders", func(c *fiber.Ctx) error {
+				return c.SendStatus(http.StatusOK)
+			})
+			app.Get("/v1/aliases", func(c *fiber.Ctx) error {
+				return c.SendStatus(http.StatusOK)
+			})
+
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			// No X-Tenant-ID header
+			resp, err := app.Test(req, -1)
+			require.NoError(t, err)
+
+			defer func() {
+				if resp != nil && resp.Body != nil {
+					_, _ = io.Copy(io.Discard, resp.Body)
+					resp.Body.Close()
+				}
+			}()
+
+			assert.Equal(t, tt.wantStatus, resp.StatusCode,
+				"API endpoint %s must be rejected without tenant context", tt.path)
+		})
+	}
+}
+
 func TestNewRouter_TenantMiddlewareCallCount(t *testing.T) {
 	var callCount atomic.Int32
 

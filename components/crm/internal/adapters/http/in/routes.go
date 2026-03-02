@@ -34,6 +34,13 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	f.Use(cors.New())
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
 
+	// Public endpoints: registered BEFORE tenant middleware so they remain
+	// accessible to Kubernetes probes, load balancer health checks, and
+	// Swagger documentation without requiring a JWT or tenant context.
+	f.Get("/health", libHTTP.Ping)
+	f.Get("/version", libHTTP.Version)
+	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
+
 	// Tenant middleware: registered only when multi-tenant mode is enabled.
 	// When tenantMw is nil (single-tenant mode), this block is skipped entirely.
 	if tenantMw != nil {
@@ -54,15 +61,6 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	f.Patch("/v1/holders/:holder_id/aliases/:id", auth.Authorize(ApplicationName, "aliases", "patch"), http.ParseUUIDPathParameters("aliases"), http.WithBody(new(mmodel.UpdateAliasInput), ah.UpdateAlias))
 	f.Delete("/v1/holders/:holder_id/aliases/:id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("aliases"), ah.DeleteAliasByID)
 	f.Delete("/v1/holders/:holder_id/aliases/:alias_id/related-parties/:related_party_id", auth.Authorize(ApplicationName, "aliases", "delete"), http.ParseUUIDPathParameters("related-parties"), ah.DeleteRelatedParty)
-
-	// Health
-	f.Get("/health", libHTTP.Ping)
-
-	// Version
-	f.Get("/version", libHTTP.Version)
-
-	// Doc Swagger
-	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
 
 	f.Use(tlMid.EndTracingSpans)
 
