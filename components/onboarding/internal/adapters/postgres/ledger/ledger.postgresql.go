@@ -888,6 +888,13 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 	ctx, span := tracer.Start(ctx, "postgres.update_ledger_settings_atomic")
 	defer span.End()
 
+	if mergeFn == nil {
+		err := pkg.ValidateBusinessError(constant.ErrBadRequest, "merge function must not be nil")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Nil merge function", err)
+
+		return nil, err
+	}
+
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
@@ -905,11 +912,21 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 		return nil, err
 	}
 
-	// Ensure rollback on error, commit on success
+	// Panic-safe cleanup: rollback on panic (then re-panic) or on error. Do not rollback on success.
 	defer func() {
+		if tx == nil {
+			return
+		}
+
+		if r := recover(); r != nil {
+			_ = tx.Rollback()
+
+			panic(r)
+		}
+
 		if err != nil {
-			if rollbackErr := tx.Rollback(); rollbackErr != nil {
-				logger.Errorf("Failed to rollback transaction: %v", rollbackErr)
+			if rbErr := tx.Rollback(); rbErr != nil {
+				logger.Errorf("Failed to rollback transaction: %v", rbErr)
 			}
 		}
 	}()
