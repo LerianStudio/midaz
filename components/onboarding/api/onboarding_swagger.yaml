@@ -1847,7 +1847,7 @@ paths:
         not specified in the update. Example: updating only ''accounting.validateRoutes''
         preserves the existing ''accounting.validateAccountType'' value. Setting a
         key to null stores a JSON null value. Allowed fields: accounting.validateAccountType
-        (boolean), accounting.validateRoutes (boolean).'
+        (boolean | null), accounting.validateRoutes (boolean | null).'
       parameters:
       - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
@@ -1869,8 +1869,8 @@ paths:
         required: true
         type: string
       - description: 'Settings to merge with existing settings. Only known fields
-          allowed: accounting.validateAccountType (bool), accounting.validateRoutes
-          (bool)'
+          allowed: accounting.validateAccountType (boolean | null), accounting.validateRoutes
+          (boolean | null)'
         in: body
         name: settings
         required: true

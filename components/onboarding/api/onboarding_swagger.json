@@ -1083,7 +1083,7 @@
                 }
             },
             "patch": {
-                "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Setting a key to null stores a JSON null value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).",
+                "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Setting a key to null stores a JSON null value. Allowed fields: accounting.validateAccountType (boolean | null), accounting.validateRoutes (boolean | null).",
                 "consumes": [
                     "application/json"
                 ],
@@ -1123,7 +1123,7 @@
                         "required": true
                     },
                     {
-                        "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)",
+                        "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (boolean | null), accounting.validateRoutes (boolean | null)",
                         "name": "settings",
                         "in": "body",
                         "required": true,
