@@ -692,6 +692,8 @@ definitions:
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
+      settings:
+        $ref: '#/definitions/LedgerSettings'
       status:
         allOf:
         - $ref: '#/definitions/Status'
@@ -705,6 +707,26 @@ definitions:
         format: date-time
         type: string
     type: object
+  LedgerSettings:
+    description: Ledger configuration settings. Only known fields are allowed; unknown
+      fields return error 0147 (ErrUnknownSettingsField). Invalid types return error
+      0148 (ErrInvalidSettingsFieldType).
+    type: object
+    properties:
+      accounting:
+        description: Accounting validation settings
+        type: object
+        properties:
+          validateAccountType:
+            description: When true, validates account types against route rules. Default false. May be JSON null.
+            type: boolean
+            x-nullable: true
+          validateRoutes:
+            description: When true, validates transaction routes. Default false. May be JSON null.
+            type: boolean
+            x-nullable: true
+        additionalProperties: false
+    additionalProperties: false
   Organization:
     description: Complete organization entity containing all fields including system-generated
       fields like ID, creation timestamps, and metadata. This is the response format
@@ -1209,6 +1231,18 @@ paths:
         in: query
         name: sort_order
         type: string
+      - description: Filter organizations by legal name (case-insensitive, prefix
+          match)
+        in: query
+        maxLength: 256
+        name: legal_name
+        type: string
+      - description: Filter organizations by doing business as name (case-insensitive,
+          prefix match)
+        in: query
+        maxLength: 256
+        name: doing_business_as
+        type: string
       produces:
       - application/json
       responses:
@@ -1490,6 +1524,11 @@ paths:
         in: query
         name: sort_order
         type: string
+      - description: Filter ledgers by name (case-insensitive, prefix match)
+        in: query
+        maxLength: 256
+        name: name
+        type: string
       produces:
       - application/json
       responses:
@@ -1745,6 +1784,127 @@ paths:
           schema:
             $ref: '#/definitions/Error'
       summary: Update an existing ledger
+      tags:
+      - Ledgers
+  /v1/organizations/{organization_id}/ledgers/{id}/settings:
+    get:
+      description: Returns the current configuration settings for a specific ledger.
+        If no settings have been persisted, returns the default settings object.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved ledger settings
+          schema:
+            $ref: '#/definitions/LedgerSettings'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get ledger settings
+      tags:
+      - Ledgers
+    patch:
+      consumes:
+      - application/json
+      description: 'Updates the configuration settings for a specific ledger using
+        schema-aware deep merge. Only known settings fields are allowed - unknown
+        fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced
+        - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested
+        objects (like ''accounting'') are deep-merged, preserving existing properties
+        not specified in the update. Example: updating only ''accounting.validateRoutes''
+        preserves the existing ''accounting.validateAccountType'' value. Setting a
+        key to null stores a JSON null value. Allowed fields: accounting.validateAccountType
+        (boolean | null), accounting.validateRoutes (boolean | null).'
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 'Settings to merge with existing settings. Only known fields
+          allowed: accounting.validateAccountType (boolean | null), accounting.validateRoutes
+          (boolean | null)'
+        in: body
+        name: settings
+        required: true
+        schema:
+          $ref: '#/definitions/LedgerSettings'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated ledger settings
+          schema:
+            $ref: '#/definitions/LedgerSettings'
+        "400":
+          description: Invalid request body, unknown field (0147), or invalid field
+            type (0148)
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update ledger settings
       tags:
       - Ledgers
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types:
