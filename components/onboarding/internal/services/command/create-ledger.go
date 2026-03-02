@@ -44,12 +44,30 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		return nil, err
 	}
 
+	// Validate settings early when provided, same as UpdateLedgerSettings (fail before creating the ledger).
+	var settingsToPersist map[string]any
+
+	if !mmodel.LedgerSettingsIsDefault(cli.Settings) {
+		settingsMap := mmodel.LedgerSettingsToMap(*cli.Settings)
+
+		if err := mmodel.ValidateSettings(settingsMap); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Settings validation failed", err)
+
+			logger.Errorf("Settings validation failed: %v", err)
+
+			return nil, err
+		}
+
+		settingsToPersist = mmodel.MergeSettingsWithDefaults(settingsMap)
+	}
+
 	ledger := &mmodel.Ledger{
 		OrganizationID: organizationID.String(),
 		Name:           cli.Name,
 		Status:         status,
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
+		Settings:       settingsToPersist,
 	}
 
 	led, err := uc.LedgerRepo.Create(ctx, ledger)
@@ -74,21 +92,10 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	led.Metadata = metadata
 
-	// Persist settings only when provided and non-default, via UpdateLedgerSettings to reuse validation, merge and cache flow.
-	// Skip when nil or "settings": {} to avoid an extra round-trip for defaults.
-	if !mmodel.LedgerSettingsIsDefault(cli.Settings) {
-		ledgerID, parseErr := uuid.Parse(led.ID)
-		if parseErr != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to parse ledger ID", parseErr)
-
-			logger.Errorf("Failed to parse ledger ID, Error: %s", parseErr.Error())
-		} else {
-			settingsMap := mmodel.LedgerSettingsToMap(*cli.Settings)
-			if updatedSettings, setErr := uc.UpdateLedgerSettings(ctx, organizationID, ledgerID, settingsMap); setErr != nil {
-				logger.Warnf("Ledger created but settings persistence failed (settings are optional): %v", setErr)
-			} else {
-				led.Settings = updatedSettings
-			}
+	// Invalidate settings cache when we persisted settings so GetLedgerSettings sees fresh data.
+	if settingsToPersist != nil && uc.Query != nil {
+		if ledgerID, parseErr := uuid.Parse(led.ID); parseErr == nil {
+			uc.Query.InvalidateLedgerSettingsCache(ctx, organizationID, ledgerID)
 		}
 	}
 

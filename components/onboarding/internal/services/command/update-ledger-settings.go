@@ -9,7 +9,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -64,13 +63,8 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 	}
 
 	// Invalidate cache after successful write
-	if uc.RedisRepo != nil {
-		cacheKey := query.BuildLedgerSettingsCacheKey(organizationID, ledgerID)
-		if err := uc.RedisRepo.Del(ctx, cacheKey); err != nil {
-			logger.Warnf("Failed to invalidate ledger settings cache: %v", err)
-		} else {
-			logger.Debugf("Invalidated cache for ledger settings: %s", ledgerID.String())
-		}
+	if uc.Query != nil {
+		uc.Query.InvalidateLedgerSettingsCache(ctx, organizationID, ledgerID)
 	}
 
 	logger.Infof("Successfully updated settings for ledger: %s", ledgerID.String())
