@@ -74,5 +74,19 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	led.Metadata = metadata
 
+	// Persist settings only when provided and non-default, via UpdateLedgerSettings to reuse validation, merge and cache flow.
+	// Skip when nil or "settings": {} to avoid an extra round-trip for defaults.
+	if !mmodel.LedgerSettingsIsDefault(cli.Settings) {
+		ledgerID, parseErr := uuid.Parse(led.ID)
+		if parseErr == nil {
+			settingsMap := mmodel.LedgerSettingsToMap(*cli.Settings)
+			if updatedSettings, setErr := uc.UpdateLedgerSettings(ctx, organizationID, ledgerID, settingsMap); setErr != nil {
+				logger.Warnf("Ledger created but settings persistence failed (settings are optional): %v", setErr)
+			} else {
+				led.Settings = updatedSettings
+			}
+		}
+	}
+
 	return led, nil
 }

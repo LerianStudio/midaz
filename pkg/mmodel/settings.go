@@ -69,6 +69,30 @@ func DefaultLedgerSettingsMap() map[string]any {
 	}
 }
 
+// LedgerSettingsToMap converts LedgerSettings to a map[string]any suitable for persistence.
+// The result matches the LedgerSettings schema and can be passed to ValidateSettings or stored as JSONB.
+func LedgerSettingsToMap(s LedgerSettings) map[string]any {
+	return map[string]any{
+		"accounting": map[string]any{
+			"validateAccountType": s.Accounting.ValidateAccountType,
+			"validateRoutes":      s.Accounting.ValidateRoutes,
+		},
+	}
+}
+
+// LedgerSettingsIsDefault reports whether s is nil or equal to default settings.
+// Callers can skip persisting settings when this returns true (e.g. avoid UpdateLedgerSettings for "settings": {}).
+func LedgerSettingsIsDefault(s *LedgerSettings) bool {
+	if s == nil {
+		return true
+	}
+
+	d := DefaultLedgerSettings()
+
+	return s.Accounting.ValidateAccountType == d.Accounting.ValidateAccountType &&
+		s.Accounting.ValidateRoutes == d.Accounting.ValidateRoutes
+}
+
 // MergeSettingsWithDefaults merges persisted settings with default values.
 // Returns a complete settings map where persisted values override defaults.
 // If settings is nil or empty, returns the full default settings.
