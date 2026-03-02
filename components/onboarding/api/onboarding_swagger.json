@@ -4736,9 +4736,7 @@
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "settings": {
-                    "description": "Dynamic configuration settings for this ledger\nexample: {\"accounting\": {\"validateAccountType\": true}}",
-                    "type": "object",
-                    "additionalProperties": {}
+                    "$ref": "#/definitions/LedgerSettings"
                 },
                 "status": {
                     "description": "Current operating status of the ledger",
@@ -4765,12 +4763,14 @@
                     "type": "object",
                     "properties": {
                         "validateAccountType": {
-                            "description": "When true, validates account types against route rules. Default false.",
-                            "type": "boolean"
+                            "description": "When true, validates account types against route rules. Default false. May be JSON null.",
+                            "type": "boolean",
+                            "x-nullable": true
                         },
                         "validateRoutes": {
-                            "description": "When true, validates transaction routes. Default false.",
-                            "type": "boolean"
+                            "description": "When true, validates transaction routes. Default false. May be JSON null.",
+                            "type": "boolean",
+                            "x-nullable": true
                         }
                     },
                     "additionalProperties": false

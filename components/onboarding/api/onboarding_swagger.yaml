@@ -693,11 +693,7 @@ definitions:
         format: uuid
         type: string
       settings:
-        additionalProperties: {}
-        description: |-
-          Dynamic configuration settings for this ledger
-          example: {"accounting": {"validateAccountType": true}}
-        type: object
+        $ref: '#/definitions/LedgerSettings'
       status:
         allOf:
         - $ref: '#/definitions/Status'
@@ -722,11 +718,13 @@ definitions:
         type: object
         properties:
           validateAccountType:
-            description: When true, validates account types against route rules. Default false.
+            description: When true, validates account types against route rules. Default false. May be JSON null.
             type: boolean
+            x-nullable: true
           validateRoutes:
-            description: When true, validates transaction routes. Default false.
+            description: When true, validates transaction routes. Default false. May be JSON null.
             type: boolean
+            x-nullable: true
         additionalProperties: false
     additionalProperties: false
   Organization:
