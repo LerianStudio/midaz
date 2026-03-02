@@ -37,7 +37,9 @@ func (r *multiTenantConsumerRunnable) Run(_ *libCommons.Launcher) error {
 
 	if err := r.consumer.Run(ctx); err != nil {
 		_ = r.consumer.Close()
+
 		stop()
+
 		return err
 	}
 

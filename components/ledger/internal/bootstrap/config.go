@@ -148,6 +148,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Multi-tenant setup
 	var tenantClient *tmclient.Client
+
 	tenantServiceName := cfg.ApplicationName
 
 	if cfg.MultiTenantEnabled {
