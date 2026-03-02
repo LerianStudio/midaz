@@ -265,6 +265,18 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 			wantErrContains: "MULTI_TENANT_URL",
 		},
 		{
+			// Multi-tenant wiring requires a non-empty tenant service name.
+			name: "enabled_with_url_empty_application_name_returns_error",
+			envVars: map[string]string{
+				"MULTI_TENANT_ENABLED": "true",
+				"PLUGIN_AUTH_ENABLED":  "true",
+				"MULTI_TENANT_URL":     "http://localhost:4003",
+				"APPLICATION_NAME":     "   ",
+			},
+			wantErr:         true,
+			wantErrContains: "APPLICATION_NAME",
+		},
+		{
 			// AC-3: Disabled flag short-circuits all multi-tenant logic — no error
 			// even though URL is also absent.
 			name: "disabled_no_url_no_error_from_validation",

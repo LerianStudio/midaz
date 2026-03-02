@@ -148,10 +148,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Multi-tenant setup
 	var tenantClient *tmclient.Client
+	tenantServiceName := cfg.ApplicationName
 
 	if cfg.MultiTenantEnabled {
 		if strings.TrimSpace(cfg.MultiTenantURL) == "" {
 			return nil, fmt.Errorf("MULTI_TENANT_URL is required when MULTI_TENANT_ENABLED=true")
+		}
+
+		tenantServiceName = strings.TrimSpace(cfg.ApplicationName)
+		if tenantServiceName == "" {
+			return nil, fmt.Errorf("APPLICATION_NAME is required when MULTI_TENANT_ENABLED=true")
 		}
 
 		// Apply safe defaults for circuit breaker when not configured
@@ -172,7 +178,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		)
 
 		ledgerLogger.WithFields(
-			"service", cfg.ApplicationName,
+			"service", tenantServiceName,
 			"environment", cfg.MultiTenantEnvironment,
 			"tenant_manager_configured", true,
 		).Info("Multi-tenant mode enabled")
@@ -191,7 +197,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		CircuitBreakerStateListener: stateListener,
 		MultiTenantEnabled:          cfg.MultiTenantEnabled,
 		TenantClient:                tenantClient,
-		TenantServiceName:           cfg.ApplicationName,
+		TenantServiceName:           tenantServiceName,
 		TenantEnvironment:           cfg.MultiTenantEnvironment,
 		TenantManagerURL:            cfg.MultiTenantURL,
 	}
@@ -224,7 +230,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BalancePort:        balancePort,
 		MultiTenantEnabled: cfg.MultiTenantEnabled,
 		TenantClient:       tenantClient,
-		TenantServiceName:  cfg.ApplicationName,
+		TenantServiceName:  tenantServiceName,
 		TenantEnvironment:  cfg.MultiTenantEnvironment,
 	})
 	if err != nil {
