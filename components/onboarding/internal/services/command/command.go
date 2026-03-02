@@ -47,7 +47,8 @@ type UseCase struct {
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
 
-	// Query is the query use case. When set, UpdateLedgerSettings calls Query.InvalidateLedgerSettingsCache after writes.
+	// Query is the query use case. When set, write paths that change ledger settings
+	// (e.g., CreateLedger and UpdateLedgerSettings) call Query.InvalidateLedgerSettingsCache after writes.
 	Query *query.UseCase
 
 	// BalancePort provides an abstraction for balance operations.
