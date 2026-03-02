@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.25.6-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25.7-alpine AS builder
 
 WORKDIR /onboarding-app
 
@@ -24,5 +24,3 @@ EXPOSE 3000
 
 # Set entrypoint to the compiled binary
 ENTRYPOINT ["/app"]
-
-
