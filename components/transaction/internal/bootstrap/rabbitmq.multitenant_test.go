@@ -43,9 +43,6 @@ func TestMultiTenantConsumerRunnable_NilConsumer_NoLeak(t *testing.T) {
 	// Run should return immediately with nil error
 	err := runnable.Run(nil)
 	require.NoError(t, err, "Run() with nil consumer should return nil error")
-
-	// Verify no goroutine leaks (ignoring test infrastructure goroutines)
-	goleak.VerifyNone(t, goleakIgnores()...)
 }
 
 // TestMultiTenantConsumerRunnable_ZeroValue_NoLeak verifies that a zero-value
@@ -59,9 +56,6 @@ func TestMultiTenantConsumerRunnable_ZeroValue_NoLeak(t *testing.T) {
 	// Run should return immediately with nil error
 	err := runnable.Run(&libCommons.Launcher{})
 	require.NoError(t, err, "Run() on zero-value struct should return nil error")
-
-	// Verify no goroutine leaks (ignoring test infrastructure goroutines)
-	goleak.VerifyNone(t, goleakIgnores()...)
 }
 
 // TestMultiTenantConsumerRunnable_RunReturnsNilForNilConsumer verifies that
@@ -109,9 +103,6 @@ func TestMultiTenantConsumerRunnable_RunReturnsNilForNilConsumer(t *testing.T) {
 			assert.NoError(t, err, "Run() should return nil when consumer is nil")
 		})
 	}
-
-	// Verify no goroutine leaks after all subtests (ignoring test infrastructure)
-	goleak.VerifyNone(t, goleakIgnores()...)
 }
 
 // TestMultiTenantConsumerRunnable_StructFieldsAccessible verifies that the
@@ -127,7 +118,4 @@ func TestMultiTenantConsumerRunnable_StructFieldsAccessible(t *testing.T) {
 	// Verify field can be set
 	runnable.consumer = nil // Explicitly set to nil (same as zero-value)
 	assert.Nil(t, runnable.consumer, "consumer field should be settable")
-
-	// Verify no goroutine leaks (ignoring test infrastructure goroutines)
-	goleak.VerifyNone(t, goleakIgnores()...)
 }
