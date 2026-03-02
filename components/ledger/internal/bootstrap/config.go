@@ -150,9 +150,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	var tenantClient *tmclient.Client
 
 	tenantServiceName := cfg.ApplicationName
+	tenantManagerURL := cfg.MultiTenantURL
 
 	if cfg.MultiTenantEnabled {
-		if strings.TrimSpace(cfg.MultiTenantURL) == "" {
+		tenantManagerURL = strings.TrimSpace(cfg.MultiTenantURL)
+		if tenantManagerURL == "" {
 			return nil, fmt.Errorf("MULTI_TENANT_URL is required when MULTI_TENANT_ENABLED=true")
 		}
 
@@ -173,7 +175,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 
 		tenantClient = tmclient.NewClient(
-			cfg.MultiTenantURL,
+			tenantManagerURL,
 			ledgerLogger,
 			tmclient.WithCircuitBreaker(cbThreshold, time.Duration(cbTimeoutSec)*time.Second),
 		)
@@ -200,7 +202,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TenantClient:                tenantClient,
 		TenantServiceName:           tenantServiceName,
 		TenantEnvironment:           cfg.MultiTenantEnvironment,
-		TenantManagerURL:            cfg.MultiTenantURL,
+		TenantManagerURL:            tenantManagerURL,
 	}
 
 	// Initialize transaction module first to get the BalancePort

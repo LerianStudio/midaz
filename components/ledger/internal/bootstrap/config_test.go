@@ -452,7 +452,7 @@ func FuzzConfig_MultiTenantEnvParsing(f *testing.F) {
 
 		t.Setenv("MULTI_TENANT_ENABLED", enabled)
 		t.Setenv("MULTI_TENANT_URL", url)
-		t.Setenv("MULTI_TENANT_SERVICE_NAME", service)
+		t.Setenv("APPLICATION_NAME", service)
 		t.Setenv("MULTI_TENANT_ENVIRONMENT", env)
 		t.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD", cbFailures)
 		t.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC", cbTimeout)
@@ -506,7 +506,7 @@ func TestProperty_Config_DisabledModeIsIdentity(t *testing.T) {
 	mtKeys := []string{
 		"MULTI_TENANT_ENABLED",
 		"MULTI_TENANT_URL",
-		"MULTI_TENANT_SERVICE_NAME",
+		"APPLICATION_NAME",
 		"MULTI_TENANT_ENVIRONMENT",
 		"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD",
 		"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC",
@@ -562,7 +562,7 @@ func TestProperty_Config_DisabledModeIsIdentity(t *testing.T) {
 
 		_ = os.Setenv("MULTI_TENANT_ENABLED", "false")
 		_ = os.Setenv("MULTI_TENANT_URL", url)
-		_ = os.Setenv("MULTI_TENANT_SERVICE_NAME", service)
+		_ = os.Setenv("APPLICATION_NAME", service)
 		_ = os.Setenv("MULTI_TENANT_ENVIRONMENT", env)
 		_ = os.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD", cbFailures)
 		_ = os.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC", cbTimeout)
@@ -587,6 +587,9 @@ func TestProperty_Config_DisabledModeIsIdentity(t *testing.T) {
 // MultiTenantEnabled=true and MultiTenantURL is empty, the validation
 // guard always evaluates to the error branch.
 func TestProperty_Config_EnabledEmptyURLAlwaysErrors(t *testing.T) {
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err, "logger init must not fail")
+
 	property := func(service, env string, cbFailures, cbTimeout uint8) bool {
 		if containsInvalidEnvByte(service, env) {
 			return true
@@ -600,18 +603,24 @@ func TestProperty_Config_EnabledEmptyURLAlwaysErrors(t *testing.T) {
 			env = env[:256]
 		}
 
-		cfg := &Config{
-			MultiTenantEnabled:                  true,
-			MultiTenantURL:                      "",
-			MultiTenantEnvironment:              env,
-			MultiTenantCircuitBreakerThreshold:  int(cbFailures),
-			MultiTenantCircuitBreakerTimeoutSec: int(cbTimeout),
+		if strings.TrimSpace(service) == "" {
+			service = ApplicationName
 		}
 
-		// service is generated but not used since ApplicationName constant is used instead
-		_ = service
+		t.Setenv("MULTI_TENANT_ENABLED", "true")
+		t.Setenv("PLUGIN_AUTH_ENABLED", "true")
+		t.Setenv("MULTI_TENANT_URL", "")
+		t.Setenv("APPLICATION_NAME", service)
+		t.Setenv("MULTI_TENANT_ENVIRONMENT", env)
+		t.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD", fmt.Sprintf("%d", cbFailures))
+		t.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC", fmt.Sprintf("%d", cbTimeout))
 
-		return cfg.MultiTenantEnabled && cfg.MultiTenantURL == ""
+		svc, err := InitServersWithOptions(&Options{Logger: logger})
+		if svc != nil || err == nil {
+			return false
+		}
+
+		return strings.Contains(err.Error(), "MULTI_TENANT_URL")
 	}
 
 	require.NoError(t, quick.Check(property, &quick.Config{MaxCount: 100}),
