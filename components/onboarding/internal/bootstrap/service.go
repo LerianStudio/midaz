@@ -33,10 +33,10 @@ type Service struct {
 	// Ports groups all external interface dependencies.
 	Ports Ports
 
-	// Multi-tenant manager handles (opaque interface{} to avoid leaking lib-commons types).
+	// Multi-tenant manager handles (opaque any to avoid leaking lib-commons types).
 	// nil in single-tenant mode. Populated from pg.pgManager / mgo.mongoManager at construction.
-	pgManager    interface{}
-	mongoManager interface{}
+	pgManager    any
+	mongoManager any
 
 	// Route registration dependencies (for unified ledger mode)
 	auth                *middleware.AuthClient
@@ -98,13 +98,13 @@ func (app *Service) GetSettingsPort() mbootstrap.SettingsPort {
 
 // GetPGManager returns the multi-tenant PostgreSQL manager as an opaque handle.
 // Returns nil in single-tenant mode.
-func (app *Service) GetPGManager() interface{} {
+func (app *Service) GetPGManager() any {
 	return app.pgManager
 }
 
 // GetMongoManager returns the multi-tenant MongoDB manager as an opaque handle.
 // Returns nil in single-tenant mode.
-func (app *Service) GetMongoManager() interface{} {
+func (app *Service) GetMongoManager() any {
 	return app.mongoManager
 }
 

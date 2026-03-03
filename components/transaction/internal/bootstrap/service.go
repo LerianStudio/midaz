@@ -50,11 +50,11 @@ type Service struct {
 	commandUseCase *command.UseCase
 	queryUseCase   *query.UseCase
 
-	// Multi-tenant manager handles (opaque interface{} to avoid leaking lib-commons types).
+	// Multi-tenant manager handles (opaque any to avoid leaking lib-commons types).
 	// nil in single-tenant mode. Populated from pg.pgManager / mgo.mongoManager at construction.
-	pgManager               interface{}
-	mongoManager            interface{}
-	multiTenantConsumerPort interface{}            // RabbitMQ consumer; nil until multi-tenant consumer is wired
+	pgManager               any
+	mongoManager            any
+	multiTenantConsumerPort any                     // RabbitMQ consumer; nil until multi-tenant consumer is wired
 	metricsFactory          *metrics.MetricsFactory // nil in single-tenant mode or when telemetry disabled; for tenant consumer gauge
 
 	// Route registration dependencies (for unified ledger mode)
@@ -201,19 +201,19 @@ func (app *Service) SetSettingsPort(port mbootstrap.SettingsPort) {
 
 // GetPGManager returns the multi-tenant PostgreSQL manager as an opaque handle.
 // Returns nil in single-tenant mode.
-func (app *Service) GetPGManager() interface{} {
+func (app *Service) GetPGManager() any {
 	return app.pgManager
 }
 
 // GetMongoManager returns the multi-tenant MongoDB manager as an opaque handle.
 // Returns nil in single-tenant mode.
-func (app *Service) GetMongoManager() interface{} {
+func (app *Service) GetMongoManager() any {
 	return app.mongoManager
 }
 
 // GetMultiTenantConsumer returns the multi-tenant RabbitMQ consumer as an opaque handle.
 // Returns nil until multi-tenant consumer is wired.
-func (app *Service) GetMultiTenantConsumer() interface{} {
+func (app *Service) GetMultiTenantConsumer() any {
 	return app.multiTenantConsumerPort
 }
 
