@@ -147,44 +147,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	).Info("Starting unified ledger component")
 
 	// Multi-tenant setup
-	var tenantClient *tmclient.Client
-
-	tenantServiceName := cfg.ApplicationName
-	tenantManagerURL := cfg.MultiTenantURL
-
-	if cfg.MultiTenantEnabled {
-		tenantManagerURL = strings.TrimSpace(cfg.MultiTenantURL)
-		if tenantManagerURL == "" {
-			return nil, fmt.Errorf("MULTI_TENANT_URL is required when MULTI_TENANT_ENABLED=true")
-		}
-
-		tenantServiceName = strings.TrimSpace(cfg.ApplicationName)
-		if tenantServiceName == "" {
-			return nil, fmt.Errorf("APPLICATION_NAME is required when MULTI_TENANT_ENABLED=true")
-		}
-
-		// Apply safe defaults for circuit breaker when not configured
-		cbThreshold := cfg.MultiTenantCircuitBreakerThreshold
-		if cbThreshold <= 0 {
-			cbThreshold = 5
-		}
-
-		cbTimeoutSec := cfg.MultiTenantCircuitBreakerTimeoutSec
-		if cbTimeoutSec <= 0 {
-			cbTimeoutSec = 30
-		}
-
-		tenantClient = tmclient.NewClient(
-			tenantManagerURL,
-			ledgerLogger,
-			tmclient.WithCircuitBreaker(cbThreshold, time.Duration(cbTimeoutSec)*time.Second),
-		)
-
-		ledgerLogger.WithFields(
-			"service", tenantServiceName,
-			"environment", cfg.MultiTenantEnvironment,
-			"tenant_manager_configured", true,
-		).Info("Multi-tenant mode enabled")
+	tenantClient, tenantServiceName, err := initTenantClient(cfg, ledgerLogger)
+	if err != nil {
+		return nil, err
 	}
 
 	ledgerLogger.Info("Initializing transaction module...")
@@ -202,7 +167,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TenantClient:                tenantClient,
 		TenantServiceName:           tenantServiceName,
 		TenantEnvironment:           cfg.MultiTenantEnvironment,
-		TenantManagerURL:            tenantManagerURL,
+		TenantManagerURL:            cfg.MultiTenantURL,
 	}
 
 	// Initialize transaction module first to get the BalancePort
@@ -263,70 +228,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	ledgerLogger.Info("Both metadata index repositories available for settings routes")
 
 	// Build MultiPoolMiddleware for per-tenant database routing
-	var multiPoolMiddleware *tmmiddleware.MultiPoolMiddleware
-
-	if cfg.MultiTenantEnabled {
-		var multiPoolOpts []tmmiddleware.MultiPoolOption
-
-		// Transaction module route: safe two-return type assertions with typed nil checks
-		rawTxnPG := transactionService.GetPGManager()
-		rawTxnMgo := transactionService.GetMongoManager()
-
-		txnPGMgr, pgOk := rawTxnPG.(*tmpostgres.Manager)
-		txnMgoMgr, mgoOk := rawTxnMgo.(*tmmongo.Manager)
-
-		if pgOk && mgoOk && txnPGMgr != nil && txnMgoMgr != nil {
-			multiPoolOpts = append(multiPoolOpts,
-				tmmiddleware.WithRoute(
-					[]string{"/v1/organizations"},
-					"transaction",
-					txnPGMgr,
-					txnMgoMgr,
-				),
-			)
-		} else {
-			ledgerLogger.Warn("Transaction module managers not available for multi-tenant routing")
-		}
-
-		// Onboarding module (default route): safe two-return type assertions with typed nil checks
-		rawOnbPG := onboardingService.GetPGManager()
-		rawOnbMgo := onboardingService.GetMongoManager()
-
-		onbPGMgr, pgOk := rawOnbPG.(*tmpostgres.Manager)
-		onbMgoMgr, mgoOk := rawOnbMgo.(*tmmongo.Manager)
-
-		if pgOk && mgoOk && onbPGMgr != nil && onbMgoMgr != nil {
-			multiPoolOpts = append(multiPoolOpts,
-				tmmiddleware.WithDefaultRoute(
-					"onboarding",
-					onbPGMgr,
-					onbMgoMgr,
-				),
-			)
-		} else {
-			ledgerLogger.Warn("Onboarding module managers not available for multi-tenant default route")
-		}
-
-		multiPoolOpts = append(multiPoolOpts,
-			tmmiddleware.WithCrossModuleInjection(),
-			tmmiddleware.WithPublicPaths("/health", "/version", "/swagger"),
-			tmmiddleware.WithMultiPoolLogger(ledgerLogger),
-			tmmiddleware.WithErrorMapper(midazErrorMapper),
-		)
-
-		// Consumer trigger
-		if mtConsumer := transactionService.GetMultiTenantConsumer(); mtConsumer != nil {
-			if consumer, ok := mtConsumer.(tmmiddleware.ConsumerTrigger); ok {
-				multiPoolOpts = append(multiPoolOpts,
-					tmmiddleware.WithConsumerTrigger(consumer),
-				)
-			}
-		}
-
-		multiPoolMiddleware = tmmiddleware.NewMultiPoolMiddleware(multiPoolOpts...)
-
-		ledgerLogger.Info("MultiPoolMiddleware configured for per-tenant database routing")
-	}
+	multiPoolMiddleware := buildMultiPoolMiddleware(cfg, ledgerLogger, transactionService, onboardingService)
 
 	// Create auth client for metadata index routes
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &ledgerLogger)
@@ -366,6 +268,128 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger:             ledgerLogger,
 		Telemetry:          telemetry,
 	}, nil
+}
+
+// initTenantClient creates the multi-tenant client when multi-tenant mode is enabled.
+// Returns the client, the resolved tenantServiceName, and error.
+// Returns (nil, serviceName, nil) when multi-tenant is disabled.
+func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, string, error) {
+	tenantServiceName := cfg.ApplicationName
+
+	if !cfg.MultiTenantEnabled {
+		return nil, tenantServiceName, nil
+	}
+
+	tenantManagerURL := strings.TrimSpace(cfg.MultiTenantURL)
+	if tenantManagerURL == "" {
+		return nil, "", fmt.Errorf("MULTI_TENANT_URL is required when MULTI_TENANT_ENABLED=true")
+	}
+
+	tenantServiceName = strings.TrimSpace(cfg.ApplicationName)
+	if tenantServiceName == "" {
+		return nil, "", fmt.Errorf("APPLICATION_NAME is required when MULTI_TENANT_ENABLED=true")
+	}
+
+	// Apply safe defaults for circuit breaker when not configured
+	cbThreshold := cfg.MultiTenantCircuitBreakerThreshold
+	if cbThreshold <= 0 {
+		cbThreshold = 5
+	}
+
+	cbTimeoutSec := cfg.MultiTenantCircuitBreakerTimeoutSec
+	if cbTimeoutSec <= 0 {
+		cbTimeoutSec = 30
+	}
+
+	tenantClient := tmclient.NewClient(
+		tenantManagerURL,
+		logger,
+		tmclient.WithCircuitBreaker(cbThreshold, time.Duration(cbTimeoutSec)*time.Second),
+	)
+
+	logger.WithFields(
+		"service", tenantServiceName,
+		"environment", cfg.MultiTenantEnvironment,
+		"tenant_manager_configured", true,
+	).Info("Multi-tenant mode enabled")
+
+	return tenantClient, tenantServiceName, nil
+}
+
+// buildMultiPoolMiddleware constructs the per-tenant database routing middleware.
+// Returns nil when multi-tenant is disabled.
+func buildMultiPoolMiddleware(
+	cfg *Config,
+	logger libLog.Logger,
+	transactionService transaction.TransactionService,
+	onboardingService onboarding.OnboardingService,
+) *tmmiddleware.MultiPoolMiddleware {
+	if !cfg.MultiTenantEnabled {
+		return nil
+	}
+
+	var multiPoolOpts []tmmiddleware.MultiPoolOption
+
+	// Transaction module route: safe two-return type assertions with typed nil checks
+	rawTxnPG := transactionService.GetPGManager()
+	rawTxnMgo := transactionService.GetMongoManager()
+
+	txnPGMgr, pgOk := rawTxnPG.(*tmpostgres.Manager)
+	txnMgoMgr, mgoOk := rawTxnMgo.(*tmmongo.Manager)
+
+	if pgOk && mgoOk && txnPGMgr != nil && txnMgoMgr != nil {
+		multiPoolOpts = append(multiPoolOpts,
+			tmmiddleware.WithRoute(
+				[]string{"/v1/organizations"},
+				"transaction",
+				txnPGMgr,
+				txnMgoMgr,
+			),
+		)
+	} else {
+		logger.Warn("Transaction module managers not available for multi-tenant routing")
+	}
+
+	// Onboarding module (default route): safe two-return type assertions with typed nil checks
+	rawOnbPG := onboardingService.GetPGManager()
+	rawOnbMgo := onboardingService.GetMongoManager()
+
+	onbPGMgr, pgOk := rawOnbPG.(*tmpostgres.Manager)
+	onbMgoMgr, mgoOk := rawOnbMgo.(*tmmongo.Manager)
+
+	if pgOk && mgoOk && onbPGMgr != nil && onbMgoMgr != nil {
+		multiPoolOpts = append(multiPoolOpts,
+			tmmiddleware.WithDefaultRoute(
+				"onboarding",
+				onbPGMgr,
+				onbMgoMgr,
+			),
+		)
+	} else {
+		logger.Warn("Onboarding module managers not available for multi-tenant default route")
+	}
+
+	multiPoolOpts = append(multiPoolOpts,
+		tmmiddleware.WithCrossModuleInjection(),
+		tmmiddleware.WithPublicPaths("/health", "/version", "/swagger"),
+		tmmiddleware.WithMultiPoolLogger(logger),
+		tmmiddleware.WithErrorMapper(midazErrorMapper),
+	)
+
+	// Consumer trigger
+	if mtConsumer := transactionService.GetMultiTenantConsumer(); mtConsumer != nil {
+		if consumer, ok := mtConsumer.(tmmiddleware.ConsumerTrigger); ok {
+			multiPoolOpts = append(multiPoolOpts,
+				tmmiddleware.WithConsumerTrigger(consumer),
+			)
+		}
+	}
+
+	multiPoolMiddleware := tmmiddleware.NewMultiPoolMiddleware(multiPoolOpts...)
+
+	logger.Info("MultiPoolMiddleware configured for per-tenant database routing")
+
+	return multiPoolMiddleware
 }
 
 // midazErrorMapper converts tenant-manager errors into Midaz-specific HTTP responses.
