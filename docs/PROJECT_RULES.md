@@ -1,6 +1,6 @@
 # Midaz Project Rules
 
-> **Auto-generated from codebase exploration on 2026-02-02**
+> **Auto-generated from codebase exploration on 2026-02-02, updated 2026-03-02**
 > This document captures the coding standards, architectural patterns, and conventions discovered in the Midaz open-source ledger project.
 
 ---
@@ -20,6 +20,7 @@
 11. [Git Conventions](#11-git-conventions)
 12. [Background Workers](#12-background-workers)
 13. [Inter-Module Ports](#13-inter-module-ports)
+14. [Multi-Tenancy](#14-multi-tenancy)
 
 ---
 
@@ -127,16 +128,16 @@ components/{service}/
 
 | Package | Purpose | Key Files |
 |---------|---------|-----------|
-| `mmodel/` | Shared domain models (Account, Balance, Transaction, Organization, etc.) | 23 model files |
-| `mbootstrap/` | Service composition interfaces (BalancePort, MetadataIndexRepository, Service) | `balance.go`, `interfaces.go` |
-| `constant/` | Error codes (90+ errors), enums, constants | `errors.go`, `account.go`, `transaction.go` |
+| `mmodel/` | Shared domain models (Account, Balance, Transaction, Organization, etc.) | 26 model files |
+| `mbootstrap/` | Service composition interfaces (BalancePort, SettingsPort, MetadataIndexRepository, Service) | `balance.go`, `settings.go`, `interfaces.go` |
+| `constant/` | Error codes (177 errors), enums, constants | `errors.go`, `account.go`, `transaction.go` |
 | `net/http/` | HTTP utilities, error handling, Fiber middleware | HTTP response helpers |
 | `mgrpc/` | gRPC infrastructure, proto definitions, connection management | `balance/` proto package |
-| `transaction/` | Transaction DSL parsing and validation | `validations.go`, `transaction.go` |
-| `gold/` | Golden file test utilities | Test comparison helpers |
+| `transaction/` | Transaction domain logic (balance validations, operation calculations) | `validations.go`, `transaction.go` |
+| `gold/` | Transaction DSL parser (ANTLR4-based, **deprecated** - use `/dsl` endpoint) | `Transaction.g4`, `parser/`, `transaction/` |
 | `mongo/` | MongoDB connection utilities | `ExtractMongoPortAndParameters` |
 | `shell/` | Shell execution utilities | Script helpers |
-| `utils/` | Common utilities (encryption, pointers) | General helpers |
+| `utils/` | Common utilities (encryption, pointers, metrics) | General helpers, `metrics.go` |
 
 ### Components
 
@@ -152,8 +153,8 @@ components/{service}/
 
 | Component | PostgreSQL | MongoDB | Redis | RabbitMQ | gRPC In | gRPC Out | Migrations |
 |-----------|------------|---------|-------|----------|---------|----------|------------|
-| onboarding | Yes | Yes (metadata) | Yes (cache) | No | Yes | Yes (to transaction) | 16 files |
-| transaction | Yes | Yes (metadata) | Yes (cache/sync) | Yes (async balance) | Yes | No | 34 files |
+| onboarding | Yes | Yes (metadata) | Yes (cache) | No | Yes | Yes (to transaction) | 18 files |
+| transaction | Yes | Yes (metadata) | Yes (cache/sync) | Yes (async balance) | Yes | No | 36 files |
 | ledger | No (composition) | No | No | No | No | No | Inherits from modules |
 | crm | No | Yes (holders, aliases) | No | No | No | No | None |
 
@@ -206,8 +207,8 @@ import (
     "github.com/shopspring/decimal"
 
     // 3. Internal: lib-commons (with lib prefix)
-    libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-    libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+    libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+    libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 
     // 4. Internal: midaz project packages
     "github.com/LerianStudio/midaz/v3/pkg"
@@ -264,15 +265,19 @@ if err != nil {
 
 **Location:** `pkg/constant/errors.go`
 
-Errors use 4-digit numeric codes:
+Core errors use 4-digit numeric codes (0001-0148). CRM-specific errors use a `CRM-` prefix (CRM-0001 to CRM-0029):
 
 ```go
 var (
+    // Core errors (pkg/constant/errors.go)
     ErrDuplicateLedger         = errors.New("0001")
     ErrEntityNotFound          = errors.New("0007")
     ErrInsufficientFunds       = errors.New("0018")
     ErrTokenMissing            = errors.New("0041")
     ErrInternalServer          = errors.New("0046")
+
+    // CRM errors (pkg/constant/crm_errors.go)
+    // CRM-0001 through CRM-0029: holder/alias validation, relationships, metadata
 )
 ```
 
@@ -643,8 +648,12 @@ ReadTimeout: time.Duration(cfg.RedisReadTimeout) * time.Second
 | Suffix | Purpose | Build Tag |
 |--------|---------|-----------|
 | `_test.go` | Unit tests | None |
-| `_integration_test.go` | Integration tests | `//go:build integration` |
-| `_benchmark_test.go` | Benchmarks | None |
+| `_integration_test.go` | Integration tests (testcontainers) | `//go:build integration` |
+| `_fuzz_test.go` | Native Go fuzz tests | None |
+| `_property_test.go` | Property-based invariant tests | `//go:build integration` |
+| `_chaos_test.go` | Chaos engineering tests (Toxiproxy) | `//go:build integration` |
+| `_tenant_test.go` | Multi-tenant isolation tests | `//go:build integration` |
+| `_benchmark_test.go` / `_bench_test.go` | Benchmarks | None |
 | `_mock.go` | Generated mocks | None |
 
 ### Unit Test Structure
@@ -797,7 +806,7 @@ make ledger COMMAND=lint
 
 ```dockerfile
 # Stage 1: Builder (multi-platform support)
-FROM --platform=$BUILDPLATFORM golang:1.25.6-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25.7-alpine AS builder
 WORKDIR /ledger-app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -842,9 +851,9 @@ ENTRYPOINT ["/app"]
 
 Required checks before merge:
 1. CodeQL security analysis
-2. golangci-lint (must pass)
-3. gosec security scanning
-4. Unit tests (must pass)
+2. golangci-lint v2.4.0 (must pass, 5m timeout)
+3. gosec + govulncheck security scanning
+4. Unit tests (must pass, 85% coverage threshold enforced)
 5. Migration linting (if migrations changed)
 
 ### Linter Configuration
@@ -934,7 +943,7 @@ Located in `.githooks/`:
 
 ### Balance Sync Worker (Transaction Component)
 
-The transaction component includes a background worker for synchronous balance processing:
+Pre-expiry synchronization of balance keys from Redis to PostgreSQL, ensuring data consistency before Redis key expiration:
 
 ```go
 type Config struct {
@@ -944,21 +953,45 @@ type Config struct {
 ```
 
 **Worker responsibilities:**
-- Process balance updates from Redis queue
-- Configurable worker pool size
+- Monitors Redis sorted sets for balance keys approaching expiration (within 600s window)
+- Uses Lua scripts for atomic operations (`get_balances_near_expiration.lua`, `unschedule_synced_balance.lua`)
+- Syncs balance data to PostgreSQL via `useCase.SyncBalance()` before Redis TTL expires
+- Configurable worker pool size with semaphore-based concurrency control
+- Supports both single-tenant and multi-tenant modes (discovers active tenants automatically)
 - Can be disabled for testing or specific deployments
+
+### Redis Queue Consumer (Transaction Component)
+
+Backup/retry queue for transaction operations when async processing via RabbitMQ fails:
+
+- Periodically processes backup queue messages (every 30 minutes)
+- Filters out messages under 30 minutes old
+- Processes up to 100 workers in parallel with distributed locking (25-minute TTL)
+- Uses atomic Lua scripts for balance operations (`balance_atomic_operation.lua`)
+- Republishes recovered messages to RabbitMQ for reprocessing
 
 ### RabbitMQ Consumer (Transaction Component)
 
 Multi-queue consumer for async balance creation:
 
 ```go
-routes := rabbitmq.NewConsumerRoutes(connection, 
-    cfg.RabbitMQNumbersOfWorkers, 
-    cfg.RabbitMQNumbersOfPrefetch, 
+routes := rabbitmq.NewConsumerRoutes(connection,
+    cfg.RabbitMQNumbersOfWorkers,
+    cfg.RabbitMQNumbersOfPrefetch,
     logger, telemetry)
 multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 ```
+
+**Consumer behavior:**
+- Manual message acknowledgment (ack on success, nack+requeue on error)
+- Trace context extracted from message headers for distributed tracing
+- Circuit breaker protection with configurable thresholds:
+  - `RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES`
+  - `RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO`
+  - `RABBITMQ_CIRCUIT_BREAKER_TIMEOUT` (seconds)
+  - `RABBITMQ_OPERATION_TIMEOUT` (Go duration, e.g., "5s")
+- States: CLOSED (healthy) -> OPEN (on failures) -> HALF-OPEN (after timeout) -> CLOSED/OPEN
+- Multi-tenant mode uses per-tenant vhost connections with LRU eviction via `tmrabbitmq.Manager`
 
 ---
 
@@ -981,17 +1014,110 @@ type BalancePort interface {
 - `transaction.UseCase` - Direct in-process (unified mode)
 - `grpcout.BalanceGRPCRepository` - Network calls via gRPC (microservices mode)
 
+### SettingsPort Interface
+
+Defines transport-agnostic ledger settings queries:
+
+```go
+// pkg/mbootstrap/settings.go
+type SettingsPort interface {
+    GetLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error)
+}
+```
+
+**Implementations:**
+- `onboarding.query.UseCase` - Direct in-process (unified mode)
+- Future: gRPC adapter for microservices mode
+
+**Usage:** Transaction module queries ledger settings (e.g., `validateAccountType`, `validateRoutes`) from onboarding via this port. Wired via lazy initialization after both modules are initialized to resolve the circular dependency.
+
 ### MetadataIndexRepository Interface
 
 For cross-module metadata index operations:
 
 ```go
+// pkg/mbootstrap/metadata-index-repo.go
 type MetadataIndexRepository interface {
-    // Metadata index operations
+    CreateIndex(ctx context.Context, collection string, input mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error)
+    FindAllIndexes(ctx context.Context, collection string) ([]*mmodel.MetadataIndex, error)
+    DeleteIndex(ctx context.Context, collection string, indexName string) error
 }
 ```
 
 Both onboarding and transaction modules expose their metadata repositories for the ledger component.
+
+---
+
+## 14. Multi-Tenancy
+
+### Overview
+
+Midaz supports multi-tenant deployment where each tenant gets isolated database connections. Multi-tenancy is optional and controlled by environment variables.
+
+### Tenant Isolation Strategy
+
+| Component | Database | Isolation Model |
+|-----------|----------|-----------------|
+| Onboarding | PostgreSQL | Database-per-tenant (separate connection pools) |
+| Transaction | PostgreSQL + Redis + RabbitMQ | Database-per-tenant + per-tenant vhosts |
+| CRM | MongoDB | Collection-per-organization (`holders_{orgId}`, `aliases_{orgId}`) |
+
+### Tenant Context Flow
+
+```
+HTTP Request (with JWT Bearer token)
+    |
+    v
+Public endpoints (health, version, swagger) -- NO tenant context needed
+    |
+    v
+Tenant Middleware (if MULTI_TENANT_ENABLED=true)
+    |- Extract tenantId from JWT claims
+    |- Call Tenant Manager API to resolve tenant DB connection
+    |- Inject tenant-specific DB into request context
+    |
+    v
+Auth Middleware (auth.Authorize)
+    |- Validate JWT token against auth service
+    |- Check RBAC permissions (service:resource:action)
+    |
+    v
+Route Handler -> Service -> Repository (uses tenant DB from context)
+```
+
+### Configuration
+
+```go
+type TenantConfig struct {
+    MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED" default:"false"`
+    MultiTenantURL                      string `env:"MULTI_TENANT_URL"`
+    MultiTenantEnvironment              string `env:"MULTI_TENANT_ENVIRONMENT"`
+    MultiTenantTimeout                  int    `env:"MULTI_TENANT_TIMEOUT" default:"30"`
+    MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC" default:"60"`
+    MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS" default:"100"`
+    MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD" default:"5"`
+    MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC" default:"30"`
+}
+```
+
+**Constraint:** `MULTI_TENANT_ENABLED=true` requires `PLUGIN_AUTH_ENABLED=true` (enforced at bootstrap).
+
+### Dependency
+
+Multi-tenancy is provided by `lib-commons/v3`:
+- `tmclient.Client` - HTTP client to tenant manager service
+- `tmpostgres.Manager` / `tmmongo.Manager` / `tmrabbitmq.Manager` - Per-tenant connection pool managers
+- `tmmiddleware.TenantMiddleware` - Fiber middleware to extract tenant and inject DB
+- `tmcore.GetPostgresFromContext(ctx)` / `tmcore.GetMongoFromContext(ctx)` - Retrieve tenant DB from context
+
+### Single-Tenant vs Multi-Tenant
+
+| Aspect | Single-Tenant | Multi-Tenant |
+|--------|---------------|--------------|
+| DB connection | Static, configured at bootstrap | Dynamic, resolved per-request from context |
+| Auth | Optional (`PLUGIN_AUTH_ENABLED`) | Required (JWT provides tenantId) |
+| Middleware | No tenant middleware | Tenant middleware before route handlers |
+| Workers | Direct DB access | Discover active tenants, iterate with tenant context |
 
 ---
 
@@ -1001,4 +1127,4 @@ Both onboarding and transaction modules expose their metadata repositories for t
 - **Error Catalog:** https://docs.midaz.io/midaz/api-reference/resources/errors-list
 - **Project Structure:** `STRUCTURE.md`
 - **Linter Config:** `.golangci.yml`
-- **Go Version:** 1.24.2+ (toolchain 1.25.6)
+- **Go Version:** 1.25.0 (toolchain 1.25.7)
