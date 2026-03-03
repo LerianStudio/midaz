@@ -300,19 +300,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		balancePort = grpcout.NewBalanceAdapter(grpcConnection)
 	}
 
-	commandUseCase := &command.UseCase{
-		OrganizationRepo: organizationPostgreSQLRepository,
-		LedgerRepo:       ledgerPostgreSQLRepository,
-		SegmentRepo:      segmentPostgreSQLRepository,
-		PortfolioRepo:    portfolioPostgreSQLRepository,
-		AccountRepo:      accountPostgreSQLRepository,
-		AssetRepo:        assetPostgreSQLRepository,
-		AccountTypeRepo:  accountTypePostgreSQLRepository,
-		MetadataRepo:     mgo.metadataRepo,
-		RedisRepo:        redisConsumerRepository,
-		BalancePort:      balancePort,
-	}
-
 	// Parse settings cache TTL from config (default: 5m via query.DefaultSettingsCacheTTL)
 	var settingsCacheTTL time.Duration
 
@@ -336,6 +323,19 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MetadataRepo:     mgo.metadataRepo,
 		RedisRepo:        redisConsumerRepository,
 		SettingsCacheTTL: settingsCacheTTL,
+	}
+
+	commandUseCase := &command.UseCase{
+		OrganizationRepo: organizationPostgreSQLRepository,
+		LedgerRepo:       ledgerPostgreSQLRepository,
+		SegmentRepo:      segmentPostgreSQLRepository,
+		PortfolioRepo:    portfolioPostgreSQLRepository,
+		AccountRepo:      accountPostgreSQLRepository,
+		AssetRepo:        assetPostgreSQLRepository,
+		AccountTypeRepo:  accountTypePostgreSQLRepository,
+		MetadataRepo:     mgo.metadataRepo,
+		RedisRepo:        redisConsumerRepository,
+		BalancePort:      balancePort,
 	}
 
 	accountHandler := &httpin.AccountHandler{

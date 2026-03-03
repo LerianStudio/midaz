@@ -44,17 +44,17 @@ type TransactionService interface {
 	// GetPGManager returns the multi-tenant PostgreSQL manager as an opaque handle.
 	// Returns nil in single-tenant mode. The caller (ledger bootstrap) performs
 	// type assertion to *tmpostgres.Manager internally.
-	GetPGManager() interface{}
+	GetPGManager() any
 
 	// GetMongoManager returns the multi-tenant MongoDB manager as an opaque handle.
 	// Returns nil in single-tenant mode. The caller (ledger bootstrap) performs
 	// type assertion to *tmmongo.Manager internally.
-	GetMongoManager() interface{}
+	GetMongoManager() any
 
 	// GetMultiTenantConsumer returns the multi-tenant RabbitMQ consumer as an opaque handle.
 	// Returns nil until multi-tenant consumer is wired. The caller (ledger bootstrap) performs
 	// type assertion to the concrete consumer type internally.
-	GetMultiTenantConsumer() interface{}
+	GetMultiTenantConsumer() any
 }
 
 // Options configures the transaction service initialization behavior.

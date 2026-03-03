@@ -7,23 +7,18 @@ package query
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 )
 
 // DefaultSettingsCacheTTL is the default TTL for cached ledger settings (5 minutes).
 // Can be overridden via UseCase.SettingsCacheTTL or SETTINGS_CACHE_TTL env var.
 const DefaultSettingsCacheTTL = 5 * time.Minute
-
-// LedgerSettingsCacheKeyPrefix is the prefix for ledger settings cache keys.
-// Full key format: ledger_settings:{organizationID}:{ledgerID}
-// Organization ID is required to ensure proper tenant isolation in multi-tenant deployments.
-const LedgerSettingsCacheKeyPrefix = "ledger_settings"
 
 // getSettingsCacheTTL returns the configured cache TTL or the default if not set.
 func (uc *UseCase) getSettingsCacheTTL() time.Duration {
@@ -32,11 +27,6 @@ func (uc *UseCase) getSettingsCacheTTL() time.Duration {
 	}
 
 	return DefaultSettingsCacheTTL
-}
-
-// BuildLedgerSettingsCacheKey builds the cache key for ledger settings.
-func BuildLedgerSettingsCacheKey(organizationID, ledgerID uuid.UUID) string {
-	return fmt.Sprintf("%s:%s:%s", LedgerSettingsCacheKeyPrefix, organizationID.String(), ledgerID.String())
 }
 
 // GetLedgerSettings retrieves the settings for a specific ledger merged with default values.
@@ -52,7 +42,7 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 
 	logger.Debugf("Retrieving settings for ledger: %s", ledgerID.String())
 
-	cacheKey := BuildLedgerSettingsCacheKey(organizationID, ledgerID)
+	cacheKey := utils.LedgerSettingsInternalKey(organizationID, ledgerID)
 
 	// Try to get from cache first
 	if uc.RedisRepo != nil {

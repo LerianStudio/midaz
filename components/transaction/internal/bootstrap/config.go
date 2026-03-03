@@ -17,6 +17,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
+	tmpostgres "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
 	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
@@ -218,6 +219,110 @@ func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
 }
 
+// handlers groups all HTTP handler instances for cleaner initialization.
+type handlers struct {
+	transaction      *in.TransactionHandler
+	operation        *in.OperationHandler
+	assetRate        *in.AssetRateHandler
+	balance          *in.BalanceHandler
+	operationRoute   *in.OperationRouteHandler
+	transactionRoute *in.TransactionRouteHandler
+}
+
+// initRedis creates the Redis connection and consumer repository.
+func initRedis(cfg *Config, logger libLog.Logger, balanceSyncWorkerEnabled bool) (*redis.RedisConsumerRepository, *libRedis.RedisConnection, error) {
+	redisConnection := &libRedis.RedisConnection{
+		Address:                      strings.Split(cfg.RedisHost, ","),
+		Password:                     cfg.RedisPassword,
+		DB:                           cfg.RedisDB,
+		Protocol:                     cfg.RedisProtocol,
+		MasterName:                   cfg.RedisMasterName,
+		UseTLS:                       cfg.RedisTLS,
+		CACert:                       cfg.RedisCACert,
+		UseGCPIAMAuth:                cfg.RedisUseGCPIAM,
+		ServiceAccount:               cfg.RedisServiceAccount,
+		GoogleApplicationCredentials: cfg.GoogleApplicationCredentials,
+		TokenLifeTime:                time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
+		RefreshDuration:              time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
+		Logger:                       logger,
+		PoolSize:                     cfg.RedisPoolSize,
+		MinIdleConns:                 cfg.RedisMinIdleConns,
+		ReadTimeout:                  time.Duration(cfg.RedisReadTimeout) * time.Second,
+		WriteTimeout:                 time.Duration(cfg.RedisWriteTimeout) * time.Second,
+		DialTimeout:                  time.Duration(cfg.RedisDialTimeout) * time.Second,
+		PoolTimeout:                  time.Duration(cfg.RedisPoolTimeout) * time.Second,
+		MaxRetries:                   cfg.RedisMaxRetries,
+		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
+		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
+	}
+
+	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection, balanceSyncWorkerEnabled)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize redis: %w", err)
+	}
+
+	return redisConsumerRepository, redisConnection, nil
+}
+
+// initHandlers constructs all HTTP handler instances from the given use cases.
+func initHandlers(commandUC *command.UseCase, queryUC *query.UseCase) *handlers {
+	return &handlers{
+		transaction: &in.TransactionHandler{
+			Command: commandUC,
+			Query:   queryUC,
+		},
+		operation: &in.OperationHandler{
+			Command: commandUC,
+			Query:   queryUC,
+		},
+		assetRate: &in.AssetRateHandler{
+			Command: commandUC,
+			Query:   queryUC,
+		},
+		balance: &in.BalanceHandler{
+			Command: commandUC,
+			Query:   queryUC,
+		},
+		operationRoute: &in.OperationRouteHandler{
+			Command: commandUC,
+			Query:   queryUC,
+		},
+		transactionRoute: &in.TransactionRouteHandler{
+			Command: commandUC,
+			Query:   queryUC,
+		},
+	}
+}
+
+// initBalanceSyncWorker creates the balance sync worker (multi-tenant or single-tenant).
+func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, redisConn *libRedis.RedisConnection, pgManager *tmpostgres.Manager) *BalanceSyncWorker {
+	const defaultBalanceSyncMaxWorkers = 5
+
+	balanceSyncMaxWorkers := cfg.BalanceSyncMaxWorkers
+
+	if balanceSyncMaxWorkers <= 0 {
+		balanceSyncMaxWorkers = defaultBalanceSyncMaxWorkers
+		logger.Infof("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers)
+	}
+
+	if !cfg.BalanceSyncWorkerEnabled {
+		logger.Info("BalanceSyncWorker disabled.")
+		return nil
+	}
+
+	var balanceSyncWorker *BalanceSyncWorker
+
+	if opts != nil && opts.MultiTenantEnabled {
+		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, true, opts.TenantClient, pgManager)
+	} else {
+		balanceSyncWorker = NewBalanceSyncWorker(redisConn, logger, commandUC, balanceSyncMaxWorkers)
+	}
+
+	logger.Infof("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers)
+
+	return balanceSyncWorker
+}
+
 // InitServersWithOptions initiates http and grpc servers with optional dependency injection.
 func InitServersWithOptions(opts *Options) (*Service, error) {
 	cfg := &Config{}
@@ -260,34 +365,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize MongoDB: %w", err)
 	}
 
-	redisConnection := &libRedis.RedisConnection{
-		Address:                      strings.Split(cfg.RedisHost, ","),
-		Password:                     cfg.RedisPassword,
-		DB:                           cfg.RedisDB,
-		Protocol:                     cfg.RedisProtocol,
-		MasterName:                   cfg.RedisMasterName,
-		UseTLS:                       cfg.RedisTLS,
-		CACert:                       cfg.RedisCACert,
-		UseGCPIAMAuth:                cfg.RedisUseGCPIAM,
-		ServiceAccount:               cfg.RedisServiceAccount,
-		GoogleApplicationCredentials: cfg.GoogleApplicationCredentials,
-		TokenLifeTime:                time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
-		RefreshDuration:              time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
-		Logger:                       logger,
-		PoolSize:                     cfg.RedisPoolSize,
-		MinIdleConns:                 cfg.RedisMinIdleConns,
-		ReadTimeout:                  time.Duration(cfg.RedisReadTimeout) * time.Second,
-		WriteTimeout:                 time.Duration(cfg.RedisWriteTimeout) * time.Second,
-		DialTimeout:                  time.Duration(cfg.RedisDialTimeout) * time.Second,
-		PoolTimeout:                  time.Duration(cfg.RedisPoolTimeout) * time.Second,
-		MaxRetries:                   cfg.RedisMaxRetries,
-		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
-		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
-	}
-
-	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection, balanceSyncWorkerEnabled)
+	redisConsumerRepository, redisConnection, err := initRedis(cfg, logger, balanceSyncWorkerEnabled)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize redis: %w", err)
+		return nil, err
 	}
 
 	// RabbitMQ: producer + consumer (multi-tenant or single-tenant, decided internally)
@@ -339,39 +419,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
 	rmq.wireConsumer(commandUseCase)
 
-	transactionHandler := &in.TransactionHandler{
-		Command: commandUseCase,
-		Query:   queryUseCase,
-	}
-
-	operationHandler := &in.OperationHandler{
-		Command: commandUseCase,
-		Query:   queryUseCase,
-	}
-
-	assetRateHandler := &in.AssetRateHandler{
-		Command: commandUseCase,
-		Query:   queryUseCase,
-	}
-
-	balanceHandler := &in.BalanceHandler{
-		Command: commandUseCase,
-		Query:   queryUseCase,
-	}
-
-	operationRouteHandler := &in.OperationRouteHandler{
-		Command: commandUseCase,
-		Query:   queryUseCase,
-	}
-
-	transactionRouteHandler := &in.TransactionRouteHandler{
-		Command: commandUseCase,
-		Query:   queryUseCase,
-	}
+	h := initHandlers(commandUseCase, queryUseCase)
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
-	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
+	app := in.NewRouter(logger, telemetry, auth, h.transaction, h.operation, h.assetRate, h.balance, h.operationRoute, h.transactionRoute)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
@@ -387,34 +439,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// RedisQueueConsumer: multi-tenant or single-tenant
 	var redisConsumer *RedisQueueConsumer
 	if opts != nil && opts.MultiTenantEnabled {
-		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, opts.TenantClient, pg.pgManager)
+		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *h.transaction, true, opts.TenantClient, pg.pgManager)
 	} else {
-		redisConsumer = NewRedisQueueConsumer(logger, *transactionHandler)
-	}
-
-	const defaultBalanceSyncMaxWorkers = 5
-
-	balanceSyncMaxWorkers := cfg.BalanceSyncMaxWorkers
-
-	if balanceSyncMaxWorkers <= 0 {
-		balanceSyncMaxWorkers = defaultBalanceSyncMaxWorkers
-		logger.Infof("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers)
+		redisConsumer = NewRedisQueueConsumer(logger, *h.transaction)
 	}
 
 	// BalanceSyncWorker: multi-tenant or single-tenant
-	var balanceSyncWorker *BalanceSyncWorker
-
-	if balanceSyncWorkerEnabled {
-		if opts != nil && opts.MultiTenantEnabled {
-			balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConnection, logger, commandUseCase, balanceSyncMaxWorkers, true, opts.TenantClient, pg.pgManager)
-		} else {
-			balanceSyncWorker = NewBalanceSyncWorker(redisConnection, logger, commandUseCase, balanceSyncMaxWorkers)
-		}
-
-		logger.Infof("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers)
-	} else {
-		logger.Info("BalanceSyncWorker disabled.")
-	}
+	balanceSyncWorker := initBalanceSyncWorker(opts, cfg, logger, commandUseCase, redisConnection, pg.pgManager)
 
 	return &Service{
 		Server:                   server,
@@ -437,11 +468,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		multiTenantConsumerPort: rmq.multiTenantConsumer,
 		metricsFactory:          rmq.metricsFactory,
 		auth:                    auth,
-		transactionHandler:      transactionHandler,
-		operationHandler:        operationHandler,
-		assetRateHandler:        assetRateHandler,
-		balanceHandler:          balanceHandler,
-		operationRouteHandler:   operationRouteHandler,
-		transactionRouteHandler: transactionRouteHandler,
+		transactionHandler:      h.transaction,
+		operationHandler:        h.operation,
+		assetRateHandler:        h.assetRate,
+		balanceHandler:          h.balance,
+		operationRouteHandler:   h.operationRoute,
+		transactionRouteHandler: h.transactionRoute,
 	}, nil
 }

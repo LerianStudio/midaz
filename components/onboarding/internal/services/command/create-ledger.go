@@ -44,12 +44,30 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		return nil, err
 	}
 
+	// Validate settings early when provided, same as UpdateLedgerSettings (fail before creating the ledger).
+	var settingsToPersist map[string]any
+
+	if !mmodel.LedgerSettingsIsDefault(cli.Settings) {
+		settingsMap := mmodel.LedgerSettingsToMap(*cli.Settings)
+
+		if err := mmodel.ValidateSettings(settingsMap); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Settings validation failed", err)
+
+			logger.Errorf("Settings validation failed: %v", err)
+
+			return nil, err
+		}
+
+		settingsToPersist = mmodel.MergeSettingsWithDefaults(settingsMap)
+	}
+
 	ledger := &mmodel.Ledger{
 		OrganizationID: organizationID.String(),
 		Name:           cli.Name,
 		Status:         status,
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
+		Settings:       settingsToPersist,
 	}
 
 	led, err := uc.LedgerRepo.Create(ctx, ledger)
@@ -73,6 +91,13 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	}
 
 	led.Metadata = metadata
+
+	// Invalidate settings cache when we persisted settings so GetLedgerSettings sees fresh data.
+	if settingsToPersist != nil {
+		if ledgerID, parseErr := uuid.Parse(led.ID); parseErr == nil {
+			uc.invalidateSettingsCache(ctx, organizationID, ledgerID)
+		}
+	}
 
 	return led, nil
 }

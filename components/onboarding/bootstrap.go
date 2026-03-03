@@ -37,12 +37,12 @@ type OnboardingService interface {
 	// GetPGManager returns the multi-tenant PostgreSQL manager as an opaque handle.
 	// Returns nil in single-tenant mode. The caller (ledger bootstrap) performs
 	// type assertion to *tmpostgres.Manager internally.
-	GetPGManager() interface{}
+	GetPGManager() any
 
 	// GetMongoManager returns the multi-tenant MongoDB manager as an opaque handle.
 	// Returns nil in single-tenant mode. The caller (ledger bootstrap) performs
 	// type assertion to *tmmongo.Manager internally.
-	GetMongoManager() interface{}
+	GetMongoManager() any
 }
 
 // Options configures the onboarding service initialization behavior.
