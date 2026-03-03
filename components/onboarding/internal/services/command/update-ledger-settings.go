@@ -72,8 +72,13 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 }
 
 // invalidateSettingsCache removes the cached ledger settings so the next read fetches from the database.
-// Cache failures are logged but not returned so callers are not failed by cache issues.
+// RedisRepo is a required dependency at runtime; the nil guard exists solely to uphold this function's
+// resilience contract: cache issues must never fail a successful write operation.
 func (uc *UseCase) invalidateSettingsCache(ctx context.Context, organizationID, ledgerID uuid.UUID) {
+	if uc.RedisRepo == nil {
+		return
+	}
+
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.invalidate_settings_cache")

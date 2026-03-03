@@ -146,10 +146,21 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		"env", cfg.EnvName,
 	).Info("Starting unified ledger component")
 
-	// Multi-tenant setup
-	tenantClient, tenantServiceName, err := initTenantClient(cfg, ledgerLogger)
-	if err != nil {
-		return nil, err
+	// Multi-tenant setup: prefer injected client from Options, fall back to config-based creation.
+	var tenantClient *tmclient.Client
+
+	var tenantServiceName string
+
+	if opts != nil && opts.TenantClient != nil {
+		tenantClient = opts.TenantClient
+		tenantServiceName = strings.TrimSpace(cfg.ApplicationName)
+	} else {
+		var err error
+
+		tenantClient, tenantServiceName, err = initTenantClient(cfg, ledgerLogger)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	ledgerLogger.Info("Initializing transaction module...")
@@ -167,7 +178,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TenantClient:                tenantClient,
 		TenantServiceName:           tenantServiceName,
 		TenantEnvironment:           cfg.MultiTenantEnvironment,
-		TenantManagerURL:            cfg.MultiTenantURL,
+		TenantManagerURL:            strings.TrimSpace(cfg.MultiTenantURL),
 	}
 
 	// Initialize transaction module first to get the BalancePort

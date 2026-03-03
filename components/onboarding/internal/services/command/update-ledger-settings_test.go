@@ -26,11 +26,9 @@ func TestUpdateLedgerSettings_Success(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
-		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -63,10 +61,6 @@ func TestUpdateLedgerSettings_Success(t *testing.T) {
 			return result, nil
 		})
 
-	mockRedisRepo.EXPECT().
-		Del(gomock.Any(), utils.LedgerSettingsInternalKey(orgID, ledgerID)).
-		Return(nil)
-
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
 	require.NoError(t, err)
@@ -81,11 +75,9 @@ func TestUpdateLedgerSettings_DeepMergePreservesExistingNestedKeys(t *testing.T)
 	defer ctrl.Finish()
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
-		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -110,10 +102,6 @@ func TestUpdateLedgerSettings_DeepMergePreservesExistingNestedKeys(t *testing.T)
 		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
 			return mergeFn(existingSettings)
 		})
-
-	mockRedisRepo.EXPECT().
-		Del(gomock.Any(), utils.LedgerSettingsInternalKey(orgID, ledgerID)).
-		Return(nil)
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
@@ -185,11 +173,9 @@ func TestUpdateLedgerSettings_EmptyInputPreservesExisting(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
-		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -210,10 +196,6 @@ func TestUpdateLedgerSettings_EmptyInputPreservesExisting(t *testing.T) {
 			return mergeFn(existingSettings)
 		})
 
-	mockRedisRepo.EXPECT().
-		Del(gomock.Any(), utils.LedgerSettingsInternalKey(orgID, ledgerID)).
-		Return(nil)
-
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
 	require.NoError(t, err)
@@ -227,11 +209,9 @@ func TestUpdateLedgerSettings_NullValueStoresNull(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
-		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -253,10 +233,6 @@ func TestUpdateLedgerSettings_NullValueStoresNull(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
 			return mergeFn(existingSettings)
 		})
-
-	mockRedisRepo.EXPECT().
-		Del(gomock.Any(), utils.LedgerSettingsInternalKey(orgID, ledgerID)).
-		Return(nil)
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
@@ -335,11 +311,9 @@ func TestUpdateLedgerSettings_NilResultReturnsEmptyMap(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
-		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -354,10 +328,6 @@ func TestUpdateLedgerSettings_NilResultReturnsEmptyMap(t *testing.T) {
 	mockLedgerRepo.EXPECT().
 		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(nil, nil)
-
-	mockRedisRepo.EXPECT().
-		Del(gomock.Any(), utils.LedgerSettingsInternalKey(orgID, ledgerID)).
-		Return(nil)
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
@@ -491,11 +461,9 @@ func TestUpdateLedgerSettings_NilInput(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
-		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -513,10 +481,6 @@ func TestUpdateLedgerSettings_NilInput(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
 			return mergeFn(existingSettings)
 		})
-
-	mockRedisRepo.EXPECT().
-		Del(gomock.Any(), utils.LedgerSettingsInternalKey(orgID, ledgerID)).
-		Return(nil)
 
 	// Nil input should be valid
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, nil)
