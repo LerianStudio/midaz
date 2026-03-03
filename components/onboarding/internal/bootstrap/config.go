@@ -335,7 +335,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		AccountTypeRepo:  accountTypePostgreSQLRepository,
 		MetadataRepo:     mgo.metadataRepo,
 		RedisRepo:        redisConsumerRepository,
-		Query:            queryUseCase,
 		BalancePort:      balancePort,
 	}
 

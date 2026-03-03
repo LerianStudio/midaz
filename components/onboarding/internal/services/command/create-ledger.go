@@ -93,9 +93,9 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	led.Metadata = metadata
 
 	// Invalidate settings cache when we persisted settings so GetLedgerSettings sees fresh data.
-	if settingsToPersist != nil && uc.Query != nil {
+	if settingsToPersist != nil {
 		if ledgerID, parseErr := uuid.Parse(led.ID); parseErr == nil {
-			uc.Query.InvalidateLedgerSettingsCache(ctx, organizationID, ledgerID)
+			uc.invalidateSettingsCache(ctx, organizationID, ledgerID)
 		}
 	}
 

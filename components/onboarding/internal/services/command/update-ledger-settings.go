@@ -10,6 +10,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -63,11 +64,25 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 	}
 
 	// Invalidate cache after successful write
-	if uc.Query != nil {
-		uc.Query.InvalidateLedgerSettingsCache(ctx, organizationID, ledgerID)
-	}
+	uc.invalidateSettingsCache(ctx, organizationID, ledgerID)
 
 	logger.Infof("Successfully updated settings for ledger: %s", ledgerID.String())
 
 	return updatedSettings, nil
+}
+
+// invalidateSettingsCache removes the cached ledger settings so the next read fetches from the database.
+// Cache failures are logged but not returned so callers are not failed by cache issues.
+func (uc *UseCase) invalidateSettingsCache(ctx context.Context, organizationID, ledgerID uuid.UUID) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.invalidate_settings_cache")
+	defer span.End()
+
+	cacheKey := utils.LedgerSettingsInternalKey(organizationID, ledgerID)
+	if err := uc.RedisRepo.Del(ctx, cacheKey); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to invalidate ledger settings cache", err)
+
+		logger.Warnf("Failed to invalidate ledger settings cache: %v", err)
+	}
 }

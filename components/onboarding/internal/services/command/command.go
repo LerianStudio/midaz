@@ -14,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 )
 
@@ -46,10 +45,6 @@ type UseCase struct {
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
-
-	// Query is the query use case. When set, write paths that change ledger settings
-	// (e.g., CreateLedger and UpdateLedgerSettings) call Query.InvalidateLedgerSettingsCache after writes.
-	Query *query.UseCase
 
 	// BalancePort provides an abstraction for balance operations.
 	// This is a transport-agnostic "port" that can be implemented by either:

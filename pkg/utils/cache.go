@@ -156,6 +156,22 @@ func RedisConsumerLockKey(organizationID, ledgerID uuid.UUID, transactionID stri
 	return builder.String()
 }
 
+// LedgerSettingsInternalKey returns a key with the following format to be used on redis cluster:
+// "ledger_settings:{organizationID:ledgerID}"
+func LedgerSettingsInternalKey(organizationID, ledgerID uuid.UUID) string {
+	var builder strings.Builder
+
+	builder.WriteString("ledger_settings")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(endKey)
+
+	return builder.String()
+}
+
 // WriteBehindTransactionKey returns a key with the following format to be used on redis cluster:
 // "wb_transaction:{organizationID:ledgerID:transactionID}"
 // This key is used to store transaction data in the write-behind cache before persistence.

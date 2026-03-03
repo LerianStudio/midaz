@@ -11,8 +11,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,9 +26,11 @@ func TestUpdateLedgerSettings_Success(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
+		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -61,6 +63,10 @@ func TestUpdateLedgerSettings_Success(t *testing.T) {
 			return result, nil
 		})
 
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), utils.LedgerSettingsInternalKey(orgID, ledgerID)).
+		Return(nil)
+
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
 	require.NoError(t, err)
@@ -75,9 +81,11 @@ func TestUpdateLedgerSettings_DeepMergePreservesExistingNestedKeys(t *testing.T)
 	defer ctrl.Finish()
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
+		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -102,6 +110,10 @@ func TestUpdateLedgerSettings_DeepMergePreservesExistingNestedKeys(t *testing.T)
 		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
 			return mergeFn(existingSettings)
 		})
+
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), utils.LedgerSettingsInternalKey(orgID, ledgerID)).
+		Return(nil)
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
@@ -173,9 +185,11 @@ func TestUpdateLedgerSettings_EmptyInputPreservesExisting(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
+		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -196,6 +210,10 @@ func TestUpdateLedgerSettings_EmptyInputPreservesExisting(t *testing.T) {
 			return mergeFn(existingSettings)
 		})
 
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), utils.LedgerSettingsInternalKey(orgID, ledgerID)).
+		Return(nil)
+
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
 	require.NoError(t, err)
@@ -209,9 +227,11 @@ func TestUpdateLedgerSettings_NullValueStoresNull(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
+		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -233,6 +253,10 @@ func TestUpdateLedgerSettings_NullValueStoresNull(t *testing.T) {
 		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
 			return mergeFn(existingSettings)
 		})
+
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), utils.LedgerSettingsInternalKey(orgID, ledgerID)).
+		Return(nil)
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
@@ -311,9 +335,11 @@ func TestUpdateLedgerSettings_NilResultReturnsEmptyMap(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
+		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -328,6 +354,10 @@ func TestUpdateLedgerSettings_NilResultReturnsEmptyMap(t *testing.T) {
 	mockLedgerRepo.EXPECT().
 		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(nil, nil)
+
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), utils.LedgerSettingsInternalKey(orgID, ledgerID)).
+		Return(nil)
 
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
@@ -346,11 +376,10 @@ func TestUpdateLedgerSettings_InvalidatesCache(t *testing.T) {
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	queryUC := &query.UseCase{RedisRepo: mockRedisRepo}
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
-		Query:      queryUC,
+		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -363,7 +392,7 @@ func TestUpdateLedgerSettings_InvalidatesCache(t *testing.T) {
 	}
 	existingSettings := map[string]any{}
 	expectedMerged := mmodel.DeepMergeSettings(existingSettings, inputSettings)
-	cacheKey := query.BuildLedgerSettingsCacheKey(orgID, ledgerID)
+	cacheKey := utils.LedgerSettingsInternalKey(orgID, ledgerID)
 
 	mockLedgerRepo.EXPECT().
 		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
@@ -389,11 +418,10 @@ func TestUpdateLedgerSettings_CacheInvalidationError_DoesNotFailOperation(t *tes
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	queryUC := &query.UseCase{RedisRepo: mockRedisRepo}
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
-		Query:      queryUC,
+		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -406,7 +434,7 @@ func TestUpdateLedgerSettings_CacheInvalidationError_DoesNotFailOperation(t *tes
 	}
 	existingSettings := map[string]any{}
 	expectedMerged := mmodel.DeepMergeSettings(existingSettings, inputSettings)
-	cacheKey := query.BuildLedgerSettingsCacheKey(orgID, ledgerID)
+	cacheKey := utils.LedgerSettingsInternalKey(orgID, ledgerID)
 
 	mockLedgerRepo.EXPECT().
 		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
@@ -434,7 +462,6 @@ func TestUpdateLedgerSettings_DatabaseError_NoCacheInvalidation(t *testing.T) {
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
-		Query:      nil, // No query use case; cache must not be invalidated
 	}
 
 	ctx := context.Background()
@@ -450,7 +477,7 @@ func TestUpdateLedgerSettings_DatabaseError_NoCacheInvalidation(t *testing.T) {
 		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(nil, errors.New("database error"))
 
-	// Cache should NOT be invalidated when database fails (Query is nil)
+	// Cache should NOT be invalidated when database fails
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
 
 	require.Error(t, err)
@@ -464,9 +491,11 @@ func TestUpdateLedgerSettings_NilInput(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
 		LedgerRepo: mockLedgerRepo,
+		RedisRepo:  mockRedisRepo,
 	}
 
 	ctx := context.Background()
@@ -485,47 +514,13 @@ func TestUpdateLedgerSettings_NilInput(t *testing.T) {
 			return mergeFn(existingSettings)
 		})
 
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), utils.LedgerSettingsInternalKey(orgID, ledgerID)).
+		Return(nil)
+
 	// Nil input should be valid
 	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, existingSettings, settings)
-}
-
-func TestUpdateLedgerSettings_NoCacheRepo(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-
-	uc := &UseCase{
-		LedgerRepo: mockLedgerRepo,
-		Query:      nil, // No query use case configured
-	}
-
-	ctx := context.Background()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	inputSettings := map[string]any{
-		"accounting": map[string]any{
-			"validateAccountType": true,
-		},
-	}
-	existingSettings := map[string]any{}
-	expectedMerged := mmodel.DeepMergeSettings(existingSettings, inputSettings)
-
-	mockLedgerRepo.EXPECT().
-		UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
-		DoAndReturn(func(ctx context.Context, orgID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
-			return mergeFn(existingSettings)
-		})
-
-	// No cache invalidation should happen
-
-	settings, err := uc.UpdateLedgerSettings(ctx, orgID, ledgerID, inputSettings)
-
-	require.NoError(t, err)
-	assert.Equal(t, expectedMerged, settings)
 }

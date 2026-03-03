@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -328,7 +329,7 @@ func TestGetLedgerSettings_CacheHit_MergesWithDefaults(t *testing.T) {
 	}
 	cachedJSON, err := json.Marshal(cachedSettings)
 	require.NoError(t, err, "test setup: failed to marshal cached settings")
-	cacheKey := BuildLedgerSettingsCacheKey(orgID, ledgerID)
+	cacheKey := utils.LedgerSettingsInternalKey(orgID, ledgerID)
 
 	// Cache hit - should NOT call database
 	mockRedisRepo.EXPECT().
@@ -371,7 +372,7 @@ func TestGetLedgerSettings_CacheMiss_PopulatesCache(t *testing.T) {
 			"validateAccountType": true,
 		},
 	}
-	cacheKey := BuildLedgerSettingsCacheKey(orgID, ledgerID)
+	cacheKey := utils.LedgerSettingsInternalKey(orgID, ledgerID)
 
 	// Cache miss - empty string returned
 	mockRedisRepo.EXPECT().
@@ -419,7 +420,7 @@ func TestGetLedgerSettings_CacheErrorOnRead_FallsBackToDatabase(t *testing.T) {
 	persistedSettings := map[string]any{
 		"customKey": "customValue",
 	}
-	cacheKey := BuildLedgerSettingsCacheKey(orgID, ledgerID)
+	cacheKey := utils.LedgerSettingsInternalKey(orgID, ledgerID)
 
 	// Cache error on read
 	mockRedisRepo.EXPECT().
@@ -465,7 +466,7 @@ func TestGetLedgerSettings_InvalidCacheJSON_FallsBackToDatabase(t *testing.T) {
 	persistedSettings := map[string]any{
 		"customKey": "customValue",
 	}
-	cacheKey := BuildLedgerSettingsCacheKey(orgID, ledgerID)
+	cacheKey := utils.LedgerSettingsInternalKey(orgID, ledgerID)
 
 	// Cache returns invalid JSON
 	mockRedisRepo.EXPECT().
@@ -511,7 +512,7 @@ func TestGetLedgerSettings_CacheSetError_DoesNotFailOperation(t *testing.T) {
 	persistedSettings := map[string]any{
 		"customKey": "customValue",
 	}
-	cacheKey := BuildLedgerSettingsCacheKey(orgID, ledgerID)
+	cacheKey := utils.LedgerSettingsInternalKey(orgID, ledgerID)
 
 	// Cache miss
 	mockRedisRepo.EXPECT().
@@ -535,18 +536,6 @@ func TestGetLedgerSettings_CacheSetError_DoesNotFailOperation(t *testing.T) {
 	assert.Equal(t, "customValue", settings["customKey"], "persisted custom key should be preserved")
 	_, hasAccounting := settings["accounting"]
 	assert.True(t, hasAccounting, "accounting defaults should be added")
-}
-
-func TestBuildLedgerSettingsCacheKey(t *testing.T) {
-	t.Parallel()
-
-	orgID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
-	ledgerID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
-
-	key := BuildLedgerSettingsCacheKey(orgID, ledgerID)
-
-	expected := "ledger_settings:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222"
-	assert.Equal(t, expected, key)
 }
 
 func TestGetLedgerSettings_CustomCacheTTL(t *testing.T) {
@@ -573,7 +562,7 @@ func TestGetLedgerSettings_CustomCacheTTL(t *testing.T) {
 	persistedSettings := map[string]any{
 		"customKey": "customValue",
 	}
-	cacheKey := BuildLedgerSettingsCacheKey(orgID, ledgerID)
+	cacheKey := utils.LedgerSettingsInternalKey(orgID, ledgerID)
 
 	// Cache miss
 	mockRedisRepo.EXPECT().
