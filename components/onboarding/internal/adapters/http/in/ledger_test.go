@@ -17,6 +17,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
+	redisAdapter "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -1192,7 +1193,7 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 	tests := []struct {
 		name           string
 		requestBody    map[string]any
-		setupMocks     func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID)
+		setupMocks     func(ledgerRepo *ledger.MockRepository, redisRepo *redisAdapter.MockRedisRepository, orgID, ledgerID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
@@ -1203,7 +1204,7 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 					"validateRoutes": true,
 				},
 			},
-			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+			setupMocks: func(ledgerRepo *ledger.MockRepository, redisRepo *redisAdapter.MockRedisRepository, orgID, ledgerID uuid.UUID) {
 				existingSettings := map[string]any{
 					"accounting": map[string]any{
 						"validateAccountType": true,
@@ -1216,6 +1217,9 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 						return mergeFn(existingSettings)
 					}).
 					Times(1)
+				redisRepo.EXPECT().
+					Del(gomock.Any(), gomock.Any()).
+					Return(nil)
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
@@ -1232,7 +1236,7 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 		{
 			name:        "empty settings returns 200",
 			requestBody: map[string]any{},
-			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+			setupMocks: func(ledgerRepo *ledger.MockRepository, redisRepo *redisAdapter.MockRedisRepository, orgID, ledgerID uuid.UUID) {
 				existingSettings := map[string]any{
 					"accounting": map[string]any{
 						"validateAccountType": false,
@@ -1245,6 +1249,9 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 						return mergeFn(existingSettings)
 					}).
 					Times(1)
+				redisRepo.EXPECT().
+					Del(gomock.Any(), gomock.Any()).
+					Return(nil)
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
@@ -1262,7 +1269,7 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 			requestBody: map[string]any{
 				"unknownKey": "value",
 			},
-			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+			setupMocks: func(ledgerRepo *ledger.MockRepository, redisRepo *redisAdapter.MockRedisRepository, orgID, ledgerID uuid.UUID) {
 				// No repo calls expected - validation fails first
 			},
 			expectedStatus: 400,
@@ -1282,7 +1289,7 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 					"validateRoutes": true,
 				},
 			},
-			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+			setupMocks: func(ledgerRepo *ledger.MockRepository, redisRepo *redisAdapter.MockRedisRepository, orgID, ledgerID uuid.UUID) {
 				ledgerRepo.EXPECT().
 					UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())).
@@ -1305,7 +1312,7 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 					"validateRoutes": true,
 				},
 			},
-			setupMocks: func(ledgerRepo *ledger.MockRepository, orgID, ledgerID uuid.UUID) {
+			setupMocks: func(ledgerRepo *ledger.MockRepository, redisRepo *redisAdapter.MockRedisRepository, orgID, ledgerID uuid.UUID) {
 				ledgerRepo.EXPECT().
 					UpdateSettingsAtomic(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return(nil, pkg.InternalServerError{
@@ -1336,10 +1343,12 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 			ledgerID := uuid.New()
 
 			mockLedgerRepo := ledger.NewMockRepository(ctrl)
-			tt.setupMocks(mockLedgerRepo, orgID, ledgerID)
+			mockRedisRepo := redisAdapter.NewMockRedisRepository(ctrl)
+			tt.setupMocks(mockLedgerRepo, mockRedisRepo, orgID, ledgerID)
 
 			cmdUC := &command.UseCase{
 				LedgerRepo: mockLedgerRepo,
+				RedisRepo:  mockRedisRepo,
 			}
 			handler := &LedgerHandler{Command: cmdUC}
 
