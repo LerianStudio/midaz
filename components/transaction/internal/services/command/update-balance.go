@@ -17,8 +17,8 @@ import (
 )
 
 // UpdateBalances persists balance updates to PostgreSQL.
-// When balancesAfter is non-nil, it uses the Lua-computed AFTER states directly (primary path).
-// When balancesAfter is nil (legacy payloads during rolling update), it falls back to
+// When balancesAfter is non-empty, it uses the Lua-computed AFTER states directly (primary path).
+// When balancesAfter is empty (legacy payloads during rolling update), it falls back to
 // recalculating via OperateBalances for backward compatibility.
 func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate pkgTransaction.Responses, balances []*mmodel.Balance, balancesAfter []*mmodel.Balance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
