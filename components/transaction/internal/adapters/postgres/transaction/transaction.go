@@ -584,8 +584,14 @@ type TransactionProcessingPayload struct {
 	// Validation responses from the transaction processing
 	Validate *pkgTransaction.Responses `json:"validate" msgpack:"Validate"`
 
-	// Account balances affected by the transaction
+	// Account balances affected by the transaction (BEFORE state)
 	Balances []*mmodel.Balance `json:"balances" msgpack:"Balances"`
+
+	// Account balances post-mutation from the Lua atomic script (AFTER state).
+	// When present, UpdateBalances persists these directly without recalculating.
+	// When nil (legacy payloads from rolling update), UpdateBalances falls back
+	// to OperateBalances for backward compatibility.
+	BalancesAfter []*mmodel.Balance `json:"balancesAfter,omitempty" msgpack:"BalancesAfter,omitempty"`
 
 	// The transaction being processed
 	Transaction *Transaction `json:"transaction" msgpack:"Transaction"`

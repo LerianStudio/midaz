@@ -494,6 +494,15 @@ type BalanceOperation struct {
 	InternalKey string
 }
 
+// BalanceAtomicResult holds the before and after states returned by the
+// Lua atomic balance operation script. Before contains pre-mutation snapshots
+// (used by BuildOperations for operation records). After contains post-mutation
+// states (used by UpdateBalances for PostgreSQL persistence).
+type BalanceAtomicResult struct {
+	Before []*Balance
+	After  []*Balance
+}
+
 // TransactionRedisQueue represents a transaction queue for cache-aside
 type TransactionRedisQueue struct {
 	HeaderID          string                     `json:"header_id"`
@@ -501,6 +510,7 @@ type TransactionRedisQueue struct {
 	OrganizationID    uuid.UUID                  `json:"organization_id"`
 	LedgerID          uuid.UUID                  `json:"ledger_id"`
 	Balances          []BalanceRedis             `json:"balances"`
+	BalancesAfter     []BalanceRedis             `json:"balancesAfter,omitempty"`
 	TransactionInput  pkgTransaction.Transaction `json:"parserDSL"`
 	TTL               time.Time                  `json:"ttl"`
 	Validate          *pkgTransaction.Responses  `json:"validate"`

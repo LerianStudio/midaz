@@ -153,9 +153,9 @@ func TestProcessBalanceAtomicOperation_NotedStatus(t *testing.T) {
 			// Assert
 			require.NoError(t, err, "NOTED status should not return error")
 			require.NotNil(t, balances, "balances should not be nil")
-			require.Len(t, balances, len(tc.balanceAliases), "should return all balances")
+			require.Len(t, balances.Before, len(tc.balanceAliases), "should return all balances")
 
-			for i, bal := range balances {
+			for i, bal := range balances.Before {
 				// Verify alias and values unchanged
 				assert.Equal(t, tc.balanceAliases[i], bal.Alias, "alias should match input")
 				assert.True(t, bal.Available.Equal(tc.balanceAmounts[i]),

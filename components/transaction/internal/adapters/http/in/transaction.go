@@ -999,7 +999,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &transactionInput, validate, transactionStatus)
+	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &transactionInput, validate, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
 
@@ -1048,7 +1048,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		},
 	}
 
-	operations, _, err := handler.BuildOperations(ctx, balances, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED)
+	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
 
@@ -1075,7 +1075,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	handler.Command.CreateWriteBehindTransaction(ctx, organizationID, ledgerID, tran, transactionInput)
 
-	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &transactionInput, validate, balances, tran)
+	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &transactionInput, validate, balancesBefore, balancesAfter, tran)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 
@@ -1182,7 +1182,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus)
+	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
 
@@ -1207,7 +1207,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		Description: &transactionStatus,
 	}
 
-	operations, preBalances, err := handler.BuildOperations(ctx, balances, fromTo, transactionInput, *tran, validate, time.Now(), false)
+	operations, preBalances, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, time.Now(), false)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
 
@@ -1241,7 +1241,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		}
 	}
 
-	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &transactionInput, validate, preBalances, tran)
+	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &transactionInput, validate, preBalances, balancesAfter, tran)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 

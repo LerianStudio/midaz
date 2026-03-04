@@ -16,44 +16,73 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateBalances func that is responsible to update balances without select for update.
-func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate pkgTransaction.Responses, balances []*mmodel.Balance) error {
+// UpdateBalances persists balance updates to PostgreSQL.
+// When balancesAfter is non-nil, it uses the Lua-computed AFTER states directly (primary path).
+// When balancesAfter is nil (legacy payloads during rolling update), it falls back to
+// recalculating via OperateBalances for backward compatibility.
+func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate pkgTransaction.Responses, balances []*mmodel.Balance, balancesAfter []*mmodel.Balance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances_new")
 	defer spanUpdateBalances.End()
 
-	fromTo := make(map[string]pkgTransaction.Amount, len(validate.From)+len(validate.To))
-	for k, v := range validate.From {
-		fromTo[k] = v
-	}
-
-	for k, v := range validate.To {
-		fromTo[k] = v
-	}
-
 	newBalances := make([]*mmodel.Balance, 0, len(balances))
 
-	for _, balance := range balances {
-		_, spanBalance := tracer.Start(ctx, "command.update_balances_new.balance")
-
-		calculateBalances, err := pkgTransaction.OperateBalances(fromTo[balance.Alias], *balance.ToTransactionBalance())
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
-			logger.Errorf("Failed to update balances on database: %v", err.Error())
-
-			return err
+	if len(balancesAfter) > 0 {
+		// Primary path: use Lua's AFTER state directly — no recalculation
+		afterMap := make(map[string]*mmodel.Balance, len(balancesAfter))
+		for _, b := range balancesAfter {
+			afterMap[b.Alias] = b
 		}
 
-		newBalances = append(newBalances, &mmodel.Balance{
-			ID:        balance.ID,
-			Alias:     balance.Alias,
-			Available: calculateBalances.Available,
-			OnHold:    calculateBalances.OnHold,
-			Version:   balance.Version + 1,
-		})
+		for _, balance := range balances {
+			after, ok := afterMap[balance.Alias]
+			if !ok {
+				logger.Warnf("No AFTER state for alias %s, skipping", balance.Alias)
 
-		spanBalance.End()
+				continue
+			}
+
+			newBalances = append(newBalances, &mmodel.Balance{
+				ID:        balance.ID,
+				Alias:     balance.Alias,
+				Available: after.Available,
+				OnHold:    after.OnHold,
+				Version:   after.Version,
+			})
+		}
+	} else {
+		// Fallback path: recalculate via OperateBalances (rolling update compatibility)
+		fromTo := make(map[string]pkgTransaction.Amount, len(validate.From)+len(validate.To))
+		for k, v := range validate.From {
+			fromTo[k] = v
+		}
+
+		for k, v := range validate.To {
+			fromTo[k] = v
+		}
+
+		for _, balance := range balances {
+			_, spanBalance := tracer.Start(ctx, "command.update_balances_new.balance")
+
+			calculateBalances, err := pkgTransaction.OperateBalances(fromTo[balance.Alias], *balance.ToTransactionBalance())
+			if err != nil {
+				libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
+				logger.Errorf("Failed to update balances on database: %v", err.Error())
+
+				return err
+			}
+
+			newBalances = append(newBalances, &mmodel.Balance{
+				ID:        balance.ID,
+				Alias:     balance.Alias,
+				Available: calculateBalances.Available,
+				OnHold:    calculateBalances.OnHold,
+				Version:   balance.Version + 1,
+			})
+
+			spanBalance.End()
+		}
 	}
 
 	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances); err != nil {

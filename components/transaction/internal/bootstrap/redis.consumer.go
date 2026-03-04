@@ -318,6 +318,36 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 		})
 	}
 
+	// Parse AFTER balances from backup queue (nil for legacy entries written by old pods)
+	var balancesAfter []*mmodel.Balance
+	if len(m.BalancesAfter) > 0 {
+		balancesAfter = make([]*mmodel.Balance, 0, len(m.BalancesAfter))
+		for _, balance := range m.BalancesAfter {
+			balanceKey := balance.Key
+			if balanceKey == "" {
+				balanceKey = constant.DefaultBalanceKey
+			}
+
+			balancesAfter = append(balancesAfter, &mmodel.Balance{
+				Alias:          balance.Alias,
+				ID:             balance.ID,
+				AccountID:      balance.AccountID,
+				Key:            balanceKey,
+				Available:      balance.Available,
+				OnHold:         balance.OnHold,
+				Version:        balance.Version,
+				AccountType:    balance.AccountType,
+				AllowSending:   balance.AllowSending == 1,
+				AllowReceiving: balance.AllowReceiving == 1,
+				AssetCode:      balance.AssetCode,
+				OrganizationID: m.OrganizationID.String(),
+				LedgerID:       m.LedgerID.String(),
+			})
+		}
+
+		logger.Infof("Using %d AFTER balances from backup for direct persistence", len(balancesAfter))
+	}
+
 	var parentTransactionID *string
 
 	tran := &postgreTransaction.Transaction{
@@ -379,7 +409,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 	utils.SanitizeAccountAliases(&m.TransactionInput)
 
 	if err := r.TransactionHandler.Command.WriteTransactionAsync(
-		msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.TransactionInput, m.Validate, balances, tran,
+		msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.TransactionInput, m.Validate, balances, balancesAfter, tran,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(&msgSpan, "Failed sending message to queue", err)
 

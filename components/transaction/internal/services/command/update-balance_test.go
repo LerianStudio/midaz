@@ -14,6 +14,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -189,4 +191,202 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 	assert.Equal(t, "USD", result.AssetCode)
 	assert.False(t, result.AllowSending)
 	assert.True(t, result.AllowReceiving)
+}
+
+func TestUpdateBalances_PrimaryPath_UsesAfterDirectly(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	balancesBefore := []*mmodel.Balance{
+		{
+			ID:        "bal-1",
+			Alias:     "@alice",
+			Available: decimal.NewFromInt(1000),
+			OnHold:    decimal.NewFromInt(0),
+			Version:   1,
+		},
+		{
+			ID:        "bal-2",
+			Alias:     "@bob",
+			Available: decimal.NewFromInt(500),
+			OnHold:    decimal.NewFromInt(0),
+			Version:   3,
+		},
+	}
+
+	balancesAfter := []*mmodel.Balance{
+		{
+			Alias:     "@alice",
+			Available: decimal.NewFromInt(900),
+			OnHold:    decimal.NewFromInt(0),
+			Version:   2,
+		},
+		{
+			Alias:     "@bob",
+			Available: decimal.NewFromInt(600),
+			OnHold:    decimal.NewFromInt(0),
+			Version:   4,
+		},
+	}
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []*mmodel.Balance) error {
+			require.Len(t, balances, 2)
+
+			// Verify ID comes from BEFORE, values from AFTER
+			assert.Equal(t, "bal-1", balances[0].ID)
+			assert.Equal(t, "@alice", balances[0].Alias)
+			assert.True(t, balances[0].Available.Equal(decimal.NewFromInt(900)))
+			assert.Equal(t, int64(2), balances[0].Version)
+
+			assert.Equal(t, "bal-2", balances[1].ID)
+			assert.Equal(t, "@bob", balances[1].Alias)
+			assert.True(t, balances[1].Available.Equal(decimal.NewFromInt(600)))
+			assert.Equal(t, int64(4), balances[1].Version)
+
+			return nil
+		}).Times(1)
+
+	uc := UseCase{
+		BalanceRepo: mockBalanceRepo,
+	}
+
+	validate := pkgTransaction.Responses{}
+
+	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, validate, balancesBefore, balancesAfter)
+
+	assert.NoError(t, err)
+}
+
+func TestUpdateBalances_FallbackPath_NilAfter(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	balancesBefore := []*mmodel.Balance{
+		{
+			ID:          "bal-1",
+			Alias:       "@alice",
+			Available:   decimal.NewFromInt(1000),
+			OnHold:      decimal.NewFromInt(0),
+			Version:     1,
+			AccountType: "deposit",
+		},
+	}
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []*mmodel.Balance) error {
+			require.Len(t, balances, 1)
+
+			// Fallback: OperateBalances recalculates, version is BEFORE+1
+			assert.Equal(t, "bal-1", balances[0].ID)
+			assert.True(t, balances[0].Available.Equal(decimal.NewFromInt(900)))
+			assert.Equal(t, int64(2), balances[0].Version)
+
+			return nil
+		}).Times(1)
+
+	uc := UseCase{
+		BalanceRepo: mockBalanceRepo,
+	}
+
+	validate := pkgTransaction.Responses{
+		From: map[string]pkgTransaction.Amount{
+			"@alice": {
+				Value:           decimal.NewFromInt(100),
+				Operation:       "DEBIT",
+				TransactionType: "CREATED",
+			},
+		},
+	}
+
+	// nil balancesAfter triggers fallback
+	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, validate, balancesBefore, nil)
+
+	assert.NoError(t, err)
+}
+
+func TestUpdateBalances_PrimaryPath_SkipsMissingAlias(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	balancesBefore := []*mmodel.Balance{
+		{ID: "bal-1", Alias: "@alice"},
+		{ID: "bal-2", Alias: "@bob"},
+	}
+
+	// Only @alice has AFTER state (no change for @bob)
+	balancesAfter := []*mmodel.Balance{
+		{Alias: "@alice", Available: decimal.NewFromInt(900), OnHold: decimal.NewFromInt(0), Version: 2},
+	}
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []*mmodel.Balance) error {
+			// Only @alice should be persisted, @bob is skipped
+			require.Len(t, balances, 1)
+			assert.Equal(t, "bal-1", balances[0].ID)
+			assert.Equal(t, "@alice", balances[0].Alias)
+
+			return nil
+		}).Times(1)
+
+	uc := UseCase{BalanceRepo: mockBalanceRepo}
+
+	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, pkgTransaction.Responses{}, balancesBefore, balancesAfter)
+
+	assert.NoError(t, err)
+}
+
+func TestUpdateBalances_BalancesUpdateError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	balancesBefore := []*mmodel.Balance{
+		{ID: "bal-1", Alias: "@alice"},
+	}
+	balancesAfter := []*mmodel.Balance{
+		{Alias: "@alice", Available: decimal.NewFromInt(900), Version: 2},
+	}
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Return(errors.New("database connection error")).
+		Times(1)
+
+	uc := UseCase{BalanceRepo: mockBalanceRepo}
+
+	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, pkgTransaction.Responses{}, balancesBefore, balancesAfter)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "database connection error")
 }
