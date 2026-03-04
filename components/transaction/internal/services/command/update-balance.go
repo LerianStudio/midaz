@@ -92,6 +92,10 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		}
 	}
 
+	if len(newBalances) == 0 {
+		return nil
+	}
+
 	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
 		logger.Errorf("Failed to update balances on database: %v", err.Error())
