@@ -381,7 +381,7 @@ func BenchmarkDetermineOperation(b *testing.B) {
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				_ = DetermineOperation(sc.isPending, sc.isFrom, sc.transactionType)
+				_, _ = DetermineOperation(sc.isPending, sc.isFrom, sc.transactionType)
 			}
 		})
 	}

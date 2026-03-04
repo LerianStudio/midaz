@@ -64,10 +64,12 @@ type Metadata struct {
 // swagger:model Amount
 // @Description Amount is the struct designed to represent the amount of an operation.
 type Amount struct {
-	Asset           string          `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value           decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
-	Operation       string          `json:"operation,omitempty"`
-	TransactionType string          `json:"transactionType,omitempty"`
+	Asset                  string          `json:"asset,omitempty" validate:"required" example:"BRL"`
+	Value                  decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
+	Operation              string          `json:"operation,omitempty"`
+	TransactionType        string          `json:"transactionType,omitempty"`
+	Direction              string          `json:"direction,omitempty"`
+	RouteValidationEnabled bool            `json:"routeValidationEnabled,omitempty"`
 } // @name Amount
 
 // Share structure for marshaling/unmarshalling JSON.

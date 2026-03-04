@@ -142,10 +142,16 @@ func OperateBalances(amount Amount, balance Balance) (Balance, error) {
 	total = balance.Available
 	totalOnHold = balance.OnHold
 
+	versionIncrement := int64(1)
+
 	switch {
 	case amount.Operation == constant.ONHOLD && amount.TransactionType == constant.PENDING:
 		total = balance.Available.Sub(amount.Value)
 		totalOnHold = balance.OnHold.Add(amount.Value)
+
+		if amount.RouteValidationEnabled {
+			versionIncrement = 2
+		}
 	case amount.Operation == constant.RELEASE && amount.TransactionType == constant.CANCELED:
 		totalOnHold = balance.OnHold.Sub(amount.Value)
 		total = balance.Available.Add(amount.Value)
@@ -162,7 +168,7 @@ func OperateBalances(amount Amount, balance Balance) (Balance, error) {
 		return balance, nil
 	}
 
-	totalVersion = balance.Version + 1
+	totalVersion = balance.Version + versionIncrement
 
 	return Balance{
 		Available: total,
@@ -171,34 +177,33 @@ func OperateBalances(amount Amount, balance Balance) (Balance, error) {
 	}, nil
 }
 
-// DetermineOperation Function to determine the operation
-func DetermineOperation(isPending bool, isFrom bool, transactionType string) string {
+// DetermineOperation determines the operation type and direction for a balance entry.
+// Returns (type, direction) where type is the operation type (DEBIT, CREDIT, ON_HOLD, RELEASE)
+// and direction is the accounting direction ("debit" or "credit").
+func DetermineOperation(isPending bool, isFrom bool, transactionType string) (string, string) {
 	switch {
 	case isPending && transactionType == constant.PENDING:
-		switch {
-		case isFrom:
-			return constant.ONHOLD
-		default:
-			return constant.CREDIT
+		if isFrom {
+			return constant.ONHOLD, constant.CREDIT
 		}
+
+		return constant.CREDIT, constant.CREDIT
 	case isPending && isFrom && transactionType == constant.CANCELED:
-		return constant.RELEASE
+		return constant.RELEASE, constant.DEBIT
 	case isPending && transactionType == constant.APPROVED:
-		switch {
-		case isFrom:
-			return constant.DEBIT
-		default:
-			return constant.CREDIT
+		if isFrom {
+			return constant.DEBIT, constant.DEBIT
 		}
+
+		return constant.CREDIT, constant.CREDIT
 	case !isPending:
-		switch {
-		case isFrom:
-			return constant.DEBIT
-		default:
-			return constant.CREDIT
+		if isFrom {
+			return constant.DEBIT, constant.DEBIT
 		}
+
+		return constant.CREDIT, constant.CREDIT
 	default:
-		return constant.CREDIT
+		return constant.CREDIT, constant.CREDIT
 	}
 }
 
@@ -220,7 +225,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 	for i := range fromTos {
 		operationRoute[fromTos[i].AccountAlias] = fromTos[i].Route
 
-		operation := DetermineOperation(transaction.Pending, fromTos[i].IsFrom, transactionType)
+		operation, direction := DetermineOperation(transaction.Pending, fromTos[i].IsFrom, transactionType)
 
 		if fromTos[i].Share != nil && fromTos[i].Share.Percentage != 0 {
 			oneHundred := decimal.NewFromInt(100)
@@ -241,6 +246,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 				Value:           shareValue,
 				Operation:       operation,
 				TransactionType: transactionType,
+				Direction:       direction,
 			}
 
 			total = total.Add(shareValue)
@@ -253,6 +259,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 				Value:           fromTos[i].Amount.Value,
 				Operation:       operation,
 				TransactionType: transactionType,
+				Direction:       direction,
 			}
 
 			fmto[fromTos[i].AccountAlias] = amount
@@ -265,6 +272,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 			total = total.Add(remaining.Value)
 
 			remaining.Operation = operation
+			remaining.Direction = direction
 
 			fmto[fromTos[i].AccountAlias] = remaining
 			fromTos[i].Amount = &remaining
