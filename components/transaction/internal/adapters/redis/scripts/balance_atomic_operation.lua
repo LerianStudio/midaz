@@ -189,19 +189,20 @@ local function cloneBalance(tbl)
     return copy
 end
 
-local function updateTransactionHash(transactionBackupQueue, transactionKey, balances)
+local function updateTransactionHash(transactionBackupQueue, transactionKey, balances, balancesAfter)
     local transaction
 
     local raw = redis.call("HGET", transactionBackupQueue, transactionKey)
     if not raw then
-        transaction = { balances = balances }
+        transaction = { balances = balances, balancesAfter = balancesAfter }
     else
         local ok, decoded = pcall(cjson.decode, raw)
         if ok and type(decoded) == "table" then
             transaction = decoded
             transaction.balances = balances
+            transaction.balancesAfter = balancesAfter
         else
-            transaction = { balances = balances }
+            transaction = { balances = balances, balancesAfter = balancesAfter }
         end
     end
 
@@ -231,6 +232,7 @@ local function main()
 
     local groupSize = 16
     local returnBalances = {}
+    local returnBalancesAfter = {}
     local rollbackBalances = {}
 
     local transactionBackupQueue = KEYS[1]
@@ -358,6 +360,8 @@ local function main()
             balance.OnHold = resultOnHold
             balance.Version = balance.Version + 1
 
+            table.insert(returnBalancesAfter, cloneBalance(balance))
+
             redisBalance = cjson.encode(balance)
             redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
 
@@ -373,14 +377,13 @@ local function main()
     -- for both the transaction hash and the return value
     if #returnBalances == 0 then
         local emptyArray = cjson.decode("[]")
-        updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray)
-        return "[]"
+        updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray, emptyArray)
+        return cjson.encode({ before = cjson.decode("[]"), after = cjson.decode("[]") })
     end
 
-    updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances)
+    updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances, returnBalancesAfter)
 
-    local returnBalancesEncoded = cjson.encode(returnBalances)
-    return returnBalancesEncoded
+    return cjson.encode({ before = returnBalances, after = returnBalancesAfter })
 end
 
 return main()

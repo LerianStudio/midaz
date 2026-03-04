@@ -195,7 +195,7 @@ func TestWriteTransaction(t *testing.T) {
 			Return(nil, nil).
 			Times(1)
 
-		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -228,7 +228,7 @@ func TestWriteTransaction(t *testing.T) {
 			Return(nil, nil).
 			Times(1)
 
-		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -262,7 +262,7 @@ func TestWriteTransaction(t *testing.T) {
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
 		// Allow background goroutines (DeleteWriteBehindTransaction) to complete before ctrl.Finish
 		time.Sleep(100 * time.Millisecond)
@@ -298,7 +298,7 @@ func TestWriteTransaction(t *testing.T) {
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -332,7 +332,7 @@ func TestWriteTransaction(t *testing.T) {
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
 		// Allow background goroutines (DeleteWriteBehindTransaction) to complete before ctrl.Finish
 		time.Sleep(100 * time.Millisecond)
@@ -369,7 +369,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 			Return(nil, nil).
 			Times(1)
 
-		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -409,7 +409,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 		// Setup mocks for fallback path (CreateBalanceTransactionOperationsAsync)
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
 		// Should succeed via fallback
 		assert.NoError(t, err)
@@ -463,7 +463,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 			Return(errors.New("database connection failed")).
 			Times(1)
 
-		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
 		// Should return error from fallback
 		assert.Error(t, err)
@@ -497,7 +497,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 			Return(nil, nil).
 			Times(1)
 
-		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
 		assert.NoError(t, err)
 	})
@@ -531,7 +531,7 @@ func TestWriteTransactionSync(t *testing.T) {
 		// Setup mocks for CreateBalanceTransactionOperationsAsync
 		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
 
-		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
 		// Allow background goroutines (DeleteWriteBehindTransaction) to complete before ctrl.Finish
 		time.Sleep(100 * time.Millisecond)
@@ -578,7 +578,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			Return(errors.New("failed to update balances")).
 			Times(1)
 
-		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to update balances")
@@ -629,7 +629,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			Return(nil, errors.New("failed to create transaction")).
 			Times(1)
 
-		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, td.tran)
+		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create transaction")
@@ -735,7 +735,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			Return(nil).
 			AnyTimes()
 
-		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, balances, tran)
+		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, balances, nil, tran)
 
 		// Allow background goroutines (DeleteWriteBehindTransaction) to complete before ctrl.Finish
 		time.Sleep(100 * time.Millisecond)

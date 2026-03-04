@@ -154,43 +154,47 @@ func TestGetBalances(t *testing.T) {
 				false,
 				gomock.Any(), // balance operations
 			).
-			Return([]*mmodel.Balance{
-				{
-					ID:             balanceRedis.ID,
-					AccountID:      balanceRedis.AccountID,
-					OrganizationID: organizationID.String(),
-					LedgerID:       ledgerID.String(),
-					Alias:          "alias1",
-					Available:      balanceRedis.Available,
-					OnHold:         balanceRedis.OnHold,
-					Version:        balanceRedis.Version,
-					AccountType:    balanceRedis.AccountType,
-					AllowSending:   balanceRedis.AllowSending == 1,
-					AllowReceiving: balanceRedis.AllowReceiving == 1,
-					AssetCode:      balanceRedis.AssetCode,
+			Return(&mmodel.BalanceAtomicResult{
+				Before: []*mmodel.Balance{
+					{
+						ID:             balanceRedis.ID,
+						AccountID:      balanceRedis.AccountID,
+						OrganizationID: organizationID.String(),
+						LedgerID:       ledgerID.String(),
+						Alias:          "alias1",
+						Available:      balanceRedis.Available,
+						OnHold:         balanceRedis.OnHold,
+						Version:        balanceRedis.Version,
+						AccountType:    balanceRedis.AccountType,
+						AllowSending:   balanceRedis.AllowSending == 1,
+						AllowReceiving: balanceRedis.AllowReceiving == 1,
+						AssetCode:      balanceRedis.AssetCode,
+					},
+					databaseBalances[0],
+					databaseBalances[1],
 				},
-				databaseBalances[0],
-				databaseBalances[1],
+				After: []*mmodel.Balance{},
 			}, nil).
 			Times(1)
 
 		transactionID := uuid.New()
-		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
+		balancesBefore, balancesAfter, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
 		assert.NoError(t, err)
-		assert.Len(t, balances, 3)
+		assert.Len(t, balancesBefore, 3)
+		assert.NotNil(t, balancesAfter, "after balances should not be nil")
 
-		sort.Slice(balances, func(i, j int) bool {
-			return balances[i].Alias < balances[j].Alias
+		sort.Slice(balancesBefore, func(i, j int) bool {
+			return balancesBefore[i].Alias < balancesBefore[j].Alias
 		})
 
-		assert.Equal(t, "alias1", balances[0].Alias)
-		assert.Equal(t, balanceRedis.ID, balances[0].ID)
+		assert.Equal(t, "alias1", balancesBefore[0].Alias)
+		assert.Equal(t, balanceRedis.ID, balancesBefore[0].ID)
 
-		assert.Equal(t, "alias2", balances[1].Alias)
-		assert.Equal(t, databaseBalances[0].ID, balances[1].ID)
+		assert.Equal(t, "alias2", balancesBefore[1].Alias)
+		assert.Equal(t, databaseBalances[0].ID, balancesBefore[1].ID)
 
-		assert.Equal(t, "alias3", balances[2].Alias)
-		assert.Equal(t, databaseBalances[1].ID, balances[2].ID)
+		assert.Equal(t, "alias3", balancesBefore[2].Alias)
+		assert.Equal(t, databaseBalances[1].ID, balancesBefore[2].ID)
 	})
 
 	t.Run("all balances from redis", func(t *testing.T) {
@@ -267,40 +271,43 @@ func TestGetBalances(t *testing.T) {
 				false,
 				gomock.Any(), // balance operations
 			).
-			Return([]*mmodel.Balance{
-				{
-					ID:             balance1.ID,
-					AccountID:      balance1.AccountID,
-					OrganizationID: organizationID.String(),
-					LedgerID:       ledgerID.String(),
-					Alias:          "alias1",
-					Available:      balance1.Available,
-					OnHold:         balance1.OnHold,
-					Version:        balance1.Version,
-					AccountType:    balance1.AccountType,
-					AllowSending:   balance1.AllowSending == 1,
-					AllowReceiving: balance1.AllowReceiving == 1,
-					AssetCode:      balance1.AssetCode,
+			Return(&mmodel.BalanceAtomicResult{
+				Before: []*mmodel.Balance{
+					{
+						ID:             balance1.ID,
+						AccountID:      balance1.AccountID,
+						OrganizationID: organizationID.String(),
+						LedgerID:       ledgerID.String(),
+						Alias:          "alias1",
+						Available:      balance1.Available,
+						OnHold:         balance1.OnHold,
+						Version:        balance1.Version,
+						AccountType:    balance1.AccountType,
+						AllowSending:   balance1.AllowSending == 1,
+						AllowReceiving: balance1.AllowReceiving == 1,
+						AssetCode:      balance1.AssetCode,
+					},
+					{
+						ID:             balance2.ID,
+						AccountID:      balance2.AccountID,
+						OrganizationID: organizationID.String(),
+						LedgerID:       ledgerID.String(),
+						Alias:          "alias2",
+						Available:      balance2.Available,
+						OnHold:         balance2.OnHold,
+						Version:        balance2.Version,
+						AccountType:    balance2.AccountType,
+						AllowSending:   balance2.AllowSending == 1,
+						AllowReceiving: balance2.AllowReceiving == 1,
+						AssetCode:      balance2.AssetCode,
+					},
 				},
-				{
-					ID:             balance2.ID,
-					AccountID:      balance2.AccountID,
-					OrganizationID: organizationID.String(),
-					LedgerID:       ledgerID.String(),
-					Alias:          "alias2",
-					Available:      balance2.Available,
-					OnHold:         balance2.OnHold,
-					Version:        balance2.Version,
-					AccountType:    balance2.AccountType,
-					AllowSending:   balance2.AllowSending == 1,
-					AllowReceiving: balance2.AllowReceiving == 1,
-					AssetCode:      balance2.AssetCode,
-				},
+				After: []*mmodel.Balance{},
 			}, nil).
 			Times(1)
 
 		transactionID := uuid.New()
-		balances, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
+		balances, _, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
 
 		assert.NoError(t, err)
 		assert.Len(t, balances, 2)
@@ -365,13 +372,13 @@ func TestGetAccountAndLock(t *testing.T) {
 				false,
 				gomock.Any(), // balance operations
 			).
-			Return(balances, nil)
+			Return(&mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil)
 
 		transactionID := uuid.New()
-		lockedBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, constant.CREATED)
+		result, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, constant.CREATED)
 
 		assert.NoError(t, err)
-		assert.Len(t, lockedBalances, 1)
+		assert.Len(t, result.Before, 1)
 	})
 }
 

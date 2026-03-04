@@ -54,7 +54,7 @@ type RedisRepository interface {
 	MGet(ctx context.Context, keys []string) (map[string]string, error)
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
-	ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) ([]*mmodel.Balance, error)
+	ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error)
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	GetBytes(ctx context.Context, key string) ([]byte, error)
 	AddMessageToQueue(ctx context.Context, key string, msg []byte) error
@@ -290,7 +290,46 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) ([]*mmodel.Balance, error) {
+// balanceAtomicResponse is the JSON structure returned by the Lua atomic balance script.
+// It contains both BEFORE (pre-mutation) and AFTER (post-mutation) balance snapshots.
+type balanceAtomicResponse struct {
+	Before []mmodel.BalanceRedis `json:"before"`
+	After  []mmodel.BalanceRedis `json:"after"`
+}
+
+// balanceRedisToBalance converts a BalanceRedis (Lua/cache format) to a Balance (domain model),
+// enriching it with fields from the mapBalances lookup that are not stored in Redis.
+func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel.Balance) *mmodel.Balance {
+	mapBalance, ok := mapBalances[b.Alias]
+	if !ok {
+		return nil
+	}
+
+	balanceKey := mapBalance.Key
+	if balanceKey == "" {
+		balanceKey = constant.DefaultBalanceKey
+	}
+
+	return &mmodel.Balance{
+		Alias:          b.Alias,
+		Key:            balanceKey,
+		ID:             b.ID,
+		AccountID:      b.AccountID,
+		Available:      b.Available,
+		OnHold:         b.OnHold,
+		Version:        b.Version,
+		AccountType:    b.AccountType,
+		AllowSending:   mapBalance.AllowSending,
+		AllowReceiving: mapBalance.AllowReceiving,
+		AssetCode:      mapBalance.AssetCode,
+		OrganizationID: mapBalance.OrganizationID,
+		LedgerID:       mapBalance.LedgerID,
+		CreatedAt:      mapBalance.CreatedAt,
+		UpdatedAt:      mapBalance.UpdatedAt,
+	}
+}
+
+func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.process_balance_atomic_operation")
@@ -346,7 +385,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	}
 
 	if transactionStatus == constant.NOTED {
-		return balances, nil
+		return &mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil
 	}
 
 	ctx, spanScript := tracer.Start(ctx, "redis.process_balance_atomic_operation.script")
@@ -401,8 +440,6 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	logger.Infof("Backup queue: transaction written to %s with key %s", prefixedBackupQueue, prefixedTransactionKey)
 	logger.Infof("result value: %v", result)
 
-	blcsRedis := make([]mmodel.BalanceRedis, 0)
-
 	var balanceJSON []byte
 
 	switch v := result.(type) {
@@ -417,7 +454,8 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		return nil, err
 	}
 
-	if err := json.Unmarshal(balanceJSON, &blcsRedis); err != nil {
+	var atomicResp balanceAtomicResponse
+	if err := json.Unmarshal(balanceJSON, &atomicResp); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
 
 		logger.Errorf("Error to Deserialization json: %v", err)
@@ -425,41 +463,31 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		return nil, err
 	}
 
-	balances = make([]*mmodel.Balance, 0)
-
-	for _, b := range blcsRedis {
-		mapBalance, ok := mapBalances[b.Alias]
-		if !ok {
+	beforeBalances := make([]*mmodel.Balance, 0, len(atomicResp.Before))
+	for _, b := range atomicResp.Before {
+		bal := balanceRedisToBalance(b, mapBalances)
+		if bal == nil {
 			logger.Warnf("Failed to find balance for alias: %v, id: %v", b.Alias, b.ID)
 
 			continue
 		}
 
-		balanceKey := mapBalance.Key
-		if balanceKey == "" {
-			balanceKey = constant.DefaultBalanceKey
-		}
-
-		balances = append(balances, &mmodel.Balance{
-			Alias:          b.Alias,
-			Key:            balanceKey,
-			ID:             b.ID,
-			AccountID:      b.AccountID,
-			Available:      b.Available,
-			OnHold:         b.OnHold,
-			Version:        b.Version,
-			AccountType:    b.AccountType,
-			AllowSending:   mapBalance.AllowSending,
-			AllowReceiving: mapBalance.AllowReceiving,
-			AssetCode:      mapBalance.AssetCode,
-			OrganizationID: mapBalance.OrganizationID,
-			LedgerID:       mapBalance.LedgerID,
-			CreatedAt:      mapBalance.CreatedAt,
-			UpdatedAt:      mapBalance.UpdatedAt,
-		})
+		beforeBalances = append(beforeBalances, bal)
 	}
 
-	return balances, nil
+	afterBalances := make([]*mmodel.Balance, 0, len(atomicResp.After))
+	for _, b := range atomicResp.After {
+		bal := balanceRedisToBalance(b, mapBalances)
+		if bal == nil {
+			logger.Warnf("Failed to find after balance for alias: %v, id: %v", b.Alias, b.ID)
+
+			continue
+		}
+
+		afterBalances = append(afterBalances, bal)
+	}
+
+	return &mmodel.BalanceAtomicResult{Before: beforeBalances, After: afterBalances}, nil
 }
 
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
