@@ -70,6 +70,52 @@ func CreateBalanceOperationWithOnHold(organizationID, ledgerID uuid.UUID, alias,
 	}
 }
 
+// CreatePendingBalanceOperation creates a BalanceOperation for PENDING transaction testing.
+// It supports custom version, onHold, and the RouteValidationEnabled flag needed for
+// double-entry PENDING integration tests.
+func CreatePendingBalanceOperation(
+	organizationID, ledgerID uuid.UUID,
+	alias, assetCode, operation string,
+	amount, available, onHold decimal.Decimal,
+	version int64,
+	accountType string,
+	routeValidationEnabled bool,
+) mmodel.BalanceOperation {
+	balanceID := libCommons.GenerateUUIDv7().String()
+	accountID := libCommons.GenerateUUIDv7().String()
+	balanceKey := "default"
+
+	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balanceKey)
+
+	return mmodel.BalanceOperation{
+		Balance: &mmodel.Balance{
+			ID:             balanceID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      accountID,
+			Alias:          alias,
+			Key:            balanceKey,
+			AssetCode:      assetCode,
+			Available:      available,
+			OnHold:         onHold,
+			Version:        version,
+			AccountType:    accountType,
+			AllowSending:   true,
+			AllowReceiving: true,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
+		},
+		Alias: alias,
+		Amount: pkgTransaction.Amount{
+			Asset:                  assetCode,
+			Value:                  amount,
+			Operation:              operation,
+			RouteValidationEnabled: routeValidationEnabled,
+		},
+		InternalKey: internalKey,
+	}
+}
+
 // AssertInsufficientFundsError verifies the error is an UnprocessableOperationError with code "0018".
 func AssertInsufficientFundsError(t *testing.T, err error) {
 	t.Helper()

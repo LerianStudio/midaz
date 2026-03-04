@@ -1203,6 +1203,202 @@ func TestValidateTransactionWithPercentageAndRemaining(t *testing.T) {
 	}
 }
 
+func TestDetermineOperation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		isPending         bool
+		isFrom            bool
+		transactionType   string
+		expectedType      string
+		expectedDirection string
+	}{
+		{
+			name:              "pending from PENDING -> ONHOLD credit",
+			isPending:         true,
+			isFrom:            true,
+			transactionType:   constant.PENDING,
+			expectedType:      constant.ONHOLD,
+			expectedDirection: constant.CREDIT,
+		},
+		{
+			name:              "pending to PENDING -> CREDIT credit",
+			isPending:         true,
+			isFrom:            false,
+			transactionType:   constant.PENDING,
+			expectedType:      constant.CREDIT,
+			expectedDirection: constant.CREDIT,
+		},
+		{
+			name:              "pending from CANCELED -> RELEASE debit",
+			isPending:         true,
+			isFrom:            true,
+			transactionType:   constant.CANCELED,
+			expectedType:      constant.RELEASE,
+			expectedDirection: constant.DEBIT,
+		},
+		{
+			name:              "pending from APPROVED -> DEBIT debit",
+			isPending:         true,
+			isFrom:            true,
+			transactionType:   constant.APPROVED,
+			expectedType:      constant.DEBIT,
+			expectedDirection: constant.DEBIT,
+		},
+		{
+			name:              "pending to APPROVED -> CREDIT credit",
+			isPending:         true,
+			isFrom:            false,
+			transactionType:   constant.APPROVED,
+			expectedType:      constant.CREDIT,
+			expectedDirection: constant.CREDIT,
+		},
+		{
+			name:              "not pending from -> DEBIT debit",
+			isPending:         false,
+			isFrom:            true,
+			transactionType:   constant.CREATED,
+			expectedType:      constant.DEBIT,
+			expectedDirection: constant.DEBIT,
+		},
+		{
+			name:              "not pending to -> CREDIT credit",
+			isPending:         false,
+			isFrom:            false,
+			transactionType:   constant.CREATED,
+			expectedType:      constant.CREDIT,
+			expectedDirection: constant.CREDIT,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotType, gotDirection := DetermineOperation(tt.isPending, tt.isFrom, tt.transactionType)
+			assert.Equal(t, tt.expectedType, gotType, "operation type mismatch")
+			assert.Equal(t, tt.expectedDirection, gotDirection, "direction mismatch")
+		})
+	}
+}
+
+func TestOperateBalances_RouteValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		amount   Amount
+		balance  Balance
+		expected Balance
+	}{
+		{
+			name: "ONHOLD+PENDING flag OFF - Available-- AND OnHold++ (current behavior)",
+			amount: Amount{
+				Value:                  decimal.NewFromInt(100),
+				Operation:              constant.ONHOLD,
+				TransactionType:        constant.PENDING,
+				RouteValidationEnabled: false,
+			},
+			balance: Balance{
+				Available: decimal.NewFromInt(1000),
+				OnHold:    decimal.NewFromInt(0),
+			},
+			expected: Balance{
+				Available: decimal.NewFromInt(900),
+				OnHold:    decimal.NewFromInt(100),
+				Version:   1,
+			},
+		},
+		{
+			name: "ONHOLD+PENDING flag ON - Available-- AND OnHold++ with version+2",
+			amount: Amount{
+				Value:                  decimal.NewFromInt(100),
+				Operation:              constant.ONHOLD,
+				TransactionType:        constant.PENDING,
+				RouteValidationEnabled: true,
+			},
+			balance: Balance{
+				Available: decimal.NewFromInt(1000),
+				OnHold:    decimal.NewFromInt(0),
+			},
+			expected: Balance{
+				Available: decimal.NewFromInt(900),
+				OnHold:    decimal.NewFromInt(100),
+				Version:   2,
+			},
+		},
+		{
+			name: "DEBIT+CREATED flag OFF - Available-- (regression)",
+			amount: Amount{
+				Value:                  decimal.NewFromInt(100),
+				Operation:              constant.DEBIT,
+				TransactionType:        constant.CREATED,
+				RouteValidationEnabled: false,
+			},
+			balance: Balance{
+				Available: decimal.NewFromInt(1000),
+				OnHold:    decimal.NewFromInt(50),
+			},
+			expected: Balance{
+				Available: decimal.NewFromInt(900),
+				OnHold:    decimal.NewFromInt(50),
+				Version:   1,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := OperateBalances(tt.amount, tt.balance)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected.Available.String(), result.Available.String(), "available balance mismatch")
+			assert.Equal(t, tt.expected.OnHold.String(), result.OnHold.String(), "onHold balance mismatch")
+			assert.Equal(t, tt.expected.Version, result.Version, "version mismatch")
+		})
+	}
+}
+
+func TestDoubleEntryInvariant_RouteValidation(t *testing.T) {
+	t.Parallel()
+
+	// When route validation is ON and transaction is PENDING, OperateBalances
+	// processes ON_HOLD in a single call (Available-- AND OnHold++) but increments
+	// version by 2 (one per double-entry operation record).
+	// BuildOperations then creates 2 operation records: DEBIT(v→v+1) + ONHOLD(v+1→v+2).
+
+	value := decimal.NewFromInt(500)
+	startBalance := Balance{
+		Available: decimal.NewFromInt(2000),
+		OnHold:    decimal.NewFromInt(0),
+		Version:   5,
+	}
+
+	onholdAmount := Amount{
+		Value:                  value,
+		Operation:              constant.ONHOLD,
+		TransactionType:        constant.PENDING,
+		RouteValidationEnabled: true,
+	}
+
+	result, err := OperateBalances(onholdAmount, startBalance)
+	assert.NoError(t, err)
+
+	// Balance math: Available decreased, OnHold increased
+	assert.True(t, result.Available.Equal(decimal.NewFromInt(1500)), "Available should decrease by value")
+	assert.True(t, result.OnHold.Equal(decimal.NewFromInt(500)), "OnHold should increase by value")
+
+	// Version incremented by 2 (2 operation records)
+	assert.Equal(t, int64(7), result.Version, "version should increment by 2 for double-entry")
+
+	// Double-entry invariant: debit effect == credit effect
+	availableDecrease := startBalance.Available.Sub(result.Available)
+	onholdIncrease := result.OnHold.Sub(startBalance.OnHold)
+	assert.True(t, availableDecrease.Equal(onholdIncrease), "debit effect must equal credit effect")
+}
+
 // TestProperty_OperateBalances_SumInvariant validates that applying a sequence of
 // CREDIT/DEBIT operations results in a balance equal to the expected sum.
 // This is a pure property test with no I/O - runs 1000 iterations quickly.

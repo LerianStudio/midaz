@@ -516,6 +516,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(
 			blcs.Amount.Operation,
 			blcs.Amount.Value.String(),
 			blcs.Alias,
+			boolToInt(blcs.Amount.RouteValidationEnabled),
 			blcs.Balance.ID,
 			blcs.Balance.Available.String(),
 			blcs.Balance.OnHold.String(),
