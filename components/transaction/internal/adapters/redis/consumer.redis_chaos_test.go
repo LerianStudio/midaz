@@ -6,27 +6,35 @@
 
 // Package redis provides chaos tests for the Redis consumer adapter.
 //
-// Chaos tests exercise fault-tolerance of Redis namespacing operations when
-// the underlying Valkey/Redis connection experiences failures. They are a
+// Chaos tests exercise fault-tolerance of Redis operations when the underlying
+// Valkey/Redis connection experiences failures. They cover both namespacing
+// operations and balance atomic operations (double-entry PENDING). They are a
 // subset of integration tests and run only when CHAOS=1 is set.
 //
 // Run with:
 //
-//	CHAOS=1 go test -tags integration -v -run TestIntegration_Chaos_RedisNamespacing ./components/transaction/internal/adapters/redis/...
+//	CHAOS=1 go test -tags integration -v -run TestIntegration_Chaos ./components/transaction/internal/adapters/redis/...
 package redis
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"testing"
 	"time"
 
+	libConstants "github.com/LerianStudio/lib-commons/v3/commons/constants"
 	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
 	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
 	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -621,4 +629,566 @@ func TestIntegration_Chaos_RedisNamespacing_RecoveryAfterReconnect(t *testing.T)
 		"Phase 5: value stored under namespaced key after recovery must match")
 
 	t.Log("CS-5 PASS: namespaced Set/Get work correctly after Redis recovers from outage")
+}
+
+// =============================================================================
+// BALANCE ATOMIC OPERATION HELPERS
+// =============================================================================
+
+// buildTestBalanceOps creates a []mmodel.BalanceOperation slice for a PENDING
+// transaction with a single ONHOLD source entry. When routeEnabled is true, the
+// Lua script increments version by 2 (double-entry behavior).
+func buildTestBalanceOps(
+	orgID, ledgerID uuid.UUID,
+	alias string,
+	available, onHold decimal.Decimal,
+	version int64,
+	routeEnabled bool,
+) []mmodel.BalanceOperation {
+	balanceID := uuid.New().String()
+	accountID := uuid.New().String()
+	balanceKey := constant.DefaultBalanceKey
+
+	balance := &mmodel.Balance{
+		ID:             balanceID,
+		AccountID:      accountID,
+		Alias:          alias,
+		Key:            balanceKey,
+		AssetCode:      "BRL",
+		Available:      available,
+		OnHold:         onHold,
+		Version:        version,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+	}
+
+	amount := pkgTransaction.Amount{
+		Asset:                  "BRL",
+		Value:                  decimal.NewFromInt(100),
+		Operation:              libConstants.ONHOLD,
+		TransactionType:        constant.PENDING,
+		Direction:              libConstants.CREDIT,
+		RouteValidationEnabled: routeEnabled,
+	}
+
+	internalKey := utils.BalanceInternalKey(orgID, ledgerID, pkgTransaction.AliasKey(alias, balanceKey))
+
+	return []mmodel.BalanceOperation{
+		{
+			Balance:     balance,
+			Alias:       alias,
+			Amount:      amount,
+			InternalKey: internalKey,
+		},
+	}
+}
+
+// verifyRedisBalance reads a balance directly from Redis (bypassing the proxy)
+// and asserts its fields match expected values.
+func verifyRedisBalance(
+	t *testing.T,
+	infra *chaosNetworkTestInfra,
+	balanceKey string,
+	expectedAvailable decimal.Decimal,
+	expectedOnHold decimal.Decimal,
+	expectedVersion int64,
+) {
+	t.Helper()
+
+	raw, err := infra.redisContainer.Client.Get(context.Background(), balanceKey).Result()
+	require.NoError(t, err, "direct Redis GET should succeed for key %s", balanceKey)
+
+	var balanceRedis mmodel.BalanceRedis
+
+	err = json.Unmarshal([]byte(raw), &balanceRedis)
+	require.NoError(t, err, "balance JSON should unmarshal correctly")
+
+	assert.True(t, expectedAvailable.Equal(balanceRedis.Available),
+		"available: expected %s, got %s", expectedAvailable.String(), balanceRedis.Available.String())
+	assert.True(t, expectedOnHold.Equal(balanceRedis.OnHold),
+		"onHold: expected %s, got %s", expectedOnHold.String(), balanceRedis.OnHold.String())
+	assert.Equal(t, expectedVersion, balanceRedis.Version,
+		"version: expected %d, got %d", expectedVersion, balanceRedis.Version)
+}
+
+// =============================================================================
+// CS-B1: CONNECTION LOSS DURING LUA SCRIPT (DOUBLE-ENTRY PENDING)
+// =============================================================================
+
+// TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnDoubleEntry verifies that
+// ProcessBalanceAtomicOperation with routeValidationEnabled=true returns a
+// non-nil error (and does not panic) when the Redis connection is dropped via
+// Toxiproxy during the Lua script execution.
+//
+// 5-Phase structure:
+//  1. Normal   -- ProcessBalanceAtomicOperation succeeds, version increments by 2
+//  2. Inject   -- Toxiproxy proxy disabled (connection loss)
+//  3. Verify   -- ProcessBalanceAtomicOperation returns error; no panic; no partial state
+//  4. Restore  -- Toxiproxy proxy re-enabled
+//  5. Recovery -- ProcessBalanceAtomicOperation succeeds again with correct version
+func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnDoubleEntry(t *testing.T) {
+	if os.Getenv("CHAOS") != "1" {
+		t.Skip("Set CHAOS=1 to run chaos tests")
+	}
+
+	if testing.Short() {
+		t.Skip("Skipping chaos test in short mode")
+	}
+
+	infra := setupRedisChaosNetworkInfra(t)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+	alias := "@source-" + uuid.New().String()[:8]
+	initialAvailable := decimal.NewFromInt(1000)
+	initialOnHold := decimal.NewFromInt(0)
+	initialVersion := int64(1)
+
+	balanceOps := buildTestBalanceOps(orgID, ledgerID, alias, initialAvailable, initialOnHold, initialVersion, true)
+
+	ctx := context.Background()
+
+	// --- Phase 1: Normal ---
+	// Verify ProcessBalanceAtomicOperation works through the proxy with route
+	// validation enabled. The Lua script should increment version by 2.
+	t.Log("Phase 1 (Normal): verifying ProcessBalanceAtomicOperation succeeds with routeValidationEnabled=true")
+
+	result, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, txID, constant.PENDING, true, balanceOps,
+	)
+	require.NoError(t, err, "Phase 1: ProcessBalanceAtomicOperation should succeed through proxy")
+	require.NotNil(t, result, "Phase 1: result must not be nil")
+	require.Len(t, result.After, 1, "Phase 1: should have 1 after-balance entry")
+
+	// Verify version incremented by 2 (double-entry behavior)
+	afterBalance := result.After[0]
+	expectedVersionAfterPhase1 := initialVersion + 2
+	assert.Equal(t, expectedVersionAfterPhase1, afterBalance.Version,
+		"Phase 1: version should increment by 2 for ONHOLD+PENDING+routeEnabled")
+
+	// Verify balance changes: Available decreased by 100, OnHold increased by 100
+	expectedAvailableAfterPhase1 := initialAvailable.Sub(decimal.NewFromInt(100))
+	expectedOnHoldAfterPhase1 := initialOnHold.Add(decimal.NewFromInt(100))
+	assert.True(t, expectedAvailableAfterPhase1.Equal(afterBalance.Available),
+		"Phase 1: available should be %s, got %s", expectedAvailableAfterPhase1.String(), afterBalance.Available.String())
+	assert.True(t, expectedOnHoldAfterPhase1.Equal(afterBalance.OnHold),
+		"Phase 1: onHold should be %s, got %s", expectedOnHoldAfterPhase1.String(), afterBalance.OnHold.String())
+
+	t.Logf("Phase 1: version=%d, available=%s, onHold=%s",
+		afterBalance.Version, afterBalance.Available.String(), afterBalance.OnHold.String())
+
+	// --- Phase 2: Inject ---
+	// Disable the Toxiproxy proxy to simulate a full connection loss.
+	t.Log("Phase 2 (Inject): disabling Toxiproxy proxy to simulate connection loss")
+
+	err = infra.proxy.Disconnect()
+	require.NoError(t, err, "Phase 2: Toxiproxy Disconnect should not fail")
+
+	// --- Phase 3: Verify ---
+	// ProcessBalanceAtomicOperation must return an error. It must not panic.
+	t.Log("Phase 3 (Verify): ProcessBalanceAtomicOperation must return error, not panic, when connection is lost")
+
+	chaosTxID := uuid.New()
+	chaosBalanceOps := buildTestBalanceOps(orgID, ledgerID, alias, expectedAvailableAfterPhase1, expectedOnHoldAfterPhase1, expectedVersionAfterPhase1, true)
+
+	var chaosErr error
+	var chaosResult *mmodel.BalanceAtomicResult
+
+	require.NotPanics(t, func() {
+		chaosResult, chaosErr = infra.proxyRepo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, chaosTxID, constant.PENDING, true, chaosBalanceOps,
+		)
+	}, "Phase 3: ProcessBalanceAtomicOperation must not panic on connection loss")
+
+	assert.Error(t, chaosErr,
+		"Phase 3: ProcessBalanceAtomicOperation must return an error when Redis connection is dropped")
+	assert.Nil(t, chaosResult,
+		"Phase 3: result must be nil when the operation fails")
+
+	t.Logf("Phase 3: received expected error: %v", chaosErr)
+
+	// Verify balance in Redis is unchanged from Phase 1 (via direct client, bypassing proxy)
+	balanceKey := pkgTransaction.AliasKey(alias, constant.DefaultBalanceKey)
+	internalKey := utils.BalanceInternalKey(orgID, ledgerID, balanceKey)
+
+	verifyRedisBalance(t, infra, internalKey, expectedAvailableAfterPhase1, expectedOnHoldAfterPhase1, expectedVersionAfterPhase1)
+	t.Log("Phase 3: confirmed balance unchanged in Redis after connection loss")
+
+	// --- Phase 4: Restore ---
+	// Re-enable the proxy to restore connectivity.
+	t.Log("Phase 4 (Restore): re-enabling Toxiproxy proxy")
+
+	err = infra.proxy.Reconnect()
+	require.NoError(t, err, "Phase 4: Toxiproxy Reconnect should not fail")
+
+	// --- Phase 5: Recovery ---
+	// After the proxy is restored, ProcessBalanceAtomicOperation must succeed
+	// and produce correct version increment.
+	t.Log("Phase 5 (Recovery): verifying ProcessBalanceAtomicOperation succeeds after proxy restoration")
+
+	recoveryTxID := uuid.New()
+
+	// Build ops with the current state from Phase 1 (since Phase 3 failed, state is unchanged)
+	recoveryOps := buildTestBalanceOps(orgID, ledgerID, alias, expectedAvailableAfterPhase1, expectedOnHoldAfterPhase1, expectedVersionAfterPhase1, true)
+
+	var recoveryResult *mmodel.BalanceAtomicResult
+
+	chaos.AssertRecoveryWithin(t, func() error {
+		var err error
+		recoveryResult, err = infra.proxyRepo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, recoveryTxID, constant.PENDING, true, recoveryOps,
+		)
+
+		return err
+	}, 10*time.Second, "Phase 5: ProcessBalanceAtomicOperation should succeed after proxy is restored")
+
+	require.NotNil(t, recoveryResult, "Phase 5: recovery result must not be nil")
+	require.Len(t, recoveryResult.After, 1, "Phase 5: should have 1 after-balance entry")
+
+	recoveryAfter := recoveryResult.After[0]
+	expectedVersionAfterRecovery := expectedVersionAfterPhase1 + 2
+	assert.Equal(t, expectedVersionAfterRecovery, recoveryAfter.Version,
+		"Phase 5: version should be %d after recovery (incremented by 2)", expectedVersionAfterRecovery)
+
+	t.Logf("Phase 5: recovery version=%d, available=%s, onHold=%s",
+		recoveryAfter.Version, recoveryAfter.Available.String(), recoveryAfter.OnHold.String())
+
+	t.Log("CS-B1 PASS: ProcessBalanceAtomicOperation returns error on connection loss, balance state preserved, recovers correctly with version+2")
+}
+
+// =============================================================================
+// CS-B2: HIGH LATENCY DURING LUA SCRIPT (DOUBLE-ENTRY PENDING)
+// =============================================================================
+
+// TestIntegration_Chaos_BalanceAtomic_HighLatencyOnDoubleEntry verifies that
+// ProcessBalanceAtomicOperation with routeValidationEnabled=true times out
+// gracefully when Toxiproxy injects high latency and the caller uses a context
+// with a short deadline. The Lua script is atomic, so a timeout before completion
+// should leave Redis state unchanged.
+//
+// 5-Phase structure:
+//  1. Normal   -- Operation succeeds with no latency, version increments by 2
+//  2. Inject   -- 5000 ms latency toxic added to proxy
+//  3. Verify   -- Operation with 1s deadline returns timeout error; balance unchanged
+//  4. Restore  -- Latency toxic removed
+//  5. Recovery -- Operation succeeds within normal deadline
+func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnDoubleEntry(t *testing.T) {
+	if os.Getenv("CHAOS") != "1" {
+		t.Skip("Set CHAOS=1 to run chaos tests")
+	}
+
+	if testing.Short() {
+		t.Skip("Skipping chaos test in short mode")
+	}
+
+	infra := setupRedisChaosNetworkInfra(t)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+	alias := "@latency-src-" + uuid.New().String()[:8]
+	initialAvailable := decimal.NewFromInt(5000)
+	initialOnHold := decimal.NewFromInt(0)
+	initialVersion := int64(1)
+
+	balanceOps := buildTestBalanceOps(orgID, ledgerID, alias, initialAvailable, initialOnHold, initialVersion, true)
+
+	ctx := context.Background()
+
+	// --- Phase 1: Normal ---
+	// Execute the operation successfully with no latency injected.
+	t.Log("Phase 1 (Normal): verifying operation succeeds with no latency")
+
+	result, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, txID, constant.PENDING, true, balanceOps,
+	)
+	require.NoError(t, err, "Phase 1: operation should succeed before latency injection")
+	require.NotNil(t, result, "Phase 1: result must not be nil")
+	require.Len(t, result.After, 1, "Phase 1: should have 1 after-balance entry")
+
+	afterPhase1 := result.After[0]
+	expectedVersionPhase1 := initialVersion + 2
+	expectedAvailablePhase1 := initialAvailable.Sub(decimal.NewFromInt(100))
+	expectedOnHoldPhase1 := initialOnHold.Add(decimal.NewFromInt(100))
+
+	assert.Equal(t, expectedVersionPhase1, afterPhase1.Version,
+		"Phase 1: version should be %d", expectedVersionPhase1)
+
+	t.Logf("Phase 1: version=%d, available=%s, onHold=%s",
+		afterPhase1.Version, afterPhase1.Available.String(), afterPhase1.OnHold.String())
+
+	// --- Phase 2: Inject ---
+	// Add 5000 ms downstream latency -- any caller with a shorter deadline will time out.
+	t.Log("Phase 2 (Inject): adding 5000 ms downstream latency via Toxiproxy")
+
+	err = infra.proxy.AddLatency(5000*time.Millisecond, 0)
+	require.NoError(t, err, "Phase 2: AddLatency should not fail")
+
+	// --- Phase 3: Verify ---
+	// Call with a 1-second deadline. Must return an error before the 5-second latency
+	// elapses. Must neither panic nor block indefinitely.
+	t.Log("Phase 3 (Verify): operation must return error within 1s deadline under 5s latency")
+
+	latencyTxID := uuid.New()
+	latencyOps := buildTestBalanceOps(orgID, ledgerID, alias, expectedAvailablePhase1, expectedOnHoldPhase1, expectedVersionPhase1, true)
+
+	highLatencyCtx, highLatencyCancel := context.WithTimeout(ctx, 1*time.Second)
+	defer highLatencyCancel()
+
+	var latencyErr error
+	var latencyResult *mmodel.BalanceAtomicResult
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		latencyResult, latencyErr = infra.proxyRepo.ProcessBalanceAtomicOperation(
+			highLatencyCtx, orgID, ledgerID, latencyTxID, constant.PENDING, true, latencyOps,
+		)
+	}()
+
+	select {
+	case <-done:
+		// Call returned within acceptable time.
+	case <-time.After(3 * time.Second):
+		t.Fatal("Phase 3: operation hung for more than 3s -- should have returned an error within 1s deadline")
+	}
+
+	assert.Error(t, latencyErr,
+		"Phase 3: operation must return an error when context deadline expires before Redis responds")
+	assert.Nil(t, latencyResult,
+		"Phase 3: result must be nil when the operation times out")
+
+	t.Logf("Phase 3: received expected error: %v", latencyErr)
+
+	// Verify balance in Redis is unchanged from Phase 1.
+	// Since the Lua script is atomic, if it didn't complete before the context was
+	// cancelled, the balance should remain at Phase 1 state. If the script DID
+	// complete (Redis processed it before timeout), the balance may have advanced --
+	// either outcome is acceptable as long as the Go code returned an error.
+	balanceKey := pkgTransaction.AliasKey(alias, constant.DefaultBalanceKey)
+	internalKey := utils.BalanceInternalKey(orgID, ledgerID, balanceKey)
+
+	raw, rawErr := infra.redisContainer.Client.Get(context.Background(), internalKey).Result()
+	require.NoError(t, rawErr, "Phase 3: direct Redis GET should succeed")
+
+	var storedBalance mmodel.BalanceRedis
+
+	err = json.Unmarshal([]byte(raw), &storedBalance)
+	require.NoError(t, err, "Phase 3: balance JSON should unmarshal")
+
+	// The balance version must be either Phase 1 value (script didn't execute) or
+	// Phase 1 + 2 (script completed but Go timed out reading the response).
+	// No intermediate version should exist (no version gaps).
+	validVersions := []int64{expectedVersionPhase1, expectedVersionPhase1 + 2}
+	assert.Contains(t, validVersions, storedBalance.Version,
+		"Phase 3: version must be %d (unchanged) or %d (script completed), got %d",
+		expectedVersionPhase1, expectedVersionPhase1+2, storedBalance.Version)
+
+	t.Logf("Phase 3: Redis balance version=%d (unchanged=%v)", storedBalance.Version, storedBalance.Version == expectedVersionPhase1)
+
+	// --- Phase 4: Restore ---
+	// Remove all toxics so the proxy forwards traffic without added latency.
+	t.Log("Phase 4 (Restore): removing latency toxic")
+
+	err = infra.proxy.RemoveAllToxics()
+	require.NoError(t, err, "Phase 4: RemoveAllToxics should not fail")
+
+	// --- Phase 5: Recovery ---
+	// After latency is removed, operation should succeed within a normal deadline.
+	t.Log("Phase 5 (Recovery): verifying operation succeeds after latency toxic removed")
+
+	recoveryTxID := uuid.New()
+
+	// Read current state from Redis directly to build correct recovery ops,
+	// since Phase 3 may or may not have mutated the balance.
+	currentRaw, currentErr := infra.redisContainer.Client.Get(context.Background(), internalKey).Result()
+	require.NoError(t, currentErr, "Phase 5: should read current balance from Redis")
+
+	var currentBalance mmodel.BalanceRedis
+
+	err = json.Unmarshal([]byte(currentRaw), &currentBalance)
+	require.NoError(t, err, "Phase 5: should unmarshal current balance")
+
+	recoveryOps := buildTestBalanceOps(orgID, ledgerID, alias,
+		currentBalance.Available, currentBalance.OnHold, currentBalance.Version, true)
+
+	var recoveryResult *mmodel.BalanceAtomicResult
+
+	chaos.AssertRecoveryWithin(t, func() error {
+		var err error
+		recoveryResult, err = infra.proxyRepo.ProcessBalanceAtomicOperation(
+			context.Background(), orgID, ledgerID, recoveryTxID, constant.PENDING, true, recoveryOps,
+		)
+
+		return err
+	}, 15*time.Second, "Phase 5: operation should succeed after latency is removed")
+
+	require.NotNil(t, recoveryResult, "Phase 5: recovery result must not be nil")
+	require.Len(t, recoveryResult.After, 1, "Phase 5: should have 1 after-balance entry")
+
+	recoveryAfter := recoveryResult.After[0]
+	expectedRecoveryVersion := currentBalance.Version + 2
+	assert.Equal(t, expectedRecoveryVersion, recoveryAfter.Version,
+		"Phase 5: version should be %d after recovery", expectedRecoveryVersion)
+
+	t.Logf("Phase 5: recovery version=%d, available=%s, onHold=%s",
+		recoveryAfter.Version, recoveryAfter.Available.String(), recoveryAfter.OnHold.String())
+
+	t.Log("CS-B2 PASS: operation times out gracefully under high latency, balance state consistent, recovers with version+2")
+}
+
+// =============================================================================
+// CS-B3: CONNECTION RESET DURING BALANCE OPERATION (DOUBLE-ENTRY PENDING)
+// =============================================================================
+
+// TestIntegration_Chaos_BalanceAtomic_ConnectionResetOnDoubleEntry verifies that
+// ProcessBalanceAtomicOperation with routeValidationEnabled=true handles a
+// connection reset (proxy disconnect/reconnect) gracefully. The test confirms
+// that after recovery the balance state in Redis is consistent and no version
+// gaps were introduced by the failed operation.
+//
+// 5-Phase structure:
+//  1. Normal   -- Two operations succeed, building up balance state
+//  2. Inject   -- Toxiproxy proxy disabled (simulating connection reset)
+//  3. Verify   -- Operation returns error; balance in Redis unchanged from Phase 1
+//  4. Restore  -- Toxiproxy proxy re-enabled
+//  5. Recovery -- Operation succeeds; final balance state is consistent
+func TestIntegration_Chaos_BalanceAtomic_ConnectionResetOnDoubleEntry(t *testing.T) {
+	if os.Getenv("CHAOS") != "1" {
+		t.Skip("Set CHAOS=1 to run chaos tests")
+	}
+
+	if testing.Short() {
+		t.Skip("Skipping chaos test in short mode")
+	}
+
+	infra := setupRedisChaosNetworkInfra(t)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	alias := "@reset-src-" + uuid.New().String()[:8]
+	initialAvailable := decimal.NewFromInt(3000)
+	initialOnHold := decimal.NewFromInt(0)
+	initialVersion := int64(1)
+
+	ctx := context.Background()
+
+	// --- Phase 1: Normal ---
+	// Execute first operation to establish balance state.
+	t.Log("Phase 1 (Normal): establishing initial balance state via successful operation")
+
+	txID1 := uuid.New()
+	ops1 := buildTestBalanceOps(orgID, ledgerID, alias, initialAvailable, initialOnHold, initialVersion, true)
+
+	result1, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, txID1, constant.PENDING, true, ops1,
+	)
+	require.NoError(t, err, "Phase 1: first operation should succeed")
+	require.NotNil(t, result1, "Phase 1: result must not be nil")
+	require.Len(t, result1.After, 1, "Phase 1: should have 1 after-balance entry")
+
+	phase1After := result1.After[0]
+	phase1Version := initialVersion + 2 // route-enabled: version + 2
+	phase1Available := initialAvailable.Sub(decimal.NewFromInt(100))
+	phase1OnHold := initialOnHold.Add(decimal.NewFromInt(100))
+
+	assert.Equal(t, phase1Version, phase1After.Version, "Phase 1: version should be %d", phase1Version)
+	assert.True(t, phase1Available.Equal(phase1After.Available), "Phase 1: available should be %s", phase1Available.String())
+	assert.True(t, phase1OnHold.Equal(phase1After.OnHold), "Phase 1: onHold should be %s", phase1OnHold.String())
+
+	t.Logf("Phase 1: established state -- version=%d, available=%s, onHold=%s",
+		phase1After.Version, phase1After.Available.String(), phase1After.OnHold.String())
+
+	// Record balance key for direct verification
+	balanceKey := pkgTransaction.AliasKey(alias, constant.DefaultBalanceKey)
+	internalKey := utils.BalanceInternalKey(orgID, ledgerID, balanceKey)
+
+	// --- Phase 2: Inject ---
+	// Disable the proxy to simulate a connection reset.
+	t.Log("Phase 2 (Inject): disabling Toxiproxy proxy to simulate connection reset")
+
+	err = infra.proxy.Disconnect()
+	require.NoError(t, err, "Phase 2: Toxiproxy Disconnect should not fail")
+
+	// --- Phase 3: Verify ---
+	// Operation must return an error. Balance in Redis must remain at Phase 1 state.
+	t.Log("Phase 3 (Verify): operation must return error and balance must remain unchanged")
+
+	txIDChaos := uuid.New()
+	chaosOps := buildTestBalanceOps(orgID, ledgerID, alias, phase1Available, phase1OnHold, phase1Version, true)
+
+	var resetErr error
+	var resetResult *mmodel.BalanceAtomicResult
+
+	require.NotPanics(t, func() {
+		resetResult, resetErr = infra.proxyRepo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, txIDChaos, constant.PENDING, true, chaosOps,
+		)
+	}, "Phase 3: operation must not panic during connection reset")
+
+	assert.Error(t, resetErr,
+		"Phase 3: operation must return an error when connection is reset")
+	assert.Nil(t, resetResult,
+		"Phase 3: result must be nil when the operation fails")
+
+	t.Logf("Phase 3: received expected error: %v", resetErr)
+
+	// Verify balance is unchanged via direct Redis client
+	verifyRedisBalance(t, infra, internalKey, phase1Available, phase1OnHold, phase1Version)
+	t.Log("Phase 3: confirmed balance unchanged in Redis after connection reset")
+
+	// --- Phase 4: Restore ---
+	// Re-enable the proxy to restore connectivity.
+	t.Log("Phase 4 (Restore): re-enabling Toxiproxy proxy")
+
+	err = infra.proxy.Reconnect()
+	require.NoError(t, err, "Phase 4: Toxiproxy Reconnect should not fail")
+
+	// --- Phase 5: Recovery ---
+	// After recovery, a new operation must succeed with correct version chaining.
+	// Since Phase 3 failed, the balance is at Phase 1 state, so the new operation
+	// should produce version = phase1Version + 2.
+	t.Log("Phase 5 (Recovery): verifying operation succeeds with correct version after recovery")
+
+	recoveryTxID := uuid.New()
+	recoveryOps := buildTestBalanceOps(orgID, ledgerID, alias, phase1Available, phase1OnHold, phase1Version, true)
+
+	var recoveryResult *mmodel.BalanceAtomicResult
+
+	chaos.AssertRecoveryWithin(t, func() error {
+		var err error
+		recoveryResult, err = infra.proxyRepo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, recoveryTxID, constant.PENDING, true, recoveryOps,
+		)
+
+		return err
+	}, 10*time.Second, "Phase 5: operation should succeed after proxy is restored")
+
+	require.NotNil(t, recoveryResult, "Phase 5: recovery result must not be nil")
+	require.Len(t, recoveryResult.After, 1, "Phase 5: should have 1 after-balance entry")
+
+	recoveryAfter := recoveryResult.After[0]
+	expectedFinalVersion := phase1Version + 2
+	expectedFinalAvailable := phase1Available.Sub(decimal.NewFromInt(100))
+	expectedFinalOnHold := phase1OnHold.Add(decimal.NewFromInt(100))
+
+	assert.Equal(t, expectedFinalVersion, recoveryAfter.Version,
+		"Phase 5: version should be %d (phase1 + 2)", expectedFinalVersion)
+	assert.True(t, expectedFinalAvailable.Equal(recoveryAfter.Available),
+		"Phase 5: available should be %s, got %s", expectedFinalAvailable.String(), recoveryAfter.Available.String())
+	assert.True(t, expectedFinalOnHold.Equal(recoveryAfter.OnHold),
+		"Phase 5: onHold should be %s, got %s", expectedFinalOnHold.String(), recoveryAfter.OnHold.String())
+
+	// Final integrity check: verify Redis state matches the recovery result
+	verifyRedisBalance(t, infra, internalKey, expectedFinalAvailable, expectedFinalOnHold, expectedFinalVersion)
+
+	t.Logf("Phase 5: final state -- version=%d, available=%s, onHold=%s",
+		recoveryAfter.Version, recoveryAfter.Available.String(), recoveryAfter.OnHold.String())
+
+	t.Log("CS-B3 PASS: operation handles connection reset gracefully, balance state preserved, recovers with correct version chain")
 }

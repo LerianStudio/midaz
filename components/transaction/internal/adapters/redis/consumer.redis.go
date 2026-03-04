@@ -363,6 +363,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 			blcs.Amount.Operation,
 			blcs.Amount.Value.String(),
 			blcs.Alias,
+			boolToInt(blcs.Amount.RouteValidationEnabled),
 			blcs.Balance.ID,
 			blcs.Balance.Available.String(),
 			blcs.Balance.OnHold.String(),
