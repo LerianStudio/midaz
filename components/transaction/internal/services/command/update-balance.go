@@ -14,6 +14,7 @@ import (
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // UpdateBalances persists balance updates to PostgreSQL.
@@ -38,6 +39,11 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		for _, balance := range balances {
 			after, ok := afterMap[balance.Alias]
 			if !ok {
+				spanUpdateBalances.SetAttributes(
+					attribute.String("balances.skipped_after_alias", balance.Alias),
+					attribute.String("balances.skip_reason", "missing_after_state"),
+				)
+
 				logger.Warnf("No AFTER state for alias %s, skipping", balance.Alias)
 
 				continue
