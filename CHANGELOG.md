@@ -1,8 +1,39 @@
+## [Unreleased] - Slice 6: High-throughput benchmark infrastructure
+
+### ✨ Features
+
+- add benchmark infrastructure: k6 test suite, nginx reverse-proxy load balancer, and multi-instance docker-compose topology (4 ledgers + 2 authorizers)
+- add dedicated consumer service for Redpanda balance-operations projection, decoupled from ledger containers
+- add WAL reconciler for asynchronous commit-intent recovery in cross-shard 2PC mode
+- add cross-shard two-phase commit (2PC) authorization with HMAC-authenticated peer RPCs
+- add decision lifecycle events and idempotency hash for transaction processing
+- add `ErrRequestTooLarge` sentinel error for authorizer REQUEST_TOO_LARGE rejections
+- add `BENCH_ORGANIZATION_ID` and `BENCH_LEDGER_ID` to infra `.env.example` for presplit prewarm configuration
+
+### 🔧 Maintenance
+
+- extract shared shard-range parsing into `pkg/mgrpc` to eliminate duplication between authorizer and transaction components
+- reduce environment variable duplication in docker-compose.yml using YAML anchors for ledger configuration
+- restore `make up` for full dev stack; add `make bench-up`, `bench-down`, `bench-restart` for benchmark-only workflows
+- make k6 fund idempotency key deterministic (`namespace-fund-alias-v1`) to ensure safe reruns
+- remove Linux-only `use epoll` directive from nginx config; nginx auto-selects the best event method per platform
+
 ## [v3.6.0] - 2026-02-05
 
 ### 📜 License
 
 - Starting from version 3.6.0, this project is licensed under Elastic License 2.0. Previous versions remain under Apache 2.0.
+
+### 🔧 Maintenance
+
+- authorizer WAL replay strict mode now defaults to enabled in engine construction; set `AUTHORIZER_WAL_REPLAY_STRICT_MODE=false` to retain best-effort replay behavior in deployments that require it
+
+### ⚠️ Migration Notes
+
+- **AUTHORIZER_PEER_AUTH_TOKEN** is now **required** in `docker-compose.yml` for the benchmark infrastructure stack. The authorizer containers will refuse to start without it.
+  - Add to your `.env` file: `AUTHORIZER_PEER_AUTH_TOKEN=your-secret-here`
+  - Generate a strong token with: `openssl rand -hex 32`
+  - This shared secret authenticates peer-to-peer 2PC RPCs between authorizer instances. Without it, cross-shard transactions will fail.
 
 
 ## [v3.5.2-beta.1] - 2026-01-21
@@ -28,19 +59,6 @@
 
 ### 🔧 Maintenance
 - test GPT changelog generation (#1728) (#1728)
-- Update CHANGELOG
-
-
-## [v3.5.2-beta.1] - 2026-01-20
-
-### 🐛 Bug Fixes
-- remove CPF and CNPJ validation functions and related tests
-- remove cpf and cnpj document validation in holder creation
-- update version to v3.5.1 in environment configuration files
-- replace MongoDB connection string construction with centralized utility function
-- add BuildMongoConnectionString function and related tests
-
-### 🔧 Maintenance
 - Update CHANGELOG
 
 
