@@ -5,22 +5,22 @@
 package tests
 
 import (
-	"errors"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/engine"
 	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/wal"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
-	"github.com/stretchr/testify/require"
 )
 
 type failingWALWriter struct{}
 
 func (failingWALWriter) Append(_ wal.Entry) error {
-	return errors.New("wal append failed")
+	return constant.ErrWALAppendFailed
 }
 
 func (failingWALWriter) Close() error {
@@ -30,6 +30,7 @@ func (failingWALWriter) Close() error {
 func TestAuthorizeSingleDebitCredit(t *testing.T) {
 	e := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
 	defer e.Close()
+
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",
@@ -85,6 +86,7 @@ func TestAuthorizeSingleDebitCredit(t *testing.T) {
 func TestAuthorizeInsufficientFunds(t *testing.T) {
 	e := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
 	defer e.Close()
+
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",
@@ -125,6 +127,7 @@ func TestAuthorizeInsufficientFunds(t *testing.T) {
 func TestAuthorizeVersionMonotonic(t *testing.T) {
 	e := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
 	defer e.Close()
+
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",
@@ -166,6 +169,7 @@ func TestAuthorizeVersionMonotonic(t *testing.T) {
 func TestAuthorizeConcurrentSameShard(t *testing.T) {
 	e := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
 	defer e.Close()
+
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",
@@ -183,6 +187,7 @@ func TestAuthorizeConcurrentSameShard(t *testing.T) {
 	})
 
 	var wg sync.WaitGroup
+
 	errCh := make(chan error, 1000)
 
 	for i := 0; i < 1000; i++ {
@@ -207,7 +212,7 @@ func TestAuthorizeConcurrentSameShard(t *testing.T) {
 			}
 
 			if !resp.Authorized {
-				errCh <- errors.New("authorization rejected during concurrent test")
+				errCh <- constant.ErrAuthorizationRejectedDuringConcurrency
 			}
 		}()
 	}
@@ -231,6 +236,7 @@ func TestAuthorizePreSplitExternalAccount(t *testing.T) {
 
 	e := engine.New(router, wal.NewNoopWriter())
 	defer e.Close()
+
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",
@@ -282,18 +288,22 @@ func TestAuthorizePreSplitExternalAccount(t *testing.T) {
 	require.Equal(t, int64(-400), external.Available)
 
 	foundCanonicalKey := false
+
 	for _, snapshot := range resp.Balances {
 		if snapshot.GetAccountAlias() == "@external/BRL" {
 			require.Equal(t, externalKey, snapshot.GetBalanceKey())
+
 			foundCanonicalKey = true
 		}
 	}
+
 	require.True(t, foundCanonicalKey)
 }
 
 func TestAuthorizeExternalCreditCannotBecomePositive(t *testing.T) {
 	e := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
 	defer e.Close()
+
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",
@@ -355,6 +365,7 @@ func TestAuthorizeExternalCreditCannotBecomePositive(t *testing.T) {
 func TestAuthorizeFailClosedWhenWALAppendFails(t *testing.T) {
 	e := engine.New(shard.NewRouter(8), failingWALWriter{})
 	defer e.Close()
+
 	e.UpsertBalances([]*engine.Balance{
 		{
 			ID:             "b1",

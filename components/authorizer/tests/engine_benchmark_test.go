@@ -24,7 +24,9 @@ func BenchmarkAuthorizeSingleOp(b *testing.B) {
 	router := shard.NewRouter(8)
 	accountAlias := "@bench-single"
 	e := benchmarkEngineWithAliases(router, []string{accountAlias})
+
 	defer e.Close()
+
 	req := benchmarkAuthorizeRequest(
 		"tx-single",
 		[]*authorizerv1.BalanceOperation{
@@ -48,7 +50,9 @@ func BenchmarkAuthorizeParallelSameShard(b *testing.B) {
 	router := shard.NewRouter(8)
 	accountAlias := "@bench-hot-shard"
 	e := benchmarkEngineWithAliases(router, []string{accountAlias})
+
 	defer e.Close()
+
 	req := benchmarkAuthorizeRequest(
 		"tx-same-shard",
 		[]*authorizerv1.BalanceOperation{
@@ -59,6 +63,7 @@ func BenchmarkAuthorizeParallelSameShard(b *testing.B) {
 	b.ResetTimer()
 
 	var failures atomic.Int64
+
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			resp, err := e.Authorize(req)
@@ -80,7 +85,9 @@ func BenchmarkAuthorizeParallelCrossShard(b *testing.B) {
 	router := shard.NewRouter(8)
 	aliases := benchmarkAliasesByDistinctShards(router, 2)
 	e := benchmarkEngineWithAliases(router, aliases)
+
 	defer e.Close()
+
 	req := benchmarkAuthorizeRequest(
 		"tx-cross-shard",
 		[]*authorizerv1.BalanceOperation{
@@ -92,6 +99,7 @@ func BenchmarkAuthorizeParallelCrossShard(b *testing.B) {
 	b.ResetTimer()
 
 	var failures atomic.Int64
+
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			resp, err := e.Authorize(req)
@@ -144,11 +152,13 @@ func benchmarkAliasesByDistinctShards(router *shard.Router, count int) []string 
 	for i := 0; i < 4096 && len(aliases) < count; i++ {
 		alias := fmt.Sprintf("@bench-distinct-%d", i)
 		shardID := router.ResolveBalance(alias, constant.DefaultBalanceKey)
+
 		if _, exists := seenShard[shardID]; exists {
 			continue
 		}
 
 		seenShard[shardID] = struct{}{}
+
 		aliases = append(aliases, alias)
 	}
 
