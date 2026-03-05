@@ -1448,12 +1448,12 @@ func TestIntegration_Redis_CanceledTransactionRelease(t *testing.T) {
 // INTEGRATION TESTS - DOUBLE-ENTRY PENDING (RouteValidationEnabled)
 // =============================================================================
 
-// TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_VersionIncrBy2
-// verifies that when RouteValidationEnabled=true, a PENDING+ON_HOLD operation
-// increments the balance version by 2 atomically in the Lua script.
-// This is the core double-entry behavior: the pattern produces
-// DEBIT debit + ONHOLD credit, represented by version+=2.
-func TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_VersionIncrBy2(t *testing.T) {
+// TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_TwoOps
+// verifies that when RouteValidationEnabled=true, sending TWO operations
+// (DEBIT then ONHOLD) for the same balance increments the version by 2
+// atomically in the Lua script. This matches the new double-entry architecture
+// where the caller splits the single ONHOLD into DEBIT (Available--) + ONHOLD (OnHold++).
+func TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_TwoOps(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -1461,7 +1461,7 @@ func TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_VersionIncr
 	infra := setupRedisIntegrationInfra(t)
 	ctx := context.Background()
 
-	t.Run("version increments by 2 when routeValidationEnabled is true", func(t *testing.T) {
+	t.Run("two ops (DEBIT+ONHOLD) produce version+2 when routeValidationEnabled is true", func(t *testing.T) {
 		orgID := uuid.New()
 		ledgerID := uuid.New()
 		transactionID := uuid.New()
@@ -1471,14 +1471,23 @@ func TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_VersionIncr
 		initialVersion := int64(1)
 		amount := decimal.NewFromInt(200)
 
-		balanceOps := []mmodel.BalanceOperation{
-			redistestutil.CreatePendingBalanceOperation(
-				orgID, ledgerID, "@source-route-enabled", "USD",
-				constant.ONHOLD, amount,
-				initialAvailable, initialOnHold, initialVersion,
-				"deposit", true, // routeValidationEnabled = true
-			),
-		}
+		// First operation: DEBIT (Available-- only)
+		debitOp := redistestutil.CreatePendingBalanceOperation(
+			orgID, ledgerID, "@source-route-enabled", "USD",
+			constant.DEBIT, amount,
+			initialAvailable, initialOnHold, initialVersion,
+			"deposit", true, // routeValidationEnabled = true
+		)
+
+		// Second operation: ONHOLD (OnHold++ only)
+		onholdOp := redistestutil.CreatePendingBalanceOperation(
+			orgID, ledgerID, "@source-route-enabled", "USD",
+			constant.ONHOLD, amount,
+			initialAvailable, initialOnHold, initialVersion,
+			"deposit", true, // routeValidationEnabled = true
+		)
+
+		balanceOps := []mmodel.BalanceOperation{debitOp, onholdOp}
 
 		result, err := infra.repo.ProcessBalanceAtomicOperation(
 			ctx, orgID, ledgerID, transactionID,
@@ -1486,9 +1495,9 @@ func TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_VersionIncr
 			balanceOps,
 		)
 
-		require.NoError(t, err, "PENDING ON_HOLD with routeValidation should succeed")
+		require.NoError(t, err, "PENDING DEBIT+ONHOLD with routeValidation should succeed")
 		require.NotNil(t, result)
-		require.Len(t, result.After, 1, "should have 1 after balance")
+		require.Len(t, result.After, 1, "should have 1 after balance (same alias)")
 		require.Len(t, result.Before, 1, "should have 1 before balance")
 
 		// Before state: unchanged
@@ -1497,7 +1506,7 @@ func TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_VersionIncr
 		assert.True(t, result.Before[0].OnHold.Equal(initialOnHold),
 			"before OnHold should be %s, got %s", initialOnHold, result.Before[0].OnHold)
 
-		// After state: Available decreased, OnHold increased, version +2
+		// After state: Available decreased by amount, OnHold increased by amount, version +2
 		expectedAvailable := initialAvailable.Sub(amount)
 		expectedOnHold := initialOnHold.Add(amount)
 		expectedVersion := initialVersion + 2
@@ -1507,9 +1516,9 @@ func TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_VersionIncr
 		assert.True(t, result.After[0].OnHold.Equal(expectedOnHold),
 			"after OnHold should be %s, got %s", expectedOnHold, result.After[0].OnHold)
 		assert.Equal(t, expectedVersion, result.After[0].Version,
-			"version should increment by 2 when routeValidationEnabled=true")
+			"version should increment by 2 (one per operation)")
 
-		t.Logf("RouteValidationEnabled=true: version %d -> %d (increment by 2)", initialVersion, expectedVersion)
+		t.Logf("RouteValidationEnabled=true (two ops): version %d -> %d (increment by 2)", initialVersion, expectedVersion)
 	})
 
 	t.Run("version increments by 1 when routeValidationEnabled is false", func(t *testing.T) {
