@@ -6,6 +6,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,11 +15,16 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/vmihailenco/msgpack/v5"
 
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 )
+
+// errReplayConsumerClosed is returned when the replay consumer is closed while reading.
+var errReplayConsumerClosed = errors.New("replay consumer closed")
 
 const defaultReplayTimeout = 2 * time.Second
 
@@ -63,6 +69,11 @@ func (r *FranzStaleBalanceRecoverer) RecoverLaggedAliases(
 	organizationID, ledgerID uuid.UUID,
 	laggedAliasesByPartition map[int32][]string,
 ) (map[string]*mmodel.Balance, error) {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.recover_lagged_aliases")
+	defer span.End()
+
 	if r == nil || r.adminClient == nil || topic == "" || len(laggedAliasesByPartition) == 0 {
 		return map[string]*mmodel.Balance{}, nil
 	}
@@ -198,7 +209,7 @@ func (r *FranzStaleBalanceRecoverer) replayPartitionRange(
 	for nextOffset < endOffset {
 		fetches := client.PollFetches(replayCtx)
 		if fetches.IsClientClosed() {
-			return nil, fmt.Errorf("replay consumer closed while reading partition %d", partition) //nolint:err113
+			return nil, fmt.Errorf("%w: partition %d", errReplayConsumerClosed, partition)
 		}
 
 		if errs := fetches.Errors(); len(errs) > 0 {

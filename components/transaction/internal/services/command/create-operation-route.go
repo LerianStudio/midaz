@@ -25,7 +25,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 	ctx, span := tracer.Start(ctx, "command.create_operation_route")
 	defer span.End()
 
-	now := time.Now()
+	now := time.Now().UTC()
 
 	operationRoute := &mmodel.OperationRoute{
 		ID:             libCommons.GenerateUUIDv7(),

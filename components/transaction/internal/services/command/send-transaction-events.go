@@ -48,7 +48,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanTransactionEvents, "Failed to marshal transaction to JSON string", err)
 
-		logger.Errorf("Failed to marshal transaction to JSON string: %s", err.Error())
+		logger.Errorf("Failed to marshal transaction to JSON string: %s", err)
 
 		return
 	}
@@ -57,7 +57,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 		Source:         Source,
 		EventType:      EventType,
 		Action:         tran.Status.Code,
-		TimeStamp:      time.Now(),
+		TimeStamp:      time.Now().UTC(),
 		Version:        uc.Version,
 		OrganizationID: tran.OrganizationID,
 		LedgerID:       tran.LedgerID,
@@ -88,6 +88,6 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 	); err != nil {
 		libOpentelemetry.HandleSpanError(&spanTransactionEvents, "Failed to send transaction events to topic", err)
 
-		logger.Errorf("Failed to send message: %s", err.Error())
+		logger.Errorf("Failed to send message: %s", err)
 	}
 }

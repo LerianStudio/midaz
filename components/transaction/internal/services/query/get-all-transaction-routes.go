@@ -11,7 +11,6 @@ import (
 	"reflect"
 
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
@@ -57,7 +56,7 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, 
 	if transactionRoutes != nil {
 		metadataFilter := filter
 		if metadataFilter.Metadata == nil {
-			metadataFilter.Metadata = &bson.M{}
+			metadataFilter.Metadata = &map[string]any{}
 		}
 
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), metadataFilter)

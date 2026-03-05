@@ -33,7 +33,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 	cachedValue, err := uc.RedisRepo.GetBytes(ctx, internalKey)
 	if err != nil && !errors.Is(err, redis.Nil) {
-		logger.Warnf("Error retrieving binary transaction route from cache: %v", err.Error())
+		logger.Warnf("Error retrieving binary transaction route from cache: %v", err)
 	}
 
 	if err == nil && len(cachedValue) > 0 {
@@ -64,7 +64,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 		libOpentelemetry.HandleSpanError(&span, "Failed to fetch transaction route from database", err)
 
-		logger.Errorf("Error fetching transaction route from database: %v", err.Error())
+		logger.Errorf("Error fetching transaction route from database: %v", err)
 
 		return mmodel.TransactionRouteCache{}, err
 	}

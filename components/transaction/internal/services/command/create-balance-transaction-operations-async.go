@@ -38,24 +38,31 @@ import (
 
 var (
 	errInvalidQueuePayloadEmpty      = errors.New("invalid queue payload: empty queue data")
+	errInvalidQueuePayloadCount      = errors.New("invalid queue payload: unexpected queue data item count")
 	errInvalidPayloadNil             = errors.New("invalid transaction payload: payload is nil")
 	errInvalidPayloadTransactionNil  = errors.New("invalid transaction payload: transaction is nil")
 	errInvalidPayloadValidateNil     = errors.New("invalid transaction payload: validate is nil")
 	errInvalidPayloadPendingInputNil = errors.New("invalid transaction payload: pending transaction input is nil")
 	errInvalidPayloadBalancesNil     = errors.New("invalid transaction payload: balances is nil")
 	errInvalidPayloadBalancesEmpty   = errors.New("invalid transaction payload: balances slice is empty")
+	errInvalidPayloadNilBalance      = errors.New("invalid transaction payload: nil balance")
+	errNilOperation                  = errors.New("nil operation")
+	errBatchAllItemsFailedValidation = errors.New("batch: all items failed validation (dead-letter candidates)")
 )
 
 // IsNonRetryablePayloadError reports whether err indicates malformed queue
 // payload data that cannot succeed on retry and should be dropped.
 func IsNonRetryablePayloadError(err error) bool {
 	return errors.Is(err, errInvalidQueuePayloadEmpty) ||
+		errors.Is(err, errInvalidQueuePayloadCount) ||
 		errors.Is(err, errInvalidPayloadNil) ||
 		errors.Is(err, errInvalidPayloadTransactionNil) ||
 		errors.Is(err, errInvalidPayloadValidateNil) ||
 		errors.Is(err, errInvalidPayloadPendingInputNil) ||
 		errors.Is(err, errInvalidPayloadBalancesNil) ||
-		errors.Is(err, errInvalidPayloadBalancesEmpty)
+		errors.Is(err, errInvalidPayloadBalancesEmpty) ||
+		errors.Is(err, errInvalidPayloadNilBalance) ||
+		errors.Is(err, errNilOperation)
 }
 
 type transactionBatchItem struct {
@@ -171,7 +178,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	}
 
 	if len(data.QueueData) > 1 {
-		return fmt.Errorf("invalid queue payload: expected exactly 1 queue data item, got %d", len(data.QueueData)) //nolint:err113
+		return fmt.Errorf("%w: expected 1, got %d", errInvalidQueuePayloadCount, len(data.QueueData))
 	}
 
 	var t transaction.TransactionProcessingPayload
@@ -181,7 +188,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	err := msgpack.Unmarshal(item.Value, &t)
 	if err != nil {
-		logger.Errorf("failed to unmarshal response: %v", err.Error())
+		logger.Errorf("failed to unmarshal response: %v", err)
 
 		return fmt.Errorf("failed to unmarshal queue item: %w", err)
 	}
@@ -207,7 +214,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateTransaction, "Failed to create or update transaction", err)
 
-		logger.Errorf("Failed to create or update transaction: %v", err.Error())
+		logger.Errorf("Failed to create or update transaction: %v", err)
 
 		return err
 	}
@@ -229,7 +236,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)
 
-			logger.Errorf("Failed to update balances: %v", err.Error())
+			logger.Errorf("Failed to update balances: %v", err)
 
 			return err
 		}
@@ -242,7 +249,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateMetadata, "Failed to create metadata on transaction", err)
 
-		logger.Errorf("Failed to create metadata on transaction: %v", err.Error())
+		logger.Errorf("Failed to create metadata on transaction: %v", err)
 
 		return err
 	}
@@ -374,7 +381,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsBatch(ctx context.Context, 
 		uc.runBatchDuplicateCleanup(ctx, logger, classified.duplicateTransactions)
 
 		if skippedItems > 0 {
-			return fmt.Errorf("batch: all %d item(s) failed validation (dead-letter candidates)", skippedItems) //nolint:err113
+			return fmt.Errorf("%w: %d item(s)", errBatchAllItemsFailedValidation, skippedItems)
 		}
 
 		logger.Warnf("Batch: no valid transactions to persist after validation")
@@ -1132,7 +1139,7 @@ func validateTransactionProcessingPayload(payload *transaction.TransactionProces
 func validateOperationsNotNil(operations []*operation.Operation) error {
 	for i, op := range operations {
 		if op == nil {
-			return fmt.Errorf("nil operation at index %d", i) //nolint:err113
+			return fmt.Errorf("%w: at index %d", errNilOperation, i)
 		}
 
 		if op.BalanceID != "" {
@@ -1156,7 +1163,7 @@ func validateBalancesNotNil(balances []*mmodel.Balance) error {
 
 	for i, balance := range balances {
 		if balance == nil {
-			return fmt.Errorf("invalid transaction payload: nil balance at index %d", i) //nolint:err113
+			return fmt.Errorf("%w: at index %d", errInvalidPayloadNilBalance, i)
 		}
 	}
 
@@ -1195,7 +1202,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanCreateTransaction, "Failed to create transaction on repo", err)
 
-		logger.Errorf("Failed to create transaction on repo: %v", err.Error())
+		logger.Errorf("Failed to create transaction on repo: %v", err)
 
 		return nil, false, err
 	}
@@ -1227,8 +1234,8 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 			EntityID:   entityID,
 			EntityName: collection,
 			Data:       metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
+			CreatedAt:  time.Now().UTC(),
+			UpdatedAt:  time.Now().UTC(),
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, collection, &meta); err != nil {
@@ -1308,7 +1315,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 		transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID)
 
 		if err := uc.RedisRepo.RemoveMessageFromQueue(ctx, transactionKey); err != nil {
-			logger.Warnf("Backup queue: failed to remove transaction %s: %s", transactionKey, err.Error())
+			logger.Warnf("Backup queue: failed to remove transaction %s: %s", transactionKey, err)
 		} else {
 			logger.Infof("Backup queue: transaction removed with key %s", transactionKey)
 		}
@@ -1342,7 +1349,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		LedgerID:          ledgerID,
 		TransactionID:     transactionID,
 		TransactionInput:  transactionInput,
-		TTL:               time.Now(),
+		TTL:               time.Now().UTC(),
 		Validate:          validate,
 		TransactionStatus: transactionStatus,
 		TransactionDate:   transactionDate,
@@ -1350,14 +1357,14 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 
 	raw, err := json.Marshal(queue)
 	if err != nil {
-		logger.Errorf("Failed to marshal transaction to json string: %s", err.Error())
+		logger.Errorf("Failed to marshal transaction to json string: %s", err)
 
 		return constant.ErrTransactionBackupCacheMarshalFailed
 	}
 
 	err = uc.RedisRepo.AddMessageToQueue(ctx, transactionKey, raw)
 	if err != nil {
-		logger.Errorf("Failed to send transaction to redis queue: %s", err.Error())
+		logger.Errorf("Failed to send transaction to redis queue: %s", err)
 
 		return constant.ErrTransactionBackupCacheFailed
 	}

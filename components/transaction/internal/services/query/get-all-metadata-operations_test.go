@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
 
@@ -32,7 +31,7 @@ func TestGetAllMetadataOperations(t *testing.T) {
 
 	collection := reflect.TypeOf(operation.Operation{}).Name()
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"metadata": 1},
+		Metadata: &map[string]any{"metadata": 1},
 		Limit:    10,
 		Page:     1,
 	}
@@ -101,7 +100,7 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 	accountID, _ := uuid.Parse(accountIDStr)
 
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"key": "value"},
+		Metadata: &map[string]any{"key": "value"},
 		Limit:    10,
 		Page:     1,
 	}
@@ -181,7 +180,7 @@ func TestGetAllMetadataOperationsMetadataNotFound(t *testing.T) {
 	accountID := uuid.New()
 
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"key": "value"},
+		Metadata: &map[string]any{"key": "value"},
 		Limit:    10,
 		Page:     1,
 	}
@@ -217,7 +216,7 @@ func TestGetAllMetadataOperationsOperationNotFound(t *testing.T) {
 	accountID := uuid.New()
 
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"key": "value"},
+		Metadata: &map[string]any{"key": "value"},
 		Limit:    10,
 		Page:     1,
 	}
@@ -265,7 +264,7 @@ func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
 	accountID := uuid.New()
 
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"key": "value"},
+		Metadata: &map[string]any{"key": "value"},
 		Limit:    10,
 		Page:     1,
 	}

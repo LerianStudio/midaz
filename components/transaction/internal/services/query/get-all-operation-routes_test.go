@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
 
@@ -97,7 +96,7 @@ func TestGetAllOperationRoutesSuccess(t *testing.T) {
 
 	metadataFilter := filter
 	if metadataFilter.Metadata == nil {
-		metadataFilter.Metadata = &bson.M{}
+		metadataFilter.Metadata = &map[string]any{}
 	}
 
 	mockMetadataRepo.EXPECT().
@@ -221,7 +220,7 @@ func TestGetAllOperationRoutesEmpty(t *testing.T) {
 
 	metadataFilter := filter
 	if metadataFilter.Metadata == nil {
-		metadataFilter.Metadata = &bson.M{}
+		metadataFilter.Metadata = &map[string]any{}
 	}
 
 	mockMetadataRepo.EXPECT().
@@ -285,7 +284,7 @@ func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 
 	metadataFilter := filter
 	if metadataFilter.Metadata == nil {
-		metadataFilter.Metadata = &bson.M{}
+		metadataFilter.Metadata = &map[string]any{}
 	}
 
 	mockMetadataRepo.EXPECT().
@@ -349,7 +348,7 @@ func TestGetAllOperationRoutesWithDifferentPagination(t *testing.T) {
 
 	metadataFilter := filter
 	if metadataFilter.Metadata == nil {
-		metadataFilter.Metadata = &bson.M{}
+		metadataFilter.Metadata = &map[string]any{}
 	}
 
 	mockMetadataRepo.EXPECT().
@@ -417,7 +416,7 @@ func TestGetAllOperationRoutesWithDateRange(t *testing.T) {
 
 	metadataFilter := filter
 	if metadataFilter.Metadata == nil {
-		metadataFilter.Metadata = &bson.M{}
+		metadataFilter.Metadata = &map[string]any{}
 	}
 
 	mockMetadataRepo.EXPECT().
@@ -446,7 +445,7 @@ func TestGetAllOperationRoutesWithMetadataFilter(t *testing.T) {
 	filter := http.QueryHeader{
 		Limit:     10,
 		SortOrder: "asc",
-		Metadata:  &bson.M{"category": "payment"},
+		Metadata:  &map[string]any{"category": "payment"},
 	}
 
 	operationRouteID := uuid.New()

@@ -61,7 +61,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Error to lock idempotency key on redis failed", err)
 
-			logger.Error("Error to lock idempotency key on redis failed:", err.Error())
+			logger.Error("Error to lock idempotency key on redis failed:", err)
 
 			return nil, err
 		}
@@ -110,7 +110,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error to lock idempotency key on redis failed", err)
 
-		logger.Error("Error to lock idempotency key on redis failed:", err.Error())
+		logger.Error("Error to lock idempotency key on redis failed:", err)
 
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 		if err != nil && !errors.Is(err, redis.Nil) {
 			libOpentelemetry.HandleSpanError(&span, "Error to get idempotency key on redis failed", err)
 
-			logger.Error("Error to get idempotency key on redis failed:", err.Error())
+			logger.Error("Error to get idempotency key on redis failed:", err)
 
 			return nil, err
 		}
@@ -201,7 +201,7 @@ func (uc *UseCase) SetIdempotencyValueAndMapping(
 			[]time.Duration{resultTTL, mappingTTL, resultTTL},
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Error setting idempotency values via redis pipeline", err)
-			logger.Errorf("Error setting idempotency values via redis pipeline: %s", err.Error())
+			logger.Errorf("Error setting idempotency values via redis pipeline: %s", err)
 
 			return err
 		}
@@ -213,19 +213,19 @@ func (uc *UseCase) SetIdempotencyValueAndMapping(
 
 	if err := uc.RedisRepo.Set(ctx, internalKey, value, resultTTL); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error setting idempotency value in redis", err)
-		logger.Errorf("Error setting idempotency value in redis: %s", err.Error())
+		logger.Errorf("Error setting idempotency value in redis: %s", err)
 		setErr = errors.Join(setErr, err)
 	}
 
 	if err := uc.RedisRepo.Set(ctx, reverseKey, key, mappingTTL); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error setting transaction idempotency mapping in redis", err)
-		logger.Errorf("Error setting transaction idempotency mapping in redis for transactionID %s: %s", t.ID, err.Error())
+		logger.Errorf("Error setting transaction idempotency mapping in redis for transactionID %s: %s", t.ID, err)
 		setErr = errors.Join(setErr, err)
 	}
 
 	if err := uc.RedisRepo.Set(ctx, hashKey, hash, resultTTL); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error setting idempotency hash in redis", err)
-		logger.Errorf("Error setting idempotency hash in redis: %s", err.Error())
+		logger.Errorf("Error setting idempotency hash in redis: %s", err)
 		setErr = errors.Join(setErr, err)
 	}
 

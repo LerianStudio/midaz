@@ -52,7 +52,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 		marshal, err := json.Marshal(oLog)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&spanLogTransaction, "Failed to marshal operation to JSON string", err)
-			logger.Errorf("Failed to marshal operation to JSON string: %s", err.Error())
+			logger.Errorf("Failed to marshal operation to JSON string: %s", err)
 
 			return
 		}
@@ -60,7 +60,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 		opID, err := uuid.Parse(o.ID)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&spanLogTransaction, "Invalid operation UUID for audit payload", err)
-			logger.Errorf("Invalid operation UUID for audit payload: %s", err.Error())
+			logger.Errorf("Invalid operation UUID for audit payload: %s", err)
 
 			return
 		}
@@ -93,6 +93,6 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 		transactionID.String(),
 		message,
 	); err != nil {
-		logger.Errorf("Failed to send audit message: %s", err.Error())
+		logger.Errorf("Failed to send audit message: %s", err)
 	}
 }

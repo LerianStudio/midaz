@@ -2032,7 +2032,8 @@ func TestValidateBalancesNotNil(t *testing.T) {
 		err := validateBalancesNotNil([]*mmodel.Balance{{Alias: "@acc#default"}, nil})
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "nil balance at index 1")
+		assert.ErrorIs(t, err, errInvalidPayloadNilBalance)
+		assert.Contains(t, err.Error(), "at index 1")
 	})
 
 	t.Run("returns nil when all entries are valid", func(t *testing.T) {
@@ -2068,7 +2069,7 @@ func TestCreateBalanceTransactionOperationsAsync_RejectsMultipleQueueDataItems(t
 	})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "expected exactly 1 queue data item")
+	assert.ErrorIs(t, err, errInvalidQueuePayloadCount)
 }
 
 func TestCreateBalanceTransactionOperationsAsync_RejectsNilTransaction(t *testing.T) {

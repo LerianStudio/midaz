@@ -72,7 +72,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		arFound.Scale = &scale
 		arFound.Source = cari.Source
 		arFound.TTL = *cari.TTL
-		arFound.UpdatedAt = time.Now()
+		arFound.UpdatedAt = time.Now().UTC()
 
 		if !emptyExternalID {
 			arFound.ExternalID = *externalID
@@ -115,8 +115,8 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		Scale:          &scale,
 		Source:         cari.Source,
 		TTL:            *cari.TTL,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
 	}
 
 	logger.Infof("Trying to create asset rate: %v", cari)
@@ -135,8 +135,8 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 			EntityID:   assetRate.ID,
 			EntityName: reflect.TypeOf(assetrate.AssetRate{}).Name(),
 			Data:       cari.Metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
+			CreatedAt:  time.Now().UTC(),
+			UpdatedAt:  time.Now().UTC(),
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), &meta); err != nil {

@@ -189,8 +189,9 @@ func TestGetTransactionRouteByIDNotFound(t *testing.T) {
 	require.Error(t, err)
 
 	// Should return business error for transaction route not found
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.Equal(t, expectedBusinessError, err)
+	var entityErr pkg.EntityNotFoundError
+	require.ErrorAs(t, err, &entityErr)
+	assert.Equal(t, constant.ErrTransactionRouteNotFound.Error(), entityErr.Code)
 	assert.Nil(t, result)
 }
 

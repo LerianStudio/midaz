@@ -66,7 +66,7 @@ func (uc *UseCase) SendDecisionLifecycleEvent(
 	marshaledPayload, err := json.Marshal(payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanDecisionEvent, "Failed to marshal decision lifecycle payload", err)
-		logger.Errorf("Failed to marshal decision lifecycle payload: %s", err.Error())
+		logger.Errorf("Failed to marshal decision lifecycle payload: %s", err)
 
 		return
 	}
@@ -75,7 +75,7 @@ func (uc *UseCase) SendDecisionLifecycleEvent(
 		Source:         Source,
 		EventType:      decisionEventType,
 		Action:         string(action),
-		TimeStamp:      time.Now(),
+		TimeStamp:      time.Now().UTC(),
 		Version:        uc.Version,
 		OrganizationID: tran.OrganizationID,
 		LedgerID:       tran.LedgerID,
@@ -102,6 +102,6 @@ func (uc *UseCase) SendDecisionLifecycleEvent(
 		message,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(&spanDecisionEvent, "Failed to send decision lifecycle event to topic", err)
-		logger.Errorf("Failed to send decision lifecycle event message: %s", err.Error())
+		logger.Errorf("Failed to send decision lifecycle event message: %s", err)
 	}
 }

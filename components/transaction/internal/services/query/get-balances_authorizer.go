@@ -231,6 +231,8 @@ func mapAuthorizerRejection(rejectionCode string) error {
 		return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance") //nolint:wrapcheck
 	case "BALANCE_NOT_FOUND", "ACCOUNT_INELIGIBLE":
 		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "validateBalance") //nolint:wrapcheck
+	case "REQUEST_TOO_LARGE":
+		return pkg.ValidateBusinessError(constant.ErrRequestTooLarge, "validateBalance") //nolint:wrapcheck
 	case "INTERNAL_ERROR":
 		return pkg.ValidateBusinessError(constant.ErrInternalServer, "authorizer") //nolint:wrapcheck
 	default:

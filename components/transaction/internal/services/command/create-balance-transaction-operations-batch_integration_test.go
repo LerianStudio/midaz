@@ -614,7 +614,16 @@ func createCommandPostgresRepos(
 		}
 	})
 
-	return transaction.NewTransactionPostgreSQLRepository(conn), operation.NewOperationPostgreSQLRepository(conn), balance.NewBalancePostgreSQLRepository(conn)
+	transactionRepo, err := transaction.NewTransactionPostgreSQLRepository(conn)
+	require.NoError(t, err, "failed to create transaction repository")
+
+	operationRepo, err := operation.NewOperationPostgreSQLRepository(conn)
+	require.NoError(t, err, "failed to create operation repository")
+
+	balanceRepo, err := balance.NewBalancePostgreSQLRepository(conn)
+	require.NoError(t, err, "failed to create balance repository")
+
+	return transactionRepo, operationRepo, balanceRepo
 }
 
 func createCommandRedisRepo(t *testing.T, container *redistestutil.ContainerResult) *redisadapter.RedisConsumerRepository {

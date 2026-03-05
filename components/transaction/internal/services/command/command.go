@@ -8,6 +8,8 @@ import (
 	"context"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
@@ -112,5 +114,10 @@ type UseCase struct {
 
 // CheckHealth returns nil for unified mode (in-process calls don't need health checks).
 func (uc *UseCase) CheckHealth(ctx context.Context) error {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "command.check_health")
+	defer span.End()
+
 	return nil
 }

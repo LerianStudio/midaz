@@ -54,8 +54,8 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		AssetCode:                t.Send.Asset,
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		Body:                     *t,
-		CreatedAt:                time.Now(),
-		UpdatedAt:                time.Now(),
+		CreatedAt:                time.Now().UTC(),
+		UpdatedAt:                time.Now().UTC(),
 	}
 
 	tran, err := uc.TransactionRepo.Create(ctx, save)
@@ -88,8 +88,8 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 			EntityID:   tran.ID,
 			EntityName: reflect.TypeOf(transaction.Transaction{}).Name(),
 			Data:       t.Metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
+			CreatedAt:  time.Now().UTC(),
+			UpdatedAt:  time.Now().UTC(),
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), &meta); err != nil {

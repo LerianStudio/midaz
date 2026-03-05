@@ -52,7 +52,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to resolve balance shard while checking redis cache", err)
 
-		logger.Error("Failed to resolve balance shard while checking redis cache", err.Error())
+		logger.Error("Failed to resolve balance shard while checking redis cache", err)
 
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 		if err := uc.ensureConsumerLagFenceForAliases(ctx, organizationID, ledgerID, aliases); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Consumer lag fence blocked stale balance recovery", err)
 
-			logger.Error("Consumer lag fence blocked stale balance recovery", err.Error())
+			logger.Error("Consumer lag fence blocked stale balance recovery", err)
 
 			return nil, err
 		}
@@ -90,7 +90,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 		if err := uc.ensureExternalPreSplitBalances(ctx, organizationID, ledgerID, aliases); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to ensure external pre-split balances", err)
 
-			logger.Error("Failed to ensure external pre-split balances", err.Error())
+			logger.Error("Failed to ensure external pre-split balances", err)
 
 			return nil, err
 		}
@@ -99,7 +99,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account by alias on balance database", err)
 
-			logger.Error("Failed to get account by alias on balance database", err.Error())
+			logger.Error("Failed to get account by alias on balance database", err)
 
 			return nil, err
 		}
@@ -111,7 +111,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances and update on redis", err)
 
-		logger.Error("Failed to get balances and update on redis", err.Error())
+		logger.Error("Failed to get balances and update on redis", err)
 
 		return nil, err
 	}
@@ -268,7 +268,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate balances", err)
 
-			logger.Errorf("Failed to validate balances: %v", err.Error())
+			logger.Errorf("Failed to validate balances: %v", err)
 
 			return nil, err
 		}
@@ -478,7 +478,7 @@ func (uc *UseCase) fetchTemplatesByAlias(ctx context.Context, organizationID, le
 // materializePreSplitBalances creates new balance records for each external pre-split
 // key, using the corresponding default balance as a template.
 func (uc *UseCase) materializePreSplitBalances(ctx context.Context, keysByAlias map[string]map[string]struct{}, templateByAlias map[string]*mmodel.Balance) error {
-	now := time.Now()
+	now := time.Now().UTC()
 
 	for alias, keys := range keysByAlias {
 		template, ok := templateByAlias[alias]

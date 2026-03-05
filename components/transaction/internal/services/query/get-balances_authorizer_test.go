@@ -150,6 +150,14 @@ func TestMapAuthorizerRejectionInternalError(t *testing.T) {
 	require.Equal(t, pkg.ValidateBusinessError(constant.ErrInternalServer, "authorizer").Error(), err.Error())
 }
 
+func TestMapAuthorizerRejectionRequestTooLarge(t *testing.T) {
+	t.Parallel()
+
+	err := mapAuthorizerRejection("REQUEST_TOO_LARGE")
+	require.Error(t, err)
+	require.Equal(t, pkg.ValidateBusinessError(constant.ErrRequestTooLarge, "validateBalance").Error(), err.Error())
+}
+
 func TestProcessAuthorizerAtomicOperation_RetryOnBalanceNotFound(t *testing.T) {
 	t.Parallel()
 
@@ -523,6 +531,67 @@ func TestCacheAuthorizerBalances_SkipsNilBalances(t *testing.T) {
 		Times(1)
 
 	uc.cacheAuthorizerBalances(context.Background(), balanceOps, []*mmodel.Balance{nil, balance})
+}
+
+func TestMapAuthorizerRejectionAllBranches(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		rejectionCode  string
+		wantErrContain string
+	}{
+		{
+			name:           "INSUFFICIENT_FUNDS",
+			rejectionCode:  "INSUFFICIENT_FUNDS",
+			wantErrContain: pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance").Error(),
+		},
+		{
+			name:           "AMOUNT_EXCEEDS_HOLD",
+			rejectionCode:  "AMOUNT_EXCEEDS_HOLD",
+			wantErrContain: pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance").Error(),
+		},
+		{
+			name:           "BALANCE_NOT_FOUND",
+			rejectionCode:  "BALANCE_NOT_FOUND",
+			wantErrContain: pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "validateBalance").Error(),
+		},
+		{
+			name:           "ACCOUNT_INELIGIBLE",
+			rejectionCode:  "ACCOUNT_INELIGIBLE",
+			wantErrContain: pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "validateBalance").Error(),
+		},
+		{
+			name:           "REQUEST_TOO_LARGE",
+			rejectionCode:  "REQUEST_TOO_LARGE",
+			wantErrContain: pkg.ValidateBusinessError(constant.ErrRequestTooLarge, "validateBalance").Error(),
+		},
+		{
+			name:           "INTERNAL_ERROR",
+			rejectionCode:  "INTERNAL_ERROR",
+			wantErrContain: pkg.ValidateBusinessError(constant.ErrInternalServer, "authorizer").Error(),
+		},
+		{
+			name:           "unknown code falls to default",
+			rejectionCode:  "COMPLETELY_UNKNOWN_CODE",
+			wantErrContain: pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer").Error(),
+		},
+		{
+			name:           "empty string falls to default",
+			rejectionCode:  "",
+			wantErrContain: pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, "authorizer").Error(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := mapAuthorizerRejection(tt.rejectionCode)
+			require.Error(t, err)
+			require.Equal(t, tt.wantErrContain, err.Error())
+		})
+	}
 }
 
 func TestConvertAuthorizerSnapshots_SkipsNilEntries(t *testing.T) {

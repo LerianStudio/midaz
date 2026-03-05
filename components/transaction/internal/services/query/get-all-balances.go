@@ -108,7 +108,7 @@ func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, le
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to list balances by alias on balance database", err)
 
-		logger.Error("Failed to list balances by alias on balance database", err.Error())
+		logger.Error("Failed to list balances by alias on balance database", err)
 
 		return nil, err
 	}

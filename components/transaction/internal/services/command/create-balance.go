@@ -40,7 +40,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 
 		err := json.Unmarshal(item.Value, &account)
 		if err != nil {
-			logger.Errorf("failed to unmarshal response: %v", err.Error())
+			logger.Errorf("failed to unmarshal response: %v", err)
 
 			return err
 		}
@@ -55,8 +55,8 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 			AccountType:    account.Type,
 			AllowSending:   true,
 			AllowReceiving: true,
-			CreatedAt:      time.Now(),
-			UpdatedAt:      time.Now(),
+			CreatedAt:      time.Now().UTC(),
+			UpdatedAt:      time.Now().UTC(),
 		}
 
 		err = uc.BalanceRepo.Create(ctx, balance)
@@ -151,8 +151,8 @@ func (uc *UseCase) CreateBalanceSync(ctx context.Context, input mmodel.CreateBal
 		AccountType:    input.AccountType,
 		AllowSending:   input.AllowSending,
 		AllowReceiving: input.AllowReceiving,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
 	}
 
 	if err := uc.BalanceRepo.Create(ctx, newBalance); err != nil {

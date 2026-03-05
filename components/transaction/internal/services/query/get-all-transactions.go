@@ -154,7 +154,7 @@ func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationI
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Operations", err)
 
-		logger.Errorf("Failed to retrieve Operations with ID: %s, Error: %s", tran.IDtoUUID(), err.Error())
+		logger.Errorf("Failed to retrieve Operations with ID: %s, Error: %s", tran.IDtoUUID(), err)
 
 		return nil, err
 	}

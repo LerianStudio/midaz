@@ -40,7 +40,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 	for i, balance := range balances {
 		if balance == nil {
-			err := fmt.Errorf("invalid balance at index %d: nil", i) //nolint:err113
+			err := fmt.Errorf("%w: at index %d", errInvalidPayloadNilBalance, i)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
 			logger.Errorf("Failed to update balances on database: %v", err)
 
@@ -52,7 +52,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		calculateBalances, err := pkgTransaction.OperateBalances(fromTo[balance.Alias], *balance.ToTransactionBalance())
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
-			logger.Errorf("Failed to update balances on database: %v", err.Error())
+			logger.Errorf("Failed to update balances on database: %v", err)
 
 			return err
 		}
@@ -81,7 +81,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, balancesToUpdate); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
-		logger.Errorf("Failed to update balances on database: %v", err.Error())
+		logger.Errorf("Failed to update balances on database: %v", err)
 
 		return err
 	}

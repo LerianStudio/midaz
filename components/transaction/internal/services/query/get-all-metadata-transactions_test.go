@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
 
@@ -32,7 +31,7 @@ func TestGetAllMetadataTransactions(t *testing.T) {
 
 	collection := reflect.TypeOf(transaction.Transaction{}).Name()
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"metadata": 1},
+		Metadata: &map[string]any{"metadata": 1},
 		Limit:    10,
 		Page:     1,
 	}
@@ -97,7 +96,7 @@ func TestGetAllMetadataTransactionsWithOperations(t *testing.T) {
 	txID2, _ := uuid.Parse(txID2Str)
 
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"key": "value"},
+		Metadata: &map[string]any{"key": "value"},
 		Limit:    10,
 		Page:     1,
 	}
@@ -215,7 +214,7 @@ func TestGetAllMetadataTransactions_NoMetadata(t *testing.T) {
 
 	collection := reflect.TypeOf(transaction.Transaction{}).Name()
 	filter := http.QueryHeader{
-		Metadata: &bson.M{"k": "v"},
+		Metadata: &map[string]any{"k": "v"},
 		Limit:    10,
 		Page:     1,
 	}

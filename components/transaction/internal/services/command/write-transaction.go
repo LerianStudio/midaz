@@ -73,7 +73,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to marshal transaction queue payload", err)
 
-		logger.Errorf("Failed to marshal transaction queue payload: %s", err.Error())
+		logger.Errorf("Failed to marshal transaction queue payload: %s", err)
 
 		return err
 	}
@@ -117,7 +117,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 		partitionKey,
 		message,
 	); err != nil {
-		logger.Warnf("Failed to send message to queue: %s", err.Error())
+		logger.Warnf("Failed to send message to queue: %s", err)
 
 		logger.Infof("Trying to send message directly to database: %s", tran.ID)
 
@@ -130,7 +130,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to send message directly to database", err)
 
-			logger.Errorf("Failed to send message directly to database: %s", err.Error())
+			logger.Errorf("Failed to send message directly to database: %s", err)
 
 			return err
 		}
@@ -267,7 +267,7 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to marshal transaction queue payload", err)
 
-		logger.Errorf("Failed to marshal transaction queue payload: %s", err.Error())
+		logger.Errorf("Failed to marshal transaction queue payload: %s", err)
 
 		return err
 	}
@@ -280,7 +280,7 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to send message directly to database", err)
 
-		logger.Errorf("Failed to send message directly to database: %s", err.Error())
+		logger.Errorf("Failed to send message directly to database: %s", err)
 
 		return err
 	}

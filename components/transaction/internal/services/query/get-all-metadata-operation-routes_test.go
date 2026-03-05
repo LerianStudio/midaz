@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
 
@@ -39,7 +38,7 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) { //nolint:funlen
 		Limit:     10,
 		Page:      1,
 		SortOrder: "asc",
-		Metadata:  &bson.M{"key": "value"},
+		Metadata:  &map[string]any{"key": "value"},
 	}
 
 	expectedCursor := libHTTP.CursorPagination{

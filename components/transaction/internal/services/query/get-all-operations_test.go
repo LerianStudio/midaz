@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.uber.org/mock/gomock"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -38,7 +37,7 @@ func TestGetAllOperations(t *testing.T) { //nolint:funlen
 		StartDate:    time.Now().AddDate(0, -1, 0),
 		EndDate:      time.Now(),
 		ToAssetCodes: []string{"BRL"},
-		Metadata:     &bson.M{},
+		Metadata:     &map[string]any{},
 	}
 	mockCur := libHTTP.CursorPagination{
 		Next: "next",

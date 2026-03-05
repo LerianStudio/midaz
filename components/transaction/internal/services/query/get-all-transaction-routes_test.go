@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
 
@@ -50,7 +49,7 @@ func TestGetAllTransactionRoutesSuccess(t *testing.T) {
 		Limit:     10,
 		Page:      1,
 		SortOrder: "asc",
-		Metadata:  &bson.M{},
+		Metadata:  &map[string]any{},
 	}
 
 	expectedTransactionRoutes := []*mmodel.TransactionRoute{

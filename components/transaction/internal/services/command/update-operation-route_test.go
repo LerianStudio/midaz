@@ -7,7 +7,6 @@ package command
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	"github.com/google/uuid"
@@ -221,7 +220,10 @@ func TestUpdateOperationRouteNotFound(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, operationRoute)
-	assert.Equal(t, pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name()), err)
+
+	var entityErr pkg.EntityNotFoundError
+	require.ErrorAs(t, err, &entityErr)
+	assert.Equal(t, constant.ErrOperationRouteNotFound.Error(), entityErr.Code)
 }
 
 // TestUpdateOperationRouteError tests updating an operation route with an error.

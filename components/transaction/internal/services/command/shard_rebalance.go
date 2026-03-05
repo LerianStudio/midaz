@@ -13,6 +13,8 @@ import (
 
 	"github.com/google/uuid"
 
+	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+
 	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -34,6 +36,11 @@ type ShardRebalanceStatus struct {
 
 // SetShardRebalancePaused pauses or resumes the shard rebalancer.
 func (uc *UseCase) SetShardRebalancePaused(ctx context.Context, paused bool) error {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.set_shard_rebalance_paused")
+	defer span.End()
+
 	if uc == nil || uc.ShardManager == nil {
 		return errShardManagerNotConfigured
 	}
@@ -47,6 +54,11 @@ func (uc *UseCase) SetShardRebalancePaused(ctx context.Context, paused bool) err
 
 // GetShardRebalanceStatus returns the current shard rebalance status.
 func (uc *UseCase) GetShardRebalanceStatus(ctx context.Context) (*ShardRebalanceStatus, error) {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.get_shard_rebalance_status")
+	defer span.End()
+
 	if uc == nil || uc.ShardManager == nil || uc.ShardRouter == nil {
 		return nil, errShardManagerNotConfigured
 	}
@@ -75,6 +87,11 @@ func (uc *UseCase) MigrateAccountShard(
 	alias string,
 	targetShard int,
 ) (*internalsharding.MigrationResult, error) {
+	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.migrate_account_shard")
+	defer span.End()
+
 	if uc == nil || uc.ShardManager == nil || uc.ShardRouter == nil {
 		return nil, errShardManagerNotConfigured
 	}

@@ -28,7 +28,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 	ctx, span := tracer.Start(ctx, "command.create_transaction_route")
 	defer span.End()
 
-	now := time.Now()
+	now := time.Now().UTC()
 
 	transactionRoute := &mmodel.TransactionRoute{
 		ID:             libCommons.GenerateUUIDv7(),

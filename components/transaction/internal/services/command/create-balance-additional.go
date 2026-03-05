@@ -74,8 +74,8 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		AccountType:    defaultBalance.AccountType,
 		AllowSending:   cbi.AllowSending == nil || *cbi.AllowSending,
 		AllowReceiving: cbi.AllowReceiving == nil || *cbi.AllowReceiving,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
 	}
 
 	err = uc.BalanceRepo.Create(ctx, additionalBalance)
