@@ -95,8 +95,8 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		Status:         status,
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
 	}
 
 	inst, err := uc.AssetRepo.Create(ctx, asset)
@@ -175,8 +175,8 @@ func (uc *UseCase) createExternalAccountWithBalance(
 			Code:        "external",
 			Description: &aStatusDescription,
 		},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 	}
 
 	acc, err := uc.AccountRepo.Create(ctx, eAccount)

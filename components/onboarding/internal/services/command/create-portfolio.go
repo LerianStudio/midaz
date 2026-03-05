@@ -44,8 +44,8 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 		OrganizationID: organizationID.String(),
 		Name:           cpi.Name,
 		Status:         status,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
 	}
 
 	port, err := uc.PortfolioRepo.Create(ctx, portfolio)

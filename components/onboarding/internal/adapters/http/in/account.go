@@ -9,7 +9,6 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -147,7 +146,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -179,7 +178,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Accounts on query", err)
 
-			logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
+			logger.Errorf("Failed to retrieve all Accounts, Error: %s", err)
 
 			return http.WithError(c, err)
 		}
@@ -193,13 +192,13 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of all Accounts ")
 
-	headerParams.Metadata = &bson.M{}
+	headerParams.Metadata = &map[string]any{}
 
 	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Accounts on query", err)
 
-		logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve all Accounts, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -257,7 +256,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account on query", err)
 
-		logger.Errorf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -312,7 +311,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account on query", err)
 
-		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error())
+		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err)
 
 		return http.WithError(c, err)
 	}
@@ -365,7 +364,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account on query", err)
 
-		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error())
+		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err)
 
 		return http.WithError(c, err)
 	}
@@ -437,7 +436,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Account on command", err)
 
-		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -446,7 +445,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account on query", err)
 
-		logger.Errorf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to retrieve Account with ID: %s, Error: %s", id, err)
 
 		return http.WithError(c, err)
 	}
@@ -503,7 +502,7 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	if err := handler.Command.DeleteAccountByID(ctx, organizationID, ledgerID, nil, id, token); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove Account on command", err)
 
-		logger.Errorf("Failed to remove Account with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to remove Account with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}

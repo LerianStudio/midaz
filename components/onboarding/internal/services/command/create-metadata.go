@@ -27,8 +27,8 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID stri
 			EntityID:   entityID,
 			EntityName: entityName,
 			Data:       metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
+			CreatedAt:  time.Now().UTC(),
+			UpdatedAt:  time.Now().UTC(),
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, entityName, &meta); err != nil {

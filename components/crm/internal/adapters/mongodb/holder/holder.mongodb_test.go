@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
@@ -224,14 +223,14 @@ func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		metadata     *bson.M
+		metadata     *map[string]any
 		wantKeys     []string
 		wantValues   map[string]any
 		expectFilter bool
 	}{
 		{
 			name: "includes_single_metadata_key",
-			metadata: &bson.M{
+			metadata: &map[string]any{
 				"metadata.source": "api",
 			},
 			wantKeys:     []string{"metadata.source"},
@@ -240,7 +239,7 @@ func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 		},
 		{
 			name: "includes_multiple_metadata_keys",
-			metadata: &bson.M{
+			metadata: &map[string]any{
 				"metadata.key1": "value1",
 				"metadata.key2": "value2",
 			},
@@ -259,7 +258,7 @@ func TestBuildHolderFilter_WithMetadata(t *testing.T) {
 		},
 		{
 			name:         "excludes_metadata_when_empty",
-			metadata:     &bson.M{},
+			metadata:     &map[string]any{},
 			wantKeys:     nil,
 			expectFilter: false,
 		},
@@ -318,19 +317,19 @@ func TestBuildHolderFilter_InvalidMetadata(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		metadata    *bson.M
+		metadata    *map[string]any
 		errContains string
 	}{
 		{
 			name: "rejects_nested_object_metadata",
-			metadata: &bson.M{
+			metadata: &map[string]any{
 				"metadata.nested": map[string]any{"invalid": "nested"},
 			},
 			errContains: "0067", // ErrInvalidMetadataNesting
 		},
 		{
 			name: "rejects_array_metadata",
-			metadata: &bson.M{
+			metadata: &map[string]any{
 				"metadata.array": []string{"a", "b"},
 			},
 			errContains: "0047", // ErrBadRequest for array values
@@ -373,7 +372,7 @@ func TestBuildHolderFilter_CombinedFilters(t *testing.T) {
 		Page:       1,
 		ExternalID: &externalID,
 		Document:   &document,
-		Metadata: &bson.M{
+		Metadata: &map[string]any{
 			"metadata.region": "us-east",
 		},
 	}

@@ -468,7 +468,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 		args = append(args, record.StatusDescription)
 	}
 
-	record.UpdatedAt = time.Now()
+	record.UpdatedAt = time.Now().UTC()
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 

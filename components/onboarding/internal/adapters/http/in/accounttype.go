@@ -6,7 +6,6 @@ package in
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -131,7 +130,7 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account Type on query", err)
 
-		logger.Errorf("Failed to retrieve Account Type with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to retrieve Account Type with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -200,7 +199,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account type", err)
 
-		logger.Errorf("Failed to update account type with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to update account type with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -209,7 +208,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get updated account type", err)
 
-		logger.Errorf("Failed to get updated account type with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to get updated account type with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -263,7 +262,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 	if err := handler.Command.DeleteAccountTypeByID(ctx, organizationID, ledgerID, id); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Account Type on command", err)
 
-		logger.Errorf("Failed to delete Account Type with Account Type ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to delete Account Type with Account Type ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -319,7 +318,7 @@ func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -344,7 +343,7 @@ func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Account Types on query", err)
 
-			logger.Errorf("Failed to retrieve all Account Types, Error: %s", err.Error())
+			logger.Errorf("Failed to retrieve all Account Types, Error: %s", err)
 
 			return http.WithError(c, err)
 		}
@@ -359,13 +358,13 @@ func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of Account Types")
 
-	headerParams.Metadata = &bson.M{}
+	headerParams.Metadata = &map[string]any{}
 
 	accountTypes, cur, err := handler.Query.GetAllAccountType(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account Types on query", err)
 
-		logger.Errorf("Failed to retrieve Account Types, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve Account Types, Error: %s", err)
 
 		return http.WithError(c, err)
 	}

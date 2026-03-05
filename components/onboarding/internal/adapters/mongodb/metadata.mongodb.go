@@ -316,7 +316,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 	opts := options.Update().SetUpsert(true)
 	filter := bson.M{"entity_id": id}
-	update := bson.D{{Key: "$set", Value: bson.D{{Key: "metadata", Value: metadata}, {Key: "updated_at", Value: time.Now()}}}}
+	update := bson.D{{Key: "$set", Value: bson.D{{Key: "metadata", Value: metadata}, {Key: "updated_at", Value: time.Now().UTC()}}}}
 
 	ctx, spanUpdate := tracer.Start(ctx, "mongodb.update_metadata.update_one")
 

@@ -39,8 +39,8 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		AccountID: &cai.AccountID,
 		HolderID:  &holderID,
 		Metadata:  cai.Metadata,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 	}
 
 	if cai.BankingDetails != nil {

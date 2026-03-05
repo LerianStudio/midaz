@@ -25,7 +25,7 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 	ctx, span := tracer.Start(ctx, "command.create_account_type")
 	defer span.End()
 
-	now := time.Now()
+	now := time.Now().UTC()
 
 	accountType := &mmodel.AccountType{
 		ID:             libCommons.GenerateUUIDv7(),

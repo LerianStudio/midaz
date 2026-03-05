@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
@@ -122,7 +121,7 @@ func TestMongoDBRepository_buildAliasFilter(t *testing.T) { //nolint:funlen // c
 		{
 			name: "filter with metadata",
 			query: http.QueryHeader{
-				Metadata: &bson.M{
+				Metadata: &map[string]any{
 					"metadata.custom_key": "custom_value",
 				},
 			},
@@ -146,7 +145,7 @@ func TestMongoDBRepository_buildAliasFilter(t *testing.T) { //nolint:funlen // c
 		{
 			name: "invalid metadata value",
 			query: http.QueryHeader{
-				Metadata: &bson.M{
+				Metadata: &map[string]any{
 					"metadata.nested": map[string]any{"invalid": "nested"},
 				},
 			},

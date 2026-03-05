@@ -864,7 +864,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		builder = builder.Set("portfolio_id", record.PortfolioID)
 	}
 
-	record.UpdatedAt = time.Now()
+	record.UpdatedAt = time.Now().UTC()
 	builder = builder.Set("updated_at", record.UpdatedAt)
 
 	builder = builder.Where(squirrel.Eq{"organization_id": organizationID})

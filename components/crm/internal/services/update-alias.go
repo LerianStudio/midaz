@@ -47,7 +47,7 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 	alias := &mmodel.Alias{
 		Metadata:       uai.Metadata,
 		BankingDetails: uai.BankingDetails,
-		UpdatedAt:      time.Now(),
+		UpdatedAt:      time.Now().UTC(),
 	}
 
 	if uai.RegulatoryFields != nil {

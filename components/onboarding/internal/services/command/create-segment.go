@@ -43,8 +43,8 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 		OrganizationID: organizationID.String(),
 		Name:           cpi.Name,
 		Status:         status,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
 	}
 
 	_, err := uc.SegmentRepo.FindByName(ctx, organizationID, ledgerID, cpi.Name)

@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -127,7 +126,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update organization on command", err)
 
-		logger.Errorf("Failed to update Organization with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to update Organization with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -136,7 +135,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve organization on query", err)
 
-		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -180,7 +179,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve organization on query", err)
 
-		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -222,7 +221,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
-		logger.Warnf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Warnf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -247,7 +246,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all organizations by metadata", err)
 
-			logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
+			logger.Errorf("Failed to retrieve all Organizations, Error: %s", err)
 
 			return http.WithError(c, err)
 		}
@@ -261,13 +260,13 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of all Organizations ")
 
-	headerParams.Metadata = &bson.M{}
+	headerParams.Metadata = &map[string]any{}
 
 	organizations, err := handler.Query.GetAllOrganizations(ctx, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all organizations", err)
 
-		logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve all Organizations, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -322,7 +321,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	if err := handler.Command.DeleteOrganizationByID(ctx, id); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove organization on command", err)
 
-		logger.Errorf("Failed to remove Organization with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to remove Organization with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -359,7 +358,7 @@ func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count organizations", err)
 
-		logger.Errorf("Failed to count organizations, Error: %s", err.Error())
+		logger.Errorf("Failed to count organizations, Error: %s", err)
 
 		return http.WithError(c, err)
 	}

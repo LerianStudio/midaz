@@ -62,8 +62,8 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		LegalDocument:        coi.LegalDocument,
 		Address:              coi.Address,
 		Status:               status,
-		CreatedAt:            time.Now(),
-		UpdatedAt:            time.Now(),
+		CreatedAt:            time.Now().UTC(),
+		UpdatedAt:            time.Now().UTC(),
 	}
 
 	org, err := uc.OrganizationRepo.Create(ctx, organization)

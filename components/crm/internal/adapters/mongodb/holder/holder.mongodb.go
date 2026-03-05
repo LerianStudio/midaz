@@ -494,7 +494,7 @@ func (hm *MongoDBRepository) hardDeleteHolder(ctx context.Context, coll *mongo.C
 func (hm *MongoDBRepository) softDeleteHolder(ctx context.Context, coll *mongo.Collection, filter bson.D, span *trace.Span) error {
 	update := bson.D{
 		{Key: "$set", Value: bson.D{
-			{Key: "deleted_at", Value: time.Now()},
+			{Key: "deleted_at", Value: time.Now().UTC()},
 		}},
 	}
 

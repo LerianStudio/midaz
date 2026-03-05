@@ -129,7 +129,7 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to retrieve alias", err)
 
-		logger.Errorf("Failed to retrieve Alias with ID: %s from Holder %s, Error: %s", id.String(), holderID.String(), err.Error())
+		logger.Errorf("Failed to retrieve Alias with ID: %s from Holder %s, Error: %s", id.String(), holderID.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -206,7 +206,7 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to update alias", err)
 
-		logger.Errorf("Failed to update alias %s from holder %s, Error: %s", id.String(), holderID.String(), err.Error())
+		logger.Errorf("Failed to update alias %s from holder %s, Error: %s", id.String(), holderID.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -264,7 +264,7 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to delete alias", err)
 
-		logger.Errorf("Failed to delete alias with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to delete alias with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -312,7 +312,7 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -323,7 +323,7 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 		if err != nil {
 			libOpenTelemetry.HandleSpanError(&span, "Failed to parse holder ID", err)
 
-			logger.Errorf("Failed to parse holder ID, Error: %s", err.Error())
+			logger.Errorf("Failed to parse holder ID, Error: %s", err)
 
 			return http.WithError(c, err)
 		}
@@ -359,7 +359,7 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get all aliases", err)
 
-		logger.Errorf("Failed to get all aliases, Error: %v", err.Error())
+		logger.Errorf("Failed to get all aliases, Error: %v", err)
 
 		return http.WithError(c, err)
 	}
@@ -423,7 +423,7 @@ func (handler *AliasHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to delete related party", err)
 
-		logger.Errorf("Failed to delete related party with ID: %s, Error: %s", relatedPartyID.String(), err.Error())
+		logger.Errorf("Failed to delete related party with ID: %s, Error: %s", relatedPartyID.String(), err)
 
 		return http.WithError(c, err)
 	}

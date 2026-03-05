@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -86,7 +85,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Asset on command", err)
 
-		logger.Infof("Error to created Asset: %s", err.Error())
+		logger.Infof("Error to created Asset: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -144,7 +143,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -169,7 +168,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Assets on query", err)
 
-			logger.Errorf("Failed to retrieve all Assets, Error: %s", err.Error())
+			logger.Errorf("Failed to retrieve all Assets, Error: %s", err)
 
 			return http.WithError(c, err)
 		}
@@ -183,13 +182,13 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of all Assets ")
 
-	headerParams.Metadata = &bson.M{}
+	headerParams.Metadata = &map[string]any{}
 
 	assets, err := handler.Query.GetAllAssets(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Assets on query", err)
 
-		logger.Errorf("Failed to retrieve all Assets, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve all Assets, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -247,7 +246,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Asset on query", err)
 
-		logger.Errorf("Failed to retrieve Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+		logger.Errorf("Failed to retrieve Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -319,7 +318,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Asset on command", err)
 
-		logger.Errorf("Failed to update Asset with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to update Asset with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -328,7 +327,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get update Asset on query", err)
 
-		logger.Errorf("Failed to get update Asset with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to get update Asset with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -383,7 +382,7 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	if err := handler.Command.DeleteAssetByID(ctx, organizationID, ledgerID, id); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove Asset on command", err)
 
-		logger.Errorf("Failed to remove Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+		logger.Errorf("Failed to remove Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -432,7 +431,7 @@ func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count assets", err)
 
-		logger.Errorf("Failed to count assets, Error: %s", err.Error())
+		logger.Errorf("Failed to count assets, Error: %s", err)
 
 		return http.WithError(c, err)
 	}

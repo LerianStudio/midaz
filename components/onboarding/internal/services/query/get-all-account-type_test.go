@@ -11,7 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.uber.org/mock/gomock"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
@@ -96,7 +95,7 @@ func TestGetAllAccountTypeSuccess(t *testing.T) {
 		Times(1)
 
 	expectedMetadataFilter := filter
-	expectedMetadataFilter.Metadata = &bson.M{}
+	expectedMetadataFilter.Metadata = &map[string]any{}
 
 	mockMetadataRepo.EXPECT().
 		FindList(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), expectedMetadataFilter).
@@ -162,7 +161,7 @@ func TestGetAllAccountTypeSuccessWithoutMetadata(t *testing.T) {
 		Times(1)
 
 	expectedMetadataFilter := filter
-	expectedMetadataFilter.Metadata = &bson.M{}
+	expectedMetadataFilter.Metadata = &map[string]any{}
 
 	mockMetadataRepo.EXPECT().
 		FindList(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), expectedMetadataFilter).
@@ -290,7 +289,7 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 		Times(1)
 
 	expectedMetadataFilter := filter
-	expectedMetadataFilter.Metadata = &bson.M{}
+	expectedMetadataFilter.Metadata = &map[string]any{}
 
 	mockMetadataRepo.EXPECT().
 		FindList(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), expectedMetadataFilter).
@@ -335,7 +334,7 @@ func TestGetAllAccountTypeEmpty(t *testing.T) {
 		Times(1)
 
 	expectedMetadataFilter := filter
-	expectedMetadataFilter.Metadata = &bson.M{}
+	expectedMetadataFilter.Metadata = &map[string]any{}
 
 	mockMetadataRepo.EXPECT().
 		FindList(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), expectedMetadataFilter).
@@ -404,7 +403,7 @@ func TestGetAllAccountTypeWithDifferentPagination(t *testing.T) {
 		Times(1)
 
 	expectedMetadataFilter := filter
-	expectedMetadataFilter.Metadata = &bson.M{}
+	expectedMetadataFilter.Metadata = &map[string]any{}
 
 	mockMetadataRepo.EXPECT().
 		FindList(gomock.Any(), reflect.TypeOf(mmodel.AccountType{}).Name(), expectedMetadataFilter).
@@ -429,7 +428,7 @@ func TestGetAllAccountTypeWithMetadataFilter(t *testing.T) {
 	ledgerID := libCommons.GenerateUUIDv7()
 	accountTypeID := libCommons.GenerateUUIDv7()
 
-	metadataFilter := &bson.M{
+	metadataFilter := &map[string]any{
 		"category": "current",
 	}
 

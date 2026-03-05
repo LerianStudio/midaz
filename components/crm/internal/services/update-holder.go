@@ -41,7 +41,7 @@ func (uc *UseCase) UpdateHolderByID(ctx context.Context, organizationID string, 
 		NaturalPerson: uhi.NaturalPerson,
 		LegalPerson:   uhi.LegalPerson,
 		Metadata:      uhi.Metadata,
-		UpdatedAt:     time.Now(),
+		UpdatedAt:     time.Now().UTC(),
 	}
 
 	updatedHolder, err := uc.HolderRepo.Update(ctx, organizationID, id, holder, fieldsToRemove)

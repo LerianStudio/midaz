@@ -94,7 +94,7 @@ func TestIntegration_MetadataRepository_FindList_FiltersByMetadata(t *testing.T)
 	mongotestutil.InsertManyMetadata(t, container.Database, strings.ToLower(collection), fixtures)
 
 	// Filter for group=cash
-	metadataFilter := bson.M{"metadata.group": "cash"}
+	metadataFilter := map[string]any{"metadata.group": "cash"}
 	filter := http.QueryHeader{
 		Metadata:    &metadataFilter,
 		UseMetadata: true,
@@ -135,7 +135,7 @@ func TestIntegration_MetadataRepository_FindList_SupportsPagination(t *testing.T
 	}
 	mongotestutil.InsertManyMetadata(t, container.Database, strings.ToLower(collection), fixtures)
 
-	metadataFilter := bson.M{"metadata.group": "paginated"}
+	metadataFilter := map[string]any{"metadata.group": "paginated"}
 
 	// Act - Get first page (limit 2)
 	filter := http.QueryHeader{
@@ -186,7 +186,7 @@ func TestIntegration_MetadataRepository_FindList_ReturnsEmptyForNoMatch(t *testi
 		Data:       map[string]any{"group": "other"},
 	})
 
-	metadataFilter := bson.M{"metadata.group": "nonexistent"}
+	metadataFilter := map[string]any{"metadata.group": "nonexistent"}
 	filter := http.QueryHeader{
 		Metadata:    &metadataFilter,
 		UseMetadata: true,

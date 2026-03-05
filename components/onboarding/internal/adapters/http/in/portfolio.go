@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -138,7 +137,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -163,7 +162,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Portfolios on query", err)
 
-			logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
+			logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err)
 
 			return http.WithError(c, err)
 		}
@@ -177,13 +176,13 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of all Portfolios")
 
-	headerParams.Metadata = &bson.M{}
+	headerParams.Metadata = &map[string]any{}
 
 	portfolios, err := handler.Query.GetAllPortfolio(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Portfolios on query", err)
 
-		logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -241,7 +240,7 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Portfolio on query", err)
 
-		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -313,7 +312,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Portfolio on command", err)
 
-		logger.Errorf("Failed to update Portfolio with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to update Portfolio with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -322,7 +321,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Portfolio on query", err)
 
-		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -377,7 +376,7 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 	if err := handler.Command.DeletePortfolioByID(ctx, organizationID, ledgerID, id); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove Portfolio on command", err)
 
-		logger.Errorf("Failed to remove Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+		logger.Errorf("Failed to remove Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -424,7 +423,7 @@ func (handler *PortfolioHandler) CountPortfolios(c *fiber.Ctx) error {
 	count, err := handler.Query.CountPortfolios(ctx, organizationID, ledgerID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to count portfolios", err)
-		logger.Errorf("Failed to count portfolios, Error: %s", err.Error())
+		logger.Errorf("Failed to count portfolios, Error: %s", err)
 
 		return http.WithError(c, err)
 	}

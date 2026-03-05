@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -138,7 +137,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -163,7 +162,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Segments on query", err)
 
-			logger.Errorf("Failed to retrieve all Segments, Error: %s", err.Error())
+			logger.Errorf("Failed to retrieve all Segments, Error: %s", err)
 
 			return http.WithError(c, err)
 		}
@@ -177,13 +176,13 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of all Segments ")
 
-	headerParams.Metadata = &bson.M{}
+	headerParams.Metadata = &map[string]any{}
 
 	segments, err := handler.Query.GetAllSegments(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Segments on query", err)
 
-		logger.Errorf("Failed to retrieve all Segments, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve all Segments, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -241,7 +240,7 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Segment on query", err)
 
-		logger.Errorf("Failed to retrieve Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+		logger.Errorf("Failed to retrieve Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -313,7 +312,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Segment on command", err)
 
-		logger.Errorf("Failed to update Segment with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to update Segment with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -322,7 +321,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Segment on query", err)
 
-		logger.Errorf("Failed to retrieve Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+		logger.Errorf("Failed to retrieve Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -377,7 +376,7 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 	if err := handler.Command.DeleteSegmentByID(ctx, organizationID, ledgerID, id); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove Segment on command", err)
 
-		logger.Errorf("Failed to remove Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+		logger.Errorf("Failed to remove Segment with Ledger ID: %s and Segment ID: %s, Error: %s", ledgerID.String(), id.String(), err)
 
 		return http.WithError(c, err)
 	}

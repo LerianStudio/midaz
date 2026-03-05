@@ -319,7 +319,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 	}
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-	args = append(args, time.Now(), organizationID, ledgerID, id)
+	args = append(args, time.Now().UTC(), organizationID, ledgerID, id)
 
 	query := `UPDATE account_type SET ` + strings.Join(updates, ", ") +
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-whereClauseArgOffset) +

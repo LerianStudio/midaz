@@ -126,8 +126,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		LedgerID:        ledgerID.String(),
 		EntityID:        cai.EntityID,
 		Status:          status,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
 	}
 
 	acc, err := uc.AccountRepo.Create(ctx, account)

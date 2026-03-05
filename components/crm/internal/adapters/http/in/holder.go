@@ -114,7 +114,7 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to retrieve holder", err)
 
-		logger.Errorf("Failed to retrieve Holder with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to retrieve Holder with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -184,7 +184,7 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to update holder", err)
 
-		logger.Errorf("Failed to update Holder with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to update Holder with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -235,7 +235,7 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder", err)
 
-		logger.Errorf("Failed to delete Holder with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to delete Holder with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -275,7 +275,7 @@ func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -304,7 +304,7 @@ func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(&span, "Failed to get all holders", err)
 
-		logger.Errorf("Failed to get all holders, Error: %v", err.Error())
+		logger.Errorf("Failed to get all holders, Error: %v", err)
 
 		return http.WithError(c, err)
 	}

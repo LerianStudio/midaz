@@ -100,7 +100,7 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get entity name", err)
 
-		logger.Errorf("Failed to get entity name, Error: %s", err.Error())
+		logger.Errorf("Failed to get entity name, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -110,7 +110,7 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid entity name", err)
 
-		logger.Errorf("Invalid entity name, Error: %s", err.Error())
+		logger.Errorf("Invalid entity name, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -119,7 +119,7 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -128,7 +128,7 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to set span attributes", err)
 
-		logger.Errorf("Failed to set span attributes, Error: %s", err.Error())
+		logger.Errorf("Failed to set span attributes, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -139,7 +139,7 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to assert payload type", err)
 
-		logger.Errorf("Failed to assert payload type, Error: %s", err.Error())
+		logger.Errorf("Failed to assert payload type, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -152,7 +152,7 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata index", err)
 
-		logger.Errorf("Failed to create metadata index, Error: %s", err.Error())
+		logger.Errorf("Failed to create metadata index, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -192,7 +192,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -201,7 +201,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to set span attributes", err)
 
-		logger.Errorf("Failed to set span attributes, Error: %s", err.Error())
+		logger.Errorf("Failed to set span attributes, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -213,7 +213,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid entity name", err)
 
-			logger.Errorf("Invalid entity name, Error: %s", err.Error())
+			logger.Errorf("Invalid entity name, Error: %s", err)
 
 			return http.WithError(c, err)
 		}
@@ -225,7 +225,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata indexes", err)
 
-			logger.Errorf("Failed to get metadata indexes, Error: %s", err.Error())
+			logger.Errorf("Failed to get metadata indexes, Error: %s", err)
 
 			return http.WithError(c, err)
 		}
@@ -309,7 +309,7 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get entity name", err)
 
-		logger.Errorf("Failed to get entity name, Error: %s", err.Error())
+		logger.Errorf("Failed to get entity name, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -319,7 +319,7 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid entity name", err)
 
-		logger.Errorf("Invalid entity name, Error: %s", err.Error())
+		logger.Errorf("Invalid entity name, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -330,7 +330,7 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get index key", err)
 
-		logger.Errorf("Failed to get index key, Error: %s", err.Error())
+		logger.Errorf("Failed to get index key, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -346,7 +346,7 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete metadata index", err)
 
-		logger.Errorf("Failed to delete metadata index, Error: %s", err.Error())
+		logger.Errorf("Failed to delete metadata index, Error: %s", err)
 
 		return http.WithError(c, err)
 	}

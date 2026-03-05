@@ -42,8 +42,8 @@ func (uc *UseCase) CreateHolder(ctx context.Context, organizationID string, chi 
 		NaturalPerson: chi.NaturalPerson,
 		LegalPerson:   chi.LegalPerson,
 		Metadata:      chi.Metadata,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
 	}
 
 	createdHolder, err := uc.HolderRepo.Create(ctx, organizationID, holder)

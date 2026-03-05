@@ -50,8 +50,8 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		OrganizationID: organizationID.String(),
 		Name:           cli.Name,
 		Status:         status,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
 	}
 
 	led, err := uc.LedgerRepo.Create(ctx, ledger)

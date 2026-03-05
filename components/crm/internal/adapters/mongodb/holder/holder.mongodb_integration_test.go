@@ -458,7 +458,7 @@ func TestIntegration_HolderRepo_FindAll_FilterByMetadata(t *testing.T) {
 	filter := http.QueryHeader{
 		Limit: 10,
 		Page:  1,
-		Metadata: &bson.M{
+		Metadata: &map[string]any{
 			"metadata.region": "us-east",
 		},
 	}

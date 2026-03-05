@@ -32,7 +32,7 @@ func (uc *UseCase) DeleteAccountTypeByID(ctx context.Context, organizationID, le
 	logger.Infof("Initiating deletion of Account Type with Account Type ID: %s", id.String())
 
 	if err := uc.AccountTypeRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
-		logger.Errorf("Failed to delete Account Type with Account Type ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to delete Account Type with Account Type ID: %s, Error: %s", id.String(), err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())

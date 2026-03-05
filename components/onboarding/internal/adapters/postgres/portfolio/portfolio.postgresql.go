@@ -506,7 +506,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 		args = append(args, record.StatusDescription)
 	}
 
-	record.UpdatedAt = time.Now()
+	record.UpdatedAt = time.Now().UTC()
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 

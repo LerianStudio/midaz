@@ -537,7 +537,7 @@ func (am *MongoDBRepository) hardDeleteAlias(ctx context.Context, coll *mongo.Co
 func (am *MongoDBRepository) softDeleteAlias(ctx context.Context, coll *mongo.Collection, filter bson.D, span *trace.Span) error {
 	update := bson.D{
 		{Key: "$set", Value: bson.D{
-			{Key: "deleted_at", Value: time.Now()},
+			{Key: "deleted_at", Value: time.Now().UTC()},
 		}},
 	}
 
@@ -638,7 +638,7 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 			}},
 		}},
 		{Key: "$set", Value: bson.D{
-			{Key: "updated_at", Value: time.Now()},
+			{Key: "updated_at", Value: time.Now().UTC()},
 		}},
 	}
 
