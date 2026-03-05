@@ -20,6 +20,6 @@ COPY --from=builder /app /app
 COPY --from=builder /ledger-app/components/onboarding/migrations /components/onboarding/migrations
 COPY --from=builder /ledger-app/components/transaction/migrations /components/transaction/migrations
 
-EXPOSE 3002
+EXPOSE 3002 
 
 ENTRYPOINT ["/app"]
