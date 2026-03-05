@@ -875,6 +875,237 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 	}
 }
 
+func TestDirectionFromOperationType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		opType   string
+		expected string
+	}{
+		{name: "DEBIT maps to debit", opType: constant.DEBIT, expected: "debit"},
+		{name: "CREDIT maps to credit", opType: constant.CREDIT, expected: "credit"},
+		{name: "ONHOLD maps to empty (not handled)", opType: constant.ONHOLD, expected: ""},
+		{name: "RELEASE maps to empty (not handled)", opType: constant.RELEASE, expected: ""},
+		{name: "unknown type maps to empty", opType: "UNKNOWN", expected: ""},
+		{name: "empty type maps to empty", opType: "", expected: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := directionFromOperationType(tt.opType)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestTransactionRevert_DirectionPreservation(t *testing.T) {
+	t.Parallel()
+
+	amount100 := decimal.NewFromInt(100)
+	amount200 := decimal.NewFromInt(200)
+	amount300 := decimal.NewFromInt(300)
+	totalAmount := decimal.NewFromInt(300)
+
+	tests := []struct {
+		name        string
+		transaction Transaction
+		validate    func(t *testing.T, result pkgTransaction.Transaction)
+	}{
+		{
+			name: "CREDIT operation gets direction credit in reversed FromTo",
+			transaction: Transaction{
+				Description: "Transaction with credit",
+				AssetCode:   "USD",
+				Amount:      &amount100,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.CREDIT,
+						AccountAlias: "@receiver",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Source.From, 1)
+				from := result.Send.Source.From[0]
+				require.NotNil(t, from.Amount, "Amount must not be nil")
+				assert.Equal(t, "credit", from.Amount.Direction,
+					"CREDIT operation should produce direction 'credit' in reversed FromTo")
+			},
+		},
+		{
+			name: "DEBIT operation gets direction debit in reversed FromTo",
+			transaction: Transaction{
+				Description: "Transaction with debit",
+				AssetCode:   "USD",
+				Amount:      &amount200,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.DEBIT,
+						AccountAlias: "@sender",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount200},
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Distribute.To, 1)
+				to := result.Send.Distribute.To[0]
+				require.NotNil(t, to.Amount, "Amount must not be nil")
+				assert.Equal(t, "debit", to.Amount.Direction,
+					"DEBIT operation should produce direction 'debit' in reversed FromTo")
+			},
+		},
+		{
+			name: "mixed operations preserve correct directions",
+			transaction: Transaction{
+				Description: "Mixed transaction",
+				AssetCode:   "BRL",
+				Amount:      &totalAmount,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.CREDIT,
+						AccountAlias: "@account1",
+						AssetCode:    "BRL",
+						Amount:       operation.Amount{Value: &amount100},
+					},
+					{
+						Type:         constant.DEBIT,
+						AccountAlias: "@account2",
+						AssetCode:    "BRL",
+						Amount:       operation.Amount{Value: &amount200},
+					},
+					{
+						Type:         constant.CREDIT,
+						AccountAlias: "@account3",
+						AssetCode:    "BRL",
+						Amount:       operation.Amount{Value: &amount300},
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				// CREDIT -> From with direction "credit"
+				require.Len(t, result.Send.Source.From, 2)
+				for _, from := range result.Send.Source.From {
+					require.NotNil(t, from.Amount)
+					assert.Equal(t, "credit", from.Amount.Direction,
+						"All CREDIT operations should have direction 'credit'")
+				}
+
+				// DEBIT -> To with direction "debit"
+				require.Len(t, result.Send.Distribute.To, 1)
+				to := result.Send.Distribute.To[0]
+				require.NotNil(t, to.Amount)
+				assert.Equal(t, "debit", to.Amount.Direction,
+					"DEBIT operation should have direction 'debit'")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := tt.transaction.TransactionRevert()
+
+			tt.validate(t, result)
+		})
+	}
+}
+
+func TestTransactionRevert_RoutePreservation(t *testing.T) {
+	t.Parallel()
+
+	amount100 := decimal.NewFromInt(100)
+	routeID := "route-" + uuid.New().String()
+
+	tests := []struct {
+		name        string
+		transaction Transaction
+		validate    func(t *testing.T, result pkgTransaction.Transaction)
+	}{
+		{
+			name: "route from CREDIT operation preserved in reversed FromTo",
+			transaction: Transaction{
+				Description: "Transaction with route on credit",
+				AssetCode:   "USD",
+				Amount:      &amount100,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.CREDIT,
+						AccountAlias: "@receiver",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+						Route:        routeID,
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Source.From, 1)
+				assert.Equal(t, routeID, result.Send.Source.From[0].Route,
+					"Route should be preserved in reversed FromTo")
+			},
+		},
+		{
+			name: "route from DEBIT operation preserved in reversed FromTo",
+			transaction: Transaction{
+				Description: "Transaction with route on debit",
+				AssetCode:   "USD",
+				Amount:      &amount100,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.DEBIT,
+						AccountAlias: "@sender",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+						Route:        routeID,
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Distribute.To, 1)
+				assert.Equal(t, routeID, result.Send.Distribute.To[0].Route,
+					"Route should be preserved in reversed FromTo")
+			},
+		},
+		{
+			name: "operations without route revert normally",
+			transaction: Transaction{
+				Description: "Transaction without routes",
+				AssetCode:   "USD",
+				Amount:      &amount100,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.CREDIT,
+						AccountAlias: "@receiver",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Source.From, 1)
+				assert.Empty(t, result.Send.Source.From[0].Route,
+					"Route should be empty when not set on original operation")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := tt.transaction.TransactionRevert()
+
+			tt.validate(t, result)
+		})
+	}
+}
+
 func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 	t.Parallel()
 

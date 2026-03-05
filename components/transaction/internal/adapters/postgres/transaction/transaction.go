@@ -510,20 +510,42 @@ func (cti *CreateTransactionInput) BuildTransaction() *pkgTransaction.Transactio
 	return dsl
 }
 
+// directionFromOperationType derives a direction string from the operation type.
+// Only DEBIT and CREDIT are handled because TransactionRevert (the sole caller)
+// only processes APPROVED transactions, which contain only these two types.
+func directionFromOperationType(opType string) string {
+	switch opType {
+	case constant.DEBIT:
+		return "debit"
+	case constant.CREDIT:
+		return "credit"
+	default:
+		return ""
+	}
+}
+
 // TransactionRevert is a func that revert transaction
 func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 	froms := make([]pkgTransaction.FromTo, 0)
 	tos := make([]pkgTransaction.FromTo, 0)
 
 	for _, op := range t.Operations {
+		if op.Amount.Value == nil {
+			continue
+		}
+
 		switch op.Type {
+		// Only CREDIT and DEBIT appear in APPROVED transactions, which is the
+		// only status eligible for revert (guarded upstream).  ONHOLD and
+		// RELEASE are excluded because they belong to PENDING flows.
 		case constant.CREDIT:
 			from := pkgTransaction.FromTo{
 				IsFrom:       true,
 				AccountAlias: op.AccountAlias,
 				Amount: &pkgTransaction.Amount{
-					Asset: op.AssetCode,
-					Value: *op.Amount.Value,
+					Asset:     op.AssetCode,
+					Value:     *op.Amount.Value,
+					Direction: directionFromOperationType(op.Type),
 				},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
@@ -537,8 +559,9 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 				IsFrom:       false,
 				AccountAlias: op.AccountAlias,
 				Amount: &pkgTransaction.Amount{
-					Asset: op.AssetCode,
-					Value: *op.Amount.Value,
+					Asset:     op.AssetCode,
+					Value:     *op.Amount.Value,
+					Direction: directionFromOperationType(op.Type),
 				},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
@@ -548,6 +571,10 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 
 			tos = append(tos, to)
 		}
+	}
+
+	if t.Amount == nil {
+		return pkgTransaction.Transaction{}
 	}
 
 	send := pkgTransaction.Send{

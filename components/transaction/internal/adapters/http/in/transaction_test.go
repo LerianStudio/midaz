@@ -20,6 +20,7 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	operationroute "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
@@ -921,6 +922,459 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 
 	assert.Equal(t, cn.ErrTransactionCantRevert.Error(), errResp["code"],
 		"expected error code 0089 (ErrTransactionCantRevert)")
+}
+
+// TestRevertTransaction_BidirectionalRouteAllows validates that a revert is allowed
+// when the operation route has OperationType "bidirectional".
+func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	operationRouteID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+
+	amount := decimal.NewFromInt(1000)
+	tran := &transaction.Transaction{
+		ID:                  transactionID.String(),
+		OrganizationID:      orgID.String(),
+		LedgerID:            ledgerID.String(),
+		ParentTransactionID: nil,
+		Description:         "Test transaction with bidirectional route",
+		AssetCode:           "USD",
+		Amount:              &amount,
+		Status: transaction.Status{
+			Code: cn.APPROVED,
+		},
+		Operations: []*operation.Operation{
+			{
+				Type:         libConstants.CREDIT,
+				AccountAlias: "@receiver",
+				AssetCode:    "USD",
+				Amount:       operation.Amount{Value: &amount},
+				Route:        operationRouteID.String(),
+			},
+		},
+	}
+
+	// Mock: No existing revert
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Find transaction with operations
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(tran, nil).
+		Times(1)
+
+	// Mock: Metadata lookup
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Operation route is bidirectional
+	mockOperationRouteRepo.EXPECT().
+		FindByID(gomock.Any(), orgID, ledgerID, operationRouteID).
+		Return(&mmodel.OperationRoute{
+			ID:            operationRouteID,
+			OperationType: "bidirectional",
+		}, nil).
+		Times(1)
+
+	// Mock: Metadata for the operation route
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "OperationRoute", operationRouteID.String()).
+		Return(nil, nil).
+		AnyTimes()
+
+	queryUC := &query.UseCase{
+		TransactionRepo:    mockTransactionRepo,
+		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo: mockOperationRouteRepo,
+	}
+	// The handler needs Command for createTransaction; since we only test
+	// that the bidirectional check passes (not the full createTransaction flow),
+	// we use a Fiber error handler to catch panics from nil Command and verify
+	// the bidirectional error was not returned.
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New(fiber.Config{
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
+		},
+	})
+	app.Use(func(c *fiber.Ctx) error {
+		defer func() {
+			if r := recover(); r != nil {
+				_ = c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "recovered"})
+			}
+		}()
+		return c.Next()
+	})
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.RevertTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert: should NOT return the bidirectional error.
+	// The handler passes the bidirectional gate but may fail downstream
+	// (e.g., nil Command for createTransaction). We verify the gate passed,
+	// not the full revert flow.
+	require.NoError(t, err)
+	if resp.StatusCode >= 400 {
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var errResp map[string]any
+		require.NoError(t, json.Unmarshal(body, &errResp))
+
+		// If there's an error, it must NOT be the bidirectional error
+		assert.NotEqual(t, cn.ErrRouteNotBidirectional.Error(), errResp["code"],
+			"bidirectional route should allow revert; gate check must pass")
+	}
+}
+
+// TestRevertTransaction_NonBidirectionalRouteRejects validates that a revert is rejected
+// when the operation route has OperationType other than "bidirectional" (e.g., "source").
+func TestRevertTransaction_NonBidirectionalRouteRejects(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	operationRouteID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+
+	amount := decimal.NewFromInt(1000)
+	tran := &transaction.Transaction{
+		ID:                  transactionID.String(),
+		OrganizationID:      orgID.String(),
+		LedgerID:            ledgerID.String(),
+		ParentTransactionID: nil,
+		Description:         "Test transaction with non-bidirectional route",
+		AssetCode:           "USD",
+		Amount:              &amount,
+		Status: transaction.Status{
+			Code: cn.APPROVED,
+		},
+		Operations: []*operation.Operation{
+			{
+				Type:         libConstants.CREDIT,
+				AccountAlias: "@receiver",
+				AssetCode:    "USD",
+				Amount:       operation.Amount{Value: &amount},
+				Route:        operationRouteID.String(),
+			},
+		},
+	}
+
+	// Mock: No existing revert
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Find transaction with operations
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(tran, nil).
+		Times(1)
+
+	// Mock: Metadata lookup
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Operation route is NOT bidirectional (type "source")
+	mockOperationRouteRepo.EXPECT().
+		FindByID(gomock.Any(), orgID, ledgerID, operationRouteID).
+		Return(&mmodel.OperationRoute{
+			ID:            operationRouteID,
+			OperationType: "source",
+		}, nil).
+		Times(1)
+
+	// Mock: Metadata for the operation route
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "OperationRoute", operationRouteID.String()).
+		Return(nil, nil).
+		AnyTimes()
+
+	queryUC := &query.UseCase{
+		TransactionRepo:    mockTransactionRepo,
+		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo: mockOperationRouteRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New()
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.RevertTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-bidirectional route")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var errResp map[string]any
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "error response should be valid JSON")
+
+	assert.Equal(t, cn.ErrRouteNotBidirectional.Error(), errResp["code"],
+		"expected ErrRouteNotBidirectional error code")
+}
+
+// TestRevertTransaction_NoRouteRevertsNormally validates that operations without
+// a route_id skip the bidirectional check and revert normally.
+func TestRevertTransaction_NoRouteRevertsNormally(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	amount := decimal.NewFromInt(1000)
+	tran := &transaction.Transaction{
+		ID:                  transactionID.String(),
+		OrganizationID:      orgID.String(),
+		LedgerID:            ledgerID.String(),
+		ParentTransactionID: nil,
+		Description:         "Test transaction without routes",
+		AssetCode:           "USD",
+		Amount:              &amount,
+		Status: transaction.Status{
+			Code: cn.APPROVED,
+		},
+		Operations: []*operation.Operation{
+			{
+				Type:         libConstants.CREDIT,
+				AccountAlias: "@receiver",
+				AssetCode:    "USD",
+				Amount:       operation.Amount{Value: &amount},
+				// No Route set
+			},
+		},
+	}
+
+	// Mock: No existing revert
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Find transaction with operations
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(tran, nil).
+		Times(1)
+
+	// Mock: Metadata lookup
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		Times(1)
+
+	// No OperationRouteRepo mock needed -- no route to look up
+
+	queryUC := &query.UseCase{
+		TransactionRepo: mockTransactionRepo,
+		MetadataRepo:    mockMetadataRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New(fiber.Config{
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
+		},
+	})
+	app.Use(func(c *fiber.Ctx) error {
+		defer func() {
+			if r := recover(); r != nil {
+				_ = c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "recovered"})
+			}
+		}()
+		return c.Next()
+	})
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.RevertTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert: should NOT return a bidirectional error.
+	// The handler passes the bidirectional gate (skipped for no-route ops)
+	// but may fail downstream (e.g., nil Command). We verify the gate passed,
+	// not the full revert flow.
+	require.NoError(t, err)
+	if resp.StatusCode >= 400 {
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var errResp map[string]any
+		require.NoError(t, json.Unmarshal(body, &errResp))
+
+		assert.NotEqual(t, cn.ErrRouteNotBidirectional.Error(), errResp["code"],
+			"operations without route should skip bidirectional check")
+	}
+}
+
+// TestRevertTransaction_RouteLookupError_ReturnsError validates that when the
+// route lookup fails, the revert is blocked (fail-closed behavior).
+func TestRevertTransaction_RouteLookupError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	operationRouteID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+
+	amount := decimal.NewFromInt(1000)
+	tran := &transaction.Transaction{
+		ID:                  transactionID.String(),
+		OrganizationID:      orgID.String(),
+		LedgerID:            ledgerID.String(),
+		ParentTransactionID: nil,
+		Description:         "Test transaction with route lookup failure",
+		AssetCode:           "USD",
+		Amount:              &amount,
+		Status: transaction.Status{
+			Code: cn.APPROVED,
+		},
+		Operations: []*operation.Operation{
+			{
+				Type:         libConstants.CREDIT,
+				AccountAlias: "@receiver",
+				AssetCode:    "USD",
+				Amount:       operation.Amount{Value: &amount},
+				Route:        operationRouteID.String(),
+			},
+		},
+	}
+
+	routeLookupErr := errors.New("database connection error")
+
+	// Mock: No existing revert
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Find transaction with operations
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(tran, nil).
+		Times(1)
+
+	// Mock: Metadata lookup
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Operation route lookup fails
+	mockOperationRouteRepo.EXPECT().
+		FindByID(gomock.Any(), orgID, ledgerID, operationRouteID).
+		Return(nil, routeLookupErr).
+		Times(1)
+
+	queryUC := &query.UseCase{
+		TransactionRepo:    mockTransactionRepo,
+		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo: mockOperationRouteRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New()
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.RevertTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert: route lookup failure must block the revert (fail-closed)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, resp.StatusCode, 400,
+		"route lookup failure should return an error status")
 }
 
 // TestCommitTransaction_GetTransactionError_ReturnsError validates that errors from
