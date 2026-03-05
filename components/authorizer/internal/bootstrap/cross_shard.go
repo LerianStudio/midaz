@@ -7,18 +7,29 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/engine"
-	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/engine"
+	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
+
+// Default RPC deadlines when no custom deadline is configured.
+const (
+	defaultCommitRPCDeadline = 10 * time.Second
+	defaultAbortRPCDeadline  = 5 * time.Second
+)
+
+// errNoGRPCClientForPeer is returned when a peer has no available gRPC clients.
+var errNoGRPCClientForPeer = errors.New("no available gRPC client for peer")
 
 func (s *authorizerService) resolveCommitDeadline() time.Duration {
 	if s == nil || s.commitRPCDeadline <= 0 {
-		return 10 * time.Second
+		return defaultCommitRPCDeadline
 	}
 
 	return s.commitRPCDeadline
@@ -26,7 +37,7 @@ func (s *authorizerService) resolveCommitDeadline() time.Duration {
 
 func (s *authorizerService) resolveAbortDeadline() time.Duration {
 	if s == nil || s.abortRPCDeadline <= 0 {
-		return 5 * time.Second
+		return defaultAbortRPCDeadline
 	}
 
 	return s.abortRPCDeadline
@@ -67,8 +78,8 @@ type prepareResult struct {
 // Protocol:
 //
 //  1. PREPARE phase: issue PrepareAuthorize to all participants (local engine +
-//     remote peers) in parallel. Each participant validates operations, acquires
-//     shard locks, and returns a prepared transaction ID.
+//     remote peers) in deterministic shard order. Each participant validates operations, acquires
+//     deterministic per-balance locks, and returns a prepared transaction ID.
 //
 //  2. DECISION: if ALL participants report Authorized=true, proceed to COMMIT.
 //     If ANY participant rejects or errors, ABORT ALL.
@@ -87,221 +98,24 @@ func (s *authorizerService) authorizeCrossShard(
 ) (*authorizerv1.AuthorizeResponse, error) {
 	start := time.Now()
 
-	// Partition operations by owner: local engine vs. each remote peer.
-	localOps := make([]*authorizerv1.BalanceOperation, 0)
-	peerOpsMap := make(map[*peerClient][]*authorizerv1.BalanceOperation)
+	if rejection := s.engine.ValidateRequestLimits(req); rejection != nil {
+		s.recordCrossShardRejectionMetrics(ctx, req, rejection, shardOps, start)
 
-	for shardID, ops := range shardOps {
-		if s.isLocalShard(shardID) {
-			localOps = append(localOps, ops...)
-		} else {
-			peer := s.peerForShard(shardID)
-			if peer == nil {
-				return nil, status.Errorf(codes.Internal, "no peer configured for shard %d", shardID)
-			}
-
-			peerOpsMap[peer] = append(peerOpsMap[peer], ops...)
-		}
+		return rejection, nil
 	}
 
-	// Build a sub-request that preserves all transaction metadata but swaps operations.
-	buildSubRequest := func(ops []*authorizerv1.BalanceOperation) *authorizerv1.AuthorizeRequest {
-		return &authorizerv1.AuthorizeRequest{
-			TransactionId:     req.GetTransactionId(),
-			OrganizationId:    req.GetOrganizationId(),
-			LedgerId:          req.GetLedgerId(),
-			Pending:           req.GetPending(),
-			TransactionStatus: req.GetTransactionStatus(),
-			Operations:        ops,
-			Metadata:          req.GetMetadata(),
-		}
+	localOps, peerOpsMap, partitionErr := s.partitionShardOps(shardOps)
+	if partitionErr != nil {
+		return nil, partitionErr
 	}
 
-	// ─── PHASE 1: PREPARE (sequential, globally ordered) ─────────────────
-	//
-	// Critical: all participants (local + remote peers) must prepare in the same
-	// global shard order to prevent distributed deadlocks. We sort participants by
-	// owned shard range (start then end), then execute prepares sequentially.
-	//
-	// This extends the engine's local deadlock prevention (sort.Ints(orderedShards))
-	// to the distributed case.
-
-	participantCount := len(peerOpsMap)
-	if len(localOps) > 0 {
-		participantCount++
+	results, prepareErr := s.executePreparePhase(ctx, req, localOps, peerOpsMap)
+	if prepareErr != nil {
+		return nil, prepareErr
 	}
 
-	results := make([]prepareResult, 0, participantCount)
-
-	// prepareFuncs is an ordered list of prepare operations.
-	type prepareFn func() prepareResult
-	type orderedPrepare struct {
-		shardStart int
-		shardEnd   int
-		run        prepareFn
-	}
-
-	orderedPrepares := make([]orderedPrepare, 0, participantCount)
-
-	prepareLocal := func() prepareResult {
-		ptx, resp, err := s.engine.PrepareAuthorize(buildSubRequest(localOps))
-
-		r := prepareResult{
-			isLocal: true,
-			err:     err,
-		}
-
-		if ptx != nil {
-			r.txID = ptx.ID
-		}
-
-		if resp != nil {
-			r.resp = resp
-			r.balances = resp.GetBalances()
-		}
-
-		return r
-	}
-
-	if len(localOps) > 0 {
-		orderedPrepares = append(orderedPrepares, orderedPrepare{
-			shardStart: s.ownedShardStart,
-			shardEnd:   s.ownedShardEnd,
-			run:        prepareLocal,
-		})
-	}
-
-	// Build remote prepare functions.
-	remotePeers := make([]*peerClient, 0, len(peerOpsMap))
-	for peer := range peerOpsMap {
-		remotePeers = append(remotePeers, peer)
-	}
-
-	sort.Slice(remotePeers, func(i, j int) bool {
-		if remotePeers[i].shardStart == remotePeers[j].shardStart {
-			return remotePeers[i].shardEnd < remotePeers[j].shardEnd
-		}
-
-		return remotePeers[i].shardStart < remotePeers[j].shardStart
-	})
-
-	for _, peer := range remotePeers {
-		ops := peerOpsMap[peer]
-		currentPeer := peer
-		currentOps := ops
-
-		orderedPrepares = append(orderedPrepares, orderedPrepare{
-			shardStart: currentPeer.shardStart,
-			shardEnd:   currentPeer.shardEnd,
-			run: func() prepareResult {
-				subReq := buildSubRequest(currentOps)
-				authCtx, authErr := withPeerAuth(ctx, s.peerAuthToken, peerRPCMethodPrepareAuthorize, subReq)
-				if authErr != nil {
-					return prepareResult{peer: currentPeer, err: authErr}
-				}
-
-				pResp, err := currentPeer.client.PrepareAuthorize(
-					authCtx,
-					subReq,
-				)
-
-				r := prepareResult{
-					peer: currentPeer,
-					err:  err,
-				}
-
-				if pResp != nil {
-					r.txID = pResp.GetPreparedTxId()
-					r.balances = pResp.GetBalances()
-					r.resp = &authorizerv1.AuthorizeResponse{
-						Authorized:       pResp.GetAuthorized(),
-						RejectionCode:    pResp.GetRejectionCode(),
-						RejectionMessage: pResp.GetRejectionMessage(),
-					}
-				}
-
-				return r
-			},
-		})
-	}
-
-	sort.SliceStable(orderedPrepares, func(i, j int) bool {
-		if orderedPrepares[i].shardStart == orderedPrepares[j].shardStart {
-			return orderedPrepares[i].shardEnd < orderedPrepares[j].shardEnd
-		}
-
-		return orderedPrepares[i].shardStart < orderedPrepares[j].shardStart
-	})
-
-	// Execute prepares sequentially in shard order. Abort on first failure.
-	for _, ordered := range orderedPrepares {
-		if err := ctx.Err(); err != nil {
-			if abortErr := s.abortAllPrepared(results); abortErr != nil {
-				s.logger.Errorf("cross-shard prepare cancellation rollback failed: tx_id=%s err=%v", req.GetTransactionId(), abortErr)
-				return nil, status.Error(codes.Internal, "cross-shard rollback failed")
-			}
-
-			return nil, status.Error(codes.DeadlineExceeded, "cross-shard prepare deadline exceeded")
-		}
-
-		r := ordered.run()
-		results = append(results, r)
-
-		if r.err != nil || (r.resp != nil && !r.resp.GetAuthorized()) {
-			// Early exit: abort all previously prepared participants.
-			break
-		}
-	}
-
-	// ─── DECISION ───────────────────────────────────────────────────────
-
-	allAuthorized := true
-	var rejectionResp *authorizerv1.AuthorizeResponse
-	var firstError error
-
-	for i := range results {
-		r := &results[i]
-		if r.err != nil {
-			allAuthorized = false
-			firstError = r.err
-
-			break
-		}
-
-		if r.resp != nil && !r.resp.GetAuthorized() {
-			allAuthorized = false
-			rejectionResp = r.resp
-
-			break
-		}
-	}
-
-	// ─── ABORT PATH (any failure) ───────────────────────────────────────
-
-	if !allAuthorized {
-		abortErr := s.abortAllPrepared(results)
-
-		if rejectionResp != nil {
-			if abortErr != nil {
-				s.logger.Errorf(
-					"cross-shard prepare rejected but rollback failed: tx_id=%s err=%v",
-					req.GetTransactionId(),
-					abortErr,
-				)
-
-				return nil, status.Error(codes.Internal, "cross-shard rollback failed")
-			}
-
-			// Business rejection (insufficient funds, etc.) — return as-is to caller.
-			return rejectionResp, nil
-		}
-
-		s.logger.Errorf(
-			"cross-shard prepare failed: tx_id=%s err=%v",
-			req.GetTransactionId(), firstError,
-		)
-
-		return nil, status.Error(codes.Internal, "cross-shard prepare failed")
+	if resp, err := s.evaluateDecisionAndAbort(ctx, req, results); resp != nil || err != nil {
+		return resp, err
 	}
 
 	// ─── PHASE E: DURABLE COMMIT INTENT ────────────────────────────────
@@ -321,22 +135,6 @@ func (s *authorizerService) authorizeCrossShard(
 		CreatedAt:      time.Now(),
 	}
 
-	if err := s.publishCommitIntent(ctx, &intent); err != nil {
-		// Cannot durably record the commit decision → abort everything.
-		// This is safe: no participant has committed yet.
-		abortErr := s.abortAllPrepared(results)
-		s.logger.Errorf(
-			"cross-shard commit intent write failed (aborting): tx_id=%s err=%v rollback_err=%v",
-			req.GetTransactionId(), err, abortErr,
-		)
-
-		if abortErr != nil {
-			return nil, status.Error(codes.Internal, "failed to write commit intent and rollback prepared participants")
-		}
-
-		return nil, status.Error(codes.Internal, "failed to write commit intent")
-	}
-
 	// ─── PHASE 2: COMMIT (sequential for correctness) ───────────────────
 	//
 	// Commit order: local first, then peers. If the local commit fails we
@@ -344,10 +142,13 @@ func (s *authorizerService) authorizeCrossShard(
 	// The intent makes partial-commit states recoverable rather than
 	// requiring manual intervention.
 
-	var allSnapshots []*authorizerv1.BalanceSnapshot
-	commitFailed := false
+	allSnapshots := make([]*authorizerv1.BalanceSnapshot, 0, len(results))
+
+	var commitFailed bool
+
 	committedAny := false
-	publishCommittedStatus := func() {
+
+	publishCommittedStatus := func() { //nolint:contextcheck // best-effort publish must survive context cancellation
 		intent.Status = commitIntentStatusCommitted
 		if err := s.publishCommitIntent(context.Background(), &intent); err != nil {
 			s.logger.Warnf(
@@ -358,145 +159,611 @@ func (s *authorizerService) authorizeCrossShard(
 		}
 	}
 
-	for i := range results {
-		r := &results[i]
-		if r.txID == "" {
+	localRes, err := s.runLocalCommitPhase(ctx, results, &intent, req, committedAny, publishCommittedStatus)
+	if err != nil {
+		return nil, err
+	}
+
+	allSnapshots = append(allSnapshots, localRes.snapshots...)
+	committedAny = localRes.committedAny
+	commitFailed = localRes.failed
+
+	remoteSnapshots, remoteFailed := s.commitAllRemotePeers(ctx, results, req.GetTransactionId(), &intent, &committedAny, publishCommittedStatus)
+	allSnapshots = append(allSnapshots, remoteSnapshots...)
+
+	if remoteFailed {
+		commitFailed = true
+	}
+
+	if commitFailed {
+		return nil, s.handleIncompleteCommit(req, &intent)
+	}
+
+	s.finalizeCommit(ctx, req, &intent, start, shardOps)
+
+	return &authorizerv1.AuthorizeResponse{
+		Authorized: true,
+		Balances:   allSnapshots,
+	}, nil
+}
+
+func (s *authorizerService) recordCrossShardRejectionMetrics(
+	ctx context.Context,
+	req *authorizerv1.AuthorizeRequest,
+	rejection *authorizerv1.AuthorizeResponse,
+	shardOps map[int][]*authorizerv1.BalanceOperation,
+	start time.Time,
+) {
+	if !s.metrics.Enabled() {
+		return
+	}
+
+	pending := false
+	txStatus := ""
+	operations := 0
+
+	if req != nil {
+		pending = req.GetPending()
+		txStatus = req.GetTransactionStatus()
+		operations = len(req.GetOperations())
+	}
+
+	s.metrics.RecordAuthorize(
+		ctx,
+		"authorize_cross_shard",
+		"rejected",
+		rejection.GetRejectionCode(),
+		pending,
+		txStatus,
+		operations,
+		len(shardOps),
+		time.Since(start),
+		true,
+	)
+}
+
+func (s *authorizerService) partitionShardOps(
+	shardOps map[int][]*authorizerv1.BalanceOperation,
+) ([]*authorizerv1.BalanceOperation, map[*peerClient][]*authorizerv1.BalanceOperation, error) {
+	localOps := make([]*authorizerv1.BalanceOperation, 0)
+	peerOpsMap := make(map[*peerClient][]*authorizerv1.BalanceOperation)
+
+	for shardID, ops := range shardOps {
+		if s.isLocalShard(shardID) {
+			localOps = append(localOps, ops...)
+
 			continue
 		}
 
-		if r.isLocal {
-			commitResp, err := s.engine.CommitPrepared(r.txID)
-			if err != nil {
-				if errors.Is(err, engine.ErrPreparedTxNotFound) {
-					s.logger.Warnf(
-						"cross-shard local commit reported prepared_tx not found; treating as already committed: tx_id=%s prepared_tx_id=%s",
-						req.GetTransactionId(),
-						r.txID,
-					)
+		peer := s.peerForShard(shardID)
+		if peer == nil {
+			return nil, nil, status.Errorf(codes.Internal, "no peer configured for shard %d", shardID) //nolint:wrapcheck // gRPC status error
+		}
 
-					markParticipantCommitted(&intent, r.txID)
-					if !committedAny {
-						committedAny = true
-						publishCommittedStatus()
-					}
+		peerOpsMap[peer] = append(peerOpsMap[peer], ops...)
+	}
 
-					continue
-				}
+	return localOps, peerOpsMap, nil
+}
 
-				s.logger.Errorf(
-					"CRITICAL: cross-shard local commit failed after prepare: tx_id=%s prepared_tx_id=%s err=%v",
-					req.GetTransactionId(), r.txID, err,
+// orderedPrepare represents a single participant's prepare function with its
+// shard range for deterministic ordering.
+type orderedPrepare struct {
+	shardStart int
+	shardEnd   int
+	peerAddr   string
+	run        func() prepareResult
+}
+
+func (s *authorizerService) executePreparePhase(
+	ctx context.Context,
+	req *authorizerv1.AuthorizeRequest,
+	localOps []*authorizerv1.BalanceOperation,
+	peerOpsMap map[*peerClient][]*authorizerv1.BalanceOperation,
+) ([]prepareResult, error) {
+	buildSubRequest := func(ops []*authorizerv1.BalanceOperation) *authorizerv1.AuthorizeRequest {
+		return &authorizerv1.AuthorizeRequest{
+			TransactionId:     req.GetTransactionId(),
+			OrganizationId:    req.GetOrganizationId(),
+			LedgerId:          req.GetLedgerId(),
+			Pending:           req.GetPending(),
+			TransactionStatus: req.GetTransactionStatus(),
+			Operations:        ops,
+			Metadata:          req.GetMetadata(),
+		}
+	}
+
+	participantCount := len(peerOpsMap)
+	if len(localOps) > 0 {
+		participantCount++
+	}
+
+	orderedPrepares := s.buildOrderedPrepares(ctx, localOps, peerOpsMap, buildSubRequest, participantCount)
+	sortPreparesByShardOrder(orderedPrepares)
+
+	return s.runPrepareSequence(ctx, req, orderedPrepares)
+}
+
+func (s *authorizerService) buildOrderedPrepares(
+	ctx context.Context,
+	localOps []*authorizerv1.BalanceOperation,
+	peerOpsMap map[*peerClient][]*authorizerv1.BalanceOperation,
+	buildSubRequest func([]*authorizerv1.BalanceOperation) *authorizerv1.AuthorizeRequest,
+	participantCount int,
+) []orderedPrepare {
+	prepares := make([]orderedPrepare, 0, participantCount)
+
+	if len(localOps) > 0 {
+		prepares = append(prepares, orderedPrepare{
+			shardStart: s.ownedShardStart,
+			shardEnd:   s.ownedShardEnd,
+			peerAddr:   s.instanceAddr,
+			run: func() prepareResult {
+				return s.prepareLocalParticipant(buildSubRequest(localOps))
+			},
+		})
+	}
+
+	for peer, ops := range peerOpsMap {
+		currentPeer := peer
+		currentOps := ops
+
+		prepares = append(prepares, orderedPrepare{
+			shardStart: currentPeer.shardStart,
+			shardEnd:   currentPeer.shardEnd,
+			peerAddr:   currentPeer.addr,
+			run: func() prepareResult {
+				return s.prepareRemoteParticipant(ctx, currentPeer, buildSubRequest(currentOps))
+			},
+		})
+	}
+
+	return prepares
+}
+
+func (s *authorizerService) prepareLocalParticipant(subReq *authorizerv1.AuthorizeRequest) prepareResult {
+	ptx, resp, err := s.engine.PrepareAuthorize(subReq)
+
+	r := prepareResult{
+		isLocal: true,
+		err:     err,
+	}
+
+	if ptx != nil {
+		r.txID = ptx.ID
+	}
+
+	if resp != nil {
+		r.resp = resp
+		r.balances = resp.GetBalances()
+	}
+
+	return r
+}
+
+func (s *authorizerService) prepareRemoteParticipant(
+	ctx context.Context,
+	peer *peerClient,
+	subReq *authorizerv1.AuthorizeRequest,
+) prepareResult {
+	authCtx, authErr := withPeerAuth(ctx, s.peerAuthToken, peerRPCMethodPrepareAuthorize, subReq)
+	if authErr != nil {
+		return prepareResult{peer: peer, err: authErr}
+	}
+
+	client := peer.pickClient()
+	if client == nil {
+		return prepareResult{peer: peer, err: fmt.Errorf("no available gRPC client for peer %s: %w", peer.addr, errNoGRPCClientForPeer)}
+	}
+
+	pResp, err := client.PrepareAuthorize(authCtx, subReq)
+
+	r := prepareResult{
+		peer: peer,
+		err:  err,
+	}
+
+	if pResp != nil {
+		r.txID = pResp.GetPreparedTxId()
+		r.balances = pResp.GetBalances()
+		r.resp = &authorizerv1.AuthorizeResponse{
+			Authorized:       pResp.GetAuthorized(),
+			RejectionCode:    pResp.GetRejectionCode(),
+			RejectionMessage: pResp.GetRejectionMessage(),
+		}
+	}
+
+	return r
+}
+
+func sortPreparesByShardOrder(prepares []orderedPrepare) {
+	sort.SliceStable(prepares, func(i, j int) bool {
+		if prepares[i].shardStart == prepares[j].shardStart {
+			if prepares[i].shardEnd == prepares[j].shardEnd {
+				return prepares[i].peerAddr < prepares[j].peerAddr
+			}
+
+			return prepares[i].shardEnd < prepares[j].shardEnd
+		}
+
+		return prepares[i].shardStart < prepares[j].shardStart
+	})
+}
+
+func (s *authorizerService) runPrepareSequence(
+	ctx context.Context,
+	req *authorizerv1.AuthorizeRequest,
+	orderedPrepares []orderedPrepare,
+) ([]prepareResult, error) {
+	results := make([]prepareResult, 0, len(orderedPrepares))
+
+	for _, ordered := range orderedPrepares {
+		if err := ctx.Err(); err != nil {
+			//nolint:contextcheck // abort uses fresh context to ensure cleanup completes
+			abortErr := s.abortAllPrepared(context.Background(), results)
+			if abortErr != nil {
+				s.logger.Errorf("cross-shard prepare cancellation rollback failed: tx_id=%s err=%v", req.GetTransactionId(), abortErr)
+
+				return nil, status.Error(codes.Internal, "cross-shard rollback failed") //nolint:wrapcheck // gRPC status error
+			}
+
+			return nil, status.Error(codes.DeadlineExceeded, "cross-shard prepare deadline exceeded") //nolint:wrapcheck // gRPC status error
+		}
+
+		r := ordered.run()
+		results = append(results, r)
+
+		if r.err != nil || (r.resp != nil && !r.resp.GetAuthorized()) {
+			break
+		}
+	}
+
+	return results, nil //nolint:nilerr // error is captured in prepareResult.err, not the function return
+}
+
+func (s *authorizerService) evaluateDecisionAndAbort(
+	_ context.Context,
+	req *authorizerv1.AuthorizeRequest,
+	results []prepareResult,
+) (*authorizerv1.AuthorizeResponse, error) {
+	allAuthorized := true
+
+	var rejectionResp *authorizerv1.AuthorizeResponse
+
+	var firstError error
+
+	for i := range results {
+		r := &results[i]
+		if r.err != nil {
+			allAuthorized = false
+			firstError = r.err
+
+			break
+		}
+
+		if r.resp != nil && !r.resp.GetAuthorized() {
+			allAuthorized = false
+			rejectionResp = r.resp
+
+			break
+		}
+	}
+
+	if allAuthorized {
+		return nil, nil
+	}
+
+	//nolint:contextcheck // abort uses fresh context to ensure cleanup completes
+	abortErr := s.abortAllPrepared(context.Background(), results)
+
+	if rejectionResp != nil {
+		if abortErr != nil {
+			s.logger.Errorf(
+				"cross-shard prepare rejected but rollback failed: tx_id=%s err=%v",
+				req.GetTransactionId(),
+				abortErr,
+			)
+
+			return nil, status.Error(codes.Internal, "cross-shard rollback failed") //nolint:wrapcheck // gRPC status error
+		}
+
+		return rejectionResp, nil
+	}
+
+	s.logger.Errorf(
+		"cross-shard prepare failed: tx_id=%s err=%v",
+		req.GetTransactionId(), firstError,
+	)
+
+	return nil, status.Error(codes.Internal, "cross-shard prepare failed") //nolint:wrapcheck // gRPC status error
+}
+
+// localCommitResult captures the mutable state produced by commitLocalParticipants.
+type localCommitResult struct {
+	snapshots    []*authorizerv1.BalanceSnapshot
+	failed       bool
+	committedAny bool
+}
+
+// commitLocalParticipants drives the commit phase for all local (engine)
+// participants. It is shared between the async and sync commit paths to avoid
+// duplicating the commit/error-handling/idempotency logic.
+func (s *authorizerService) commitLocalParticipants(
+	results []prepareResult,
+	intent *commitIntent,
+	txID string,
+	committedAny bool,
+	publishCommittedStatus func(),
+) localCommitResult {
+	res := localCommitResult{committedAny: committedAny}
+
+	for i := range results {
+		r := &results[i]
+		if r.txID == "" || !r.isLocal {
+			continue
+		}
+
+		s.engine.TagCrossShard(r.txID, walParticipantsFromIntent(intent))
+
+		commitResp, err := s.engine.CommitPrepared(r.txID)
+		if err != nil {
+			if errors.Is(err, engine.ErrPreparedTxNotFound) {
+				s.logger.Warnf(
+					"cross-shard local commit reported prepared_tx not found; treating as already committed: tx_id=%s prepared_tx_id=%s",
+					txID,
+					r.txID,
 				)
 
-				commitFailed = true
+				markParticipantCommitted(intent, r.txID)
+
+				if !res.committedAny {
+					res.committedAny = true
+
+					publishCommittedStatus()
+				}
 
 				continue
 			}
 
-			markParticipantCommitted(&intent, r.txID)
-			if !committedAny {
-				committedAny = true
-				publishCommittedStatus()
-			}
+			s.logger.Errorf(
+				"CRITICAL: cross-shard local commit failed after prepare: tx_id=%s prepared_tx_id=%s err=%v",
+				txID, r.txID, err,
+			)
 
-			allSnapshots = append(allSnapshots, commitResp.GetBalances()...)
+			res.failed = true
+
+			continue
 		}
+
+		markParticipantCommitted(intent, r.txID)
+
+		if !res.committedAny {
+			res.committedAny = true
+
+			publishCommittedStatus()
+		}
+
+		res.snapshots = append(res.snapshots, commitResp.GetBalances()...)
 	}
 
-	if commitFailed {
+	return res
+}
+
+// asyncCommitPhase runs the async commit path: publish in background with retry,
+// commit local immediately, then gate on publish completion.
+func (s *authorizerService) asyncCommitPhase(
+	_ context.Context,
+	results []prepareResult,
+	intent *commitIntent,
+	req *authorizerv1.AuthorizeRequest,
+	committedAny bool,
+	publishCommittedStatus func(),
+) (*localCommitResult, error) {
+	intentCh := s.startAsyncPublish(intent.clone()) //nolint:contextcheck // intentionally uses background context for fire-and-forget async publish
+
+	localResult := s.commitLocalParticipants(results, intent, req.GetTransactionId(), committedAny, publishCommittedStatus)
+
+	if publishErr := <-intentCh; publishErr != nil {
+		return s.handleAsyncPublishFailure(results, req, publishErr, &localResult) //nolint:contextcheck // abort in failure path uses background context intentionally
+	}
+
+	return &localResult, nil
+}
+
+func (s *authorizerService) startAsyncPublish(intent *commitIntent) <-chan error {
+	intentCh := make(chan error, 1)
+
+	go func() {
+		publishCtx, cancel := context.WithTimeout(context.Background(), s.resolveCommitDeadline())
+		defer cancel()
+
+		retryDelays := []time.Duration{100 * time.Millisecond, 500 * time.Millisecond}
+
+		lastErr := s.publishCommitIntent(publishCtx, intent)
+		if lastErr == nil {
+			intentCh <- nil
+			return
+		}
+
+		for _, delay := range retryDelays {
+			select {
+			case <-publishCtx.Done():
+				intentCh <- lastErr
+				return
+			case <-time.After(delay):
+			}
+
+			lastErr = s.publishCommitIntent(publishCtx, intent)
+			if lastErr == nil {
+				intentCh <- nil
+				return
+			}
+		}
+
+		intentCh <- lastErr
+	}()
+
+	return intentCh
+}
+
+func (s *authorizerService) handleAsyncPublishFailure(
+	results []prepareResult,
+	req *authorizerv1.AuthorizeRequest,
+	publishErr error,
+	localResult *localCommitResult,
+) (*localCommitResult, error) {
+	if !localResult.committedAny {
+		abortErr := s.abortAllPrepared(context.Background(), results)
+		s.logger.Errorf(
+			"cross-shard commit intent write failed (aborting): tx_id=%s err=%v rollback_err=%v",
+			req.GetTransactionId(), publishErr, abortErr,
+		)
+
+		if abortErr != nil {
+			return nil, status.Error(codes.Internal, "failed to write commit intent and rollback prepared participants") //nolint:wrapcheck // gRPC status error
+		}
+
+		return nil, status.Error(codes.Internal, "failed to write commit intent") //nolint:wrapcheck // gRPC status error
+	}
+
+	s.logger.Errorf(
+		"CRITICAL: cross-shard commit intent write failed after local commit: tx_id=%s err=%v",
+		req.GetTransactionId(), publishErr,
+	)
+
+	localResult.failed = true
+
+	return localResult, nil
+}
+
+// syncCommitPhase runs the synchronous commit path: publish before any commits.
+func (s *authorizerService) syncCommitPhase(
+	ctx context.Context,
+	results []prepareResult,
+	intent *commitIntent,
+	req *authorizerv1.AuthorizeRequest,
+	committedAny bool,
+	publishCommittedStatus func(),
+) (*localCommitResult, error) {
+	if err := s.publishCommitIntent(ctx, intent); err != nil {
+		abortErr := s.abortAllPrepared(context.Background(), results) //nolint:contextcheck // abort uses fresh context to ensure cleanup completes
+		s.logger.Errorf(
+			"cross-shard commit intent write failed (aborting): tx_id=%s err=%v rollback_err=%v",
+			req.GetTransactionId(), err, abortErr,
+		)
+
+		if abortErr != nil {
+			return nil, status.Error(codes.Internal, "failed to write commit intent and rollback prepared participants") //nolint:wrapcheck // gRPC status error
+		}
+
+		return nil, status.Error(codes.Internal, "failed to write commit intent") //nolint:wrapcheck // gRPC status error
+	}
+
+	localResult := s.commitLocalParticipants(results, intent, req.GetTransactionId(), committedAny, publishCommittedStatus)
+
+	if localResult.failed {
 		s.logger.Warnf(
 			"cross-shard commit requires recovery after local commit failure: tx_id=%s",
 			req.GetTransactionId(),
 		)
 	}
 
+	return &localResult, nil
+}
+
+func (s *authorizerService) runLocalCommitPhase(
+	ctx context.Context,
+	results []prepareResult,
+	intent *commitIntent,
+	req *authorizerv1.AuthorizeRequest,
+	committedAny bool,
+	publishCommittedStatus func(),
+) (*localCommitResult, error) {
+	if s.asyncCommitIntent {
+		return s.asyncCommitPhase(ctx, results, intent, req, committedAny, publishCommittedStatus)
+	}
+
+	return s.syncCommitPhase(ctx, results, intent, req, committedAny, publishCommittedStatus)
+}
+
+func (s *authorizerService) commitAllRemotePeers(
+	ctx context.Context,
+	results []prepareResult,
+	txID string,
+	intent *commitIntent,
+	committedAny *bool,
+	publishCommittedStatus func(),
+) ([]*authorizerv1.BalanceSnapshot, bool) {
+	var allSnapshots []*authorizerv1.BalanceSnapshot
+
+	anyFailed := false
+
 	for i := range results {
 		r := &results[i]
-		if r.txID == "" || r.isLocal {
+		if r.txID == "" || r.isLocal || r.peer == nil {
 			continue
 		}
 
-		if r.peer != nil {
-			commitCtx, cancel := context.WithTimeout(context.Background(), s.resolveCommitDeadline())
-			commitReq := &authorizerv1.CommitPreparedRequest{PreparedTxId: r.txID}
-			authCtx, authErr := withPeerAuth(commitCtx, s.peerAuthToken, peerRPCMethodCommitPrepared, commitReq)
-			if authErr != nil {
-				cancel()
-				s.logger.Errorf(
-					"CRITICAL: cross-shard peer commit auth failed (PARTIAL COMMIT): tx_id=%s peer=%s prepared_tx_id=%s err=%v",
-					req.GetTransactionId(), r.peer.addr, r.txID, authErr,
-				)
-				commitFailed = true
-				continue
-			}
+		snapshots, failed := s.commitRemotePeer(ctx, r, txID, intent, committedAny, publishCommittedStatus)
+		if failed {
+			anyFailed = true
 
-			commitResp, err := r.peer.client.CommitPrepared(authCtx, commitReq)
-			cancel()
-			if err != nil {
-				if status.Code(err) == codes.NotFound {
-					s.logger.Warnf(
-						"cross-shard peer commit reported prepared_tx not found; treating as already committed: tx_id=%s peer=%s prepared_tx_id=%s",
-						req.GetTransactionId(),
-						r.peer.addr,
-						r.txID,
-					)
+			continue
+		}
 
-					markParticipantCommitted(&intent, r.txID)
-					if !committedAny {
-						committedAny = true
-						publishCommittedStatus()
-					}
+		allSnapshots = append(allSnapshots, snapshots...)
+	}
 
-					continue
-				}
+	return allSnapshots, anyFailed
+}
 
-				// CRITICAL: local already committed but peer failed.
-				// This is a partial commit — requires manual recovery.
-				// Phase E (Redpanda commit intent log) addresses this.
-				s.logger.Errorf(
-					"CRITICAL: cross-shard peer commit failed (PARTIAL COMMIT): tx_id=%s peer=%s prepared_tx_id=%s err=%v",
-					req.GetTransactionId(), r.peer.addr, r.txID, err,
-				)
+func (s *authorizerService) handleIncompleteCommit(
+	req *authorizerv1.AuthorizeRequest,
+	intent *commitIntent,
+) error {
+	committedCount := 0
 
-				commitFailed = true
-				continue
-			}
-
-			markParticipantCommitted(&intent, r.txID)
-			if !committedAny {
-				committedAny = true
-				publishCommittedStatus()
-			}
-
-			allSnapshots = append(allSnapshots, commitResp.GetBalances()...)
+	for _, participant := range intent.Participants {
+		if participant.Committed {
+			committedCount++
 		}
 	}
 
-	if commitFailed {
-		s.logger.Warnf(
-			"cross-shard commit incomplete; recovery required: tx_id=%s",
-			req.GetTransactionId(),
-		)
+	s.logger.Warnf(
+		"cross-shard commit incomplete; recovery required: tx_id=%s committed_participants=%d total_participants=%d",
+		req.GetTransactionId(),
+		committedCount,
+		len(intent.Participants),
+	)
 
-		return nil, status.Error(codes.Aborted, "cross-shard commit incomplete; recovery in progress")
-	}
+	return status.Error( //nolint:wrapcheck // gRPC status error
+		codes.Internal,
+		"transaction processing incomplete; recovery in progress",
+	)
+}
 
-	// ─── PHASE E: COMPLETION RECORD ─────────────────────────────────────
-	//
-	// Best-effort write of the COMPLETED status. This closes the commit
-	// intent lifecycle. If this write fails, recovery will see a PREPARED
-	// intent and re-check participants — they'll report already-committed
-	// (idempotent), so no harm done.
+func (s *authorizerService) finalizeCommit(
+	ctx context.Context,
+	req *authorizerv1.AuthorizeRequest,
+	intent *commitIntent,
+	start time.Time,
+	shardOps map[int][]*authorizerv1.BalanceOperation,
+) {
 	intent.Status = commitIntentStatusCompleted
-	if err := s.publishCommitIntent(context.Background(), &intent); err != nil {
+
+	if err := s.publishCommitIntent(context.Background(), intent); err != nil { //nolint:contextcheck // best-effort publish must survive context cancellation
 		s.logger.Warnf(
 			"cross-shard completion record write failed (non-fatal): tx_id=%s err=%v",
 			req.GetTransactionId(), err,
 		)
 	}
 
-	// Record metrics for the cross-shard transaction.
+	if s.walReconciler != nil {
+		s.walReconciler.markCompleted(intent.TransactionID)
+	}
+
 	latency := time.Since(start)
+
 	if s.metrics.Enabled() {
 		s.metrics.RecordAuthorize(
 			ctx,
@@ -508,19 +775,101 @@ func (s *authorizerService) authorizeCrossShard(
 			len(req.GetOperations()),
 			len(shardOps),
 			latency,
+			true,
 		)
 	}
+}
 
-	return &authorizerv1.AuthorizeResponse{
-		Authorized: true,
-		Balances:   allSnapshots,
-	}, nil
+// commitRemotePeer drives the commit phase for a single remote peer participant.
+// Returns the balance snapshots on success and a boolean indicating failure.
+func (s *authorizerService) commitRemotePeer(
+	ctx context.Context,
+	r *prepareResult,
+	txID string,
+	intent *commitIntent,
+	committedAny *bool,
+	publishCommittedStatus func(),
+) ([]*authorizerv1.BalanceSnapshot, bool) {
+	commitCtx, cancel := context.WithTimeout(ctx, s.resolveCommitDeadline())
+	defer cancel()
+
+	commitReq := &authorizerv1.CommitPreparedRequest{PreparedTxId: r.txID}
+
+	authCtx, authErr := withPeerAuth(commitCtx, s.peerAuthToken, peerRPCMethodCommitPrepared, commitReq)
+	if authErr != nil {
+		s.logger.Errorf(
+			"CRITICAL: cross-shard peer commit auth failed (PARTIAL COMMIT): tx_id=%s peer=%s prepared_tx_id=%s err=%v",
+			txID, r.peer.addr, r.txID, authErr,
+		)
+
+		return nil, true
+	}
+
+	commitClient := r.peer.pickClient()
+	if commitClient == nil {
+		s.logger.Errorf(
+			"CRITICAL: cross-shard peer commit has no available gRPC client: tx_id=%s peer=%s prepared_tx_id=%s",
+			txID, r.peer.addr, r.txID,
+		)
+
+		return nil, true
+	}
+
+	commitResp, err := commitClient.CommitPrepared(authCtx, commitReq)
+	if err != nil {
+		s.handleRemotePeerCommitError(ctx, err, r, txID, intent)
+
+		return nil, true
+	}
+
+	markParticipantCommitted(intent, r.txID)
+
+	if !*committedAny {
+		*committedAny = true
+
+		publishCommittedStatus()
+	}
+
+	return commitResp.GetBalances(), false
+}
+
+// handleRemotePeerCommitError logs and escalates errors from a remote peer
+// commit attempt. All paths through this function result in a failed commit.
+func (s *authorizerService) handleRemotePeerCommitError(
+	ctx context.Context,
+	err error,
+	r *prepareResult,
+	txID string,
+	intent *commitIntent,
+) {
+	if status.Code(err) == codes.NotFound {
+		s.logger.Warnf(
+			"CRITICAL: cross-shard peer commit reported prepared_tx not found (possible data loss): tx_id=%s peer=%s prepared_tx_id=%s",
+			txID, r.peer.addr, r.txID,
+		)
+
+		intent.Status = commitIntentStatusManualIntervention
+
+		if publishErr := s.publishCommitIntent(ctx, intent); publishErr != nil {
+			s.logger.Errorf(
+				"cross-shard manual intervention status publish failed: tx_id=%s err=%v",
+				txID, publishErr,
+			)
+		}
+
+		return
+	}
+
+	s.logger.Errorf(
+		"CRITICAL: cross-shard peer commit failed (PARTIAL COMMIT): tx_id=%s peer=%s prepared_tx_id=%s err=%v",
+		txID, r.peer.addr, r.txID, err,
+	)
 }
 
 // abortAllPrepared sends AbortPrepared to all participants that returned a
 // prepared transaction ID. Used when any participant rejects or errors during
 // the prepare phase.
-func (s *authorizerService) abortAllPrepared(results []prepareResult) error {
+func (s *authorizerService) abortAllPrepared(ctx context.Context, results []prepareResult) error {
 	var abortErr error
 
 	for i := range results {
@@ -534,25 +883,48 @@ func (s *authorizerService) abortAllPrepared(results []prepareResult) error {
 				s.logger.Warnf("cross-shard abort local failed: prepared_tx_id=%s err=%v", r.txID, err)
 				abortErr = errors.Join(abortErr, err)
 			}
-		} else if r.peer != nil {
-			abortCtx, cancel := context.WithTimeout(context.Background(), s.resolveAbortDeadline())
-			abortReq := &authorizerv1.AbortPreparedRequest{PreparedTxId: r.txID}
-			authCtx, authErr := withPeerAuth(abortCtx, s.peerAuthToken, peerRPCMethodAbortPrepared, abortReq)
-			if authErr != nil {
-				cancel()
-				s.logger.Warnf("cross-shard abort peer auth failed: peer=%s prepared_tx_id=%s err=%v", r.peer.addr, r.txID, authErr)
-				abortErr = errors.Join(abortErr, authErr)
-				continue
-			}
 
-			_, err := r.peer.client.AbortPrepared(authCtx, abortReq)
-			cancel()
-			if err != nil {
-				s.logger.Warnf("cross-shard abort peer failed: peer=%s prepared_tx_id=%s err=%v", r.peer.addr, r.txID, err)
-				abortErr = errors.Join(abortErr, err)
-			}
+			continue
+		}
+
+		if r.peer == nil {
+			continue
+		}
+
+		if err := s.abortRemotePeer(ctx, r); err != nil {
+			abortErr = errors.Join(abortErr, err)
 		}
 	}
 
 	return abortErr
+}
+
+func (s *authorizerService) abortRemotePeer(ctx context.Context, r *prepareResult) error {
+	abortCtx, cancel := context.WithTimeout(ctx, s.resolveAbortDeadline())
+	defer cancel()
+
+	abortReq := &authorizerv1.AbortPreparedRequest{PreparedTxId: r.txID}
+
+	authCtx, authErr := withPeerAuth(abortCtx, s.peerAuthToken, peerRPCMethodAbortPrepared, abortReq)
+	if authErr != nil {
+		s.logger.Warnf("cross-shard abort peer auth failed: peer=%s prepared_tx_id=%s err=%v", r.peer.addr, r.txID, authErr)
+
+		return authErr
+	}
+
+	abortClient := r.peer.pickClient()
+	if abortClient == nil {
+		s.logger.Warnf("cross-shard abort peer has no available gRPC client: peer=%s prepared_tx_id=%s", r.peer.addr, r.txID)
+
+		return fmt.Errorf("%w: %s", errNoGRPCClientForPeer, r.peer.addr)
+	}
+
+	_, err := abortClient.AbortPrepared(authCtx, abortReq)
+	if err != nil {
+		s.logger.Warnf("cross-shard abort peer failed: peer=%s prepared_tx_id=%s err=%v", r.peer.addr, r.txID, err)
+
+		return fmt.Errorf("abort peer %s prepared_tx_id=%s: %w", r.peer.addr, r.txID, err)
+	}
+
+	return nil
 }

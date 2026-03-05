@@ -8,12 +8,19 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/publisher"
+	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/wal"
 )
+
+// errCommitIntentPublisherNotConfigured is returned when publishCommitIntent is
+// called but no publisher has been wired into the authorizer service.
+var errCommitIntentPublisherNotConfigured = errors.New("commit intent publisher is not configured")
 
 // crossShardCommitTopic is the Redpanda topic where commit intents are persisted.
 // The commit log provides durability for the 2PC commit decision: once a commit
@@ -102,7 +109,7 @@ func buildParticipants(results []prepareResult, localAddr string) []commitPartic
 // the commit phase.
 func (s *authorizerService) publishCommitIntent(ctx context.Context, intent *commitIntent) error {
 	if s.pub == nil {
-		return fmt.Errorf("commit intent publisher is not configured")
+		return errCommitIntentPublisherNotConfigured
 	}
 
 	payload, err := json.Marshal(intent)
@@ -111,24 +118,79 @@ func (s *authorizerService) publishCommitIntent(ctx context.Context, intent *com
 	}
 
 	headers := make(map[string]string)
-	token := ""
-	if s != nil {
-		token = s.peerAuthToken
-	}
+	token := s.peerAuthToken
 
 	if token != "" {
 		mac := hmac.New(sha256.New, []byte(token))
 		_, _ = mac.Write(payload)
-		headers[commitIntentAuthHeader] = fmt.Sprintf("%x", mac.Sum(nil))
+		headers[commitIntentAuthHeader] = hex.EncodeToString(mac.Sum(nil))
 	}
 
-	return s.pub.Publish(ctx, publisher.Message{
+	if err := s.pub.Publish(ctx, publisher.Message{
 		Topic:        crossShardCommitTopic,
 		PartitionKey: intent.TransactionID,
 		Payload:      payload,
 		Headers:      headers,
 		ContentType:  "application/json",
-	})
+	}); err != nil {
+		return fmt.Errorf("publish commit intent: %w", err)
+	}
+
+	return nil
+}
+
+// walParticipantsFromIntent converts a commitIntent's participant list into the
+// WAL-compatible representation. This is used to stamp cross-shard metadata onto
+// the PreparedTx before commit, so the WAL entry captures the full 2PC lineage.
+func walParticipantsFromIntent(intent *commitIntent) []wal.WALParticipant {
+	if intent == nil || len(intent.Participants) == 0 {
+		return nil
+	}
+
+	participants := make([]wal.WALParticipant, 0, len(intent.Participants))
+
+	for _, p := range intent.Participants {
+		participants = append(participants, wal.WALParticipant{
+			InstanceAddr: p.InstanceAddr,
+			PreparedTxID: p.PreparedTxID,
+			IsLocal:      p.IsLocal,
+		})
+	}
+
+	return participants
+}
+
+// validStatusTransition checks that commit intent status transitions follow
+// the allowed state machine:
+//
+//	PREPARED  → COMMITTED | MANUAL_INTERVENTION_REQUIRED
+//	COMMITTED → COMPLETED
+//
+// Any other transition (including backward or self-transitions) is invalid.
+func validStatusTransition(from, to string) bool {
+	switch from {
+	case commitIntentStatusPrepared:
+		// PREPARED -> COMMITTED: at least one participant committed.
+		// PREPARED -> COMPLETED: all participants committed atomically in a single pass.
+		// PREPARED -> MANUAL_INTERVENTION: unrecoverable state detected.
+		return to == commitIntentStatusCommitted || to == commitIntentStatusCompleted || to == commitIntentStatusManualIntervention
+	case commitIntentStatusCommitted:
+		return to == commitIntentStatusCompleted
+	default:
+		return false
+	}
+}
+
+// clone returns a deep copy of the commitIntent. The Participants slice is
+// independently allocated so mutations on the copy do not race with the original.
+// Used by asyncCommitPhase to hand a snapshot to startAsyncPublish while
+// commitLocalParticipants mutates the original concurrently.
+func (ci *commitIntent) clone() *commitIntent {
+	cp := *ci
+	cp.Participants = make([]commitParticipant, len(ci.Participants))
+	copy(cp.Participants, ci.Participants)
+
+	return &cp
 }
 
 func markParticipantCommitted(intent *commitIntent, preparedTxID string) bool {
