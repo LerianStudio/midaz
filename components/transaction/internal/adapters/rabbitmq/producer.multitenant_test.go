@@ -188,7 +188,7 @@ func TestNewMultiTenantProducerWithProvider(t *testing.T) {
 }
 
 // =============================================================================
-// UNIT TESTS — ProducerDefault (AC-1, AC-2, AC-7, AC-8)
+// UNIT TESTS — ProducerDefault
 // =============================================================================
 
 func TestMultiTenantProducer_ProducerDefault(t *testing.T) {
@@ -205,7 +205,7 @@ func TestMultiTenantProducer_ProducerDefault(t *testing.T) {
 		expectErrSubstr string
 	}{
 		{
-			// AC-1: missing tenant ID — empty context
+			// missing tenant ID — empty context
 			name:            "missing_tenant_id_returns_error",
 			tenantID:        "",
 			exchange:        "test-exchange",
@@ -214,7 +214,7 @@ func TestMultiTenantProducer_ProducerDefault(t *testing.T) {
 			expectErrSubstr: "tenant ID is required in context for multi-tenant producer",
 		},
 		{
-			// AC-8: GetChannel returns error
+			// GetChannel returns error
 			name:            "get_channel_error_is_propagated",
 			tenantID:        "tenant-a",
 			exchange:        "test-exchange",
@@ -224,7 +224,7 @@ func TestMultiTenantProducer_ProducerDefault(t *testing.T) {
 			expectErrSubstr: "failed to get channel for tenant tenant-a",
 		},
 		{
-			// AC-8: PublishWithContext returns error
+			// PublishWithContext returns error
 			name:            "publish_error_is_propagated",
 			tenantID:        "tenant-a",
 			exchange:        "test-exchange",
@@ -234,7 +234,7 @@ func TestMultiTenantProducer_ProducerDefault(t *testing.T) {
 			expectErrSubstr: "channel closed",
 		},
 		{
-			// AC-2: successful publish path
+			// successful publish path
 			name:     "successful_publish",
 			tenantID: "tenant-a",
 			exchange: "test-exchange",
@@ -303,7 +303,7 @@ func TestMultiTenantProducer_ProducerDefault(t *testing.T) {
 						channel.EXPECT().
 							PublishWithContext(gomock.Any(), tt.exchange, tt.key, false, false, gomock.Any()).
 							DoAndReturn(func(ctx context.Context, exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error {
-								// AC-7: Verify publishing parameters
+								// Verify publishing parameters
 								assert.Equal(t, "application/json", msg.ContentType, "content type should be application/json")
 								assert.Equal(t, uint8(amqp.Persistent), msg.DeliveryMode, "delivery mode should be persistent")
 								assert.NotNil(t, msg.Headers, "headers should be present")
@@ -335,7 +335,7 @@ func TestMultiTenantProducer_ProducerDefault(t *testing.T) {
 }
 
 // =============================================================================
-// UNIT TESTS — ProducerDefaultWithContext (AC-3)
+// UNIT TESTS — ProducerDefaultWithContext
 // =============================================================================
 
 func TestMultiTenantProducer_ProducerDefaultWithContext(t *testing.T) {
@@ -352,7 +352,7 @@ func TestMultiTenantProducer_ProducerDefaultWithContext(t *testing.T) {
 		expectErrSubstr string
 	}{
 		{
-			// AC-3 + AC-1: missing tenant ID behaves identically to ProducerDefault
+			// missing tenant ID behaves identically to ProducerDefault
 			name:            "missing_tenant_id_returns_error",
 			tenantID:        "",
 			exchange:        "test-exchange",
@@ -361,7 +361,7 @@ func TestMultiTenantProducer_ProducerDefaultWithContext(t *testing.T) {
 			expectErrSubstr: "tenant ID is required in context for multi-tenant producer",
 		},
 		{
-			// AC-3 + AC-8: GetChannel error propagated identically
+			// GetChannel error propagated identically
 			name:            "get_channel_error_is_propagated",
 			tenantID:        "tenant-b",
 			exchange:        "test-exchange",
@@ -371,7 +371,7 @@ func TestMultiTenantProducer_ProducerDefaultWithContext(t *testing.T) {
 			expectErrSubstr: "failed to get channel for tenant tenant-b",
 		},
 		{
-			// AC-3: successful publish identical to ProducerDefault
+			// successful publish identical to ProducerDefault
 			name:     "successful_publish",
 			tenantID: "tenant-b",
 			exchange: "test-exchange",
@@ -379,7 +379,7 @@ func TestMultiTenantProducer_ProducerDefaultWithContext(t *testing.T) {
 			message:  []byte(`{"data":"test"}`),
 		},
 		{
-			// AC-3 + publish error
+			// publish error
 			name:            "publish_error_is_propagated",
 			tenantID:        "tenant-b",
 			exchange:        "test-exchange",
@@ -445,7 +445,7 @@ func TestMultiTenantProducer_ProducerDefaultWithContext(t *testing.T) {
 }
 
 // =============================================================================
-// UNIT TESTS — AC-3: ProducerDefault and ProducerDefaultWithContext delegate
+// UNIT TESTS — ProducerDefault and ProducerDefaultWithContext delegate
 // to the same internal publish, differing only in span name.
 // =============================================================================
 
@@ -510,7 +510,7 @@ func TestMultiTenantProducer_BothMethodsDelegateToPublish(t *testing.T) {
 }
 
 // =============================================================================
-// UNIT TESTS — CheckRabbitMQHealth (AC-4)
+// UNIT TESTS — CheckRabbitMQHealth
 // =============================================================================
 
 func TestMultiTenantProducer_CheckRabbitMQHealth(t *testing.T) {
@@ -545,7 +545,7 @@ func TestMultiTenantProducer_CheckRabbitMQHealth(t *testing.T) {
 }
 
 // =============================================================================
-// UNIT TESTS — Close (AC-5, AC-6)
+// UNIT TESTS — Close
 // =============================================================================
 
 func TestMultiTenantProducer_Close(t *testing.T) {
@@ -559,21 +559,21 @@ func TestMultiTenantProducer_Close(t *testing.T) {
 		expectErrSubstr string
 	}{
 		{
-			// AC-6: nil receiver returns nil (no panic)
+			// nil receiver returns nil (no panic)
 			name:        "nil_receiver_returns_nil",
 			nilReceiver: true,
 		},
 		{
-			// AC-6: nil channelProvider returns nil (no panic)
+			// nil channelProvider returns nil (no panic)
 			name:        "nil_channel_provider_returns_nil",
 			nilProvider: true,
 		},
 		{
-			// AC-5: delegates to ChannelProvider.Close
+			// delegates to ChannelProvider.Close
 			name: "delegates_to_channel_provider_close",
 		},
 		{
-			// AC-5: propagates error from ChannelProvider.Close
+			// propagates error from ChannelProvider.Close
 			name:            "propagates_close_error",
 			closeErr:        errors.New("close failed: connection reset"),
 			expectErrSubstr: "close failed: connection reset",
@@ -624,7 +624,7 @@ func TestMultiTenantProducer_Close(t *testing.T) {
 }
 
 // =============================================================================
-// UNIT TESTS — AC-7: Published messages include trace headers and persistent
+// UNIT TESTS — Published messages include trace headers and persistent
 // delivery mode (verified via DoAndReturn inside publish mock)
 // =============================================================================
 
@@ -665,15 +665,15 @@ func TestMultiTenantProducer_PublishMessageParameters(t *testing.T) {
 			channel.EXPECT().
 				PublishWithContext(gomock.Any(), exchange, key, false, false, gomock.Any()).
 				DoAndReturn(func(ctx context.Context, exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error {
-					// AC-7: verify content type
+					// verify content type
 					assert.Equal(t, "application/json", msg.ContentType, "content type must be application/json")
-					// AC-7: verify persistent delivery mode
+					// verify persistent delivery mode
 					assert.Equal(t, uint8(amqp.Persistent), msg.DeliveryMode, "delivery mode must be persistent")
-					// AC-7: verify trace headers present
+					// verify trace headers present
 					assert.NotNil(t, msg.Headers, "headers must not be nil")
 					assert.Contains(t, msg.Headers, libConstants.HeaderID, "headers must contain request ID")
 					assert.Equal(t, tenantID, msg.Headers["X-Tenant-ID"], "headers must contain tenant ID")
-					// AC-7: verify body matches input
+					// verify body matches input
 					assert.Equal(t, tt.message, msg.Body, "body must match the original message")
 					return nil
 				})
@@ -687,7 +687,7 @@ func TestMultiTenantProducer_PublishMessageParameters(t *testing.T) {
 }
 
 // =============================================================================
-// UNIT TESTS — AC-1 Edge Cases: empty-string tenant ID in context
+// UNIT TESTS — Edge Cases: empty-string tenant ID in context
 // =============================================================================
 
 func TestMultiTenantProducer_ProducerDefault_EmptyStringTenantID(t *testing.T) {
@@ -733,7 +733,7 @@ func TestMultiTenantProducer_ProducerDefault_EmptyStringTenantID(t *testing.T) {
 }
 
 // =============================================================================
-// UNIT TESTS — AC-8: GetChannel error wrapping
+// UNIT TESTS — GetChannel error wrapping
 // =============================================================================
 
 func TestMultiTenantProducer_ProducerDefault_GetChannelErrorWrapping(t *testing.T) {

@@ -1453,13 +1453,13 @@ func TestIntegration_Redis_CanceledTransactionRelease(t *testing.T) {
 }
 
 // =============================================================================
-// INTEGRATION TESTS - DOUBLE-ENTRY PENDING (T-001 RouteValidationEnabled)
+// INTEGRATION TESTS - DOUBLE-ENTRY PENDING (RouteValidationEnabled)
 // =============================================================================
 
 // TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_VersionIncrBy2
 // verifies that when RouteValidationEnabled=true, a PENDING+ON_HOLD operation
 // increments the balance version by 2 atomically in the Lua script.
-// This is the core T-001 behavior: the double-entry pattern produces
+// This is the core double-entry behavior: the pattern produces
 // DEBIT debit + ONHOLD credit, represented by version+=2.
 func TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_VersionIncrBy2(t *testing.T) {
 	if testing.Short() {
@@ -1802,7 +1802,7 @@ func TestIntegration_Redis_DoubleEntryPending_MultipleSourcesSameTransaction(t *
 }
 
 // =============================================================================
-// INTEGRATION TESTS - REDIS KEY NAMESPACING (T-001)
+// INTEGRATION TESTS - REDIS KEY NAMESPACING
 // =============================================================================
 
 // TestIntegration_RedisNamespacing_SetGetWithTenant verifies that when a tenant
@@ -2052,4 +2052,693 @@ func TestIntegration_RedisNamespacing_QueueTenantIsolation(t *testing.T) {
 	}
 
 	t.Log("Integration test passed: queue operations are isolated per tenant")
+}
+
+// =============================================================================
+// INTEGRATION TESTS - DOUBLE-ENTRY APPROVED + CANCELED (RouteValidationEnabled)
+// =============================================================================
+
+// TestIntegration_Redis_DoubleEntryCanceled_RouteValidationEnabled_PerFieldAtomicity
+// verifies that when RouteValidationEnabled=true, a CANCELED transaction creates
+// two separate operations each affecting exactly one balance field:
+//   - RELEASE: only decrements OnHold (Available unchanged)
+//   - CREDIT: only increments Available (OnHold unchanged)
+//
+// This is the core CANCELED behavior: per-field atomicity where each
+// operation mutates exactly one balance field, and the version increments once
+// per operation (total +2 for the pair).
+func TestIntegration_Redis_DoubleEntryCanceled_RouteValidationEnabled_PerFieldAtomicity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+
+	t.Run("RELEASE only decrements OnHold when routeValidationEnabled is true", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		initialAvailable := decimal.NewFromInt(900)
+		initialOnHold := decimal.NewFromInt(100)
+		initialVersion := int64(3) // After PENDING phase (v1->v3)
+		amount := decimal.NewFromInt(100)
+
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreatePendingBalanceOperation(
+				orgID, ledgerID, "@cancel-release-source", "USD",
+				constant.RELEASE, amount,
+				initialAvailable, initialOnHold, initialVersion,
+				"deposit", true, // routeValidationEnabled = true
+			),
+		}
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, transactionID,
+			constant.CANCELED, true,
+			balanceOps,
+		)
+
+		require.NoError(t, err, "CANCELED RELEASE with routeValidation should succeed")
+		require.NotNil(t, result)
+		require.Len(t, result.After, 1, "should have 1 after balance")
+		require.Len(t, result.Before, 1, "should have 1 before balance")
+
+		// Before state: unchanged
+		assert.True(t, result.Before[0].Available.Equal(initialAvailable),
+			"before Available should be %s, got %s", initialAvailable, result.Before[0].Available)
+		assert.True(t, result.Before[0].OnHold.Equal(initialOnHold),
+			"before OnHold should be %s, got %s", initialOnHold, result.Before[0].OnHold)
+
+		// After state: ONLY OnHold decremented (per-field atomicity)
+		assert.True(t, result.After[0].Available.Equal(initialAvailable),
+			"RELEASE with routeValidation: Available should be UNCHANGED at %s, got %s",
+			initialAvailable, result.After[0].Available)
+		expectedOnHold := initialOnHold.Sub(amount)
+		assert.True(t, result.After[0].OnHold.Equal(expectedOnHold),
+			"RELEASE with routeValidation: OnHold should be %s, got %s",
+			expectedOnHold, result.After[0].OnHold)
+
+		// Version increments by 1 (single field change)
+		assert.Equal(t, initialVersion+1, result.After[0].Version,
+			"version should increment by 1 for RELEASE per-field operation")
+
+		t.Logf("RELEASE per-field: Available unchanged at %s, OnHold %s -> %s, version %d -> %d",
+			initialAvailable, initialOnHold, expectedOnHold, initialVersion, result.After[0].Version)
+	})
+
+	t.Run("CREDIT only increments Available when routeValidationEnabled is true and CANCELED", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		// State after RELEASE already applied: OnHold is now 0, Available still 900
+		initialAvailable := decimal.NewFromInt(900)
+		initialOnHold := decimal.Zero
+		initialVersion := int64(4) // After RELEASE (v3->v4)
+		amount := decimal.NewFromInt(100)
+
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreatePendingBalanceOperation(
+				orgID, ledgerID, "@cancel-credit-source", "USD",
+				constant.CREDIT, amount,
+				initialAvailable, initialOnHold, initialVersion,
+				"deposit", true, // routeValidationEnabled = true
+			),
+		}
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, transactionID,
+			constant.CANCELED, true,
+			balanceOps,
+		)
+
+		require.NoError(t, err, "CANCELED CREDIT with routeValidation should succeed")
+		require.NotNil(t, result)
+		require.Len(t, result.After, 1, "should have 1 after balance")
+		require.Len(t, result.Before, 1, "should have 1 before balance")
+
+		// After state: ONLY Available incremented (per-field atomicity)
+		expectedAvailable := initialAvailable.Add(amount)
+		assert.True(t, result.After[0].Available.Equal(expectedAvailable),
+			"CREDIT+CANCELED with routeValidation: Available should be %s, got %s",
+			expectedAvailable, result.After[0].Available)
+		assert.True(t, result.After[0].OnHold.Equal(initialOnHold),
+			"CREDIT+CANCELED with routeValidation: OnHold should be UNCHANGED at %s, got %s",
+			initialOnHold, result.After[0].OnHold)
+
+		// Version increments by 1 (single field change)
+		assert.Equal(t, initialVersion+1, result.After[0].Version,
+			"version should increment by 1 for CREDIT per-field operation")
+
+		t.Logf("CREDIT per-field: Available %s -> %s, OnHold unchanged at %s, version %d -> %d",
+			initialAvailable, expectedAvailable, initialOnHold, initialVersion, result.After[0].Version)
+	})
+
+	t.Run("CANCELED RELEASE without routeValidation changes both fields", func(t *testing.T) {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New()
+
+		initialAvailable := decimal.NewFromInt(900)
+		initialOnHold := decimal.NewFromInt(100)
+		initialVersion := int64(2) // After legacy PENDING (v1->v2)
+		amount := decimal.NewFromInt(100)
+
+		balanceOps := []mmodel.BalanceOperation{
+			redistestutil.CreatePendingBalanceOperation(
+				orgID, ledgerID, "@cancel-legacy-source", "USD",
+				constant.RELEASE, amount,
+				initialAvailable, initialOnHold, initialVersion,
+				"deposit", false, // routeValidationEnabled = false (legacy)
+			),
+		}
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(
+			ctx, orgID, ledgerID, transactionID,
+			constant.CANCELED, true,
+			balanceOps,
+		)
+
+		require.NoError(t, err, "CANCELED RELEASE without routeValidation should succeed")
+		require.NotNil(t, result)
+		require.Len(t, result.After, 1)
+
+		// Legacy behavior: BOTH fields change in single operation
+		expectedAvailable := initialAvailable.Add(amount)
+		expectedOnHold := initialOnHold.Sub(amount)
+
+		assert.True(t, result.After[0].Available.Equal(expectedAvailable),
+			"legacy RELEASE: Available should be %s, got %s",
+			expectedAvailable, result.After[0].Available)
+		assert.True(t, result.After[0].OnHold.Equal(expectedOnHold),
+			"legacy RELEASE: OnHold should be %s, got %s",
+			expectedOnHold, result.After[0].OnHold)
+
+		// Version increments by 1 (single operation, both fields)
+		assert.Equal(t, initialVersion+1, result.After[0].Version,
+			"legacy version should increment by 1")
+
+		t.Logf("Legacy RELEASE: Available %s -> %s, OnHold %s -> %s, version %d -> %d",
+			initialAvailable, expectedAvailable, initialOnHold, expectedOnHold,
+			initialVersion, result.After[0].Version)
+	})
+}
+
+// TestIntegration_Redis_DoubleEntryCanceled_FullSourceLifecycle
+// verifies the complete source balance lifecycle with route validation:
+//
+//	PENDING (v1->v3): DEBIT(Available--) + ON_HOLD(OnHold++)
+//	CANCELED (v3->v5): RELEASE(OnHold--) + CREDIT(Available++)
+//
+// After the full lifecycle, the balance should return to its original state,
+// and the version chain should be continuous: v1->v2->v3->v4->v5.
+func TestIntegration_Redis_DoubleEntryCanceled_FullSourceLifecycle(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	initialAvailable := decimal.NewFromInt(1000)
+	initialOnHold := decimal.Zero
+	initialVersion := int64(1)
+	amount := decimal.NewFromInt(300)
+
+	// Phase 1: PENDING with routeValidation (v1 -> v3)
+	// Two operations: DEBIT(Available--) + ON_HOLD(OnHold++)
+	pendingTxID := uuid.New()
+	pendingOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@lifecycle-cancel-src", "USD",
+		constant.ONHOLD, amount,
+		initialAvailable, initialOnHold, initialVersion,
+		"deposit", true, // routeValidationEnabled = true
+	)
+
+	pendingResult, err := infra.repo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, pendingTxID,
+		constant.PENDING, true,
+		[]mmodel.BalanceOperation{pendingOp},
+	)
+	require.NoError(t, err, "PENDING phase should succeed")
+	require.Len(t, pendingResult.After, 1)
+
+	afterPendingVersion := pendingResult.After[0].Version
+	afterPendingAvailable := pendingResult.After[0].Available
+	afterPendingOnHold := pendingResult.After[0].OnHold
+
+	// Verify PENDING state
+	assert.Equal(t, int64(3), afterPendingVersion, "after PENDING: version should be 3 (1+2)")
+	assert.True(t, afterPendingAvailable.Equal(decimal.NewFromInt(700)),
+		"after PENDING: Available should be 700")
+	assert.True(t, afterPendingOnHold.Equal(decimal.NewFromInt(300)),
+		"after PENDING: OnHold should be 300")
+
+	// Phase 2: CANCELED - RELEASE (v3 -> v4)
+	// Per-field atomicity: RELEASE only decrements OnHold
+	cancelTxID := uuid.New()
+	releaseOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@lifecycle-cancel-src", "USD",
+		constant.RELEASE, amount,
+		afterPendingAvailable, afterPendingOnHold, afterPendingVersion,
+		"deposit", true, // routeValidationEnabled = true
+	)
+
+	releaseResult, err := infra.repo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, cancelTxID,
+		constant.CANCELED, true,
+		[]mmodel.BalanceOperation{releaseOp},
+	)
+	require.NoError(t, err, "CANCELED RELEASE phase should succeed")
+	require.Len(t, releaseResult.After, 1)
+
+	afterReleaseVersion := releaseResult.After[0].Version
+	afterReleaseAvailable := releaseResult.After[0].Available
+	afterReleaseOnHold := releaseResult.After[0].OnHold
+
+	// Verify RELEASE state: OnHold decremented, Available unchanged
+	assert.Equal(t, int64(4), afterReleaseVersion, "after RELEASE: version should be 4 (3+1)")
+	assert.True(t, afterReleaseAvailable.Equal(decimal.NewFromInt(700)),
+		"after RELEASE: Available should still be 700 (per-field atomicity)")
+	assert.True(t, afterReleaseOnHold.Equal(decimal.Zero),
+		"after RELEASE: OnHold should be 0")
+
+	// Phase 3: CANCELED - CREDIT (v4 -> v5)
+	// Per-field atomicity: CREDIT only increments Available
+	creditOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@lifecycle-cancel-src", "USD",
+		constant.CREDIT, amount,
+		afterReleaseAvailable, afterReleaseOnHold, afterReleaseVersion,
+		"deposit", true, // routeValidationEnabled = true
+	)
+
+	creditResult, err := infra.repo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, cancelTxID,
+		constant.CANCELED, true,
+		[]mmodel.BalanceOperation{creditOp},
+	)
+	require.NoError(t, err, "CANCELED CREDIT phase should succeed")
+	require.Len(t, creditResult.After, 1)
+
+	afterCreditVersion := creditResult.After[0].Version
+	afterCreditAvailable := creditResult.After[0].Available
+	afterCreditOnHold := creditResult.After[0].OnHold
+
+	// Verify final state: balance returns to original
+	assert.Equal(t, int64(5), afterCreditVersion, "after CREDIT: version should be 5 (4+1)")
+	assert.True(t, afterCreditAvailable.Equal(initialAvailable),
+		"after full CANCELED lifecycle: Available should return to initial %s, got %s",
+		initialAvailable, afterCreditAvailable)
+	assert.True(t, afterCreditOnHold.Equal(initialOnHold),
+		"after full CANCELED lifecycle: OnHold should return to initial %s, got %s",
+		initialOnHold, afterCreditOnHold)
+
+	// Version chain continuity: v1 -> v3 -> v4 -> v5 (no gaps)
+	t.Logf("Version chain: v%d --(PENDING+route)--> v%d --(RELEASE)--> v%d --(CREDIT)--> v%d",
+		initialVersion, afterPendingVersion, afterReleaseVersion, afterCreditVersion)
+}
+
+// TestIntegration_Redis_DoubleEntryApproved_FullSourceLifecycle
+// verifies the complete source balance lifecycle for APPROVED with route validation:
+//
+//	PENDING (v1->v3): DEBIT(Available--) + ON_HOLD(OnHold++)
+//	APPROVED (v3->v4): DEBIT(OnHold--)
+//
+// For APPROVED, the source's Available was already decremented during PENDING,
+// so only OnHold needs to be released. The destination gets CREDIT(Available++).
+func TestIntegration_Redis_DoubleEntryApproved_FullSourceLifecycle(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	initialAvailable := decimal.NewFromInt(1000)
+	initialOnHold := decimal.Zero
+	initialVersion := int64(1)
+	amount := decimal.NewFromInt(300)
+
+	// Phase 1: PENDING with routeValidation (v1 -> v3)
+	pendingTxID := uuid.New()
+	pendingOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@lifecycle-approve-src", "USD",
+		constant.ONHOLD, amount,
+		initialAvailable, initialOnHold, initialVersion,
+		"deposit", true,
+	)
+
+	pendingResult, err := infra.repo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, pendingTxID,
+		constant.PENDING, true,
+		[]mmodel.BalanceOperation{pendingOp},
+	)
+	require.NoError(t, err, "PENDING phase should succeed")
+	require.Len(t, pendingResult.After, 1)
+
+	afterPendingVersion := pendingResult.After[0].Version
+	afterPendingAvailable := pendingResult.After[0].Available
+	afterPendingOnHold := pendingResult.After[0].OnHold
+
+	assert.Equal(t, int64(3), afterPendingVersion, "after PENDING: version should be 3")
+	assert.True(t, afterPendingAvailable.Equal(decimal.NewFromInt(700)),
+		"after PENDING: Available should be 700")
+	assert.True(t, afterPendingOnHold.Equal(decimal.NewFromInt(300)),
+		"after PENDING: OnHold should be 300")
+
+	// Phase 2: APPROVED - source DEBIT (v3 -> v4)
+	// DEBIT on APPROVED: OnHold decremented (funds already left Available during PENDING)
+	approvedTxID := uuid.New()
+	approvedSourceOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@lifecycle-approve-src", "USD",
+		constant.DEBIT, amount,
+		afterPendingAvailable, afterPendingOnHold, afterPendingVersion,
+		"deposit", false, // routeValidationEnabled not relevant for APPROVED source
+	)
+
+	approvedResult, err := infra.repo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, approvedTxID,
+		constant.APPROVED, true,
+		[]mmodel.BalanceOperation{approvedSourceOp},
+	)
+	require.NoError(t, err, "APPROVED source DEBIT should succeed")
+	require.Len(t, approvedResult.After, 1)
+
+	afterApprovedVersion := approvedResult.After[0].Version
+	afterApprovedAvailable := approvedResult.After[0].Available
+	afterApprovedOnHold := approvedResult.After[0].OnHold
+
+	// Verify APPROVED state: OnHold released, Available unchanged from PENDING
+	assert.Equal(t, int64(4), afterApprovedVersion, "after APPROVED: version should be 4 (3+1)")
+	assert.True(t, afterApprovedAvailable.Equal(decimal.NewFromInt(700)),
+		"after APPROVED: Available should remain 700 (was deducted during PENDING)")
+	assert.True(t, afterApprovedOnHold.Equal(decimal.Zero),
+		"after APPROVED: OnHold should be 0 (released)")
+
+	// Version chain: v1 -> v3 -> v4 (no gaps)
+	t.Logf("Version chain: v%d --(PENDING+route)--> v%d --(APPROVED DEBIT)--> v%d",
+		initialVersion, afterPendingVersion, afterApprovedVersion)
+}
+
+// TestIntegration_Redis_DoubleEntryApproved_DestinationCredit
+// verifies that the APPROVED destination receives credit that increases Available.
+// During PENDING, the destination had no changes (CREDIT+PENDING is a no-op).
+// On APPROVED, CREDIT increases Available and increments version.
+func TestIntegration_Redis_DoubleEntryApproved_DestinationCredit(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	destAvailable := decimal.NewFromInt(500)
+	destOnHold := decimal.Zero
+	destVersion := int64(1)
+	amount := decimal.NewFromInt(300)
+
+	// Step 1: PENDING destination CREDIT (no-op, no version change)
+	pendingTxID := uuid.New()
+	pendingDestOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@approve-dest", "USD",
+		constant.CREDIT, amount,
+		destAvailable, destOnHold, destVersion,
+		"deposit", false, // destination does not use routeValidation flag
+	)
+
+	pendingDestResult, err := infra.repo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, pendingTxID,
+		constant.PENDING, true,
+		[]mmodel.BalanceOperation{pendingDestOp},
+	)
+	require.NoError(t, err, "PENDING destination CREDIT should succeed")
+	// No change during PENDING for destination
+	assert.Len(t, pendingDestResult.After, 0,
+		"destination should NOT appear in results during PENDING (CREDIT+PENDING is no-op)")
+
+	// Step 2: APPROVED destination CREDIT (Available increases)
+	approvedTxID := uuid.New()
+	approvedDestOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@approve-dest", "USD",
+		constant.CREDIT, amount,
+		destAvailable, destOnHold, destVersion, // Same initial state (no changes during PENDING)
+		"deposit", false,
+	)
+
+	approvedDestResult, err := infra.repo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, approvedTxID,
+		constant.APPROVED, true,
+		[]mmodel.BalanceOperation{approvedDestOp},
+	)
+	require.NoError(t, err, "APPROVED destination CREDIT should succeed")
+	require.Len(t, approvedDestResult.After, 1, "destination should appear in results on APPROVED")
+
+	expectedAvailable := destAvailable.Add(amount)
+	assert.True(t, approvedDestResult.After[0].Available.Equal(expectedAvailable),
+		"APPROVED dest: Available should be %s, got %s",
+		expectedAvailable, approvedDestResult.After[0].Available)
+	assert.True(t, approvedDestResult.After[0].OnHold.Equal(destOnHold),
+		"APPROVED dest: OnHold should be unchanged at %s", destOnHold)
+	assert.Equal(t, destVersion+1, approvedDestResult.After[0].Version,
+		"APPROVED dest: version should be %d", destVersion+1)
+
+	t.Logf("APPROVED destination: Available %s -> %s, version %d -> %d",
+		destAvailable, expectedAvailable, destVersion, approvedDestResult.After[0].Version)
+}
+
+// TestIntegration_Redis_DoubleEntryCanceled_SourceAndDestination
+// verifies an end-to-end CANCELED transaction with both source operations
+// (RELEASE + CREDIT) submitted together, each affecting exactly one field.
+// This tests the atomic Lua execution of both CANCELED double-entry operations.
+func TestIntegration_Redis_DoubleEntryCanceled_SourceAndDestination(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	// Source state after PENDING phase
+	sourceAvailable := decimal.NewFromInt(700)
+	sourceOnHold := decimal.NewFromInt(300)
+	sourceVersion := int64(3)
+
+	// Destination state (unchanged during PENDING)
+	destAvailable := decimal.NewFromInt(500)
+	destOnHold := decimal.Zero
+	destVersion := int64(1)
+
+	amount := decimal.NewFromInt(300)
+
+	// Source RELEASE: OnHold-- only (per-field)
+	releaseOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@cancel-pair-src", "USD",
+		constant.RELEASE, amount,
+		sourceAvailable, sourceOnHold, sourceVersion,
+		"deposit", true,
+	)
+
+	// Source CREDIT: Available++ only (per-field)
+	creditOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@cancel-pair-src", "USD",
+		constant.CREDIT, amount,
+		sourceAvailable, sourceOnHold, sourceVersion,
+		"deposit", true,
+	)
+
+	// Destination: no change on CANCELED (already excluded during PENDING)
+	destOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@cancel-pair-dest", "USD",
+		constant.CREDIT, amount,
+		destAvailable, destOnHold, destVersion,
+		"deposit", false,
+	)
+
+	result, err := infra.repo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, transactionID,
+		constant.CANCELED, true,
+		[]mmodel.BalanceOperation{releaseOp, creditOp, destOp},
+	)
+
+	require.NoError(t, err, "CANCELED with source RELEASE+CREDIT and destination should succeed")
+	require.NotNil(t, result)
+
+	// Source should appear in results (both RELEASE and CREDIT caused changes)
+	// Destination CREDIT+CANCELED without routeValidation has no matching branch,
+	// so the destination should NOT appear (no change)
+	assert.GreaterOrEqual(t, len(result.After), 1,
+		"at least source should appear in results")
+
+	// The source should have: Available restored, OnHold zeroed, version incremented
+	// (Lua processes RELEASE first: OnHold 300->0, then CREDIT: Available 700->1000)
+	sourceFound := false
+	for _, after := range result.After {
+		if after.Alias == "@cancel-pair-src" {
+			sourceFound = true
+			// After RELEASE + CREDIT applied atomically to same balance key:
+			// RELEASE: OnHold 300->0, Available stays 700, version 3->4
+			// CREDIT: Available 700->1000, OnHold stays 0, version 4->5
+			assert.True(t, after.Available.Equal(decimal.NewFromInt(1000)),
+				"source Available should be restored to 1000, got %s", after.Available)
+			assert.True(t, after.OnHold.Equal(decimal.Zero),
+				"source OnHold should be 0, got %s", after.OnHold)
+			assert.Equal(t, int64(5), after.Version,
+				"source version should be 5 (3+1 for RELEASE +1 for CREDIT)")
+		}
+	}
+	assert.True(t, sourceFound, "source @cancel-pair-src should appear in results")
+
+	t.Log("CANCELED source RELEASE+CREDIT pair: both per-field operations applied atomically")
+}
+
+// TestIntegration_Redis_DoubleEntryApproved_FullTransaction_SourceAndDestination
+// verifies the complete PENDING -> APPROVED lifecycle with route validation,
+// testing both source and destination across the full transaction lifecycle.
+func TestIntegration_Redis_DoubleEntryApproved_FullTransaction_SourceAndDestination(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	sourceAvailable := decimal.NewFromInt(2000)
+	sourceOnHold := decimal.Zero
+	sourceVersion := int64(1)
+
+	destAvailable := decimal.NewFromInt(500)
+	destOnHold := decimal.Zero
+	destVersion := int64(1)
+
+	amount := decimal.NewFromInt(400)
+
+	// Phase 1: PENDING - source ON_HOLD with routeValidation (v1->v3)
+	pendingTxID := uuid.New()
+	pendingSourceOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@full-approve-src", "USD",
+		constant.ONHOLD, amount,
+		sourceAvailable, sourceOnHold, sourceVersion,
+		"deposit", true,
+	)
+	pendingDestOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@full-approve-dest", "USD",
+		constant.CREDIT, amount,
+		destAvailable, destOnHold, destVersion,
+		"deposit", false,
+	)
+
+	pendingResult, err := infra.repo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, pendingTxID,
+		constant.PENDING, true,
+		[]mmodel.BalanceOperation{pendingSourceOp, pendingDestOp},
+	)
+	require.NoError(t, err, "PENDING phase should succeed")
+	// Only source changes during PENDING
+	require.Len(t, pendingResult.After, 1, "only source should appear in PENDING results")
+	assert.Equal(t, int64(3), pendingResult.After[0].Version, "source version should be 3")
+
+	afterPendingSourceAvailable := pendingResult.After[0].Available
+	afterPendingSourceOnHold := pendingResult.After[0].OnHold
+	afterPendingSourceVersion := pendingResult.After[0].Version
+
+	// Phase 2: APPROVED - source DEBIT (releases OnHold) + destination CREDIT (receives funds)
+	approvedTxID := uuid.New()
+	approvedSourceOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@full-approve-src", "USD",
+		constant.DEBIT, amount,
+		afterPendingSourceAvailable, afterPendingSourceOnHold, afterPendingSourceVersion,
+		"deposit", false,
+	)
+	approvedDestOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@full-approve-dest", "USD",
+		constant.CREDIT, amount,
+		destAvailable, destOnHold, destVersion, // Destination unchanged during PENDING
+		"deposit", false,
+	)
+
+	approvedResult, err := infra.repo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, approvedTxID,
+		constant.APPROVED, true,
+		[]mmodel.BalanceOperation{approvedSourceOp, approvedDestOp},
+	)
+	require.NoError(t, err, "APPROVED phase should succeed")
+	require.Len(t, approvedResult.After, 2, "both source and destination should appear in APPROVED results")
+
+	// Verify source after APPROVED
+	var approvedSource, approvedDest *mmodel.Balance
+	for _, after := range approvedResult.After {
+		switch after.Alias {
+		case "@full-approve-src":
+			approvedSource = after
+		case "@full-approve-dest":
+			approvedDest = after
+		}
+	}
+
+	require.NotNil(t, approvedSource, "source should be in APPROVED results")
+	require.NotNil(t, approvedDest, "destination should be in APPROVED results")
+
+	// Source: Available stays at 1600, OnHold released to 0, version 3->4
+	assert.True(t, approvedSource.Available.Equal(decimal.NewFromInt(1600)),
+		"APPROVED source: Available should be 1600 (deducted during PENDING), got %s",
+		approvedSource.Available)
+	assert.True(t, approvedSource.OnHold.Equal(decimal.Zero),
+		"APPROVED source: OnHold should be 0, got %s", approvedSource.OnHold)
+	assert.Equal(t, int64(4), approvedSource.Version,
+		"APPROVED source: version should be 4 (3+1)")
+
+	// Destination: Available increased by amount, version 1->2
+	expectedDestAvailable := destAvailable.Add(amount)
+	assert.True(t, approvedDest.Available.Equal(expectedDestAvailable),
+		"APPROVED dest: Available should be %s, got %s",
+		expectedDestAvailable, approvedDest.Available)
+	assert.True(t, approvedDest.OnHold.Equal(decimal.Zero),
+		"APPROVED dest: OnHold should be 0, got %s", approvedDest.OnHold)
+	assert.Equal(t, int64(2), approvedDest.Version,
+		"APPROVED dest: version should be 2 (1+1)")
+
+	t.Logf("Full APPROVED lifecycle: source v1->v3->v4, dest v1(skipped PENDING)->v2")
+}
+
+// TestIntegration_Redis_DoubleEntryCanceled_MultipleSources
+// verifies that multiple source balances in a single CANCELED transaction
+// each get their operations applied with per-field atomicity when
+// routeValidationEnabled=true.
+func TestIntegration_Redis_DoubleEntryCanceled_MultipleSources(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	// Two sources, each with RELEASE + routeValidation
+	source1ReleaseOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@cancel-multi-src-1", "USD",
+		constant.RELEASE, decimal.NewFromInt(100),
+		decimal.NewFromInt(900), decimal.NewFromInt(100), int64(3),
+		"deposit", true,
+	)
+	source2ReleaseOp := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@cancel-multi-src-2", "USD",
+		constant.RELEASE, decimal.NewFromInt(200),
+		decimal.NewFromInt(800), decimal.NewFromInt(200), int64(3),
+		"deposit", true,
+	)
+
+	result, err := infra.repo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, transactionID,
+		constant.CANCELED, true,
+		[]mmodel.BalanceOperation{source1ReleaseOp, source2ReleaseOp},
+	)
+
+	require.NoError(t, err, "multiple sources CANCELED RELEASE should succeed")
+	require.NotNil(t, result)
+	require.Len(t, result.After, 2, "both sources should appear in results")
+
+	// Both sources: only OnHold decremented (per-field atomicity)
+	for _, after := range result.After {
+		assert.Equal(t, int64(4), after.Version,
+			"source %s version should be 4 (3+1 for RELEASE), got %d", after.Alias, after.Version)
+		assert.True(t, after.OnHold.Equal(decimal.Zero),
+			"source %s OnHold should be 0 after RELEASE, got %s", after.Alias, after.OnHold)
+	}
+
+	t.Log("Multiple sources CANCELED RELEASE: both per-field operations applied correctly")
 }

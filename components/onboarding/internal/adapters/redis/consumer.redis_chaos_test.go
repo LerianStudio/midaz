@@ -105,7 +105,7 @@ func setupOnboardingRedisChaosNetworkInfra(t *testing.T) *onboardingChaosInfra {
 }
 
 // =============================================================================
-// CS-1: CONNECTION LOSS DURING SET
+// CONNECTION LOSS DURING SET
 // =============================================================================
 
 // TestIntegration_Chaos_RedisNamespacing_ConnectionLossOnSet verifies that
@@ -209,11 +209,11 @@ func TestIntegration_Chaos_RedisNamespacing_ConnectionLossOnSet(t *testing.T) {
 	assert.Equal(t, recoveryValue, rawVal,
 		"Phase 5: value stored under namespaced key must match after recovery")
 
-	t.Log("CS-1 PASS: Set with tenant context returns error on connection loss, recovers with correct namespace")
+	t.Log("PASS: Set with tenant context returns error on connection loss, recovers with correct namespace")
 }
 
 // =============================================================================
-// CS-2: FULL CYCLE — RECOVERY AFTER RECONNECT
+// FULL CYCLE — RECOVERY AFTER RECONNECT
 // =============================================================================
 
 // TestIntegration_Chaos_RedisNamespacing_RecoveryAfterReconnect verifies the
@@ -384,5 +384,5 @@ func TestIntegration_Chaos_RedisNamespacing_RecoveryAfterReconnect(t *testing.T)
 	assert.ErrorIs(t, barePostErr, redis.Nil, "Phase 5: bare key must NOT exist in Redis after recovery")
 	assert.Empty(t, barePost, "Phase 5: bare key must have no value after recovery")
 
-	t.Log("CS-2 PASS: namespaced Set/Get work correctly after Redis recovers from outage")
+	t.Log("PASS: namespaced Set/Get work correctly after Redis recovers from outage")
 }
