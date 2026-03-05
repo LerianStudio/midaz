@@ -5,15 +5,20 @@
 package bootstrap
 
 import (
+	"errors"
 	"fmt"
 
 	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 )
 
+// ErrNilAuthorizerConfig indicates that the authorizer config passed to InitTelemetry is nil.
+var ErrNilAuthorizerConfig = errors.New("authorizer config is nil")
+
+// InitTelemetry initializes OpenTelemetry for the authorizer component using the provided config.
 func InitTelemetry(cfg *Config, logger libLog.Logger) (*libOpentelemetry.Telemetry, error) {
 	if cfg == nil {
-		return nil, fmt.Errorf("authorizer config is nil")
+		return nil, ErrNilAuthorizerConfig
 	}
 
 	telemetry, err := libOpentelemetry.InitializeTelemetryWithError(&libOpentelemetry.TelemetryConfig{

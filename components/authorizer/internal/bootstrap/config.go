@@ -5,8 +5,13 @@
 package bootstrap
 
 import (
+	"errors"
 	"fmt"
+	"log"
+	"math"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -17,7 +22,109 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
+// Sentinel errors for configuration validation.
+var (
+	errConfigShardCountMax              = errors.New("AUTHORIZER_SHARD_COUNT exceeds supported maximum")
+	errConfigWALFlushInterval           = errors.New("AUTHORIZER_WAL_FLUSH_INTERVAL_MS must be >= 0")
+	errConfigPrepareTimeout             = errors.New("AUTHORIZER_PREPARE_TIMEOUT_MS must be > 0")
+	errConfigPrepareMaxPending          = errors.New("AUTHORIZER_PREPARE_MAX_PENDING out of range")
+	errConfigMaxOpsPerRequest           = errors.New("AUTHORIZER_MAX_OPERATIONS_PER_REQUEST out of range")
+	errConfigMaxBalancesPerRequest      = errors.New("AUTHORIZER_MAX_UNIQUE_BALANCES_PER_REQUEST out of range")
+	errConfigReplayMutations            = errors.New("AUTHORIZER_WAL_REPLAY_MAX_MUTATIONS_PER_ENTRY out of range")
+	errConfigReplayBalances             = errors.New("AUTHORIZER_WAL_REPLAY_MAX_UNIQUE_BALANCES_PER_ENTRY out of range")
+	errConfigCommittedRetention         = errors.New("AUTHORIZER_PREPARED_COMMITTED_RETENTION_MS must be > 0")
+	errConfigCommitRetryLimit           = errors.New("AUTHORIZER_PREPARE_COMMIT_RETRY_LIMIT must be > 0")
+	errConfigMaxRecvBytes               = errors.New("AUTHORIZER_MAX_RECV_BYTES out of range")
+	errConfigLatencySLO                 = errors.New("AUTHORIZER_AUTHORIZE_LATENCY_SLO_MS must be > 0")
+	errConfigTLSFiles                   = errors.New("AUTHORIZER_GRPC_TLS_CERT_FILE and AUTHORIZER_GRPC_TLS_KEY_FILE are required when TLS is enabled")
+	errConfigMissingPostgres            = errors.New("missing postgres configuration for authorizer")
+	errConfigSSLDisableProduction       = errors.New("DB_TRANSACTION_SSLMODE=disable is not allowed in production-like environments")
+	errConfigCommitIntentPollTimeout    = errors.New("AUTHORIZER_COMMIT_INTENT_POLL_TIMEOUT_MS must be > 0")
+	errConfigPeerAbortTimeout           = errors.New("AUTHORIZER_PEER_ABORT_TIMEOUT_MS must be > 0")
+	errConfigPeerCommitTimeout          = errors.New("AUTHORIZER_PEER_COMMIT_TIMEOUT_MS must be > 0")
+	errConfigPeerAuthMaxSkew            = errors.New("AUTHORIZER_PEER_AUTH_MAX_SKEW_MS must be > 0")
+	errConfigPeerNonceEntries           = errors.New("AUTHORIZER_PEER_NONCE_MAX_ENTRIES out of range")
+	errConfigPeerAuthTokenRequired      = errors.New("AUTHORIZER_PEER_AUTH_TOKEN is required when AUTHORIZER_PEER_INSTANCES is configured")
+	errConfigPeerInstanceAddress        = errors.New("AUTHORIZER_INSTANCE_ADDRESS must be a routable host:port when AUTHORIZER_PEER_INSTANCES is configured")
+	errConfigPeerAuthTokenPrevDuplicate = errors.New("AUTHORIZER_PEER_AUTH_TOKEN_PREVIOUS must differ from AUTHORIZER_PEER_AUTH_TOKEN")
+	errConfigPeerPrepareMaxInFlight     = errors.New("AUTHORIZER_PEER_PREPARE_MAX_INFLIGHT out of range")
+	errConfigPeerBoundedWait            = errors.New("AUTHORIZER_PEER_PREPARE_BOUNDED_WAIT_MS out of range")
+	errConfigPeerConnPoolSize           = errors.New("AUTHORIZER_PEER_CONN_POOL_SIZE out of range")
+	errConfigReconcilerInterval         = errors.New("AUTHORIZER_WAL_RECONCILER_INTERVAL_MS must be > 0")
+	errConfigReconcilerLookback         = errors.New("AUTHORIZER_WAL_RECONCILER_LOOKBACK_MS must be > 0")
+	errConfigReconcilerGrace            = errors.New("AUTHORIZER_WAL_RECONCILER_GRACE_MS must be > 0")
+	errConfigLookbackGrace              = errors.New("AUTHORIZER_WAL_RECONCILER_LOOKBACK_MS must be > AUTHORIZER_WAL_RECONCILER_GRACE_MS")
+	errConfigReconcilerCompletedTTL     = errors.New("AUTHORIZER_WAL_RECONCILER_COMPLETED_TTL_MS must be > 0")
+	errConfigAsyncNeedsReconciler       = errors.New("AUTHORIZER_ASYNC_COMMIT_INTENT=true requires AUTHORIZER_WAL_RECONCILER_ENABLED=true")
+	errConfigReconcilerTiming           = errors.New("reconciler grace + interval must be less than prepare timeout")
+	errConfigWALBufferSize              = errors.New("AUTHORIZER_WAL_BUFFER_SIZE out of range")
+	errConfigOwnedShardStart            = errors.New("AUTHORIZER_OWNED_SHARD_START must be >= 0")
+	errConfigOwnedShardEnd              = errors.New("AUTHORIZER_OWNED_SHARD_END must be < AUTHORIZER_SHARD_COUNT")
+	errConfigShardStartEnd              = errors.New("AUTHORIZER_OWNED_SHARD_START must be <= AUTHORIZER_OWNED_SHARD_END")
+	errConfigShardIDNegative            = errors.New("shard id must be >= 0")
+	errConfigShardIDOutOfRange          = errors.New("shard id out of range")
+	errConfigShardIDDuplicate           = errors.New("duplicate shard id")
+	errConfigPeerAuthTokenWeak          = errors.New("AUTHORIZER_PEER_AUTH_TOKEN uses a denied weak value")
+	errConfigPeerAuthTokenShort         = errors.New("AUTHORIZER_PEER_AUTH_TOKEN too short")
+	errConfigPeerAuthTokenClasses       = errors.New("AUTHORIZER_PEER_AUTH_TOKEN must include at least 3 character classes")
+)
+
 const minPeerAuthTokenLength = 24
+
+const (
+	maxConfigPrepareMaxPending               = 1_000_000
+	maxConfigOperationsPerRequest            = 100_000
+	maxConfigUniqueBalancesPerRequest        = 100_000
+	maxConfigWALReplayMutationsPerEntry      = 100_000
+	maxConfigWALReplayUniqueBalancesPerEntry = 100_000
+	maxConfigWALBufferSize                   = 8 * 1024 * 1024
+	maxConfigReceiveMessageSizeBytes         = 64 * 1024 * 1024
+	maxConfigPeerNonceEntries                = 1_000_000
+	maxConfigPeerPrepareMaxInFlight          = 1_000_000
+	maxConfigPeerPrepareBoundedWaitMs        = 1000
+	maxConfigPeerConnPoolSize                = 16
+)
+
+// Default configuration values for the authorizer service.
+const (
+	defaultShardCount                  = 8
+	defaultWALBufferSize               = 65536
+	defaultWALFlushIntervalMs          = 1
+	defaultPrepareMaxPending           = 10000
+	defaultMaxOpsPerRequest            = 2048
+	defaultMaxBalancesPerRequest       = 2048
+	defaultReplayMutationsPerEntry     = 2048
+	defaultReplayBalancesPerEntry      = 2048
+	defaultPrepareCommitRetryLimit     = 3
+	defaultMaxConcurrentStreams        = 1000
+	defaultMaxRecvBytes                = 4 * 1024
+	defaultPostgresPoolMaxConns        = 20
+	defaultPostgresPoolMinConns        = 2
+	defaultRedpandaProducerLingerMs    = 5
+	defaultRedpandaMaxBufferedRecords  = 10000
+	defaultRedpandaRecordRetries       = 3
+	defaultRedpandaDeliveryTimeoutMs   = 30000
+	defaultRedpandaPublishTimeoutMs    = 5000
+	defaultCommitIntentPollTimeoutMs   = 1000
+	defaultPeerNonceMaxEntries         = 100000
+	defaultPeerPrepareMaxInFlight      = 1024
+	defaultPeerPrepareBoundedWaitMs    = 50
+	defaultPeerConnPoolSize            = 4
+	defaultWALReconcilerIntervalMs     = 10000
+	defaultWALReconcilerLookbackMs     = 300000
+	defaultWALReconcilerGraceMs        = 30000
+	defaultWALReconcilerCompletedTTLMs = 600000
+	minPeerAuthTokenCharacterClasses   = 3
+	defaultPrepareTimeoutSec           = 30
+	defaultCommittedRetentionHours     = 24
+	defaultPoolMaxConnLifeMin          = 30
+	defaultPoolMaxConnIdleMin          = 5
+	defaultPoolHealthCheckSec          = 30
+	defaultPoolConnectTimeoutSec       = 5
+	defaultPeerAbortTimeoutSec         = 5
+	defaultPeerCommitTimeoutSec        = 10
+	defaultPeerAuthMaxSkewSec          = 30
+)
 
 var deniedPeerAuthTokens = map[string]struct{}{
 	"midaz-local-peer-token": {},
@@ -29,60 +136,65 @@ var deniedPeerAuthTokens = map[string]struct{}{
 
 // Config is the runtime configuration for the authorizer service.
 type Config struct {
-	EnvName                    string
-	GRPCAddress                string
-	InstanceAddress            string
-	ShardCount                 int
-	ShardIDs                   []int32
-	AuthorizeLatencySLO        time.Duration
-	EnableTelemetry            bool
-	OtelServiceName            string
-	OtelLibraryName            string
-	OtelServiceVersion         string
-	OtelDeploymentEnv          string
-	OtelColExporterEndpoint    string
-	WALPath                    string
-	WALBufferSize              int
-	WALFlushInterval           time.Duration
-	WALSyncOnAppend            bool
-	PrepareTimeout             time.Duration
-	PrepareMaxPending          int
-	PrepareCommittedRetention  time.Duration
-	PrepareCommitRetryLimit    int
-	MaxConcurrentStreams       uint32
-	MaxReceiveMessageSizeBytes int
-	GRPCTLSEnabled             bool
-	GRPCTLSCertFile            string
-	GRPCTLSKeyFile             string
-	ReflectionEnabled          bool
-	PostgresDSN                string
-	PostgresPoolMaxConns       int32
-	PostgresPoolMinConns       int32
-	PostgresPoolMaxConnLife    time.Duration
-	PostgresPoolMaxConnIdle    time.Duration
-	PostgresPoolHealthCheck    time.Duration
-	PostgresConnectTimeout     time.Duration
-	RedpandaEnabled            bool
-	RedpandaBrokers            []string
-	RedpandaTLSEnabled         bool
-	RedpandaTLSInsecureSkip    bool
-	RedpandaTLSCAFile          string
-	RedpandaSASLEnabled        bool
-	RedpandaSASLMechanism      string
-	RedpandaSASLUsername       string
-	RedpandaSASLPassword       string
-	RedpandaProducerLinger     time.Duration
-	RedpandaMaxBufferedRecords int
-	RedpandaRecordRetries      int
-	RedpandaDeliveryTimeout    time.Duration
-	RedpandaPublishTimeout     time.Duration
-	RedpandaBackpressurePolicy string
-	CommitIntentConsumerGroup  string
-	CommitIntentPollTimeout    time.Duration
-	PeerAbortTimeout           time.Duration
-	PeerCommitTimeout          time.Duration
-	PeerAuthMaxSkew            time.Duration
-	PeerNonceMaxEntries        int
+	EnvName                            string
+	GRPCAddress                        string
+	InstanceAddress                    string
+	ShardCount                         int
+	ShardIDs                           []int32
+	AuthorizeLatencySLO                time.Duration
+	EnableTelemetry                    bool
+	OtelServiceName                    string
+	OtelLibraryName                    string
+	OtelServiceVersion                 string
+	OtelDeploymentEnv                  string
+	OtelColExporterEndpoint            string
+	WALPath                            string
+	WALBufferSize                      int
+	WALFlushInterval                   time.Duration
+	WALSyncOnAppend                    bool
+	PrepareTimeout                     time.Duration
+	PrepareMaxPending                  int
+	MaxOperationsPerRequest            int
+	MaxUniqueBalancesPerRequest        int
+	WALReplayMaxMutationsPerEntry      int
+	WALReplayMaxUniqueBalancesPerEntry int
+	WALReplayStrictMode                bool
+	PrepareCommittedRetention          time.Duration
+	PrepareCommitRetryLimit            int
+	MaxConcurrentStreams               uint32
+	MaxReceiveMessageSizeBytes         int
+	GRPCTLSEnabled                     bool
+	GRPCTLSCertFile                    string
+	GRPCTLSKeyFile                     string
+	ReflectionEnabled                  bool
+	PostgresDSN                        string
+	PostgresPoolMaxConns               int32
+	PostgresPoolMinConns               int32
+	PostgresPoolMaxConnLife            time.Duration
+	PostgresPoolMaxConnIdle            time.Duration
+	PostgresPoolHealthCheck            time.Duration
+	PostgresConnectTimeout             time.Duration
+	RedpandaEnabled                    bool
+	RedpandaBrokers                    []string
+	RedpandaTLSEnabled                 bool
+	RedpandaTLSInsecureSkip            bool
+	RedpandaTLSCAFile                  string
+	RedpandaSASLEnabled                bool
+	RedpandaSASLMechanism              string
+	RedpandaSASLUsername               string
+	RedpandaSASLPassword               string
+	RedpandaProducerLinger             time.Duration
+	RedpandaMaxBufferedRecords         int
+	RedpandaRecordRetries              int
+	RedpandaDeliveryTimeout            time.Duration
+	RedpandaPublishTimeout             time.Duration
+	RedpandaBackpressurePolicy         string
+	CommitIntentConsumerGroup          string
+	CommitIntentPollTimeout            time.Duration
+	PeerAbortTimeout                   time.Duration
+	PeerCommitTimeout                  time.Duration
+	PeerAuthMaxSkew                    time.Duration
+	PeerNonceMaxEntries                int
 
 	// PeerInstances lists the gRPC addresses of other authorizer instances
 	// in the cluster (e.g., "authorizer-2:50051"). Used for cross-shard
@@ -114,57 +226,152 @@ type Config struct {
 
 	// PeerPrepareMaxInFlight limits concurrent PrepareAuthorize peer RPCs.
 	PeerPrepareMaxInFlight int
+
+	// PeerPrepareBoundedWaitMs is the maximum time in milliseconds to wait for a
+	// prepare semaphore slot before shedding the request. 0 means immediate shed.
+	PeerPrepareBoundedWaitMs int
+
+	// PeerConnPoolSize controls how many gRPC connections to maintain per peer.
+	// Multiple connections avoid HTTP/2 TCP head-of-line blocking under high concurrency.
+	PeerConnPoolSize int
+
+	// AsyncCommitIntent enables asynchronous commit intent publishing.
+	// When true, local commits proceed in parallel with the Redpanda publish,
+	// reducing lock hold time. Protected by commit intent recovery on failure.
+	AsyncCommitIntent bool
+
+	// WALReconcilerEnabled enables the periodic WAL reconciler goroutine.
+	// When true, the reconciler scans for WAL entries that have not been
+	// confirmed by Redpanda and re-publishes them.
+	WALReconcilerEnabled bool
+	// WALReconcilerInterval is how often the reconciler runs.
+	WALReconcilerInterval time.Duration
+	// WALReconcilerLookback is how far back in the WAL the reconciler scans.
+	WALReconcilerLookback time.Duration
+	// WALReconcilerGrace is the minimum age of a WAL entry before the
+	// reconciler considers it stale. Prevents re-publishing in-flight entries.
+	WALReconcilerGrace time.Duration
+	// WALReconcilerCompletedTTL is how long completed WAL entries are kept
+	// before being eligible for garbage collection.
+	WALReconcilerCompletedTTL time.Duration
 }
 
+// LoadConfig reads environment variables and returns a validated Config.
 func LoadConfig() (*Config, error) {
+	cfg, err := loadCoreConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := loadPeerConfig(cfg); err != nil {
+		return nil, err
+	}
+
+	if err := loadReconcilerConfig(cfg); err != nil {
+		return nil, err
+	}
+
+	if err := validateWALPath(cfg); err != nil {
+		return nil, err
+	}
+
+	if err := validateOwnedShards(cfg); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+//nolint:gocyclo,cyclop // loadCoreConfig reads all core env vars; splitting further harms readability.
+func loadCoreConfig() (*Config, error) {
 	grpcAddress := getenv("AUTHORIZER_GRPC_ADDRESS", ":50051")
 	instanceAddress := strings.TrimSpace(getenv("AUTHORIZER_INSTANCE_ADDRESS", grpcAddress))
 	envName := getenv("ENV_NAME", "development")
-	shardCount := getenvInt("AUTHORIZER_SHARD_COUNT", 8)
-	maxShardID := int32(shardCount - 1)
-	if shardCount <= 0 {
-		maxShardID = -1
+	shardCount := getenvInt("AUTHORIZER_SHARD_COUNT", defaultShardCount)
+	maxShardID := int32(-1)
+
+	if shardCount > 0 {
+		if shardCount > int(math.MaxInt32)+1 {
+			return nil, fmt.Errorf("AUTHORIZER_SHARD_COUNT=%d: %w", shardCount, errConfigShardCountMax)
+		}
+
+		maxShardID = int32(shardCount - 1)
 	}
 
 	shardIDs, err := parseInt32CSV(getenv("AUTHORIZER_SHARD_IDS", ""), maxShardID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid AUTHORIZER_SHARD_IDS: %w", err)
 	}
+
 	enableTelemetry := utils.IsTruthyString(getenv("ENABLE_TELEMETRY", "false"))
 	otelServiceName := getenv("OTEL_RESOURCE_SERVICE_NAME", "authorizer")
 	otelLibraryName := getenv("OTEL_LIBRARY_NAME", "midaz-authorizer")
 	otelServiceVersion := getenv("OTEL_RESOURCE_SERVICE_VERSION", "v3")
 	otelDeploymentEnv := getenv("OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT", envName)
 	otelCollectorEndpoint := getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317")
+
 	walPath := getenv("AUTHORIZER_WAL_PATH", "/tmp/midaz-authorizer-wal.log")
-	walBufferSize := getenvInt("AUTHORIZER_WAL_BUFFER_SIZE", 65536)
-	walFlushIntervalMs := getenvInt("AUTHORIZER_WAL_FLUSH_INTERVAL_MS", 1)
+	walBufferSize := getenvInt("AUTHORIZER_WAL_BUFFER_SIZE", defaultWALBufferSize)
+
+	walFlushIntervalMs := getenvInt("AUTHORIZER_WAL_FLUSH_INTERVAL_MS", defaultWALFlushIntervalMs)
+	if walFlushIntervalMs < 0 {
+		return nil, fmt.Errorf("value=%d: %w", walFlushIntervalMs, errConfigWALFlushInterval)
+	}
+
 	walSyncOnAppend := utils.IsTruthyString(getenv("AUTHORIZER_WAL_SYNC_ON_APPEND", "true"))
-	prepareTimeoutMs := getenvInt("AUTHORIZER_PREPARE_TIMEOUT_MS", int((30 * time.Second).Milliseconds()))
+
+	prepareTimeoutMs := getenvInt("AUTHORIZER_PREPARE_TIMEOUT_MS", int((defaultPrepareTimeoutSec * time.Second).Milliseconds()))
 	if prepareTimeoutMs <= 0 {
-		return nil, fmt.Errorf("AUTHORIZER_PREPARE_TIMEOUT_MS=%d must be > 0", prepareTimeoutMs)
+		return nil, fmt.Errorf("value=%d: %w", prepareTimeoutMs, errConfigPrepareTimeout)
 	}
 
-	prepareMaxPending := getenvInt("AUTHORIZER_PREPARE_MAX_PENDING", 10000)
-	if prepareMaxPending <= 0 {
-		return nil, fmt.Errorf("AUTHORIZER_PREPARE_MAX_PENDING=%d must be > 0", prepareMaxPending)
+	prepareMaxPending := getenvInt("AUTHORIZER_PREPARE_MAX_PENDING", defaultPrepareMaxPending)
+	if err := validateIntRange(prepareMaxPending, 1, maxConfigPrepareMaxPending, errConfigPrepareMaxPending); err != nil {
+		return nil, err
 	}
 
-	prepareCommittedRetentionMs := getenvInt("AUTHORIZER_PREPARED_COMMITTED_RETENTION_MS", int((24 * time.Hour).Milliseconds()))
+	maxOperationsPerRequest := getenvInt("AUTHORIZER_MAX_OPERATIONS_PER_REQUEST", defaultMaxOpsPerRequest)
+	if err := validateIntRange(maxOperationsPerRequest, 1, maxConfigOperationsPerRequest, errConfigMaxOpsPerRequest); err != nil {
+		return nil, err
+	}
+
+	maxUniqueBalancesPerRequest := getenvInt("AUTHORIZER_MAX_UNIQUE_BALANCES_PER_REQUEST", defaultMaxBalancesPerRequest)
+	if err := validateIntRange(maxUniqueBalancesPerRequest, 1, maxConfigUniqueBalancesPerRequest, errConfigMaxBalancesPerRequest); err != nil {
+		return nil, err
+	}
+
+	walReplayMaxMutationsPerEntry := getenvInt("AUTHORIZER_WAL_REPLAY_MAX_MUTATIONS_PER_ENTRY", defaultReplayMutationsPerEntry)
+	if err := validateIntRange(walReplayMaxMutationsPerEntry, 1, maxConfigWALReplayMutationsPerEntry, errConfigReplayMutations); err != nil {
+		return nil, err
+	}
+
+	walReplayMaxUniqueBalancesPerEntry := getenvInt("AUTHORIZER_WAL_REPLAY_MAX_UNIQUE_BALANCES_PER_ENTRY", defaultReplayBalancesPerEntry)
+	if err := validateIntRange(walReplayMaxUniqueBalancesPerEntry, 1, maxConfigWALReplayUniqueBalancesPerEntry, errConfigReplayBalances); err != nil {
+		return nil, err
+	}
+
+	walReplayStrictMode := utils.IsTruthyString(getenv("AUTHORIZER_WAL_REPLAY_STRICT_MODE", "true"))
+
+	prepareCommittedRetentionMs := getenvInt("AUTHORIZER_PREPARED_COMMITTED_RETENTION_MS", int((defaultCommittedRetentionHours * time.Hour).Milliseconds()))
 	if prepareCommittedRetentionMs <= 0 {
-		return nil, fmt.Errorf("AUTHORIZER_PREPARED_COMMITTED_RETENTION_MS=%d must be > 0", prepareCommittedRetentionMs)
+		return nil, fmt.Errorf("value=%d: %w", prepareCommittedRetentionMs, errConfigCommittedRetention)
 	}
 
-	prepareCommitRetryLimit := getenvInt("AUTHORIZER_PREPARE_COMMIT_RETRY_LIMIT", 3)
+	prepareCommitRetryLimit := getenvInt("AUTHORIZER_PREPARE_COMMIT_RETRY_LIMIT", defaultPrepareCommitRetryLimit)
 	if prepareCommitRetryLimit <= 0 {
-		return nil, fmt.Errorf("AUTHORIZER_PREPARE_COMMIT_RETRY_LIMIT=%d must be > 0", prepareCommitRetryLimit)
+		return nil, fmt.Errorf("value=%d: %w", prepareCommitRetryLimit, errConfigCommitRetryLimit)
 	}
 
-	maxConcurrentStreams := utils.GetUint32FromIntWithDefault(getenvInt("AUTHORIZER_MAX_CONCURRENT_STREAMS", 1000), 1000)
-	maxReceiveBytes := getenvInt("AUTHORIZER_MAX_RECV_BYTES", 4*1024*1024)
-	authorizeLatencySLOMs := getenvInt("AUTHORIZER_AUTHORIZE_LATENCY_SLO_MS", 150)
+	maxConcurrentStreams := utils.GetUint32FromIntWithDefault(getenvInt("AUTHORIZER_MAX_CONCURRENT_STREAMS", defaultMaxConcurrentStreams), defaultMaxConcurrentStreams)
+
+	maxReceiveBytes := getenvInt("AUTHORIZER_MAX_RECV_BYTES", defaultMaxRecvBytes)
+	if err := validateIntRange(maxReceiveBytes, 1, maxConfigReceiveMessageSizeBytes, errConfigMaxRecvBytes); err != nil {
+		return nil, err
+	}
+
+	authorizeLatencySLOMs := getenvInt("AUTHORIZER_AUTHORIZE_LATENCY_SLO_MS", defaultAuthorizeLatencySLOMs)
 	if authorizeLatencySLOMs <= 0 {
-		return nil, fmt.Errorf("AUTHORIZER_AUTHORIZE_LATENCY_SLO_MS=%d must be > 0", authorizeLatencySLOMs)
+		return nil, fmt.Errorf("value=%d: %w", authorizeLatencySLOMs, errConfigLatencySLO)
 	}
 
 	grpcTLSEnabled := utils.IsTruthyString(getenv("AUTHORIZER_GRPC_TLS_ENABLED", "false"))
@@ -172,39 +379,143 @@ func LoadConfig() (*Config, error) {
 	grpcTLSKeyFile := strings.TrimSpace(getenv("AUTHORIZER_GRPC_TLS_KEY_FILE", ""))
 
 	if grpcTLSEnabled && (grpcTLSCertFile == "" || grpcTLSKeyFile == "") {
-		return nil, fmt.Errorf("AUTHORIZER_GRPC_TLS_CERT_FILE and AUTHORIZER_GRPC_TLS_KEY_FILE are required when AUTHORIZER_GRPC_TLS_ENABLED=true")
+		return nil, errConfigTLSFiles
 	}
 
 	reflectionEnabled := utils.IsTruthyString(getenv("AUTHORIZER_GRPC_REFLECTION_ENABLED", "false"))
-	postgresPoolMaxConns := getenvInt32("AUTHORIZER_DB_MAX_CONNS", 20)
-	postgresPoolMinConns := getenvInt32("AUTHORIZER_DB_MIN_CONNS", 2)
-	postgresPoolMaxConnLifeMs := getenvInt("AUTHORIZER_DB_MAX_CONN_LIFETIME_MS", int((30 * time.Minute).Milliseconds()))
-	postgresPoolMaxConnIdleMs := getenvInt("AUTHORIZER_DB_MAX_CONN_IDLE_MS", int((5 * time.Minute).Milliseconds()))
-	postgresPoolHealthCheckMs := getenvInt("AUTHORIZER_DB_HEALTHCHECK_MS", int((30 * time.Second).Milliseconds()))
-	postgresConnectTimeoutMs := getenvInt("AUTHORIZER_DB_CONNECT_TIMEOUT_MS", int((5 * time.Second).Milliseconds()))
+
+	postgresPoolMaxConns := getenvInt32("AUTHORIZER_DB_MAX_CONNS", defaultPostgresPoolMaxConns)
+	postgresPoolMinConns := getenvInt32("AUTHORIZER_DB_MIN_CONNS", defaultPostgresPoolMinConns)
+	postgresPoolMaxConnLifeMs := getenvInt("AUTHORIZER_DB_MAX_CONN_LIFETIME_MS", int((defaultPoolMaxConnLifeMin * time.Minute).Milliseconds()))
+	postgresPoolMaxConnIdleMs := getenvInt("AUTHORIZER_DB_MAX_CONN_IDLE_MS", int((defaultPoolMaxConnIdleMin * time.Minute).Milliseconds()))
+	postgresPoolHealthCheckMs := getenvInt("AUTHORIZER_DB_HEALTHCHECK_MS", int((defaultPoolHealthCheckSec * time.Second).Milliseconds()))
+	postgresConnectTimeoutMs := getenvInt("AUTHORIZER_DB_CONNECT_TIMEOUT_MS", int((defaultPoolConnectTimeoutSec * time.Second).Milliseconds()))
 	redpandaEnabled := utils.IsTruthyString(getenv("AUTHORIZER_REDPANDA_ENABLED", "true"))
 
-	host := utils.EnvFallback(os.Getenv("DB_TRANSACTION_HOST"), os.Getenv("DB_HOST"))
-	port := utils.EnvFallback(os.Getenv("DB_TRANSACTION_PORT"), os.Getenv("DB_PORT"))
-	user := utils.EnvFallback(os.Getenv("DB_TRANSACTION_USER"), os.Getenv("DB_USER"))
-	password := utils.EnvFallback(os.Getenv("DB_TRANSACTION_PASSWORD"), os.Getenv("DB_PASSWORD"))
-	dbName := utils.EnvFallback(os.Getenv("DB_TRANSACTION_NAME"), os.Getenv("DB_NAME"))
-	sslMode := utils.EnvFallback(os.Getenv("DB_TRANSACTION_SSLMODE"), os.Getenv("DB_SSLMODE"))
-
-	if host == "" || port == "" || user == "" || dbName == "" {
-		return nil, fmt.Errorf("missing postgres configuration for authorizer")
+	postgresDSN, err := buildPostgresDSN(envName)
+	if err != nil {
+		return nil, err
 	}
 
-	if sslMode == "" {
-		sslMode = "disable"
+	rpCfg := loadRedpandaConfig()
+
+	commitIntentConsumerGroup := strings.TrimSpace(getenv("AUTHORIZER_COMMIT_INTENT_CONSUMER_GROUP", defaultCommitIntentConsumerGroup))
+
+	commitIntentPollTimeoutMs := getenvInt("AUTHORIZER_COMMIT_INTENT_POLL_TIMEOUT_MS", defaultCommitIntentPollTimeoutMs)
+	if commitIntentPollTimeoutMs <= 0 {
+		return nil, fmt.Errorf("value=%d: %w", commitIntentPollTimeoutMs, errConfigCommitIntentPollTimeout)
 	}
 
-	if !brokersecurity.IsNonProductionEnvironment(envName) && strings.EqualFold(strings.TrimSpace(sslMode), "disable") {
-		return nil, fmt.Errorf("DB_TRANSACTION_SSLMODE=disable is not allowed in production-like environments")
+	peerAbortTimeoutMs := getenvInt("AUTHORIZER_PEER_ABORT_TIMEOUT_MS", int((defaultPeerAbortTimeoutSec * time.Second).Milliseconds()))
+	if peerAbortTimeoutMs <= 0 {
+		return nil, fmt.Errorf("value=%d: %w", peerAbortTimeoutMs, errConfigPeerAbortTimeout)
 	}
 
-	postgresDSN := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", host, port, user, password, dbName, sslMode)
+	peerCommitTimeoutMs := getenvInt("AUTHORIZER_PEER_COMMIT_TIMEOUT_MS", int((defaultPeerCommitTimeoutSec * time.Second).Milliseconds()))
+	if peerCommitTimeoutMs <= 0 {
+		return nil, fmt.Errorf("value=%d: %w", peerCommitTimeoutMs, errConfigPeerCommitTimeout)
+	}
 
+	peerAuthMaxSkewMs := getenvInt("AUTHORIZER_PEER_AUTH_MAX_SKEW_MS", int((defaultPeerAuthMaxSkewSec * time.Second).Milliseconds()))
+	if peerAuthMaxSkewMs <= 0 {
+		return nil, fmt.Errorf("value=%d: %w", peerAuthMaxSkewMs, errConfigPeerAuthMaxSkew)
+	}
+
+	peerNonceMaxEntries := getenvInt("AUTHORIZER_PEER_NONCE_MAX_ENTRIES", defaultPeerNonceMaxEntries)
+	if err := validateIntRange(peerNonceMaxEntries, 1, maxConfigPeerNonceEntries, errConfigPeerNonceEntries); err != nil {
+		return nil, err
+	}
+
+	if walBufferSize <= 0 {
+		return nil, fmt.Errorf("value=%d must be > 0: %w", walBufferSize, errConfigWALBufferSize)
+	}
+
+	if walBufferSize > maxConfigWALBufferSize {
+		return nil, fmt.Errorf("value=%d must be <= %d: %w", walBufferSize, maxConfigWALBufferSize, errConfigWALBufferSize)
+	}
+
+	return &Config{
+		EnvName:                            envName,
+		GRPCAddress:                        grpcAddress,
+		InstanceAddress:                    instanceAddress,
+		ShardCount:                         shardCount,
+		ShardIDs:                           shardIDs,
+		AuthorizeLatencySLO:                time.Duration(authorizeLatencySLOMs) * time.Millisecond,
+		EnableTelemetry:                    enableTelemetry,
+		OtelServiceName:                    otelServiceName,
+		OtelLibraryName:                    otelLibraryName,
+		OtelServiceVersion:                 otelServiceVersion,
+		OtelDeploymentEnv:                  otelDeploymentEnv,
+		OtelColExporterEndpoint:            otelCollectorEndpoint,
+		WALPath:                            walPath,
+		WALBufferSize:                      walBufferSize,
+		WALFlushInterval:                   time.Duration(walFlushIntervalMs) * time.Millisecond,
+		WALSyncOnAppend:                    walSyncOnAppend,
+		PrepareTimeout:                     time.Duration(prepareTimeoutMs) * time.Millisecond,
+		PrepareMaxPending:                  prepareMaxPending,
+		MaxOperationsPerRequest:            maxOperationsPerRequest,
+		MaxUniqueBalancesPerRequest:        maxUniqueBalancesPerRequest,
+		WALReplayMaxMutationsPerEntry:      walReplayMaxMutationsPerEntry,
+		WALReplayMaxUniqueBalancesPerEntry: walReplayMaxUniqueBalancesPerEntry,
+		WALReplayStrictMode:                walReplayStrictMode,
+		PrepareCommittedRetention:          time.Duration(prepareCommittedRetentionMs) * time.Millisecond,
+		PrepareCommitRetryLimit:            prepareCommitRetryLimit,
+		MaxConcurrentStreams:               maxConcurrentStreams,
+		MaxReceiveMessageSizeBytes:         maxReceiveBytes,
+		GRPCTLSEnabled:                     grpcTLSEnabled,
+		GRPCTLSCertFile:                    grpcTLSCertFile,
+		GRPCTLSKeyFile:                     grpcTLSKeyFile,
+		ReflectionEnabled:                  reflectionEnabled,
+		PostgresDSN:                        postgresDSN,
+		PostgresPoolMaxConns:               postgresPoolMaxConns,
+		PostgresPoolMinConns:               postgresPoolMinConns,
+		PostgresPoolMaxConnLife:            time.Duration(postgresPoolMaxConnLifeMs) * time.Millisecond,
+		PostgresPoolMaxConnIdle:            time.Duration(postgresPoolMaxConnIdleMs) * time.Millisecond,
+		PostgresPoolHealthCheck:            time.Duration(postgresPoolHealthCheckMs) * time.Millisecond,
+		PostgresConnectTimeout:             time.Duration(postgresConnectTimeoutMs) * time.Millisecond,
+		RedpandaEnabled:                    redpandaEnabled,
+		RedpandaBrokers:                    rpCfg.brokers,
+		RedpandaTLSEnabled:                 rpCfg.tlsEnabled,
+		RedpandaTLSInsecureSkip:            rpCfg.tlsInsecureSkip,
+		RedpandaTLSCAFile:                  rpCfg.tlsCAFile,
+		RedpandaSASLEnabled:                rpCfg.saslEnabled,
+		RedpandaSASLMechanism:              rpCfg.saslMechanism,
+		RedpandaSASLUsername:               rpCfg.saslUsername,
+		RedpandaSASLPassword:               rpCfg.saslPassword,
+		RedpandaProducerLinger:             time.Duration(rpCfg.producerLingerMs) * time.Millisecond,
+		RedpandaMaxBufferedRecords:         rpCfg.maxBufferedRecords,
+		RedpandaRecordRetries:              rpCfg.recordRetries,
+		RedpandaDeliveryTimeout:            time.Duration(rpCfg.deliveryTimeoutMs) * time.Millisecond,
+		RedpandaPublishTimeout:             time.Duration(rpCfg.publishTimeoutMs) * time.Millisecond,
+		RedpandaBackpressurePolicy:         rpCfg.backpressurePolicy,
+		CommitIntentConsumerGroup:          commitIntentConsumerGroup,
+		CommitIntentPollTimeout:            time.Duration(commitIntentPollTimeoutMs) * time.Millisecond,
+		PeerAbortTimeout:                   time.Duration(peerAbortTimeoutMs) * time.Millisecond,
+		PeerCommitTimeout:                  time.Duration(peerCommitTimeoutMs) * time.Millisecond,
+		PeerAuthMaxSkew:                    time.Duration(peerAuthMaxSkewMs) * time.Millisecond,
+		PeerNonceMaxEntries:                peerNonceMaxEntries,
+	}, nil
+}
+
+// redpandaEnvConfig holds Redpanda-specific configuration read from environment variables.
+type redpandaEnvConfig struct {
+	brokers            []string
+	tlsEnabled         bool
+	tlsInsecureSkip    bool
+	tlsCAFile          string
+	saslEnabled        bool
+	saslMechanism      string
+	saslUsername       string
+	saslPassword       string
+	producerLingerMs   int
+	maxBufferedRecords int
+	recordRetries      int
+	deliveryTimeoutMs  int
+	publishTimeoutMs   int
+	backpressurePolicy string
+}
+
+func loadRedpandaConfig() redpandaEnvConfig {
 	redpandaBrokersRaw := strings.TrimSpace(os.Getenv("AUTHORIZER_REDPANDA_BROKERS"))
 	if redpandaBrokersRaw == "" {
 		redpandaBrokersRaw = strings.TrimSpace(os.Getenv("REDPANDA_BROKERS"))
@@ -214,50 +525,72 @@ func LoadConfig() (*Config, error) {
 		redpandaBrokersRaw = "127.0.0.1:9092"
 	}
 
-	redpandaBrokers := brokerpkg.ParseSeedBrokers(redpandaBrokersRaw)
-	redpandaTLSEnabled := utils.IsTruthyString(utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_TLS_ENABLED"), os.Getenv("REDPANDA_TLS_ENABLED")))
-	redpandaTLSInsecureSkip := utils.IsTruthyString(utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_TLS_INSECURE_SKIP_VERIFY"), os.Getenv("REDPANDA_TLS_INSECURE_SKIP_VERIFY")))
-	redpandaTLSCAFile := utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_TLS_CA_FILE"), os.Getenv("REDPANDA_TLS_CA_FILE"))
-	redpandaSASLEnabled := utils.IsTruthyString(utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_SASL_ENABLED"), os.Getenv("REDPANDA_SASL_ENABLED")))
-	redpandaSASLMechanism := utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_SASL_MECHANISM"), os.Getenv("REDPANDA_SASL_MECHANISM"))
-	if strings.TrimSpace(redpandaSASLMechanism) == "" {
-		redpandaSASLMechanism = "SCRAM-SHA-256"
-	}
-	redpandaSASLUsername := utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_SASL_USERNAME"), os.Getenv("REDPANDA_SASL_USERNAME"))
-	redpandaSASLPassword := utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_SASL_PASSWORD"), os.Getenv("REDPANDA_SASL_PASSWORD"))
-	redpandaProducerLingerMs := getenvInt("AUTHORIZER_REDPANDA_PRODUCER_LINGER_MS", 5)
-	redpandaMaxBufferedRecords := getenvInt("AUTHORIZER_REDPANDA_MAX_BUFFERED_RECORDS", 10000)
-	redpandaRecordRetries := getenvInt("AUTHORIZER_REDPANDA_RECORD_RETRIES", 3)
-	redpandaDeliveryTimeoutMs := getenvInt("AUTHORIZER_REDPANDA_DELIVERY_TIMEOUT_MS", 30000)
-	redpandaPublishTimeoutMs := getenvInt("AUTHORIZER_REDPANDA_PUBLISH_TIMEOUT_MS", 5000)
-	redpandaBackpressurePolicy := strings.ToLower(strings.TrimSpace(getenv("AUTHORIZER_REDPANDA_BACKPRESSURE_POLICY", "bounded_wait")))
-	commitIntentConsumerGroup := strings.TrimSpace(getenv("AUTHORIZER_COMMIT_INTENT_CONSUMER_GROUP", defaultCommitIntentConsumerGroup))
-	commitIntentPollTimeoutMs := getenvInt("AUTHORIZER_COMMIT_INTENT_POLL_TIMEOUT_MS", 1000)
-	if commitIntentPollTimeoutMs <= 0 {
-		return nil, fmt.Errorf("AUTHORIZER_COMMIT_INTENT_POLL_TIMEOUT_MS=%d must be > 0", commitIntentPollTimeoutMs)
+	saslMechanism := utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_SASL_MECHANISM"), os.Getenv("REDPANDA_SASL_MECHANISM"))
+
+	if strings.TrimSpace(saslMechanism) == "" {
+		saslMechanism = "SCRAM-SHA-256"
 	}
 
-	peerAbortTimeoutMs := getenvInt("AUTHORIZER_PEER_ABORT_TIMEOUT_MS", int((5 * time.Second).Milliseconds()))
-	if peerAbortTimeoutMs <= 0 {
-		return nil, fmt.Errorf("AUTHORIZER_PEER_ABORT_TIMEOUT_MS=%d must be > 0", peerAbortTimeoutMs)
+	return redpandaEnvConfig{
+		brokers:            brokerpkg.ParseSeedBrokers(redpandaBrokersRaw),
+		tlsEnabled:         utils.IsTruthyString(utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_TLS_ENABLED"), os.Getenv("REDPANDA_TLS_ENABLED"))),
+		tlsInsecureSkip:    utils.IsTruthyString(utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_TLS_INSECURE_SKIP_VERIFY"), os.Getenv("REDPANDA_TLS_INSECURE_SKIP_VERIFY"))),
+		tlsCAFile:          utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_TLS_CA_FILE"), os.Getenv("REDPANDA_TLS_CA_FILE")),
+		saslEnabled:        utils.IsTruthyString(utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_SASL_ENABLED"), os.Getenv("REDPANDA_SASL_ENABLED"))),
+		saslMechanism:      saslMechanism,
+		saslUsername:       utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_SASL_USERNAME"), os.Getenv("REDPANDA_SASL_USERNAME")),
+		saslPassword:       utils.EnvFallback(os.Getenv("AUTHORIZER_REDPANDA_SASL_PASSWORD"), os.Getenv("REDPANDA_SASL_PASSWORD")),
+		producerLingerMs:   getenvInt("AUTHORIZER_REDPANDA_PRODUCER_LINGER_MS", defaultRedpandaProducerLingerMs),
+		maxBufferedRecords: getenvInt("AUTHORIZER_REDPANDA_MAX_BUFFERED_RECORDS", defaultRedpandaMaxBufferedRecords),
+		recordRetries:      getenvInt("AUTHORIZER_REDPANDA_RECORD_RETRIES", defaultRedpandaRecordRetries),
+		deliveryTimeoutMs:  getenvInt("AUTHORIZER_REDPANDA_DELIVERY_TIMEOUT_MS", defaultRedpandaDeliveryTimeoutMs),
+		publishTimeoutMs:   getenvInt("AUTHORIZER_REDPANDA_PUBLISH_TIMEOUT_MS", defaultRedpandaPublishTimeoutMs),
+		backpressurePolicy: strings.ToLower(strings.TrimSpace(getenv("AUTHORIZER_REDPANDA_BACKPRESSURE_POLICY", "bounded_wait"))),
+	}
+}
+
+func buildPostgresDSN(envName string) (string, error) {
+	host := utils.EnvFallback(os.Getenv("DB_TRANSACTION_HOST"), os.Getenv("DB_HOST"))
+	port := utils.EnvFallback(os.Getenv("DB_TRANSACTION_PORT"), os.Getenv("DB_PORT"))
+	user := utils.EnvFallback(os.Getenv("DB_TRANSACTION_USER"), os.Getenv("DB_USER"))
+	password := utils.EnvFallback(os.Getenv("DB_TRANSACTION_PASSWORD"), os.Getenv("DB_PASSWORD"))
+	dbName := utils.EnvFallback(os.Getenv("DB_TRANSACTION_NAME"), os.Getenv("DB_NAME"))
+	sslMode := utils.EnvFallback(os.Getenv("DB_TRANSACTION_SSLMODE"), os.Getenv("DB_SSLMODE"))
+
+	if host == "" || port == "" || user == "" || dbName == "" {
+		return "", errConfigMissingPostgres
 	}
 
-	peerCommitTimeoutMs := getenvInt("AUTHORIZER_PEER_COMMIT_TIMEOUT_MS", int((10 * time.Second).Milliseconds()))
-	if peerCommitTimeoutMs <= 0 {
-		return nil, fmt.Errorf("AUTHORIZER_PEER_COMMIT_TIMEOUT_MS=%d must be > 0", peerCommitTimeoutMs)
+	if sslMode == "" {
+		sslMode = "require"
 	}
 
-	peerAuthMaxSkewMs := getenvInt("AUTHORIZER_PEER_AUTH_MAX_SKEW_MS", int((30 * time.Second).Milliseconds()))
-	if peerAuthMaxSkewMs <= 0 {
-		return nil, fmt.Errorf("AUTHORIZER_PEER_AUTH_MAX_SKEW_MS=%d must be > 0", peerAuthMaxSkewMs)
+	if !brokersecurity.IsNonProductionEnvironment(envName) && strings.EqualFold(strings.TrimSpace(sslMode), "disable") {
+		return "", errConfigSSLDisableProduction
 	}
 
-	peerNonceMaxEntries := getenvInt("AUTHORIZER_PEER_NONCE_MAX_ENTRIES", 100000)
-	if peerNonceMaxEntries <= 0 {
-		return nil, fmt.Errorf("AUTHORIZER_PEER_NONCE_MAX_ENTRIES=%d must be > 0", peerNonceMaxEntries)
+	postgresURL := &url.URL{
+		Scheme: "postgres",
+		Host:   fmt.Sprintf("%s:%s", host, port),
+		Path:   dbName,
 	}
 
+	if password != "" {
+		postgresURL.User = url.UserPassword(user, password)
+	} else {
+		postgresURL.User = url.User(user)
+	}
+
+	query := url.Values{}
+	query.Set("sslmode", sslMode)
+	postgresURL.RawQuery = query.Encode()
+
+	return postgresURL.String(), nil
+}
+
+func loadPeerConfig(cfg *Config) error {
 	peerInstancesRaw := getenv("AUTHORIZER_PEER_INSTANCES", "")
+
 	var peerInstances []string
 
 	if peerInstancesRaw != "" {
@@ -270,6 +603,7 @@ func LoadConfig() (*Config, error) {
 
 	peerShardRangesRaw := getenv("AUTHORIZER_PEER_SHARD_RANGES", "")
 	peerShardRanges := make([]string, 0)
+
 	if peerShardRangesRaw != "" {
 		for _, rng := range strings.Split(peerShardRangesRaw, ",") {
 			if trimmed := strings.TrimSpace(rng); trimmed != "" {
@@ -280,117 +614,166 @@ func LoadConfig() (*Config, error) {
 
 	peerAuthToken := strings.TrimSpace(getenv("AUTHORIZER_PEER_AUTH_TOKEN", ""))
 	peerAuthTokenPrevious := strings.TrimSpace(getenv("AUTHORIZER_PEER_AUTH_TOKEN_PREVIOUS", ""))
+
 	if len(peerInstances) > 0 && peerAuthToken == "" {
-		return nil, fmt.Errorf("AUTHORIZER_PEER_AUTH_TOKEN is required when AUTHORIZER_PEER_INSTANCES is configured")
+		return errConfigPeerAuthTokenRequired
 	}
 
 	if len(peerInstances) > 0 {
-		if strings.HasPrefix(instanceAddress, ":") {
-			return nil, fmt.Errorf("AUTHORIZER_INSTANCE_ADDRESS must be a routable host:port when AUTHORIZER_PEER_INSTANCES is configured")
-		}
-
-		if err := validatePeerAuthToken(peerAuthToken); err != nil {
-			return nil, err
-		}
-
-		if peerAuthTokenPrevious != "" {
-			if err := validatePeerAuthToken(peerAuthTokenPrevious); err != nil {
-				return nil, fmt.Errorf("AUTHORIZER_PEER_AUTH_TOKEN_PREVIOUS is invalid: %w", err)
-			}
-
-			if peerAuthTokenPrevious == peerAuthToken {
-				return nil, fmt.Errorf("AUTHORIZER_PEER_AUTH_TOKEN_PREVIOUS must differ from AUTHORIZER_PEER_AUTH_TOKEN")
-			}
+		if err := validatePeerInstanceConfig(cfg.InstanceAddress, peerAuthToken, peerAuthTokenPrevious); err != nil {
+			return err
 		}
 	}
 
 	peerInsecureAllowed := utils.IsTruthyString(getenv("AUTHORIZER_PEER_INSECURE_ALLOWED", "false"))
 	peerTLSCAFile := strings.TrimSpace(getenv("AUTHORIZER_PEER_TLS_CA_FILE", ""))
-	peerPrepareMaxInFlight := getenvInt("AUTHORIZER_PEER_PREPARE_MAX_INFLIGHT", 1024)
-	if peerPrepareMaxInFlight < 0 {
-		return nil, fmt.Errorf("AUTHORIZER_PEER_PREPARE_MAX_INFLIGHT=%d must be >= 0", peerPrepareMaxInFlight)
+
+	peerPrepareMaxInFlight := getenvInt("AUTHORIZER_PEER_PREPARE_MAX_INFLIGHT", defaultPeerPrepareMaxInFlight)
+	if err := validateIntRange(peerPrepareMaxInFlight, 0, maxConfigPeerPrepareMaxInFlight, errConfigPeerPrepareMaxInFlight); err != nil {
+		return err
 	}
 
+	peerPrepareBoundedWaitMs := getenvInt("AUTHORIZER_PEER_PREPARE_BOUNDED_WAIT_MS", defaultPeerPrepareBoundedWaitMs)
+	if err := validateIntRange(peerPrepareBoundedWaitMs, 0, maxConfigPeerPrepareBoundedWaitMs, errConfigPeerBoundedWait); err != nil {
+		return err
+	}
+
+	peerConnPoolSize := getenvInt("AUTHORIZER_PEER_CONN_POOL_SIZE", defaultPeerConnPoolSize)
+	if err := validateIntRange(peerConnPoolSize, 1, maxConfigPeerConnPoolSize, errConfigPeerConnPoolSize); err != nil {
+		return err
+	}
+
+	asyncCommitIntent := utils.IsTruthyString(getenv("AUTHORIZER_ASYNC_COMMIT_INTENT", "false"))
+
+	cfg.PeerInstances = peerInstances
+	cfg.PeerShardRanges = peerShardRanges
+	cfg.PeerAuthToken = peerAuthToken
+	cfg.PeerAuthTokenPrevious = peerAuthTokenPrevious
+	cfg.PeerInsecureAllowed = peerInsecureAllowed
+	cfg.PeerTLSCAFile = peerTLSCAFile
+	cfg.PeerPrepareMaxInFlight = peerPrepareMaxInFlight
+	cfg.PeerPrepareBoundedWaitMs = peerPrepareBoundedWaitMs
+	cfg.PeerConnPoolSize = peerConnPoolSize
+	cfg.AsyncCommitIntent = asyncCommitIntent
+
+	return nil
+}
+
+func validatePeerInstanceConfig(instanceAddress, peerAuthToken, peerAuthTokenPrevious string) error {
+	if strings.HasPrefix(instanceAddress, ":") {
+		return errConfigPeerInstanceAddress
+	}
+
+	if err := validatePeerAuthToken(peerAuthToken); err != nil {
+		return err
+	}
+
+	if peerAuthTokenPrevious == "" {
+		return nil
+	}
+
+	if err := validatePeerAuthToken(peerAuthTokenPrevious); err != nil {
+		return fmt.Errorf("AUTHORIZER_PEER_AUTH_TOKEN_PREVIOUS is invalid: %w", err)
+	}
+
+	if peerAuthTokenPrevious == peerAuthToken {
+		return errConfigPeerAuthTokenPrevDuplicate
+	}
+
+	return nil
+}
+
+func loadReconcilerConfig(cfg *Config) error {
+	walReconcilerEnabled := utils.IsTruthyString(getenv("AUTHORIZER_WAL_RECONCILER_ENABLED", "false"))
+
+	walReconcilerIntervalMs := getenvInt("AUTHORIZER_WAL_RECONCILER_INTERVAL_MS", defaultWALReconcilerIntervalMs)
+	if walReconcilerIntervalMs <= 0 {
+		return fmt.Errorf("value=%d: %w", walReconcilerIntervalMs, errConfigReconcilerInterval)
+	}
+
+	walReconcilerLookbackMs := getenvInt("AUTHORIZER_WAL_RECONCILER_LOOKBACK_MS", defaultWALReconcilerLookbackMs)
+	if walReconcilerLookbackMs <= 0 {
+		return fmt.Errorf("value=%d: %w", walReconcilerLookbackMs, errConfigReconcilerLookback)
+	}
+
+	walReconcilerGraceMs := getenvInt("AUTHORIZER_WAL_RECONCILER_GRACE_MS", defaultWALReconcilerGraceMs)
+	if walReconcilerGraceMs <= 0 {
+		return fmt.Errorf("value=%d: %w", walReconcilerGraceMs, errConfigReconcilerGrace)
+	}
+
+	if walReconcilerLookbackMs <= walReconcilerGraceMs {
+		return fmt.Errorf("lookback=%d grace=%d: %w", walReconcilerLookbackMs, walReconcilerGraceMs, errConfigLookbackGrace)
+	}
+
+	walReconcilerCompletedTTLMs := getenvInt("AUTHORIZER_WAL_RECONCILER_COMPLETED_TTL_MS", defaultWALReconcilerCompletedTTLMs)
+	if walReconcilerCompletedTTLMs <= 0 {
+		return fmt.Errorf("value=%d: %w", walReconcilerCompletedTTLMs, errConfigReconcilerCompletedTTL)
+	}
+
+	if cfg.AsyncCommitIntent && !walReconcilerEnabled {
+		return errConfigAsyncNeedsReconciler
+	}
+
+	// Reconciler must be able to act before peers auto-abort.
+	// grace + interval gives the worst-case time before first reconciler action on a stale entry.
+	prepareTimeoutMs := int(cfg.PrepareTimeout.Milliseconds())
+
+	if walReconcilerEnabled && cfg.AsyncCommitIntent && walReconcilerGraceMs+walReconcilerIntervalMs >= prepareTimeoutMs {
+		return fmt.Errorf(
+			"grace=%d interval=%d prepareTimeout=%d: %w",
+			walReconcilerGraceMs, walReconcilerIntervalMs, prepareTimeoutMs, errConfigReconcilerTiming,
+		)
+	}
+
+	cfg.WALReconcilerEnabled = walReconcilerEnabled
+	cfg.WALReconcilerInterval = time.Duration(walReconcilerIntervalMs) * time.Millisecond
+	cfg.WALReconcilerLookback = time.Duration(walReconcilerLookbackMs) * time.Millisecond
+	cfg.WALReconcilerGrace = time.Duration(walReconcilerGraceMs) * time.Millisecond
+	cfg.WALReconcilerCompletedTTL = time.Duration(walReconcilerCompletedTTLMs) * time.Millisecond
+
+	return nil
+}
+
+func validateWALPath(cfg *Config) error {
+	resolvedWALPath, err := filepath.Abs(filepath.Clean(cfg.WALPath))
+	if err != nil {
+		return fmt.Errorf("invalid AUTHORIZER_WAL_PATH=%q: %w", cfg.WALPath, err)
+	}
+
+	cfg.WALPath = resolvedWALPath
+
+	return nil
+}
+
+func validateOwnedShards(cfg *Config) error {
 	ownedShardStart := getenvInt("AUTHORIZER_OWNED_SHARD_START", 0)
-	ownedShardEnd := getenvInt("AUTHORIZER_OWNED_SHARD_END", shardCount-1)
+	ownedShardEnd := getenvInt("AUTHORIZER_OWNED_SHARD_END", cfg.ShardCount-1)
 
 	if ownedShardStart < 0 {
-		return nil, fmt.Errorf("AUTHORIZER_OWNED_SHARD_START=%d must be >= 0", ownedShardStart)
+		return fmt.Errorf("value=%d: %w", ownedShardStart, errConfigOwnedShardStart)
 	}
 
-	if ownedShardEnd >= shardCount {
-		return nil, fmt.Errorf("AUTHORIZER_OWNED_SHARD_END=%d must be < AUTHORIZER_SHARD_COUNT=%d", ownedShardEnd, shardCount)
+	if ownedShardEnd >= cfg.ShardCount {
+		return fmt.Errorf("end=%d shardCount=%d: %w", ownedShardEnd, cfg.ShardCount, errConfigOwnedShardEnd)
 	}
 
 	if ownedShardStart > ownedShardEnd {
-		return nil, fmt.Errorf("AUTHORIZER_OWNED_SHARD_START=%d must be <= AUTHORIZER_OWNED_SHARD_END=%d", ownedShardStart, ownedShardEnd)
+		return fmt.Errorf("start=%d end=%d: %w", ownedShardStart, ownedShardEnd, errConfigShardStartEnd)
 	}
 
-	return &Config{
-		EnvName:                    envName,
-		GRPCAddress:                grpcAddress,
-		InstanceAddress:            instanceAddress,
-		ShardCount:                 shardCount,
-		ShardIDs:                   shardIDs,
-		AuthorizeLatencySLO:        time.Duration(authorizeLatencySLOMs) * time.Millisecond,
-		EnableTelemetry:            enableTelemetry,
-		OtelServiceName:            otelServiceName,
-		OtelLibraryName:            otelLibraryName,
-		OtelServiceVersion:         otelServiceVersion,
-		OtelDeploymentEnv:          otelDeploymentEnv,
-		OtelColExporterEndpoint:    otelCollectorEndpoint,
-		WALPath:                    walPath,
-		WALBufferSize:              walBufferSize,
-		WALFlushInterval:           time.Duration(walFlushIntervalMs) * time.Millisecond,
-		WALSyncOnAppend:            walSyncOnAppend,
-		PrepareTimeout:             time.Duration(prepareTimeoutMs) * time.Millisecond,
-		PrepareMaxPending:          prepareMaxPending,
-		PrepareCommittedRetention:  time.Duration(prepareCommittedRetentionMs) * time.Millisecond,
-		PrepareCommitRetryLimit:    prepareCommitRetryLimit,
-		MaxConcurrentStreams:       maxConcurrentStreams,
-		MaxReceiveMessageSizeBytes: maxReceiveBytes,
-		GRPCTLSEnabled:             grpcTLSEnabled,
-		GRPCTLSCertFile:            grpcTLSCertFile,
-		GRPCTLSKeyFile:             grpcTLSKeyFile,
-		ReflectionEnabled:          reflectionEnabled,
-		PostgresDSN:                postgresDSN,
-		PostgresPoolMaxConns:       postgresPoolMaxConns,
-		PostgresPoolMinConns:       postgresPoolMinConns,
-		PostgresPoolMaxConnLife:    time.Duration(postgresPoolMaxConnLifeMs) * time.Millisecond,
-		PostgresPoolMaxConnIdle:    time.Duration(postgresPoolMaxConnIdleMs) * time.Millisecond,
-		PostgresPoolHealthCheck:    time.Duration(postgresPoolHealthCheckMs) * time.Millisecond,
-		PostgresConnectTimeout:     time.Duration(postgresConnectTimeoutMs) * time.Millisecond,
-		RedpandaEnabled:            redpandaEnabled,
-		RedpandaBrokers:            redpandaBrokers,
-		RedpandaTLSEnabled:         redpandaTLSEnabled,
-		RedpandaTLSInsecureSkip:    redpandaTLSInsecureSkip,
-		RedpandaTLSCAFile:          redpandaTLSCAFile,
-		RedpandaSASLEnabled:        redpandaSASLEnabled,
-		RedpandaSASLMechanism:      redpandaSASLMechanism,
-		RedpandaSASLUsername:       redpandaSASLUsername,
-		RedpandaSASLPassword:       redpandaSASLPassword,
-		RedpandaProducerLinger:     time.Duration(redpandaProducerLingerMs) * time.Millisecond,
-		RedpandaMaxBufferedRecords: redpandaMaxBufferedRecords,
-		RedpandaRecordRetries:      redpandaRecordRetries,
-		RedpandaDeliveryTimeout:    time.Duration(redpandaDeliveryTimeoutMs) * time.Millisecond,
-		RedpandaPublishTimeout:     time.Duration(redpandaPublishTimeoutMs) * time.Millisecond,
-		RedpandaBackpressurePolicy: redpandaBackpressurePolicy,
-		CommitIntentConsumerGroup:  commitIntentConsumerGroup,
-		CommitIntentPollTimeout:    time.Duration(commitIntentPollTimeoutMs) * time.Millisecond,
-		PeerAbortTimeout:           time.Duration(peerAbortTimeoutMs) * time.Millisecond,
-		PeerCommitTimeout:          time.Duration(peerCommitTimeoutMs) * time.Millisecond,
-		PeerAuthMaxSkew:            time.Duration(peerAuthMaxSkewMs) * time.Millisecond,
-		PeerNonceMaxEntries:        peerNonceMaxEntries,
-		PeerInstances:              peerInstances,
-		OwnedShardStart:            ownedShardStart,
-		OwnedShardEnd:              ownedShardEnd,
-		PeerShardRanges:            peerShardRanges,
-		PeerAuthToken:              peerAuthToken,
-		PeerAuthTokenPrevious:      peerAuthTokenPrevious,
-		PeerInsecureAllowed:        peerInsecureAllowed,
-		PeerTLSCAFile:              peerTLSCAFile,
-		PeerPrepareMaxInFlight:     peerPrepareMaxInFlight,
-	}, nil
+	cfg.OwnedShardStart = ownedShardStart
+	cfg.OwnedShardEnd = ownedShardEnd
+
+	return nil
+}
+
+// validateIntRange checks that val is between lower and upper (inclusive), wrapping sentinel on failure.
+func validateIntRange(val, lower, upper int, sentinel error) error {
+	if val < lower || val > upper {
+		return fmt.Errorf("value=%d min=%d max=%d: %w", val, lower, upper, sentinel)
+	}
+
+	return nil
 }
 
 func parseInt32CSV(raw string, maxValue int32) ([]int32, error) {
@@ -411,20 +794,21 @@ func parseInt32CSV(raw string, maxValue int32) ([]int32, error) {
 
 		parsed, err := strconv.ParseInt(value, 10, 32)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parsing shard id %q: %w", value, err)
 		}
 
 		id := int32(parsed)
+
 		if id < 0 {
-			return nil, fmt.Errorf("shard id %d must be >= 0", id)
+			return nil, fmt.Errorf("id=%d: %w", id, errConfigShardIDNegative)
 		}
 
 		if maxValue >= 0 && id > maxValue {
-			return nil, fmt.Errorf("shard id %d out of range (max=%d)", id, maxValue)
+			return nil, fmt.Errorf("id=%d max=%d: %w", id, maxValue, errConfigShardIDOutOfRange)
 		}
 
 		if _, exists := seen[id]; exists {
-			return nil, fmt.Errorf("duplicate shard id %d", id)
+			return nil, fmt.Errorf("id=%d: %w", id, errConfigShardIDDuplicate)
 		}
 
 		seen[id] = struct{}{}
@@ -443,6 +827,9 @@ func getenv(name, fallback string) string {
 	return fallback
 }
 
+// getenvInt parses an integer environment variable, falling back to a default.
+// NOTE: stdlib log.Printf is used intentionally because the structured logger
+// (OpenTelemetry / zap) is not yet initialized at bootstrap time.
 func getenvInt(name string, fallback int) int {
 	value := getenv(name, "")
 	if value == "" {
@@ -451,12 +838,17 @@ func getenvInt(name string, fallback int) int {
 
 	parsed, err := strconv.Atoi(value)
 	if err != nil {
+		log.Printf("authorizer bootstrap: invalid numeric env %s, using default %d", name, fallback)
+
 		return fallback
 	}
 
 	return parsed
 }
 
+// getenvInt32 parses a 32-bit integer environment variable, falling back to a default.
+// NOTE: stdlib log.Printf is used intentionally because the structured logger
+// (OpenTelemetry / zap) is not yet initialized at bootstrap time.
 func getenvInt32(name string, fallback int32) int32 {
 	value := getenv(name, "")
 	if value == "" {
@@ -465,6 +857,8 @@ func getenvInt32(name string, fallback int32) int32 {
 
 	parsed, err := strconv.ParseInt(value, 10, 32)
 	if err != nil {
+		log.Printf("authorizer bootstrap: invalid numeric env %s, using default %d", name, fallback)
+
 		return fallback
 	}
 
@@ -474,15 +868,15 @@ func getenvInt32(name string, fallback int32) int32 {
 func validatePeerAuthToken(token string) error {
 	trimmed := strings.TrimSpace(token)
 	if trimmed == "" {
-		return fmt.Errorf("AUTHORIZER_PEER_AUTH_TOKEN is required when AUTHORIZER_PEER_INSTANCES is configured")
+		return errConfigPeerAuthTokenRequired
 	}
 
 	if _, denied := deniedPeerAuthTokens[strings.ToLower(trimmed)]; denied {
-		return fmt.Errorf("AUTHORIZER_PEER_AUTH_TOKEN uses a denied weak value")
+		return errConfigPeerAuthTokenWeak
 	}
 
 	if len(trimmed) < minPeerAuthTokenLength {
-		return fmt.Errorf("AUTHORIZER_PEER_AUTH_TOKEN must be at least %d characters", minPeerAuthTokenLength)
+		return fmt.Errorf("length=%d minimum=%d: %w", len(trimmed), minPeerAuthTokenLength, errConfigPeerAuthTokenShort)
 	}
 
 	hasLower := false
@@ -504,14 +898,15 @@ func validatePeerAuthToken(token string) error {
 	}
 
 	classes := 0
+
 	for _, present := range []bool{hasLower, hasUpper, hasDigit, hasSymbol} {
 		if present {
 			classes++
 		}
 	}
 
-	if classes < 3 {
-		return fmt.Errorf("AUTHORIZER_PEER_AUTH_TOKEN must include at least 3 character classes (lower, upper, digit, symbol)")
+	if classes < minPeerAuthTokenCharacterClasses {
+		return errConfigPeerAuthTokenClasses
 	}
 
 	return nil
