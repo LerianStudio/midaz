@@ -6,6 +6,7 @@ package out
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"testing"
 	"time"
@@ -13,9 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
 
+	mgrpc "github.com/LerianStudio/midaz/v3/pkg/mgrpc"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
 	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
@@ -85,8 +88,8 @@ func TestParseShardRanges_AllowsNonOverlappingRanges(t *testing.T) {
 	ranges, err := parseShardRanges("0-3,4-7")
 	require.NoError(t, err)
 	require.Len(t, ranges, 2)
-	assert.Equal(t, shardRange{start: 0, end: 3}, ranges[0])
-	assert.Equal(t, shardRange{start: 4, end: 7}, ranges[1])
+	assert.Equal(t, shardRange{Start: 0, End: 3}, ranges[0])
+	assert.Equal(t, shardRange{Start: 4, End: 7}, ranges[1])
 }
 
 func TestParseShardRanges_RejectsOverlappingRanges(t *testing.T) {
@@ -111,7 +114,7 @@ func TestParseShardRanges_AllowsSingleElementRange(t *testing.T) {
 	ranges, err := parseShardRanges("3-3")
 	require.NoError(t, err)
 	require.Len(t, ranges, 1)
-	assert.Equal(t, shardRange{start: 3, end: 3}, ranges[0])
+	assert.Equal(t, shardRange{Start: 3, End: 3}, ranges[0])
 }
 
 func TestShardedAuthorizerClientMethods_ReturnErrorWhenNoClientResolved(t *testing.T) {
@@ -125,15 +128,15 @@ func TestShardedAuthorizerClientMethods_ReturnErrorWhenNoClientResolved(t *testi
 
 	_, err := repo.Authorize(context.Background(), &authorizerv1.AuthorizeRequest{})
 	require.Error(t, err)
-	require.ErrorContains(t, err, "not configured")
+	require.ErrorIs(t, err, ErrAuthorizerShardClientMissing)
 
 	_, err = repo.LoadBalances(context.Background(), &authorizerv1.LoadBalancesRequest{ShardIds: []int32{1}})
 	require.Error(t, err)
-	require.ErrorContains(t, err, "not configured")
+	require.ErrorIs(t, err, ErrAuthorizerShardClientMissing)
 
 	err = repo.PublishBalanceOperations(context.Background(), "topic", "1", []byte("payload"), nil)
 	require.Error(t, err)
-	require.ErrorContains(t, err, "not configured")
+	require.ErrorIs(t, err, ErrAuthorizerShardClientMissing)
 }
 
 func TestParseCSV_TrimsAndSkipsEmptyValues(t *testing.T) {
@@ -182,8 +185,8 @@ func TestShardedAuthorizerGRPCRepository_AuthorizeRoutesToMappedShard(t *testing
 	clientAStub := &stubBalanceAuthorizerClient{}
 	clientBStub := &stubBalanceAuthorizerClient{}
 
-	clientA := &AuthorizerGRPCRepository{enabled: true, timeout: 10 * time.Millisecond, client: clientAStub}
-	clientB := &AuthorizerGRPCRepository{enabled: true, timeout: 10 * time.Millisecond, client: clientBStub}
+	clientA := &AuthorizerGRPCRepository{enabled: true, timeout: 10 * time.Millisecond, clients: []authorizerv1.BalanceAuthorizerClient{clientAStub}}
+	clientB := &AuthorizerGRPCRepository{enabled: true, timeout: 10 * time.Millisecond, clients: []authorizerv1.BalanceAuthorizerClient{clientBStub}}
 
 	repo := &ShardedAuthorizerGRPCRepository{
 		enabled: true,
@@ -206,7 +209,7 @@ func TestShardedAuthorizerGRPCRepository_AuthorizeRoutesToMappedShard(t *testing
 func TestShardedAuthorizerGRPCRepository_DoesNotFallbackWhenShardUnmapped(t *testing.T) {
 	t.Parallel()
 
-	client := &AuthorizerGRPCRepository{enabled: true, timeout: 10 * time.Millisecond, client: &stubBalanceAuthorizerClient{}}
+	client := &AuthorizerGRPCRepository{enabled: true, timeout: 10 * time.Millisecond, clients: []authorizerv1.BalanceAuthorizerClient{&stubBalanceAuthorizerClient{}}}
 
 	repo := &ShardedAuthorizerGRPCRepository{
 		enabled:       true,
@@ -217,7 +220,7 @@ func TestShardedAuthorizerGRPCRepository_DoesNotFallbackWhenShardUnmapped(t *tes
 
 	err := repo.PublishBalanceOperations(context.Background(), "topic", "1", []byte("payload"), nil)
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "not configured for shard 1")
+	assert.ErrorIs(t, err, ErrAuthorizerShardClientMissing)
 }
 
 func TestNewAuthorizerGRPC_RejectsInsecureTransportInProduction(t *testing.T) {
@@ -235,5 +238,167 @@ func TestNewAuthorizerGRPC_RejectsInsecureTransportInProduction(t *testing.T) {
 	}, logger)
 
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "insecure transport is not allowed")
+	assert.ErrorIs(t, err, ErrAuthorizerInsecureTransport)
+}
+
+// ---------------------------------------------------------------------------
+// Peer-auth signing path tests
+// ---------------------------------------------------------------------------.
+
+func TestWithAuthorizerPeerAuth_NonEmptyToken(t *testing.T) {
+	t.Parallel()
+
+	token := "test-secret-token"
+	method := authorizerRPCMethodAuthorize
+	req := &authorizerv1.AuthorizeRequest{
+		Operations: []*authorizerv1.BalanceOperation{
+			{AccountAlias: "@alice", Operation: "DEBIT", BalanceKey: "default"},
+		},
+	}
+
+	ctx, err := withAuthorizerPeerAuth(context.Background(), token, method, req)
+	require.NoError(t, err)
+
+	md, ok := metadata.FromOutgoingContext(ctx)
+	require.True(t, ok, "expected outgoing metadata on the context")
+
+	expectedHeaders := []string{
+		mgrpc.PeerAuthTimestampHeader,
+		mgrpc.PeerAuthNonceHeader,
+		mgrpc.PeerAuthMethodHeader,
+		mgrpc.PeerAuthBodyHashHeader,
+		mgrpc.PeerAuthSignatureHeader,
+	}
+
+	for _, header := range expectedHeaders {
+		vals := md.Get(header)
+		require.NotEmpty(t, vals, "header %q must be present in outgoing metadata", header)
+		assert.NotEmpty(t, vals[0], "header %q must have a non-empty value", header)
+	}
+
+	// Verify the method header carries the exact method string we passed.
+	assert.Equal(t, method, md.Get(mgrpc.PeerAuthMethodHeader)[0])
+}
+
+func TestWithAuthorizerPeerAuth_EmptyToken(t *testing.T) {
+	t.Parallel()
+
+	baseCtx := context.Background()
+	req := &authorizerv1.AuthorizeRequest{}
+
+	resultCtx, err := withAuthorizerPeerAuth(baseCtx, "", "some-method", req)
+	require.NoError(t, err)
+
+	// When the token is empty, the function must return the context
+	// unchanged -- no outgoing metadata should be added.
+	md, ok := metadata.FromOutgoingContext(resultCtx)
+	if ok {
+		// If metadata exists (e.g., was already on the context), none of the
+		// peer-auth headers should be present.
+		assert.Empty(t, md.Get(mgrpc.PeerAuthTimestampHeader), "no peer-auth headers expected for empty token")
+		assert.Empty(t, md.Get(mgrpc.PeerAuthNonceHeader), "no peer-auth headers expected for empty token")
+		assert.Empty(t, md.Get(mgrpc.PeerAuthMethodHeader), "no peer-auth headers expected for empty token")
+		assert.Empty(t, md.Get(mgrpc.PeerAuthBodyHashHeader), "no peer-auth headers expected for empty token")
+		assert.Empty(t, md.Get(mgrpc.PeerAuthSignatureHeader), "no peer-auth headers expected for empty token")
+	}
+}
+
+func TestSignPeerAuth_Deterministic(t *testing.T) {
+	t.Parallel()
+
+	token := "shared-secret"
+	timestamp := "1700000000"
+	nonce := "abc123"
+	method := authorizerRPCMethodAuthorize
+	bodyHash := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+	sig1 := mgrpc.SignPeerAuth(token, timestamp, nonce, method, bodyHash)
+	sig2 := mgrpc.SignPeerAuth(token, timestamp, nonce, method, bodyHash)
+
+	require.NotEmpty(t, sig1, "signature must not be empty")
+	assert.Equal(t, sig1, sig2, "identical inputs must produce identical HMAC signatures")
+
+	// Sanity-check: the signature should be a valid hex string of the expected
+	// length (SHA-256 HMAC = 32 bytes = 64 hex chars).
+	decoded, err := hex.DecodeString(sig1)
+	require.NoError(t, err, "signature must be valid hex")
+	assert.Len(t, decoded, 32, "HMAC-SHA256 produces 32 bytes")
+}
+
+func TestHashPeerAuthBody_NilRequest(t *testing.T) {
+	t.Parallel()
+
+	// SHA-256 of an empty byte slice.
+	expectedHash := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+	result, err := mgrpc.HashPeerAuthBody(nil)
+	require.NoError(t, err)
+	assert.Equal(t, expectedHash, result, "nil request must produce the SHA-256 of empty bytes")
+}
+
+func TestHashPeerAuthBody_WithMessage(t *testing.T) {
+	t.Parallel()
+
+	msg := &authorizerv1.AuthorizeRequest{
+		Operations: []*authorizerv1.BalanceOperation{
+			{AccountAlias: "@alice", Operation: "DEBIT", BalanceKey: "default", Amount: 1000},
+		},
+	}
+
+	result, hashErr := mgrpc.HashPeerAuthBody(msg)
+	require.NoError(t, hashErr)
+	require.NotEmpty(t, result, "hash of a populated message must not be empty")
+
+	// Verify the result is valid hex.
+	decoded, err := hex.DecodeString(result)
+	require.NoError(t, err, "hash must be a valid hex string")
+	assert.Len(t, decoded, 32, "SHA-256 digest is 32 bytes")
+
+	// The hash of a populated message must differ from the empty-body hash.
+	emptyHash := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	assert.NotEqual(t, emptyHash, result, "non-nil message must produce a different hash than nil")
+}
+
+func TestPickRoundRobinDistribution(t *testing.T) {
+	t.Parallel()
+
+	stub0 := &stubBalanceAuthorizerClient{}
+	stub1 := &stubBalanceAuthorizerClient{}
+	stub2 := &stubBalanceAuthorizerClient{}
+
+	repo := &AuthorizerGRPCRepository{
+		enabled: true,
+		clients: []authorizerv1.BalanceAuthorizerClient{stub0, stub1, stub2},
+	}
+
+	// Call pick() 6 times and collect the sequence of returned clients.
+	sequence := make([]authorizerv1.BalanceAuthorizerClient, 6)
+	for i := 0; i < 6; i++ {
+		sequence[i] = repo.pick()
+	}
+
+	// Assert round-robin order: 0, 1, 2, 0, 1, 2.
+	expected := []authorizerv1.BalanceAuthorizerClient{stub0, stub1, stub2, stub0, stub1, stub2}
+	for i, want := range expected {
+		assert.Equal(t, want, sequence[i], "pick() call %d returned wrong client", i)
+	}
+}
+
+func TestGeneratePeerNonce(t *testing.T) {
+	t.Parallel()
+
+	nonce1, err1 := mgrpc.GeneratePeerNonce()
+	require.NoError(t, err1)
+	require.NotEmpty(t, nonce1, "nonce must not be empty")
+
+	nonce2, err2 := mgrpc.GeneratePeerNonce()
+	require.NoError(t, err2)
+	require.NotEmpty(t, nonce2, "nonce must not be empty")
+
+	assert.NotEqual(t, nonce1, nonce2, "two consecutive nonces must differ (cryptographic randomness)")
+
+	// Verify the nonce is valid hex (16 random bytes = 32 hex chars).
+	decoded, err := hex.DecodeString(nonce1)
+	require.NoError(t, err, "nonce must be valid hex")
+	assert.Len(t, decoded, 16, "nonce is derived from 16 random bytes")
 }
