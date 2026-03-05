@@ -133,57 +133,87 @@ func ConcatAlias(i int, alias string) string {
 
 // OperateBalances Function to sum or sub two balances and Normalize the scale
 func OperateBalances(amount Amount, balance Balance) (Balance, error) {
-	var (
-		total       decimal.Decimal
-		totalOnHold decimal.Decimal
-	)
-
-	total = balance.Available
-	totalOnHold = balance.OnHold
-
-	switch {
-	case amount.Operation == constant.DEBIT && amount.TransactionType == constant.PENDING && amount.RouteValidationEnabled:
-		// Double-entry: DEBIT only decrements Available.
-		// The OnHold++ will be a separate ON_HOLD operation.
-		total = balance.Available.Sub(amount.Value)
-	case amount.Operation == constant.ONHOLD && amount.TransactionType == constant.PENDING:
-		if amount.RouteValidationEnabled {
-			// Double-entry: ON_HOLD only increments OnHold.
-			// The Available-- was already done by the separate DEBIT operation.
-			totalOnHold = balance.OnHold.Add(amount.Value)
-		} else {
-			total = balance.Available.Sub(amount.Value)
-			totalOnHold = balance.OnHold.Add(amount.Value)
-		}
-	case amount.Operation == constant.RELEASE && amount.TransactionType == constant.CANCELED:
-		if amount.RouteValidationEnabled {
-			// Double-entry: RELEASE only decrements OnHold.
-			// The Available++ will be a separate CREDIT operation.
-			totalOnHold = balance.OnHold.Sub(amount.Value)
-		} else {
-			totalOnHold = balance.OnHold.Sub(amount.Value)
-			total = balance.Available.Add(amount.Value)
-		}
-	case amount.Operation == constant.CREDIT && amount.TransactionType == constant.CANCELED && amount.RouteValidationEnabled:
-		total = balance.Available.Add(amount.Value)
-	case amount.Operation == constant.DEBIT && amount.TransactionType == constant.APPROVED:
-		totalOnHold = balance.OnHold.Sub(amount.Value)
-	case amount.Operation == constant.CREDIT && amount.TransactionType == constant.APPROVED:
-		total = balance.Available.Add(amount.Value)
-	case amount.Operation == constant.DEBIT && amount.TransactionType == constant.CREATED:
-		total = balance.Available.Sub(amount.Value)
-	case amount.Operation == constant.CREDIT && amount.TransactionType == constant.CREATED:
-		total = balance.Available.Add(amount.Value)
-	default:
-		// For unknown operations, return the original balance without changing the version.
+	available, onHold, matched := applyBalanceChange(amount, balance)
+	if !matched {
 		return balance, nil
 	}
 
 	return Balance{
-		Available: total,
-		OnHold:    totalOnHold,
+		Available: available,
+		OnHold:    onHold,
 		Version:   balance.Version + 1,
 	}, nil
+}
+
+// applyBalanceChange computes the new Available and OnHold values for a given
+// operation+transaction type combination. Returns matched=false for unknown operations.
+func applyBalanceChange(amount Amount, balance Balance) (available, onHold decimal.Decimal, matched bool) {
+	switch amount.TransactionType {
+	case constant.PENDING:
+		return applyPendingBalance(amount, balance)
+	case constant.CANCELED:
+		return applyCanceledBalance(amount, balance)
+	case constant.APPROVED:
+		return applyApprovedBalance(amount, balance)
+	case constant.CREATED:
+		return applyCreatedBalance(amount, balance)
+	default:
+		return balance.Available, balance.OnHold, false
+	}
+}
+
+func applyPendingBalance(amount Amount, balance Balance) (available, onHold decimal.Decimal, matched bool) {
+	switch {
+	case amount.Operation == constant.DEBIT && amount.RouteValidationEnabled:
+		// Double-entry: DEBIT only decrements Available.
+		return balance.Available.Sub(amount.Value), balance.OnHold, true
+	case amount.Operation == constant.ONHOLD && amount.RouteValidationEnabled:
+		// Double-entry: ON_HOLD only increments OnHold.
+		return balance.Available, balance.OnHold.Add(amount.Value), true
+	case amount.Operation == constant.ONHOLD:
+		// Legacy: ON_HOLD moves from Available to OnHold.
+		return balance.Available.Sub(amount.Value), balance.OnHold.Add(amount.Value), true
+	default:
+		return balance.Available, balance.OnHold, false
+	}
+}
+
+func applyCanceledBalance(amount Amount, balance Balance) (available, onHold decimal.Decimal, matched bool) {
+	switch {
+	case amount.Operation == constant.RELEASE && amount.RouteValidationEnabled:
+		// Double-entry: RELEASE only decrements OnHold.
+		return balance.Available, balance.OnHold.Sub(amount.Value), true
+	case amount.Operation == constant.RELEASE:
+		// Legacy: RELEASE moves from OnHold to Available.
+		return balance.Available.Add(amount.Value), balance.OnHold.Sub(amount.Value), true
+	case amount.Operation == constant.CREDIT && amount.RouteValidationEnabled:
+		// Double-entry: CREDIT only increments Available.
+		return balance.Available.Add(amount.Value), balance.OnHold, true
+	default:
+		return balance.Available, balance.OnHold, false
+	}
+}
+
+func applyApprovedBalance(amount Amount, balance Balance) (available, onHold decimal.Decimal, matched bool) {
+	switch amount.Operation {
+	case constant.DEBIT:
+		return balance.Available, balance.OnHold.Sub(amount.Value), true
+	case constant.CREDIT:
+		return balance.Available.Add(amount.Value), balance.OnHold, true
+	default:
+		return balance.Available, balance.OnHold, false
+	}
+}
+
+func applyCreatedBalance(amount Amount, balance Balance) (available, onHold decimal.Decimal, matched bool) {
+	switch amount.Operation {
+	case constant.DEBIT:
+		return balance.Available.Sub(amount.Value), balance.OnHold, true
+	case constant.CREDIT:
+		return balance.Available.Add(amount.Value), balance.OnHold, true
+	default:
+		return balance.Available, balance.OnHold, false
+	}
 }
 
 // DetermineOperation determines the operation type and direction for a balance entry.
