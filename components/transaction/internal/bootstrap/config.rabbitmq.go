@@ -219,7 +219,7 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 				AddOne(ctx)
 		}
 
-		ctx = tmcore.ContextWithTenantMongo(ctx, mongoDB)
+		ctx = tmcore.ContextWithModuleMongo(ctx, ApplicationName, mongoDB)
 	}
 
 	return ctx, nil
