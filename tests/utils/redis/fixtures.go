@@ -71,8 +71,8 @@ func CreateBalanceOperationWithOnHold(organizationID, ledgerID uuid.UUID, alias,
 }
 
 // CreatePendingBalanceOperation creates a BalanceOperation for PENDING transaction testing.
-// It supports custom version, onHold, and the RouteValidationEnabled flag needed for
-// double-entry PENDING integration tests.
+// It delegates to CreateBalanceOperationWithOnHold and overrides the version and
+// RouteValidationEnabled flag needed for double-entry PENDING integration tests.
 func CreatePendingBalanceOperation(
 	organizationID, ledgerID uuid.UUID,
 	alias, assetCode, operation string,
@@ -81,39 +81,11 @@ func CreatePendingBalanceOperation(
 	accountType string,
 	routeValidationEnabled bool,
 ) mmodel.BalanceOperation {
-	balanceID := libCommons.GenerateUUIDv7().String()
-	accountID := libCommons.GenerateUUIDv7().String()
-	balanceKey := "default"
+	op := CreateBalanceOperationWithOnHold(organizationID, ledgerID, alias, assetCode, operation, amount, available, onHold, accountType)
+	op.Balance.Version = version
+	op.Amount.RouteValidationEnabled = routeValidationEnabled
 
-	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balanceKey)
-
-	return mmodel.BalanceOperation{
-		Balance: &mmodel.Balance{
-			ID:             balanceID,
-			OrganizationID: organizationID.String(),
-			LedgerID:       ledgerID.String(),
-			AccountID:      accountID,
-			Alias:          alias,
-			Key:            balanceKey,
-			AssetCode:      assetCode,
-			Available:      available,
-			OnHold:         onHold,
-			Version:        version,
-			AccountType:    accountType,
-			AllowSending:   true,
-			AllowReceiving: true,
-			CreatedAt:      time.Now(),
-			UpdatedAt:      time.Now(),
-		},
-		Alias: alias,
-		Amount: pkgTransaction.Amount{
-			Asset:                  assetCode,
-			Value:                  amount,
-			Operation:              operation,
-			RouteValidationEnabled: routeValidationEnabled,
-		},
-		InternalKey: internalKey,
-	}
+	return op
 }
 
 // AssertInsufficientFundsError verifies the error is an UnprocessableOperationError with code "0018".
