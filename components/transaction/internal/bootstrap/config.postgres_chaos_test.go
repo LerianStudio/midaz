@@ -111,7 +111,7 @@ func (infra *chaosBootstrapInfra) buildProxiedConfig(t *testing.T) *Config {
 }
 
 // =============================================================================
-// CS-1: initSingleTenantPostgres when PG connection fails
+// initSingleTenantPostgres when PG connection fails
 // =============================================================================
 
 // TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss verifies that
@@ -218,11 +218,14 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 
 	t.Cleanup(func() { closePGConnection(recoveredResult.connection) })
 
+	assert.True(t, recoveredResult.connection.Connected,
+		"Phase 5: connection must be connected after recovery")
+
 	t.Log("CS-1 PASS: initSingleTenantPostgres returns error (not panic) on connection loss, recovers correctly")
 }
 
 // =============================================================================
-// CS-2: initMultiTenantPostgres when PG connection fails
+// initMultiTenantPostgres when PG connection fails
 // =============================================================================
 
 // TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss verifies that
@@ -331,11 +334,11 @@ func TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss(t *testing.T) 
 	assert.NotNil(t, recoveredResult.pgManager,
 		"Phase 5: pgManager must be set after recovery")
 
-	t.Log("CS-2 PASS: initMultiTenantPostgres returns error (not panic) on connection loss, recovers correctly")
+	t.Log("PASS: initMultiTenantPostgres returns error (not panic) on connection loss, recovers correctly")
 }
 
 // =============================================================================
-// CS-3: Init succeeds, then PG goes down -- repos degrade gracefully
+// Init succeeds, then PG goes down -- repos degrade gracefully
 // =============================================================================
 
 // TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss verifies that
@@ -454,5 +457,5 @@ func TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss(t *testing.T) {
 	require.NoError(t, err, "Phase 5: query must succeed after recovery")
 	assert.Equal(t, 1, recoveredResult, "Phase 5: SELECT 1 must return 1")
 
-	t.Log("CS-3 PASS: repos degrade gracefully when PG goes down post-init, recover correctly")
+	t.Log("PASS: repos degrade gracefully when PG goes down post-init, recover correctly")
 }

@@ -233,7 +233,7 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 		wantErrContains string
 	}{
 		{
-			// AC-2: The primary scenario - enabled with no URL set at all.
+			// The primary scenario - enabled with no URL set at all.
 			name: "enabled_no_url_set_returns_error",
 			envVars: map[string]string{
 				"MULTI_TENANT_ENABLED": "true",
@@ -244,7 +244,7 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 			wantErrContains: "MULTI_TENANT_URL",
 		},
 		{
-			// AC-2: Explicitly set to empty string is also rejected.
+			// Explicitly set to empty string is also rejected.
 			name: "enabled_url_explicit_empty_returns_error",
 			envVars: map[string]string{
 				"MULTI_TENANT_ENABLED": "true",
@@ -278,7 +278,7 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 			wantErrContains: "APPLICATION_NAME",
 		},
 		{
-			// AC-3: Disabled flag short-circuits all multi-tenant logic — no error
+			// Disabled flag short-circuits all multi-tenant logic — no error
 			// even though URL is also absent.
 			name: "disabled_no_url_no_error_from_validation",
 			envVars: map[string]string{

@@ -5,7 +5,7 @@
 package bootstrap
 
 // =============================================================================
-// PROPERTY-BASED TESTS -- Multi-tenant worker/consumer domain invariants (T-007)
+// PROPERTY-BASED TESTS -- Multi-tenant worker/consumer domain invariants
 //
 // These tests verify that the domain invariants of the multi-tenant constructors
 // and predicates hold across hundreds of automatically-generated inputs using
