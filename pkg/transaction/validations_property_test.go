@@ -7,10 +7,12 @@ package transaction
 import (
 	"math/rand"
 	"testing"
+	"testing/quick"
 
 	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // validOperations is the complete set of known operation types returned by DetermineOperation.
@@ -42,16 +44,19 @@ var arbitraryTransactionTypes = append(
 )
 
 // knownOperationCombos lists all (Operation, TransactionType) pairs that produce a balance change.
+// RequiresRouteFlag indicates whether RouteValidationEnabled must be true for the combo to be active.
 var knownOperationCombos = []struct {
-	Operation       string
-	TransactionType string
+	Operation         string
+	TransactionType   string
+	RequiresRouteFlag bool
 }{
-	{constant.ONHOLD, constant.PENDING},
-	{constant.RELEASE, constant.CANCELED},
-	{constant.DEBIT, constant.APPROVED},
-	{constant.CREDIT, constant.APPROVED},
-	{constant.DEBIT, constant.CREATED},
-	{constant.CREDIT, constant.CREATED},
+	{constant.DEBIT, constant.PENDING, true},
+	{constant.ONHOLD, constant.PENDING, false},
+	{constant.RELEASE, constant.CANCELED, false},
+	{constant.DEBIT, constant.APPROVED, false},
+	{constant.CREDIT, constant.APPROVED, false},
+	{constant.DEBIT, constant.CREATED, false},
+	{constant.CREDIT, constant.CREATED, false},
 }
 
 const propertyIterations = 1000
@@ -109,10 +114,7 @@ func TestProperty_DetermineOperation_DirectionConsistency(t *testing.T) {
 }
 
 // TestProperty_OperateBalances_VersionIncrement verifies that for any known operation combo,
-// the version always increases by exactly the expected increment:
-//   - 2 when Operation==ONHOLD, TransactionType==PENDING, RouteValidationEnabled==true
-//   - 1 for all other known combos
-//   - 0 (unchanged) for unknown combos
+// the version always increases by exactly 1, and unknown combos leave version unchanged.
 func TestProperty_OperateBalances_VersionIncrement(t *testing.T) {
 	t.Parallel()
 
@@ -123,7 +125,6 @@ func TestProperty_OperateBalances_VersionIncrement(t *testing.T) {
 		value := decimal.NewFromInt(int64(rng.Intn(500) + 1))
 		available := decimal.NewFromInt(int64(rng.Intn(10000) + 1000))
 		onHold := decimal.NewFromInt(int64(rng.Intn(500)))
-		routeEnabled := rng.Intn(2) == 1
 
 		balance := Balance{
 			Available: available,
@@ -132,6 +133,13 @@ func TestProperty_OperateBalances_VersionIncrement(t *testing.T) {
 		}
 
 		combo := knownOperationCombos[rng.Intn(len(knownOperationCombos))]
+
+		// If the combo requires the route flag, always enable it.
+		// Otherwise, randomize it (the combo produces a change either way).
+		routeEnabled := rng.Intn(2) == 1
+		if combo.RequiresRouteFlag {
+			routeEnabled = true
+		}
 
 		amount := Amount{
 			Value:                  value,
@@ -143,17 +151,9 @@ func TestProperty_OperateBalances_VersionIncrement(t *testing.T) {
 		result, err := OperateBalances(amount, balance)
 		assert.NoError(t, err, "iteration %d", i)
 
-		if combo.Operation == constant.ONHOLD &&
-			combo.TransactionType == constant.PENDING &&
-			routeEnabled {
-			assert.Equal(t, startVersion+2, result.Version,
-				"iteration %d: ONHOLD+PENDING+RouteEnabled should increment version by 2 (start=%d got=%d)",
-				i, startVersion, result.Version)
-		} else {
-			assert.Equal(t, startVersion+1, result.Version,
-				"iteration %d: %s+%s should increment version by 1 (start=%d got=%d)",
-				i, combo.Operation, combo.TransactionType, startVersion, result.Version)
-		}
+		assert.Equal(t, startVersion+1, result.Version,
+			"iteration %d: %s+%s (route=%v) should increment version by 1 (start=%d got=%d)",
+			i, combo.Operation, combo.TransactionType, routeEnabled, startVersion, result.Version)
 	}
 }
 
@@ -215,16 +215,29 @@ func TestProperty_OperateBalances_Conservation(t *testing.T) {
 
 		combo := knownOperationCombos[rng.Intn(len(knownOperationCombos))]
 
+		routeEnabled := false
+		if combo.RequiresRouteFlag {
+			routeEnabled = true
+		}
+
 		amount := Amount{
-			Value:           value,
-			Operation:       combo.Operation,
-			TransactionType: combo.TransactionType,
+			Value:                  value,
+			Operation:              combo.Operation,
+			TransactionType:        combo.TransactionType,
+			RouteValidationEnabled: routeEnabled,
 		}
 
 		result, err := OperateBalances(amount, balance)
 		assert.NoError(t, err, "iteration %d: %s+%s", i, combo.Operation, combo.TransactionType)
 
 		switch {
+		case combo.Operation == constant.DEBIT && combo.TransactionType == constant.PENDING:
+			// Double-entry: Available decreases by Value, OnHold unchanged
+			assert.True(t, result.Available.Equal(available.Sub(value)),
+				"iteration %d: DEBIT+PENDING Available should decrease by %s", i, value)
+			assert.True(t, result.OnHold.Equal(onHold),
+				"iteration %d: DEBIT+PENDING OnHold should be unchanged", i)
+
 		case combo.Operation == constant.DEBIT && combo.TransactionType == constant.CREATED:
 			// Available decreases by Value, OnHold unchanged
 			assert.True(t, result.Available.Equal(available.Sub(value)),
@@ -240,7 +253,7 @@ func TestProperty_OperateBalances_Conservation(t *testing.T) {
 				"iteration %d: CREDIT+CREATED OnHold should be unchanged", i)
 
 		case combo.Operation == constant.ONHOLD && combo.TransactionType == constant.PENDING:
-			// Available decreases, OnHold increases -- net zero across Available+OnHold
+			// Legacy (flag off): Available decreases, OnHold increases -- net zero
 			availableDelta := available.Sub(result.Available)
 			onHoldDelta := result.OnHold.Sub(onHold)
 			assert.True(t, availableDelta.Equal(value),
@@ -251,7 +264,7 @@ func TestProperty_OperateBalances_Conservation(t *testing.T) {
 				"iteration %d: ONHOLD+PENDING conservation violated: Available delta != OnHold delta", i)
 
 		case combo.Operation == constant.RELEASE && combo.TransactionType == constant.CANCELED:
-			// Available increases, OnHold decreases -- net zero across Available+OnHold
+			// Legacy (flag off): Available increases, OnHold decreases -- net zero
 			availableDelta := result.Available.Sub(available)
 			onHoldDelta := onHold.Sub(result.OnHold)
 			assert.True(t, availableDelta.Equal(value),
@@ -350,8 +363,9 @@ func TestProperty_OperateBalances_NoPanic(t *testing.T) {
 }
 
 // TestProperty_OperateBalances_OnHoldPendingConservation specifically tests the
-// conservation-of-value invariant for ONHOLD+PENDING: the sum of (Available + OnHold)
-// must remain constant before and after the operation.
+// conservation-of-value invariant for ONHOLD+PENDING.
+// When RouteValidationEnabled=false (legacy): Available-- AND OnHold++, sum conserved.
+// When RouteValidationEnabled=true (double-entry): OnHold++ only, Available unchanged.
 func TestProperty_OperateBalances_OnHoldPendingConservation(t *testing.T) {
 	t.Parallel()
 
@@ -376,17 +390,232 @@ func TestProperty_OperateBalances_OnHoldPendingConservation(t *testing.T) {
 			RouteValidationEnabled: routeEnabled,
 		}
 
-		totalBefore := balance.Available.Add(balance.OnHold)
-
 		result, err := OperateBalances(amount, balance)
 		assert.NoError(t, err, "iteration %d", i)
 
-		totalAfter := result.Available.Add(result.OnHold)
-		assert.True(t, totalBefore.Equal(totalAfter),
-			"iteration %d: conservation violated for ONHOLD+PENDING (routeEnabled=%v): "+
-				"before(Available=%s + OnHold=%s = %s) != after(Available=%s + OnHold=%s = %s)",
-			i, routeEnabled,
-			available, onHold, totalBefore,
-			result.Available, result.OnHold, totalAfter)
+		if routeEnabled {
+			// Double-entry: ON_HOLD only increments OnHold, Available unchanged.
+			assert.True(t, result.Available.Equal(available),
+				"iteration %d: ONHOLD+PENDING (route=true) Available should be unchanged: got %s, want %s",
+				i, result.Available, available)
+			assert.True(t, result.OnHold.Equal(onHold.Add(value)),
+				"iteration %d: ONHOLD+PENDING (route=true) OnHold should increase by %s: got %s",
+				i, value, result.OnHold)
+		} else {
+			// Legacy: Available-- AND OnHold++, sum conserved.
+			totalBefore := balance.Available.Add(balance.OnHold)
+			totalAfter := result.Available.Add(result.OnHold)
+			assert.True(t, totalBefore.Equal(totalAfter),
+				"iteration %d: conservation violated for ONHOLD+PENDING (routeEnabled=false): "+
+					"before(Available=%s + OnHold=%s = %s) != after(Available=%s + OnHold=%s = %s)",
+				i, available, onHold, totalBefore,
+				result.Available, result.OnHold, totalAfter)
+		}
 	}
+}
+
+// TestProperty_OperateBalances_ConservationCanceledDoubleEntry verifies that when
+// RouteValidationEnabled=true, the RELEASE+CANCELED operation only decrements OnHold
+// (leaving Available unchanged), and the CREDIT+CANCELED operation only increments
+// Available (leaving OnHold unchanged). The combined net effect of both operations
+// equals the legacy single-op behavior: OnHold -= amount, Available += amount.
+func TestProperty_OperateBalances_ConservationCanceledDoubleEntry(t *testing.T) {
+	t.Parallel()
+
+	f := func(valueRaw, availableRaw, onHoldRaw uint32) bool {
+		// Constrain inputs to positive values to keep the property meaningful.
+		value := decimal.NewFromInt(int64(valueRaw%5000 + 1))
+		available := decimal.NewFromInt(int64(availableRaw%50000 + 1000))
+		onHold := decimal.NewFromInt(int64(onHoldRaw%5000 + 500))
+
+		balance := Balance{
+			Available: available,
+			OnHold:    onHold,
+			Version:   1,
+		}
+
+		// Phase 1: RELEASE+CANCELED with RouteValidationEnabled=true
+		releaseAmount := Amount{
+			Value:                  value,
+			Operation:              constant.RELEASE,
+			TransactionType:        constant.CANCELED,
+			RouteValidationEnabled: true,
+		}
+
+		afterRelease, err := OperateBalances(releaseAmount, balance)
+		if err != nil {
+			return false
+		}
+
+		// RELEASE with flag: OnHold must decrease, Available must be UNCHANGED.
+		if !afterRelease.Available.Equal(available) {
+			return false
+		}
+
+		if !afterRelease.OnHold.Equal(onHold.Sub(value)) {
+			return false
+		}
+
+		// Phase 2: CREDIT+CANCELED with RouteValidationEnabled=true (applied to afterRelease)
+		creditAmount := Amount{
+			Value:                  value,
+			Operation:              constant.CREDIT,
+			TransactionType:        constant.CANCELED,
+			RouteValidationEnabled: true,
+		}
+
+		afterCredit, err := OperateBalances(creditAmount, afterRelease)
+		if err != nil {
+			return false
+		}
+
+		// CREDIT with flag: Available must increase, OnHold must be UNCHANGED from afterRelease.
+		if !afterCredit.Available.Equal(afterRelease.Available.Add(value)) {
+			return false
+		}
+
+		if !afterCredit.OnHold.Equal(afterRelease.OnHold) {
+			return false
+		}
+
+		// Net effect: OnHold decreased by value, Available increased by value (same as legacy).
+		netOnHoldDelta := onHold.Sub(afterCredit.OnHold)
+		netAvailableDelta := afterCredit.Available.Sub(available)
+
+		if !netOnHoldDelta.Equal(value) {
+			return false
+		}
+
+		if !netAvailableDelta.Equal(value) {
+			return false
+		}
+
+		return true
+	}
+
+	err := quick.Check(f, &quick.Config{MaxCount: 1000})
+	require.NoError(t, err, "ConservationCanceledDoubleEntry property violated")
+}
+
+// TestProperty_OperateBalances_ZeroAmountIdempotence verifies that for any known
+// operation with a zero amount, the balance fields (Available, OnHold) remain unchanged.
+// The version still increments because the code does not short-circuit on zero amount,
+// which is correct behavior (the operation is recorded even if the amount is zero).
+func TestProperty_OperateBalances_ZeroAmountIdempotence(t *testing.T) {
+	t.Parallel()
+
+	f := func(availableRaw, onHoldRaw uint32, comboIdx uint8, routeFlag bool) bool {
+		available := decimal.NewFromInt(int64(availableRaw%50000 + 1))
+		onHold := decimal.NewFromInt(int64(onHoldRaw%5000 + 1))
+		startVersion := int64(42)
+
+		// Select a known operation combo deterministically.
+		combo := knownOperationCombos[int(comboIdx)%len(knownOperationCombos)]
+
+		// If the combo requires the route flag, force it on.
+		effectiveRouteFlag := routeFlag
+		if combo.RequiresRouteFlag {
+			effectiveRouteFlag = true
+		}
+
+		balance := Balance{
+			Available: available,
+			OnHold:    onHold,
+			Version:   startVersion,
+		}
+
+		amount := Amount{
+			Value:                  decimal.Zero,
+			Operation:              combo.Operation,
+			TransactionType:        combo.TransactionType,
+			RouteValidationEnabled: effectiveRouteFlag,
+		}
+
+		result, err := OperateBalances(amount, balance)
+		if err != nil {
+			return false
+		}
+
+		// With zero amount, Available and OnHold must remain unchanged.
+		if !result.Available.Equal(available) {
+			return false
+		}
+
+		if !result.OnHold.Equal(onHold) {
+			return false
+		}
+
+		// Version must still increment (operation is recorded).
+		if result.Version <= startVersion {
+			return false
+		}
+
+		return true
+	}
+
+	err := quick.Check(f, &quick.Config{MaxCount: 1000})
+	require.NoError(t, err, "ZeroAmountIdempotence property violated")
+}
+
+// TestProperty_OperateBalances_FlagIndependenceLegacy verifies that when
+// RouteValidationEnabled=false, the RELEASE+CANCELED operation produces legacy
+// behavior: both OnHold-- AND Available++, version+1. This must hold regardless
+// of the input balance values, ensuring the flag-off path is never affected by
+// the double-entry code path.
+func TestProperty_OperateBalances_FlagIndependenceLegacy(t *testing.T) {
+	t.Parallel()
+
+	f := func(valueRaw, availableRaw, onHoldRaw uint32) bool {
+		value := decimal.NewFromInt(int64(valueRaw%5000 + 1))
+		available := decimal.NewFromInt(int64(availableRaw%50000 + 1000))
+		onHold := decimal.NewFromInt(int64(onHoldRaw%5000 + 500))
+		startVersion := int64(10)
+
+		balance := Balance{
+			Available: available,
+			OnHold:    onHold,
+			Version:   startVersion,
+		}
+
+		// RELEASE+CANCELED with RouteValidationEnabled=false (legacy path).
+		amount := Amount{
+			Value:                  value,
+			Operation:              constant.RELEASE,
+			TransactionType:        constant.CANCELED,
+			RouteValidationEnabled: false,
+		}
+
+		result, err := OperateBalances(amount, balance)
+		if err != nil {
+			return false
+		}
+
+		// Legacy behavior: Available increases by value.
+		if !result.Available.Equal(available.Add(value)) {
+			return false
+		}
+
+		// Legacy behavior: OnHold decreases by value.
+		if !result.OnHold.Equal(onHold.Sub(value)) {
+			return false
+		}
+
+		// Legacy behavior: version increments by exactly 1 (not 2).
+		if result.Version != startVersion+1 {
+			return false
+		}
+
+		// Conservation: Available+OnHold total is unchanged (moved between buckets).
+		totalBefore := available.Add(onHold)
+		totalAfter := result.Available.Add(result.OnHold)
+
+		if !totalBefore.Equal(totalAfter) {
+			return false
+		}
+
+		return true
+	}
+
+	err := quick.Check(f, &quick.Config{MaxCount: 1000})
+	require.NoError(t, err, "FlagIndependenceLegacy property violated")
 }

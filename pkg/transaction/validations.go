@@ -134,26 +134,37 @@ func ConcatAlias(i int, alias string) string {
 // OperateBalances Function to sum or sub two balances and Normalize the scale
 func OperateBalances(amount Amount, balance Balance) (Balance, error) {
 	var (
-		total        decimal.Decimal
-		totalOnHold  decimal.Decimal
-		totalVersion int64
+		total       decimal.Decimal
+		totalOnHold decimal.Decimal
 	)
 
 	total = balance.Available
 	totalOnHold = balance.OnHold
 
-	versionIncrement := int64(1)
-
 	switch {
-	case amount.Operation == constant.ONHOLD && amount.TransactionType == constant.PENDING:
+	case amount.Operation == constant.DEBIT && amount.TransactionType == constant.PENDING && amount.RouteValidationEnabled:
+		// Double-entry: DEBIT only decrements Available.
+		// The OnHold++ will be a separate ON_HOLD operation.
 		total = balance.Available.Sub(amount.Value)
-		totalOnHold = balance.OnHold.Add(amount.Value)
-
+	case amount.Operation == constant.ONHOLD && amount.TransactionType == constant.PENDING:
 		if amount.RouteValidationEnabled {
-			versionIncrement = 2
+			// Double-entry: ON_HOLD only increments OnHold.
+			// The Available-- was already done by the separate DEBIT operation.
+			totalOnHold = balance.OnHold.Add(amount.Value)
+		} else {
+			total = balance.Available.Sub(amount.Value)
+			totalOnHold = balance.OnHold.Add(amount.Value)
 		}
 	case amount.Operation == constant.RELEASE && amount.TransactionType == constant.CANCELED:
-		totalOnHold = balance.OnHold.Sub(amount.Value)
+		if amount.RouteValidationEnabled {
+			// Double-entry: RELEASE only decrements OnHold.
+			// The Available++ will be a separate CREDIT operation.
+			totalOnHold = balance.OnHold.Sub(amount.Value)
+		} else {
+			totalOnHold = balance.OnHold.Sub(amount.Value)
+			total = balance.Available.Add(amount.Value)
+		}
+	case amount.Operation == constant.CREDIT && amount.TransactionType == constant.CANCELED && amount.RouteValidationEnabled:
 		total = balance.Available.Add(amount.Value)
 	case amount.Operation == constant.DEBIT && amount.TransactionType == constant.APPROVED:
 		totalOnHold = balance.OnHold.Sub(amount.Value)
@@ -168,12 +179,10 @@ func OperateBalances(amount Amount, balance Balance) (Balance, error) {
 		return balance, nil
 	}
 
-	totalVersion = balance.Version + versionIncrement
-
 	return Balance{
 		Available: total,
 		OnHold:    totalOnHold,
-		Version:   totalVersion,
+		Version:   balance.Version + 1,
 	}, nil
 }
 
