@@ -1,3 +1,65 @@
+# Shared environment blocks to reduce duplication between ledger and consumer.
+x-redis-env: &redis_env
+  REDIS_HOST: midaz-valkey:${REDIS_PORT}
+  REDIS_PASSWORD: ${REDIS_PASSWORD}
+  REDIS_DB: "0"
+  REDIS_PROTOCOL: "3"
+  REDIS_POOL_SIZE: "1024"
+  REDIS_MIN_IDLE_CONNS: "128"
+  REDIS_READ_TIMEOUT: "10"
+  REDIS_WRITE_TIMEOUT: "10"
+  REDIS_POOL_TIMEOUT: "5"
+
+x-redpanda-env: &redpanda_env
+  REDPANDA_BROKERS: midaz-redpanda:9092
+  REDPANDA_BALANCE_CREATE_TOPIC: ledger.balance.create
+  REDPANDA_BALANCE_OPS_TOPIC: ledger.balance.operations
+  REDPANDA_EVENTS_TOPIC: ledger.transaction.events
+  REDPANDA_AUDIT_TOPIC: ledger.audit.log
+  REDPANDA_CONSUMER_GROUP: midaz-balance-projector
+  REDPANDA_NUMBERS_OF_WORKERS: "120"
+  REDPANDA_PARTITION_COUNT: "8"
+  REDPANDA_COMMIT_INTERVAL_MS: "1000"
+  REDPANDA_FETCH_MAX_BYTES: "50000000"
+  REDPANDA_PRODUCER_LINGER_MS: "5"
+  REDPANDA_MAX_BUFFERED_RECORDS: "10000"
+
+x-consumer-batch-env: &consumer_batch_env
+  TRANSACTION_ASYNC: "true"
+  TRANSACTION_EVENTS_ENABLED: "false"
+  BALANCE_SYNC_WORKER_ENABLED: "false"
+  REDIS_SHARD_COUNT: "8"
+  CONSUMER_BATCH_ENABLED: "true"
+  CONSUMER_BATCH_SIZE: "50"
+  CONSUMER_BATCH_WINDOW_MS: "10"
+  CONSUMER_IDLE_FLUSH_MS: "100"
+  CONSUMER_BACKPRESSURE_ENABLED: "false"
+  CONSUMER_MAX_DB_TPS: "0"
+  CONSUMER_MAX_DB_BURST: "100"
+  CONSUMER_LAG_FENCE_ENABLED: "false"
+  CONSUMER_LAG_CACHE_TTL_MS: "500"
+  CONSUMER_ENABLED: "false"
+  DEDICATED_CONSUMER_ENABLED: "true"
+  SHARD_REBALANCE_WORKER_ENABLED: "false"
+
+x-authorizer-client-env: &authorizer_client_env
+  AUTHORIZER_ENABLED: "true"
+  AUTHORIZER_HOST: authorizer
+  AUTHORIZER_PORT: "50051"
+  AUTHORIZER_ROUTING_MODE: "sharded"
+  AUTHORIZER_INSTANCES: "authorizer:50051,authorizer-2:50051"
+  AUTHORIZER_SHARD_RANGES: "0-3,4-7"
+  AUTHORIZER_TIMEOUT_MS: "3000"
+  AUTHORIZER_POOL_SIZE: "16"
+  AUTHORIZER_USE_STREAMING: "false"
+  AUTHORIZER_PEER_AUTH_TOKEN: ${AUTHORIZER_PEER_AUTH_TOKEN:?AUTHORIZER_PEER_AUTH_TOKEN must be set to a strong shared secret}
+
+x-presplit-env: &presplit_env
+  EXTERNAL_PRESPLIT_SHARD_COUNT: "8"
+  EXTERNAL_PRESPLIT_PREWARM: "true"
+  EXTERNAL_PRESPLIT_ORGANIZATION_ID: ${BENCH_ORGANIZATION_ID:-019819da-dfb9-7a68-b3f6-a8906de0d639}
+  EXTERNAL_PRESPLIT_LEDGER_ID: ${BENCH_LEDGER_ID:-019819db-c78c-77b9-a22b-9d018febd0a5}
+
 services:
   midaz-mongodb:
     container_name: midaz-mongodb
@@ -181,7 +243,7 @@ services:
       - ${REDPANDA_PORT_HOST:-9092}:9092
       - 127.0.0.1:${REDPANDA_ADMIN_PORT:-9644}:9644
     volumes:
-      - ~/.docker-conf/redpanda/data/:/var/lib/redpanda/data
+      - redpanda-data:/var/lib/redpanda/data
     networks:
       - infra-network
 
@@ -214,12 +276,24 @@ services:
       AUTHORIZER_SHARD_COUNT: "8"
       AUTHORIZER_SHARD_IDS: "0,1,2,3"
       AUTHORIZER_MAX_CONCURRENT_STREAMS: "10000"
+      AUTHORIZER_MAX_OPERATIONS_PER_REQUEST: "2048"
+      AUTHORIZER_MAX_UNIQUE_BALANCES_PER_REQUEST: "2048"
+      AUTHORIZER_WAL_REPLAY_MAX_MUTATIONS_PER_ENTRY: "2048"
+      AUTHORIZER_WAL_REPLAY_MAX_UNIQUE_BALANCES_PER_ENTRY: "2048"
+      AUTHORIZER_WAL_REPLAY_STRICT_MODE: "false"
       AUTHORIZER_REDPANDA_ENABLED: "true"
       AUTHORIZER_REDPANDA_BROKERS: midaz-redpanda:9092
+      AUTHORIZER_REDPANDA_PRODUCER_LINGER_MS: "0"
+      AUTHORIZER_REDPANDA_PUBLISH_TIMEOUT_MS: "2000"
+      AUTHORIZER_REDPANDA_DELIVERY_TIMEOUT_MS: "5000"
       AUTHORIZER_PEER_INSTANCES: "authorizer-2:50051"
       AUTHORIZER_PEER_AUTH_TOKEN: ${AUTHORIZER_PEER_AUTH_TOKEN:?AUTHORIZER_PEER_AUTH_TOKEN must be set to a strong shared secret}
       AUTHORIZER_PEER_INSECURE_ALLOWED: ${AUTHORIZER_PEER_INSECURE_ALLOWED:-false}
-      AUTHORIZER_PEER_PREPARE_MAX_INFLIGHT: "0"
+      AUTHORIZER_PEER_PREPARE_MAX_INFLIGHT: "256"
+      AUTHORIZER_PEER_NONCE_MAX_ENTRIES: "100000"
+      AUTHORIZER_PEER_AUTH_MAX_SKEW_MS: "5000"
+      AUTHORIZER_ASYNC_COMMIT_INTENT: "true"
+      AUTHORIZER_WAL_RECONCILER_ENABLED: "true"
       AUTHORIZER_OWNED_SHARD_START: "0"
       AUTHORIZER_OWNED_SHARD_END: "3"
       DB_TRANSACTION_HOST: midaz-postgres-primary
@@ -233,6 +307,10 @@ services:
         condition: service_healthy
       midaz-redpanda:
         condition: service_started
+    ulimits:
+      nofile:
+        soft: 200000
+        hard: 200000
     networks:
       - infra-network
 
@@ -247,12 +325,24 @@ services:
       AUTHORIZER_SHARD_COUNT: "8"
       AUTHORIZER_SHARD_IDS: "4,5,6,7"
       AUTHORIZER_MAX_CONCURRENT_STREAMS: "10000"
+      AUTHORIZER_MAX_OPERATIONS_PER_REQUEST: "2048"
+      AUTHORIZER_MAX_UNIQUE_BALANCES_PER_REQUEST: "2048"
+      AUTHORIZER_WAL_REPLAY_MAX_MUTATIONS_PER_ENTRY: "2048"
+      AUTHORIZER_WAL_REPLAY_MAX_UNIQUE_BALANCES_PER_ENTRY: "2048"
+      AUTHORIZER_WAL_REPLAY_STRICT_MODE: "false"
       AUTHORIZER_REDPANDA_ENABLED: "true"
       AUTHORIZER_REDPANDA_BROKERS: midaz-redpanda:9092
+      AUTHORIZER_REDPANDA_PRODUCER_LINGER_MS: "0"
+      AUTHORIZER_REDPANDA_PUBLISH_TIMEOUT_MS: "2000"
+      AUTHORIZER_REDPANDA_DELIVERY_TIMEOUT_MS: "5000"
       AUTHORIZER_PEER_INSTANCES: "authorizer:50051"
       AUTHORIZER_PEER_AUTH_TOKEN: ${AUTHORIZER_PEER_AUTH_TOKEN:?AUTHORIZER_PEER_AUTH_TOKEN must be set to a strong shared secret}
       AUTHORIZER_PEER_INSECURE_ALLOWED: ${AUTHORIZER_PEER_INSECURE_ALLOWED:-false}
-      AUTHORIZER_PEER_PREPARE_MAX_INFLIGHT: "0"
+      AUTHORIZER_PEER_PREPARE_MAX_INFLIGHT: "256"
+      AUTHORIZER_PEER_NONCE_MAX_ENTRIES: "100000"
+      AUTHORIZER_PEER_AUTH_MAX_SKEW_MS: "5000"
+      AUTHORIZER_ASYNC_COMMIT_INTENT: "true"
+      AUTHORIZER_WAL_RECONCILER_ENABLED: "true"
       AUTHORIZER_OWNED_SHARD_START: "4"
       AUTHORIZER_OWNED_SHARD_END: "7"
       DB_TRANSACTION_HOST: midaz-postgres-primary
@@ -266,6 +356,10 @@ services:
         condition: service_healthy
       midaz-redpanda:
         condition: service_started
+    ulimits:
+      nofile:
+        soft: 200000
+        hard: 200000
     networks:
       - infra-network
 
@@ -276,7 +370,7 @@ services:
     container_name: midaz-ledger-1
     environment: &ledger_env
       ENV_NAME: local
-      SERVER_ADDRESS: ":3001"
+      SERVER_ADDRESS: ":3002"
       PLUGIN_AUTH_ENABLED: "false"
       DB_ONBOARDING_HOST: midaz-postgres-primary
       DB_ONBOARDING_PORT: ${DB_PORT}
@@ -318,55 +412,7 @@ services:
       MONGO_TRANSACTION_USER: ${MONGO_USER}
       MONGO_TRANSACTION_PASSWORD: ${MONGO_PASSWORD}
       MONGO_TRANSACTION_NAME: transaction
-      REDIS_HOST: midaz-valkey:${REDIS_PORT}
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      REDIS_DB: "0"
-      REDIS_PROTOCOL: "3"
-      REDIS_POOL_SIZE: "1024"
-      REDIS_MIN_IDLE_CONNS: "128"
-      REDIS_READ_TIMEOUT: "10"
-      REDIS_WRITE_TIMEOUT: "10"
-      REDIS_POOL_TIMEOUT: "5"
-      REDPANDA_BROKERS: midaz-redpanda:9092
-      REDPANDA_BALANCE_CREATE_TOPIC: ledger.balance.create
-      REDPANDA_BALANCE_OPS_TOPIC: ledger.balance.operations
-      REDPANDA_EVENTS_TOPIC: ledger.transaction.events
-      REDPANDA_AUDIT_TOPIC: ledger.audit.log
-      REDPANDA_CONSUMER_GROUP: midaz-balance-projector
-      REDPANDA_NUMBERS_OF_WORKERS: "120"
-      REDPANDA_PARTITION_COUNT: "8"
-      REDPANDA_COMMIT_INTERVAL_MS: "1000"
-      REDPANDA_FETCH_MAX_BYTES: "50000000"
-      REDPANDA_PRODUCER_LINGER_MS: "5"
-      REDPANDA_MAX_BUFFERED_RECORDS: "10000"
-      TRANSACTION_ASYNC: "true"
-      TRANSACTION_EVENTS_ENABLED: "false"
-      BALANCE_SYNC_WORKER_ENABLED: "false"
-      REDIS_SHARD_COUNT: "8"
-      CONSUMER_BATCH_ENABLED: "true"
-      CONSUMER_BATCH_SIZE: "50"
-      CONSUMER_BATCH_WINDOW_MS: "10"
-      CONSUMER_IDLE_FLUSH_MS: "100"
-      CONSUMER_BACKPRESSURE_ENABLED: "false"
-      CONSUMER_MAX_DB_TPS: "0"
-      CONSUMER_MAX_DB_BURST: "100"
-      CONSUMER_LAG_FENCE_ENABLED: "false"
-      CONSUMER_LAG_CACHE_TTL_MS: "500"
-      CONSUMER_ENABLED: "false"
-      DEDICATED_CONSUMER_ENABLED: "true"
-      SHARD_REBALANCE_WORKER_ENABLED: "false"
-      EXTERNAL_PRESPLIT_SHARD_COUNT: "8"
-      EXTERNAL_PRESPLIT_PREWARM: "true"
-      EXTERNAL_PRESPLIT_ORGANIZATION_ID: ${BENCH_ORGANIZATION_ID:-019819da-dfb9-7a68-b3f6-a8906de0d639}
-      EXTERNAL_PRESPLIT_LEDGER_ID: ${BENCH_LEDGER_ID:-019819db-c78c-77b9-a22b-9d018febd0a5}
-      AUTHORIZER_ENABLED: "true"
-      AUTHORIZER_HOST: authorizer
-      AUTHORIZER_PORT: "50051"
-      AUTHORIZER_ROUTING_MODE: "sharded"
-      AUTHORIZER_INSTANCES: "authorizer:50051,authorizer-2:50051"
-      AUTHORIZER_SHARD_RANGES: "0-3,4-7"
-      AUTHORIZER_TIMEOUT_MS: "10000"
-      AUTHORIZER_USE_STREAMING: "false"
+      <<: [*redis_env, *redpanda_env, *consumer_batch_env, *presplit_env, *authorizer_client_env]
       OTEL_EXPORTER_OTLP_ENDPOINT: ""
       ENABLE_TELEMETRY: "false"
     depends_on:
@@ -385,6 +431,10 @@ services:
       authorizer-2:
         condition: service_started
     restart: on-failure
+    ulimits:
+      nofile:
+        soft: 200000
+        hard: 200000
     networks:
       - infra-network
 
@@ -412,6 +462,10 @@ services:
       authorizer-2:
         condition: service_started
     restart: on-failure
+    ulimits:
+      nofile:
+        soft: 200000
+        hard: 200000
     networks:
       - infra-network
 
@@ -422,7 +476,7 @@ services:
     container_name: midaz-ledger-3
     environment:
       <<: *ledger_env
-      SERVER_ADDRESS: ":3003"
+      SERVER_ADDRESS: ":3002"
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
@@ -439,6 +493,10 @@ services:
       authorizer-2:
         condition: service_started
     restart: on-failure
+    ulimits:
+      nofile:
+        soft: 200000
+        hard: 200000
     networks:
       - infra-network
 
@@ -449,7 +507,7 @@ services:
     container_name: midaz-ledger-4
     environment:
       <<: *ledger_env
-      SERVER_ADDRESS: ":3004"
+      SERVER_ADDRESS: ":3002"
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
@@ -466,6 +524,10 @@ services:
       authorizer-2:
         condition: service_started
     restart: on-failure
+    ulimits:
+      nofile:
+        soft: 200000
+        hard: 200000
     networks:
       - infra-network
 
@@ -476,6 +538,7 @@ services:
     container_name: midaz-consumer
     environment:
       ENV_NAME: local
+      # Consumer uses unprefixed DB vars (different from ledger's DB_TRANSACTION_* prefix).
       DB_HOST: midaz-postgres-primary
       DB_PORT: ${DB_PORT}
       DB_USER: ${DB_USER}
@@ -496,55 +559,7 @@ services:
       MONGO_USER: ${MONGO_USER}
       MONGO_PASSWORD: ${MONGO_PASSWORD}
       MONGO_NAME: transaction
-      REDIS_HOST: midaz-valkey:${REDIS_PORT}
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      REDIS_DB: "0"
-      REDIS_PROTOCOL: "3"
-      REDIS_POOL_SIZE: "1024"
-      REDIS_MIN_IDLE_CONNS: "128"
-      REDIS_READ_TIMEOUT: "10"
-      REDIS_WRITE_TIMEOUT: "10"
-      REDIS_POOL_TIMEOUT: "5"
-      REDPANDA_BROKERS: midaz-redpanda:9092
-      REDPANDA_BALANCE_CREATE_TOPIC: ledger.balance.create
-      REDPANDA_BALANCE_OPS_TOPIC: ledger.balance.operations
-      REDPANDA_EVENTS_TOPIC: ledger.transaction.events
-      REDPANDA_AUDIT_TOPIC: ledger.audit.log
-      REDPANDA_CONSUMER_GROUP: midaz-balance-projector
-      REDPANDA_NUMBERS_OF_WORKERS: "120"
-      REDPANDA_PARTITION_COUNT: "8"
-      REDPANDA_COMMIT_INTERVAL_MS: "1000"
-      REDPANDA_FETCH_MAX_BYTES: "50000000"
-      REDPANDA_PRODUCER_LINGER_MS: "5"
-      REDPANDA_MAX_BUFFERED_RECORDS: "10000"
-      TRANSACTION_ASYNC: "true"
-      TRANSACTION_EVENTS_ENABLED: "false"
-      BALANCE_SYNC_WORKER_ENABLED: "false"
-      REDIS_SHARD_COUNT: "8"
-      CONSUMER_BATCH_ENABLED: "true"
-      CONSUMER_BATCH_SIZE: "50"
-      CONSUMER_BATCH_WINDOW_MS: "10"
-      CONSUMER_IDLE_FLUSH_MS: "100"
-      CONSUMER_BACKPRESSURE_ENABLED: "false"
-      CONSUMER_MAX_DB_TPS: "0"
-      CONSUMER_MAX_DB_BURST: "100"
-      CONSUMER_LAG_FENCE_ENABLED: "false"
-      CONSUMER_LAG_CACHE_TTL_MS: "500"
-      CONSUMER_ENABLED: "false"
-      DEDICATED_CONSUMER_ENABLED: "true"
-      SHARD_REBALANCE_WORKER_ENABLED: "false"
-      EXTERNAL_PRESPLIT_SHARD_COUNT: "8"
-      EXTERNAL_PRESPLIT_PREWARM: "true"
-      EXTERNAL_PRESPLIT_ORGANIZATION_ID: ${BENCH_ORGANIZATION_ID:-019819da-dfb9-7a68-b3f6-a8906de0d639}
-      EXTERNAL_PRESPLIT_LEDGER_ID: ${BENCH_LEDGER_ID:-019819db-c78c-77b9-a22b-9d018febd0a5}
-      AUTHORIZER_ENABLED: "true"
-      AUTHORIZER_HOST: authorizer
-      AUTHORIZER_PORT: "50051"
-      AUTHORIZER_ROUTING_MODE: "sharded"
-      AUTHORIZER_INSTANCES: "authorizer:50051,authorizer-2:50051"
-      AUTHORIZER_SHARD_RANGES: "0-3,4-7"
-      AUTHORIZER_TIMEOUT_MS: "10000"
-      AUTHORIZER_USE_STREAMING: "false"
+      <<: [*redis_env, *redpanda_env, *consumer_batch_env, *presplit_env, *authorizer_client_env]
       OTEL_EXPORTER_OTLP_ENDPOINT: ""
       ENABLE_TELEMETRY: "false"
     depends_on:
@@ -583,6 +598,12 @@ services:
       - ./nginx/nginx-bench.conf:/etc/nginx/nginx.conf:ro
     ports:
       - "3010:3000"
+    # Ledger containers use distroless (no shell, no wget/curl), so container-level
+    # healthchecks are impossible. Instead we start nginx after a short delay to
+    # give the ledger backends time to bind their listen port. The upstream block
+    # uses least_conn, and proxy_next_upstream handles any backend that is still
+    # booting when the first request arrives.
+    command: ["/bin/sh", "-c", "sleep 5 && nginx -g 'daemon off;'"]
     depends_on:
       - ledger-1
       - ledger-2
@@ -597,6 +618,7 @@ volumes:
   redis-data:
   grafana-data:
   mongodb-data:
+  redpanda-data:
 
 networks:
   infra-network:
