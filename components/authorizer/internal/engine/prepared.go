@@ -10,8 +10,11 @@ import (
 	"sync"
 	"time"
 
-	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/wal"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
 
 const (
@@ -34,6 +37,7 @@ const (
 	preparedCleanupInterval = 500 * time.Millisecond
 )
 
+// ErrPreparedTxNotFound indicates that the prepared transaction was not found in the store.
 var (
 	ErrPreparedTxNotFound         = errors.New("prepared transaction not found")
 	ErrPreparedTxAlreadyCommitted = errors.New("prepared transaction already committed")
@@ -59,9 +63,17 @@ type PreparedTx struct {
 	// changedOps is the number of operations that actually mutate balance state.
 	changedOps int
 
-	// orderedShards lists the locked shards in acquisition order (ascending).
-	// These MUST be released by CommitPrepared or AbortPrepared.
-	orderedShards []int
+	// lockedBalances holds the per-balance locks acquired during Prepare, in
+	// deterministic (sorted lookup-key) order. These MUST be released by
+	// CommitPrepared or AbortPrepared. Replaces the previous orderedShards
+	// which locked entire shards containing many unrelated accounts.
+	lockedBalances []*Balance
+
+	// lockedCount tracks how many unique balances are locked (for observability).
+	lockedCount int
+
+	// lockedShardCount tracks how many shards those locked balances span.
+	lockedShardCount int
 
 	// createdAt is when the prepare was issued. Used for timeout-based auto-abort.
 	createdAt time.Time
@@ -75,6 +87,12 @@ type PreparedTx struct {
 
 	// commitAttempts counts WAL append failures followed by PutBack cycles.
 	commitAttempts int
+
+	// CrossShard indicates this prepared transaction is part of a multi-instance 2PC.
+	CrossShard bool
+
+	// Participants lists all authorizer instances involved in this cross-shard transaction.
+	Participants []wal.WALParticipant
 }
 
 type committedPreparedTx struct {
@@ -116,22 +134,22 @@ func newPreparedTxStore(timeout time.Duration, maxPending int) *preparedTxStore 
 // Put stores a prepared transaction. Returns an error if the ID already exists.
 func (s *preparedTxStore) Put(ptx *PreparedTx) error {
 	if s == nil {
-		return fmt.Errorf("prepared transaction store is nil")
+		return fmt.Errorf("%w", constant.ErrPreparedTxStoreNil)
 	}
 
 	if ptx == nil {
-		return fmt.Errorf("prepared transaction is nil")
+		return fmt.Errorf("%w", constant.ErrPreparedTransactionNil)
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if len(s.pending) >= s.max {
-		return fmt.Errorf("prepared transaction capacity exceeded: max=%d", s.max)
+		return fmt.Errorf("%w: max=%d", constant.ErrPreparedTxCapacityExceeded, s.max)
 	}
 
 	if _, exists := s.pending[ptx.ID]; exists {
-		return fmt.Errorf("prepared transaction %s already exists", ptx.ID)
+		return fmt.Errorf("%w: %s", constant.ErrPreparedTxAlreadyExists, ptx.ID)
 	}
 
 	ptx.done = false
@@ -146,27 +164,28 @@ func (s *preparedTxStore) Put(ptx *PreparedTx) error {
 // This preserves the prepared state for coordinator retry/abort.
 func (s *preparedTxStore) PutBack(ptx *PreparedTx) error {
 	if s == nil {
-		return fmt.Errorf("prepared transaction store is nil")
+		return fmt.Errorf("%w", constant.ErrPreparedTxStoreNil)
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if ptx == nil {
-		return fmt.Errorf("prepared transaction is nil")
+		return fmt.Errorf("%w", constant.ErrPreparedTransactionNil)
 	}
 
 	if len(s.pending) >= s.max {
-		return fmt.Errorf("prepared transaction capacity exceeded: max=%d", s.max)
+		return fmt.Errorf("%w: max=%d", constant.ErrPreparedTxCapacityExceeded, s.max)
 	}
 
 	if _, exists := s.pending[ptx.ID]; exists {
-		return fmt.Errorf("prepared transaction %s already exists", ptx.ID)
+		return fmt.Errorf("%w: %s", constant.ErrPreparedTxAlreadyExists, ptx.ID)
 	}
 
 	ptx.commitAttempts++
+
 	if s.maxRetries > 0 && ptx.commitAttempts >= s.maxRetries {
-		return fmt.Errorf("prepared transaction %s exceeded WAL retry limit (%d)", ptx.ID, s.maxRetries)
+		return fmt.Errorf("%w: %s (limit=%d)", constant.ErrPreparedTxRetryLimitExceeded, ptx.ID, s.maxRetries)
 	}
 
 	ptx.done = false
@@ -200,6 +219,7 @@ func (s *preparedTxStore) TakeForCommit(id string) (*PreparedTx, *authorizerv1.A
 
 	ptx.commitDecided = true
 	ptx.done = true
+
 	delete(s.pending, id)
 
 	return ptx, nil, true
@@ -230,6 +250,7 @@ func (s *preparedTxStore) TakeForAbort(id string) (*PreparedTx, error) {
 	}
 
 	ptx.done = true
+
 	delete(s.pending, id)
 
 	return ptx, nil
@@ -249,6 +270,7 @@ func (s *preparedTxStore) MarkCommitted(id string, resp *authorizerv1.AuthorizeR
 	defer s.mu.Unlock()
 
 	s.pruneExpiredCommittedLocked(time.Now())
+
 	s.committed[id] = committedPreparedTx{
 		response:    cloneAuthorizeResponse(resp),
 		committedAt: time.Now(),
@@ -282,7 +304,9 @@ func (s *preparedTxStore) Expired() []*PreparedTx {
 
 		if now.Sub(ptx.createdAt) > s.timeout {
 			ptx.done = true
+
 			delete(s.pending, id)
+
 			expired = append(expired, ptx)
 		}
 	}
