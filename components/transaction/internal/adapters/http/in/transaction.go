@@ -832,19 +832,10 @@ func (handler *TransactionHandler) BuildOperations(
 					return nil, nil, err
 				}
 
-				// When route validation is enabled and this is a PENDING source entry,
-				// split into 2 operations: DEBIT(debit) for Available-- and ONHOLD(credit) for OnHold++
-				if routeValidationEnabled && transactionInput.Pending && fromTo[i].IsFrom && amt.Operation == libConstants.ONHOLD && amt.TransactionType == constant.PENDING {
-					if processedDoubleEntry[blc.Alias] {
-						continue
-					}
-
-					processedDoubleEntry[blc.Alias] = true
-
-					ops := handler.buildDoubleEntryPendingOps(
-						ctx, blc, fromTo[i], amt, bat, tran, transactionInput, transactionDate, isAnnotation,
-					)
-
+				if ops, handled := handler.tryBuildDoubleEntryOps(
+					ctx, blc, fromTo[i], amt, bat, tran, transactionInput,
+					transactionDate, isAnnotation, routeValidationEnabled, processedDoubleEntry,
+				); handled {
 					operations = append(operations, ops...)
 
 					metricFactory.RecordTransactionProcessed(ctx, tran.OrganizationID, tran.LedgerID)
@@ -852,84 +843,11 @@ func (handler *TransactionHandler) BuildOperations(
 					continue
 				}
 
-				// When route validation is enabled and this is a CANCELED source entry,
-				// split into 2 operations: RELEASE(debit) for OnHold-- and CREDIT(credit) for Available++
-				if routeValidationEnabled && fromTo[i].IsFrom && amt.Operation == constant.RELEASE && amt.TransactionType == constant.CANCELED {
-					if processedDoubleEntry[blc.Alias] {
-						continue
-					}
+				op := handler.buildStandardOp(
+					blc, fromTo[i], amt, bat, tran, transactionInput, transactionDate, isAnnotation,
+				)
 
-					processedDoubleEntry[blc.Alias] = true
-
-					ops := handler.buildDoubleEntryCanceledOps(
-						ctx, blc, fromTo[i], amt, bat, tran, transactionInput, transactionDate, isAnnotation,
-					)
-
-					operations = append(operations, ops...)
-
-					metricFactory.RecordTransactionProcessed(ctx, tran.OrganizationID, tran.LedgerID)
-
-					continue
-				}
-
-				amount := operation.Amount{
-					Value: &amt.Value,
-				}
-
-				balance := operation.Balance{
-					Available: &blc.Available,
-					OnHold:    &blc.OnHold,
-					Version:   &blc.Version,
-				}
-
-				balanceAfter := operation.Balance{
-					Available: &bat.Available,
-					OnHold:    &bat.OnHold,
-					Version:   &bat.Version,
-				}
-
-				if isAnnotation {
-					a := decimal.NewFromInt(0)
-					balance.Available = &a
-					balanceAfter.Available = &a
-
-					o := decimal.NewFromInt(0)
-					balance.OnHold = &o
-					balanceAfter.OnHold = &o
-
-					vBefore := int64(0)
-					balance.Version = &vBefore
-					vAfter := int64(0)
-					balanceAfter.Version = &vAfter
-				}
-
-				description := fromTo[i].Description
-				if libCommons.IsNilOrEmpty(&fromTo[i].Description) {
-					description = transactionInput.Description
-				}
-
-				operations = append(operations, &operation.Operation{
-					ID:              libCommons.GenerateUUIDv7().String(),
-					TransactionID:   tran.ID,
-					Description:     description,
-					Type:            amt.Operation,
-					AssetCode:       transactionInput.Send.Asset,
-					ChartOfAccounts: fromTo[i].ChartOfAccounts,
-					Amount:          amount,
-					Balance:         balance,
-					BalanceAfter:    balanceAfter,
-					BalanceID:       blc.ID,
-					AccountID:       blc.AccountID,
-					AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
-					BalanceKey:      blc.Key,
-					OrganizationID:  blc.OrganizationID,
-					LedgerID:        blc.LedgerID,
-					CreatedAt:       transactionDate,
-					UpdatedAt:       time.Now(),
-					Route:           fromTo[i].Route,
-					Metadata:        fromTo[i].Metadata,
-					BalanceAffected: !isAnnotation,
-				})
+				operations = append(operations, op)
 
 				metricFactory.RecordTransactionProcessed(ctx, tran.OrganizationID, tran.LedgerID)
 			}
@@ -1249,6 +1167,122 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 	}
 
 	return []*operation.Operation{op1, op2}
+}
+
+// tryBuildDoubleEntryOps checks whether the current balance entry qualifies for double-entry
+// splitting (PENDING or CANCELED with route validation) and, if so, returns the pair of operations.
+// Returns handled=true when operations were built, false when standard path should be used.
+func (handler *TransactionHandler) tryBuildDoubleEntryOps(
+	ctx context.Context,
+	blc *mmodel.Balance,
+	ft pkgTransaction.FromTo,
+	amt pkgTransaction.Amount,
+	bat pkgTransaction.Balance,
+	tran transaction.Transaction,
+	transactionInput pkgTransaction.Transaction,
+	transactionDate time.Time,
+	isAnnotation bool,
+	routeValidationEnabled bool,
+	processedDoubleEntry map[string]bool,
+) ([]*operation.Operation, bool) {
+	if !routeValidationEnabled || !ft.IsFrom {
+		return nil, false
+	}
+
+	isPendingDoubleEntry := transactionInput.Pending && amt.Operation == libConstants.ONHOLD && amt.TransactionType == constant.PENDING
+	isCanceledDoubleEntry := amt.Operation == constant.RELEASE && amt.TransactionType == constant.CANCELED
+
+	if !isPendingDoubleEntry && !isCanceledDoubleEntry {
+		return nil, false
+	}
+
+	// Already processed this alias — skip without building duplicate ops
+	if processedDoubleEntry[blc.Alias] {
+		return nil, true
+	}
+
+	processedDoubleEntry[blc.Alias] = true
+
+	if isPendingDoubleEntry {
+		return handler.buildDoubleEntryPendingOps(
+			ctx, blc, ft, amt, bat, tran, transactionInput, transactionDate, isAnnotation,
+		), true
+	}
+
+	return handler.buildDoubleEntryCanceledOps(
+		ctx, blc, ft, amt, bat, tran, transactionInput, transactionDate, isAnnotation,
+	), true
+}
+
+// buildStandardOp creates a single operation for a standard (non-double-entry) balance entry.
+func (handler *TransactionHandler) buildStandardOp(
+	blc *mmodel.Balance,
+	ft pkgTransaction.FromTo,
+	amt pkgTransaction.Amount,
+	bat pkgTransaction.Balance,
+	tran transaction.Transaction,
+	transactionInput pkgTransaction.Transaction,
+	transactionDate time.Time,
+	isAnnotation bool,
+) *operation.Operation {
+	amount := operation.Amount{
+		Value: &amt.Value,
+	}
+
+	balance := operation.Balance{
+		Available: &blc.Available,
+		OnHold:    &blc.OnHold,
+		Version:   &blc.Version,
+	}
+
+	balanceAfter := operation.Balance{
+		Available: &bat.Available,
+		OnHold:    &bat.OnHold,
+		Version:   &bat.Version,
+	}
+
+	if isAnnotation {
+		a := decimal.NewFromInt(0)
+		balance.Available = &a
+		balanceAfter.Available = &a
+
+		o := decimal.NewFromInt(0)
+		balance.OnHold = &o
+		balanceAfter.OnHold = &o
+
+		vBefore := int64(0)
+		balance.Version = &vBefore
+		vAfter := int64(0)
+		balanceAfter.Version = &vAfter
+	}
+
+	description := ft.Description
+	if libCommons.IsNilOrEmpty(&ft.Description) {
+		description = transactionInput.Description
+	}
+
+	return &operation.Operation{
+		ID:              libCommons.GenerateUUIDv7().String(),
+		TransactionID:   tran.ID,
+		Description:     description,
+		Type:            amt.Operation,
+		AssetCode:       transactionInput.Send.Asset,
+		ChartOfAccounts: ft.ChartOfAccounts,
+		Amount:          amount,
+		Balance:         balance,
+		BalanceAfter:    balanceAfter,
+		BalanceID:       blc.ID,
+		AccountID:       blc.AccountID,
+		AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+		BalanceKey:      blc.Key,
+		OrganizationID:  blc.OrganizationID,
+		LedgerID:        blc.LedgerID,
+		CreatedAt:       transactionDate,
+		UpdatedAt:       time.Now(),
+		Route:           ft.Route,
+		Metadata:        ft.Metadata,
+		BalanceAffected: !isAnnotation,
+	}
 }
 
 // createTransaction func that received struct from DSL parsed and create Transaction
