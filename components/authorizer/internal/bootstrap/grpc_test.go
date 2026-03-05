@@ -10,18 +10,31 @@ import (
 	"testing"
 	"time"
 
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
-	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/engine"
-	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/wal"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+
+	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/engine"
+	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/wal"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	mgrpc "github.com/LerianStudio/midaz/v3/pkg/mgrpc"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
+	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
+
+func mustInitLogger(t *testing.T) libLog.Logger {
+	t.Helper()
+
+	logger, err := libZap.InitializeLoggerWithError()
+	require.NoError(t, err)
+
+	return logger
+}
 
 type failingCommitWALWriter struct{}
 
@@ -38,9 +51,9 @@ func TestCommitPreparedErrorMapping(t *testing.T) {
 		eng := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
 		defer eng.Close()
 
-		svc := &authorizerService{engine: eng, logger: libZap.InitializeLogger(), peerAuthToken: "peer-secret"}
+		svc := &authorizerService{engine: eng, logger: mustInitLogger(t), peerAuthToken: "peer-secret", peerNonceStore: newPeerNonceStore(defaultPeerAuthMaxSkew, 100000)}
 		commitReq := &authorizerv1.CommitPreparedRequest{PreparedTxId: "missing"}
-		authCtx := peerAuthIncomingContext("peer-secret", peerRPCMethodCommitPrepared, commitReq)
+		authCtx := peerAuthIncomingContext(t, "peer-secret", peerRPCMethodCommitPrepared, commitReq)
 
 		_, err := svc.CommitPrepared(authCtx, commitReq)
 		require.Error(t, err)
@@ -65,7 +78,7 @@ func TestCommitPreparedErrorMapping(t *testing.T) {
 			AllowReceiving: true,
 		}})
 
-		svc := &authorizerService{engine: eng, logger: libZap.InitializeLogger(), peerAuthToken: "peer-secret"}
+		svc := &authorizerService{engine: eng, logger: mustInitLogger(t), peerAuthToken: "peer-secret", peerNonceStore: newPeerNonceStore(defaultPeerAuthMaxSkew, 100000)}
 		prepareReq := &authorizerv1.AuthorizeRequest{
 			TransactionId:     "tx-1",
 			OrganizationId:    "org",
@@ -76,14 +89,14 @@ func TestCommitPreparedErrorMapping(t *testing.T) {
 				{OperationAlias: "0#@alice#default", AccountAlias: "@alice", BalanceKey: "default", Amount: 100, Scale: 2, Operation: constant.DEBIT},
 			},
 		}
-		authPrepareCtx := peerAuthIncomingContext("peer-secret", peerRPCMethodPrepareAuthorize, prepareReq)
+		authPrepareCtx := peerAuthIncomingContext(t, "peer-secret", peerRPCMethodPrepareAuthorize, prepareReq)
 
 		prepareResp, err := svc.PrepareAuthorize(authPrepareCtx, prepareReq)
 		require.NoError(t, err)
 		require.NotEmpty(t, prepareResp.GetPreparedTxId())
 
 		commitReq := &authorizerv1.CommitPreparedRequest{PreparedTxId: prepareResp.GetPreparedTxId()}
-		authCommitCtx := peerAuthIncomingContext("peer-secret", peerRPCMethodCommitPrepared, commitReq)
+		authCommitCtx := peerAuthIncomingContext(t, "peer-secret", peerRPCMethodCommitPrepared, commitReq)
 		_, err = svc.CommitPrepared(authCommitCtx, commitReq)
 		require.Error(t, err)
 		require.Equal(t, codes.Internal, status.Code(err))
@@ -107,7 +120,7 @@ func TestCommitPreparedErrorMapping(t *testing.T) {
 			AllowReceiving: true,
 		}})
 
-		svc := &authorizerService{engine: eng, logger: libZap.InitializeLogger(), peerAuthToken: "peer-secret", peerNonceStore: newPeerNonceStore(defaultPeerAuthMaxSkew, 100000)}
+		svc := &authorizerService{engine: eng, logger: mustInitLogger(t), peerAuthToken: "peer-secret", peerNonceStore: newPeerNonceStore(defaultPeerAuthMaxSkew, 100000)}
 		prepareReq := &authorizerv1.AuthorizeRequest{
 			TransactionId:     "tx-idempotent",
 			OrganizationId:    "org",
@@ -119,17 +132,17 @@ func TestCommitPreparedErrorMapping(t *testing.T) {
 			},
 		}
 
-		authPrepareCtx := peerAuthIncomingContext("peer-secret", peerRPCMethodPrepareAuthorize, prepareReq)
+		authPrepareCtx := peerAuthIncomingContext(t, "peer-secret", peerRPCMethodPrepareAuthorize, prepareReq)
 		prepareResp, err := svc.PrepareAuthorize(authPrepareCtx, prepareReq)
 		require.NoError(t, err)
 
 		commitReq := &authorizerv1.CommitPreparedRequest{PreparedTxId: prepareResp.GetPreparedTxId()}
-		authCommitCtx := peerAuthIncomingContext("peer-secret", peerRPCMethodCommitPrepared, commitReq)
+		authCommitCtx := peerAuthIncomingContext(t, "peer-secret", peerRPCMethodCommitPrepared, commitReq)
 		firstCommit, err := svc.CommitPrepared(authCommitCtx, commitReq)
 		require.NoError(t, err)
 		require.True(t, firstCommit.GetCommitted())
 
-		authCommitReplayCtx := peerAuthIncomingContext("peer-secret", peerRPCMethodCommitPrepared, commitReq)
+		authCommitReplayCtx := peerAuthIncomingContext(t, "peer-secret", peerRPCMethodCommitPrepared, commitReq)
 		secondCommit, err := svc.CommitPrepared(authCommitReplayCtx, commitReq)
 		require.NoError(t, err)
 		require.True(t, secondCommit.GetCommitted())
@@ -144,13 +157,68 @@ func TestPrepareAuthorizeReturnsResourceExhaustedWhenLimitReached(t *testing.T) 
 	sem := make(chan struct{}, 1)
 	sem <- struct{}{}
 
-	svc := &authorizerService{engine: eng, logger: libZap.InitializeLogger(), peerAuthToken: "peer-secret", peerPrepareSem: sem}
+	svc := &authorizerService{engine: eng, logger: mustInitLogger(t), peerAuthToken: "peer-secret", peerNonceStore: newPeerNonceStore(defaultPeerAuthMaxSkew, 100000), peerPrepareSem: sem, peerPrepareBoundedWait: 0}
 	prepareReq := &authorizerv1.AuthorizeRequest{}
-	authCtx := peerAuthIncomingContext("peer-secret", peerRPCMethodPrepareAuthorize, prepareReq)
+	authCtx := peerAuthIncomingContext(t, "peer-secret", peerRPCMethodPrepareAuthorize, prepareReq)
 
 	_, err := svc.PrepareAuthorize(authCtx, prepareReq)
 	require.Error(t, err)
 	require.Equal(t, codes.ResourceExhausted, status.Code(err))
+}
+
+func TestPrepareAuthorizeBoundedWaitRespectsContextCancellation(t *testing.T) {
+	eng := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
+	defer eng.Close()
+
+	sem := make(chan struct{}, 1)
+	sem <- struct{}{}
+
+	svc := &authorizerService{
+		engine:                 eng,
+		logger:                 mustInitLogger(t),
+		peerAuthToken:          "peer-secret",
+		peerNonceStore:         newPeerNonceStore(defaultPeerAuthMaxSkew, 100000),
+		peerPrepareSem:         sem,
+		peerPrepareBoundedWait: 5 * time.Second,
+	}
+	prepareReq := &authorizerv1.AuthorizeRequest{}
+	authCtx := peerAuthIncomingContext(t, "peer-secret", peerRPCMethodPrepareAuthorize, prepareReq)
+
+	// Cancel the context immediately — bounded wait should exit.
+	cancelCtx, cancel := context.WithCancel(authCtx)
+	cancel()
+
+	// Reattach incoming metadata to cancelled context.
+	md, _ := metadata.FromIncomingContext(authCtx)
+	cancelCtx = metadata.NewIncomingContext(cancelCtx, md)
+
+	_, err := svc.PrepareAuthorize(cancelCtx, prepareReq)
+	require.Error(t, err)
+	require.Equal(t, codes.ResourceExhausted, status.Code(err))
+}
+
+func TestInternalRPCsRequirePeerAuthWhenTokenConfigured(t *testing.T) {
+	eng := engine.New(shard.NewRouter(8), wal.NewNoopWriter())
+	defer eng.Close()
+
+	svc := &authorizerService{engine: eng, logger: mustInitLogger(t), peerAuthToken: "peer-secret", peerNonceStore: newPeerNonceStore(defaultPeerAuthMaxSkew, 100000)}
+
+	_, err := svc.GetBalance(context.Background(), &authorizerv1.GetBalanceRequest{OrganizationId: "org", LedgerId: "ledger", AccountAlias: "@alice", BalanceKey: "default"})
+	require.Error(t, err)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	authCtx := peerAuthIncomingContext(t, "peer-secret", peerRPCMethodGetBalance, &authorizerv1.GetBalanceRequest{OrganizationId: "org", LedgerId: "ledger", AccountAlias: "@alice", BalanceKey: "default"})
+	_, err = svc.GetBalance(authCtx, &authorizerv1.GetBalanceRequest{OrganizationId: "org", LedgerId: "ledger", AccountAlias: "@alice", BalanceKey: "default"})
+	require.Error(t, err)
+	require.Equal(t, codes.NotFound, status.Code(err))
+
+	_, err = svc.PublishBalanceOperations(context.Background(), &authorizerv1.PublishBalanceOperationsRequest{Topic: "t", PartitionKey: "p", Payload: []byte("x")})
+	require.Error(t, err)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	_, err = svc.LoadBalances(context.Background(), &authorizerv1.LoadBalancesRequest{OrganizationId: "org", LedgerId: "ledger", ShardIds: []int32{0}})
+	require.Error(t, err)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
 func TestValidateShardCoverage(t *testing.T) {
@@ -172,12 +240,14 @@ func TestParsePeerShardRange(t *testing.T) {
 		require.Contains(t, err.Error(), "expected start-end")
 	})
 
-	t.Run("invalid bounds", func(t *testing.T) {
+	t.Run("invalid bounds start greater than end", func(t *testing.T) {
 		_, err := parsePeerShardRange("6-2", 8)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "out of bounds")
+		require.Contains(t, err.Error(), "start=6 end=2")
+	})
 
-		_, err = parsePeerShardRange("0-8", 8)
+	t.Run("invalid bounds exceeds shard count", func(t *testing.T) {
+		_, err := parsePeerShardRange("0-8", 8)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "out of bounds")
 	})
@@ -210,7 +280,7 @@ func TestAuthorizePeerRPCValidation(t *testing.T) {
 
 	t.Run("malformed timestamp", func(t *testing.T) {
 		ctx := tamperedPeerAuthContext(t, svc.peerAuthToken, peerRPCMethodCommitPrepared, req, func(md metadata.MD) {
-			md.Set(peerAuthTimestampHeader, "not-a-number")
+			md.Set(mgrpc.PeerAuthTimestampHeader, "not-a-number")
 		})
 
 		err := svc.authorizePeerRPC(ctx, peerRPCMethodCommitPrepared, req)
@@ -220,7 +290,7 @@ func TestAuthorizePeerRPCValidation(t *testing.T) {
 
 	t.Run("expired timestamp", func(t *testing.T) {
 		ctx := tamperedPeerAuthContext(t, svc.peerAuthToken, peerRPCMethodCommitPrepared, req, func(md metadata.MD) {
-			md.Set(peerAuthTimestampHeader, "1")
+			md.Set(mgrpc.PeerAuthTimestampHeader, "1")
 		})
 
 		err := svc.authorizePeerRPC(ctx, peerRPCMethodCommitPrepared, req)
@@ -231,7 +301,7 @@ func TestAuthorizePeerRPCValidation(t *testing.T) {
 	t.Run("future timestamp", func(t *testing.T) {
 		future := time.Now().Add(defaultPeerAuthMaxSkew + time.Second).Unix()
 		ctx := tamperedPeerAuthContext(t, svc.peerAuthToken, peerRPCMethodCommitPrepared, req, func(md metadata.MD) {
-			md.Set(peerAuthTimestampHeader, strconv.FormatInt(future, 10))
+			md.Set(mgrpc.PeerAuthTimestampHeader, strconv.FormatInt(future, 10))
 		})
 
 		err := svc.authorizePeerRPC(ctx, peerRPCMethodCommitPrepared, req)
@@ -241,7 +311,7 @@ func TestAuthorizePeerRPCValidation(t *testing.T) {
 
 	t.Run("bad signature", func(t *testing.T) {
 		ctx := tamperedPeerAuthContext(t, svc.peerAuthToken, peerRPCMethodCommitPrepared, req, func(md metadata.MD) {
-			md.Set(peerAuthSignatureHeader, "bad-signature")
+			md.Set(mgrpc.PeerAuthSignatureHeader, "bad-signature")
 		})
 
 		err := svc.authorizePeerRPC(ctx, peerRPCMethodCommitPrepared, req)
@@ -251,7 +321,7 @@ func TestAuthorizePeerRPCValidation(t *testing.T) {
 
 	t.Run("method mismatch", func(t *testing.T) {
 		ctx := tamperedPeerAuthContext(t, svc.peerAuthToken, peerRPCMethodCommitPrepared, req, func(md metadata.MD) {
-			md.Set(peerAuthMethodHeader, peerRPCMethodAbortPrepared)
+			md.Set(mgrpc.PeerAuthMethodHeader, peerRPCMethodAbortPrepared)
 		})
 
 		err := svc.authorizePeerRPC(ctx, peerRPCMethodCommitPrepared, req)
@@ -268,14 +338,16 @@ func TestAuthorizePeerRPCValidation(t *testing.T) {
 		err = svc.authorizePeerRPC(ctx, peerRPCMethodCommitPrepared, req)
 		require.Error(t, err)
 		require.Equal(t, codes.PermissionDenied, status.Code(err))
+		require.Contains(t, status.Convert(err).Message(), "replay", "error message should mention nonce replay")
 	})
 }
 
-func tamperedPeerAuthContext(t *testing.T, token, method string, req proto.Message, tamper func(metadata.MD)) context.Context {
+func tamperedPeerAuthContext(t *testing.T, token, method string, req proto.Message, tamper func(metadata.MD)) context.Context { //nolint:unparam // method is always CommitPrepared in current tests but kept for flexibility
 	t.Helper()
 
 	ctx, err := withPeerAuth(context.Background(), token, method, req)
 	require.NoError(t, err)
+
 	md, ok := metadata.FromOutgoingContext(ctx)
 	require.True(t, ok)
 
@@ -285,4 +357,225 @@ func tamperedPeerAuthContext(t *testing.T, token, method string, req proto.Messa
 	}
 
 	return metadata.NewIncomingContext(context.Background(), copied)
+}
+
+func TestPeerNonceStoreHighVolumeConcurrent(t *testing.T) {
+	t.Parallel()
+
+	store := newPeerNonceStore(30*time.Second, 200000)
+	now := time.Now()
+
+	const goroutines = 10000
+
+	nonces := make([]string, goroutines)
+	for i := range nonces {
+		nonces[i] = "nonce-" + strconv.Itoa(i)
+	}
+
+	results := make([]bool, goroutines)
+	done := make(chan struct{})
+
+	for i := 0; i < goroutines; i++ {
+		go func(idx int) {
+			results[idx] = store.MarkIfNew(nonces[idx], now)
+
+			done <- struct{}{}
+		}(i)
+	}
+
+	for i := 0; i < goroutines; i++ {
+		<-done
+	}
+
+	for i, ok := range results {
+		require.True(t, ok, "nonce %d should have been accepted on first insert", i)
+	}
+
+	// Replay every nonce — all must be rejected.
+	for i, nonce := range nonces {
+		require.False(t, store.MarkIfNew(nonce, now), "nonce %d should be rejected on replay", i)
+	}
+}
+
+func TestTokenRotationAcceptsOldSecret(t *testing.T) {
+	svc := &authorizerService{
+		peerAuthToken:     "new-secret",
+		peerAuthTokenPrev: "old-secret",
+		peerAuthMaxSkew:   defaultPeerAuthMaxSkew,
+		peerNonceStore:    newPeerNonceStore(defaultPeerAuthMaxSkew, 100000),
+	}
+
+	req := &authorizerv1.CommitPreparedRequest{PreparedTxId: "ptx-rotate"}
+
+	t.Run("previous token is accepted", func(t *testing.T) {
+		ctx := tamperedPeerAuthContext(t, "old-secret", peerRPCMethodCommitPrepared, req, nil)
+		err := svc.authorizePeerRPC(ctx, peerRPCMethodCommitPrepared, req)
+		require.NoError(t, err, "request signed with previous token should be accepted")
+	})
+
+	t.Run("completely unknown token is rejected", func(t *testing.T) {
+		ctx := tamperedPeerAuthContext(t, "unknown-secret", peerRPCMethodCommitPrepared, req, nil)
+		err := svc.authorizePeerRPC(ctx, peerRPCMethodCommitPrepared, req)
+		require.Error(t, err)
+		require.Equal(t, codes.PermissionDenied, status.Code(err))
+	})
+}
+
+func TestBodyHashTamperingReturnsPermissionDenied(t *testing.T) {
+	svc := &authorizerService{
+		peerAuthToken:   "peer-secret",
+		peerAuthMaxSkew: defaultPeerAuthMaxSkew,
+		peerNonceStore:  newPeerNonceStore(defaultPeerAuthMaxSkew, 100000),
+	}
+
+	req := &authorizerv1.CommitPreparedRequest{PreparedTxId: "ptx-tamper"}
+
+	ctx := tamperedPeerAuthContext(t, svc.peerAuthToken, peerRPCMethodCommitPrepared, req, func(md metadata.MD) {
+		md.Set(mgrpc.PeerAuthBodyHashHeader, "tampered-hash")
+	})
+
+	err := svc.authorizePeerRPC(ctx, peerRPCMethodCommitPrepared, req)
+	require.Error(t, err)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestAuthorizeInternalRPCFailedPreconditionWhenTokenEmptyButPeersExist(t *testing.T) {
+	svc := &authorizerService{
+		peerAuthToken: "",
+		peers: []*peerClient{
+			{addr: "authorizer-2:50051"},
+		},
+	}
+
+	err := svc.authorizeInternalRPC(context.Background(), peerRPCMethodGetBalance, &authorizerv1.GetBalanceRequest{})
+	require.Error(t, err)
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+}
+
+func TestPeerNonceStoreCapacityExhaustion(t *testing.T) {
+	t.Parallel()
+
+	const maxSize = 10
+
+	store := newPeerNonceStore(1*time.Minute, maxSize)
+
+	now := time.Now()
+
+	// Fill the store to capacity.
+	for i := 0; i < maxSize; i++ {
+		ok := store.MarkIfNew("nonce-"+strconv.Itoa(i), now)
+		require.True(t, ok, "nonce %d should be accepted within capacity", i)
+	}
+
+	// The next nonce should be rejected because the window has not elapsed yet,
+	// so rotation cannot happen, and capacity is exhausted.
+	ok := store.MarkIfNew("nonce-overflow", now)
+	require.False(t, ok, "nonce should be rejected when capacity is exhausted within the time window")
+}
+
+func TestAuthorizePeerRPC_AcceptsPreviousToken(t *testing.T) {
+	svc := &authorizerService{
+		peerAuthToken:     "new-secret",
+		peerAuthTokenPrev: "old-secret",
+		peerAuthMaxSkew:   defaultPeerAuthMaxSkew,
+		peerNonceStore:    newPeerNonceStore(defaultPeerAuthMaxSkew, 100000),
+	}
+
+	req := &authorizerv1.CommitPreparedRequest{PreparedTxId: "ptx-rotate-h11"}
+
+	t.Run("request signed with old-secret is accepted", func(t *testing.T) {
+		ctx := peerAuthIncomingContext(t, "old-secret", peerRPCMethodCommitPrepared, req)
+		err := svc.authorizePeerRPC(ctx, peerRPCMethodCommitPrepared, req)
+		require.NoError(t, err, "request signed with previous token (old-secret) should be accepted")
+	})
+
+	t.Run("request signed with unknown-secret is rejected", func(t *testing.T) {
+		ctx := peerAuthIncomingContext(t, "unknown-secret", peerRPCMethodCommitPrepared, req)
+		err := svc.authorizePeerRPC(ctx, peerRPCMethodCommitPrepared, req)
+		require.Error(t, err)
+		require.Equal(t, codes.PermissionDenied, status.Code(err))
+	})
+}
+
+func TestAuthorizePeerRPC_RejectsBodyHashTampering(t *testing.T) {
+	svc := &authorizerService{
+		peerAuthToken:   "peer-secret",
+		peerAuthMaxSkew: defaultPeerAuthMaxSkew,
+		peerNonceStore:  newPeerNonceStore(defaultPeerAuthMaxSkew, 100000),
+	}
+
+	req := &authorizerv1.CommitPreparedRequest{PreparedTxId: "ptx-tamper-h12"}
+
+	ctx := tamperedPeerAuthContext(t, svc.peerAuthToken, peerRPCMethodCommitPrepared, req, func(md metadata.MD) {
+		md.Set(mgrpc.PeerAuthBodyHashHeader, "tampered-hash")
+	})
+
+	err := svc.authorizePeerRPC(ctx, peerRPCMethodCommitPrepared, req)
+	require.Error(t, err)
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestAuthorizeInternalRPC_FailsPreconditionWhenPeersWithoutToken(t *testing.T) {
+	svc := &authorizerService{
+		peerAuthToken: "",
+		peers: []*peerClient{
+			{addr: "peer:50051"},
+		},
+	}
+
+	err := svc.authorizeInternalRPC(context.Background(), peerRPCMethodGetBalance, &authorizerv1.GetBalanceRequest{})
+	require.Error(t, err)
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+}
+
+func TestPeerNonceStoreReacceptsAfterWindowElapses(t *testing.T) {
+	t.Parallel()
+
+	const window = 100 * time.Millisecond
+	// Use a generous maxSize so capacity never blocks inserts during the test.
+	const maxSize = 1000
+
+	const batchSize = 10
+
+	store := newPeerNonceStore(window, maxSize)
+	baseTime := time.Now()
+
+	// Insert a small batch of initial nonces.
+	initialNonces := make([]string, batchSize)
+	for i := range initialNonces {
+		initialNonces[i] = "old-" + strconv.Itoa(i)
+		require.True(t, store.MarkIfNew(initialNonces[i], baseTime))
+	}
+
+	// Verify they are detected as duplicates right now.
+	for _, nonce := range initialNonces {
+		require.False(t, store.MarkIfNew(nonce, baseTime), "should reject duplicate nonce %q", nonce)
+	}
+
+	// Advance time past the window and insert enough nonces to trigger a rotation.
+	// Rotation requires len(current) >= maxSize/2 (500). We insert 500 nonces.
+	// After rotation: previous = {initial + phase1}, current = empty.
+	afterWindow := baseTime.Add(window + time.Millisecond)
+	for i := 0; i < maxSize/2; i++ {
+		require.True(t, store.MarkIfNew("phase1-"+strconv.Itoa(i), afterWindow))
+	}
+
+	// Initial nonces are still in previous — they should still be rejected.
+	for _, nonce := range initialNonces {
+		require.False(t, store.MarkIfNew(nonce, afterWindow), "should still reject nonce %q in previous map", nonce)
+	}
+
+	// Advance time past the window again and trigger a second rotation.
+	// After rotation: previous = phase2 nonces, current = empty.
+	// The initial nonces (and phase1) have been fully evicted from both maps.
+	afterSecondWindow := afterWindow.Add(window + time.Millisecond)
+	for i := 0; i < maxSize/2; i++ {
+		require.True(t, store.MarkIfNew("phase2-"+strconv.Itoa(i), afterSecondWindow))
+	}
+
+	// Old nonces should now be purged from both maps and re-acceptable.
+	afterThirdWindow := afterSecondWindow.Add(time.Millisecond)
+	for _, nonce := range initialNonces {
+		require.True(t, store.MarkIfNew(nonce, afterThirdWindow), "old nonce %q should be re-accepted after full eviction", nonce)
+	}
 }

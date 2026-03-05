@@ -6,13 +6,9 @@ package bootstrap
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/rand"
-	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -21,19 +17,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/engine"
-	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/loader"
-	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/publisher"
-	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/wal"
-	brokerpkg "github.com/LerianStudio/midaz/v3/pkg/broker"
-	brokersecurity "github.com/LerianStudio/midaz/v3/pkg/broker/security"
-	"github.com/LerianStudio/midaz/v3/pkg/shard"
-	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -45,29 +31,52 @@ import (
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-)
 
-const (
-	peerAuthTimestampHeader = "x-midaz-peer-ts"
-	peerAuthNonceHeader     = "x-midaz-peer-nonce"
-	peerAuthMethodHeader    = "x-midaz-peer-method"
-	peerAuthBodyHashHeader  = "x-midaz-peer-body-sha256"
-	peerAuthSignatureHeader = "x-midaz-peer-signature"
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+
+	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/engine"
+	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/loader"
+	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/publisher"
+	"github.com/LerianStudio/midaz/v3/components/authorizer/internal/wal"
+	brokerpkg "github.com/LerianStudio/midaz/v3/pkg/broker"
+	brokersecurity "github.com/LerianStudio/midaz/v3/pkg/broker/security"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	mgrpc "github.com/LerianStudio/midaz/v3/pkg/mgrpc"
+	"github.com/LerianStudio/midaz/v3/pkg/shard"
+	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
 
 const defaultPeerAuthMaxSkew = 30 * time.Second
+
+// gRPC keepalive and window size constants.
+const (
+	keepaliveTimeSec        = 30
+	keepaliveTimeoutSec     = 10
+	enforcementMinTimeSec   = 10
+	nonceStoreMapDivisor    = 2
+	shortenedIDMaxLen       = 12
+	grpcInitialWindowBytes  = 8 * 1024 * 1024
+	grpcInitialConnWinBytes = 16 * 1024 * 1024
+)
 
 const (
 	peerRPCMethodPrepareAuthorize = "/authorizer.v1.BalanceAuthorizer/PrepareAuthorize"
 	peerRPCMethodCommitPrepared   = "/authorizer.v1.BalanceAuthorizer/CommitPrepared"
 	peerRPCMethodAbortPrepared    = "/authorizer.v1.BalanceAuthorizer/AbortPrepared"
+	peerRPCMethodLoadBalances     = "/authorizer.v1.BalanceAuthorizer/LoadBalances"
+	peerRPCMethodGetBalance       = "/authorizer.v1.BalanceAuthorizer/GetBalance"
+	peerRPCMethodPublishBalanceOp = "/authorizer.v1.BalanceAuthorizer/PublishBalanceOperations"
 )
 
 type peerNonceStore struct {
-	mu      sync.Mutex
-	window  time.Duration
-	maxSize int
-	seen    map[string]time.Time
+	mu        sync.Mutex
+	window    time.Duration
+	maxSize   int
+	current   map[string]struct{}
+	previous  map[string]struct{}
+	rotatedAt time.Time
 }
 
 func newPeerNonceStore(window time.Duration, maxSize int) *peerNonceStore {
@@ -80,12 +89,34 @@ func newPeerNonceStore(window time.Duration, maxSize int) *peerNonceStore {
 	}
 
 	return &peerNonceStore{
-		window:  window,
-		maxSize: maxSize,
-		seen:    make(map[string]time.Time),
+		window:    window,
+		maxSize:   maxSize,
+		current:   make(map[string]struct{}, maxSize/nonceStoreMapDivisor),
+		previous:  make(map[string]struct{}, maxSize/nonceStoreMapDivisor),
+		rotatedAt: time.Now(),
 	}
 }
 
+// MarkIfNew atomically checks whether a nonce has been seen before and, if new,
+// records it in the current generation map. Returns true when the nonce is fresh
+// (first occurrence), false on duplicate or capacity exhaustion.
+//
+// The method has two rotation check-points, each serving a distinct purpose:
+//
+//  1. Pre-insert capacity guard (emergency valve): when total stored nonces reach
+//     maxSize, rotation is attempted so the insert can proceed. If the window has
+//     not elapsed yet, the nonce is rejected to prevent unbounded memory growth
+//     under burst traffic. This is an emergency back-pressure mechanism.
+//
+//  2. Post-insert periodic rotation: after the nonce is successfully stored, this
+//     check rotates when the current generation reaches half-capacity AND the time
+//     window has elapsed. This is the steady-state rotation path that keeps memory
+//     bounded during normal operation, ensuring old nonces are evicted on schedule.
+//
+// Both check-points are necessary: the pre-insert guard prevents OOM under
+// adversarial load, while the post-insert rotation maintains healthy eviction
+// cadence during normal traffic. Consolidating them would either lose the
+// emergency back-pressure or miss the periodic eviction trigger.
 func (s *peerNonceStore) MarkIfNew(nonce string, now time.Time) bool {
 	if s == nil || nonce == "" {
 		return false
@@ -94,33 +125,33 @@ func (s *peerNonceStore) MarkIfNew(nonce string, now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for existingNonce, ts := range s.seen {
-		if now.Sub(ts) > s.window {
-			delete(s.seen, existingNonce)
-		}
-	}
-
-	if _, exists := s.seen[nonce]; exists {
+	if _, exists := s.current[nonce]; exists {
 		return false
 	}
 
-	if len(s.seen) >= s.maxSize {
-		oldestNonce := ""
-		oldestTS := now
+	if _, exists := s.previous[nonce]; exists {
+		return false
+	}
 
-		for existingNonce, ts := range s.seen {
-			if oldestNonce == "" || ts.Before(oldestTS) {
-				oldestNonce = existingNonce
-				oldestTS = ts
-			}
-		}
-
-		if oldestNonce != "" {
-			delete(s.seen, oldestNonce)
+	// Rotation point 1: capacity-triggered emergency valve.
+	if len(s.current)+len(s.previous) >= s.maxSize {
+		if now.Sub(s.rotatedAt) >= s.window {
+			s.previous = s.current
+			s.current = make(map[string]struct{}, s.maxSize/nonceStoreMapDivisor)
+			s.rotatedAt = now
+		} else {
+			return false
 		}
 	}
 
-	s.seen[nonce] = now
+	s.current[nonce] = struct{}{}
+
+	// Rotation point 2: periodic steady-state rotation.
+	if len(s.current) >= s.maxSize/nonceStoreMapDivisor && now.Sub(s.rotatedAt) >= s.window {
+		s.previous = s.current
+		s.current = make(map[string]struct{}, s.maxSize/nonceStoreMapDivisor)
+		s.rotatedAt = now
+	}
 
 	return true
 }
@@ -131,40 +162,69 @@ func (s *peerNonceStore) MarkIfNew(nonce string, now time.Time) bool {
 // on the peer that owns the remote shards.
 type peerClient struct {
 	addr       string
-	client     authorizerv1.BalanceAuthorizerClient
-	conn       *grpc.ClientConn
+	clients    []authorizerv1.BalanceAuthorizerClient
+	conns      []*grpc.ClientConn
+	next       atomic.Uint64
 	shardStart int
 	shardEnd   int
+}
+
+// pickClient returns the next client in the pool using lock-free round-robin.
+// Returns nil when the receiver is nil or the pool is empty (defense-in-depth).
+func (p *peerClient) pickClient() authorizerv1.BalanceAuthorizerClient {
+	if p == nil || len(p.clients) == 0 {
+		return nil
+	}
+
+	idx := p.next.Add(1) - 1
+
+	return p.clients[idx%uint64(len(p.clients))]
 }
 
 type authorizerService struct {
 	authorizerv1.UnimplementedBalanceAuthorizerServer
 
-	engine            *engine.Engine
-	loader            *loader.PostgresLoader
-	pub               publisher.Publisher
-	logger            libLog.Logger
-	metrics           *authorizerMetrics
-	started           time.Time
-	grpcAddr          string
-	instanceAddr      string
-	ownedShardStart   int
-	ownedShardEnd     int
-	peers             []*peerClient
-	peerAuthToken     string
-	peerAuthTokenPrev string
-	peerAuthMaxSkew   time.Duration
-	abortRPCDeadline  time.Duration
-	commitRPCDeadline time.Duration
-	peerPrepareSem    chan struct{}
-	peerNonceStore    *peerNonceStore
+	engine                 *engine.Engine
+	loader                 *loader.PostgresLoader
+	pub                    publisher.Publisher
+	logger                 libLog.Logger
+	metrics                *authorizerMetrics
+	started                time.Time
+	grpcAddr               string
+	instanceAddr           string
+	ownedShardStart        int
+	ownedShardEnd          int
+	peers                  []*peerClient
+	peerAuthToken          string
+	peerAuthTokenPrev      string
+	peerAuthMaxSkew        time.Duration
+	abortRPCDeadline       time.Duration
+	commitRPCDeadline      time.Duration
+	peerPrepareSem         chan struct{}
+	peerPrepareBoundedWait time.Duration
+	asyncCommitIntent      bool
+	peerNonceStore         *peerNonceStore
+	walReconciler          *walReconciler
 }
 
+// Authorize processes a transaction authorization request.
+//
+// SECURITY: This RPC intentionally has no peer authentication.
+// The Authorize endpoint is designed to be called by the transaction
+// service as a trusted internal sidecar, relying on network isolation
+// (Kubernetes NetworkPolicy, Docker network, or equivalent) rather than
+// application-layer auth. Peer authentication (authorizePeerRPC) is
+// applied only to shard-to-shard 2PC coordination RPCs.
 func (s *authorizerService) Authorize(ctx context.Context, req *authorizerv1.AuthorizeRequest) (*authorizerv1.AuthorizeResponse, error) {
 	return s.authorizeWithMetric(ctx, req, "authorize")
 }
 
 func (s *authorizerService) authorizeWithMetric(ctx context.Context, req *authorizerv1.AuthorizeRequest, metricOperation string) (*authorizerv1.AuthorizeResponse, error) {
+	// Early O(1) check: reject oversized payloads before allocating shard maps.
+	if rejection := s.engine.ValidateRequestLimits(req); rejection != nil {
+		return rejection, nil
+	}
+
 	// Resolve shards using the engine's normalization logic (handles external accounts).
 	shardOps := s.engine.ResolveOperationShards(req.GetOperations())
 
@@ -178,7 +238,7 @@ func (s *authorizerService) authorizeWithMetric(ctx context.Context, req *author
 					s.ownedShardEnd,
 				)
 
-				return nil, status.Error(codes.Internal, "authorizer shard ownership misconfiguration")
+				return nil, status.Error(codes.Internal, "authorizer shard ownership misconfiguration") //nolint:wrapcheck // gRPC status error
 			}
 		}
 
@@ -186,6 +246,7 @@ func (s *authorizerService) authorizeWithMetric(ctx context.Context, req *author
 	}
 
 	allLocal := true
+
 	for shardID := range shardOps {
 		if !s.isLocalShard(shardID) {
 			allLocal = false
@@ -213,6 +274,7 @@ func (s *authorizerService) authorizeFastPath(ctx context.Context, req *authoriz
 	transactionID := ""
 	organizationID := ""
 	ledgerID := ""
+
 	if req != nil {
 		operationsCount = len(req.GetOperations())
 		pending = req.GetPending()
@@ -229,41 +291,46 @@ func (s *authorizerService) authorizeFastPath(ctx context.Context, req *authoriz
 
 	shardCount := 0
 	metricsEnabled := s.metrics.Enabled()
+
 	if metricsEnabled {
 		shardCount = s.engine.CountShardsForOperations(operations)
 	}
+
 	if err != nil {
 		if metricsEnabled {
-			s.metrics.RecordAuthorize(ctx, metricOperation, "error", engine.RejectionInternalError, pending, transactionStatus, operationsCount, shardCount, latency)
+			s.metrics.RecordAuthorize(ctx, metricOperation, "error", engine.RejectionInternalError, pending, transactionStatus, operationsCount, shardCount, latency, false)
 		}
+
 		s.logger.Errorf("Authorizer authorize failed: tx_id=%s org_id=%s ledger_id=%s ops=%d err=%v", transactionID, organizationID, ledgerID, operationsCount, err)
 
-		return nil, status.Error(codes.Internal, "authorize failed")
+		return nil, status.Error(codes.Internal, "authorize failed") //nolint:wrapcheck // gRPC status error
 	}
 
 	result := "authorized"
 	rejectionCode := ""
+
 	if !resp.GetAuthorized() {
 		result = "rejected"
 		rejectionCode = resp.GetRejectionCode()
 	}
 
 	if metricsEnabled {
-		s.metrics.RecordAuthorize(ctx, metricOperation, result, rejectionCode, pending, transactionStatus, operationsCount, shardCount, latency)
+		s.metrics.RecordAuthorize(ctx, metricOperation, result, rejectionCode, pending, transactionStatus, operationsCount, shardCount, latency, false)
 	}
 
 	return resp, nil
 }
 
+// AuthorizeStream processes a bidirectional stream of authorization requests.
 func (s *authorizerService) AuthorizeStream(stream grpc.BidiStreamingServer[authorizerv1.AuthorizeRequest, authorizerv1.AuthorizeResponse]) error {
 	for {
 		req, err := stream.Recv()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 
-			return err
+			return fmt.Errorf("stream recv: %w", err)
 		}
 
 		resp, err := s.authorizeWithMetric(stream.Context(), req, "authorize_stream")
@@ -283,15 +350,20 @@ func (s *authorizerService) AuthorizeStream(stream grpc.BidiStreamingServer[auth
 		}
 
 		if err := stream.Send(resp); err != nil {
-			return err
+			return fmt.Errorf("stream send: %w", err)
 		}
 	}
 }
 
+// LoadBalances loads balances from PostgreSQL into the in-memory engine for the given shards.
 func (s *authorizerService) LoadBalances(ctx context.Context, req *authorizerv1.LoadBalancesRequest) (*authorizerv1.LoadBalancesResponse, error) {
+	if err := s.authorizeInternalRPC(ctx, peerRPCMethodLoadBalances, req); err != nil {
+		return nil, err
+	}
+
 	balances, err := s.loader.LoadBalances(ctx, req.GetOrganizationId(), req.GetLedgerId(), req.GetShardIds())
 	if err != nil {
-		return nil, status.Error(codes.Internal, "load balances failed")
+		return nil, status.Error(codes.Internal, "load balances failed") //nolint:wrapcheck // gRPC status error
 	}
 
 	loaded := s.engine.UpsertBalances(balances)
@@ -302,10 +374,15 @@ func (s *authorizerService) LoadBalances(ctx context.Context, req *authorizerv1.
 	}, nil
 }
 
-func (s *authorizerService) GetBalance(_ context.Context, req *authorizerv1.GetBalanceRequest) (*authorizerv1.GetBalanceResponse, error) {
+// GetBalance returns the current snapshot of a single in-memory balance.
+func (s *authorizerService) GetBalance(ctx context.Context, req *authorizerv1.GetBalanceRequest) (*authorizerv1.GetBalanceResponse, error) {
+	if err := s.authorizeInternalRPC(ctx, peerRPCMethodGetBalance, req); err != nil {
+		return nil, err
+	}
+
 	balance, ok := s.engine.GetBalance(req.GetOrganizationId(), req.GetLedgerId(), req.GetAccountAlias(), req.GetBalanceKey())
 	if !ok {
-		return nil, status.Error(codes.NotFound, "balance not found")
+		return nil, status.Error(codes.NotFound, "balance not found") //nolint:wrapcheck // gRPC status error
 	}
 
 	return &authorizerv1.GetBalanceResponse{
@@ -326,13 +403,18 @@ func (s *authorizerService) GetBalance(_ context.Context, req *authorizerv1.GetB
 	}, nil
 }
 
+// PublishBalanceOperations publishes balance operation payloads to the configured message broker.
 func (s *authorizerService) PublishBalanceOperations(ctx context.Context, req *authorizerv1.PublishBalanceOperationsRequest) (*authorizerv1.PublishBalanceOperationsResponse, error) {
+	if err := s.authorizeInternalRPC(ctx, peerRPCMethodPublishBalanceOp, req); err != nil {
+		return nil, err
+	}
+
 	if req == nil || len(req.GetPayload()) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "payload is required")
+		return nil, status.Error(codes.InvalidArgument, "payload is required") //nolint:wrapcheck // gRPC status error
 	}
 
 	if s.pub == nil {
-		return nil, status.Error(codes.FailedPrecondition, "publisher is not configured")
+		return nil, status.Error(codes.FailedPrecondition, "publisher is not configured") //nolint:wrapcheck // gRPC status error
 	}
 
 	start := time.Now()
@@ -344,97 +426,59 @@ func (s *authorizerService) PublishBalanceOperations(ctx context.Context, req *a
 		ContentType:  req.GetContentType(),
 	})
 	publishLatency := time.Since(start)
+
 	if s.metrics.Enabled() {
 		s.metrics.RecordPublish(ctx, req.GetTopic(), err, publishLatency)
 	}
+
 	if err != nil {
 		s.logger.Warnf("Authorizer publish failed: topic=%s partition_key=%s err=%v", req.GetTopic(), req.GetPartitionKey(), err)
 
-		return nil, status.Error(codes.Unavailable, "publish failed")
+		return nil, status.Error(codes.Unavailable, "publish failed") //nolint:wrapcheck // gRPC status error
 	}
 
 	return &authorizerv1.PublishBalanceOperationsResponse{Published: true, Message: "published"}, nil
 }
 
-func withPeerAuth(ctx context.Context, token, method string, req proto.Message) (context.Context, error) {
-	if token == "" {
-		return ctx, nil
+func (s *authorizerService) authorizeInternalRPC(ctx context.Context, expectedMethod string, req proto.Message) error {
+	if s == nil {
+		return status.Error(codes.Internal, "authorizer service not initialized") //nolint:wrapcheck // gRPC status error
 	}
 
-	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
-	nonce, err := generatePeerNonce()
-	if err != nil {
-		return nil, fmt.Errorf("generate peer nonce: %w", err)
-	}
-	bodyHash := hashPeerAuthBody(req)
-	signature := signPeerAuth(token, timestamp, nonce, method, bodyHash)
-
-	return metadata.AppendToOutgoingContext(
-		ctx,
-		peerAuthTimestampHeader, timestamp,
-		peerAuthNonceHeader, nonce,
-		peerAuthMethodHeader, method,
-		peerAuthBodyHashHeader, bodyHash,
-		peerAuthSignatureHeader, signature,
-	), nil
-}
-
-func signPeerAuth(token, timestamp, nonce, method, bodyHash string) string {
-	mac := hmac.New(sha256.New, []byte(token))
-	_, _ = mac.Write([]byte(timestamp))
-	_, _ = mac.Write([]byte("\n"))
-	_, _ = mac.Write([]byte(nonce))
-	_, _ = mac.Write([]byte("\n"))
-	_, _ = mac.Write([]byte(method))
-	_, _ = mac.Write([]byte("\n"))
-	_, _ = mac.Write([]byte(bodyHash))
-
-	return hex.EncodeToString(mac.Sum(nil))
-}
-
-func hashPeerAuthBody(req proto.Message) string {
-	if req == nil {
-		digest := sha256.Sum256(nil)
-		return hex.EncodeToString(digest[:])
-	}
-
-	payload, err := proto.MarshalOptions{Deterministic: true}.Marshal(req)
-	if err != nil {
-		digest := sha256.Sum256(nil)
-		return hex.EncodeToString(digest[:])
-	}
-
-	digest := sha256.Sum256(payload)
-
-	return hex.EncodeToString(digest[:])
-}
-
-func generatePeerNonce() (string, error) {
-	raw := make([]byte, 16)
-	if _, err := rand.Read(raw); err != nil {
-		return "", err
-	}
-
-	return hex.EncodeToString(raw), nil
-}
-
-func (s *authorizerService) authorizePeerRPC(ctx context.Context, expectedMethod string, req proto.Message) error {
 	if s.peerAuthToken == "" {
-		return status.Error(codes.FailedPrecondition, "peer authentication is not configured")
+		if len(s.peers) > 0 {
+			return status.Error(codes.FailedPrecondition, "peer authentication required but not configured") //nolint:wrapcheck // gRPC status error
+		}
+
+		return nil
+	}
+
+	return s.authorizePeerRPC(ctx, expectedMethod, req)
+}
+
+// withPeerAuth delegates to the shared mgrpc.WithPeerAuth package.
+func withPeerAuth(ctx context.Context, token, method string, req proto.Message) (context.Context, error) {
+	return mgrpc.WithPeerAuth(ctx, token, method, req)
+}
+
+func (s *authorizerService) authorizePeerRPC(ctx context.Context, expectedMethod string, req proto.Message) error { //nolint:cyclop,gocyclo // peer auth validation requires sequential checks
+	if s.peerAuthToken == "" {
+		return status.Error(codes.FailedPrecondition, "peer authentication is not configured") //nolint:wrapcheck // gRPC status error
 	}
 
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return status.Error(codes.PermissionDenied, "missing peer credentials")
+		return status.Error(codes.PermissionDenied, "missing peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
-	receivedTimestamp := md.Get(peerAuthTimestampHeader)
-	receivedNonce := md.Get(peerAuthNonceHeader)
-	receivedMethod := md.Get(peerAuthMethodHeader)
-	receivedBodyHash := md.Get(peerAuthBodyHashHeader)
-	receivedSignature := md.Get(peerAuthSignatureHeader)
+	receivedTimestamp := md.Get(mgrpc.PeerAuthTimestampHeader)
+	receivedNonce := md.Get(mgrpc.PeerAuthNonceHeader)
+	receivedMethod := md.Get(mgrpc.PeerAuthMethodHeader)
+	receivedBodyHash := md.Get(mgrpc.PeerAuthBodyHashHeader)
+
+	receivedSignature := md.Get(mgrpc.PeerAuthSignatureHeader)
 	if len(receivedTimestamp) == 0 || len(receivedNonce) == 0 || len(receivedMethod) == 0 || len(receivedBodyHash) == 0 || len(receivedSignature) == 0 {
-		return status.Error(codes.PermissionDenied, "missing peer credentials")
+		return status.Error(codes.PermissionDenied, "missing peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
 	rawTimestamp := strings.TrimSpace(receivedTimestamp[0])
@@ -444,40 +488,46 @@ func (s *authorizerService) authorizePeerRPC(ctx context.Context, expectedMethod
 	providedSignature := strings.TrimSpace(receivedSignature[0])
 
 	if rawNonce == "" || rawMethod == "" || rawBodyHash == "" || providedSignature == "" {
-		return status.Error(codes.PermissionDenied, "invalid peer credentials")
+		return status.Error(codes.PermissionDenied, "invalid peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
 	if expectedMethod != "" && rawMethod != expectedMethod {
-		return status.Error(codes.PermissionDenied, "invalid peer credentials")
+		return status.Error(codes.PermissionDenied, "invalid peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
 	unixSeconds, err := strconv.ParseInt(rawTimestamp, 10, 64)
 	if err != nil {
-		return status.Error(codes.PermissionDenied, "invalid peer credentials")
+		return status.Error(codes.PermissionDenied, "invalid peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
 	issuedAt := time.Unix(unixSeconds, 0)
 	now := time.Now()
+
 	maxSkew := s.peerAuthMaxSkew
 	if maxSkew <= 0 {
 		maxSkew = defaultPeerAuthMaxSkew
 	}
 
 	if issuedAt.After(now.Add(maxSkew)) || now.Sub(issuedAt) > maxSkew {
-		return status.Error(codes.PermissionDenied, "expired peer credentials")
+		return status.Error(codes.PermissionDenied, "expired peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
-	expectedBodyHash := hashPeerAuthBody(req)
+	expectedBodyHash, hashErr := mgrpc.HashPeerAuthBody(req)
+	if hashErr != nil {
+		return status.Errorf(codes.Internal, "hash peer auth body: %v", hashErr) //nolint:wrapcheck // gRPC status error
+	}
+
 	if subtle.ConstantTimeCompare([]byte(rawBodyHash), []byte(expectedBodyHash)) != 1 {
-		return status.Error(codes.PermissionDenied, "invalid peer credentials")
+		return status.Error(codes.PermissionDenied, "invalid peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
-	expectedSignatures := []string{signPeerAuth(s.peerAuthToken, rawTimestamp, rawNonce, rawMethod, rawBodyHash)}
+	expectedSignatures := []string{mgrpc.SignPeerAuth(s.peerAuthToken, rawTimestamp, rawNonce, rawMethod, rawBodyHash)}
 	if s.peerAuthTokenPrev != "" {
-		expectedSignatures = append(expectedSignatures, signPeerAuth(s.peerAuthTokenPrev, rawTimestamp, rawNonce, rawMethod, rawBodyHash))
+		expectedSignatures = append(expectedSignatures, mgrpc.SignPeerAuth(s.peerAuthTokenPrev, rawTimestamp, rawNonce, rawMethod, rawBodyHash))
 	}
 
 	validSignature := false
+
 	for _, expectedSignature := range expectedSignatures {
 		if subtle.ConstantTimeCompare([]byte(providedSignature), []byte(expectedSignature)) == 1 {
 			validSignature = true
@@ -486,20 +536,21 @@ func (s *authorizerService) authorizePeerRPC(ctx context.Context, expectedMethod
 	}
 
 	if !validSignature {
-		return status.Error(codes.PermissionDenied, "invalid peer credentials")
+		return status.Error(codes.PermissionDenied, "invalid peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
 	if s.peerNonceStore == nil {
-		s.peerNonceStore = newPeerNonceStore(maxSkew, 100000)
+		return status.Error(codes.Internal, "peer nonce store not initialized") //nolint:wrapcheck // gRPC status error
 	}
 
 	if !s.peerNonceStore.MarkIfNew(rawNonce, now) {
-		return status.Error(codes.PermissionDenied, "replayed peer credentials")
+		return status.Error(codes.PermissionDenied, "replayed peer credentials") //nolint:wrapcheck // gRPC status error
 	}
 
 	return nil
 }
 
+// PrepareAuthorize executes the prepare phase of 2PC for cross-shard transactions.
 func (s *authorizerService) PrepareAuthorize(ctx context.Context, req *authorizerv1.AuthorizeRequest) (*authorizerv1.PrepareAuthorizeResponse, error) {
 	if err := s.authorizePeerRPC(ctx, peerRPCMethodPrepareAuthorize, req); err != nil {
 		return nil, err
@@ -512,7 +563,22 @@ func (s *authorizerService) PrepareAuthorize(ctx context.Context, req *authorize
 				<-s.peerPrepareSem
 			}()
 		default:
-			return nil, status.Error(codes.ResourceExhausted, "too many concurrent prepare requests")
+			// Slow path: bounded wait before shedding.
+			if s.peerPrepareBoundedWait > 0 {
+				waitCtx, waitCancel := context.WithTimeout(ctx, s.peerPrepareBoundedWait)
+				defer waitCancel()
+
+				select {
+				case s.peerPrepareSem <- struct{}{}:
+					defer func() {
+						<-s.peerPrepareSem
+					}()
+				case <-waitCtx.Done():
+					return nil, status.Error(codes.ResourceExhausted, "too many concurrent prepare requests") //nolint:wrapcheck // gRPC status error
+				}
+			} else {
+				return nil, status.Error(codes.ResourceExhausted, "too many concurrent prepare requests") //nolint:wrapcheck // gRPC status error
+			}
 		}
 	}
 
@@ -524,14 +590,16 @@ func (s *authorizerService) PrepareAuthorize(ctx context.Context, req *authorize
 
 	if err != nil {
 		if s.metrics.Enabled() {
-			s.metrics.RecordAuthorize(ctx, "prepare_authorize", "error", engine.RejectionInternalError, false, "", 0, 0, latency)
+			// PrepareAuthorize is only ever called by a 2PC coordinator on a remote peer,
+			// so cross_shard=true correctly identifies this as part of a cross-shard path.
+			s.metrics.RecordAuthorize(ctx, "prepare_authorize", "error", engine.RejectionInternalError, false, "", 0, 0, latency, true)
 		}
 
-		return nil, status.Error(codes.Internal, "prepare authorize failed")
+		return nil, status.Error(codes.Internal, "prepare authorize failed") //nolint:wrapcheck // gRPC status error
 	}
 
 	if resp == nil {
-		return nil, status.Error(codes.Internal, "prepare authorize failed")
+		return nil, status.Error(codes.Internal, "prepare authorize failed") //nolint:wrapcheck // gRPC status error
 	}
 
 	if !resp.GetAuthorized() {
@@ -543,7 +611,9 @@ func (s *authorizerService) PrepareAuthorize(ctx context.Context, req *authorize
 	}
 
 	if s.metrics.Enabled() {
-		s.metrics.RecordAuthorize(ctx, "prepare_authorize", "prepared", "", req.GetPending(), req.GetTransactionStatus(), len(req.GetOperations()), 0, latency)
+		// PrepareAuthorize is only ever called by a 2PC coordinator on a remote peer,
+		// so cross_shard=true correctly identifies this as part of a cross-shard path.
+		s.metrics.RecordAuthorize(ctx, "prepare_authorize", "prepared", "", req.GetPending(), req.GetTransactionStatus(), len(req.GetOperations()), 0, latency, true)
 	}
 
 	preparedTxID := ""
@@ -558,13 +628,14 @@ func (s *authorizerService) PrepareAuthorize(ctx context.Context, req *authorize
 	}, nil
 }
 
+// CommitPrepared commits a previously prepared 2PC transaction.
 func (s *authorizerService) CommitPrepared(ctx context.Context, req *authorizerv1.CommitPreparedRequest) (*authorizerv1.CommitPreparedResponse, error) {
 	if err := s.authorizePeerRPC(ctx, peerRPCMethodCommitPrepared, req); err != nil {
 		return nil, err
 	}
 
 	if req == nil || strings.TrimSpace(req.GetPreparedTxId()) == "" {
-		return nil, status.Error(codes.InvalidArgument, "prepared_tx_id is required")
+		return nil, status.Error(codes.InvalidArgument, "prepared_tx_id is required") //nolint:wrapcheck // gRPC status error
 	}
 
 	start := time.Now()
@@ -575,15 +646,18 @@ func (s *authorizerService) CommitPrepared(ctx context.Context, req *authorizerv
 
 	if err != nil {
 		s.logger.Warnf("CommitPrepared failed: prepared_tx_id=%s err=%v latency=%v", shortenPreparedTxID(req.GetPreparedTxId()), err, latency)
+
 		if errors.Is(err, engine.ErrPreparedTxNotFound) {
-			return nil, status.Error(codes.NotFound, "prepared transaction not found")
+			return nil, status.Error(codes.NotFound, "prepared transaction not found") //nolint:wrapcheck // gRPC status error
 		}
 
-		return nil, status.Error(codes.Internal, "commit prepared failed")
+		return nil, status.Error(codes.Internal, "commit prepared failed") //nolint:wrapcheck // gRPC status error
 	}
 
 	if s.metrics.Enabled() {
-		s.metrics.RecordAuthorize(ctx, "commit_prepared", "committed", "", false, "", 0, 0, latency)
+		// CommitPrepared is only ever called by a 2PC coordinator on a remote peer,
+		// so cross_shard=true correctly identifies this as part of a cross-shard path.
+		s.metrics.RecordAuthorize(ctx, "commit_prepared", "committed", "", false, "", 0, 0, latency, true)
 	}
 
 	return &authorizerv1.CommitPreparedResponse{
@@ -592,26 +666,29 @@ func (s *authorizerService) CommitPrepared(ctx context.Context, req *authorizerv
 	}, nil
 }
 
+// AbortPrepared rolls back a previously prepared 2PC transaction.
 func (s *authorizerService) AbortPrepared(ctx context.Context, req *authorizerv1.AbortPreparedRequest) (*authorizerv1.AbortPreparedResponse, error) {
 	if err := s.authorizePeerRPC(ctx, peerRPCMethodAbortPrepared, req); err != nil {
 		return nil, err
 	}
 
 	if req == nil || strings.TrimSpace(req.GetPreparedTxId()) == "" {
-		return nil, status.Error(codes.InvalidArgument, "prepared_tx_id is required")
+		return nil, status.Error(codes.InvalidArgument, "prepared_tx_id is required") //nolint:wrapcheck // gRPC status error
 	}
 
 	err := s.engine.AbortPrepared(req.GetPreparedTxId())
 	if err != nil {
 		s.logger.Warnf("AbortPrepared failed: prepared_tx_id=%s err=%v", shortenPreparedTxID(req.GetPreparedTxId()), err)
+
 		if errors.Is(err, engine.ErrPreparedTxNotFound) {
-			return nil, status.Error(codes.NotFound, "prepared transaction not found")
-		}
-		if errors.Is(err, engine.ErrPreparedTxAlreadyCommitted) || errors.Is(err, engine.ErrPreparedTxCommitDecided) {
-			return nil, status.Error(codes.FailedPrecondition, "prepared transaction commit already decided")
+			return nil, status.Error(codes.NotFound, "prepared transaction not found") //nolint:wrapcheck // gRPC status error
 		}
 
-		return nil, status.Error(codes.Internal, "abort prepared failed")
+		if errors.Is(err, engine.ErrPreparedTxAlreadyCommitted) || errors.Is(err, engine.ErrPreparedTxCommitDecided) {
+			return nil, status.Error(codes.FailedPrecondition, "prepared transaction commit already decided") //nolint:wrapcheck // gRPC status error
+		}
+
+		return nil, status.Error(codes.Internal, "abort prepared failed") //nolint:wrapcheck // gRPC status error
 	}
 
 	return &authorizerv1.AbortPreparedResponse{Aborted: true}, nil
@@ -619,11 +696,11 @@ func (s *authorizerService) AbortPrepared(ctx context.Context, req *authorizerv1
 
 func shortenPreparedTxID(id string) string {
 	id = strings.TrimSpace(id)
-	if len(id) <= 12 {
+	if len(id) <= shortenedIDMaxLen {
 		return id
 	}
 
-	return id[:12] + "..."
+	return id[:shortenedIDMaxLen] + "..."
 }
 
 type peerShardRange struct {
@@ -632,35 +709,21 @@ type peerShardRange struct {
 }
 
 func parsePeerShardRange(raw string, shardCount int) (peerShardRange, error) {
-	parts := strings.Split(strings.TrimSpace(raw), "-")
-	if len(parts) != 2 {
-		return peerShardRange{}, fmt.Errorf("invalid peer shard range %q (expected start-end)", raw)
-	}
-
-	start, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	sr, err := mgrpc.ParseShardRange(raw)
 	if err != nil {
-		return peerShardRange{}, fmt.Errorf("invalid peer shard range start %q: %w", parts[0], err)
+		return peerShardRange{}, fmt.Errorf("invalid peer shard range: %w", err)
 	}
 
-	end, err := strconv.Atoi(strings.TrimSpace(parts[1]))
-	if err != nil {
-		return peerShardRange{}, fmt.Errorf("invalid peer shard range end %q: %w", parts[1], err)
+	if err := mgrpc.ValidateShardRangeBounds(sr, shardCount); err != nil {
+		return peerShardRange{}, err
 	}
 
-	if start < 0 || end < start || end >= shardCount {
-		return peerShardRange{}, fmt.Errorf(
-			"peer shard range %q is out of bounds for shard count %d",
-			raw,
-			shardCount,
-		)
-	}
-
-	return peerShardRange{start: start, end: end}, nil
+	return peerShardRange{start: sr.Start, end: sr.End}, nil
 }
 
 func validateShardCoverage(shardCount, localStart, localEnd int, peers []peerShardRange) error {
 	if shardCount <= 0 {
-		return fmt.Errorf("AUTHORIZER_SHARD_COUNT must be > 0")
+		return fmt.Errorf("validate shard coverage: %w", constant.ErrShardCountInvalid)
 	}
 
 	covered := make([]bool, shardCount)
@@ -668,7 +731,7 @@ func validateShardCoverage(shardCount, localStart, localEnd int, peers []peerSha
 	mark := func(start, end int, owner string) error {
 		for shardID := start; shardID <= end; shardID++ {
 			if covered[shardID] {
-				return fmt.Errorf("shard %d is assigned to multiple owners (latest=%s)", shardID, owner)
+				return fmt.Errorf("shard %d (latest=%s): %w", shardID, owner, constant.ErrShardMultipleOwners)
 			}
 
 			covered[shardID] = true
@@ -689,22 +752,143 @@ func validateShardCoverage(shardCount, localStart, localEnd int, peers []peerSha
 
 	for shardID, ok := range covered {
 		if !ok {
-			return fmt.Errorf("shard %d has no owner configured; local and peer shard ranges must cover 0-%d", shardID, shardCount-1)
+			return fmt.Errorf("shard %d (expected coverage 0-%d): %w", shardID, shardCount-1, constant.ErrShardNoOwner)
 		}
 	}
 
 	return nil
 }
 
+// resolvePeerShardRanges computes and validates the shard ranges for all configured peers.
+func resolvePeerShardRanges(cfg *Config) ([]peerShardRange, error) {
+	peerRanges := make([]peerShardRange, 0, len(cfg.PeerInstances))
+
+	if len(cfg.PeerInstances) == 0 {
+		if cfg.OwnedShardStart != 0 || cfg.OwnedShardEnd != cfg.ShardCount-1 {
+			return nil, fmt.Errorf("expected 0-%d got %d-%d: %w", cfg.ShardCount-1, cfg.OwnedShardStart, cfg.OwnedShardEnd, constant.ErrLocalShardCoverageIncomplete)
+		}
+
+		return peerRanges, nil
+	}
+
+	if len(cfg.PeerShardRanges) > 0 { //nolint:nestif // explicit vs inferred shard ranges
+		if len(cfg.PeerShardRanges) != len(cfg.PeerInstances) {
+			return nil, fmt.Errorf("ranges=%d instances=%d: %w", len(cfg.PeerShardRanges), len(cfg.PeerInstances), constant.ErrPeerShardRangeCountMismatch)
+		}
+
+		for _, rawRange := range cfg.PeerShardRanges {
+			parsed, parseErr := parsePeerShardRange(rawRange, cfg.ShardCount)
+			if parseErr != nil {
+				return nil, parseErr
+			}
+
+			if parsed.end >= cfg.OwnedShardStart && parsed.start <= cfg.OwnedShardEnd {
+				return nil, fmt.Errorf("peer=%d-%d local=%d-%d: %w", parsed.start, parsed.end, cfg.OwnedShardStart, cfg.OwnedShardEnd, constant.ErrPeerShardRangeOverlapsLocal)
+			}
+
+			peerRanges = append(peerRanges, parsed)
+		}
+	} else {
+		inferred, inferErr := inferSinglePeerRange(cfg)
+		if inferErr != nil {
+			return nil, inferErr
+		}
+
+		peerRanges = append(peerRanges, inferred)
+	}
+
+	if err := validatePeerRangeOverlaps(peerRanges); err != nil {
+		return nil, err
+	}
+
+	if err := validateShardCoverage(cfg.ShardCount, cfg.OwnedShardStart, cfg.OwnedShardEnd, peerRanges); err != nil {
+		return nil, err
+	}
+
+	return peerRanges, nil
+}
+
+// inferSinglePeerRange infers the shard range for a single peer based on local ownership.
+func inferSinglePeerRange(cfg *Config) (peerShardRange, error) {
+	if len(cfg.PeerInstances) > 1 {
+		return peerShardRange{}, fmt.Errorf("peers=%d: %w", len(cfg.PeerInstances), constant.ErrPeerShardRangesRequired)
+	}
+
+	if cfg.OwnedShardStart > 0 && cfg.OwnedShardEnd < cfg.ShardCount-1 {
+		return peerShardRange{}, fmt.Errorf("ownership=%d-%d: %w", cfg.OwnedShardStart, cfg.OwnedShardEnd, constant.ErrPeerShardRangeCannotInfer)
+	}
+
+	if cfg.OwnedShardStart > 0 {
+		return peerShardRange{start: 0, end: cfg.OwnedShardStart - 1}, nil
+	}
+
+	if cfg.OwnedShardEnd >= cfg.ShardCount-1 {
+		return peerShardRange{}, fmt.Errorf("ownership=%d-%d: %w", cfg.OwnedShardStart, cfg.OwnedShardEnd, constant.ErrPeerOwnsAllShards)
+	}
+
+	return peerShardRange{start: cfg.OwnedShardEnd + 1, end: cfg.ShardCount - 1}, nil
+}
+
+// validatePeerRangeOverlaps checks that no two peer shard ranges overlap.
+func validatePeerRangeOverlaps(peerRanges []peerShardRange) error {
+	for i := 0; i < len(peerRanges); i++ {
+		for j := i + 1; j < len(peerRanges); j++ {
+			if peerRanges[i].end >= peerRanges[j].start && peerRanges[j].end >= peerRanges[i].start {
+				return fmt.Errorf("ranges %d-%d and %d-%d: %w", peerRanges[i].start, peerRanges[i].end, peerRanges[j].start, peerRanges[j].end, constant.ErrPeerShardRangesOverlap)
+			}
+		}
+	}
+
+	return nil
+}
+
+// buildPeerTransportOption creates the gRPC transport credentials dial option
+// based on TLS configuration for peer connections.
+func buildPeerTransportOption(cfg *Config) (grpc.DialOption, error) {
+	if !cfg.GRPCTLSEnabled {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	}
+
+	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
+
+	if cfg.PeerTLSCAFile != "" {
+		caBundle, readErr := os.ReadFile(cfg.PeerTLSCAFile)
+		if readErr != nil {
+			return nil, fmt.Errorf("read AUTHORIZER_PEER_TLS_CA_FILE: %w", readErr)
+		}
+
+		rootCAs := x509.NewCertPool()
+		if !rootCAs.AppendCertsFromPEM(caBundle) {
+			return nil, fmt.Errorf("file=%s: %w", cfg.PeerTLSCAFile, constant.ErrPeerTLSCANoCertificates)
+		}
+
+		tlsCfg.RootCAs = rootCAs
+	}
+
+	return grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)), nil
+}
+
 // Run starts the authorizer gRPC server and blocks until shutdown.
-func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) error {
+func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) error { //nolint:gocognit,gocyclo,cyclop // startup orchestration function
 	metricRecorder := newAuthorizerMetrics(telemetry, logger, cfg.AuthorizeLatencySLO)
 	router := shard.NewRouter(cfg.ShardCount)
 
 	eng := engine.New(router, wal.NewNoopWriter())
 	defer eng.Close()
+
 	eng.SetObserver(metricRecorder)
 	eng.ConfigurePreparedTxStore(cfg.PrepareTimeout, cfg.PrepareMaxPending)
+	eng.ConfigureAuthorizationLimits(cfg.MaxOperationsPerRequest, cfg.MaxUniqueBalancesPerRequest)
+	eng.ConfigureReplayPolicy(
+		cfg.WALReplayMaxMutationsPerEntry,
+		cfg.WALReplayMaxUniqueBalancesPerEntry,
+		cfg.WALReplayStrictMode,
+	)
+
+	if cfg.WALReplayStrictMode {
+		logger.Warnf("Authorizer WAL replay strict mode enabled: entries with replay inconsistencies will fail startup")
+	}
+
 	eng.ConfigurePreparedTxRetention(cfg.PrepareCommittedRetention, cfg.PrepareCommitRetryLimit)
 
 	balanceLoader, err := loader.NewPostgresLoaderWithConfig(ctx, cfg.PostgresDSN, router, loader.PoolConfig{
@@ -716,19 +900,20 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		ConnectTimeout:    cfg.PostgresConnectTimeout,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("initialize postgres loader: %w", err)
 	}
+
 	defer balanceLoader.Close()
 
 	initial, err := balanceLoader.LoadBalances(ctx, "", "", cfg.ShardIDs)
 	if err != nil {
-		return err
+		return fmt.Errorf("load initial balances: %w", err)
 	}
 
 	loaded := eng.UpsertBalances(initial)
 	logger.Infof("Authorizer loaded balances from PostgreSQL: %d", loaded)
 	logger.Infof(
-		"Authorizer runtime config: grpc_address=%s shards=%d shard_ids=%v wal_buffer_size=%d wal_flush_interval_ms=%d wal_sync_on_append=%t prepare_timeout_ms=%d prepare_max_pending=%d authorize_latency_slo_ms=%d max_streams=%d max_recv_bytes=%d postgres_pool_max_conns=%d postgres_pool_min_conns=%d postgres_conn_lifetime_ms=%d postgres_conn_idle_ms=%d postgres_healthcheck_ms=%d redpanda_enabled=%t redpanda_backpressure_policy=%s redpanda_retries=%d redpanda_delivery_timeout_ms=%d redpanda_publish_timeout_ms=%d telemetry_enabled=%t",
+		"Authorizer runtime config: grpc_address=%s shards=%d shard_ids=%v wal_buffer_size=%d wal_flush_interval_ms=%d wal_sync_on_append=%t prepare_timeout_ms=%d prepare_max_pending=%d max_ops_per_request=%d max_unique_balances_per_request=%d wal_replay_max_mutations=%d wal_replay_max_unique_balances=%d wal_replay_strict_mode=%t authorize_latency_slo_ms=%d max_streams=%d max_recv_bytes=%d postgres_pool_max_conns=%d postgres_pool_min_conns=%d postgres_conn_lifetime_ms=%d postgres_conn_idle_ms=%d postgres_healthcheck_ms=%d redpanda_enabled=%t redpanda_backpressure_policy=%s redpanda_retries=%d redpanda_delivery_timeout_ms=%d redpanda_publish_timeout_ms=%d telemetry_enabled=%t",
 		cfg.GRPCAddress,
 		cfg.ShardCount,
 		cfg.ShardIDs,
@@ -737,6 +922,11 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		cfg.WALSyncOnAppend,
 		cfg.PrepareTimeout.Milliseconds(),
 		cfg.PrepareMaxPending,
+		cfg.MaxOperationsPerRequest,
+		cfg.MaxUniqueBalancesPerRequest,
+		cfg.WALReplayMaxMutationsPerEntry,
+		cfg.WALReplayMaxUniqueBalancesPerEntry,
+		cfg.WALReplayStrictMode,
 		cfg.AuthorizeLatencySLO.Milliseconds(),
 		cfg.MaxConcurrentStreams,
 		cfg.MaxReceiveMessageSizeBytes,
@@ -772,10 +962,11 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		metricRecorder,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("initialize WAL writer: %w", err)
 	}
 
 	eng.SetWALWriter(writer)
+
 	defer func() {
 		if closeErr := writer.Close(); closeErr != nil {
 			logger.Warnf("Failed to close WAL writer: %v", closeErr)
@@ -783,6 +974,7 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 	}()
 
 	deprecatedBrokerEnvs := brokerpkg.DeprecatedBrokerEnvVariables(os.Environ())
+
 	if len(deprecatedBrokerEnvs) > 0 {
 		logger.Warnf(
 			"Deprecated broker environment variables detected (ignored by this version): %s. Regenerate .env from .env.example and remove deprecated entries.",
@@ -791,6 +983,7 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 	}
 
 	pub := publisher.NewNoopPublisher()
+
 	if cfg.RedpandaEnabled {
 		warnings, err := brokersecurity.ValidateRuntimeConfig(brokersecurity.RuntimeConfig{
 			Environment:           cfg.EnvName,
@@ -832,175 +1025,104 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		}
 
 		pub = redpandaPublisher
+
 		defer func() {
-			_ = pub.Close()
+			if closeErr := pub.Close(); closeErr != nil {
+				logger.Warnf("publisher close error: %v", closeErr)
+			}
 		}()
 	}
 
 	if len(cfg.PeerInstances) > 0 && !cfg.RedpandaEnabled {
-		return fmt.Errorf("cross-shard mode requires AUTHORIZER_REDPANDA_ENABLED=true for durable commit intent")
+		return fmt.Errorf("durable commit intent: %w", constant.ErrCrossShardRequiresRedpanda)
 	}
 
 	if cfg.PeerInsecureAllowed && !brokersecurity.IsNonProductionEnvironment(cfg.EnvName) {
-		return fmt.Errorf("AUTHORIZER_PEER_INSECURE_ALLOWED=true is only allowed in non-production environments")
+		return fmt.Errorf("environment %q: %w", cfg.EnvName, constant.ErrPeerInsecureNotAllowedInProd)
 	}
 
 	allowInsecurePeerTransport := cfg.PeerInsecureAllowed && brokersecurity.IsNonProductionEnvironment(cfg.EnvName)
 	if len(cfg.PeerInstances) > 0 && !cfg.GRPCTLSEnabled && !allowInsecurePeerTransport {
-		return fmt.Errorf(
-			"peer RPC requires TLS by default; set AUTHORIZER_GRPC_TLS_ENABLED=true (recommended) or AUTHORIZER_PEER_INSECURE_ALLOWED=true for local-only usage",
-		)
+		return fmt.Errorf("set AUTHORIZER_GRPC_TLS_ENABLED=true or AUTHORIZER_PEER_INSECURE_ALLOWED=true: %w", constant.ErrPeerRPCRequiresTLS)
 	}
 
 	if len(cfg.PeerInstances) > 0 && allowInsecurePeerTransport {
 		logger.Warnf("Authorizer peer RPC is using insecure transport for non-production environment %q", cfg.EnvName)
 	}
 
-	peerRanges := make([]peerShardRange, 0, len(cfg.PeerInstances))
-	if len(cfg.PeerInstances) > 0 {
-		if len(cfg.PeerShardRanges) > 0 {
-			if len(cfg.PeerShardRanges) != len(cfg.PeerInstances) {
-				return fmt.Errorf(
-					"AUTHORIZER_PEER_SHARD_RANGES count (%d) must match AUTHORIZER_PEER_INSTANCES count (%d)",
-					len(cfg.PeerShardRanges),
-					len(cfg.PeerInstances),
-				)
-			}
-
-			for _, rawRange := range cfg.PeerShardRanges {
-				parsed, parseErr := parsePeerShardRange(rawRange, cfg.ShardCount)
-				if parseErr != nil {
-					return parseErr
-				}
-
-				if parsed.end >= cfg.OwnedShardStart && parsed.start <= cfg.OwnedShardEnd {
-					return fmt.Errorf(
-						"peer shard range %d-%d overlaps local owned range %d-%d",
-						parsed.start,
-						parsed.end,
-						cfg.OwnedShardStart,
-						cfg.OwnedShardEnd,
-					)
-				}
-
-				peerRanges = append(peerRanges, parsed)
-			}
-		} else {
-			if len(cfg.PeerInstances) > 1 {
-				return fmt.Errorf(
-					"AUTHORIZER_PEER_SHARD_RANGES is required when configuring multiple peers",
-				)
-			}
-
-			if cfg.OwnedShardStart > 0 && cfg.OwnedShardEnd < cfg.ShardCount-1 {
-				return fmt.Errorf(
-					"cannot infer peer shard range from local ownership %d-%d; set AUTHORIZER_PEER_SHARD_RANGES explicitly",
-					cfg.OwnedShardStart,
-					cfg.OwnedShardEnd,
-				)
-			}
-
-			if cfg.OwnedShardStart > 0 {
-				peerRanges = append(peerRanges, peerShardRange{start: 0, end: cfg.OwnedShardStart - 1})
-			} else {
-				if cfg.OwnedShardEnd >= cfg.ShardCount-1 {
-					return fmt.Errorf("peer instances configured but local instance owns all shards")
-				}
-
-				peerRanges = append(peerRanges, peerShardRange{start: cfg.OwnedShardEnd + 1, end: cfg.ShardCount - 1})
-			}
-		}
-
-		for i := 0; i < len(peerRanges); i++ {
-			for j := i + 1; j < len(peerRanges); j++ {
-				if peerRanges[i].end >= peerRanges[j].start && peerRanges[j].end >= peerRanges[i].start {
-					return fmt.Errorf(
-						"peer shard ranges overlap: %d-%d and %d-%d",
-						peerRanges[i].start,
-						peerRanges[i].end,
-						peerRanges[j].start,
-						peerRanges[j].end,
-					)
-				}
-			}
-		}
-	}
-
-	if len(cfg.PeerInstances) > 0 {
-		if err := validateShardCoverage(cfg.ShardCount, cfg.OwnedShardStart, cfg.OwnedShardEnd, peerRanges); err != nil {
-			return err
-		}
-	} else if cfg.OwnedShardStart != 0 || cfg.OwnedShardEnd != cfg.ShardCount-1 {
-		return fmt.Errorf(
-			"without peer instances configured, local shard ownership must cover all shards (expected 0-%d, got %d-%d)",
-			cfg.ShardCount-1,
-			cfg.OwnedShardStart,
-			cfg.OwnedShardEnd,
-		)
+	peerRanges, err := resolvePeerShardRanges(cfg)
+	if err != nil {
+		return err
 	}
 
 	// Connect to peer authorizer instances for cross-shard 2PC coordination.
 	var peers []*peerClient
 
+	transportOption, transportErr := buildPeerTransportOption(cfg)
+	if transportErr != nil {
+		return transportErr
+	}
+
 	for i, peerAddr := range cfg.PeerInstances {
-		var transportOption grpc.DialOption
-		if cfg.GRPCTLSEnabled {
-			tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
-			if cfg.PeerTLSCAFile != "" {
-				caBundle, readErr := os.ReadFile(cfg.PeerTLSCAFile)
-				if readErr != nil {
-					return fmt.Errorf("read AUTHORIZER_PEER_TLS_CA_FILE: %w", readErr)
-				}
-
-				rootCAs := x509.NewCertPool()
-				if !rootCAs.AppendCertsFromPEM(caBundle) {
-					return fmt.Errorf("parse AUTHORIZER_PEER_TLS_CA_FILE: no certificates found")
-				}
-
-				tlsCfg.RootCAs = rootCAs
-			}
-
-			transportOption = grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))
-		} else {
-			transportOption = grpc.WithTransportCredentials(insecure.NewCredentials())
+		poolSize := cfg.PeerConnPoolSize
+		if poolSize < 1 {
+			poolSize = 4
 		}
 
-		peerConn, peerErr := grpc.NewClient(peerAddr,
-			transportOption,
-			grpc.WithKeepaliveParams(keepalive.ClientParameters{
-				Time:                30 * time.Second,
-				Timeout:             10 * time.Second,
-				PermitWithoutStream: true,
-			}),
-		)
-		if peerErr != nil {
-			// Close any previously opened connections before returning.
-			for _, p := range peers {
-				if p.conn != nil {
-					_ = p.conn.Close()
+		peerConns := make([]*grpc.ClientConn, 0, poolSize)
+		peerClients := make([]authorizerv1.BalanceAuthorizerClient, 0, poolSize)
+
+		for j := 0; j < poolSize; j++ {
+			peerConn, peerErr := grpc.NewClient(peerAddr,
+				transportOption,
+				grpc.WithKeepaliveParams(keepalive.ClientParameters{
+					Time:                keepaliveTimeSec * time.Second,
+					Timeout:             keepaliveTimeoutSec * time.Second,
+					PermitWithoutStream: true,
+				}),
+			)
+			if peerErr != nil {
+				// Close connections opened in this pool.
+				for _, c := range peerConns {
+					if closeErr := c.Close(); closeErr != nil {
+						logger.Warnf("peer pool connection close error: %v", closeErr)
+					}
 				}
+				// Close any previously opened peer connections.
+				for _, p := range peers {
+					for _, c := range p.conns {
+						if closeErr := c.Close(); closeErr != nil {
+							logger.Warnf("peer connection close error: %v", closeErr)
+						}
+					}
+				}
+
+				return fmt.Errorf("connect to authorizer peer %s (conn %d/%d): %w", peerAddr, j+1, poolSize, peerErr)
 			}
 
-			return fmt.Errorf("connect to authorizer peer %s: %w", peerAddr, peerErr)
+			peerConns = append(peerConns, peerConn)
+			peerClients = append(peerClients, authorizerv1.NewBalanceAuthorizerClient(peerConn))
 		}
 
 		peerRange := peerRanges[i]
 
 		peers = append(peers, &peerClient{
 			addr:       peerAddr,
-			client:     authorizerv1.NewBalanceAuthorizerClient(peerConn),
-			conn:       peerConn,
+			clients:    peerClients,
+			conns:      peerConns,
 			shardStart: peerRange.start,
 			shardEnd:   peerRange.end,
 		})
 
-		logger.Infof("Connected to authorizer peer at %s (owns shards %d-%d)", peerAddr, peerRange.start, peerRange.end)
+		logger.Infof("Connected to authorizer peer at %s (owns shards %d-%d, pool=%d)", peerAddr, peerRange.start, peerRange.end, poolSize)
 	}
 
 	defer func() {
 		for _, p := range peers {
-			if p.conn != nil {
-				_ = p.conn.Close()
+			for _, c := range p.conns {
+				if closeErr := c.Close(); closeErr != nil {
+					logger.Warnf("peer connection close error: %v", closeErr)
+				}
 			}
 		}
 	}()
@@ -1017,15 +1139,17 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 			streamLoggingInterceptor(logger),
 		),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
-			Time:    30 * time.Second,
-			Timeout: 10 * time.Second,
+			Time:    keepaliveTimeSec * time.Second,
+			Timeout: keepaliveTimeoutSec * time.Second,
 		}),
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
-			MinTime:             10 * time.Second,
+			MinTime:             enforcementMinTimeSec * time.Second,
 			PermitWithoutStream: true,
 		}),
 		grpc.MaxConcurrentStreams(cfg.MaxConcurrentStreams),
 		grpc.MaxRecvMsgSize(cfg.MaxReceiveMessageSizeBytes),
+		grpc.InitialWindowSize(grpcInitialWindowBytes),
+		grpc.InitialConnWindowSize(grpcInitialConnWinBytes),
 	}
 
 	if cfg.GRPCTLSEnabled {
@@ -1045,24 +1169,26 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 	}
 
 	service := &authorizerService{
-		engine:            eng,
-		loader:            balanceLoader,
-		pub:               pub,
-		logger:            logger,
-		metrics:           metricRecorder,
-		started:           time.Now(),
-		grpcAddr:          cfg.GRPCAddress,
-		instanceAddr:      cfg.InstanceAddress,
-		ownedShardStart:   cfg.OwnedShardStart,
-		ownedShardEnd:     cfg.OwnedShardEnd,
-		peers:             peers,
-		peerAuthToken:     cfg.PeerAuthToken,
-		peerAuthTokenPrev: cfg.PeerAuthTokenPrevious,
-		peerAuthMaxSkew:   cfg.PeerAuthMaxSkew,
-		abortRPCDeadline:  cfg.PeerAbortTimeout,
-		commitRPCDeadline: cfg.PeerCommitTimeout,
-		peerPrepareSem:    peerPrepareSem,
-		peerNonceStore:    newPeerNonceStore(cfg.PeerAuthMaxSkew, cfg.PeerNonceMaxEntries),
+		engine:                 eng,
+		loader:                 balanceLoader,
+		pub:                    pub,
+		logger:                 logger,
+		metrics:                metricRecorder,
+		started:                time.Now(),
+		grpcAddr:               cfg.GRPCAddress,
+		instanceAddr:           cfg.InstanceAddress,
+		ownedShardStart:        cfg.OwnedShardStart,
+		ownedShardEnd:          cfg.OwnedShardEnd,
+		peers:                  peers,
+		peerAuthToken:          cfg.PeerAuthToken,
+		peerAuthTokenPrev:      cfg.PeerAuthTokenPrevious,
+		peerAuthMaxSkew:        cfg.PeerAuthMaxSkew,
+		abortRPCDeadline:       cfg.PeerAbortTimeout,
+		commitRPCDeadline:      cfg.PeerCommitTimeout,
+		peerPrepareSem:         peerPrepareSem,
+		peerPrepareBoundedWait: time.Duration(cfg.PeerPrepareBoundedWaitMs) * time.Millisecond,
+		asyncCommitIntent:      cfg.AsyncCommitIntent,
+		peerNonceStore:         newPeerNonceStore(cfg.PeerAuthMaxSkew, cfg.PeerNonceMaxEntries),
 	}
 
 	if len(cfg.PeerInstances) > 0 {
@@ -1076,9 +1202,20 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		defer recoveryRunner.Close()
 
 		go recoveryRunner.Run(recoveryCtx)
+
+		if cfg.WALReconcilerEnabled && cfg.AsyncCommitIntent {
+			reconciler := newWALReconciler(cfg, service, logger)
+			service.walReconciler = reconciler
+			reconcilerCtx, stopReconciler := context.WithCancel(ctx)
+
+			defer stopReconciler()
+
+			go reconciler.Run(reconcilerCtx)
+		}
 	}
 
 	authorizerv1.RegisterBalanceAuthorizerServer(server, service)
+
 	if cfg.ReflectionEnabled {
 		reflection.Register(server)
 		logger.Infof("Authorizer gRPC reflection enabled")
@@ -1089,7 +1226,9 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 	healthServer.SetServingStatus("", grpcHealthV1.HealthCheckResponse_SERVING)
 	grpcHealthV1.RegisterHealthServer(server, healthServer)
 
-	listener, err := net.Listen("tcp", cfg.GRPCAddress)
+	lc := net.ListenConfig{}
+
+	listener, err := lc.Listen(ctx, "tcp", cfg.GRPCAddress)
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", cfg.GRPCAddress, err)
 	}
@@ -1102,6 +1241,7 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 	)
 
 	errCh := make(chan error, 1)
+
 	go func() {
 		errCh <- server.Serve(listener)
 	}()
@@ -1111,12 +1251,14 @@ func Run(ctx context.Context, cfg *Config, logger libLog.Logger, telemetry *libO
 		if err != nil {
 			return err
 		}
+
 		return nil
 	case <-ctx.Done():
 		logger.Infof("Authorizer shutting down")
 		healthServer.SetServingStatus("", grpcHealthV1.HealthCheckResponse_NOT_SERVING)
 		healthServer.SetServingStatus("authorizer.v1.BalanceAuthorizer", grpcHealthV1.HealthCheckResponse_NOT_SERVING)
 		server.GracefulStop()
+
 		return nil
 	}
 }

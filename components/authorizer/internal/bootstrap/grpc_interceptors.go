@@ -8,8 +8,6 @@ import (
 	"context"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
@@ -17,13 +15,19 @@ import (
 	"google.golang.org/grpc"
 	grpcCodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
 )
 
+// wrappedServerStream wraps a grpc.ServerStream with a custom context.
 type wrappedServerStream struct {
 	grpc.ServerStream
 	ctx context.Context
 }
 
+// Context returns the wrapped context, falling back to context.Background
+// when the receiver or its context is nil.
 func (w *wrappedServerStream) Context() context.Context {
 	if w == nil || w.ctx == nil {
 		return context.Background()
@@ -55,6 +59,7 @@ func streamTelemetryInterceptor(telemetry *libOpentelemetry.Telemetry) grpc.Stre
 		)
 
 		wrapped := &wrappedServerStream{ServerStream: ss, ctx: streamCtx}
+
 		err := handler(srv, wrapped)
 		if err != nil {
 			span.RecordError(err)
