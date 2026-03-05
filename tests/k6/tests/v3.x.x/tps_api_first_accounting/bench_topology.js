@@ -14,7 +14,7 @@ function defaultBenchNamespace() {
   return `api_bench_${Date.now().toString(36).slice(-8)}`;
 }
 
-function parsePositiveInt(raw, fallback) {
+export function parsePositiveInt(raw, fallback) {
   const parsed = parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
@@ -30,7 +30,7 @@ export function getBenchConfig() {
     namespace: sanitizeNamespace(__ENV.BENCH_NAMESPACE || defaultBenchNamespace()),
     orgCount: parsePositiveInt(__ENV.ORG_COUNT, 1),
     ledgersPerOrg: parsePositiveInt(__ENV.LEDGERS_PER_ORG, 1),
-    accountsPerType: parsePositiveInt(__ENV.ACCOUNTS_PER_TYPE, 5),
+    accountsPerType: parsePositiveInt(__ENV.ACCOUNTS_PER_TYPE, 500),
     accountTypes: DEFAULT_ACCOUNT_TYPES,
     fundAmount: __ENV.FUND_AMOUNT || '1000000.00',
     transactionAmount: __ENV.TRANSACTION_AMOUNT || '10.00',
@@ -45,7 +45,9 @@ function assertStatus(res, label, allowed) {
   });
 
   if (!ok) {
-    exec.test.abort(`${label} failed with status=${res.status} body=${res.body}`);
+    const errorInfo = res.error ? ` error=${res.error}` : '';
+    const url = res.request && res.request.url ? ` url=${res.request.url}` : '';
+    exec.test.abort(`${label} failed: status=${res.status}${errorInfo}${url} body=${res.body}`);
   }
 }
 
@@ -64,6 +66,10 @@ function listItems(body) {
 
   if (Array.isArray(body)) {
     return body;
+  }
+
+  if (body.data && Array.isArray(body.data)) {
+    return body.data;
   }
 
   if (Array.isArray(body.items)) {
@@ -315,7 +321,7 @@ function isRetryableFundingResponse(res) {
 
 function fundAccountWithRetry(token, organizationId, ledgerId, alias, cfg) {
   const payload = buildFundPayload(alias, cfg.fundAmount, cfg.namespace);
-  const idempotencyKey = `${cfg.namespace}-fund-${alias}-${uuidv4()}`;
+  const idempotencyKey = `${cfg.namespace}-fund-${alias}-v1`;
   let lastResponse = null;
 
   for (let attempt = 1; attempt <= cfg.fundMaxRetries; attempt++) {

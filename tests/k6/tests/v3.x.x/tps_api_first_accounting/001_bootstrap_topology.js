@@ -1,5 +1,7 @@
 import * as auth from '../../../pkg/auth.js';
-import { createTopology, getBenchConfig } from './bench_topology.js';
+import { createTopology, getBenchConfig, parsePositiveInt } from './bench_topology.js';
+
+const bootstrapVUs = parsePositiveInt(__ENV.BOOTSTRAP_VUS, 1);
 
 export const options = {
   scenarios: {
@@ -7,7 +9,7 @@ export const options = {
       exec: 'default',
       executor: 'per-vu-iterations',
       iterations: 1,
-      vus: 1,
+      vus: bootstrapVUs,
       maxDuration: '15m'
     }
   }
@@ -18,7 +20,7 @@ export function setup() {
   const cfg = getBenchConfig();
 
   console.log(
-    `[api-first/bootstrap] namespace=${cfg.namespace} orgs=${cfg.orgCount} ledgers_per_org=${cfg.ledgersPerOrg} accounts_per_type=${cfg.accountsPerType}`
+    `[api-first/bootstrap] namespace=${cfg.namespace} orgs=${cfg.orgCount} ledgers_per_org=${cfg.ledgersPerOrg} accounts_per_type=${cfg.accountsPerType} vus=${bootstrapVUs}`
   );
 
   return {

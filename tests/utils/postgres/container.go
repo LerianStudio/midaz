@@ -36,7 +36,6 @@ const (
 	postgresReadyOccur    = 2
 	postgresReadyDeadline = 240 * time.Second
 	postgresPortPollSleep = 100 * time.Millisecond
-	dockerAPICallTimeout  = 3 * time.Second
 )
 
 // ContainerConfig holds configuration for PostgreSQL test container.
@@ -92,9 +91,10 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 			"POSTGRES_USER":     cfg.DBUser,
 			"POSTGRES_PASSWORD": cfg.DBPassword,
 		},
-		WaitingFor: wait.ForLog("database system is ready to accept connections").
-			WithOccurrence(postgresReadyOccur).
-			WithStartupTimeout(postgresReadyDeadline),
+		WaitingFor: wait.ForAll(
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(postgresReadyOccur),
+			wait.ForListeningPort(postgresPortID).SkipExternalCheck(),
+		).WithDeadline(postgresReadyDeadline),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
@@ -148,10 +148,7 @@ func waitForMappedPort(t *testing.T, ctx context.Context, ctr testcontainers.Con
 	)
 
 	for time.Now().Before(deadline) {
-		attemptCtx, cancel := context.WithTimeout(ctx, dockerAPICallTimeout)
-		mappedPort, lastErr = ctr.MappedPort(attemptCtx, nat.Port(portID))
-
-		cancel()
+		mappedPort, lastErr = ctr.MappedPort(ctx, nat.Port(portID))
 
 		if lastErr == nil && mappedPort.Port() != "" {
 			return mappedPort

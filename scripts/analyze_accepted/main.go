@@ -50,7 +50,7 @@ func fetchAliasAvailable(transURL, auth, org, ledger, alias, asset string) (floa
 		return 0, err
 	}
 
-	req.Header.Set("X-Request-Id", fmt.Sprintf("corr-%d", time.Now().UnixNano()))
+	req.Header.Set("X-Request-Id", fmt.Sprintf("corr-%d", time.Now().UTC().UnixNano()))
 
 	if auth != "" {
 		req.Header.Set("Authorization", auth)
