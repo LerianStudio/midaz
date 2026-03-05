@@ -3801,3 +3801,209 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 		})
 	}
 }
+
+func TestTryBuildDoubleEntryOps(t *testing.T) {
+	t.Parallel()
+
+	baseBalance := &mmodel.Balance{
+		ID:             uuid.New().String(),
+		OrganizationID: uuid.New().String(),
+		LedgerID:       uuid.New().String(),
+		AccountID:      uuid.New().String(),
+		Alias:          "@source1",
+		Key:            "default",
+		Available:      decimal.NewFromInt(1000),
+		OnHold:         decimal.NewFromInt(200),
+		Version:        5,
+	}
+
+	baseTran := transaction.Transaction{
+		ID:             uuid.New().String(),
+		OrganizationID: uuid.New().String(),
+		LedgerID:       uuid.New().String(),
+	}
+
+	baseBalanceAfter := pkgTransaction.Balance{
+		Available: decimal.NewFromInt(800),
+		OnHold:    decimal.NewFromInt(400),
+		Version:   7,
+	}
+
+	tests := []struct {
+		name                   string
+		ft                     pkgTransaction.FromTo
+		amt                    pkgTransaction.Amount
+		transactionInput       pkgTransaction.Transaction
+		routeValidationEnabled bool
+		processedDoubleEntry   map[string]bool
+		expectedOps            int
+		expectedHandled        bool
+	}{
+		{
+			name: "returns (nil, false) when routeValidationEnabled is false",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amt: pkgTransaction.Amount{
+				Value:           decimal.NewFromInt(100),
+				Operation:       libConstants.ONHOLD,
+				TransactionType: cn.PENDING,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: true,
+				Send:    pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: false,
+			processedDoubleEntry:   make(map[string]bool),
+			expectedOps:            0,
+			expectedHandled:        false,
+		},
+		{
+			name: "returns (nil, false) when IsFrom is false",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@dest1",
+				BalanceKey:   "default",
+				IsFrom:       false,
+			},
+			amt: pkgTransaction.Amount{
+				Value:           decimal.NewFromInt(100),
+				Operation:       libConstants.ONHOLD,
+				TransactionType: cn.PENDING,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: true,
+				Send:    pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: true,
+			processedDoubleEntry:   make(map[string]bool),
+			expectedOps:            0,
+			expectedHandled:        false,
+		},
+		{
+			name: "returns (nil, true) for already-processed alias (deduplication)",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amt: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(100),
+				Operation:              libConstants.ONHOLD,
+				TransactionType:        cn.PENDING,
+				RouteValidationEnabled: true,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: true,
+				Send:    pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: true,
+			processedDoubleEntry:   map[string]bool{"@source1": true},
+			expectedOps:            0,
+			expectedHandled:        true,
+		},
+		{
+			name: "returns (nil, false) for non-double-entry operation (DEBIT+CREATED)",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amt: pkgTransaction.Amount{
+				Value:           decimal.NewFromInt(100),
+				Operation:       cn.DEBIT,
+				TransactionType: cn.CREATED,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Send: pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: true,
+			processedDoubleEntry:   make(map[string]bool),
+			expectedOps:            0,
+			expectedHandled:        false,
+		},
+		{
+			name: "dispatches to pending path for PENDING+ONHOLD",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amt: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(100),
+				Operation:              libConstants.ONHOLD,
+				TransactionType:        cn.PENDING,
+				RouteValidationEnabled: true,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: true,
+				Send:    pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: true,
+			processedDoubleEntry:   make(map[string]bool),
+			expectedOps:            2,
+			expectedHandled:        true,
+		},
+		{
+			name: "dispatches to canceled path for CANCELED+RELEASE",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amt: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(100),
+				Operation:              cn.RELEASE,
+				TransactionType:        cn.CANCELED,
+				RouteValidationEnabled: true,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Send: pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: true,
+			processedDoubleEntry:   make(map[string]bool),
+			expectedOps:            2,
+			expectedHandled:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			handler := &TransactionHandler{}
+			transactionDate := time.Now()
+
+			ops, handled := handler.tryBuildDoubleEntryOps(
+				ctx,
+				baseBalance,
+				tt.ft,
+				tt.amt,
+				baseBalanceAfter,
+				baseTran,
+				tt.transactionInput,
+				transactionDate,
+				false, // isAnnotation
+				tt.routeValidationEnabled,
+				tt.processedDoubleEntry,
+			)
+
+			assert.Equal(t, tt.expectedHandled, handled, "handled flag mismatch")
+
+			if tt.expectedOps == 0 {
+				assert.Nil(t, ops, "expected nil ops")
+			} else {
+				require.Len(t, ops, tt.expectedOps, "expected %d operations", tt.expectedOps)
+
+				// Verify ops have distinct IDs
+				assert.NotEqual(t, ops[0].ID, ops[1].ID, "operations should have distinct IDs")
+
+				// Verify alias was marked as processed
+				assert.True(t, tt.processedDoubleEntry[baseBalance.Alias],
+					"alias should be marked as processed in the deduplication map")
+			}
+		})
+	}
+}
