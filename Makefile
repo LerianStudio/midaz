@@ -29,9 +29,18 @@ define print_title
 	@echo "------------------------------------------"
 endef
 
+# Shell utility functions
+define print_logo
+	@cat $(PWD)/pkg/shell/logo.txt
+endef
+
 # Check if a command is available
 define check_command
-	@which $(1) > /dev/null || (echo "Error: $(1) is required but not installed. $(2)" && exit 1)
+	@if ! command -v $(1) >/dev/null 2>&1; then \
+		echo "Error: $(1) is required but not installed."; \
+		echo "To install: $(2)"; \
+		exit 1; \
+	fi
 endef
 
 # Check if environment files exist
@@ -41,27 +50,7 @@ define check_env_files
 			echo "Warning: $$dir/.env file is missing. Consider running 'make set-env'."; \
 		fi; \
 	done
-endef
-
-# Shell utility functions
-define print_logo
-	@cat $(PWD)/pkg/shell/logo.txt
-endef
-
-# Check if a command exists
-define check_command
-	@if ! command -v $(1) >/dev/null 2>&1; then \
-		echo "Error: $(1) is not installed"; \
-		echo "To install: $(2)"; \
-		exit 1; \
-	fi
-endef
-
-# Check if environment files exist
-define check_env_files
-	@missing=false; \
-	if [ ! -f "$(INFRA_DIR)/.env" ]; then missing=true; fi; \
-	if [ "$$missing" = "true" ]; then \
+	@if [ ! -f "$(INFRA_DIR)/.env" ]; then \
 		echo "Environment files are missing. Running set-env command first..."; \
 		$(MAKE) set-env; \
 	fi
@@ -84,9 +73,13 @@ BENCH_LOG ?= OFF
 BENCH_NAMESPACE ?=
 BENCH_ORG_COUNT ?= 1
 BENCH_LEDGERS_PER_ORG ?= 1
-BENCH_ACCOUNTS_PER_TYPE ?= 5
+BENCH_ACCOUNTS_PER_TYPE ?= 500
 BENCH_FUND_AMOUNT ?= 1000000.00
-BENCH_TRANSACTION_AMOUNT ?= 10.00
+BENCH_TRANSACTION_AMOUNT ?= 1.00
+# Bootstrap creates topology sequentially (no work partitioning across VUs),
+# so parallelism only causes duplicate idempotent requests. Default to 1.
+BENCH_BOOTSTRAP_VUS ?= 1
+BENCH_FUND_VUS ?= 50
 
 ifeq ($(PROFILE),smoke)
 BENCH_PROFILE_TPS := 10
@@ -99,10 +92,10 @@ BENCH_PROFILE_DURATION := 10s
 BENCH_PROFILE_PRE_VUS := 200
 BENCH_PROFILE_MAX_VUS := 1000
 else ifeq ($(PROFILE),stress)
-BENCH_PROFILE_TPS := 20000
+BENCH_PROFILE_TPS := 10000
 BENCH_PROFILE_DURATION := 10s
 BENCH_PROFILE_PRE_VUS := 2000
-BENCH_PROFILE_MAX_VUS := 8000
+BENCH_PROFILE_MAX_VUS := 20000
 else ifeq ($(PROFILE),100k)
 BENCH_PROFILE_TPS := 100000
 BENCH_PROFILE_DURATION := 10s
@@ -166,12 +159,15 @@ help:
 	@echo ""
 	@echo ""
 	@echo "Service Commands:"
-	@echo "  make up                           - Start benchmark-ready infra stack"
+	@echo "  make up                           - Start full dev stack (infra + ledger/onboarding+transaction + CRM)"
 	@echo "  make down                         - Stop all services"
 	@echo "  make start                        - Start all containers"
 	@echo "  make stop                         - Stop all containers"
 	@echo "  make restart                      - Restart all containers"
 	@echo "  make rebuild-up                   - Rebuild and restart all services"
+	@echo "  make bench-up                     - Start benchmark-only infra stack (4 ledgers + 2 authorizers + nginx)"
+	@echo "  make bench-down                   - Stop benchmark infra stack"
+	@echo "  make bench-restart                - Restart benchmark infra stack"
 	@echo "  make clean-docker                 - Clean all Docker resources (containers, networks, volumes)"
 	@echo "  make logs                         - Show logs for all services"
 	@echo "  make infra COMMAND=<cmd>          - Run command in infra component"
@@ -179,11 +175,11 @@ help:
 	@echo "  make transaction COMMAND=<cmd>    - Run command in transaction component"
 	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
-	@echo "  make k6-run PROFILE=<p>           - Sync k6 repo, start stack, run benchmark (profiles: smoke, load, stress, 100k)"
+	@echo "  make k6-run PROFILE=<p>           - Run k6 benchmark suite (stack must be running; see 'make bench-up')"
+	@echo "  make k6-bootstrap                 - Run k6 bootstrap only (topology + fund accounts)"
+	@echo "  make k6-transactions PROFILE=<p>  - Run k6 transactions only (requires BENCH_NAMESPACE)"
 	@echo "  make k6-validate                  - Validate persisted benchmark data + invariants"
 	@echo "  make k6-monitor                   - Stream Redpanda consumer lag as CSV"
-	@echo ""
-	@echo "  make up/start/stop/down now control the benchmark-ready infra stack (4 ledgers + 2 authorizers + nginx)"
 	@echo ""
 	@echo "  k6-run vars (defaults):"
 	@echo "    PROFILE=$(PROFILE) BENCH_ENVIRONMENT=$(BENCH_ENVIRONMENT)"
@@ -191,6 +187,7 @@ help:
 	@echo "    BENCH_AUTH_ENABLED=$(BENCH_AUTH_ENABLED) BENCH_BUILD_STACK=$(BENCH_BUILD_STACK)"
 	@echo "    BENCH_NAMESPACE=<auto> BENCH_ORG_COUNT=$(BENCH_ORG_COUNT) BENCH_LEDGERS_PER_ORG=$(BENCH_LEDGERS_PER_ORG) BENCH_ACCOUNTS_PER_TYPE=$(BENCH_ACCOUNTS_PER_TYPE)"
 	@echo "    BENCH_FUND_AMOUNT=$(BENCH_FUND_AMOUNT) BENCH_TRANSACTION_AMOUNT=$(BENCH_TRANSACTION_AMOUNT)"
+	@echo "    BENCH_BOOTSTRAP_VUS=$(BENCH_BOOTSTRAP_VUS) BENCH_FUND_VUS=$(BENCH_FUND_VUS)"
 	@echo "    profiles: smoke(10tps/10s) load(500tps/10s) stress(20000tps/10s) 100k(100000tps/10s)"
 	@echo ""
 	@echo ""
@@ -502,37 +499,108 @@ up:
 	$(call print_title,Starting all services with Docker Compose)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
-	@echo "Starting benchmark-ready infrastructure stack..."
+	@echo "Starting infrastructure services..."
 	@cd $(INFRA_DIR) && $(MAKE) up
-	@echo "[ok] Benchmark-ready stack started successfully"
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Starting unified backend (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) up); \
+	else \
+		echo "Starting separate backend services..."; \
+		(cd $(ONBOARDING_DIR) && $(MAKE) up); \
+		(cd $(TRANSACTION_DIR) && $(MAKE) up); \
+	fi
+	@echo "Starting CRM service..."
+	@cd $(CRM_DIR) && $(MAKE) up
+	@echo "[ok] All services started successfully"
 
 .PHONY: down
 down:
 	$(call print_title,Stopping all services with Docker Compose)
+	@echo "Stopping CRM service..."
+	@if [ -f "$(CRM_DIR)/docker-compose.yml" ]; then \
+		(cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+	fi
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Stopping unified backend (ledger)..."; \
+		if [ -f "$(LEDGER_DIR)/docker-compose.yml" ]; then \
+			(cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+		fi; \
+	else \
+		echo "Stopping separate backend services..."; \
+		if [ -f "$(TRANSACTION_DIR)/docker-compose.yml" ]; then \
+			(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+		fi; \
+		if [ -f "$(ONBOARDING_DIR)/docker-compose.yml" ]; then \
+			(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+		fi; \
+	fi
+	@echo "Stopping infrastructure services..."
+	@if [ -f "$(INFRA_DIR)/docker-compose.yml" ]; then \
+		(cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+	fi
+	@echo "[ok] All services stopped successfully"
+
+.PHONY: start
+start:
+	$(call print_title,Starting all containers)
+	@echo "Starting infrastructure containers..."
+	@cd $(INFRA_DIR) && $(MAKE) start
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Starting unified backend containers (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) start); \
+	else \
+		echo "Starting separate backend containers..."; \
+		(cd $(ONBOARDING_DIR) && $(MAKE) start); \
+		(cd $(TRANSACTION_DIR) && $(MAKE) start); \
+	fi
+	@echo "Starting CRM containers..."
+	@cd $(CRM_DIR) && $(MAKE) start
+	@echo "[ok] All containers started successfully"
+
+.PHONY: stop
+stop:
+	$(call print_title,Stopping all containers)
+	@echo "Stopping CRM containers..."
+	@cd $(CRM_DIR) && $(MAKE) stop 2>/dev/null || true
+	@if [ "$(UNIFIED)" = "true" ]; then \
+		echo "Stopping unified backend containers (ledger)..."; \
+		(cd $(LEDGER_DIR) && $(MAKE) stop 2>/dev/null || true); \
+	else \
+		echo "Stopping separate backend containers..."; \
+		(cd $(TRANSACTION_DIR) && $(MAKE) stop 2>/dev/null || true); \
+		(cd $(ONBOARDING_DIR) && $(MAKE) stop 2>/dev/null || true); \
+	fi
+	@echo "Stopping infrastructure containers..."
+	@cd $(INFRA_DIR) && $(MAKE) stop 2>/dev/null || true
+	@echo "[ok] All containers stopped successfully"
+
+.PHONY: restart
+restart:
+	@$(MAKE) down UNIFIED=$(UNIFIED) && $(MAKE) up UNIFIED=$(UNIFIED)
+	@echo "[ok] All containers restarted successfully"
+
+.PHONY: bench-up
+bench-up:
+	$(call print_title,Starting benchmark infrastructure stack)
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_env_files)
+	@echo "Starting benchmark-ready infrastructure stack (4 ledgers + 2 authorizers + nginx)..."
+	@cd $(INFRA_DIR) && $(MAKE) up
+	@echo "[ok] Benchmark-ready stack started successfully"
+
+.PHONY: bench-down
+bench-down:
+	$(call print_title,Stopping benchmark infrastructure stack)
 	@echo "Stopping benchmark-ready infrastructure stack..."
 	@if [ -f "$(INFRA_DIR)/docker-compose.yml" ]; then \
 		(cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
 	fi
 	@echo "[ok] Benchmark-ready stack stopped successfully"
 
-.PHONY: start
-start:
-	$(call print_title,Starting all containers)
-	@echo "Starting benchmark-ready infrastructure containers..."
-	@cd $(INFRA_DIR) && $(MAKE) start
-	@echo "[ok] Benchmark-ready containers started successfully"
-
-.PHONY: stop
-stop:
-	$(call print_title,Stopping all containers)
-	@echo "Stopping benchmark-ready infrastructure containers..."
-	@cd $(INFRA_DIR) && $(MAKE) stop 2>/dev/null || true
-	@echo "[ok] Benchmark-ready containers stopped successfully"
-
-.PHONY: restart
-restart:
-	@$(MAKE) down UNIFIED=$(UNIFIED) && $(MAKE) up UNIFIED=$(UNIFIED)
-	@echo "[ok] All containers restarted successfully"
+.PHONY: bench-restart
+bench-restart:
+	@$(MAKE) bench-down && $(MAKE) bench-up
+	@echo "[ok] Benchmark-ready stack restarted successfully"
 
 .PHONY: rebuild-up
 rebuild-up:
@@ -558,33 +626,128 @@ logs:
 	@echo "=== Benchmark-ready infrastructure logs ==="
 	@cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
 
-.PHONY: k6-run k6-validate k6-monitor bench-run bench-validate bench-monitor
+.PHONY: k6-run k6-bootstrap k6-transactions k6-validate k6-monitor bench-run bench-validate bench-monitor
+
+k6-bootstrap:
+	$(call print_title,Running k6 bootstrap [topology + fund])
+	$(call check_command,k6,"Install k6 with: brew install k6")
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_command,curl,"Install curl from https://curl.se/")
+	@# ── run k6 bootstrap (001 + 002) ────────────────────────────
+	@if [ ! -d "$(K6_DIR)/$(K6_SCENARIO_DIR)" ]; then \
+		echo "Error: k6 scenario directory not found: $(K6_DIR)/$(K6_SCENARIO_DIR)"; \
+		exit 1; \
+	fi
+	@namespace="$(BENCH_NAMESPACE)"; \
+	if [ -z "$$namespace" ]; then namespace="api_$$(date +%s)"; fi; \
+	echo ""; \
+	echo "┌──────────────────────────────────────────────┐"; \
+	echo "│  k6 bootstrap: topology + fund               │"; \
+	echo "├──────────────────────────────────────────────┤"; \
+	echo "│  Namespace       = $$namespace"; \
+	echo "│  Accounts/type   = $(BENCH_ACCOUNTS_PER_TYPE)"; \
+	echo "│  Fund amount     = $(BENCH_FUND_AMOUNT)"; \
+	echo "│  Orgs            = $(BENCH_ORG_COUNT)"; \
+	echo "│  Ledgers/org     = $(BENCH_LEDGERS_PER_ORG)"; \
+	echo "│  Bootstrap VUs   = $(BENCH_BOOTSTRAP_VUS)"; \
+	echo "│  Fund VUs        = $(BENCH_FUND_VUS)"; \
+	echo "└──────────────────────────────────────────────┘"; \
+	echo ""; \
+	( cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
+	for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
+	k6 run \
+	-e ENVIRONMENT=$(BENCH_ENVIRONMENT) \
+	-e AUTH_ENABLED=$(BENCH_AUTH_ENABLED) \
+	-e LOG=$(BENCH_LOG) \
+	-e BENCH_NAMESPACE=$$namespace \
+	-e ORG_COUNT=$(BENCH_ORG_COUNT) \
+	-e LEDGERS_PER_ORG=$(BENCH_LEDGERS_PER_ORG) \
+	-e ACCOUNTS_PER_TYPE=$(BENCH_ACCOUNTS_PER_TYPE) \
+	-e BOOTSTRAP_VUS=$(BENCH_BOOTSTRAP_VUS) \
+	001_bootstrap_topology.js ) && \
+	( cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
+	for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
+	k6 run \
+	-e ENVIRONMENT=$(BENCH_ENVIRONMENT) \
+	-e AUTH_ENABLED=$(BENCH_AUTH_ENABLED) \
+	-e LOG=$(BENCH_LOG) \
+	-e BENCH_NAMESPACE=$$namespace \
+	-e ORG_COUNT=$(BENCH_ORG_COUNT) \
+	-e LEDGERS_PER_ORG=$(BENCH_LEDGERS_PER_ORG) \
+	-e ACCOUNTS_PER_TYPE=$(BENCH_ACCOUNTS_PER_TYPE) \
+	-e FUND_AMOUNT=$(BENCH_FUND_AMOUNT) \
+	-e FUND_VUS=$(BENCH_FUND_VUS) \
+	002_fund_accounts.js ) && \
+	echo "" && \
+	echo "┌──────────────────────────────────────────────┐" && \
+	echo "│  Bootstrap complete                          │" && \
+	echo "│                                              │" && \
+	echo "│  Reuse this namespace for transactions:      │" && \
+	echo "│                                              │" && \
+	echo "│  make k6-transactions \\                      │" && \
+	echo "│    BENCH_NAMESPACE=$$namespace \\              " && \
+	echo "│    PROFILE=smoke                             │" && \
+	echo "└──────────────────────────────────────────────┘"
+	@echo "[ok] k6 bootstrap complete"
+
+k6-transactions:
+	$(call print_title,Running k6 transactions [$(PROFILE)])
+	$(call check_command,k6,"Install k6 with: brew install k6")
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_command,curl,"Install curl from https://curl.se/")
+	@# ── validate namespace ──────────────────────────────────────
+	@if [ -z "$(BENCH_NAMESPACE)" ]; then \
+		echo ""; \
+		echo "Error: BENCH_NAMESPACE is required for k6-transactions."; \
+		echo ""; \
+		echo "Run bootstrap first to create accounts:"; \
+		echo "  make k6-bootstrap BENCH_NAMESPACE=my_bench"; \
+		echo ""; \
+		echo "Then run transactions with that namespace:"; \
+		echo "  make k6-transactions BENCH_NAMESPACE=my_bench PROFILE=smoke"; \
+		echo ""; \
+		exit 1; \
+	fi
+	@# ── run k6 transactions (003) ───────────────────────────────
+	@if [ ! -d "$(K6_DIR)/$(K6_SCENARIO_DIR)" ]; then \
+		echo "Error: k6 scenario directory not found: $(K6_DIR)/$(K6_SCENARIO_DIR)"; \
+		exit 1; \
+	fi
+	@echo ""; \
+	echo "┌──────────────────────────────────────────────┐"; \
+	echo "│  k6 transactions: profile=$(PROFILE)"; \
+	echo "├──────────────────────────────────────────────┤"; \
+	echo "│  Namespace       = $(BENCH_NAMESPACE)"; \
+	echo "│  TPS             = $(BENCH_TPS)"; \
+	echo "│  Duration        = $(BENCH_DURATION)"; \
+	echo "│  VUs             = $(BENCH_PRE_VUS) pre / $(BENCH_MAX_VUS) max"; \
+	echo "│  Tx amount       = $(BENCH_TRANSACTION_AMOUNT)"; \
+	echo "└──────────────────────────────────────────────┘"; \
+	echo ""; \
+	( cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
+	for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
+	k6 run \
+	-e ENVIRONMENT=$(BENCH_ENVIRONMENT) \
+	-e AUTH_ENABLED=$(BENCH_AUTH_ENABLED) \
+	-e LOG=$(BENCH_LOG) \
+	-e BENCH_NAMESPACE=$(BENCH_NAMESPACE) \
+	-e ORG_COUNT=$(BENCH_ORG_COUNT) \
+	-e LEDGERS_PER_ORG=$(BENCH_LEDGERS_PER_ORG) \
+	-e ACCOUNTS_PER_TYPE=$(BENCH_ACCOUNTS_PER_TYPE) \
+	-e FUND_AMOUNT=$(BENCH_FUND_AMOUNT) \
+	-e TRANSACTION_AMOUNT=$(BENCH_TRANSACTION_AMOUNT) \
+	-e TPS=$(BENCH_TPS) \
+	-e DURATION=$(BENCH_DURATION) \
+	-e PRE_VUS=$(BENCH_PRE_VUS) \
+	-e MAX_VUS=$(BENCH_MAX_VUS) \
+	003_transactions.js )
+	@echo "[ok] k6 transactions complete (profile=$(PROFILE))"
 
 k6-run:
 	$(call print_title,Running k6 benchmark [$(PROFILE)])
 	$(call check_command,k6,"Install k6 with: brew install k6")
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_command,curl,"Install curl from https://curl.se/")
-	@# ── start bench stack ─────────────────────────────────────────
-	@if [ "$(BENCH_BUILD_STACK)" = "true" ]; then \
-		echo "Bringing up benchmark stack with image rebuild..."; \
-		$(MAKE) rebuild-up; \
-	else \
-		echo "Bringing up benchmark stack (no rebuild)..."; \
-		$(MAKE) up; \
-	fi
-	@for i in 1 2 3 4 5 6 7 8 9 10; do \
-		status=$$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3010/health || true); \
-		if [ "$$status" = "200" ]; then \
-			echo "Benchmark gateway is healthy on :3010"; \
-			break; \
-		fi; \
-		if [ "$$i" = "10" ]; then \
-			echo "Error: benchmark gateway did not become healthy on :3010"; \
-			exit 1; \
-		fi; \
-		sleep 2; \
-	done
 	@# ── run k6 suite ──────────────────────────────────────────────
 	@if [ ! -d "$(K6_DIR)/$(K6_SCENARIO_DIR)" ]; then \
 		echo "Error: k6 scenario directory not found: $(K6_DIR)/$(K6_SCENARIO_DIR)"; \
@@ -608,6 +771,7 @@ k6-run:
 	-e ORG_COUNT=$(BENCH_ORG_COUNT) \
 	-e LEDGERS_PER_ORG=$(BENCH_LEDGERS_PER_ORG) \
 	-e ACCOUNTS_PER_TYPE=$(BENCH_ACCOUNTS_PER_TYPE) \
+	-e BOOTSTRAP_VUS=$(BENCH_BOOTSTRAP_VUS) \
 	001_bootstrap_topology.js ) && \
 	( cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
 	for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
@@ -620,6 +784,7 @@ k6-run:
 	-e LEDGERS_PER_ORG=$(BENCH_LEDGERS_PER_ORG) \
 	-e ACCOUNTS_PER_TYPE=$(BENCH_ACCOUNTS_PER_TYPE) \
 	-e FUND_AMOUNT=$(BENCH_FUND_AMOUNT) \
+	-e FUND_VUS=$(BENCH_FUND_VUS) \
 	002_fund_accounts.js ) && \
 	( cd "$(K6_DIR)/$(K6_SCENARIO_DIR)" && \
 	for kv in $$(env); do name=$${kv%%=*}; case "$$name" in K6_*) unset $$name ;; esac; done; \
@@ -649,6 +814,10 @@ k6-monitor:
 	@bash tests/k6/scripts/monitor_lag.sh
 
 bench-run: k6-run
+
+bench-bootstrap: k6-bootstrap
+
+bench-transactions: k6-transactions
 
 bench-validate: k6-validate
 
