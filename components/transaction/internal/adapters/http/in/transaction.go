@@ -836,6 +836,7 @@ func (handler *TransactionHandler) BuildOperations(
 					)
 
 					operations = append(operations, ops...)
+
 					metricFactory.RecordTransactionProcessed(ctx, tran.OrganizationID, tran.LedgerID)
 
 					continue
@@ -942,7 +943,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	blc *mmodel.Balance,
 	ft pkgTransaction.FromTo,
 	amt pkgTransaction.Amount,
-	bat pkgTransaction.Balance,
+	_ pkgTransaction.Balance,
 	tran transaction.Transaction,
 	transactionInput pkgTransaction.Transaction,
 	transactionDate time.Time,
@@ -1029,7 +1030,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	}
 
 	onholdBalanceAfter := operation.Balance{
-		Available: &bat.Available,
+		Available: &debitAvailable,
 		OnHold:    &onholdOnHold,
 		Version:   &onholdVersion,
 	}
