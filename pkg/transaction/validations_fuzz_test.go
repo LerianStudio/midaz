@@ -119,7 +119,8 @@ func FuzzOperateBalances(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, amountVal, available, onHold, version int64,
-		operation, transactionType string, routeValidation bool) {
+		operation, transactionType string, routeValidation bool,
+	) {
 		amount := Amount{
 			Value:                  decimal.NewFromInt(amountVal),
 			Operation:              operation,
