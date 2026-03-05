@@ -11,8 +11,11 @@ import (
 	"strings"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
 const (
@@ -21,10 +24,14 @@ const (
 	defaultRecordDeliveryTimeout = 30 * time.Second
 	defaultPublishTimeout        = 5 * time.Second
 
+	// BackpressurePolicyBoundedWait applies a bounded timeout to publish operations.
 	BackpressurePolicyBoundedWait = "bounded_wait"
-	BackpressurePolicyFailFast    = "fail_fast"
+
+	// BackpressurePolicyFailFast fails immediately when the publish deadline is exceeded.
+	BackpressurePolicyFailFast = "fail_fast"
 )
 
+// Config holds tuning parameters for the Redpanda publisher.
 type Config struct {
 	ProducerLinger        time.Duration
 	MaxBufferedRecords    int
@@ -55,6 +62,7 @@ func normalizeConfig(cfg Config) Config {
 	if policy != BackpressurePolicyFailFast && policy != BackpressurePolicyBoundedWait {
 		policy = BackpressurePolicyBoundedWait
 	}
+
 	cfg.BackpressurePolicy = policy
 
 	if cfg.RecordRetries < 0 {
@@ -84,7 +92,7 @@ func NewRedpandaPublisherWithSecurity(
 	securityConfig SecurityConfig,
 ) (*RedpandaPublisher, error) {
 	if len(brokers) == 0 {
-		return nil, fmt.Errorf("redpanda brokers cannot be empty")
+		return nil, constant.ErrRedpandaBrokersEmpty
 	}
 
 	config = normalizeConfig(config)
@@ -94,14 +102,15 @@ func NewRedpandaPublisherWithSecurity(
 		return nil, fmt.Errorf("invalid redpanda security configuration: %w", err)
 	}
 
-	options := []kgo.Opt{
+	options := make([]kgo.Opt, 0, len(securityOptions)+6) //nolint:mnd // 6 base options below
+	options = append(options,
 		kgo.SeedBrokers(brokers...),
 		kgo.RequiredAcks(kgo.AllISRAcks()),
 		kgo.ProducerLinger(config.ProducerLinger),
 		kgo.MaxBufferedRecords(config.MaxBufferedRecords),
 		kgo.RecordRetries(config.RecordRetries),
 		kgo.RecordDeliveryTimeout(config.RecordDeliveryTimeout),
-	}
+	)
 
 	options = append(options, securityOptions...)
 
@@ -116,16 +125,16 @@ func NewRedpandaPublisherWithSecurity(
 // Publish writes a record synchronously and only returns nil after broker ack.
 func (p *RedpandaPublisher) Publish(ctx context.Context, message Message) error {
 	if p == nil || p.client == nil {
-		return fmt.Errorf("redpanda publisher is nil")
+		return constant.ErrRedpandaPublisherNil
 	}
 
 	if len(message.Payload) == 0 {
-		return fmt.Errorf("message payload cannot be empty")
+		return constant.ErrMessagePayloadEmpty
 	}
 
 	topic := strings.TrimSpace(message.Topic)
 	if topic == "" {
-		return fmt.Errorf("message topic cannot be empty")
+		return constant.ErrMessageTopicEmpty
 	}
 
 	record := &kgo.Record{
@@ -147,23 +156,28 @@ func (p *RedpandaPublisher) Publish(ctx context.Context, message Message) error 
 	defer cancel()
 
 	if err := p.client.ProduceSync(publishCtx, record).FirstErr(); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			wrapped := fmt.Errorf("redpanda publish timeout (policy=%s timeout=%s): %w", p.config.BackpressurePolicy, p.config.PublishTimeout, err)
-			if p.logger != nil {
-				p.logger.Warnf("Authorizer publisher timeout topic=%s partition_key=%s policy=%s: %v", topic, message.PartitionKey, p.config.BackpressurePolicy, wrapped)
-			}
-
-			return wrapped
-		}
-
-		if p.logger != nil {
-			p.logger.Warnf("Authorizer publisher failed topic=%s partition_key=%s policy=%s: %v", topic, message.PartitionKey, p.config.BackpressurePolicy, err)
-		}
-
-		return err
+		return p.handlePublishError(err, topic, message.PartitionKey)
 	}
 
 	return nil
+}
+
+// handlePublishError wraps and logs publish errors.
+func (p *RedpandaPublisher) handlePublishError(err error, topic, partitionKey string) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		wrapped := fmt.Errorf("redpanda publish timeout (policy=%s timeout=%s): %w", p.config.BackpressurePolicy, p.config.PublishTimeout, err)
+		if p.logger != nil {
+			p.logger.Warnf("Authorizer publisher timeout topic=%s partition_key=%s policy=%s: %v", topic, partitionKey, p.config.BackpressurePolicy, wrapped)
+		}
+
+		return wrapped
+	}
+
+	if p.logger != nil {
+		p.logger.Warnf("Authorizer publisher failed topic=%s partition_key=%s policy=%s: %v", topic, partitionKey, p.config.BackpressurePolicy, err)
+	}
+
+	return fmt.Errorf("redpanda produce sync: %w", err)
 }
 
 func (p *RedpandaPublisher) newPublishContext(ctx context.Context) (context.Context, context.CancelFunc) {

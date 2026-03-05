@@ -28,10 +28,12 @@ func NewNoopPublisher() Publisher {
 	return noopPublisher{}
 }
 
+// Publish is a no-op that discards the message.
 func (noopPublisher) Publish(_ context.Context, _ Message) error {
 	return nil
 }
 
+// Close is a no-op that always returns nil.
 func (noopPublisher) Close() error {
 	return nil
 }

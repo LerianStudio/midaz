@@ -16,21 +16,22 @@ import (
 func TestNewRedpandaPublisher_ValidatesBrokers(t *testing.T) {
 	pub, err := NewRedpandaPublisher(nil, nil)
 	assert.Nil(t, pub)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestRedpandaPublisher_Publish_Validation(t *testing.T) {
 	var nilPublisher *RedpandaPublisher
 
 	err := nilPublisher.Publish(context.Background(), Message{Payload: []byte("payload"), Topic: "topic"})
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	publisher := &RedpandaPublisher{}
+
 	err = publisher.Publish(context.Background(), Message{Topic: "topic"})
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	err = publisher.Publish(context.Background(), Message{Payload: []byte("payload")})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestNormalizeConfig_Defaults(t *testing.T) {
@@ -119,7 +120,7 @@ func TestRedpandaPublisher_NewPublishContextRespectsExistingDeadline(t *testing.
 func TestRedpandaPublisher_NewPublishContextNilContextNoTimeout(t *testing.T) {
 	p := &RedpandaPublisher{config: Config{PublishTimeout: 0, BackpressurePolicy: BackpressurePolicyBoundedWait}}
 
-	ctx, cancel := p.newPublishContext(nil)
+	ctx, cancel := p.newPublishContext(context.TODO())
 	defer cancel()
 
 	assert.NotNil(t, ctx)
