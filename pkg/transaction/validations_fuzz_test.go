@@ -51,7 +51,14 @@ func FuzzDetermineOperation(f *testing.F) {
 		constant.RELEASE: constant.DEBIT,
 	}
 
+	// maxStringLen bounds fuzzer-generated strings to prevent resource exhaustion.
+	const maxStringLen = 64
+
 	f.Fuzz(func(t *testing.T, isPending bool, isFrom bool, transactionType string) {
+		if len(transactionType) > maxStringLen {
+			transactionType = transactionType[:maxStringLen]
+		}
+
 		operation, direction := DetermineOperation(isPending, isFrom, transactionType)
 
 		if !validOperations[operation] {
@@ -75,17 +82,25 @@ func FuzzDetermineOperation(f *testing.F) {
 // values, operations, transaction types, balance states, and the RouteValidationEnabled
 // flag. It verifies:
 //   - No panics on any input
-//   - Known operations always increment version (by 1 or 2)
-//   - RouteValidationEnabled only causes version+2 for ONHOLD+PENDING
-//   - Balance math is conserved for ONHOLD and RELEASE (Available+OnHold invariant)
+//   - Known operations always increment version by 1
+//   - Balance math is conserved or correctly applied per operation branch
+//   - Double-entry operations (route on) correctly affect only one field each
 func FuzzOperateBalances(f *testing.F) {
 	// Seed corpus entries: (amountVal, available, onHold, version, operation, transactionType, routeValidation)
-	// ONHOLD + PENDING (route off)
+	// DEBIT + PENDING (route on -> Available-- only, version+1)
+	f.Add(int64(100), int64(1000), int64(0), int64(1), constant.DEBIT, constant.PENDING, true)
+	// ONHOLD + PENDING (route off -> legacy: Available-- AND OnHold++)
 	f.Add(int64(100), int64(1000), int64(0), int64(1), constant.ONHOLD, constant.PENDING, false)
-	// ONHOLD + PENDING (route on -> version+2)
+	// ONHOLD + PENDING (route on -> OnHold++ only, version+1)
 	f.Add(int64(100), int64(1000), int64(0), int64(1), constant.ONHOLD, constant.PENDING, true)
-	// RELEASE + CANCELED
+	// RELEASE + CANCELED (legacy, route off -> Available+OnHold conserved)
 	f.Add(int64(50), int64(500), int64(50), int64(3), constant.RELEASE, constant.CANCELED, false)
+	// RELEASE + CANCELED (route on -> OnHold-- only, Available unchanged, version+1)
+	f.Add(int64(50), int64(500), int64(50), int64(3), constant.RELEASE, constant.CANCELED, true)
+	// CREDIT + CANCELED (route on -> Available++ only, version+1)
+	f.Add(int64(50), int64(500), int64(50), int64(3), constant.CREDIT, constant.CANCELED, true)
+	// CREDIT + CANCELED (route off -> falls through to default, no change)
+	f.Add(int64(50), int64(500), int64(50), int64(3), constant.CREDIT, constant.CANCELED, false)
 	// DEBIT + APPROVED (only reduces onHold)
 	f.Add(int64(50), int64(100), int64(50), int64(5), constant.DEBIT, constant.APPROVED, false)
 	// CREDIT + APPROVED (adds to available)
@@ -103,24 +118,21 @@ func FuzzOperateBalances(f *testing.F) {
 	// Negative amount (edge case the fuzzer should explore)
 	f.Add(int64(-100), int64(1000), int64(0), int64(1), constant.DEBIT, constant.CREATED, false)
 
-	// The set of known operation+transactionType combos that trigger a version increment.
-	type opKey struct {
-		operation       string
-		transactionType string
-	}
-
-	knownOps := map[opKey]bool{
-		{constant.ONHOLD, constant.PENDING}:   true,
-		{constant.RELEASE, constant.CANCELED}: true,
-		{constant.DEBIT, constant.APPROVED}:   true,
-		{constant.CREDIT, constant.APPROVED}:  true,
-		{constant.DEBIT, constant.CREATED}:    true,
-		{constant.CREDIT, constant.CREATED}:   true,
-	}
+	// maxStringLen bounds fuzzer-generated strings to prevent resource exhaustion.
+	const maxStringLen = 64
 
 	f.Fuzz(func(t *testing.T, amountVal, available, onHold, version int64,
 		operation, transactionType string, routeValidation bool,
 	) {
+		// Bound string inputs to prevent OOM from extremely large fuzzer strings.
+		if len(operation) > maxStringLen {
+			operation = operation[:maxStringLen]
+		}
+
+		if len(transactionType) > maxStringLen {
+			transactionType = transactionType[:maxStringLen]
+		}
+
 		amount := Amount{
 			Value:                  decimal.NewFromInt(amountVal),
 			Operation:              operation,
@@ -141,45 +153,48 @@ func FuzzOperateBalances(f *testing.F) {
 			return
 		}
 
-		key := opKey{operation, transactionType}
-		isKnown := knownOps[key]
+		// Determine which implementation branch this input hits.
+		// The switch in OperateBalances evaluates in order, so we replicate
+		// that precedence here to know exactly which branch fired.
+		isDebitPendingRoute := operation == constant.DEBIT && transactionType == constant.PENDING && routeValidation
+		isOnHoldPending := operation == constant.ONHOLD && transactionType == constant.PENDING
+		isReleaseCanceled := operation == constant.RELEASE && transactionType == constant.CANCELED
+		isCreditCanceledRoute := operation == constant.CREDIT && transactionType == constant.CANCELED && routeValidation
+		isDebitApproved := operation == constant.DEBIT && transactionType == constant.APPROVED
+		isCreditApproved := operation == constant.CREDIT && transactionType == constant.APPROVED
+		isDebitCreated := operation == constant.DEBIT && transactionType == constant.CREATED
+		isCreditCreated := operation == constant.CREDIT && transactionType == constant.CREATED
+
+		isKnown := isDebitPendingRoute || isOnHoldPending || isReleaseCanceled || isCreditCanceledRoute ||
+			isDebitApproved || isCreditApproved || isDebitCreated || isCreditCreated
 
 		if !isKnown {
 			// Unknown operation: balance must be returned unchanged.
 			if !result.Available.Equal(balance.Available) {
-				t.Errorf("unknown op %q+%q changed Available: %s -> %s",
-					operation, transactionType, balance.Available, result.Available)
+				t.Errorf("unknown op %q+%q (route=%v) changed Available: %s -> %s",
+					operation, transactionType, routeValidation, balance.Available, result.Available)
 			}
 
 			if !result.OnHold.Equal(balance.OnHold) {
-				t.Errorf("unknown op %q+%q changed OnHold: %s -> %s",
-					operation, transactionType, balance.OnHold, result.OnHold)
+				t.Errorf("unknown op %q+%q (route=%v) changed OnHold: %s -> %s",
+					operation, transactionType, routeValidation, balance.OnHold, result.OnHold)
 			}
 
 			if result.Version != balance.Version {
-				t.Errorf("unknown op %q+%q changed Version: %d -> %d",
-					operation, transactionType, balance.Version, result.Version)
+				t.Errorf("unknown op %q+%q (route=%v) changed Version: %d -> %d",
+					operation, transactionType, routeValidation, balance.Version, result.Version)
 			}
 
 			return
 		}
 
-		// Known operation: version must increment.
-		isOnHoldPending := operation == constant.ONHOLD && transactionType == constant.PENDING
-
-		if isOnHoldPending && routeValidation {
-			if result.Version != version+2 {
-				t.Errorf("ONHOLD+PENDING with RouteValidation: version=%d, want %d",
-					result.Version, version+2)
-			}
-		} else {
-			if result.Version != version+1 {
-				t.Errorf("op %q+%q (route=%v): version=%d, want %d",
-					operation, transactionType, routeValidation, result.Version, version+1)
-			}
+		// Known operation: version must always increment by exactly 1.
+		if result.Version != version+1 {
+			t.Errorf("op %q+%q (route=%v): version=%d, want %d",
+				operation, transactionType, routeValidation, result.Version, version+1)
 		}
 
-		// Conservation checks for operations that move funds between Available and OnHold.
+		// Correctness checks per branch.
 		amountDec := decimal.NewFromInt(amountVal)
 		availableDec := decimal.NewFromInt(available)
 		onHoldDec := decimal.NewFromInt(onHold)
@@ -187,14 +202,35 @@ func FuzzOperateBalances(f *testing.F) {
 		resultSum := result.Available.Add(result.OnHold)
 
 		switch {
+		case isDebitPendingRoute:
+			// Double-entry: DEBIT+PENDING only decrements Available. OnHold unchanged.
+			if !result.Available.Equal(availableDec.Sub(amountDec)) {
+				t.Errorf("DEBIT+PENDING (route=true) Available: got %s, want %s",
+					result.Available, availableDec.Sub(amountDec))
+			}
+
+			if !result.OnHold.Equal(onHoldDec) {
+				t.Errorf("DEBIT+PENDING (route=true) changed OnHold: got %s, want %s",
+					result.OnHold, onHoldDec)
+			}
+		case isOnHoldPending && routeValidation:
+			// Double-entry: ON_HOLD+PENDING only increments OnHold. Available unchanged.
+			if !result.Available.Equal(availableDec) {
+				t.Errorf("ONHOLD+PENDING (route=true) Available: got %s, want %s (unchanged)",
+					result.Available, availableDec)
+			}
+
+			if !result.OnHold.Equal(onHoldDec.Add(amountDec)) {
+				t.Errorf("ONHOLD+PENDING (route=true) OnHold: got %s, want %s",
+					result.OnHold, onHoldDec.Add(amountDec))
+			}
 		case isOnHoldPending:
-			// Available+OnHold should be conserved (funds move between them).
+			// Legacy: Available+OnHold should be conserved (funds move between them).
 			if !resultSum.Equal(originalSum) {
 				t.Errorf("ONHOLD+PENDING broke conservation: original=%s, result=%s",
 					originalSum, resultSum)
 			}
 
-			// Available should decrease by amount, OnHold should increase by amount.
 			if !result.Available.Equal(availableDec.Sub(amountDec)) {
 				t.Errorf("ONHOLD+PENDING Available: got %s, want %s",
 					result.Available, availableDec.Sub(amountDec))
@@ -204,13 +240,45 @@ func FuzzOperateBalances(f *testing.F) {
 				t.Errorf("ONHOLD+PENDING OnHold: got %s, want %s",
 					result.OnHold, onHoldDec.Add(amountDec))
 			}
-		case operation == constant.RELEASE && transactionType == constant.CANCELED:
-			// Available+OnHold should be conserved.
+		case isReleaseCanceled && routeValidation:
+			// Double-entry: RELEASE only decrements OnHold. Available stays unchanged.
+			if !result.Available.Equal(availableDec) {
+				t.Errorf("RELEASE+CANCELED (route=true) Available: got %s, want %s (unchanged)",
+					result.Available, availableDec)
+			}
+
+			if !result.OnHold.Equal(onHoldDec.Sub(amountDec)) {
+				t.Errorf("RELEASE+CANCELED (route=true) OnHold: got %s, want %s",
+					result.OnHold, onHoldDec.Sub(amountDec))
+			}
+		case isReleaseCanceled:
+			// Legacy: Available+OnHold should be conserved (funds move between them).
 			if !resultSum.Equal(originalSum) {
-				t.Errorf("RELEASE+CANCELED broke conservation: original=%s, result=%s",
+				t.Errorf("RELEASE+CANCELED (legacy) broke conservation: original=%s, result=%s",
 					originalSum, resultSum)
 			}
-		case operation == constant.DEBIT && transactionType == constant.APPROVED:
+
+			if !result.OnHold.Equal(onHoldDec.Sub(amountDec)) {
+				t.Errorf("RELEASE+CANCELED (legacy) OnHold: got %s, want %s",
+					result.OnHold, onHoldDec.Sub(amountDec))
+			}
+
+			if !result.Available.Equal(availableDec.Add(amountDec)) {
+				t.Errorf("RELEASE+CANCELED (legacy) Available: got %s, want %s",
+					result.Available, availableDec.Add(amountDec))
+			}
+		case isCreditCanceledRoute:
+			// Double-entry: CREDIT+CANCELED adds to Available only; OnHold unchanged.
+			if !result.Available.Equal(availableDec.Add(amountDec)) {
+				t.Errorf("CREDIT+CANCELED (route=true) Available: got %s, want %s",
+					result.Available, availableDec.Add(amountDec))
+			}
+
+			if !result.OnHold.Equal(onHoldDec) {
+				t.Errorf("CREDIT+CANCELED (route=true) changed OnHold: got %s, want %s",
+					result.OnHold, onHoldDec)
+			}
+		case isDebitApproved:
 			// Only OnHold changes, Available stays the same.
 			if !result.Available.Equal(availableDec) {
 				t.Errorf("DEBIT+APPROVED changed Available: got %s, want %s",
@@ -221,7 +289,7 @@ func FuzzOperateBalances(f *testing.F) {
 				t.Errorf("DEBIT+APPROVED OnHold: got %s, want %s",
 					result.OnHold, onHoldDec.Sub(amountDec))
 			}
-		case operation == constant.CREDIT && transactionType == constant.APPROVED:
+		case isCreditApproved:
 			// Only Available changes, OnHold stays the same.
 			if !result.Available.Equal(availableDec.Add(amountDec)) {
 				t.Errorf("CREDIT+APPROVED Available: got %s, want %s",
@@ -232,7 +300,7 @@ func FuzzOperateBalances(f *testing.F) {
 				t.Errorf("CREDIT+APPROVED changed OnHold: got %s, want %s",
 					result.OnHold, onHoldDec)
 			}
-		case operation == constant.DEBIT && transactionType == constant.CREATED:
+		case isDebitCreated:
 			// Available decreases, OnHold unchanged.
 			if !result.Available.Equal(availableDec.Sub(amountDec)) {
 				t.Errorf("DEBIT+CREATED Available: got %s, want %s",
@@ -243,7 +311,7 @@ func FuzzOperateBalances(f *testing.F) {
 				t.Errorf("DEBIT+CREATED changed OnHold: got %s, want %s",
 					result.OnHold, onHoldDec)
 			}
-		case operation == constant.CREDIT && transactionType == constant.CREATED:
+		case isCreditCreated:
 			// Available increases, OnHold unchanged.
 			if !result.Available.Equal(availableDec.Add(amountDec)) {
 				t.Errorf("CREDIT+CREATED Available: got %s, want %s",
