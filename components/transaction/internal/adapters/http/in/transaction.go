@@ -802,12 +802,13 @@ func (handler *TransactionHandler) BuildOperations(
 	ledID, _ := uuid.Parse(tran.LedgerID)
 
 	ledgerSettings := handler.Query.GetLedgerSettings(ctx, orgID, ledID)
+
+	// Callers (createTransaction, commitOrCancelTransaction) must call propagateRouteValidation
+	// before invoking BuildOperations so that Amount entries already carry the flag.
 	routeValidationEnabled := ledgerSettings.Accounting.ValidateRoutes
 
 	if routeValidationEnabled {
 		logger.Infof("Route validation enabled for ledger %s, applying double-entry operations", tran.LedgerID)
-
-		propagateRouteValidation(ctx, validate, transactionInput.Pending, tran.Status.Code)
 
 		span.SetAttributes(attribute.Bool("app.route_validation_enabled", true))
 	}
@@ -866,6 +867,10 @@ func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Resp
 	_, span := tracer.Start(ctx, "handler.propagate_route_validation")
 	defer span.End()
 
+	if validate == nil {
+		return
+	}
+
 	isCanceled := transactionStatus == constant.CANCELED
 
 	if !isPending && !isCanceled {
@@ -881,6 +886,25 @@ func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Resp
 	}
 
 	logger.Infof("Propagated route validation to %d source entries (pending=%t, canceled=%t)", count, isPending, isCanceled)
+}
+
+// zeroAnnotationBalances zeroes out the Available, OnHold, and Version fields of the
+// given balance and balanceAfter structs. It is used for annotation operations where
+// we record the operation shape but do not reflect real balance values.
+// Each call allocates fresh values so that callers never share pointers.
+func zeroAnnotationBalances(balance, balanceAfter *operation.Balance) {
+	a := decimal.NewFromInt(0)
+	balance.Available = &a
+	balanceAfter.Available = &a
+
+	o := decimal.NewFromInt(0)
+	balance.OnHold = &o
+	balanceAfter.OnHold = &o
+
+	vBefore := int64(0)
+	balance.Version = &vBefore
+	vAfter := int64(0)
+	balanceAfter.Version = &vAfter
 }
 
 // buildDoubleEntryPendingOps generates two operations for a PENDING source entry
@@ -930,18 +954,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	}
 
 	if isAnnotation {
-		a := decimal.NewFromInt(0)
-		debitBalance.Available = &a
-		debitBalanceAfter.Available = &a
-
-		o := decimal.NewFromInt(0)
-		debitBalance.OnHold = &o
-		debitBalanceAfter.OnHold = &o
-
-		vBefore := int64(0)
-		debitBalance.Version = &vBefore
-		vAfter := int64(0)
-		debitBalanceAfter.Version = &vAfter
+		zeroAnnotationBalances(&debitBalance, &debitBalanceAfter)
 	}
 
 	op1 := &operation.Operation{
@@ -986,18 +999,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	}
 
 	if isAnnotation {
-		a := decimal.NewFromInt(0)
-		onholdBalance.Available = &a
-		onholdBalanceAfter.Available = &a
-
-		o := decimal.NewFromInt(0)
-		onholdBalance.OnHold = &o
-		onholdBalanceAfter.OnHold = &o
-
-		vBefore := int64(0)
-		onholdBalance.Version = &vBefore
-		vAfter := int64(0)
-		onholdBalanceAfter.Version = &vAfter
+		zeroAnnotationBalances(&onholdBalance, &onholdBalanceAfter)
 	}
 
 	op2 := &operation.Operation{
@@ -1073,18 +1075,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 	}
 
 	if isAnnotation {
-		a := decimal.NewFromInt(0)
-		releaseBalance.Available = &a
-		releaseBalanceAfter.Available = &a
-
-		o := decimal.NewFromInt(0)
-		releaseBalance.OnHold = &o
-		releaseBalanceAfter.OnHold = &o
-
-		vBefore := int64(0)
-		releaseBalance.Version = &vBefore
-		vAfter := int64(0)
-		releaseBalanceAfter.Version = &vAfter
+		zeroAnnotationBalances(&releaseBalance, &releaseBalanceAfter)
 	}
 
 	op1 := &operation.Operation{
@@ -1129,18 +1120,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 	}
 
 	if isAnnotation {
-		a := decimal.NewFromInt(0)
-		creditBalance.Available = &a
-		creditBalanceAfter.Available = &a
-
-		o := decimal.NewFromInt(0)
-		creditBalance.OnHold = &o
-		creditBalanceAfter.OnHold = &o
-
-		vBefore := int64(0)
-		creditBalance.Version = &vBefore
-		vAfter := int64(0)
-		creditBalanceAfter.Version = &vAfter
+		zeroAnnotationBalances(&creditBalance, &creditBalanceAfter)
 	}
 
 	op2 := &operation.Operation{
@@ -1189,12 +1169,11 @@ func (handler *TransactionHandler) tryBuildDoubleEntryOps(
 		return nil, false
 	}
 
-	isPendingDoubleEntry := transactionInput.Pending && amt.Operation == libConstants.ONHOLD && amt.TransactionType == constant.PENDING
-	isCanceledDoubleEntry := amt.Operation == constant.RELEASE && amt.TransactionType == constant.CANCELED
-
-	if !isPendingDoubleEntry && !isCanceledDoubleEntry {
+	if !pkgTransaction.IsDoubleEntrySource(amt) {
 		return nil, false
 	}
+
+	isPendingDoubleEntry := amt.TransactionType == constant.PENDING
 
 	// Already processed this alias — skip without building duplicate ops
 	if processedDoubleEntry[blc.Alias] {
@@ -1242,18 +1221,7 @@ func (handler *TransactionHandler) buildStandardOp(
 	}
 
 	if isAnnotation {
-		a := decimal.NewFromInt(0)
-		balance.Available = &a
-		balanceAfter.Available = &a
-
-		o := decimal.NewFromInt(0)
-		balance.OnHold = &o
-		balanceAfter.OnHold = &o
-
-		vBefore := int64(0)
-		balance.Version = &vBefore
-		vAfter := int64(0)
-		balanceAfter.Version = &vAfter
+		zeroAnnotationBalances(&balance, &balanceAfter)
 	}
 
 	description := ft.Description
@@ -1384,6 +1352,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		return http.WithError(c, err)
 	}
 
+	ledgerSettings := handler.Query.GetLedgerSettings(ctx, organizationID, ledgerID)
+	if ledgerSettings.Accounting.ValidateRoutes {
+		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
+	}
+
 	ctxSendTransactionToRedisQueue, spanSendTransactionToRedisQueue := tracer.Start(ctx, "handler.create_transaction.send_transaction_to_redis_queue")
 
 	err = handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, transactionInput, validate, transactionStatus, transactionDate, nil)
@@ -1404,11 +1377,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	}
 
 	spanSendTransactionToRedisQueue.End()
-
-	ledgerSettings := handler.Query.GetLedgerSettings(ctx, organizationID, ledgerID)
-	if ledgerSettings.Accounting.ValidateRoutes {
-		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
-	}
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
