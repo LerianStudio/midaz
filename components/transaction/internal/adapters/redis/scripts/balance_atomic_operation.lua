@@ -313,18 +313,27 @@ local function main()
         local result = balance.Available
         local resultOnHold = balance.OnHold
 
-        local versionIncrement = 1
-
         if isPending == 1 then
-            if operation == "ON_HOLD" and transactionStatus == "PENDING" and routeValidationEnabled == 1 then
+            if operation == "DEBIT" and transactionStatus == "PENDING" and routeValidationEnabled == 1 then
+                -- Double-entry: DEBIT only decrements Available.
+                -- The OnHold++ will be a separate ON_HOLD operation.
                 result = sub_decimal(balance.Available, amount)
+            elseif operation == "ON_HOLD" and transactionStatus == "PENDING" and routeValidationEnabled == 1 then
+                -- Double-entry: ON_HOLD only increments OnHold.
+                -- The Available-- was already done by the separate DEBIT operation.
                 resultOnHold = add_decimal(balance.OnHold, amount)
-                versionIncrement = 2
             elseif operation == "ON_HOLD" and transactionStatus == "PENDING" then
                 result = sub_decimal(balance.Available, amount)
                 resultOnHold = add_decimal(balance.OnHold, amount)
+            elseif operation == "RELEASE" and transactionStatus == "CANCELED" and routeValidationEnabled == 1 then
+                -- Double-entry: RELEASE only decrements OnHold.
+                -- The Available++ will be a separate CREDIT operation.
+                resultOnHold = sub_decimal(balance.OnHold, amount)
             elseif operation == "RELEASE" and transactionStatus == "CANCELED" then
                 resultOnHold = sub_decimal(balance.OnHold, amount)
+                result = add_decimal(balance.Available, amount)
+            elseif operation == "CREDIT" and transactionStatus == "CANCELED" and routeValidationEnabled == 1 then
+                -- Double-entry: CREDIT adds to Available only.
                 result = add_decimal(balance.Available, amount)
             elseif transactionStatus == "APPROVED" then
                 if operation == "DEBIT" then
@@ -366,7 +375,7 @@ local function main()
 
             balance.Available = result
             balance.OnHold = resultOnHold
-            balance.Version = balance.Version + versionIncrement
+            balance.Version = balance.Version + 1
 
             table.insert(returnBalancesAfter, cloneBalance(balance))
 

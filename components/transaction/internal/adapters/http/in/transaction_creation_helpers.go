@@ -170,12 +170,16 @@ func (handler *TransactionHandler) BuildOperations(
 	routeValidationEnabled := ledgerSettings.Accounting.ValidateRoutes
 
 	if routeValidationEnabled {
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Route validation enabled for ledger %s, applying double-entry pending operations", tran.LedgerID))
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Route validation enabled for ledger %s, applying double-entry operations", tran.LedgerID))
 
-		propagateRouteValidation(ctx, validate, transactionInput.Pending)
+		propagateRouteValidation(ctx, validate, transactionInput.Pending, tran.Status.Code)
 
 		span.SetAttributes(attribute.Bool("app.route_validation_enabled", true))
 	}
+
+	// Track aliases that already had double-entry operations built, so we skip
+	// the second Lua before-balance for the same source account.
+	processedDoubleEntry := make(map[string]bool)
 
 	for _, blc := range balances {
 		for i := range fromTo {
@@ -196,7 +200,42 @@ func (handler *TransactionHandler) BuildOperations(
 				// When route validation is enabled and this is a PENDING source entry,
 				// split into 2 operations: DEBIT(debit) for Available-- and ONHOLD(credit) for OnHold++
 				if routeValidationEnabled && transactionInput.Pending && fromTo[i].IsFrom && amt.Operation == libConstants.ONHOLD && amt.TransactionType == constant.PENDING {
+					if processedDoubleEntry[blc.Alias] {
+						continue
+					}
+
+					processedDoubleEntry[blc.Alias] = true
+
 					ops, err := handler.buildDoubleEntryPendingOps(
+						ctx, blc, fromTo[i], amt, bat, tran, transactionInput, transactionDate, isAnnotation,
+					)
+					if err != nil {
+						return nil, nil, err
+					}
+
+					operations = append(operations, ops...)
+
+					if err := metricFactory.RecordTransactionProcessed(
+						ctx,
+						attribute.String("organization_id", tran.OrganizationID),
+						attribute.String("ledger_id", tran.LedgerID),
+					); err != nil {
+						libOpentelemetry.HandleSpanError(span, "Failed to record transaction processed metric", err)
+					}
+
+					continue
+				}
+
+				// When route validation is enabled and this is a CANCELED source entry,
+				// split into 2 operations: RELEASE(debit) for OnHold-- and CREDIT(credit) for Available++
+				if routeValidationEnabled && fromTo[i].IsFrom && amt.Operation == constant.RELEASE && amt.TransactionType == constant.CANCELED {
+					if processedDoubleEntry[blc.Alias] {
+						continue
+					}
+
+					processedDoubleEntry[blc.Alias] = true
+
+					ops, err := handler.buildDoubleEntryCanceledOps(
 						ctx, blc, fromTo[i], amt, bat, tran, transactionInput, transactionDate, isAnnotation,
 					)
 					if err != nil {
@@ -295,15 +334,17 @@ func (handler *TransactionHandler) BuildOperations(
 }
 
 // propagateRouteValidation sets RouteValidationEnabled on Amount entries in the
-// validate response maps when the transaction is pending. This flag controls how
+// validate response maps when the transaction is pending or canceled. This flag controls how
 // OperateBalances splits balance effects between Available and OnHold fields.
-func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Responses, isPending bool) {
+func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Responses, isPending bool, transactionStatus string) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.propagate_route_validation")
 	defer span.End()
 
-	if !isPending {
+	isCanceled := transactionStatus == constant.CANCELED
+
+	if !isPending && !isCanceled {
 		return
 	}
 
@@ -315,7 +356,7 @@ func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Resp
 		count++
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Propagated route validation to %d source entries", count))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Propagated route validation to %d source entries (pending=%t, canceled=%t)", count, isPending, isCanceled))
 }
 
 // buildDoubleEntryPendingOps generates two operations for a PENDING source entry
@@ -471,6 +512,159 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	return []*operation.Operation{op1, op2}, nil
 }
 
+// buildDoubleEntryCanceledOps generates two operations for a CANCELED source entry
+// when route validation is enabled:
+// Op1: RELEASE (debit direction) - decreases OnHold only
+// Op2: CREDIT (credit direction) - increases Available only
+// This ensures proper double-entry where each operation affects a single balance field.
+func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
+	ctx context.Context,
+	blc *mmodel.Balance,
+	ft pkgTransaction.FromTo,
+	amt pkgTransaction.Amount,
+	_ pkgTransaction.Balance,
+	tran transaction.Transaction,
+	transactionInput pkgTransaction.Transaction,
+	transactionDate time.Time,
+	isAnnotation bool,
+) ([]*operation.Operation, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.build_double_entry_canceled_ops")
+	defer span.End()
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Building double-entry canceled ops for balance %s: RELEASE(debit) + CREDIT(credit)", blc.ID))
+
+	description := ft.Description
+	if libCommons.IsNilOrEmpty(&ft.Description) {
+		description = transactionInput.Description
+	}
+
+	// Op1: RELEASE (debit) - OnHold-- only
+	// Balance before: original balance
+	// Balance after: OnHold decreased, Available unchanged
+	releaseOnHold := blc.OnHold.Sub(amt.Value)
+	releaseVersion := blc.Version + 1
+
+	releaseBalance := operation.Balance{
+		Available: &blc.Available,
+		OnHold:    &blc.OnHold,
+		Version:   &blc.Version,
+	}
+
+	releaseBalanceAfter := operation.Balance{
+		Available: &blc.Available,
+		OnHold:    &releaseOnHold,
+		Version:   &releaseVersion,
+	}
+
+	if isAnnotation {
+		a := decimal.NewFromInt(0)
+		releaseBalance.Available = &a
+		releaseBalanceAfter.Available = &a
+
+		o := decimal.NewFromInt(0)
+		releaseBalance.OnHold = &o
+		releaseBalanceAfter.OnHold = &o
+
+		vBefore := int64(0)
+		releaseBalance.Version = &vBefore
+		vAfter := int64(0)
+		releaseBalanceAfter.Version = &vAfter
+	}
+
+	op1ID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		return nil, err
+	}
+
+	op1 := &operation.Operation{
+		ID:              op1ID.String(),
+		TransactionID:   tran.ID,
+		Description:     description,
+		Type:            constant.RELEASE,
+		AssetCode:       transactionInput.Send.Asset,
+		ChartOfAccounts: ft.ChartOfAccounts,
+		Amount:          operation.Amount{Value: &amt.Value},
+		Balance:         releaseBalance,
+		BalanceAfter:    releaseBalanceAfter,
+		BalanceID:       blc.ID,
+		AccountID:       blc.AccountID,
+		AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+		BalanceKey:      blc.Key,
+		OrganizationID:  blc.OrganizationID,
+		LedgerID:        blc.LedgerID,
+		CreatedAt:       transactionDate,
+		UpdatedAt:       time.Now(),
+		Route:           ft.Route,
+		Metadata:        ft.Metadata,
+		BalanceAffected: !isAnnotation,
+	}
+
+	// Op2: CREDIT (credit) - Available++ only
+	// Balance before: op1's balance after (chaining)
+	// Balance after: Available increased, OnHold unchanged from op1
+	creditAvailable := blc.Available.Add(amt.Value)
+	creditVersion := releaseVersion + 1
+
+	creditBalance := operation.Balance{
+		Available: &blc.Available,
+		OnHold:    &releaseOnHold,
+		Version:   &releaseVersion,
+	}
+
+	creditBalanceAfter := operation.Balance{
+		Available: &creditAvailable,
+		OnHold:    &releaseOnHold,
+		Version:   &creditVersion,
+	}
+
+	if isAnnotation {
+		a := decimal.NewFromInt(0)
+		creditBalance.Available = &a
+		creditBalanceAfter.Available = &a
+
+		o := decimal.NewFromInt(0)
+		creditBalance.OnHold = &o
+		creditBalanceAfter.OnHold = &o
+
+		vBefore := int64(0)
+		creditBalance.Version = &vBefore
+		vAfter := int64(0)
+		creditBalanceAfter.Version = &vAfter
+	}
+
+	op2ID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		return nil, err
+	}
+
+	op2 := &operation.Operation{
+		ID:              op2ID.String(),
+		TransactionID:   tran.ID,
+		Description:     description,
+		Type:            constant.CREDIT,
+		AssetCode:       transactionInput.Send.Asset,
+		ChartOfAccounts: ft.ChartOfAccounts,
+		Amount:          operation.Amount{Value: &amt.Value},
+		Balance:         creditBalance,
+		BalanceAfter:    creditBalanceAfter,
+		BalanceID:       blc.ID,
+		AccountID:       blc.AccountID,
+		AccountAlias:    pkgTransaction.SplitAlias(blc.Alias),
+		BalanceKey:      blc.Key,
+		OrganizationID:  blc.OrganizationID,
+		LedgerID:        blc.LedgerID,
+		CreatedAt:       transactionDate,
+		UpdatedAt:       time.Now(),
+		Route:           ft.Route,
+		Metadata:        ft.Metadata,
+		BalanceAffected: !isAnnotation,
+	}
+
+	return []*operation.Operation{op1, op2}, nil
+}
+
 func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -548,6 +742,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	err = handler.sendTransactionToRedisQueue(ctx, scope.OrganizationID, scope.LedgerID, transactionID, transactionInput, validate, transactionStatus, transactionDate, idempotencyState.internalKey)
 	if err != nil {
 		return http.WithError(c, err)
+	}
+
+	ledgerSettings := handler.Query.GetLedgerSettings(ctx, scope.OrganizationID, scope.LedgerID)
+	if ledgerSettings.Accounting.ValidateRoutes {
+		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
 	}
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")

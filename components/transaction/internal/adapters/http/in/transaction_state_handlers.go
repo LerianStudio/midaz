@@ -401,6 +401,11 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
+	ledgerSettings := handler.Query.GetLedgerSettings(ctx, organizationID, ledgerID)
+	if ledgerSettings.Accounting.ValidateRoutes {
+		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
+	}
+
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
 	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus)
