@@ -1008,7 +1008,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 
 			logger.Errorf("Failed to batch remove balance sync keys: %v", err)
 
-			return 0, err
+			return totalRemoved, err
 		}
 
 		removed, ok := result.(int64)
