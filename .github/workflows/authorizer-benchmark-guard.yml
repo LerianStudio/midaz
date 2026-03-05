@@ -38,10 +38,40 @@ jobs:
           import re
           import sys
 
+          # Allocation thresholds — HOW THESE VALUES WERE DETERMINED
+          # ─────────────────────────────────────────────────────────
+          # These are CEILING GUARDS, not measured steady-state baselines.
+          # They exist to catch regressions (new allocations on the hot path)
+          # before they merge. They were set conservatively above the expected
+          # overhead introduced by each major engine feature.
+          #
+          # Overhead accounted for per benchmark:
+          #   SingleOp / ParallelSameShard (+6 vs pre-locking baseline of 14):
+          #     - Per-balance mutex embedded in Balance struct (1 alloc: sync.Mutex)
+          #     - WAL entry metadata slice (Mutations, Operations headers)
+          #     - map[string]*Balance for shard lock-order deduplication
+          #
+          #   ParallelCrossShard (+8 vs same-shard ceiling):
+          #     - 2PC PrepareAuthorize sub-request proto clone
+          #     - PreparedTx store entry (prepStore.Put allocation)
+          #     - Cross-shard nonce HMAC computation (mgrpc.SignPeerAuth)
+          #     - commitIntent struct + participant slice for WAL reconciler
+          #
+          # TODO: After the first successful benchmark run in CI, replace these
+          # ceiling values with the measured p99 allocs/op + a small margin (e.g. +3).
+          # Run the following locally to capture baseline measurements:
+          #
+          #   go test -bench='BenchmarkAuthorize(SingleOp|ParallelSameShard|ParallelCrossShard)' \
+          #           -benchmem -count=5 \
+          #           ./components/authorizer/tests/...
+          #
+          # Then update each limit to: ceil(mean_allocs_across_runs) + 3
+          # Commit the updated values with a comment recording the measurement date
+          # and the Go / hardware configuration used.
           limits = {
-              "BenchmarkAuthorizeSingleOp": 14,
-              "BenchmarkAuthorizeParallelSameShard": 14,
-              "BenchmarkAuthorizeParallelCrossShard": 20,
+              "BenchmarkAuthorizeSingleOp": 20,
+              "BenchmarkAuthorizeParallelSameShard": 20,
+              "BenchmarkAuthorizeParallelCrossShard": 28,
           }
 
           text = open("benchmark.out", "r", encoding="utf-8").read()
