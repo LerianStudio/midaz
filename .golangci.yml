@@ -175,13 +175,7 @@ linters:
         # UTC Timestamp Enforcement
         # Financial systems require consistent timezone handling
         # ===========================================
-        - pattern: 'time\.Now\(\)[^.]'
-          msg: 'Always use time.Now().UTC() for consistent timezone handling across organizations'
-        - pattern: 'time\.Now\(\),'
-          msg: 'Always use time.Now().UTC() for consistent timezone handling across organizations'
-        - pattern: 'time\.Now\(\)\)'
-          msg: 'Always use time.Now().UTC() for consistent timezone handling across organizations'
-        - pattern: 'time\.Now\(\)}'
+        - pattern: 'time\.Now\(\)($|[^.])'
           msg: 'Always use time.Now().UTC() for consistent timezone handling across organizations'
         # ===========================================
         # SQL Injection Prevention
@@ -335,6 +329,71 @@ linters:
               desc: "Hexagonal violation: Ports cannot import adapters. Ports define interfaces; adapters implement them."
             - pkg: "github.com/gofiber/fiber"
               desc: "Ports should be infrastructure-agnostic. Use abstract types instead of Fiber."
+        # ===========================================
+        # HTTP Adapter Technology Isolation
+        # HTTP handlers must not import database/message-queue driver packages.
+        # ===========================================
+        http-adapter-technology-isolation:
+          list-mode: lax
+          files:
+            - "**/adapters/http/**/*.go"
+          deny:
+            - pkg: "go.mongodb.org/mongo-driver"
+              desc: "Hexagonal violation: HTTP handlers must not import MongoDB driver. Use map[string]any instead of bson.M."
+            - pkg: "github.com/jackc/pgx"
+              desc: "Hexagonal violation: HTTP handlers must not import PostgreSQL driver directly."
+            - pkg: "github.com/redis/go-redis"
+              desc: "Hexagonal violation: HTTP handlers must not import Redis driver directly."
+            - pkg: "github.com/segmentio/kafka-go"
+              desc: "Hexagonal violation: HTTP handlers must not import Kafka driver directly."
+        # ===========================================
+        # Adapter Type Cross-Isolation
+        # Each adapter type must not import other adapter type's drivers.
+        # ===========================================
+        adapter-postgres-no-other-drivers:
+          list-mode: lax
+          files:
+            - "**/adapters/postgres/**/*.go"
+          deny:
+            - pkg: "go.mongodb.org/mongo-driver"
+              desc: "Adapter isolation: PostgreSQL adapters must not import MongoDB driver."
+            - pkg: "github.com/redis/go-redis"
+              desc: "Adapter isolation: PostgreSQL adapters must not import Redis driver."
+            - pkg: "github.com/segmentio/kafka-go"
+              desc: "Adapter isolation: PostgreSQL adapters must not import Kafka driver."
+        adapter-mongodb-no-other-drivers:
+          list-mode: lax
+          files:
+            - "**/adapters/mongodb/**/*.go"
+          deny:
+            - pkg: "github.com/jackc/pgx"
+              desc: "Adapter isolation: MongoDB adapters must not import PostgreSQL driver."
+            - pkg: "github.com/redis/go-redis"
+              desc: "Adapter isolation: MongoDB adapters must not import Redis driver."
+            - pkg: "github.com/segmentio/kafka-go"
+              desc: "Adapter isolation: MongoDB adapters must not import Kafka driver."
+        adapter-redis-no-other-drivers:
+          list-mode: lax
+          files:
+            - "**/adapters/redis/**/*.go"
+          deny:
+            - pkg: "github.com/jackc/pgx"
+              desc: "Adapter isolation: Redis adapters must not import PostgreSQL driver."
+            - pkg: "go.mongodb.org/mongo-driver"
+              desc: "Adapter isolation: Redis adapters must not import MongoDB driver."
+            - pkg: "github.com/segmentio/kafka-go"
+              desc: "Adapter isolation: Redis adapters must not import Kafka driver."
+        adapter-redpanda-no-other-drivers:
+          list-mode: lax
+          files:
+            - "**/adapters/redpanda/**/*.go"
+          deny:
+            - pkg: "github.com/jackc/pgx"
+              desc: "Adapter isolation: Redpanda adapters must not import PostgreSQL driver."
+            - pkg: "go.mongodb.org/mongo-driver"
+              desc: "Adapter isolation: Redpanda adapters must not import MongoDB driver."
+            - pkg: "github.com/redis/go-redis"
+              desc: "Adapter isolation: Redpanda adapters must not import Redis driver."
     # ===========================================
     # Exhaustive Switch Coverage for Enums
     # ===========================================
