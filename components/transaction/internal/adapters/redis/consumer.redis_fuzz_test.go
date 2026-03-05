@@ -14,7 +14,7 @@ import (
 )
 
 // =============================================================================
-// FUZZ TESTS — Redis Key Namespacing (T-001)
+// FUZZ TESTS — Redis Key Namespacing
 //
 // These fuzz tests exercise tmvalkey.GetKeyFromContext with arbitrary key and
 // tenantID inputs to verify:

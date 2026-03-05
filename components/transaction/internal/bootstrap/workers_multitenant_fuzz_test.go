@@ -5,7 +5,7 @@
 package bootstrap
 
 // =============================================================================
-// FUZZ TESTS -- Multi-tenant constructors and predicates (T-007)
+// FUZZ TESTS -- Multi-tenant constructors and predicates
 //
 // These fuzz tests verify that the multi-tenant constructors and predicates
 // never panic regardless of input values. The fuzzable surface is:

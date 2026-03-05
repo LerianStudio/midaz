@@ -5,7 +5,7 @@
 package redis
 
 // =============================================================================
-// PROPERTY-BASED TESTS — Redis Key Namespacing (T-002)
+// PROPERTY-BASED TESTS — Redis Key Namespacing
 //
 // These tests verify that the domain invariants of tmvalkey.GetKey and
 // tmvalkey.StripTenantPrefix hold across hundreds of automatically-generated
