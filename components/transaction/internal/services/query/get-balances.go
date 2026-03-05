@@ -13,7 +13,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -131,48 +130,20 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 		for k, v := range validate.From {
 			if pkgTransaction.SplitAliasWithKey(k) == aliasKey {
-				if v.RouteValidationEnabled && v.TransactionType == constant.PENDING {
-					// Double-entry PENDING: split into DEBIT (Available--) then ON_HOLD (OnHold++)
-					// so the Lua script increments version twice, matching the 2 operation records.
-					debitAmt := v
-					debitAmt.Operation = constant.DEBIT
+				if pkgTransaction.IsDoubleEntrySource(v) {
+					op1, op2 := pkgTransaction.SplitDoubleEntryOps(v)
 
 					balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
 						Balance:     balance,
 						Alias:       k,
-						Amount:      debitAmt,
+						Amount:      op1,
 						InternalKey: internalKey,
 					})
 
-					onholdAmt := v
-					onholdAmt.Operation = constant.ONHOLD
-
 					balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
 						Balance:     balance,
 						Alias:       k,
-						Amount:      onholdAmt,
-						InternalKey: internalKey,
-					})
-				} else if v.RouteValidationEnabled && v.TransactionType == constant.CANCELED {
-					// Double-entry CANCELED: split into RELEASE (OnHold--) then CREDIT (Available++)
-					// so the Lua script increments version twice, matching the 2 operation records.
-					releaseAmt := v
-					releaseAmt.Operation = constant.RELEASE
-
-					balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
-						Balance:     balance,
-						Alias:       k,
-						Amount:      releaseAmt,
-						InternalKey: internalKey,
-					})
-
-					creditAmt := v
-					creditAmt.Operation = constant.CREDIT
-
-					balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
-						Balance:     balance,
-						Alias:       k,
-						Amount:      creditAmt,
+						Amount:      op2,
 						InternalKey: internalKey,
 					})
 				} else {

@@ -217,6 +217,43 @@ func applyCreatedBalance(amount Amount, balance Balance) (available, onHold deci
 	}
 }
 
+// IsDoubleEntrySource returns true when an Amount entry requires double-entry
+// splitting (two separate operations that each affect a single balance field).
+// This applies to source entries with route validation enabled for PENDING or CANCELED transactions.
+func IsDoubleEntrySource(amt Amount) bool {
+	if !amt.RouteValidationEnabled {
+		return false
+	}
+
+	switch amt.TransactionType {
+	case constant.PENDING:
+		return amt.Operation == constant.ONHOLD
+	case constant.CANCELED:
+		return amt.Operation == constant.RELEASE
+	default:
+		return false
+	}
+}
+
+// SplitDoubleEntryOps takes an Amount that qualifies for double-entry (per IsDoubleEntrySource)
+// and returns the two split operations. For PENDING: DEBIT + ONHOLD. For CANCELED: RELEASE + CREDIT.
+// The caller must check IsDoubleEntrySource first; behavior is undefined for non-qualifying amounts.
+func SplitDoubleEntryOps(amt Amount) (Amount, Amount) {
+	op1 := amt
+	op2 := amt
+
+	switch amt.TransactionType {
+	case constant.PENDING:
+		op1.Operation = constant.DEBIT
+		op2.Operation = constant.ONHOLD
+	case constant.CANCELED:
+		op1.Operation = constant.RELEASE
+		op2.Operation = constant.CREDIT
+	}
+
+	return op1, op2
+}
+
 // DetermineOperation determines the operation type and direction for a balance entry.
 // Returns (type, direction) where type is the operation type (DEBIT, CREDIT, ON_HOLD, RELEASE)
 // and direction is the accounting direction ("debit" or "credit").
