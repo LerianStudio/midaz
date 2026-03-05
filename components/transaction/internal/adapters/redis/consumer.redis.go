@@ -1019,7 +1019,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 
 			logger.Errorf("Unexpected result type from remove script: %T", result)
 
-			return 0, err
+			return totalRemoved, err
 		}
 
 		totalRemoved += removed
