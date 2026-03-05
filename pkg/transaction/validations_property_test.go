@@ -57,6 +57,7 @@ var knownOperationCombos = []struct {
 	{constant.CREDIT, constant.APPROVED, false},
 	{constant.DEBIT, constant.CREATED, false},
 	{constant.CREDIT, constant.CREATED, false},
+	{constant.CREDIT, constant.CANCELED, true},
 }
 
 const propertyIterations = 1000
@@ -287,6 +288,13 @@ func TestProperty_OperateBalances_Conservation(t *testing.T) {
 				"iteration %d: CREDIT+APPROVED Available should increase by %s", i, value)
 			assert.True(t, result.OnHold.Equal(onHold),
 				"iteration %d: CREDIT+APPROVED OnHold should be unchanged", i)
+
+		case combo.Operation == constant.CREDIT && combo.TransactionType == constant.CANCELED:
+			// Double-entry: Available increases by Value, OnHold unchanged
+			assert.True(t, result.Available.Equal(available.Add(value)),
+				"iteration %d: CREDIT+CANCELED Available should increase by %s", i, value)
+			assert.True(t, result.OnHold.Equal(onHold),
+				"iteration %d: CREDIT+CANCELED OnHold should be unchanged", i)
 		}
 	}
 }

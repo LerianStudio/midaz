@@ -1863,3 +1863,111 @@ func TestDetermineOperation_EdgeCases(t *testing.T) {
 		})
 	}
 }
+
+func TestIsDoubleEntrySource(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		amount   Amount
+		expected bool
+	}{
+		{
+			name: "PENDING ONHOLD with route validation",
+			amount: Amount{
+				Operation:              constant.ONHOLD,
+				TransactionType:        constant.PENDING,
+				RouteValidationEnabled: true,
+			},
+			expected: true,
+		},
+		{
+			name: "CANCELED RELEASE with route validation",
+			amount: Amount{
+				Operation:              constant.RELEASE,
+				TransactionType:        constant.CANCELED,
+				RouteValidationEnabled: true,
+			},
+			expected: true,
+		},
+		{
+			name: "PENDING ONHOLD without route validation",
+			amount: Amount{
+				Operation:              constant.ONHOLD,
+				TransactionType:        constant.PENDING,
+				RouteValidationEnabled: false,
+			},
+			expected: false,
+		},
+		{
+			name: "CREATED DEBIT with route validation",
+			amount: Amount{
+				Operation:              constant.DEBIT,
+				TransactionType:        constant.CREATED,
+				RouteValidationEnabled: true,
+			},
+			expected: false,
+		},
+		{
+			name: "APPROVED CREDIT with route validation",
+			amount: Amount{
+				Operation:              constant.CREDIT,
+				TransactionType:        constant.APPROVED,
+				RouteValidationEnabled: true,
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := IsDoubleEntrySource(tt.amount)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestSplitDoubleEntryOps(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PENDING splits into DEBIT + ONHOLD", func(t *testing.T) {
+		t.Parallel()
+
+		amt := Amount{
+			Operation:              constant.ONHOLD,
+			TransactionType:        constant.PENDING,
+			RouteValidationEnabled: true,
+			Value:                  decimal.NewFromInt(100),
+			Asset:                  "BRL",
+		}
+
+		op1, op2 := SplitDoubleEntryOps(amt)
+		assert.Equal(t, constant.DEBIT, op1.Operation)
+		assert.Equal(t, constant.ONHOLD, op2.Operation)
+		assert.True(t, op1.Value.Equal(amt.Value))
+		assert.True(t, op2.Value.Equal(amt.Value))
+		assert.Equal(t, amt.TransactionType, op1.TransactionType)
+		assert.Equal(t, amt.TransactionType, op2.TransactionType)
+		assert.True(t, op1.RouteValidationEnabled)
+		assert.True(t, op2.RouteValidationEnabled)
+	})
+
+	t.Run("CANCELED splits into RELEASE + CREDIT", func(t *testing.T) {
+		t.Parallel()
+
+		amt := Amount{
+			Operation:              constant.RELEASE,
+			TransactionType:        constant.CANCELED,
+			RouteValidationEnabled: true,
+			Value:                  decimal.NewFromInt(200),
+			Asset:                  "BRL",
+		}
+
+		op1, op2 := SplitDoubleEntryOps(amt)
+		assert.Equal(t, constant.RELEASE, op1.Operation)
+		assert.Equal(t, constant.CREDIT, op2.Operation)
+		assert.True(t, op1.Value.Equal(amt.Value))
+		assert.True(t, op2.Value.Equal(amt.Value))
+	})
+}

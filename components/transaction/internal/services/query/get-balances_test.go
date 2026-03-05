@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -380,6 +381,248 @@ func TestGetAccountAndLock(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, result.Before, 1)
 	})
+}
+
+func TestGetAccountAndLock_DoubleEntrySplitting(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("ad0032e5-ccf5-45f4-a3b2-12045e71b38a")
+	ledgerID := uuid.MustParse("5d8ac48a-af68-4544-9bf8-80c3cc0715f4")
+
+	tests := []struct {
+		name             string
+		fromAmount       pkgTransaction.Amount
+		transactionType  string
+		expectedOpsCount int
+		expectedOp1      string
+		expectedOp2      string
+	}{
+		{
+			name: "CANCELED with RouteValidationEnabled produces 2 ops (RELEASE + CREDIT)",
+			fromAmount: pkgTransaction.Amount{
+				Asset:                  "USD",
+				Value:                  decimal.NewFromFloat(50),
+				Operation:              constant.RELEASE,
+				TransactionType:        constant.CANCELED,
+				RouteValidationEnabled: true,
+			},
+			transactionType:  constant.CANCELED,
+			expectedOpsCount: 2,
+			expectedOp1:      constant.RELEASE,
+			expectedOp2:      constant.CREDIT,
+		},
+		{
+			name: "CANCELED without route flag produces 1 op (RELEASE)",
+			fromAmount: pkgTransaction.Amount{
+				Asset:           "USD",
+				Value:           decimal.NewFromFloat(50),
+				Operation:       constant.RELEASE,
+				TransactionType: constant.CANCELED,
+			},
+			transactionType:  constant.CANCELED,
+			expectedOpsCount: 1,
+			expectedOp1:      constant.RELEASE,
+		},
+		{
+			name: "PENDING with RouteValidationEnabled produces 2 ops (DEBIT + ONHOLD)",
+			fromAmount: pkgTransaction.Amount{
+				Asset:                  "USD",
+				Value:                  decimal.NewFromFloat(50),
+				Operation:              constant.ONHOLD,
+				TransactionType:        constant.PENDING,
+				RouteValidationEnabled: true,
+			},
+			transactionType:  constant.PENDING,
+			expectedOpsCount: 2,
+			expectedOp1:      constant.DEBIT,
+			expectedOp2:      constant.ONHOLD,
+		},
+		{
+			name: "PENDING without route flag produces 1 op (ONHOLD)",
+			fromAmount: pkgTransaction.Amount{
+				Asset:           "USD",
+				Value:           decimal.NewFromFloat(50),
+				Operation:       constant.ONHOLD,
+				TransactionType: constant.PENDING,
+			},
+			transactionType:  constant.PENDING,
+			expectedOpsCount: 1,
+			expectedOp1:      constant.ONHOLD,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			ctx := context.Background()
+			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+			uc := UseCase{
+				RedisRepo: mockRedisRepo,
+			}
+
+			balanceID := uuid.New().String()
+			accountID := uuid.New().String()
+
+			validate := &pkgTransaction.Responses{
+				Aliases: []string{"alias1#default"},
+				From: map[string]pkgTransaction.Amount{
+					"0#alias1#default": tt.fromAmount,
+				},
+			}
+
+			balances := []*mmodel.Balance{
+				{
+					ID:             balanceID,
+					AccountID:      accountID,
+					OrganizationID: organizationID.String(),
+					LedgerID:       ledgerID.String(),
+					Alias:          "alias1",
+					Key:            "default",
+					Available:      decimal.NewFromFloat(100),
+					OnHold:         decimal.NewFromFloat(50),
+					Version:        1,
+					AccountType:    "deposit",
+					AllowSending:   true,
+					AllowReceiving: true,
+					AssetCode:      "USD",
+				},
+			}
+
+			var capturedOps []mmodel.BalanceOperation
+
+			mockRedisRepo.EXPECT().
+				ProcessBalanceAtomicOperation(
+					gomock.Any(),
+					organizationID,
+					ledgerID,
+					gomock.Any(),
+					tt.transactionType,
+					false,
+					gomock.Any(),
+				).
+				DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ uuid.UUID, _ string, _ bool, ops []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
+					capturedOps = ops
+					return &mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil
+				})
+
+			transactionID := uuid.New()
+			result, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, tt.transactionType)
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.Len(t, capturedOps, tt.expectedOpsCount,
+				"expected %d balance operations, got %d", tt.expectedOpsCount, len(capturedOps))
+
+			assert.Equal(t, tt.expectedOp1, capturedOps[0].Amount.Operation,
+				"first operation should be %s", tt.expectedOp1)
+
+			if tt.expectedOpsCount == 2 {
+				assert.Equal(t, tt.expectedOp2, capturedOps[1].Amount.Operation,
+					"second operation should be %s", tt.expectedOp2)
+
+				// Both operations reference the same balance alias
+				assert.Equal(t, capturedOps[0].Alias, capturedOps[1].Alias,
+					"both operations should reference the same alias")
+			}
+		})
+	}
+}
+
+func TestGetAccountAndLock_DoubleEntry_SeenDeduplication(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	organizationID := uuid.MustParse("ad0032e5-ccf5-45f4-a3b2-12045e71b38a")
+	ledgerID := uuid.MustParse("5d8ac48a-af68-4544-9bf8-80c3cc0715f4")
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := UseCase{
+		RedisRepo: mockRedisRepo,
+	}
+
+	balanceID := uuid.New().String()
+	accountID := uuid.New().String()
+
+	// Use a transactionInput to trigger the "seen" deduplication path.
+	// Asset must match the balance's AssetCode to pass validateFromBalances.
+	transactionInput := &pkgTransaction.Transaction{
+		Pending: true,
+		Send:    pkgTransaction.Send{Asset: "USD"},
+	}
+
+	validate := &pkgTransaction.Responses{
+		Aliases: []string{"alias1#default"},
+		Asset:   "USD",
+		Pending: true,
+		From: map[string]pkgTransaction.Amount{
+			"0#alias1#default": {
+				Asset:                  "USD",
+				Value:                  decimal.NewFromFloat(50),
+				Operation:              constant.ONHOLD,
+				TransactionType:        constant.PENDING,
+				RouteValidationEnabled: true,
+			},
+		},
+	}
+
+	balances := []*mmodel.Balance{
+		{
+			ID:             balanceID,
+			AccountID:      accountID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "alias1",
+			Key:            "default",
+			Available:      decimal.NewFromFloat(100),
+			OnHold:         decimal.NewFromFloat(0),
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			AssetCode:      "USD",
+		},
+	}
+
+	var capturedOps []mmodel.BalanceOperation
+
+	mockRedisRepo.EXPECT().
+		ProcessBalanceAtomicOperation(
+			gomock.Any(),
+			organizationID,
+			ledgerID,
+			gomock.Any(),
+			constant.PENDING,
+			true, // validate.Pending
+			gomock.Any(),
+		).
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ uuid.UUID, _ string, _ bool, ops []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
+			capturedOps = ops
+			return &mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil
+		})
+
+	transactionID := uuid.New()
+	result, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, transactionInput, validate, balances, constant.PENDING)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Double-entry splitting produces 2 operations (DEBIT + ONHOLD) for the same alias
+	require.Len(t, capturedOps, 2, "expected 2 balance operations for double-entry PENDING")
+
+	// Both share the same alias -- the "seen" deduplication ensures only one
+	// txBalance entry is created despite two operations for the same alias.
+	assert.Equal(t, capturedOps[0].Alias, capturedOps[1].Alias,
+		"both operations should reference the same alias")
 }
 
 func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
