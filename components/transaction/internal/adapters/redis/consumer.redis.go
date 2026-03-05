@@ -863,18 +863,16 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 // Returns a map where each key maps to its BalanceRedis value, or nil if the key does not exist.
 // This is used by the aggregation engine to fetch current balance states in batch.
 func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys []string) (map[string]*mmodel.BalanceRedis, error) {
-	result := make(map[string]*mmodel.BalanceRedis, len(keys))
+	if len(keys) == 0 {
+		return make(map[string]*mmodel.BalanceRedis), nil
+	}
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.get_balances_by_keys")
 	defer span.End()
 
-	if len(keys) == 0 {
-		libOpentelemetry.HandleSpanEvent(&span, "get_balances_by_keys called with empty keys")
-
-		return result, nil
-	}
+	result := make(map[string]*mmodel.BalanceRedis, len(keys))
 
 	client, err := rr.conn.GetClient(ctx)
 	if err != nil {

@@ -6,25 +6,35 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
+	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestScheduleBalanceSyncBatch_InterfaceCompliance(t *testing.T) {
-	// This test verifies the method signature by attempting to use it
-	// It will not actually call Redis, just verify the method exists
+// mockZAddNXClient is a mock Redis client for testing ScheduleBalanceSyncBatch.
+type mockZAddNXClient struct {
+	redis.UniversalClient
+	zAddNXFunc func(ctx context.Context, key string, members ...redis.Z) *redis.IntCmd
+}
 
-	// Type assertion to verify method exists
-	type ScheduleBatcher interface {
-		ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error
+func (m *mockZAddNXClient) ZAddNX(ctx context.Context, key string, members ...redis.Z) *redis.IntCmd {
+	if m.zAddNXFunc != nil {
+		return m.zAddNXFunc(ctx, key, members...)
 	}
 
-	// This line will fail to compile if method does not exist or has wrong signature
-	var _ ScheduleBatcher = (*RedisConsumerRepository)(nil)
+	return redis.NewIntCmd(ctx)
+}
 
-	assert.True(t, true, "RedisConsumerRepository implements ScheduleBatcher interface")
+func newMockZAddNXConnection(client *mockZAddNXClient) *libRedis.RedisConnection {
+	return &libRedis.RedisConnection{
+		Client:    client,
+		Connected: true,
+	}
 }
 
 func TestScheduleBalanceSyncBatch_EmptyInput(t *testing.T) {
@@ -36,5 +46,148 @@ func TestScheduleBalanceSyncBatch_EmptyInput(t *testing.T) {
 
 	// Empty input should return nil without any Redis call
 	err := repo.ScheduleBalanceSyncBatch(context.Background(), []redis.Z{})
+
 	assert.NoError(t, err, "Empty batch should return nil without error")
+}
+
+func TestScheduleBalanceSyncBatch_EmptyInput_NoRedisCall(t *testing.T) {
+	// Create mock that fails if called
+	mockClient := &mockZAddNXClient{
+		zAddNXFunc: func(_ context.Context, _ string, _ ...redis.Z) *redis.IntCmd {
+			t.Fatal("ZAddNX should not be called for empty input")
+
+			return nil
+		},
+	}
+
+	repo := &RedisConsumerRepository{
+		conn:               newMockZAddNXConnection(mockClient),
+		balanceSyncEnabled: true,
+	}
+
+	err := repo.ScheduleBalanceSyncBatch(context.Background(), []redis.Z{})
+
+	assert.NoError(t, err, "Empty batch should return nil without error")
+}
+
+func TestScheduleBalanceSyncBatch_SingleMember(t *testing.T) {
+	var capturedKey string
+
+	var capturedMembers []redis.Z
+
+	mockClient := &mockZAddNXClient{
+		zAddNXFunc: func(_ context.Context, key string, members ...redis.Z) *redis.IntCmd {
+			capturedKey = key
+			capturedMembers = members
+
+			cmd := redis.NewIntCmd(context.Background())
+			cmd.SetVal(1) // 1 member added
+
+			return cmd
+		},
+	}
+
+	repo := &RedisConsumerRepository{
+		conn:               newMockZAddNXConnection(mockClient),
+		balanceSyncEnabled: true,
+	}
+
+	members := []redis.Z{
+		{Score: float64(time.Now().Unix()), Member: "balance:key1"},
+	}
+
+	err := repo.ScheduleBalanceSyncBatch(context.Background(), members)
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, capturedKey, "Schedule key should be set")
+	assert.Len(t, capturedMembers, 1, "Should have 1 member")
+	assert.Equal(t, "balance:key1", capturedMembers[0].Member)
+}
+
+func TestScheduleBalanceSyncBatch_MultipleMembers(t *testing.T) {
+	var capturedMembers []redis.Z
+
+	mockClient := &mockZAddNXClient{
+		zAddNXFunc: func(_ context.Context, _ string, members ...redis.Z) *redis.IntCmd {
+			capturedMembers = members
+
+			cmd := redis.NewIntCmd(context.Background())
+			cmd.SetVal(int64(len(members))) // All members added
+
+			return cmd
+		},
+	}
+
+	repo := &RedisConsumerRepository{
+		conn:               newMockZAddNXConnection(mockClient),
+		balanceSyncEnabled: true,
+	}
+
+	now := time.Now().Unix()
+	members := []redis.Z{
+		{Score: float64(now + 100), Member: "balance:key1"},
+		{Score: float64(now + 200), Member: "balance:key2"},
+		{Score: float64(now + 300), Member: "balance:key3"},
+	}
+
+	err := repo.ScheduleBalanceSyncBatch(context.Background(), members)
+
+	require.NoError(t, err)
+	assert.Len(t, capturedMembers, 3, "Should have 3 members")
+}
+
+func TestScheduleBalanceSyncBatch_RedisError(t *testing.T) {
+	expectedError := errors.New("redis connection refused")
+
+	mockClient := &mockZAddNXClient{
+		zAddNXFunc: func(_ context.Context, _ string, _ ...redis.Z) *redis.IntCmd {
+			cmd := redis.NewIntCmd(context.Background())
+			cmd.SetErr(expectedError)
+
+			return cmd
+		},
+	}
+
+	repo := &RedisConsumerRepository{
+		conn:               newMockZAddNXConnection(mockClient),
+		balanceSyncEnabled: true,
+	}
+
+	members := []redis.Z{
+		{Score: float64(time.Now().Unix()), Member: "balance:key1"},
+	}
+
+	err := repo.ScheduleBalanceSyncBatch(context.Background(), members)
+
+	require.Error(t, err)
+	assert.Equal(t, expectedError, err)
+}
+
+func TestScheduleBalanceSyncBatch_PartialAdd(t *testing.T) {
+	// Test that ZAddNX returns count of NEW members (existing members not counted)
+	mockClient := &mockZAddNXClient{
+		zAddNXFunc: func(_ context.Context, _ string, members ...redis.Z) *redis.IntCmd {
+			cmd := redis.NewIntCmd(context.Background())
+			// Simulate 2 out of 3 members already existing
+			cmd.SetVal(1) // Only 1 new member added
+
+			return cmd
+		},
+	}
+
+	repo := &RedisConsumerRepository{
+		conn:               newMockZAddNXConnection(mockClient),
+		balanceSyncEnabled: true,
+	}
+
+	members := []redis.Z{
+		{Score: float64(time.Now().Unix()), Member: "balance:key1"},
+		{Score: float64(time.Now().Unix()), Member: "balance:key2"},
+		{Score: float64(time.Now().Unix()), Member: "balance:key3"},
+	}
+
+	// Should not error even if not all members were added (NX behavior)
+	err := repo.ScheduleBalanceSyncBatch(context.Background(), members)
+
+	require.NoError(t, err)
 }
