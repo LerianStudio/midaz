@@ -491,6 +491,39 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
+	// Validate bidirectional routes: operations with a route_id require
+	// the referenced OperationRoute to have OperationType "bidirectional".
+	for _, op := range tran.Operations {
+		if op.Route == "" {
+			continue
+		}
+
+		routeUUID, parseErr := uuid.Parse(op.Route)
+		if parseErr != nil {
+			continue
+		}
+
+		operationRoute, routeErr := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, routeUUID)
+		if routeErr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve operation route for revert validation", routeErr)
+
+			logger.Errorf("Failed to retrieve operation route %s for revert validation: %v", op.Route, routeErr)
+
+			return http.WithError(c, routeErr)
+		}
+
+		if operationRoute != nil && operationRoute.OperationType != "bidirectional" {
+			err = pkg.ValidateBusinessError(constant.ErrRouteNotBidirectional, "RevertTransaction")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation route is not bidirectional", err)
+
+			logger.Errorf("Operation route %s is not bidirectional (type: %s), cannot revert transaction %s",
+				op.Route, operationRoute.OperationType, transactionID.String())
+
+			return http.WithError(c, err)
+		}
+	}
+
 	response := handler.createTransaction(c, transactionReverted, constant.CREATED)
 
 	return response

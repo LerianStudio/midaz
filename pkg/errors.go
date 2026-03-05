@@ -1267,6 +1267,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Settings Field at Root Level",
 			Message:    fmt.Sprintf("The settings field '%v' must be nested under '%v'. Expected structure: {\"%v\": {\"%v\": value}}.", args...),
 		},
+		constant.ErrRouteNotBidirectional: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrRouteNotBidirectional.Error(),
+			Title:      "Route Not Bidirectional",
+			Message:    "The operation route does not allow bidirectional transactions. Only routes with operation type 'bidirectional' can be reverted.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
