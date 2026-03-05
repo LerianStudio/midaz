@@ -40,7 +40,10 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Asse
 		Logger:                  logger,
 	}
 
-	return NewAssetRatePostgreSQLRepository(conn)
+	repo, err := NewAssetRatePostgreSQLRepository(conn)
+	require.NoError(t, err, "failed to create asset rate repository")
+
+	return repo
 }
 
 // ============================================================================

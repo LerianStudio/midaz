@@ -7,7 +7,6 @@ package in
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -76,7 +75,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -100,7 +99,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Operations by account and metadata", err)
 
-			logger.Errorf("Failed to retrieve all Operations, Error: %s", err.Error())
+			logger.Errorf("Failed to retrieve all Operations, Error: %s", err)
 
 			return http.WithError(c, err)
 		}
@@ -115,13 +114,13 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of all Operations by account")
 
-	headerParams.Metadata = &bson.M{}
+	headerParams.Metadata = &map[string]any{}
 
 	operations, cur, err := handler.Query.GetAllOperationsByAccount(ctx, organizationID, ledgerID, accountID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Operations by account", err)
 
-		logger.Errorf("Failed to retrieve all Operations by account, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve all Operations by account, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -186,7 +185,7 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Operation by account", err)
 
-		logger.Errorf("Failed to retrieve Operation by account, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve Operation by account, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -262,7 +261,7 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Operation on command", err)
 
-		logger.Errorf("Failed to update Operation with ID: %s, Error: %s", transactionID, err.Error())
+		logger.Errorf("Failed to update Operation with ID: %s, Error: %s", transactionID, err)
 
 		return http.WithError(c, err)
 	}
@@ -271,7 +270,7 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Operation on query", err)
 
-		logger.Errorf("Failed to retrieve Operation with ID: %s, Error: %s", operationID, err.Error())
+		logger.Errorf("Failed to retrieve Operation with ID: %s, Error: %s", operationID, err)
 
 		return http.WithError(c, err)
 	}

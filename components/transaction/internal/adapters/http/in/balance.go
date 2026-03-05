@@ -7,7 +7,6 @@ package in
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -72,7 +71,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -91,13 +90,13 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of all Balances")
 
-	headerParams.Metadata = &bson.M{}
+	headerParams.Metadata = &map[string]any{}
 
 	balances, cur, err := handler.Query.GetAllBalances(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Balances", err)
 
-		logger.Errorf("Failed to retrieve all Balances, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve all Balances, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -160,7 +159,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -179,13 +178,13 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of all Balances by account id")
 
-	headerParams.Metadata = &bson.M{}
+	headerParams.Metadata = &map[string]any{}
 
 	balances, cur, err := handler.Query.GetAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Balances by account id", err)
 
-		logger.Errorf("Failed to retrieve all Balances by account id, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve all Balances by account id, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -244,7 +243,7 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve balance by id", err)
 
-		logger.Errorf("Failed to retrieve balance by id, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve balance by id, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -301,7 +300,7 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete balance by id", err)
 
-		logger.Errorf("Failed to delete balance by id, Error: %s", err.Error())
+		logger.Errorf("Failed to delete balance by id, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -372,7 +371,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Balance on command", err)
 
-		logger.Errorf("Failed to update Balance with ID: %s, Error: %s", balanceID, err.Error())
+		logger.Errorf("Failed to update Balance with ID: %s, Error: %s", balanceID, err)
 
 		return http.WithError(c, err)
 	}
@@ -425,7 +424,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve balances by alias", err)
 
-		logger.Errorf("Failed to retrieve balances by alias, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve balances by alias, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -486,7 +485,7 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve balances by code", err)
 
-		logger.Errorf("Failed to retrieve balances by code, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve balances by code, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -564,7 +563,7 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create additional balance on command", err)
 
-		logger.Errorf("Failed to create additional balance, Error: %s", err.Error())
+		logger.Errorf("Failed to create additional balance, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -658,7 +657,7 @@ func (handler *BalanceHandler) GetBalanceAtTimestamp(c *fiber.Ctx) error {
 	balance, err := handler.Query.GetBalanceAtTimestamp(ctx, organizationID, ledgerID, balanceID, date)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve balance at date", err)
-		logger.Errorf("Failed to retrieve balance at date, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve balance at date, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -753,7 +752,7 @@ func (handler *BalanceHandler) GetAccountBalancesAtTimestamp(c *fiber.Ctx) error
 	balances, err := handler.Query.GetAccountBalancesAtTimestamp(ctx, organizationID, ledgerID, accountID, date)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve account balances at date", err)
-		logger.Errorf("Failed to retrieve account balances at date, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve account balances at date, Error: %s", err)
 
 		return http.WithError(c, err)
 	}

@@ -7,7 +7,6 @@ package in
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -81,7 +80,7 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create AssetRate on command", err)
 
-		logger.Infof("Error to created Asset: %s", err.Error())
+		logger.Infof("Error to created Asset: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -138,7 +137,7 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get AssetRate on query", err)
 
-		logger.Infof("Error to get AssetRate: %s", err.Error())
+		logger.Infof("Error to get AssetRate: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -197,7 +196,7 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -217,13 +216,13 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	logger.Infof("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and asset_code: '%s'",
 		organizationID.String(), ledgerID.String(), assetCode)
 
-	headerParams.Metadata = &bson.M{}
+	headerParams.Metadata = &map[string]any{}
 
 	assetRates, cur, err := handler.Query.GetAllAssetRatesByAssetCode(ctx, organizationID, ledgerID, assetCode, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get AssetRate on query", err)
 
-		logger.Infof("Error to get AssetRate: %s", err.Error())
+		logger.Infof("Error to get AssetRate: %s", err)
 
 		return http.WithError(c, err)
 	}

@@ -43,7 +43,10 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Oper
 		Logger:                  logger,
 	}
 
-	return NewOperationPostgreSQLRepository(conn)
+	repo, err := NewOperationPostgreSQLRepository(conn)
+	require.NoError(t, err, "failed to create operation repository")
+
+	return repo
 }
 
 // testIDs holds common test entity IDs for setup convenience.

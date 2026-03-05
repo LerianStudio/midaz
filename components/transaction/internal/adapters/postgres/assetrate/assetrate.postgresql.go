@@ -60,18 +60,17 @@ type AssetRatePostgreSQLRepository struct {
 }
 
 // NewAssetRatePostgreSQLRepository returns a new instance of AssetRatePostgreSQLRepository using the given Postgres connection.
-func NewAssetRatePostgreSQLRepository(pc *libPostgres.PostgresConnection) *AssetRatePostgreSQLRepository {
+func NewAssetRatePostgreSQLRepository(pc *libPostgres.PostgresConnection) (*AssetRatePostgreSQLRepository, error) {
 	c := &AssetRatePostgreSQLRepository{
 		connection: pc,
 		tableName:  "asset_rate",
 	}
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database") //nolint:forbidigo
+	if _, err := c.connection.GetDB(); err != nil {
+		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
 	}
 
-	return c
+	return c, nil
 }
 
 // Create a new AssetRate entity into Postgresql and returns it.
@@ -446,7 +445,7 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 		args = append(args, record.Source)
 	}
 
-	record.UpdatedAt = time.Now()
+	record.UpdatedAt = time.Now().UTC()
 
 	updates = append(updates,
 		"updated_at = $"+strconv.Itoa(len(args)+1),

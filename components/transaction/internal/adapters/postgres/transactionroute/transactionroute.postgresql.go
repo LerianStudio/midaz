@@ -24,7 +24,6 @@ import (
 	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
 	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -59,18 +58,17 @@ type TransactionRoutePostgreSQLRepository struct {
 }
 
 // NewTransactionRoutePostgreSQLRepository creates a new instance of TransactionRoutePostgreSQLRepository.
-func NewTransactionRoutePostgreSQLRepository(pc *libPostgres.PostgresConnection) *TransactionRoutePostgreSQLRepository {
+func NewTransactionRoutePostgreSQLRepository(pc *libPostgres.PostgresConnection) (*TransactionRoutePostgreSQLRepository, error) {
 	c := &TransactionRoutePostgreSQLRepository{
 		connection: pc,
 		tableName:  "transaction_route",
 	}
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database") //nolint:forbidigo
+	if _, err := c.connection.GetDB(); err != nil {
+		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
 	}
 
-	return c
+	return c, nil
 }
 
 // Create creates a new transaction route and its operation route relations.
@@ -288,7 +286,23 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			DeletedAt          *time.Time
 		}
 
-		var opRoute operationroute.OperationRoutePostgreSQLModel
+		// operationRouteScanModel holds the raw DB columns for an operation route
+		// joined into this query. We avoid importing the sibling operationroute
+		// adapter by scanning directly and building the domain model here.
+		var opRoute struct {
+			ID                 uuid.UUID
+			OrganizationID     uuid.UUID
+			LedgerID           uuid.UUID
+			Title              string
+			Description        string
+			OperationType      string
+			AccountRuleType    string
+			AccountRuleValidIf string
+			CreatedAt          time.Time
+			UpdatedAt          time.Time
+			DeletedAt          sql.NullTime
+			Code               sql.NullString
+		}
 
 		if err := rows.Scan(
 			// Transaction route fields
@@ -346,7 +360,10 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 
 		nilUUID := uuid.UUID{}
 		if opRoute.ID != nilUUID && !operationRoutesMap[opRoute.ID] {
-			operationRoute := opRoute.ToEntity()
+			operationRoute := toOperationRouteEntity(opRoute.ID, opRoute.OrganizationID, opRoute.LedgerID,
+				opRoute.Title, opRoute.Description, opRoute.Code, opRoute.OperationType,
+				opRoute.AccountRuleType, opRoute.AccountRuleValidIf,
+				opRoute.CreatedAt, opRoute.UpdatedAt, opRoute.DeletedAt)
 			transactionRoute.OperationRoutes = append(transactionRoute.OperationRoutes, *operationRoute)
 			operationRoutesMap[opRoute.ID] = true
 		}
@@ -429,7 +446,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 		args = append(args, record.Description)
 	}
 
-	record.UpdatedAt = time.Now()
+	record.UpdatedAt = time.Now().UTC()
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
@@ -741,7 +758,7 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 
 		for _, operationRouteID := range toAdd {
 			relationID := libCommons.GenerateUUIDv7()
-			now := time.Now()
+			now := time.Now().UTC()
 
 			_, err := tx.ExecContext(ctxCreate, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at) VALUES ($1, $2, $3, $4)`,
 				relationID,
@@ -773,4 +790,60 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 	}
 
 	return nil
+}
+
+// toOperationRouteEntity builds an mmodel.OperationRoute from raw DB column values.
+// This avoids importing the sibling operationroute adapter package, keeping each
+// postgres adapter self-contained while still supporting the JOIN query in FindByID.
+func toOperationRouteEntity(
+	id, organizationID, ledgerID uuid.UUID,
+	title, description string,
+	code sql.NullString,
+	operationType, accountRuleType, accountRuleValidIf string,
+	createdAt, updatedAt time.Time,
+	deletedAt sql.NullTime,
+) *mmodel.OperationRoute {
+	codeValue := ""
+	if code.Valid {
+		codeValue = code.String
+	}
+
+	e := &mmodel.OperationRoute{
+		ID:             id,
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Title:          title,
+		Description:    description,
+		Code:           codeValue,
+		OperationType:  operationType,
+		CreatedAt:      createdAt,
+		UpdatedAt:      updatedAt,
+	}
+
+	if accountRuleType != "" || accountRuleValidIf != "" {
+		account := &mmodel.AccountRule{
+			RuleType: accountRuleType,
+		}
+
+		if accountRuleValidIf != "" {
+			if strings.EqualFold(accountRuleType, constant.AccountRuleTypeAccountType) {
+				values := strings.Split(accountRuleValidIf, ",")
+				for i, v := range values {
+					values[i] = strings.TrimSpace(v)
+				}
+
+				account.ValidIf = values
+			} else {
+				account.ValidIf = accountRuleValidIf
+			}
+		}
+
+		e.Account = account
+	}
+
+	if deletedAt.Valid {
+		e.DeletedAt = &deletedAt.Time
+	}
+
+	return e
 }

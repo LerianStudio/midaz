@@ -57,18 +57,17 @@ type OperationRoutePostgreSQLRepository struct {
 }
 
 // NewOperationRoutePostgreSQLRepository creates a new instance of OperationRoutePostgreSQLRepository.
-func NewOperationRoutePostgreSQLRepository(pc *libPostgres.PostgresConnection) *OperationRoutePostgreSQLRepository {
+func NewOperationRoutePostgreSQLRepository(pc *libPostgres.PostgresConnection) (*OperationRoutePostgreSQLRepository, error) {
 	c := &OperationRoutePostgreSQLRepository{
 		connection: pc,
 		tableName:  "operation_route",
 	}
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database") //nolint:forbidigo
+	if _, err := c.connection.GetDB(); err != nil {
+		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
 	}
 
-	return c
+	return c, nil
 }
 
 // Create creates a new operation route in the database.
@@ -378,7 +377,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 		}
 	}
 
-	record.UpdatedAt = time.Now()
+	record.UpdatedAt = time.Now().UTC()
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 

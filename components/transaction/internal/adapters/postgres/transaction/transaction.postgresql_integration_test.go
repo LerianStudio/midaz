@@ -116,7 +116,8 @@ func setupIntegrationInfra(t *testing.T) *integrationTestInfra {
 	}
 
 	// Create repository
-	repo := NewTransactionPostgreSQLRepository(conn)
+	repo, err := NewTransactionPostgreSQLRepository(conn)
+	require.NoError(t, err, "failed to create transaction repository")
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
 	orgID := libCommons.GenerateUUIDv7()
@@ -157,7 +158,8 @@ func setupChaosInfra(t *testing.T) *chaosTestInfra {
 	}
 
 	// Create repository
-	repo := NewTransactionPostgreSQLRepository(conn)
+	repo, err := NewTransactionPostgreSQLRepository(conn)
+	require.NoError(t, err, "failed to create transaction repository")
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
 	orgID := libCommons.GenerateUUIDv7()
@@ -220,7 +222,8 @@ func setupNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	}
 
 	// Create repository
-	repo := NewTransactionPostgreSQLRepository(conn)
+	repo, err := NewTransactionPostgreSQLRepository(conn)
+	require.NoError(t, err, "failed to create transaction repository")
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
 	orgID := libCommons.GenerateUUIDv7()

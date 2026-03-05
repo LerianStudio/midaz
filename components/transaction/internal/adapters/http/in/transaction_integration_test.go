@@ -102,9 +102,15 @@ func setupTestInfra(t *testing.T) *testInfra {
 	infra.redisConn = redistestutil.CreateConnection(t, infra.redisContainer.Addr)
 
 	// Create repositories
-	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
-	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
-	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
+	transactionRepo, err := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
+	require.NoError(t, err, "failed to create transaction repository")
+
+	operationRepo, err := operation.NewOperationPostgreSQLRepository(infra.pgConn)
+	require.NoError(t, err, "failed to create operation repository")
+
+	balanceRepo, err := balance.NewBalancePostgreSQLRepository(infra.pgConn)
+	require.NoError(t, err, "failed to create balance repository")
+
 	metadataRepo, err := mongodb.NewMetadataMongoDBRepository(infra.mongoConn)
 	require.NoError(t, err, "failed to create MongoDB metadata repository")
 
@@ -627,9 +633,15 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	infra.redisConn = redistestutil.CreateConnection(t, infra.redisContainer.Addr)
 
 	// Create repositories
-	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
-	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
-	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
+	transactionRepo, err := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
+	require.NoError(t, err, "failed to create transaction repository")
+
+	operationRepo, err := operation.NewOperationPostgreSQLRepository(infra.pgConn)
+	require.NoError(t, err, "failed to create operation repository")
+
+	balanceRepo, err := balance.NewBalancePostgreSQLRepository(infra.pgConn)
+	require.NoError(t, err, "failed to create balance repository")
+
 	metadataRepo, err := mongodb.NewMetadataMongoDBRepository(infra.mongoConn)
 	require.NoError(t, err, "failed to create MongoDB metadata repository")
 

@@ -136,7 +136,7 @@ func (mim *MetadataIndexMongoDBModel) FromEntity(mi *MetadataIndex) error {
 	mim.MetadataKey = mi.MetadataKey
 	mim.Unique = mi.Unique
 	mim.Sparse = mi.Sparse
-	mim.CreatedAt = time.Now()
+	mim.CreatedAt = time.Now().UTC()
 
 	return nil
 }

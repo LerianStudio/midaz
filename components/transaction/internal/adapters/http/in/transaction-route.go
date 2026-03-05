@@ -7,7 +7,6 @@ package in
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
@@ -209,7 +208,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction route", err)
 
-		logger.Errorf("Failed to update transaction route with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to update transaction route with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -218,7 +217,7 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction route", err)
 
-		logger.Errorf("Failed to get transaction route with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Errorf("Failed to get transaction route with ID: %s, Error: %s", id.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -340,7 +339,7 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Errorf("Failed to validate query parameters, Error: %s", err)
 
 		return http.WithError(c, err)
 	}
@@ -364,7 +363,7 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Transaction Routes by metadata", err)
 
-			logger.Errorf("Failed to retrieve all Transaction Routes, Error: %s", err.Error())
+			logger.Errorf("Failed to retrieve all Transaction Routes, Error: %s", err)
 
 			return http.WithError(c, err)
 		}
@@ -379,7 +378,7 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 
 	logger.Infof("Initiating retrieval of all Transaction Routes")
 
-	headerParams.Metadata = &bson.M{}
+	headerParams.Metadata = &map[string]any{}
 
 	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
 	if err != nil {
@@ -390,7 +389,7 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Transaction Routes", err)
 
-		logger.Errorf("Failed to retrieve all Transaction Routes, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve all Transaction Routes, Error: %s", err)
 
 		return http.WithError(c, err)
 	}

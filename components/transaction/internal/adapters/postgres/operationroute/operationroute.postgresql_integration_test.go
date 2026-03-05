@@ -43,7 +43,10 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Oper
 		Logger:                  logger,
 	}
 
-	return NewOperationRoutePostgreSQLRepository(conn)
+	repo, err := NewOperationRoutePostgreSQLRepository(conn)
+	require.NoError(t, err, "failed to create operation route repository")
+
+	return repo
 }
 
 // ============================================================================

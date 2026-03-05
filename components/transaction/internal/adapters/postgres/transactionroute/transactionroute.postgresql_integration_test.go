@@ -44,7 +44,10 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Tran
 		Logger:                  logger,
 	}
 
-	return NewTransactionRoutePostgreSQLRepository(conn)
+	repo, err := NewTransactionRoutePostgreSQLRepository(conn)
+	require.NoError(t, err, "failed to create transaction route repository")
+
+	return repo
 }
 
 // ============================================================================

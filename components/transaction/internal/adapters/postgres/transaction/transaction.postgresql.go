@@ -113,18 +113,17 @@ type TransactionPostgreSQLRepository struct {
 }
 
 // NewTransactionPostgreSQLRepository returns a new instance of TransactionPostgreSQLRepository using the given Postgres connection.
-func NewTransactionPostgreSQLRepository(pc *libPostgres.PostgresConnection) *TransactionPostgreSQLRepository {
+func NewTransactionPostgreSQLRepository(pc *libPostgres.PostgresConnection) (*TransactionPostgreSQLRepository, error) {
 	c := &TransactionPostgreSQLRepository{
 		connection: pc,
 		tableName:  "transaction",
 	}
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database") //nolint:forbidigo
+	if _, err := c.connection.GetDB(); err != nil {
+		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
 	}
 
-	return c
+	return c, nil
 }
 
 // Create a new Transaction entity into Postgresql and returns it.
@@ -789,7 +788,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 		args = append(args, record.StatusDescription)
 	}
 
-	record.UpdatedAt = time.Now()
+	record.UpdatedAt = time.Now().UTC()
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 
@@ -951,7 +950,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 
 	for rows.Next() {
 		tran := &TransactionPostgreSQLModel{}
-		op := operation.OperationPostgreSQLModel{}
+		op := operationScanModel{}
 
 		var body *string
 
@@ -1017,7 +1016,8 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		}
 
 		newTransaction = tran.ToEntity()
-		operations = append(operations, op.ToEntity())
+
+		operations = append(operations, op.toEntity())
 	}
 
 	if err := rows.Err(); err != nil {
@@ -1221,7 +1221,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 		// Only append operation if it exists (opID not NULL)
 		if opID != nil {
-			op := operation.OperationPostgreSQLModel{
+			op := operationScanModel{
 				ID:                    *opID,
 				TransactionID:         *opTransactionID,
 				Description:           *opDescription,
@@ -1250,7 +1250,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 				VersionBalanceAfter:   opVersionBalanceAfter,
 			}
 
-			t.Operations = append(t.Operations, op.ToEntity())
+			t.Operations = append(t.Operations, op.toEntity())
 		}
 	}
 
@@ -1284,4 +1284,91 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	}
 
 	return transactions, cur, nil
+}
+
+// operationScanModel is a local struct used to scan raw operation columns from
+// JOIN queries without importing the sibling postgres/operation adapter's
+// OperationPostgreSQLModel. This keeps the transaction adapter self-contained
+// at the infrastructure layer while still supporting aggregate loading
+// (Transaction + Operations in a single query).
+//
+// The domain type operation.Operation is still referenced because
+// Transaction.Operations is typed as []*operation.Operation. Moving that type
+// to pkg/mmodel is tracked as architectural debt.
+type operationScanModel struct {
+	ID                    string
+	TransactionID         string
+	Description           string
+	Type                  string
+	AssetCode             string
+	Amount                *decimal.Decimal
+	AvailableBalance      *decimal.Decimal
+	OnHoldBalance         *decimal.Decimal
+	VersionBalance        *int64
+	AvailableBalanceAfter *decimal.Decimal
+	OnHoldBalanceAfter    *decimal.Decimal
+	VersionBalanceAfter   *int64
+	Status                string
+	StatusDescription     *string
+	AccountID             string
+	AccountAlias          string
+	BalanceKey            string
+	BalanceID             string
+	ChartOfAccounts       string
+	OrganizationID        string
+	LedgerID              string
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	DeletedAt             sql.NullTime
+	Route                 *string
+	BalanceAffected       bool
+}
+
+// toEntity converts an operationScanModel to an operation.Operation domain entity.
+func (m *operationScanModel) toEntity() *operation.Operation {
+	op := &operation.Operation{
+		ID:              m.ID,
+		TransactionID:   m.TransactionID,
+		Description:     m.Description,
+		Type:            m.Type,
+		AssetCode:       m.AssetCode,
+		ChartOfAccounts: m.ChartOfAccounts,
+		Amount: operation.Amount{
+			Value: m.Amount,
+		},
+		Balance: operation.Balance{
+			Available: m.AvailableBalance,
+			OnHold:    m.OnHoldBalance,
+			Version:   m.VersionBalance,
+		},
+		BalanceAfter: operation.Balance{
+			Available: m.AvailableBalanceAfter,
+			OnHold:    m.OnHoldBalanceAfter,
+			Version:   m.VersionBalanceAfter,
+		},
+		Status: operation.Status{
+			Code:        m.Status,
+			Description: m.StatusDescription,
+		},
+		AccountID:       m.AccountID,
+		AccountAlias:    m.AccountAlias,
+		BalanceKey:      m.BalanceKey,
+		BalanceID:       m.BalanceID,
+		LedgerID:        m.LedgerID,
+		OrganizationID:  m.OrganizationID,
+		BalanceAffected: m.BalanceAffected,
+		CreatedAt:       m.CreatedAt,
+		UpdatedAt:       m.UpdatedAt,
+	}
+
+	if m.Route != nil {
+		op.Route = *m.Route
+	}
+
+	if !m.DeletedAt.Time.IsZero() {
+		deletedAtCopy := m.DeletedAt.Time
+		op.DeletedAt = &deletedAtCopy
+	}
+
+	return op
 }

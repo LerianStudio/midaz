@@ -94,7 +94,7 @@ func TestIntegration_MetadataRepository_FindList_FiltersByMetadata(t *testing.T)
 	mongotestutil.InsertManyMetadata(t, container.Database, strings.ToLower(collection), fixtures)
 
 	// Filter for type=credit
-	metadataFilter := bson.M{"metadata.type": "credit"}
+	metadataFilter := map[string]any{"metadata.type": "credit"}
 	filter := http.QueryHeader{
 		Metadata:    &metadataFilter,
 		UseMetadata: true,
@@ -135,7 +135,7 @@ func TestIntegration_MetadataRepository_FindList_ReturnsMultipleResults(t *testi
 	}
 	mongotestutil.InsertManyMetadata(t, container.Database, strings.ToLower(collection), fixtures)
 
-	metadataFilter := bson.M{"metadata.type": "batch"}
+	metadataFilter := map[string]any{"metadata.type": "batch"}
 	filter := http.QueryHeader{
 		Metadata:    &metadataFilter,
 		UseMetadata: true,
@@ -172,7 +172,7 @@ func TestIntegration_MetadataRepository_FindList_ReturnsEmptyForNoMatch(t *testi
 		Data:       map[string]any{"type": "other"},
 	})
 
-	metadataFilter := bson.M{"metadata.type": "nonexistent"}
+	metadataFilter := map[string]any{"metadata.type": "nonexistent"}
 	filter := http.QueryHeader{
 		Metadata:    &metadataFilter,
 		UseMetadata: true,

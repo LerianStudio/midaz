@@ -56,6 +56,8 @@ var (
 	ErrCannotDispatchNilRecord = errors.New("cannot dispatch nil record")
 	// ErrCannotRouteNilRecord is returned when a nil record is routed.
 	ErrCannotRouteNilRecord = errors.New("cannot route failed message: record is nil")
+	// ErrPartitionPoolUnavailable is returned when a partition worker pool is not available for dispatch.
+	ErrPartitionPoolUnavailable = errors.New("partition worker pool unavailable")
 )
 
 // workerAction represents the action the worker loop should take after handling a job.
@@ -475,7 +477,7 @@ func (cr *ConsumerRoutes) dispatchToPartitionQueue(job queuedRecord) error {
 		}
 	}
 
-	return fmt.Errorf("partition worker pool unavailable for partition=%d", job.record.Partition) //nolint:err113
+	return fmt.Errorf("%w: partition=%d", ErrPartitionPoolUnavailable, job.record.Partition)
 }
 
 func (cr *ConsumerRoutes) getOrCreatePartitionPool(partition int32) *partitionWorkerPool {
@@ -670,10 +672,10 @@ func (cr *ConsumerRoutes) handleJobArrival(
 	}
 
 	if len(*batch) == 0 {
-		*oldestAt = time.Now()
+		*oldestAt = time.Now().UTC()
 	}
 
-	*lastArrival = time.Now()
+	*lastArrival = time.Now().UTC()
 
 	*batch = append(*batch, job)
 
@@ -692,7 +694,7 @@ func (cr *ConsumerRoutes) shouldFlushOnTick(batchLen int, oldestAt, lastArrival 
 		return false
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	batchTooOld := !oldestAt.IsZero() && now.Sub(oldestAt) >= cr.batchWindow
 	idle := !lastArrival.IsZero() && now.Sub(lastArrival) >= cr.idleFlush
 
@@ -1143,7 +1145,7 @@ func (cr *ConsumerRoutes) routeFailedRecord(ctx context.Context, record *kgo.Rec
 		Key:       record.Key,
 		Value:     record.Value,
 		Headers:   headers,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().UTC(),
 	}
 
 	publishCtx, cancel := context.WithTimeout(ctx, publishTimeout)

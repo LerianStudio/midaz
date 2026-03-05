@@ -111,18 +111,17 @@ var operationPointInTimeColumns = []string{
 }
 
 // NewOperationPostgreSQLRepository returns a new instance of OperationPostgreSQLRepository using the given Postgres connection.
-func NewOperationPostgreSQLRepository(pc *libPostgres.PostgresConnection) *OperationPostgreSQLRepository {
+func NewOperationPostgreSQLRepository(pc *libPostgres.PostgresConnection) (*OperationPostgreSQLRepository, error) {
 	c := &OperationPostgreSQLRepository{
 		connection: pc,
 		tableName:  "operation",
 	}
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database") //nolint:forbidigo
+	if _, err := c.connection.GetDB(); err != nil {
+		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
 	}
 
-	return c
+	return c, nil
 }
 
 // Create a new Operation entity into Postgresql and returns it.
@@ -832,7 +831,7 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 		qb = qb.Set("description", record.Description)
 	}
 
-	record.UpdatedAt = time.Now()
+	record.UpdatedAt = time.Now().UTC()
 
 	qb = qb.Set("updated_at", record.UpdatedAt).
 		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "transaction_id": transactionID, "id": id}).

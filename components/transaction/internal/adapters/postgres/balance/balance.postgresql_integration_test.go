@@ -45,7 +45,10 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Bala
 		Logger:                  logger,
 	}
 
-	return NewBalancePostgreSQLRepository(conn)
+	repo, err := NewBalancePostgreSQLRepository(conn)
+	require.NoError(t, err, "failed to create balance repository")
+
+	return repo
 }
 
 // createTestAccountForBalance inserts a minimal account directly for balance tests.

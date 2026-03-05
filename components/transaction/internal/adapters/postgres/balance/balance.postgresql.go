@@ -51,10 +51,11 @@ const (
 )
 
 var (
-	errAllowSendingRequired   = errors.New("allow_sending value is required")
-	errAllowReceivingRequired = errors.New("allow_receiving value is required")
-	errExpectedAliasKeyFormat = errors.New("expected format: alias#key")
-	errInvalidAliasKeyFormat  = errors.New("invalid alias#key format")
+	errAllowSendingRequired        = errors.New("allow_sending value is required")
+	errAllowReceivingRequired      = errors.New("allow_receiving value is required")
+	errExpectedAliasKeyFormat      = errors.New("expected format: alias#key")
+	errInvalidAliasKeyFormat       = errors.New("invalid alias#key format")
+	errBatchUpdateRetriesExhausted = errors.New("batch balance update: exhausted retries")
 )
 
 var balanceColumnList = []string{
@@ -114,18 +115,17 @@ type balanceUpdateTx interface {
 }
 
 // NewBalancePostgreSQLRepository returns a new instance of BalancePostgreSQLRepository using the given Postgres connection.
-func NewBalancePostgreSQLRepository(pc *libPostgres.PostgresConnection) *BalancePostgreSQLRepository {
+func NewBalancePostgreSQLRepository(pc *libPostgres.PostgresConnection) (*BalancePostgreSQLRepository, error) {
 	c := &BalancePostgreSQLRepository{
 		connection: pc,
 		tableName:  "balance",
 	}
 
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database") //nolint:forbidigo
+	if _, err := c.connection.GetDB(); err != nil {
+		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
 	}
 
-	return c
+	return c, nil
 }
 
 // Create inserts a new balance record into the database.
@@ -1072,7 +1072,7 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 
 	// Unreachable: the loop always returns from within (either success or error).
 	// This explicit error makes intent clear and guards against future refactors.
-	return fmt.Errorf("batch balance update: exhausted %d retries", balanceUpdateMaxRetries) //nolint:err113
+	return fmt.Errorf("%w: %d attempts", errBatchUpdateRetriesExhausted, balanceUpdateMaxRetries)
 }
 
 // BalancesUpdateWithTx updates balances using an existing SQL transaction.
@@ -1157,7 +1157,7 @@ func (r *BalancePostgreSQLRepository) executeBatchBalanceUpdateTx(ctx context.Co
 	// Process balances in chunks to stay within PostgreSQL's 65535 parameter limit.
 	// Each balance uses 5 params in the VALUES clause, plus 2 global params (org_id, ledger_id).
 	// All chunks execute within the SAME transaction, so the entire batch is atomic.
-	now := time.Now()
+	now := time.Now().UTC()
 
 	var totalRowsAffected int64
 
@@ -1787,7 +1787,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-	args = append(args, time.Now(), organizationID, ledgerID, id)
+	args = append(args, time.Now().UTC(), organizationID, ledgerID, id)
 
 	queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) + //nolint:mnd
@@ -1866,7 +1866,7 @@ func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, 
 		UPDATE balance
 		SET available = $1, on_hold = $2, version = $3, updated_at = $4
 		WHERE organization_id = $5 AND ledger_id = $6 AND id = $7 AND deleted_at IS NULL AND version < $3
-	`, b.Available, b.OnHold, b.Version, time.Now(), organizationID, ledgerID, id)
+	`, b.Available, b.OnHold, b.Version, time.Now().UTC(), organizationID, ledgerID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update balance from redis", err)
 

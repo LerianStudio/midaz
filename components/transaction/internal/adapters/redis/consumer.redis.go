@@ -52,6 +52,12 @@ const TransactionBackupQueue = "backup_queue:{transactions}"
 // ErrShardRouterNil is returned when sharding is enabled but the shard router is nil.
 var ErrShardRouterNil = errors.New("shard router is nil while sharding is enabled")
 
+// errNilBalanceForOperation is returned when a balance operation references a nil balance.
+var errNilBalanceForOperation = errors.New("nil balance for operation")
+
+// errUnexpectedRedisResultType is returned when a Redis result has an unexpected type.
+var errUnexpectedRedisResultType = errors.New("unexpected result type from Redis")
+
 const crossShardExecutionTimeout = 5 * time.Second
 
 // luaOperationArgGroupSize is the number of ARGV elements per balance operation
@@ -479,7 +485,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 	for _, blcs := range balancesOperation {
 		if blcs.Balance == nil {
-			return nil, fmt.Errorf("nil balance for operation alias %s", blcs.Alias) //nolint:err113
+			return nil, fmt.Errorf("%w: alias %s", errNilBalanceForOperation, blcs.Alias)
 		}
 
 		mapBalances[blcs.Alias] = blcs.Balance
@@ -922,7 +928,7 @@ func (rr *RedisConsumerRepository) buildOperationArgs(
 
 	for _, blcs := range operations {
 		if blcs.Balance == nil {
-			return nil, fmt.Errorf("nil balance for operation alias %s", blcs.Alias) //nolint:err113
+			return nil, fmt.Errorf("%w: alias %s", errNilBalanceForOperation, blcs.Alias)
 		}
 
 		allowSending := 0
@@ -991,7 +997,7 @@ func (rr *RedisConsumerRepository) parseBalanceResults(
 	case []byte:
 		balanceJSON = v
 	default:
-		return nil, fmt.Errorf("unexpected result type from Redis: %T", result) //nolint:err113
+		return nil, fmt.Errorf("%w: %T", errUnexpectedRedisResultType, result)
 	}
 
 	var blcsRedis []mmodel.BalanceRedis
