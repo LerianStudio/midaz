@@ -21,7 +21,6 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	"go.opentelemetry.io/otel/attribute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
@@ -36,6 +35,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // TransactionHandler struct that handle transaction
