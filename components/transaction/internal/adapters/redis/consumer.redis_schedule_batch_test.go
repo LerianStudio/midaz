@@ -191,3 +191,49 @@ func TestScheduleBalanceSyncBatch_PartialAdd(t *testing.T) {
 
 	require.NoError(t, err)
 }
+
+func TestScheduleBalanceSyncBatch_DeduplicatesWithMinScore(t *testing.T) {
+	var capturedMembers []redis.Z
+
+	mockClient := &mockZAddNXClient{
+		zAddNXFunc: func(_ context.Context, _ string, members ...redis.Z) *redis.IntCmd {
+			capturedMembers = members
+
+			cmd := redis.NewIntCmd(context.Background())
+			cmd.SetVal(int64(len(members)))
+
+			return cmd
+		},
+	}
+
+	repo := &RedisConsumerRepository{
+		conn:               newMockZAddNXConnection(mockClient),
+		balanceSyncEnabled: true,
+	}
+
+	// Input has duplicate members with different scores
+	// key1 appears twice: score 200 and score 100 (100 should win as minimum)
+	// key2 appears twice: score 50 and score 150 (50 should win as minimum)
+	members := []redis.Z{
+		{Score: 200, Member: "balance:key1"},
+		{Score: 100, Member: "balance:key1"}, // duplicate with lower score
+		{Score: 50, Member: "balance:key2"},
+		{Score: 150, Member: "balance:key2"}, // duplicate with higher score
+		{Score: 300, Member: "balance:key3"}, // unique
+	}
+
+	err := repo.ScheduleBalanceSyncBatch(context.Background(), members)
+
+	require.NoError(t, err)
+	assert.Len(t, capturedMembers, 3, "Should have 3 unique members after deduplication")
+
+	// Build map from captured members for easier assertion
+	scoreByMember := make(map[string]float64)
+	for _, m := range capturedMembers {
+		scoreByMember[m.Member.(string)] = m.Score
+	}
+
+	assert.Equal(t, float64(100), scoreByMember["balance:key1"], "key1 should have minimum score 100")
+	assert.Equal(t, float64(50), scoreByMember["balance:key2"], "key2 should have minimum score 50")
+	assert.Equal(t, float64(300), scoreByMember["balance:key3"], "key3 should have score 300")
+}

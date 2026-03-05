@@ -797,12 +797,30 @@ func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context,
 
 	prefixedScheduleKey := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
 
+	// De-duplicate members, keeping the minimum score for each unique member.
+	// This ensures the earliest scheduled sync time is preserved when duplicates exist.
+	minScores := make(map[string]float64, len(members))
+
+	for _, m := range members {
+		key := fmt.Sprintf("%v", m.Member)
+
+		if existing, found := minScores[key]; !found || m.Score < existing {
+			minScores[key] = m.Score
+		}
+	}
+
+	// Rebuild members slice from de-duplicated map
+	deduped := make([]redis.Z, 0, len(minScores))
+	for member, score := range minScores {
+		deduped = append(deduped, redis.Z{Score: score, Member: member})
+	}
+
 	var totalAdded int64
 
 	// Process in chunks to prevent oversized payloads
-	for start := 0; start < len(members); start += maxRedisBatchSize {
-		end := min(start+maxRedisBatchSize, len(members))
-		chunk := members[start:end]
+	for start := 0; start < len(deduped); start += maxRedisBatchSize {
+		end := min(start+maxRedisBatchSize, len(deduped))
+		chunk := deduped[start:end]
 
 		// Use ZADD with NX to only add new members (do not update existing scores)
 		// This ensures we do not overwrite a newer schedule with an older one
@@ -818,7 +836,7 @@ func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context,
 		totalAdded += cmd.Val()
 	}
 
-	logger.Infof("Scheduled %d balance keys for sync (added: %d)", len(members), totalAdded)
+	logger.Infof("Scheduled balance keys for sync (input: %d, unique: %d, added: %d)", len(members), len(deduped), totalAdded)
 
 	return nil
 }
