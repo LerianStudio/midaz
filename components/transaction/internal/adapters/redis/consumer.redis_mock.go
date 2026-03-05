@@ -16,6 +16,7 @@ import (
 
 	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	uuid "github.com/google/uuid"
+	redis "github.com/redis/go-redis/v9"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -99,6 +100,21 @@ func (m *MockRedisRepository) GetBalanceSyncKeys(ctx context.Context, limit int6
 func (mr *MockRedisRepositoryMockRecorder) GetBalanceSyncKeys(ctx, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalanceSyncKeys", reflect.TypeOf((*MockRedisRepository)(nil).GetBalanceSyncKeys), ctx, limit)
+}
+
+// GetBalancesByKeys mocks base method.
+func (m *MockRedisRepository) GetBalancesByKeys(ctx context.Context, keys []string) (map[string]*mmodel.BalanceRedis, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBalancesByKeys", ctx, keys)
+	ret0, _ := ret[0].(map[string]*mmodel.BalanceRedis)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBalancesByKeys indicates an expected call of GetBalancesByKeys.
+func (mr *MockRedisRepositoryMockRecorder) GetBalancesByKeys(ctx, keys any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalancesByKeys", reflect.TypeOf((*MockRedisRepository)(nil).GetBalancesByKeys), ctx, keys)
 }
 
 // GetBytes mocks base method.
@@ -219,6 +235,21 @@ func (mr *MockRedisRepositoryMockRecorder) RemoveBalanceSyncKey(ctx, member any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveBalanceSyncKey", reflect.TypeOf((*MockRedisRepository)(nil).RemoveBalanceSyncKey), ctx, member)
 }
 
+// RemoveBalanceSyncKeysBatch mocks base method.
+func (m *MockRedisRepository) RemoveBalanceSyncKeysBatch(ctx context.Context, keys []string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveBalanceSyncKeysBatch", ctx, keys)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RemoveBalanceSyncKeysBatch indicates an expected call of RemoveBalanceSyncKeysBatch.
+func (mr *MockRedisRepositoryMockRecorder) RemoveBalanceSyncKeysBatch(ctx, keys any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveBalanceSyncKeysBatch", reflect.TypeOf((*MockRedisRepository)(nil).RemoveBalanceSyncKeysBatch), ctx, keys)
+}
+
 // RemoveMessageFromQueue mocks base method.
 func (m *MockRedisRepository) RemoveMessageFromQueue(ctx context.Context, key string) error {
 	m.ctrl.T.Helper()
@@ -231,6 +262,20 @@ func (m *MockRedisRepository) RemoveMessageFromQueue(ctx context.Context, key st
 func (mr *MockRedisRepositoryMockRecorder) RemoveMessageFromQueue(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMessageFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).RemoveMessageFromQueue), ctx, key)
+}
+
+// ScheduleBalanceSyncBatch mocks base method.
+func (m *MockRedisRepository) ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ScheduleBalanceSyncBatch", ctx, members)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ScheduleBalanceSyncBatch indicates an expected call of ScheduleBalanceSyncBatch.
+func (mr *MockRedisRepositoryMockRecorder) ScheduleBalanceSyncBatch(ctx, members any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScheduleBalanceSyncBatch", reflect.TypeOf((*MockRedisRepository)(nil).ScheduleBalanceSyncBatch), ctx, members)
 }
 
 // Set mocks base method.
