@@ -10,17 +10,44 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/crc32"
+	"math"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	authorizerv1 "github.com/LerianStudio/midaz/v3/proto/authorizer/v1"
 )
 
-const recordHeaderSize = 8
+const (
+	recordHeaderSize = 8
+
+	// walDirPerm is the permission mode for the WAL directory.
+	walDirPerm = 0o700
+
+	// walFilePerm is the permission mode for the WAL file.
+	walFilePerm = 0o600
+
+	// walWriterBufShift is the bit shift for the buffered writer size (1<<20 = 1 MiB).
+	walWriterBufShift = 20
+)
+
+// WALParticipant identifies an authorizer instance that participated in a cross-shard transaction.
+type WALParticipant struct {
+	InstanceAddr string `json:"instanceAddr"`
+	PreparedTxID string `json:"preparedTxId"`
+	IsLocal      bool   `json:"isLocal"`
+}
 
 // Entry is a persisted authorization decision.
+//
+// JSON omitempty convention: core fields that existed in the original WAL schema
+// (TransactionID through CreatedAt, plus Pending) never use omitempty so their
+// zero values are always serialized. Extension fields added later (Mutations,
+// CrossShard, Participants) use omitempty so entries written before those fields
+// existed remain byte-compatible when round-tripped through marshal/unmarshal --
+// the keys are simply absent rather than present with zero values.
 type Entry struct {
 	TransactionID     string                           `json:"transactionId"`
 	OrganizationID    string                           `json:"organizationId"`
@@ -29,6 +56,8 @@ type Entry struct {
 	TransactionStatus string                           `json:"transactionStatus"`
 	Operations        []*authorizerv1.BalanceOperation `json:"operations"`
 	Mutations         []BalanceMutation                `json:"mutations,omitempty"`
+	CrossShard        bool                             `json:"crossShard,omitempty"`
+	Participants      []WALParticipant                 `json:"participants,omitempty"`
 	CreatedAt         time.Time                        `json:"createdAt"`
 }
 
@@ -48,6 +77,7 @@ type Writer interface {
 	Close() error
 }
 
+// Observer receives WAL operational metrics.
 type Observer interface {
 	ObserveWALQueueDepth(depth int)
 	ObserveWALAppendDropped(err error)
@@ -62,10 +92,12 @@ func NewNoopWriter() Writer {
 	return noopWriter{}
 }
 
+// Append is a no-op implementation that discards the entry.
 func (noopWriter) Append(_ Entry) error {
 	return nil
 }
 
+// Close is a no-op implementation that always returns nil.
 func (noopWriter) Close() error {
 	return nil
 }
@@ -106,7 +138,7 @@ func NewRingBufferWriterWithOptions(
 	observer Observer,
 ) (*RingBufferWriter, error) {
 	if path == "" {
-		return nil, fmt.Errorf("wal path cannot be empty")
+		return nil, constant.ErrWALPathEmpty
 	}
 
 	if bufferSize <= 0 {
@@ -117,18 +149,18 @@ func NewRingBufferWriterWithOptions(
 		flushInterval = time.Millisecond
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), walDirPerm); err != nil {
 		return nil, fmt.Errorf("create wal directory: %w", err)
 	}
 
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, walFilePerm)
 	if err != nil {
 		return nil, fmt.Errorf("open wal file: %w", err)
 	}
 
 	r := &RingBufferWriter{
 		file:         file,
-		writer:       bufio.NewWriterSize(file, 1<<20),
+		writer:       bufio.NewWriterSize(file, 1<<walWriterBufShift),
 		flush:        time.NewTicker(flushInterval),
 		obs:          observer,
 		syncOnAppend: syncOnAppend,
@@ -142,6 +174,7 @@ func NewRingBufferWriterWithOptions(
 	return r, nil
 }
 
+// Append enqueues a WAL entry for persistence.
 func (r *RingBufferWriter) Append(entry Entry) error {
 	if err := r.getError(); err != nil {
 		return err
@@ -149,7 +182,7 @@ func (r *RingBufferWriter) Append(entry Entry) error {
 
 	select {
 	case <-r.stop:
-		return fmt.Errorf("wal writer is closing")
+		return constant.ErrWALWriterClosing
 	default:
 	}
 
@@ -164,13 +197,13 @@ func (r *RingBufferWriter) Append(entry Entry) error {
 	select {
 	case r.entries <- entry:
 		r.observeQueueDepth(len(r.entries))
+
 		return nil
 	default:
-		err := fmt.Errorf("wal buffer is full")
 		r.observeQueueDepth(len(r.entries))
-		r.observeAppendDropped(err)
+		r.observeAppendDropped(constant.ErrWALBufferFull)
 
-		return err
+		return constant.ErrWALBufferFull
 	}
 }
 
@@ -179,7 +212,7 @@ func (r *RingBufferWriter) appendSync(entry Entry) error {
 	defer r.mu.Unlock()
 
 	if r.writer == nil || r.file == nil {
-		return fmt.Errorf("wal writer is not available")
+		return constant.ErrWALWriterNotAvailable
 	}
 
 	frame, err := encodeEntryFrame(entry)
@@ -200,6 +233,7 @@ func (r *RingBufferWriter) appendSync(entry Entry) error {
 	}
 
 	flushStart := time.Now()
+
 	if err := r.writer.Flush(); err != nil {
 		r.observeWriteError("flush", err)
 		err = fmt.Errorf("flush wal writer: %w", err)
@@ -222,6 +256,7 @@ func (r *RingBufferWriter) appendSync(entry Entry) error {
 	return nil
 }
 
+// Close drains remaining entries and closes the WAL file.
 func (r *RingBufferWriter) Close() error {
 	close(r.stop)
 	<-r.done
@@ -238,25 +273,27 @@ func (r *RingBufferWriter) Close() error {
 			r.observeWriteError("close_flush", err)
 			r.setError(fmt.Errorf("flush wal writer on close: %w", err))
 
-			return err
+			return fmt.Errorf("flush wal writer on close: %w", err)
 		}
 	}
 
 	if r.file != nil {
 		syncStart := time.Now()
+
 		if err := r.file.Sync(); err != nil {
 			r.observeWriteError("close_sync", err)
 			r.setError(fmt.Errorf("sync wal file on close: %w", err))
 
-			return err
+			return fmt.Errorf("sync wal file on close: %w", err)
 		}
+
 		r.observeFsyncLatency(time.Since(syncStart))
 
 		if err := r.file.Close(); err != nil {
 			r.observeWriteError("close_file", err)
 			r.setError(fmt.Errorf("close wal file: %w", err))
 
-			return err
+			return fmt.Errorf("close wal file: %w", err)
 		}
 	}
 
@@ -319,6 +356,7 @@ func (r *RingBufferWriter) flushNow() {
 	}
 
 	flushStart := time.Now()
+
 	if err := r.writer.Flush(); err != nil {
 		r.observeWriteError("flush", err)
 		r.setError(fmt.Errorf("flush wal writer: %w", err))
@@ -397,11 +435,15 @@ func (r *RingBufferWriter) observeFsyncLatency(latency time.Duration) {
 func encodeEntryFrame(entry Entry) ([]byte, error) {
 	payload, err := json.Marshal(entry)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal wal entry: %w", err)
+	}
+
+	if len(payload) > math.MaxUint32 {
+		return nil, fmt.Errorf("%w: %d bytes exceeds uint32 max", constant.ErrWALPayloadTooLarge, len(payload))
 	}
 
 	frame := make([]byte, recordHeaderSize+len(payload))
-	binary.LittleEndian.PutUint32(frame[:4], uint32(len(payload)))
+	binary.LittleEndian.PutUint32(frame[:4], uint32(len(payload))) //nolint:gosec // length validated above against MaxUint32
 	binary.LittleEndian.PutUint32(frame[4:8], crc32.ChecksumIEEE(payload))
 	copy(frame[recordHeaderSize:], payload)
 
