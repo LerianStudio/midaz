@@ -53,7 +53,7 @@ func (m *Manager) validateMigrationRequest(alias string, targetShard int) error 
 	}
 
 	if targetShard < 0 || targetShard >= m.router.ShardCount() {
-		return fmt.Errorf("target shard %d out of range", targetShard) //nolint:err113
+		return fmt.Errorf("%w: target shard %d out of range [0, %d)", ErrInvalidShardID, targetShard, m.router.ShardCount())
 	}
 
 	return nil

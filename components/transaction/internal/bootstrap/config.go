@@ -49,6 +49,7 @@ import (
 	internalsharding "github.com/LerianStudio/midaz/v3/components/transaction/internal/sharding"
 	brokerpkg "github.com/LerianStudio/midaz/v3/pkg/broker"
 	brokersecurity "github.com/LerianStudio/midaz/v3/pkg/broker/security"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/fence"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/LerianStudio/midaz/v3/pkg/shard"
@@ -65,6 +66,8 @@ var (
 	ErrConsumerModeConflict = errors.New("CONSUMER_ENABLED must be false when DEDICATED_CONSUMER_ENABLED=true")
 	// ErrConsumerModeNotSet is returned when neither CONSUMER_ENABLED nor DEDICATED_CONSUMER_ENABLED is true.
 	ErrConsumerModeNotSet = errors.New("invalid consumer mode: set either CONSUMER_ENABLED=true or DEDICATED_CONSUMER_ENABLED=true")
+	// ErrSSLDisableNotAllowed is returned when SSL is disabled in a production-like environment.
+	ErrSSLDisableNotAllowed = errors.New("SSL disable is not allowed in production-like environments")
 )
 
 var dirtyMigrationVersionPattern = regexp.MustCompile(`(?i)dirty database version\s+(\d+)`)
@@ -144,7 +147,7 @@ func enforcePostgresSSLMode(envName, sslMode, envVar string) error {
 		return nil
 	}
 
-	return fmt.Errorf("%s=disable is not allowed in production-like environments", envVar) //nolint:err113
+	return fmt.Errorf("%w: %s=disable", ErrSSLDisableNotAllowed, envVar)
 }
 
 func shouldAutoRecoverDirtyMigration(envName string) bool {
@@ -1115,6 +1118,7 @@ type Config struct {
 	AuthorizerTimeoutMS                 int    `env:"AUTHORIZER_TIMEOUT_MS" default:"100"`
 	AuthorizerUseStreaming              bool   `env:"AUTHORIZER_USE_STREAMING" default:"false"`
 	AuthorizerGRPCTLSEnabled            bool   `env:"AUTHORIZER_GRPC_TLS_ENABLED" default:"false"`
+	AuthorizerPeerAuthToken             string `env:"AUTHORIZER_PEER_AUTH_TOKEN" default:""`
 	AuthorizerRoutingMode               string `env:"AUTHORIZER_ROUTING_MODE" default:"single"`
 	AuthorizerInstances                 string `env:"AUTHORIZER_INSTANCES" default:""`
 	AuthorizerShardRanges               string `env:"AUTHORIZER_SHARD_RANGES" default:""`
@@ -1232,6 +1236,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
+	if cfg.AuthorizerEnabled && strings.TrimSpace(cfg.AuthorizerPeerAuthToken) == "" {
+		return nil, fmt.Errorf("AUTHORIZER_PEER_AUTH_TOKEN is required when authorizer integration is enabled (AUTHORIZER_ENABLED=true): %w", constant.ErrAuthorizerPeerAuthTokenRequired)
+	}
+
 	const maxCleanupFuncs = 8
 
 	cleanupFuncs := make([]func(), 0, maxCleanupFuncs)
@@ -1323,12 +1331,35 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize redis: %w", err)
 	}
 
-	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
-	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnection)
-	assetRatePostgreSQLRepository := assetrate.NewAssetRatePostgreSQLRepository(postgresConnection)
-	balancePostgreSQLRepository := balance.NewBalancePostgreSQLRepository(postgresConnection)
-	operationRoutePostgreSQLRepository := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
-	transactionRoutePostgreSQLRepository := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnection)
+	transactionPostgreSQLRepository, err := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize transaction repository: %w", err)
+	}
+
+	operationPostgreSQLRepository, err := operation.NewOperationPostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize operation repository: %w", err)
+	}
+
+	assetRatePostgreSQLRepository, err := assetrate.NewAssetRatePostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize asset rate repository: %w", err)
+	}
+
+	balancePostgreSQLRepository, err := balance.NewBalancePostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize balance repository: %w", err)
+	}
+
+	operationRoutePostgreSQLRepository, err := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize operation route repository: %w", err)
+	}
+
+	transactionRoutePostgreSQLRepository, err := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize transaction route repository: %w", err)
+	}
 
 	metadataMongoDBRepository, err := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 	if err != nil {
@@ -1393,18 +1424,19 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	authorizerClient, err := grpcOut.NewAuthorizerClient(
 		grpcOut.AuthorizerConfig{
-			Enabled:     cfg.AuthorizerEnabled,
-			Host:        cfg.AuthorizerHost,
-			Port:        cfg.AuthorizerPort,
-			Timeout:     time.Duration(cfg.AuthorizerTimeoutMS) * time.Millisecond,
-			Streaming:   cfg.AuthorizerUseStreaming,
-			TLSEnabled:  cfg.AuthorizerGRPCTLSEnabled,
-			Environment: cfg.EnvName,
-			RoutingMode: cfg.AuthorizerRoutingMode,
-			Instances:   cfg.AuthorizerInstances,
-			ShardRanges: cfg.AuthorizerShardRanges,
-			ShardCount:  cfg.RedisShardCount,
-			PoolSize:    cfg.AuthorizerPoolSize,
+			Enabled:       cfg.AuthorizerEnabled,
+			Host:          cfg.AuthorizerHost,
+			Port:          cfg.AuthorizerPort,
+			Timeout:       time.Duration(cfg.AuthorizerTimeoutMS) * time.Millisecond,
+			Streaming:     cfg.AuthorizerUseStreaming,
+			TLSEnabled:    cfg.AuthorizerGRPCTLSEnabled,
+			PeerAuthToken: cfg.AuthorizerPeerAuthToken,
+			Environment:   cfg.EnvName,
+			RoutingMode:   cfg.AuthorizerRoutingMode,
+			Instances:     cfg.AuthorizerInstances,
+			ShardRanges:   cfg.AuthorizerShardRanges,
+			ShardCount:    cfg.RedisShardCount,
+			PoolSize:      cfg.AuthorizerPoolSize,
 		},
 		logger,
 	)

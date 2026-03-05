@@ -34,6 +34,10 @@ var (
 	ErrInvalidIsolationMemberFormat = errors.New("invalid isolation member format")
 	// ErrEmptyAlias is returned when the parsed alias component of an isolation member is empty.
 	ErrEmptyAlias = errors.New("empty alias")
+	// ErrInvalidShardID is returned when a shard ID is out of range.
+	ErrInvalidShardID = errors.New("invalid shard id")
+	// ErrMigrationInProgress is returned when a migration lock is already held for the alias.
+	ErrMigrationInProgress = errors.New("account migration in progress")
 )
 
 // Config holds configuration for the sharding Manager.
@@ -237,7 +241,7 @@ func (m *Manager) WaitForAliasesUnlocked(ctx context.Context, organizationID, le
 		return fmt.Errorf("wait for aliases unlocked: get redis client: %w", err)
 	}
 
-	deadline := time.Now().Add(m.cfg.MigrationWaitMax)
+	deadline := time.Now().UTC().Add(m.cfg.MigrationWaitMax)
 
 	for {
 		lockedAlias := ""
@@ -258,8 +262,8 @@ func (m *Manager) WaitForAliasesUnlocked(ctx context.Context, organizationID, le
 			return nil
 		}
 
-		if time.Now().After(deadline) {
-			return fmt.Errorf("account migration in progress for alias %s", lockedAlias) //nolint:err113
+		if time.Now().UTC().After(deadline) {
+			return fmt.Errorf("%w: alias %s", ErrMigrationInProgress, lockedAlias)
 		}
 
 		select {
@@ -281,7 +285,7 @@ func (m *Manager) SetRoutingOverride(ctx context.Context, organizationID, ledger
 	}
 
 	if shardID < 0 {
-		return fmt.Errorf("invalid shard id %d", shardID) //nolint:err113
+		return fmt.Errorf("%w: %d", ErrInvalidShardID, shardID)
 	}
 
 	shardCount := m.router.ShardCount()
@@ -295,7 +299,7 @@ func (m *Manager) SetRoutingOverride(ctx context.Context, organizationID, ledger
 	}
 
 	if shardID >= shardCount {
-		return fmt.Errorf("invalid shard id %d", shardID) //nolint:err113
+		return fmt.Errorf("%w: %d", ErrInvalidShardID, shardID)
 	}
 
 	normalized := shardID
@@ -346,7 +350,7 @@ func (m *Manager) MigrateAccount(
 	}
 
 	if !locked {
-		return nil, fmt.Errorf("migration already in progress for alias %s", alias) //nolint:err113
+		return nil, fmt.Errorf("%w: alias %s", ErrMigrationInProgress, alias)
 	}
 
 	defer m.clearMigrationLock(ctx, rds, migrationKey, alias)
@@ -375,7 +379,7 @@ func (m *Manager) RecordShardAliasLoad(ctx context.Context, organizationID, ledg
 		return fmt.Errorf("record shard alias load: get redis client: %w", err)
 	}
 
-	nowSec := time.Now().Unix()
+	nowSec := time.Now().UTC().Unix()
 	bucket := strconv.FormatInt(nowSec, 10)
 	accountBucketField := fmt.Sprintf("%d|%s|%s|%s", nowSec, organizationID.String(), ledgerID.String(), alias)
 
@@ -416,7 +420,7 @@ func (m *Manager) GetShardLoads(ctx context.Context, shardCount int, window time
 		return nil, fmt.Errorf("get shard loads: get redis client: %w", err)
 	}
 
-	nowSec := time.Now().Unix()
+	nowSec := time.Now().UTC().Unix()
 	minSec := nowSec - int64(window.Seconds())
 
 	loads := make([]ShardLoad, 0, shardCount)
@@ -496,7 +500,7 @@ func (m *Manager) TopHotAccounts(ctx context.Context, shardID int, window time.D
 		return nil, nil
 	}
 
-	minSec := time.Now().Unix() - int64(window.Seconds())
+	minSec := time.Now().UTC().Unix() - int64(window.Seconds())
 	totals := aggregateHotAccountBuckets(buckets, minSec)
 
 	if len(totals) == 0 {
@@ -695,7 +699,7 @@ func (m *Manager) getRouteCache(organizationID, ledgerID uuid.UUID, alias string
 	entry, ok := m.routeCache[cacheKey]
 	m.cacheMu.RUnlock()
 
-	if !ok || time.Now().After(entry.expiresAt) {
+	if !ok || time.Now().UTC().After(entry.expiresAt) {
 		if ok {
 			m.cacheMu.Lock()
 			delete(m.routeCache, cacheKey)
@@ -716,7 +720,7 @@ func (m *Manager) setRouteCache(organizationID, ledgerID uuid.UUID, alias string
 	m.cacheMu.Lock()
 	m.routeCache[routeCacheKey(organizationID, ledgerID, alias)] = routeCacheEntry{
 		shardID:   shardID,
-		expiresAt: time.Now().Add(m.cfg.RouteCacheTTL),
+		expiresAt: time.Now().UTC().Add(m.cfg.RouteCacheTTL),
 	}
 	m.cacheMu.Unlock()
 }

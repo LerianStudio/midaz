@@ -117,7 +117,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 			continue
 		}
 
-		if transaction.TTL.Unix() > time.Now().Add(-MessageTimeOfLife*time.Minute).Unix() {
+		if transaction.TTL.Unix() > time.Now().UTC().Add(-MessageTimeOfLife*time.Minute).Unix() {
 			totalMessagesLessThanOneHour++
 			continue
 		}
@@ -247,7 +247,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, tracer trace.Tr
 		AssetCode:                m.TransactionInput.Send.Asset,
 		ChartOfAccountsGroupName: m.TransactionInput.ChartOfAccountsGroupName,
 		CreatedAt:                m.TransactionDate,
-		UpdatedAt:                time.Now(),
+		UpdatedAt:                time.Now().UTC(),
 		Route:                    m.TransactionInput.Route,
 		Metadata:                 m.TransactionInput.Metadata,
 		Status: postgreTransaction.Status{
@@ -310,7 +310,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, tracer trace.Tr
 	); err != nil {
 		libOpentelemetry.HandleSpanError(&msgSpan, "Failed sending message to queue", err)
 
-		logger.Errorf("Failed sending message: %s to queue: %v", key, err.Error())
+		logger.Errorf("Failed sending message: %s to queue: %v", key, err)
 
 		return
 	}

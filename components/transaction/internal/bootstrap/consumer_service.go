@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redpanda"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
 // ConsumerService is a standalone service that processes messages from Redpanda
@@ -115,6 +117,56 @@ func (cs *ConsumerService) closeResources() error {
 	})
 }
 
+// initConsumerAuthorizer creates the authorizer gRPC client for the consumer service.
+func initConsumerAuthorizer(cfg *Config, logger libLog.Logger) (grpcOut.AuthorizerClient, error) {
+	authorizerClient, err := grpcOut.NewAuthorizerClient(
+		grpcOut.AuthorizerConfig{
+			Enabled:       cfg.AuthorizerEnabled,
+			Host:          cfg.AuthorizerHost,
+			Port:          cfg.AuthorizerPort,
+			Timeout:       time.Duration(cfg.AuthorizerTimeoutMS) * time.Millisecond,
+			Streaming:     cfg.AuthorizerUseStreaming,
+			TLSEnabled:    cfg.AuthorizerGRPCTLSEnabled,
+			PeerAuthToken: cfg.AuthorizerPeerAuthToken,
+			Environment:   cfg.EnvName,
+			RoutingMode:   cfg.AuthorizerRoutingMode,
+			Instances:     cfg.AuthorizerInstances,
+			ShardRanges:   cfg.AuthorizerShardRanges,
+			ShardCount:    cfg.RedisShardCount,
+			PoolSize:      cfg.AuthorizerPoolSize,
+		},
+		logger,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize authorizer client: %w", err)
+	}
+
+	return authorizerClient, nil
+}
+
+// validateConsumerConfig validates the consumer configuration and returns
+// a logger on success.
+func validateConsumerConfig(cfg *Config, opts *Options) (libLog.Logger, error) {
+	if err := validateConsumerModeConfig(cfg); err != nil {
+		return nil, err
+	}
+
+	if cfg.AuthorizerEnabled && strings.TrimSpace(cfg.AuthorizerPeerAuthToken) == "" {
+		return nil, fmt.Errorf("AUTHORIZER_PEER_AUTH_TOKEN is required when authorizer integration is enabled (AUTHORIZER_ENABLED=true): %w", constant.ErrAuthorizerPeerAuthTokenRequired)
+	}
+
+	logger, err := initLogger(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize logger: %w", err)
+	}
+
+	if err := validateBrokerSecurity(cfg, logger); err != nil {
+		return nil, err
+	}
+
+	return logger, nil
+}
+
 // InitConsumerWithOptions initializes the consumer service with optional dependency injection.
 // This creates all infrastructure needed for the Redpanda consumer (PG, Mongo, Redis,
 // Redpanda, Authorizer) without HTTP or gRPC servers.
@@ -127,7 +179,8 @@ func InitConsumerWithOptions(opts *Options) (*ConsumerService, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	if err := validateConsumerModeConfig(cfg); err != nil {
+	logger, err := validateConsumerConfig(cfg, opts)
+	if err != nil {
 		return nil, err
 	}
 
@@ -146,15 +199,6 @@ func InitConsumerWithOptions(opts *Options) (*ConsumerService, error) {
 			cleanupFuncs[i]()
 		}
 	}()
-
-	logger, err := initLogger(opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize logger: %w", err)
-	}
-
-	if err := validateBrokerSecurity(cfg, logger); err != nil {
-		return nil, err
-	}
 
 	balanceSyncWorkerEnabled := cfg.BalanceSyncWorkerEnabled
 	logger.Infof("BalanceSyncWorker: BALANCE_SYNC_WORKER_ENABLED=%v", balanceSyncWorkerEnabled)
@@ -221,12 +265,35 @@ func InitConsumerWithOptions(opts *Options) (*ConsumerService, error) {
 		return nil, fmt.Errorf("failed to initialize redis: %w", err)
 	}
 
-	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
-	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnection)
-	assetRatePostgreSQLRepository := assetrate.NewAssetRatePostgreSQLRepository(postgresConnection)
-	balancePostgreSQLRepository := balance.NewBalancePostgreSQLRepository(postgresConnection)
-	operationRoutePostgreSQLRepository := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
-	transactionRoutePostgreSQLRepository := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnection)
+	transactionPostgreSQLRepository, err := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize transaction repository: %w", err)
+	}
+
+	operationPostgreSQLRepository, err := operation.NewOperationPostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize operation repository: %w", err)
+	}
+
+	assetRatePostgreSQLRepository, err := assetrate.NewAssetRatePostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize asset rate repository: %w", err)
+	}
+
+	balancePostgreSQLRepository, err := balance.NewBalancePostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize balance repository: %w", err)
+	}
+
+	operationRoutePostgreSQLRepository, err := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize operation route repository: %w", err)
+	}
+
+	transactionRoutePostgreSQLRepository, err := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize transaction route repository: %w", err)
+	}
 
 	metadataMongoDBRepository, err := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 	if err != nil {
@@ -269,27 +336,9 @@ func InitConsumerWithOptions(opts *Options) (*ConsumerService, error) {
 		IdempotencyReplayTimeout: time.Duration(cfg.IdempotencyReplayTimeoutMS) * time.Millisecond,
 	}
 
-	// The consumer needs the authorizer for the PublishBalanceOperations path
-	// used by the RedisQueueConsumer (which may be migrated here in a future phase).
-	authorizerClient, err := grpcOut.NewAuthorizerClient(
-		grpcOut.AuthorizerConfig{
-			Enabled:     cfg.AuthorizerEnabled,
-			Host:        cfg.AuthorizerHost,
-			Port:        cfg.AuthorizerPort,
-			Timeout:     time.Duration(cfg.AuthorizerTimeoutMS) * time.Millisecond,
-			Streaming:   cfg.AuthorizerUseStreaming,
-			TLSEnabled:  cfg.AuthorizerGRPCTLSEnabled,
-			Environment: cfg.EnvName,
-			RoutingMode: cfg.AuthorizerRoutingMode,
-			Instances:   cfg.AuthorizerInstances,
-			ShardRanges: cfg.AuthorizerShardRanges,
-			ShardCount:  cfg.RedisShardCount,
-			PoolSize:    cfg.AuthorizerPoolSize,
-		},
-		logger,
-	)
+	authorizerClient, err := initConsumerAuthorizer(cfg, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize authorizer client: %w", err)
+		return nil, err
 	}
 
 	cleanupFuncs = append(cleanupFuncs, func() {

@@ -328,7 +328,7 @@ func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool
 // waitUntilDue waits until the given dueAtUnix time.
 // Returns true if the context was cancelled while waiting.
 func (w *BalanceSyncWorker) waitUntilDue(ctx context.Context, dueAtUnix int64, logger libLog.Logger) bool {
-	nowUnix := time.Now().Unix()
+	nowUnix := time.Now().UTC().Unix()
 	if dueAtUnix <= nowUnix {
 		return false
 	}
