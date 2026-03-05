@@ -50,7 +50,7 @@ type swaggerRateLimiterState struct {
 
 func newSwaggerRateLimiterState() *swaggerRateLimiterState {
 	return &swaggerRateLimiterState{
-		windowStart: time.Now(),
+		windowStart: time.Now().UTC(),
 		hitsByKey:   make(map[string]int),
 	}
 }
@@ -185,7 +185,7 @@ func SwaggerRateLimitMiddleware() fiber.Handler {
 	}
 
 	return func(c *fiber.Ctx) error {
-		if !swaggerLimiterState.allow(c.IP(), limit, expiration, time.Now()) {
+		if !swaggerLimiterState.allow(c.IP(), limit, expiration, time.Now().UTC()) {
 			return c.SendStatus(fiber.StatusTooManyRequests)
 		}
 
@@ -264,7 +264,7 @@ func ShardingControlPlaneMiddleware() fiber.Handler {
 		}
 
 		rateLimitKey := "sharding:" + c.IP()
-		if !shardingLimiterState.allow(rateLimitKey, limit, window, time.Now()) {
+		if !shardingLimiterState.allow(rateLimitKey, limit, window, time.Now().UTC()) {
 			securityEventLog(c, "sharding rate limit exceeded")
 
 			return c.SendStatus(fiber.StatusTooManyRequests)

@@ -17,7 +17,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
 )
@@ -116,7 +115,7 @@ func TestValidateParameters_WithMetadata(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result.UseMetadata)
 	assert.NotNil(t, result.Metadata)
-	assert.Equal(t, &bson.M{"metadata.key": "value"}, result.Metadata)
+	assert.Equal(t, &map[string]any{"metadata.key": "value"}, result.Metadata)
 }
 
 func TestValidateParameters_WithValidDates(t *testing.T) {

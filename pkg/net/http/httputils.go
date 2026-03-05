@@ -15,7 +15,6 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 
 	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
@@ -28,7 +27,7 @@ import (
 
 // QueryHeader entity from query parameter from get apis.
 type QueryHeader struct {
-	Metadata                            *bson.M
+	Metadata                            *map[string]any
 	Limit                               int
 	Page                                int
 	Cursor                              string
@@ -77,7 +76,7 @@ const (
 //nolint:gocyclo,cyclop,funlen
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
-		metadata                            *bson.M
+		metadata                            *map[string]any
 		portfolioID                         string
 		operationType                       string
 		toAssetCodes                        []string
@@ -105,7 +104,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	for key, value := range params {
 		switch {
 		case strings.Contains(key, "metadata."):
-			metadata = &bson.M{key: value}
+			metadata = &map[string]any{key: value}
 			useMetadata = true
 		case strings.Contains(key, "limit"):
 			limit, _ = strconv.Atoi(value)
@@ -219,7 +218,7 @@ func validateDates(startDate, endDate *time.Time) error {
 	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", defaultMaxDateRangeMonths))
 
 	if startDate.IsZero() && endDate.IsZero() {
-		now := time.Now()
+		now := time.Now().UTC()
 
 		defaultStartDate := time.Unix(0, 0).UTC()
 
