@@ -237,13 +237,18 @@ type Address struct {
 	// minLength: 2
 	// maxLength: 2
 	Country string `json:"country" example:"US" minLength:"2" maxLength:"2"` // According to ISO 3166-1 alpha-2
+
+	// A descriptive label for the address (e.g., "Home", "Office", "Billing")
+	// example: Home
+	// maxLength: 100
+	Description *string `json:"description,omitempty" validate:"omitempty,max=100" example:"Home" maxLength:"100"`
 } //	@name	Address
 
 // IsEmpty method determines if an Address is empty or nil in all fields
 //
 // Returns true if all fields of the address are empty or nil, false otherwise
 func (a Address) IsEmpty() bool {
-	return a.Line1 == "" && a.Line2 == nil && a.ZipCode == "" && a.City == "" && a.State == "" && a.Country == ""
+	return a.Line1 == "" && a.Line2 == nil && a.ZipCode == "" && a.City == "" && a.State == "" && a.Country == "" && a.Description == nil
 }
 
 // Organizations struct to return paginated list of organizations.
