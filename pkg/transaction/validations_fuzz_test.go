@@ -101,8 +101,10 @@ func FuzzOperateBalances(f *testing.F) {
 	f.Add(int64(50), int64(500), int64(50), int64(3), constant.CREDIT, constant.CANCELED, true)
 	// CREDIT + CANCELED (route off -> falls through to default, no change)
 	f.Add(int64(50), int64(500), int64(50), int64(3), constant.CREDIT, constant.CANCELED, false)
-	// DEBIT + APPROVED (only reduces onHold)
+	// DEBIT + APPROVED (legacy: only reduces onHold)
 	f.Add(int64(50), int64(100), int64(50), int64(5), constant.DEBIT, constant.APPROVED, false)
+	// ONHOLD + APPROVED (route on -> reduces onHold, same math as DEBIT)
+	f.Add(int64(50), int64(100), int64(50), int64(5), constant.ONHOLD, constant.APPROVED, true)
 	// CREDIT + APPROVED (adds to available)
 	f.Add(int64(30), int64(100), int64(0), int64(2), constant.CREDIT, constant.APPROVED, false)
 	// DEBIT + CREATED (subtracts from available)
@@ -161,12 +163,13 @@ func FuzzOperateBalances(f *testing.F) {
 		isReleaseCanceled := operation == constant.RELEASE && transactionType == constant.CANCELED
 		isCreditCanceledRoute := operation == constant.CREDIT && transactionType == constant.CANCELED && routeValidation
 		isDebitApproved := operation == constant.DEBIT && transactionType == constant.APPROVED
+		isOnHoldApproved := operation == constant.ONHOLD && transactionType == constant.APPROVED
 		isCreditApproved := operation == constant.CREDIT && transactionType == constant.APPROVED
 		isDebitCreated := operation == constant.DEBIT && transactionType == constant.CREATED
 		isCreditCreated := operation == constant.CREDIT && transactionType == constant.CREATED
 
 		isKnown := isDebitPendingRoute || isOnHoldPending || isReleaseCanceled || isCreditCanceledRoute ||
-			isDebitApproved || isCreditApproved || isDebitCreated || isCreditCreated
+			isDebitApproved || isOnHoldApproved || isCreditApproved || isDebitCreated || isCreditCreated
 
 		if !isKnown {
 			// Unknown operation: balance must be returned unchanged.
@@ -278,16 +281,17 @@ func FuzzOperateBalances(f *testing.F) {
 				t.Errorf("CREDIT+CANCELED (route=true) changed OnHold: got %s, want %s",
 					result.OnHold, onHoldDec)
 			}
-		case isDebitApproved:
+		case isDebitApproved, isOnHoldApproved:
 			// Only OnHold changes, Available stays the same.
+			// Both DEBIT (legacy) and ON_HOLD (route validation) reduce onHold.
 			if !result.Available.Equal(availableDec) {
-				t.Errorf("DEBIT+APPROVED changed Available: got %s, want %s",
-					result.Available, availableDec)
+				t.Errorf("%s+APPROVED changed Available: got %s, want %s",
+					operation, result.Available, availableDec)
 			}
 
 			if !result.OnHold.Equal(onHoldDec.Sub(amountDec)) {
-				t.Errorf("DEBIT+APPROVED OnHold: got %s, want %s",
-					result.OnHold, onHoldDec.Sub(amountDec))
+				t.Errorf("%s+APPROVED OnHold: got %s, want %s",
+					operation, result.OnHold, onHoldDec.Sub(amountDec))
 			}
 		case isCreditApproved:
 			// Only Available changes, OnHold stays the same.

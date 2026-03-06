@@ -198,6 +198,9 @@ func applyApprovedBalance(amount Amount, balance Balance) (available, onHold dec
 	switch amount.Operation {
 	case constant.DEBIT:
 		return balance.Available, balance.OnHold.Sub(amount.Value), true
+	case constant.ONHOLD:
+		// Route validation: ON_HOLD in APPROVED decrements OnHold (same as DEBIT).
+		return balance.Available, balance.OnHold.Sub(amount.Value), true
 	case constant.CREDIT:
 		return balance.Available.Add(amount.Value), balance.OnHold, true
 	default:
