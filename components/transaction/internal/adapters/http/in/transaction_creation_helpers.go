@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -200,7 +201,7 @@ func (handler *TransactionHandler) BuildOperations(
 
 				if ops, handled, err := handler.tryBuildDoubleEntryOps(
 					ctx, blc, fromTo[i], amt, bat, tran, transactionInput,
-					transactionDate, isAnnotation, routeValidationEnabled, processedDoubleEntry,
+					transactionDate, isAnnotation, routeValidationEnabled, processedDoubleEntry, i,
 				); err != nil {
 					return nil, nil, err
 				} else if handled {
@@ -365,9 +366,10 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		Route:           ft.Route,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
+		Direction:       constant.DirectionDebit,
 	}
 
-	// Op2: ONHOLD (credit) - OnHold++ only
+	// Op2: ONHOLD (debit) - OnHold++ only
 	// Balance before: op1's balance after (chaining)
 	// Balance after: OnHold increased, Available unchanged from op1
 	onholdOnHold := blc.OnHold.Add(amt.Value)
@@ -415,6 +417,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		Route:           ft.Route,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
+		Direction:       constant.DirectionDebit,
 	}
 
 	return []*operation.Operation{op1, op2}, nil
@@ -422,7 +425,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 
 // buildDoubleEntryCanceledOps generates two operations for a CANCELED source entry
 // when route validation is enabled:
-// Op1: RELEASE (debit direction) - decreases OnHold only
+// Op1: RELEASE (credit direction) - decreases OnHold only
 // Op2: CREDIT (credit direction) - increases Available only
 // This ensures proper double-entry where each operation affects a single balance field.
 func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
@@ -441,14 +444,14 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 	_, span := tracer.Start(ctx, "handler.build_double_entry_canceled_ops")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Building double-entry canceled ops for balance %s: RELEASE(debit) + CREDIT(credit)", blc.ID))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Building double-entry canceled ops for balance %s: RELEASE(credit) + CREDIT(credit)", blc.ID))
 
 	description := ft.Description
 	if libCommons.IsNilOrEmpty(&ft.Description) {
 		description = transactionInput.Description
 	}
 
-	// Op1: RELEASE (debit) - OnHold-- only
+	// Op1: RELEASE (credit) - OnHold-- only
 	// Balance before: original balance
 	// Balance after: OnHold decreased, Available unchanged
 	releaseOnHold := blc.OnHold.Sub(amt.Value)
@@ -496,6 +499,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		Route:           ft.Route,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
+		Direction:       constant.DirectionCredit,
 	}
 
 	// Op2: CREDIT (credit) - Available++ only
@@ -546,6 +550,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		Route:           ft.Route,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
+		Direction:       constant.DirectionCredit,
 	}
 
 	return []*operation.Operation{op1, op2}, nil
@@ -566,6 +571,7 @@ func (handler *TransactionHandler) tryBuildDoubleEntryOps(
 	isAnnotation bool,
 	routeValidationEnabled bool,
 	processedDoubleEntry map[string]bool,
+	fromToIndex int,
 ) ([]*operation.Operation, bool, error) {
 	if !routeValidationEnabled || !ft.IsFrom {
 		return nil, false, nil
@@ -577,12 +583,17 @@ func (handler *TransactionHandler) tryBuildDoubleEntryOps(
 
 	isPendingDoubleEntry := amt.TransactionType == constant.PENDING
 
-	// Already processed this alias — skip without building duplicate ops
-	if processedDoubleEntry[blc.Alias] {
+	// Dedup key combines alias with fromTo index so that multiple DSL entries
+	// for the same account (e.g. transfer + fee) each produce their own
+	// double-entry pair, while the balances×fromTo nested loop is still
+	// protected against generating duplicates for the same entry.
+	dedupKey := blc.Alias + "#" + strconv.Itoa(fromToIndex)
+
+	if processedDoubleEntry[dedupKey] {
 		return nil, true, nil
 	}
 
-	processedDoubleEntry[blc.Alias] = true
+	processedDoubleEntry[dedupKey] = true
 
 	if isPendingDoubleEntry {
 		ops, err := handler.buildDoubleEntryPendingOps(
@@ -659,6 +670,7 @@ func (handler *TransactionHandler) buildStandardOp(
 		Route:           ft.Route,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
+		Direction:       amt.Direction,
 	}, nil
 }
 
