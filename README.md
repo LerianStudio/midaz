@@ -1,4 +1,4 @@
-![banner](image/README/midaz-banner.png)
+![banner](image/README/midaz-banner.png) 
 
 <div align="center">
 
