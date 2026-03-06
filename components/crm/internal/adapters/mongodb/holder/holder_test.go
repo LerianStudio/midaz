@@ -400,6 +400,19 @@ func TestMapAddressFromEntity(t *testing.T) {
 			},
 			wantNil: false,
 		},
+		{
+			name: "address with description",
+			address: &mmodel.Address{
+				Line1:       "789 Office Blvd",
+				Line2:       testutils.Ptr("Suite 200"),
+				ZipCode:     "54321",
+				City:        "Business City",
+				State:       "BC",
+				Country:     "US",
+				Description: testutils.Ptr("Corporate Office"),
+			},
+			wantNil: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -417,6 +430,9 @@ func TestMapAddressFromEntity(t *testing.T) {
 			assert.Equal(t, tt.address.City, *result.City)
 			assert.Equal(t, tt.address.State, *result.State)
 			assert.Equal(t, tt.address.Country, *result.Country)
+			if tt.address.Description != nil {
+				assert.Equal(t, *tt.address.Description, *result.Description)
+			}
 		})
 	}
 }
@@ -456,6 +472,19 @@ func TestMapAddressToEntity(t *testing.T) {
 			},
 			wantNil: false,
 		},
+		{
+			name: "model with description",
+			model: &AddressMongoDBModel{
+				Line1:       testutils.Ptr("321 Home Lane"),
+				Line2:       testutils.Ptr("Unit 5"),
+				ZipCode:     testutils.Ptr("11111"),
+				City:        testutils.Ptr("Hometown"),
+				State:       testutils.Ptr("HT"),
+				Country:     testutils.Ptr("US"),
+				Description: testutils.Ptr("Primary Residence"),
+			},
+			wantNil: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -472,6 +501,9 @@ func TestMapAddressToEntity(t *testing.T) {
 				assert.Equal(t, *tt.model.Line1, result.Line1)
 			} else {
 				assert.Empty(t, result.Line1)
+			}
+			if tt.model.Description != nil {
+				assert.Equal(t, *tt.model.Description, *result.Description)
 			}
 		})
 	}
