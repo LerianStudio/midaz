@@ -44,6 +44,8 @@ type OperationPostgreSQLModel struct {
 	DeletedAt             sql.NullTime     // Deletion timestamp (if soft-deleted)
 	Route                 *string          // Route
 	BalanceAffected       bool             // BalanceAffected default true
+	Direction             string           // Direction of the operation (source, destination, bidirectional)
+	RouteID               *string          // Route ID referencing operation_route table
 	Metadata              map[string]any   // Additional custom attributes
 }
 
@@ -232,6 +234,16 @@ type Operation struct {
 	// format: boolean
 	BalanceAffected bool `json:"balanceAffected" example:"true" format:"boolean"`
 
+	// Direction of the operation (source, destination, bidirectional)
+	// example: source
+	// maxLength: 50
+	Direction string `json:"direction,omitempty" example:"source" maxLength:"50"`
+
+	// Route ID referencing the operation route that generated this operation
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
 	// Timestamp when the operation was created
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -302,6 +314,12 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 		Operation.Route = *t.Route
 	}
 
+	Operation.Direction = t.Direction
+
+	if t.RouteID != nil {
+		Operation.RouteID = t.RouteID
+	}
+
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
 		Operation.DeletedAt = &deletedAtCopy
@@ -353,6 +371,12 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		t.Route = &operation.Route
 	}
 
+	t.Direction = operation.Direction
+
+	if operation.RouteID != nil {
+		t.RouteID = operation.RouteID
+	}
+
 	if operation.DeletedAt != nil {
 		deletedAtCopy := *operation.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
@@ -378,6 +402,8 @@ func (op *Operation) ToRedis() mmodel.OperationRedis {
 		UpdatedAt:       op.UpdatedAt,
 		Route:           op.Route,
 		BalanceAffected: op.BalanceAffected,
+		Direction:       op.Direction,
+		RouteID:         op.RouteID,
 		Metadata:        op.Metadata,
 	}
 
@@ -457,6 +483,8 @@ func OperationFromRedis(r mmodel.OperationRedis) *Operation {
 			Description: r.StatusDescription,
 		},
 		BalanceAffected: r.BalanceAffected,
+		Direction:       r.Direction,
+		RouteID:         r.RouteID,
 		Metadata:        r.Metadata,
 	}
 }
@@ -575,6 +603,16 @@ type OperationLog struct {
 	// BalanceAffected default true
 	// format: boolean
 	BalanceAffected bool `json:"balanceAffected" example:"true" format:"boolean"`
+
+	// Direction of the operation (source, destination, bidirectional)
+	// example: source
+	// maxLength: 50
+	Direction string `json:"direction,omitempty" example:"source" maxLength:"50"`
+
+	// Route ID referencing the operation route that generated this operation
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 }
 
 // ToLog converts an Operation excluding the fields that are not immutable
@@ -596,5 +634,7 @@ func (o *Operation) ToLog() *OperationLog {
 		Route:           o.Route,
 		CreatedAt:       o.CreatedAt,
 		BalanceAffected: o.BalanceAffected,
+		Direction:       o.Direction,
+		RouteID:         o.RouteID,
 	}
 }

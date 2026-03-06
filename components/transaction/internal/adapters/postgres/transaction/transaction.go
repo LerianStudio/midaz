@@ -516,9 +516,9 @@ func (cti *CreateTransactionInput) BuildTransaction() *pkgTransaction.Transactio
 func directionFromOperationType(opType string) string {
 	switch opType {
 	case constant.DEBIT:
-		return "debit"
+		return cn.DirectionDebit
 	case constant.CREDIT:
-		return "credit"
+		return cn.DirectionCredit
 	default:
 		return ""
 	}
@@ -551,6 +551,7 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
 				Route:           op.Route,
+				RouteID:         op.RouteID,
 			}
 
 			froms = append(froms, from)
@@ -567,6 +568,7 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
 				Route:           op.Route,
+				RouteID:         op.RouteID,
 			}
 
 			tos = append(tos, to)

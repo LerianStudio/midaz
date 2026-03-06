@@ -28,6 +28,13 @@ import (
 	"github.com/lib/pq"
 )
 
+// OperationFilter holds optional filters for listing operations.
+type OperationFilter struct {
+	OperationType *string
+	Direction     *string
+	RouteID       *string
+}
+
 // Repository provides an interface for operations related to operation template entities.
 // It defines methods for creating, retrieving, updating, and deleting operation templates.
 //
@@ -35,7 +42,7 @@ import (
 type Repository interface {
 	Create(ctx context.Context, operation *Operation) (*Operation, error)
 	FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
-	FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, operationType *string, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
+	FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, opFilter OperationFilter, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*Operation, error)
 	FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*Operation, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Operation, error)
@@ -79,6 +86,8 @@ var operationColumnList = []string{
 	"balance_key",
 	"balance_version_before",
 	"balance_version_after",
+	"direction",
+	"route_id",
 }
 
 // operationColumns is derived from operationColumnList for use with squirrel.Select.
@@ -173,6 +182,8 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 			record.BalanceKey,
 			record.VersionBalance,
 			record.VersionBalanceAfter,
+			record.Direction,
+			record.RouteID,
 		).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -321,6 +332,8 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.BalanceKey,
 			&operation.VersionBalance,
 			&operation.VersionBalanceAfter,
+			&operation.Direction,
+			&operation.RouteID,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -439,6 +452,8 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.BalanceKey,
 			&operation.VersionBalance,
 			&operation.VersionBalanceAfter,
+			&operation.Direction,
+			&operation.RouteID,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -530,6 +545,8 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.BalanceKey,
 		&operation.VersionBalance,
 		&operation.VersionBalanceAfter,
+		&operation.Direction,
+		&operation.RouteID,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
@@ -620,6 +637,8 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.BalanceKey,
 		&operation.VersionBalance,
 		&operation.VersionBalanceAfter,
+		&operation.Direction,
+		&operation.RouteID,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
@@ -784,7 +803,7 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 }
 
 // FindAllByAccount retrieves Operations entities from the database using the provided account ID.
-func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, operationType *string, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
+func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, opFilter OperationFilter, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
@@ -825,8 +844,16 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)}).
 		PlaceholderFormat(squirrel.Dollar)
 
-	if !libCommons.IsNilOrEmpty(operationType) {
-		findAll = findAll.Where(squirrel.Expr("type = ?", *operationType))
+	if !libCommons.IsNilOrEmpty(opFilter.OperationType) {
+		findAll = findAll.Where(squirrel.Expr("type = ?", *opFilter.OperationType))
+	}
+
+	if opFilter.Direction != nil {
+		findAll = findAll.Where(squirrel.Expr("direction = ?", *opFilter.Direction))
+	}
+
+	if opFilter.RouteID != nil {
+		findAll = findAll.Where(squirrel.Expr("route_id = ?", *opFilter.RouteID))
 	}
 
 	findAll, orderDirection = libHTTP.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
@@ -883,6 +910,8 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 			&operation.BalanceKey,
 			&operation.VersionBalance,
 			&operation.VersionBalanceAfter,
+			&operation.Direction,
+			&operation.RouteID,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 

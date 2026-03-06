@@ -772,6 +772,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		"o.account_alias", "o.balance_id", "o.chart_of_accounts", "o.organization_id",
 		"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
 		"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
+		"o.direction", "o.route_id",
 	}
 
 	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
@@ -855,6 +856,8 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&op.BalanceKey,
 			&op.VersionBalance,
 			&op.VersionBalanceAfter,
+			&op.Direction,
+			&op.RouteID,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
@@ -945,6 +948,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		"o.account_alias", "o.balance_id", "o.chart_of_accounts", "o.organization_id",
 		"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
 		"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
+		"o.direction", "o.route_id",
 	}
 
 	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
@@ -1001,6 +1005,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			opDeletedAt                                                  sql.NullTime
 			opBalanceAffected                                            *bool
 			opVersionBalance, opVersionBalanceAfter                      *int64
+			opDirection, opRouteID                                       *string
 		)
 
 		if err := rows.Scan(
@@ -1045,6 +1050,8 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&opBalanceKey,
 			&opVersionBalance,
 			&opVersionBalanceAfter,
+			&opDirection,
+			&opRouteID,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
@@ -1104,6 +1111,8 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 				BalanceKey:            *opBalanceKey,
 				VersionBalance:        opVersionBalance,
 				VersionBalanceAfter:   opVersionBalanceAfter,
+				Direction:             *opDirection,
+				RouteID:               opRouteID,
 			}
 
 			t.Operations = append(t.Operations, op.ToEntity())

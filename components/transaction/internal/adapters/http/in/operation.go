@@ -40,6 +40,8 @@ type OperationHandler struct {
 //	@Param			sort_order		query		string	false	"Sort Order"	enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Param			type			query		string	false	"DEBIT, CREDIT"
+//	@Param			direction		query		string	false	"Filter by direction"	enum(debit,credit)
+//	@Param			route_id		query		string	false	"Filter by operation route ID"	format(uuid)
 //	@Success		200				{object}	libPostgres.Pagination{items=[]operation.Operation,next_cursor=string,prev_cursor=string,limit=int}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
