@@ -274,8 +274,9 @@ func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Resp
 	}
 
 	isCanceled := transactionStatus == constant.CANCELED
+	isApproved := transactionStatus == constant.APPROVED
 
-	if !isPending && !isCanceled {
+	if !isPending && !isCanceled && !isApproved {
 		return
 	}
 
@@ -283,11 +284,19 @@ func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Resp
 
 	for key, amt := range validate.From {
 		amt.RouteValidationEnabled = true
+
+		// COMMIT with route validation: source uses ON_HOLD (debit) instead of DEBIT
+		// to decrement onHold. This keeps ON_HOLD ops invisible to TransactionRevert,
+		// which only considers DEBIT/CREDIT, naturally avoiding double-counting.
+		if isApproved && amt.Operation == constant.DEBIT {
+			amt.Operation = constant.ONHOLD
+		}
+
 		validate.From[key] = amt
 		count++
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Propagated route validation to %d source entries (pending=%t, canceled=%t)", count, isPending, isCanceled))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Propagated route validation to %d source entries (pending=%t, canceled=%t, approved=%t)", count, isPending, isCanceled, isApproved))
 }
 
 // buildDoubleEntryPendingOps generates two operations for a PENDING source entry
@@ -311,7 +320,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 	_, span := tracer.Start(ctx, "handler.build_double_entry_pending_ops")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Building double-entry ops for balance %s: DEBIT(debit) + ONHOLD(credit)", blc.ID))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Building double-entry pending ops for balance %s: DEBIT(debit) + ONHOLD(credit)", blc.ID))
 
 	description := ft.Description
 	if libCommons.IsNilOrEmpty(&ft.Description) {
@@ -369,7 +378,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		Direction:       constant.DirectionDebit,
 	}
 
-	// Op2: ONHOLD (debit) - OnHold++ only
+	// Op2: ONHOLD (credit) - OnHold++ only
 	// Balance before: op1's balance after (chaining)
 	// Balance after: OnHold increased, Available unchanged from op1
 	onholdOnHold := blc.OnHold.Add(amt.Value)
@@ -417,7 +426,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		Route:           ft.Route,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
-		Direction:       constant.DirectionDebit,
+		Direction:       constant.DirectionCredit,
 	}
 
 	return []*operation.Operation{op1, op2}, nil
@@ -425,7 +434,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 
 // buildDoubleEntryCanceledOps generates two operations for a CANCELED source entry
 // when route validation is enabled:
-// Op1: RELEASE (credit direction) - decreases OnHold only
+// Op1: RELEASE (debit direction) - decreases OnHold only
 // Op2: CREDIT (credit direction) - increases Available only
 // This ensures proper double-entry where each operation affects a single balance field.
 func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
@@ -444,14 +453,14 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 	_, span := tracer.Start(ctx, "handler.build_double_entry_canceled_ops")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Building double-entry canceled ops for balance %s: RELEASE(credit) + CREDIT(credit)", blc.ID))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Building double-entry canceled ops for balance %s: RELEASE(debit) + CREDIT(credit)", blc.ID))
 
 	description := ft.Description
 	if libCommons.IsNilOrEmpty(&ft.Description) {
 		description = transactionInput.Description
 	}
 
-	// Op1: RELEASE (credit) - OnHold-- only
+	// Op1: RELEASE (debit) - OnHold-- only
 	// Balance before: original balance
 	// Balance after: OnHold decreased, Available unchanged
 	releaseOnHold := blc.OnHold.Sub(amt.Value)
@@ -499,7 +508,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		Route:           ft.Route,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
-		Direction:       constant.DirectionCredit,
+		Direction:       constant.DirectionDebit,
 	}
 
 	// Op2: CREDIT (credit) - Available++ only
