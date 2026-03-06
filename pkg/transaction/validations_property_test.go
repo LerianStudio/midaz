@@ -9,7 +9,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,8 +25,8 @@ var validOperations = map[string]bool{
 
 // validDirections is the complete set of known direction values returned by DetermineOperation.
 var validDirections = map[string]bool{
-	constant.DEBIT:  true,
-	constant.CREDIT: true,
+	constant.DirectionDebit:  true,
+	constant.DirectionCredit: true,
 }
 
 // knownTransactionTypes are the transaction types recognized by the system.
@@ -102,12 +102,12 @@ func TestProperty_DetermineOperation_DirectionConsistency(t *testing.T) {
 		operation, direction := DetermineOperation(isPending, isFrom, txType)
 
 		switch operation {
-		case constant.DEBIT, constant.RELEASE:
-			assert.Equal(t, constant.DEBIT, direction,
+		case constant.DEBIT, constant.ONHOLD:
+			assert.Equal(t, constant.DirectionDebit, direction,
 				"iteration %d: %s must have debit direction, got %q (isPending=%v isFrom=%v txType=%q)",
 				i, operation, direction, isPending, isFrom, txType)
-		case constant.CREDIT, constant.ONHOLD:
-			assert.Equal(t, constant.CREDIT, direction,
+		case constant.CREDIT, constant.RELEASE:
+			assert.Equal(t, constant.DirectionCredit, direction,
 				"iteration %d: %s must have credit direction, got %q (isPending=%v isFrom=%v txType=%q)",
 				i, operation, direction, isPending, isFrom, txType)
 		}

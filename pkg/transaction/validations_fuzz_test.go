@@ -7,7 +7,7 @@ package transaction
 import (
 	"testing"
 
-	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 )
 
@@ -39,16 +39,16 @@ func FuzzDetermineOperation(f *testing.F) {
 	}
 
 	validDirections := map[string]bool{
-		constant.DEBIT:  true,
-		constant.CREDIT: true,
+		constant.DirectionDebit:  true,
+		constant.DirectionCredit: true,
 	}
 
 	// The operation-to-direction mapping enforced by the implementation.
 	expectedDirection := map[string]string{
-		constant.DEBIT:   constant.DEBIT,
-		constant.CREDIT:  constant.CREDIT,
-		constant.ONHOLD:  constant.CREDIT,
-		constant.RELEASE: constant.DEBIT,
+		constant.DEBIT:   constant.DirectionDebit,
+		constant.CREDIT:  constant.DirectionCredit,
+		constant.ONHOLD:  constant.DirectionDebit,
+		constant.RELEASE: constant.DirectionCredit,
 	}
 
 	// maxStringLen bounds fuzzer-generated strings to prevent resource exhaustion.

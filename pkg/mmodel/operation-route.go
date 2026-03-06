@@ -28,7 +28,7 @@ type OperationRoute struct {
 	// External reference of the operation route.
 	Code string `json:"code,omitempty" example:"EXT-001"`
 	// The type of the operation route.
-	OperationType string `json:"operationType,omitempty" example:"source" enum:"source,destination"`
+	OperationType string `json:"operationType,omitempty" example:"source" enum:"source,destination,bidirectional"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
@@ -52,7 +52,7 @@ type CreateOperationRouteInput struct {
 	// External reference of the operation route.
 	Code string `json:"code,omitempty" validate:"max=100" example:"EXT-001"`
 	// The type of the operation route.
-	OperationType string `json:"operationType,omitempty" validate:"required" example:"source" enum:"source,destination"`
+	OperationType string `json:"operationType,omitempty" validate:"required" example:"source" enum:"source,destination,bidirectional"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
