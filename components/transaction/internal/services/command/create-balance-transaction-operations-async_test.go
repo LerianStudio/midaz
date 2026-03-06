@@ -1296,3 +1296,200 @@ func TestUpdateTransactionBackupOperations(t *testing.T) {
 		uc.UpdateTransactionBackupOperations(ctx, uuid.New(), uuid.New(), "tx-3", []*operation.Operation{})
 	})
 }
+
+func TestOperationMsgpackRoundtrip(t *testing.T) {
+	t.Run("direction_and_route_id_survive_roundtrip", func(t *testing.T) {
+		routeID := uuid.New().String()
+		amount := decimal.NewFromInt(100)
+		version := int64(1)
+
+		original := operation.Operation{
+			ID:            uuid.New().String(),
+			TransactionID: uuid.New().String(),
+			Description:   "test operation",
+			Type:          "DEBIT",
+			AssetCode:     "BRL",
+			Amount:        operation.Amount{Value: &amount},
+			Balance: operation.Balance{
+				Available: &amount,
+				OnHold:    &amount,
+				Version:   &version,
+			},
+			BalanceAfter: operation.Balance{
+				Available: &amount,
+				OnHold:    &amount,
+				Version:   &version,
+			},
+			Status: operation.Status{
+				Code: "ACTIVE",
+			},
+			AccountID:      uuid.New().String(),
+			AccountAlias:   "@person1",
+			BalanceKey:     "default",
+			BalanceID:      uuid.New().String(),
+			OrganizationID: uuid.New().String(),
+			LedgerID:       uuid.New().String(),
+			Direction:      "debit",
+			RouteID:        &routeID,
+		}
+
+		data, err := msgpack.Marshal(original)
+		require.NoError(t, err, "marshal should not fail")
+
+		var decoded operation.Operation
+		err = msgpack.Unmarshal(data, &decoded)
+		require.NoError(t, err, "unmarshal should not fail")
+
+		assert.Equal(t, original.Direction, decoded.Direction, "Direction must survive roundtrip")
+		assert.NotNil(t, decoded.RouteID, "RouteID must not be nil after roundtrip")
+		assert.Equal(t, *original.RouteID, *decoded.RouteID, "RouteID value must survive roundtrip")
+		assert.Equal(t, original.ID, decoded.ID, "ID must survive roundtrip")
+		assert.Equal(t, original.Type, decoded.Type, "Type must survive roundtrip")
+		assert.Equal(t, original.AssetCode, decoded.AssetCode, "AssetCode must survive roundtrip")
+	})
+}
+
+func TestOperationMsgpackBackwardCompatibility(t *testing.T) {
+	t.Run("zero_value_direction_and_nil_route_id_are_preserved", func(t *testing.T) {
+		amount := decimal.NewFromInt(50)
+		version := int64(1)
+
+		// Simulate an old-format message without Direction or RouteID
+		original := operation.Operation{
+			ID:            uuid.New().String(),
+			TransactionID: uuid.New().String(),
+			Type:          "CREDIT",
+			AssetCode:     "USD",
+			Amount:        operation.Amount{Value: &amount},
+			Balance: operation.Balance{
+				Available: &amount,
+				OnHold:    &amount,
+				Version:   &version,
+			},
+			BalanceAfter: operation.Balance{
+				Available: &amount,
+				OnHold:    &amount,
+				Version:   &version,
+			},
+			Status: operation.Status{
+				Code: "ACTIVE",
+			},
+			AccountID:      uuid.New().String(),
+			BalanceID:      uuid.New().String(),
+			OrganizationID: uuid.New().String(),
+			LedgerID:       uuid.New().String(),
+			// Direction intentionally left as zero value ("")
+			// RouteID intentionally left as nil
+		}
+
+		data, err := msgpack.Marshal(original)
+		require.NoError(t, err, "marshal should not fail")
+
+		var decoded operation.Operation
+		err = msgpack.Unmarshal(data, &decoded)
+		require.NoError(t, err, "unmarshal should not fail for old-format message")
+
+		assert.Equal(t, "", decoded.Direction, "Direction must be empty string for old-format messages")
+		assert.Nil(t, decoded.RouteID, "RouteID must be nil for old-format messages")
+		assert.Equal(t, original.ID, decoded.ID, "ID must survive roundtrip")
+		assert.Equal(t, original.Type, decoded.Type, "Type must survive roundtrip")
+	})
+}
+
+func TestTransactionProcessingPayloadMsgpackRoundtrip(t *testing.T) {
+	t.Run("nested_operations_with_direction_and_route_id_survive", func(t *testing.T) {
+		routeID := uuid.New().String()
+		amount := decimal.NewFromInt(200)
+		version := int64(3)
+
+		op1 := &operation.Operation{
+			ID:            uuid.New().String(),
+			TransactionID: uuid.New().String(),
+			Type:          "DEBIT",
+			AssetCode:     "BRL",
+			Amount:        operation.Amount{Value: &amount},
+			Balance: operation.Balance{
+				Available: &amount,
+				OnHold:    &amount,
+				Version:   &version,
+			},
+			BalanceAfter: operation.Balance{
+				Available: &amount,
+				OnHold:    &amount,
+				Version:   &version,
+			},
+			Status: operation.Status{
+				Code: "ACTIVE",
+			},
+			AccountID:      uuid.New().String(),
+			BalanceID:      uuid.New().String(),
+			OrganizationID: uuid.New().String(),
+			LedgerID:       uuid.New().String(),
+			Direction:      "source",
+			RouteID:        &routeID,
+		}
+
+		op2 := &operation.Operation{
+			ID:            uuid.New().String(),
+			TransactionID: op1.TransactionID,
+			Type:          "CREDIT",
+			AssetCode:     "BRL",
+			Amount:        operation.Amount{Value: &amount},
+			Balance: operation.Balance{
+				Available: &amount,
+				OnHold:    &amount,
+				Version:   &version,
+			},
+			BalanceAfter: operation.Balance{
+				Available: &amount,
+				OnHold:    &amount,
+				Version:   &version,
+			},
+			Status: operation.Status{
+				Code: "ACTIVE",
+			},
+			AccountID:      uuid.New().String(),
+			BalanceID:      uuid.New().String(),
+			OrganizationID: uuid.New().String(),
+			LedgerID:       uuid.New().String(),
+			Direction:      "destination",
+			RouteID:        &routeID,
+		}
+
+		tran := &transaction.Transaction{
+			ID:             op1.TransactionID,
+			OrganizationID: op1.OrganizationID,
+			LedgerID:       op1.LedgerID,
+			Operations:     []*operation.Operation{op1, op2},
+		}
+
+		validate := &pkgTransaction.Responses{
+			Aliases: []string{"@src", "@dst"},
+		}
+
+		original := transaction.TransactionProcessingPayload{
+			Transaction: tran,
+			Validate:    validate,
+		}
+
+		data, err := msgpack.Marshal(original)
+		require.NoError(t, err, "marshal should not fail")
+
+		var decoded transaction.TransactionProcessingPayload
+		err = msgpack.Unmarshal(data, &decoded)
+		require.NoError(t, err, "unmarshal should not fail")
+
+		require.NotNil(t, decoded.Transaction, "Transaction must not be nil")
+		require.Len(t, decoded.Transaction.Operations, 2, "must have 2 operations")
+
+		decodedOp1 := decoded.Transaction.Operations[0]
+		assert.Equal(t, "source", decodedOp1.Direction, "first operation Direction must be 'source'")
+		require.NotNil(t, decodedOp1.RouteID, "first operation RouteID must not be nil")
+		assert.Equal(t, routeID, *decodedOp1.RouteID, "first operation RouteID value must match")
+
+		decodedOp2 := decoded.Transaction.Operations[1]
+		assert.Equal(t, "destination", decodedOp2.Direction, "second operation Direction must be 'destination'")
+		require.NotNil(t, decodedOp2.RouteID, "second operation RouteID must not be nil")
+		assert.Equal(t, routeID, *decodedOp2.RouteID, "second operation RouteID value must match")
+	})
+}

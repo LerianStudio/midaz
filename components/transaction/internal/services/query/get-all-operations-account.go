@@ -30,7 +30,13 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving operations by account")
 
-	op, cur, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination())
+	opFilter := operation.OperationFilter{
+		OperationType: &filter.OperationType,
+		Direction:     filter.Direction,
+		RouteID:       filter.RouteID,
+	}
+
+	op, cur, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, opFilter, filter.ToCursorPagination())
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting operations on repo: %v", err))
 
