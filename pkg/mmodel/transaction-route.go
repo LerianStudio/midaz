@@ -70,13 +70,15 @@ type UpdateTransactionRouteInput struct {
 
 // TransactionRouteCache represents the cache structure for transaction routes in Redis
 type TransactionRouteCache struct {
-	Source      map[string]OperationRouteCache `json:"source"`
-	Destination map[string]OperationRouteCache `json:"destination"`
+	Source        map[string]OperationRouteCache `json:"source"`
+	Destination   map[string]OperationRouteCache `json:"destination"`
+	Bidirectional map[string]OperationRouteCache `json:"bidirectional,omitempty"`
 }
 
 // OperationRouteCache represents the cached data for a single operation route
 type OperationRouteCache struct {
-	Account *AccountCache `json:"account,omitempty"`
+	Account       *AccountCache `json:"account,omitempty"`
+	OperationType string        `json:"operationType,omitempty"`
 }
 
 // AccountCache represents the cached account rule data
@@ -89,12 +91,15 @@ type AccountCache struct {
 // Returns a TransactionRouteCache struct with routes pre-categorized by type.
 func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 	cacheData := TransactionRouteCache{
-		Source:      make(map[string]OperationRouteCache),
-		Destination: make(map[string]OperationRouteCache),
+		Source:        make(map[string]OperationRouteCache),
+		Destination:   make(map[string]OperationRouteCache),
+		Bidirectional: make(map[string]OperationRouteCache),
 	}
 
 	for _, operationRoute := range tr.OperationRoutes {
-		routeData := OperationRouteCache{}
+		routeData := OperationRouteCache{
+			OperationType: operationRoute.OperationType,
+		}
 
 		if operationRoute.Account != nil {
 			routeData.Account = &AccountCache{
@@ -111,6 +116,8 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 			cacheData.Source[routeID] = routeData
 		case "destination":
 			cacheData.Destination[routeID] = routeData
+		case "bidirectional":
+			cacheData.Bidirectional[routeID] = routeData
 		}
 	}
 

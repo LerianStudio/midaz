@@ -162,6 +162,8 @@ var (
 	ErrInvalidSettingsFieldType                 = errors.New("0148")
 	ErrSettingsRootLevelField                   = errors.New("0149")
 	ErrRouteNotBidirectional                    = errors.New("0150")
+	ErrMissingCounterpart                       = errors.New("0151")
+	ErrDirectionRouteMismatch                   = errors.New("0152")
 )
 
 // List of CRM errors.

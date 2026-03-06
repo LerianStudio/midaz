@@ -36,6 +36,8 @@ type QueryHeader struct {
 	UseMetadata                         bool
 	PortfolioID                         string
 	OperationType                       string
+	Direction                           *string
+	RouteID                             *string
 	ToAssetCodes                        []string
 	HolderID                            *string
 	ExternalID                          *string
@@ -72,6 +74,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		metadata                            *bson.M
 		portfolioID                         string
 		operationType                       string
+		direction                           *string
+		routeID                             *string
 		toAssetCodes                        []string
 		startDate                           time.Time
 		endDate                             time.Time
@@ -128,6 +132,11 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			portfolioID = value
 		case strings.Contains(strings.ToLower(key), "type"):
 			operationType = strings.ToUpper(value)
+		case key == "direction":
+			v := strings.ToLower(value)
+			direction = &v
+		case key == "route_id":
+			routeID = &value
 		case strings.Contains(key, "to"):
 			toAssetCodes = strings.Split(value, ",")
 		case strings.Contains(key, "holder_id"):
@@ -192,6 +201,16 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		}
 	}
 
+	if direction != nil && *direction != constant.DirectionDebit && *direction != constant.DirectionCredit {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "direction")
+	}
+
+	if routeID != nil {
+		if _, err := uuid.Parse(*routeID); err != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "route_id")
+		}
+	}
+
 	query := &QueryHeader{
 		Metadata:                            metadata,
 		Limit:                               limit,
@@ -203,6 +222,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		UseMetadata:                         useMetadata,
 		PortfolioID:                         portfolioID,
 		OperationType:                       operationType,
+		Direction:                           direction,
+		RouteID:                             routeID,
 		ToAssetCodes:                        toAssetCodes,
 		HolderID:                            holderID,
 		ExternalID:                          externalID,

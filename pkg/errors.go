@@ -1273,6 +1273,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Route Not Bidirectional",
 			Message:    "The operation route does not allow bidirectional transactions. Only routes with operation type 'bidirectional' can be reverted.",
 		},
+		constant.ErrMissingCounterpart: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMissingCounterpart.Error(),
+			Title:      "Missing Counterpart",
+			Message:    fmt.Sprintf("Route '%v' requires at least one debit and one credit operation (counterpart validation).", args...),
+		},
+		constant.ErrDirectionRouteMismatch: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrDirectionRouteMismatch.Error(),
+			Title:      "Direction Route Mismatch",
+			Message:    fmt.Sprintf("Operation direction '%v' is not compatible with route operation type '%v' for operation '%v'.", args...),
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

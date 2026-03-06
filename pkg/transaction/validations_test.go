@@ -11,8 +11,8 @@ import (
 	"testing/quick"
 
 	"github.com/LerianStudio/lib-commons/v3/commons"
-	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
 	"github.com/LerianStudio/lib-commons/v3/commons/log"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel"
@@ -1215,12 +1215,12 @@ func TestDetermineOperation(t *testing.T) {
 		expectedDirection string
 	}{
 		{
-			name:              "pending from PENDING -> ONHOLD credit",
+			name:              "pending from PENDING -> ONHOLD debit",
 			isPending:         true,
 			isFrom:            true,
 			transactionType:   constant.PENDING,
 			expectedType:      constant.ONHOLD,
-			expectedDirection: constant.CREDIT,
+			expectedDirection: constant.DirectionDebit,
 		},
 		{
 			name:              "pending to PENDING -> CREDIT credit",
@@ -1228,15 +1228,15 @@ func TestDetermineOperation(t *testing.T) {
 			isFrom:            false,
 			transactionType:   constant.PENDING,
 			expectedType:      constant.CREDIT,
-			expectedDirection: constant.CREDIT,
+			expectedDirection: constant.DirectionCredit,
 		},
 		{
-			name:              "pending from CANCELED -> RELEASE debit",
+			name:              "pending from CANCELED -> RELEASE credit",
 			isPending:         true,
 			isFrom:            true,
 			transactionType:   constant.CANCELED,
 			expectedType:      constant.RELEASE,
-			expectedDirection: constant.DEBIT,
+			expectedDirection: constant.DirectionCredit,
 		},
 		{
 			name:              "pending from APPROVED -> DEBIT debit",
@@ -1244,7 +1244,7 @@ func TestDetermineOperation(t *testing.T) {
 			isFrom:            true,
 			transactionType:   constant.APPROVED,
 			expectedType:      constant.DEBIT,
-			expectedDirection: constant.DEBIT,
+			expectedDirection: constant.DirectionDebit,
 		},
 		{
 			name:              "pending to APPROVED -> CREDIT credit",
@@ -1252,7 +1252,7 @@ func TestDetermineOperation(t *testing.T) {
 			isFrom:            false,
 			transactionType:   constant.APPROVED,
 			expectedType:      constant.CREDIT,
-			expectedDirection: constant.CREDIT,
+			expectedDirection: constant.DirectionCredit,
 		},
 		{
 			name:              "not pending from -> DEBIT debit",
@@ -1260,7 +1260,7 @@ func TestDetermineOperation(t *testing.T) {
 			isFrom:            true,
 			transactionType:   constant.CREATED,
 			expectedType:      constant.DEBIT,
-			expectedDirection: constant.DEBIT,
+			expectedDirection: constant.DirectionDebit,
 		},
 		{
 			name:              "not pending to -> CREDIT credit",
@@ -1268,7 +1268,7 @@ func TestDetermineOperation(t *testing.T) {
 			isFrom:            false,
 			transactionType:   constant.CREATED,
 			expectedType:      constant.CREDIT,
-			expectedDirection: constant.CREDIT,
+			expectedDirection: constant.DirectionCredit,
 		},
 	}
 
@@ -1809,7 +1809,7 @@ func TestDetermineOperation_EdgeCases(t *testing.T) {
 			isFrom:            true,
 			transactionType:   constant.APPROVED,
 			expectedType:      constant.DEBIT,
-			expectedDirection: constant.DEBIT,
+			expectedDirection: constant.DirectionDebit,
 		},
 		{
 			name:              "APPROVED destination - CREDIT credit",
@@ -1817,7 +1817,7 @@ func TestDetermineOperation_EdgeCases(t *testing.T) {
 			isFrom:            false,
 			transactionType:   constant.APPROVED,
 			expectedType:      constant.CREDIT,
-			expectedDirection: constant.CREDIT,
+			expectedDirection: constant.DirectionCredit,
 		},
 		{
 			name:              "CANCELED destination - falls to default CREDIT credit",
@@ -1825,7 +1825,7 @@ func TestDetermineOperation_EdgeCases(t *testing.T) {
 			isFrom:            false,
 			transactionType:   constant.CANCELED,
 			expectedType:      constant.CREDIT,
-			expectedDirection: constant.CREDIT,
+			expectedDirection: constant.DirectionCredit,
 		},
 		{
 			name:              "empty transactionType not pending from - DEBIT debit",
@@ -1833,7 +1833,7 @@ func TestDetermineOperation_EdgeCases(t *testing.T) {
 			isFrom:            true,
 			transactionType:   "",
 			expectedType:      constant.DEBIT,
-			expectedDirection: constant.DEBIT,
+			expectedDirection: constant.DirectionDebit,
 		},
 		{
 			name:              "empty transactionType not pending to - CREDIT credit",
@@ -1841,7 +1841,7 @@ func TestDetermineOperation_EdgeCases(t *testing.T) {
 			isFrom:            false,
 			transactionType:   "",
 			expectedType:      constant.CREDIT,
-			expectedDirection: constant.CREDIT,
+			expectedDirection: constant.DirectionCredit,
 		},
 		{
 			name:              "unknown transactionType pending - falls to default CREDIT credit",
@@ -1849,7 +1849,7 @@ func TestDetermineOperation_EdgeCases(t *testing.T) {
 			isFrom:            false,
 			transactionType:   "UNKNOWN",
 			expectedType:      constant.CREDIT,
-			expectedDirection: constant.CREDIT,
+			expectedDirection: constant.DirectionCredit,
 		},
 	}
 

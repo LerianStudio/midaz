@@ -40,5 +40,7 @@ type OperationRedis struct {
 	UpdatedAt             time.Time       `json:"updatedAt"`
 	Route                 string          `json:"route"`
 	BalanceAffected       bool            `json:"balanceAffected"`
+	Direction             string          `json:"direction,omitempty"`
+	RouteID               *string         `json:"routeId,omitempty"`
 	Metadata              map[string]any  `json:"metadata,omitempty"`
 }

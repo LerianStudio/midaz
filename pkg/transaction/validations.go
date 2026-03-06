@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/lib-commons/v3/commons"
-	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
 	"github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 )
 
@@ -260,26 +260,26 @@ func DetermineOperation(isPending bool, isFrom bool, transactionType string) (st
 	switch {
 	case isPending && transactionType == constant.PENDING:
 		if isFrom {
-			return constant.ONHOLD, constant.CREDIT
+			return constant.ONHOLD, constant.DirectionDebit
 		}
 
-		return constant.CREDIT, constant.CREDIT
+		return constant.CREDIT, constant.DirectionCredit
 	case isPending && isFrom && transactionType == constant.CANCELED:
-		return constant.RELEASE, constant.DEBIT
+		return constant.RELEASE, constant.DirectionCredit
 	case isPending && transactionType == constant.APPROVED:
 		if isFrom {
-			return constant.DEBIT, constant.DEBIT
+			return constant.DEBIT, constant.DirectionDebit
 		}
 
-		return constant.CREDIT, constant.CREDIT
+		return constant.CREDIT, constant.DirectionCredit
 	case !isPending:
 		if isFrom {
-			return constant.DEBIT, constant.DEBIT
+			return constant.DEBIT, constant.DirectionDebit
 		}
 
-		return constant.CREDIT, constant.CREDIT
+		return constant.CREDIT, constant.DirectionCredit
 	default:
-		return constant.CREDIT, constant.CREDIT
+		return constant.CREDIT, constant.DirectionCredit
 	}
 }
 
