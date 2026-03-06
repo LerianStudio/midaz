@@ -306,7 +306,7 @@ func TestScheduleBalanceSyncBatch_SingleMember(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, capturedKey, "Schedule key should be set")
-	assert.Len(t, capturedMembers, 1, "Should have 1 member")
+	require.Len(t, capturedMembers, 1, "Should have 1 member")
 	assert.Equal(t, "balance:key1", capturedMembers[0].Member)
 }
 
