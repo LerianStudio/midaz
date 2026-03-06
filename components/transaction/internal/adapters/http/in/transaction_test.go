@@ -11,6 +11,7 @@ import (
 	"io"
 	nethttp "net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -4290,6 +4291,7 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 		transactionInput       pkgTransaction.Transaction
 		routeValidationEnabled bool
 		processedDoubleEntry   map[string]bool
+		fromToIndex            int
 		expectedOps            int
 		expectedHandled        bool
 	}{
@@ -4353,7 +4355,8 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 				Send:    pkgTransaction.Send{Asset: "USD"},
 			},
 			routeValidationEnabled: true,
-			processedDoubleEntry:   map[string]bool{"@source1": true},
+			processedDoubleEntry:   map[string]bool{"@source1#0": true},
+			fromToIndex:            0,
 			expectedOps:            0,
 			expectedHandled:        true,
 		},
@@ -4420,6 +4423,29 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 			expectedOps:            2,
 			expectedHandled:        true,
 		},
+		{
+			name: "allows second entry for same alias with different fromToIndex (transfer+fee)",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amt: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(50),
+				Operation:              libConstants.ONHOLD,
+				TransactionType:        cn.PENDING,
+				RouteValidationEnabled: true,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: true,
+				Send:    pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: true,
+			processedDoubleEntry:   map[string]bool{"@source1#0": true},
+			fromToIndex:            1,
+			expectedOps:            2,
+			expectedHandled:        true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -4442,6 +4468,7 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 				false, // isAnnotation
 				tt.routeValidationEnabled,
 				tt.processedDoubleEntry,
+				tt.fromToIndex,
 			)
 
 			assert.Equal(t, tt.expectedHandled, handled, "handled flag mismatch")
@@ -4454,9 +4481,10 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 				// Verify ops have distinct IDs
 				assert.NotEqual(t, ops[0].ID, ops[1].ID, "operations should have distinct IDs")
 
-				// Verify alias was marked as processed
-				assert.True(t, tt.processedDoubleEntry[baseBalance.Alias],
-					"alias should be marked as processed in the deduplication map")
+				// Verify composite key (alias#index) was marked as processed
+				dedupKey := baseBalance.Alias + "#" + strconv.Itoa(tt.fromToIndex)
+				assert.True(t, tt.processedDoubleEntry[dedupKey],
+					"composite key should be marked as processed in the deduplication map")
 			}
 		})
 	}
