@@ -35,7 +35,14 @@ var getBalancesNearExpirationLua string
 //go:embed scripts/unschedule_synced_balance.lua
 var unscheduleSyncedBalanceLua string
 
+//go:embed scripts/remove_balance_sync_keys_batch.lua
+var removeBalanceSyncKeysBatchScript string
+
 const TransactionBackupQueue = "backup_queue:{transactions}"
+
+// maxRedisBatchSize limits the number of items sent in a single Redis operation
+// to prevent oversized payloads. Operations with more items are split into chunks.
+const maxRedisBatchSize = 1000
 
 // RedisRepository provides an interface for redis.
 // It defines methods for setting, getting keys, and incrementing values.
@@ -63,7 +70,19 @@ type RedisRepository interface {
 	RemoveMessageFromQueue(ctx context.Context, key string) error
 	GetBalanceSyncKeys(ctx context.Context, limit int64) ([]string, error)
 	RemoveBalanceSyncKey(ctx context.Context, member string) error
+	// ScheduleBalanceSyncBatch schedules multiple balance keys for sync using ZADD NX.
+	// Each member is a balance key with score = scheduled sync time (Unix timestamp).
+	// Uses NX mode: only adds new members, does not update scores of existing ones.
+	// This preserves the earliest scheduled sync time for each balance key.
+	ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error
 	ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error)
+	// GetBalancesByKeys retrieves multiple balance values by their Redis keys using MGET.
+	// Returns a map of key -> *mmodel.BalanceRedis (nil if key does not exist).
+	// This enables batch retrieval for the aggregation engine.
+	GetBalancesByKeys(ctx context.Context, keys []string) (map[string]*mmodel.BalanceRedis, error)
+	// RemoveBalanceSyncKeysBatch removes multiple keys from the sync schedule and their locks.
+	// Returns the number of keys actually removed from the schedule.
+	RemoveBalanceSyncKeysBatch(ctx context.Context, keys []string) (int64, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -173,6 +192,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 }
 
 // MGet retrieves multiple values from redis.
+// Large inputs are processed in chunks of maxRedisBatchSize to prevent oversized payloads.
 func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map[string]string, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -199,29 +219,36 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 		prefixedKeys[i] = tmvalkey.GetKeyFromContext(ctx, k)
 	}
 
-	res, err := rds.MGet(ctx, prefixedKeys...).Result()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to mget on redis", err)
-
-		logger.Errorf("Failed to mget on redis: %v", err)
-
-		return nil, err
-	}
-
 	out := make(map[string]string, len(keys))
 
-	for i, v := range res {
-		if v == nil {
-			continue
+	// Process in chunks to prevent oversized payloads
+	for start := 0; start < len(prefixedKeys); start += maxRedisBatchSize {
+		end := min(start+maxRedisBatchSize, len(prefixedKeys))
+		chunk := prefixedKeys[start:end]
+		originalKeysChunk := keys[start:end]
+
+		res, err := rds.MGet(ctx, chunk...).Result()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to mget on redis", err)
+
+			logger.Errorf("Failed to mget on redis: %v", err)
+
+			return nil, err
 		}
 
-		switch vv := v.(type) {
-		case string:
-			out[keys[i]] = vv
-		case []byte:
-			out[keys[i]] = string(vv)
-		default:
-			out[keys[i]] = fmt.Sprint(v)
+		for i, v := range res {
+			if v == nil {
+				continue
+			}
+
+			switch vv := v.(type) {
+			case string:
+				out[originalKeysChunk[i]] = vv
+			case []byte:
+				out[originalKeysChunk[i]] = string(vv)
+			default:
+				out[originalKeysChunk[i]] = fmt.Sprint(v)
+			}
 		}
 	}
 
@@ -744,6 +771,76 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 	return nil
 }
 
+// ScheduleBalanceSyncBatch schedules multiple balance keys for sync using batch ZADD NX.
+// The score determines when the balance should be synced (Unix timestamp).
+// Uses NX mode: only adds new members, does not update scores of existing ones.
+// This preserves the earliest scheduled sync time for each balance key.
+// Large inputs are processed in chunks of maxRedisBatchSize to prevent oversized payloads.
+func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error {
+	if len(members) == 0 || !rr.balanceSyncEnabled {
+		return nil
+	}
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.schedule_balance_sync_batch")
+	defer span.End()
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis client", err)
+
+		logger.Errorf("Failed to get redis client: %v", err)
+
+		return err
+	}
+
+	prefixedScheduleKey := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
+
+	// De-duplicate members, keeping the minimum score for each unique member.
+	// This ensures the earliest scheduled sync time is preserved when duplicates exist.
+	minScores := make(map[string]float64, len(members))
+
+	for _, m := range members {
+		key := fmt.Sprintf("%v", m.Member)
+
+		if existing, found := minScores[key]; !found || m.Score < existing {
+			minScores[key] = m.Score
+		}
+	}
+
+	// Rebuild members slice from de-duplicated map
+	deduped := make([]redis.Z, 0, len(minScores))
+	for member, score := range minScores {
+		deduped = append(deduped, redis.Z{Score: score, Member: member})
+	}
+
+	var totalAdded int64
+
+	// Process in chunks to prevent oversized payloads
+	for start := 0; start < len(deduped); start += maxRedisBatchSize {
+		end := min(start+maxRedisBatchSize, len(deduped))
+		chunk := deduped[start:end]
+
+		// Use ZADD with NX to only add new members (do not update existing scores)
+		// This ensures we do not overwrite a newer schedule with an older one
+		cmd := client.ZAddNX(ctx, prefixedScheduleKey, chunk...)
+		if err := cmd.Err(); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to batch schedule balance sync", err)
+
+			logger.Errorf("Failed to batch schedule balance sync: %v", err)
+
+			return err
+		}
+
+		totalAdded += cmd.Val()
+	}
+
+	logger.Infof("Scheduled balance keys for sync (input: %d, unique: %d, added: %d)", len(members), len(deduped), totalAdded)
+
+	return nil
+}
+
 func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -798,4 +895,155 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 	}
 
 	return balance, nil
+}
+
+// GetBalancesByKeys retrieves multiple balance values using MGET.
+// Returns a map where each key maps to its BalanceRedis value, or nil if the key does not exist.
+// This is used by the aggregation engine to fetch current balance states in batch.
+// Large inputs are processed in chunks of maxRedisBatchSize to prevent oversized payloads.
+func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys []string) (map[string]*mmodel.BalanceRedis, error) {
+	if len(keys) == 0 {
+		return make(map[string]*mmodel.BalanceRedis), nil
+	}
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.get_balances_by_keys")
+	defer span.End()
+
+	result := make(map[string]*mmodel.BalanceRedis, len(keys))
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis client", err)
+
+		logger.Errorf("Failed to get redis client: %v", err)
+
+		return nil, err
+	}
+
+	prefixedKeys := make([]string, len(keys))
+	for i, k := range keys {
+		prefixedKeys[i] = tmvalkey.GetKeyFromContext(ctx, k)
+	}
+
+	// Process in chunks to prevent oversized payloads
+	for start := 0; start < len(prefixedKeys); start += maxRedisBatchSize {
+		end := min(start+maxRedisBatchSize, len(prefixedKeys))
+		chunk := prefixedKeys[start:end]
+		originalKeysChunk := keys[start:end]
+
+		values, err := client.MGet(ctx, chunk...).Result()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to MGET balances", err)
+
+			logger.Errorf("Failed to MGET balances: %v", err)
+
+			return nil, err
+		}
+
+		for i, key := range originalKeysChunk {
+			if values[i] == nil {
+				result[key] = nil
+
+				continue
+			}
+
+			var strVal string
+
+			switch v := values[i].(type) {
+			case string:
+				strVal = v
+			case []byte:
+				strVal = string(v)
+			default:
+				logger.Warnf("Unexpected value type for key %s: %T", key, values[i])
+
+				result[key] = nil
+
+				continue
+			}
+
+			var balance mmodel.BalanceRedis
+			if err := json.Unmarshal([]byte(strVal), &balance); err != nil {
+				logger.Warnf("Failed to unmarshal balance for key %s: %v", key, err)
+
+				result[key] = nil
+
+				continue
+			}
+
+			result[key] = &balance
+		}
+	}
+
+	return result, nil
+}
+
+// RemoveBalanceSyncKeysBatch removes multiple keys from the balance sync schedule.
+// Also removes associated lock keys. Returns count of removed schedule entries.
+// Large inputs are processed in chunks of maxRedisBatchSize to prevent oversized payloads.
+func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Context, keys []string) (int64, error) {
+	if len(keys) == 0 {
+		return 0, nil
+	}
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.remove_balance_sync_keys_batch")
+	defer span.End()
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis client", err)
+
+		logger.Errorf("Failed to get redis client: %v", err)
+
+		return 0, err
+	}
+
+	prefixedScheduleKey := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncScheduleKey)
+	prefixedLockPrefix := tmvalkey.GetKeyFromContext(ctx, utils.BalanceSyncLockPrefix)
+
+	var totalRemoved int64
+
+	// Process in chunks to prevent oversized payloads
+	for start := 0; start < len(keys); start += maxRedisBatchSize {
+		end := min(start+maxRedisBatchSize, len(keys))
+		chunk := keys[start:end]
+
+		// Build args: [lockPrefix, member1, member2, ...]
+		args := make([]any, 0, len(chunk)+1)
+		args = append(args, prefixedLockPrefix)
+
+		for _, key := range chunk {
+			args = append(args, key)
+		}
+
+		result, err := client.Eval(ctx, removeBalanceSyncKeysBatchScript, []string{prefixedScheduleKey}, args...).Result()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to batch remove balance sync keys", err)
+
+			logger.Errorf("Failed to batch remove balance sync keys: %v", err)
+
+			return totalRemoved, err
+		}
+
+		removed, ok := result.(int64)
+		if !ok {
+			err := fmt.Errorf("unexpected result type from remove script: %T", result)
+
+			libOpentelemetry.HandleSpanError(&span, "Unexpected result type", err)
+
+			logger.Errorf("Unexpected result type from remove script: %T", result)
+
+			return totalRemoved, err
+		}
+
+		totalRemoved += removed
+	}
+
+	logger.Infof("Removed %d balance keys from sync schedule", totalRemoved)
+
+	return totalRemoved, nil
 }
