@@ -366,7 +366,7 @@ func TestScheduleBalanceSyncBatch_RedisError(t *testing.T) {
 	err := repo.ScheduleBalanceSyncBatch(context.Background(), members)
 
 	require.Error(t, err)
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 }
 
 func TestScheduleBalanceSyncBatch_PartialAdd(t *testing.T) {
@@ -436,7 +436,9 @@ func TestScheduleBalanceSyncBatch_DeduplicatesWithMinScore(t *testing.T) {
 	// Build map from captured members for easier assertion
 	scoreByMember := make(map[string]float64)
 	for _, m := range capturedMembers {
-		scoreByMember[m.Member.(string)] = m.Score
+		memberStr, ok := m.Member.(string)
+		require.True(t, ok, "Member should be a string, got %T", m.Member)
+		scoreByMember[memberStr] = m.Score
 	}
 
 	assert.Equal(t, float64(100), scoreByMember["balance:key1"], "key1 should have minimum score 100")
@@ -587,7 +589,7 @@ func TestRemoveBalanceSyncKeysBatch_RedisError(t *testing.T) {
 	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"balance:key1"})
 
 	require.Error(t, err)
-	assert.Equal(t, expectedError, err)
+	assert.ErrorIs(t, err, expectedError)
 	assert.Equal(t, int64(0), count)
 }
 
