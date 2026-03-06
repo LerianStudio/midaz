@@ -8,6 +8,7 @@ import (
 	"context"
 	"reflect"
 	"slices"
+	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
@@ -76,14 +77,39 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	uniqueToCount := uniqueValues(validate.OperationRoutesTo)
 	sourceRoutesCount := len(transactionRouteCache.Source)
 	destinationRoutesCount := len(transactionRouteCache.Destination)
+	bidirectionalRoutesCount := len(transactionRouteCache.Bidirectional)
 
-	if uniqueFromCount != sourceRoutesCount || uniqueToCount != destinationRoutesCount {
+	if uniqueFromCount != sourceRoutesCount+bidirectionalRoutesCount || uniqueToCount != destinationRoutesCount+bidirectionalRoutesCount {
 		err := pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting route count mismatch", err)
 
 		logger.Warnf("Route count mismatch: expected %d source, %d destination; got %d source, %d destination", sourceRoutesCount, destinationRoutesCount, uniqueFromCount, uniqueToCount)
 
 		return err
+	}
+
+	// Build merged route map for counterpart validation — ONLY bidirectional routes
+	mergedRouteMap := make(map[string]string)
+	for alias, routeID := range validate.OperationRoutesFrom {
+		if _, isBidirectional := transactionRouteCache.Bidirectional[routeID]; isBidirectional {
+			mergedRouteMap[alias] = routeID
+		}
+	}
+
+	for alias, routeID := range validate.OperationRoutesTo {
+		if _, isBidirectional := transactionRouteCache.Bidirectional[routeID]; isBidirectional {
+			mergedRouteMap[alias] = routeID
+		}
+	}
+
+	if len(mergedRouteMap) > 0 {
+		if err := validateCounterparts(operations, mergedRouteMap); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Route missing counterpart", err)
+
+			logger.Warnf("Route counterpart validation failed: %v", err)
+
+			return err
+		}
 	}
 
 	// Pass ledgerSettings to validateAccountRules for account type validation control
@@ -133,10 +159,22 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 		}
 
 		if !found {
+			cacheRule, found = transactionRouteCache.Bidirectional[routeID]
+		}
+
+		if !found {
 			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), routeID, operation.Alias)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting route not found", err)
 
 			logger.Warnf("Route ID '%s' not found in cache for operation '%s'", routeID, operation.Alias)
+
+			return err
+		}
+
+		if err := validateDirectionRouteMatch(operation, cacheRule); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Direction does not match route operation type", err)
+
+			logger.Warnf("Operation '%s' direction '%s' does not match route operation type '%s'", operation.Alias, operation.Amount.Direction, cacheRule.OperationType)
 
 			return err
 		}
@@ -215,6 +253,100 @@ func uniqueValues(m map[string]string) int {
 	}
 
 	return len(seen)
+}
+
+// validateDirectionRouteMatch validates that an operation's direction is compatible with the route's operation type.
+// Source routes only accept debit, destination routes only accept credit, bidirectional routes accept both.
+func validateDirectionRouteMatch(operation mmodel.BalanceOperation, routeCache mmodel.OperationRouteCache) error {
+	// PENDING transactions use ON_HOLD and RELEASE which invert the normal
+	// direction-route mapping, so skip validation for these operation types.
+	opAmount := strings.ToUpper(operation.Amount.Operation)
+	if opAmount == constant.ONHOLD || opAmount == constant.RELEASE {
+		return nil
+	}
+
+	direction := strings.ToLower(operation.Amount.Direction)
+	opType := strings.ToLower(routeCache.OperationType)
+
+	// Stale cache entries may have empty OperationType — skip validation
+	if opType == "" {
+		return nil
+	}
+
+	switch opType {
+	case "source":
+		if direction != constant.DirectionDebit {
+			return pkg.ValidateBusinessError(
+				constant.ErrDirectionRouteMismatch,
+				reflect.TypeOf(mmodel.OperationRoute{}).Name(),
+				operation.Amount.Direction,
+				routeCache.OperationType,
+				operation.Alias,
+			)
+		}
+	case "destination":
+		if direction != constant.DirectionCredit {
+			return pkg.ValidateBusinessError(
+				constant.ErrDirectionRouteMismatch,
+				reflect.TypeOf(mmodel.OperationRoute{}).Name(),
+				operation.Amount.Direction,
+				routeCache.OperationType,
+				operation.Alias,
+			)
+		}
+	case "bidirectional":
+		// Accepts both debit and credit
+	default:
+		return pkg.ValidateBusinessError(
+			constant.ErrInvalidOperationRouteType,
+			reflect.TypeOf(mmodel.OperationRoute{}).Name(),
+		)
+	}
+
+	return nil
+}
+
+// validateCounterparts validates that each route has at least one debit and one credit operation.
+// The routeMap maps operation alias to route ID.
+func validateCounterparts(operations []mmodel.BalanceOperation, routeMap map[string]string) error {
+	type directionFlags struct {
+		hasDebit  bool
+		hasCredit bool
+	}
+
+	routeDirections := make(map[string]*directionFlags)
+
+	for _, op := range operations {
+		routeID, exists := routeMap[op.Alias]
+		if !exists {
+			continue
+		}
+
+		if _, ok := routeDirections[routeID]; !ok {
+			routeDirections[routeID] = &directionFlags{}
+		}
+
+		direction := strings.ToLower(op.Amount.Direction)
+
+		switch direction {
+		case constant.DirectionDebit:
+			routeDirections[routeID].hasDebit = true
+		case constant.DirectionCredit:
+			routeDirections[routeID].hasCredit = true
+		}
+	}
+
+	for routeID, flags := range routeDirections {
+		if !flags.hasDebit || !flags.hasCredit {
+			return pkg.ValidateBusinessError(
+				constant.ErrMissingCounterpart,
+				reflect.TypeOf(mmodel.OperationRoute{}).Name(),
+				routeID,
+			)
+		}
+	}
+
+	return nil
 }
 
 // extractStringSlice helper function to handle []string and []any conversion
