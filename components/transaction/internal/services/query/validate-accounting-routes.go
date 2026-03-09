@@ -82,25 +82,45 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	destinationRoutesCount := len(transactionRouteCache.Destination)
 	bidirectionalRoutesCount := len(transactionRouteCache.Bidirectional)
 
-	if uniqueFromCount != sourceRoutesCount+bidirectionalRoutesCount || uniqueToCount != destinationRoutesCount+bidirectionalRoutesCount {
-		err := pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount)
+	totalCacheRoutes := sourceRoutesCount + destinationRoutesCount + bidirectionalRoutesCount
+	totalUsedRoutes := uniqueFromCount + uniqueToCount
+
+	if totalUsedRoutes != totalCacheRoutes || uniqueFromCount < sourceRoutesCount || uniqueToCount < destinationRoutesCount {
+		err := pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting route count mismatch", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Route count mismatch: expected %d source, %d destination; got %d source, %d destination", sourceRoutesCount, destinationRoutesCount, uniqueFromCount, uniqueToCount))
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Route count mismatch: from=%d to=%d, cache has source=%d destination=%d bidirectional=%d", uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount))
 
 		return err
 	}
 
-	// Build merged route map for counterpart validation — ONLY bidirectional routes
+	// Build merged route map for counterpart validation.
+	// Only validate counterparts for bidirectional routes that appear on BOTH sides
+	// of the transaction (from AND to). A bidirectional route used on only one side
+	// (e.g., src1 in "from" only) doesn't need a counterpart in the same transaction.
+	bidirectionalFromRoutes := make(map[string]bool)
+	for _, routeID := range validate.OperationRoutesFrom {
+		if _, isBidirectional := transactionRouteCache.Bidirectional[routeID]; isBidirectional {
+			bidirectionalFromRoutes[routeID] = true
+		}
+	}
+
+	sharedBidirectionalRoutes := make(map[string]bool)
+	for _, routeID := range validate.OperationRoutesTo {
+		if bidirectionalFromRoutes[routeID] {
+			sharedBidirectionalRoutes[routeID] = true
+		}
+	}
+
 	mergedRouteMap := make(map[string]string)
 	for alias, routeID := range validate.OperationRoutesFrom {
-		if _, isBidirectional := transactionRouteCache.Bidirectional[routeID]; isBidirectional {
+		if sharedBidirectionalRoutes[routeID] {
 			mergedRouteMap[alias] = routeID
 		}
 	}
 
 	for alias, routeID := range validate.OperationRoutesTo {
-		if _, isBidirectional := transactionRouteCache.Bidirectional[routeID]; isBidirectional {
+		if sharedBidirectionalRoutes[routeID] {
 			mergedRouteMap[alias] = routeID
 		}
 	}

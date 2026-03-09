@@ -402,6 +402,27 @@ func TestValidateOperationRouteTypesSuccess(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestValidateOperationRouteTypesBidirectionalOnly tests that bidirectional routes satisfy both source and destination
+func TestValidateOperationRouteTypesBidirectionalOnly(t *testing.T) {
+	operationRoutes := []*mmodel.OperationRoute{
+		{OperationType: "bidirectional"},
+	}
+
+	err := validateOperationRouteTypes(operationRoutes)
+	assert.NoError(t, err)
+}
+
+// TestValidateOperationRouteTypesBidirectionalWithSource tests bidirectional mixed with source
+func TestValidateOperationRouteTypesBidirectionalWithSource(t *testing.T) {
+	operationRoutes := []*mmodel.OperationRoute{
+		{OperationType: "bidirectional"},
+		{OperationType: "source"},
+	}
+
+	err := validateOperationRouteTypes(operationRoutes)
+	assert.NoError(t, err)
+}
+
 // TestValidateOperationRouteTypesMissingDebit tests validation error when debit is missing
 func TestValidateOperationRouteTypesMissingDebit(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{
