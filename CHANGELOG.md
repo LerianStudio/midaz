@@ -11,10 +11,6 @@
 - add write-behind cache mock expectations to existing transaction tests
 - update release version
 - update version
-- suppress gosec G706 false positive on sanitized log input
-- remove no-op semantic-release/exec plugin entry
-- linting
-- add write-behind cache mock expectations to existing transaction tests
 - update deps
 - remove filterStaleBalances to prevent silent balance update drops
 - add redis backup queue for commit/cancel transactions and correct consumer fromTo logic for canceled status
@@ -35,10 +31,6 @@
 - loop through all state transitions in CheckHealth to handle cold-start connections
 - adjust semantic release flow
 - releaserc
-- remove write-behind lookup from RevertTransaction to prevent FK violations
-- remove publisher confirms
-- skip write-behind update in sync mode to prevent orphaned Redis entries
-- fix: add TTL safety nets and correct write-behind cache lifecycle
 - add SetNX revert lock with write-behind-first lookup to prevent duplicate reversals
 - remove idempotency reverse lookup in favor of write-behind cache
 - promote transaction status to APPROVED before write-behind and queue
@@ -68,10 +60,7 @@
 - update application version from 3.3.10 to 3.3.11 in .env.example
 - add missing newline at end of Dockerfile for proper formatting
 - update hotfix version from 3.3.10 to 3.3.11 in .releaserc.yml
-- enhance balance key handling in Redis consumer to ensure default key is used when not specified
-- update group size in Lua script and add balance key handling in Redis consumer
 - remove trailing newline in Dockerfile for cleaner formatting
-- update lib-commons dependency to v2.3.1 in go.mod and go.sum
 - update CronTimeToRun and MessageTimeOfLife constants in Redis consumer for improved processing efficiency
 - remove handleReturns method and update message publishing parameters in RabbitMQ producer
 - implement distributed lock mechanism in Redis consumer to prevent duplicate transaction processing across pods
@@ -82,8 +71,6 @@
 - add transaction validation in Lua script and enhance error handling in Redis consumer
 - enhance error handling for transaction backup cache operations
 - update lib-commons dependency to v2.3.1 and update go.sum
-- add transaction validation in Lua script and enhance error handling in Redis consumer
-- enhance error handling for transaction backup cache operations
 - add complexity comment
 - initialize operations slice for new transactions in PostgreSQL repository
 - simplify logging for duplicate operation and transaction inserts
@@ -108,20 +95,9 @@
 - remove pending transaction lock after errors only
 - update next version to 15.5.7 and react to 19.1.2
 - update releaserc.yml to version 3.3.8
-- update next version to 15.5.7 and react to 19.1.2
 - correct comment wording in transaction handler for clarity
 - update hotfix branch configuration in release settings
 - update version
-
-### 🔧 Maintenance
-- Update GitHub Actions workflow to ignore workflow files and remove trigger from hotfix branches.
-- update release configuration to remove hotfix branch and rename to maintenance branch
-- Update CHANGELOG
-- configuring pipe to trigger build on hotfix branches
-- configuring pipe to trigger build on hotfix branches
-- configuring pipe to trigger build on hotfix branches
-
-
 
 ### 🐛 Bug Fixes
 - remove CPF and CNPJ validation functions and related tests
