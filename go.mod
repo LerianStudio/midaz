@@ -28,7 +28,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.41.0
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.27.1
-	google.golang.org/grpc v1.79.1
+	google.golang.org/grpc v1.79.2
 	google.golang.org/protobuf v1.36.11
 )
 
