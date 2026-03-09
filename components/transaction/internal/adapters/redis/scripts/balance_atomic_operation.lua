@@ -335,6 +335,10 @@ local function main()
             elseif operation == "CREDIT" and transactionStatus == "CANCELED" and routeValidationEnabled == 1 then
                 -- Double-entry: CREDIT adds to Available only.
                 result = add_decimal(balance.Available, amount)
+            elseif operation == "ON_HOLD" and transactionStatus == "APPROVED" and routeValidationEnabled == 1 then
+                -- Double-entry: ON_HOLD in APPROVED only decrements OnHold.
+                -- The Available++ will be a separate CREDIT operation.
+                resultOnHold = sub_decimal(balance.OnHold, amount)
             elseif transactionStatus == "APPROVED" then
                 if operation == "DEBIT" then
                     resultOnHold = sub_decimal(balance.OnHold, amount)
