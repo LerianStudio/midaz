@@ -938,6 +938,12 @@ const docTemplatecrm = `{
                     "minLength": 2,
                     "example": "US"
                 },
+                "description": {
+                    "description": "A descriptive label for the address (e.g., \"Home\", \"Office\", \"Billing\")\nexample: Home\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "Home"
+                },
                 "line1": {
                     "description": "Primary address line (street address or PO Box)\nexample: 123 Financial Avenue\nmaxLength: 256",
                     "type": "string",
@@ -1183,7 +1189,7 @@ const docTemplatecrm = `{
                     ]
                 },
                 "document": {
-                    "description": "The holder’s identification document.",
+                    "description": "The holder's identification document.",
                     "type": "string",
                     "example": "91315026015"
                 },

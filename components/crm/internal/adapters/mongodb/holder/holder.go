@@ -261,13 +261,13 @@ func mapAddressFromEntity(a *mmodel.Address) *AddressMongoDBModel {
 	}
 
 	return &AddressMongoDBModel{
-		Line1:   &a.Line1,
-		Line2:   a.Line2,
-		ZipCode: &a.ZipCode,
-		City:    &a.City,
-		State:   &a.State,
-		Country: &a.Country,
-		// Description: &a.Description, // TODO: Check if this is needed
+		Line1:       &a.Line1,
+		Line2:       a.Line2,
+		ZipCode:     &a.ZipCode,
+		City:        &a.City,
+		State:       &a.State,
+		Country:     &a.Country,
+		Description: a.Description,
 	}
 }
 
@@ -476,12 +476,12 @@ func mapAddressToEntity(a *AddressMongoDBModel) *mmodel.Address {
 	}
 
 	return &mmodel.Address{
-		Line1:   line1,
-		Line2:   a.Line2,
-		ZipCode: zipCode,
-		City:    city,
-		State:   state,
-		Country: country,
-		// Description: a.Description,
+		Line1:       line1,
+		Line2:       a.Line2,
+		ZipCode:     zipCode,
+		City:        city,
+		State:       state,
+		Country:     country,
+		Description: a.Description,
 	}
 }
