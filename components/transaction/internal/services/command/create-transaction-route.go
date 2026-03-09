@@ -107,11 +107,13 @@ func validateOperationRouteTypes(operationRoutes []*mmodel.OperationRoute) error
 	hasDestination := false
 
 	for _, operationRoute := range operationRoutes {
-		if operationRoute.OperationType == "source" {
+		switch operationRoute.OperationType {
+		case "source":
 			hasSource = true
-		}
-
-		if operationRoute.OperationType == "destination" {
+		case "destination":
+			hasDestination = true
+		case "bidirectional":
+			hasSource = true
 			hasDestination = true
 		}
 

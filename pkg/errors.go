@@ -989,7 +989,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrAccountingRouteCountMismatch.Error(),
 			Title:      "Accounting Route Count Mismatch",
-			Message:    fmt.Sprintf("The operation routes count does not match the transaction route cache. Expected %v source routes and %v destination routes, but found %v source routes and %v destination routes in the transaction route.", args...),
+			Message:    fmt.Sprintf("The operation routes count does not match the transaction route cache. Expected %v source and %v destination operations, but the route has %v source, %v destination, and %v bidirectional operation routes.", args...),
 		},
 		constant.ErrAccountingRouteNotFound: ValidationError{
 			EntityType: entityType,
