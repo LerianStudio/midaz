@@ -652,6 +652,12 @@ func TestSettingsSchema_NoDuplicateNestedFieldNames(t *testing.T) {
 	for parentKey, nestedFields := range settingsSchema {
 		for fieldName := range nestedFields {
 			if existingParent, exists := fieldToParent[fieldName]; exists {
+				// Build suggestion safely, handling empty fieldName
+				suggestion := parentKey
+				if fieldName != "" {
+					suggestion = parentKey + fieldName[:1] + fieldName[1:]
+				}
+
 				t.Fatalf(
 					"settingsSchema has duplicate nested field name %q: defined in both %q and %q. "+
 						"This causes nondeterministic behavior in knownNestedFieldNames. "+
@@ -659,7 +665,7 @@ func TestSettingsSchema_NoDuplicateNestedFieldNames(t *testing.T) {
 					fieldName,
 					existingParent,
 					parentKey,
-					parentKey+fieldName[:1]+string(fieldName[1:]), // Suggest qualified name
+					suggestion,
 					fieldName,
 				)
 			}
