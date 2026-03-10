@@ -1111,7 +1111,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 				BalanceKey:            *opBalanceKey,
 				VersionBalance:        opVersionBalance,
 				VersionBalanceAfter:   opVersionBalanceAfter,
-				Direction:             *opDirection,
+				Direction:             derefString(opDirection),
 				RouteID:               opRouteID,
 			}
 
@@ -1149,4 +1149,13 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	}
 
 	return transactions, cur, nil
+}
+
+// derefString safely dereferences a *string, returning "" if nil.
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+
+	return *s
 }

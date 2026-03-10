@@ -51,6 +51,12 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		logger.Infof("Trying to update balances")
 
+		if t.Validate == nil {
+			logger.Errorf("Transaction payload has nil Validate field, skipping balance update")
+
+			return fmt.Errorf("transaction payload has nil Validate field")
+		}
+
 		err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances, t.BalancesAfter)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)

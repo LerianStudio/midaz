@@ -865,7 +865,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	logger.Debugf("FindAllByAccount query: %s with args: %v", query, args)
+	logger.Debugf("FindAllByAccount query: %s", query)
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all_by_account.query")
 
@@ -988,7 +988,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 		return nil, err
 	}
 
-	logger.Debugf("FindLastOperationBeforeTimestamp query: %s with args: %v", query, args)
+	logger.Debugf("FindLastOperationBeforeTimestamp query: %s", query)
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_last_operation_before_timestamp.query")
 
@@ -1084,7 +1084,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	logger.Debugf("FindLastOperationsForAccountBeforeTimestamp query: %s with args: %v", query, args)
+	logger.Debugf("FindLastOperationsForAccountBeforeTimestamp query: %s", query)
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_last_operations_for_account_before_timestamp.query")
 

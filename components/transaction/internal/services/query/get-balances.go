@@ -12,6 +12,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -89,13 +90,19 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 			}
 
 			aliasAndKey := strings.Split(alias, "#")
+
+			balanceKey := constant.DefaultBalanceKey
+			if len(aliasAndKey) > 1 {
+				balanceKey = aliasAndKey[1]
+			}
+
 			newBalances = append(newBalances, &mmodel.Balance{
 				ID:             b.ID,
 				AccountID:      b.AccountID,
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          aliasAndKey[0],
-				Key:            aliasAndKey[1],
+				Key:            balanceKey,
 				Available:      b.Available,
 				OnHold:         b.OnHold,
 				Version:        b.Version,

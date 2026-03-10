@@ -494,6 +494,8 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 	// Validate bidirectional routes: operations with a route_id require
 	// the referenced OperationRoute to have OperationType "bidirectional".
+	// Collect unique route IDs first to avoid N+1 queries.
+	uniqueRouteIDs := make(map[uuid.UUID]struct{})
 	for _, op := range tran.Operations {
 		if op.Route == "" {
 			continue
@@ -504,11 +506,15 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 			continue
 		}
 
+		uniqueRouteIDs[routeUUID] = struct{}{}
+	}
+
+	for routeUUID := range uniqueRouteIDs {
 		operationRoute, routeErr := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, routeUUID)
 		if routeErr != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve operation route for revert validation", routeErr)
 
-			logger.Errorf("Failed to retrieve operation route %s for revert validation: %v", op.Route, routeErr)
+			logger.Errorf("Failed to retrieve operation route %s for revert validation: %v", routeUUID.String(), routeErr)
 
 			return http.WithError(c, routeErr)
 		}
@@ -519,7 +525,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation route is not bidirectional", err)
 
 			logger.Errorf("Operation route %s is not bidirectional (type: %s), cannot revert transaction %s",
-				op.Route, operationRoute.OperationType, transactionID.String())
+				routeUUID.String(), operationRoute.OperationType, transactionID.String())
 
 			return http.WithError(c, err)
 		}
@@ -937,13 +943,17 @@ func propagateRouteValidation(ctx context.Context, validate *pkgTransaction.Resp
 // we record the operation shape but do not reflect real balance values.
 // Each call allocates fresh values so that callers never share pointers.
 func zeroAnnotationBalances(balance, balanceAfter *operation.Balance) {
-	a := decimal.NewFromInt(0)
-	balance.Available = &a
-	balanceAfter.Available = &a
+	aBefore := decimal.NewFromInt(0)
+	balance.Available = &aBefore
 
-	o := decimal.NewFromInt(0)
-	balance.OnHold = &o
-	balanceAfter.OnHold = &o
+	aAfter := decimal.NewFromInt(0)
+	balanceAfter.Available = &aAfter
+
+	oBefore := decimal.NewFromInt(0)
+	balance.OnHold = &oBefore
+
+	oAfter := decimal.NewFromInt(0)
+	balanceAfter.OnHold = &oAfter
 
 	vBefore := int64(0)
 	balance.Version = &vBefore
@@ -1020,6 +1030,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
 		Route:           ft.Route,
+		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
 		Direction:       constant.DirectionDebit,
@@ -1066,6 +1077,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
 		Route:           ft.Route,
+		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
 		Direction:       constant.DirectionCredit,
@@ -1143,6 +1155,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
 		Route:           ft.Route,
+		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
 		Direction:       constant.DirectionDebit,
@@ -1189,6 +1202,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
 		Route:           ft.Route,
+		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
 		Direction:       constant.DirectionCredit,
@@ -1302,6 +1316,7 @@ func (handler *TransactionHandler) buildStandardOp(
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
 		Route:           ft.Route,
+		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
 		Direction:       amt.Direction,
