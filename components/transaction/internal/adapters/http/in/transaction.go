@@ -496,6 +496,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	// the referenced OperationRoute to have OperationType "bidirectional".
 	// Collect unique route IDs first to avoid N+1 queries.
 	uniqueRouteIDs := make(map[uuid.UUID]struct{})
+
 	for _, op := range tran.Operations {
 		if op.Route == "" {
 			continue
