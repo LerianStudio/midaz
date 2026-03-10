@@ -6,8 +6,10 @@ package mmodel
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -299,6 +301,7 @@ func TestValidateSettings(t *testing.T) {
 		input       map[string]any
 		wantErr     bool
 		errContains string
+		wantErrCode string // structured error code to assert, if non-empty
 	}{
 		{
 			name:    "nil settings returns no error",
@@ -398,6 +401,7 @@ func TestValidateSettings(t *testing.T) {
 			},
 			wantErr:     true,
 			errContains: "accounting",
+			wantErrCode: "0149",
 		},
 		{
 			name: "root-level validateRoutes returns error with field name in message",
@@ -406,6 +410,7 @@ func TestValidateSettings(t *testing.T) {
 			},
 			wantErr:     true,
 			errContains: "validateRoutes",
+			wantErrCode: "0149",
 		},
 		{
 			name: "mixed root-level and nested returns error for root-level",
@@ -417,6 +422,7 @@ func TestValidateSettings(t *testing.T) {
 			},
 			wantErr:     true,
 			errContains: "validateAccountType",
+			wantErrCode: "0149",
 		},
 		{
 			name: "multiple root-level fields returns error for first alphabetically",
@@ -426,6 +432,7 @@ func TestValidateSettings(t *testing.T) {
 			},
 			wantErr:     true,
 			errContains: "validateAccountType", // Deterministic: alphabetically first field is reported
+			wantErrCode: "0149",
 		},
 	}
 
@@ -435,6 +442,13 @@ func TestValidateSettings(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
+
+				if tt.wantErrCode != "" {
+					var vErr pkg.ValidationError
+					require.True(t, errors.As(err, &vErr), "expected ValidationError type, got %T", err)
+					assert.Equal(t, tt.wantErrCode, vErr.Code, "expected error code %q, got %q", tt.wantErrCode, vErr.Code)
+				}
+
 				assert.Contains(t, err.Error(), tt.errContains)
 			} else {
 				require.NoError(t, err)
@@ -624,6 +638,51 @@ func TestDeepMergeSettings(t *testing.T) {
 				assert.Equal(t, existingCopy, tt.existing, "original existing map must not be mutated")
 			}
 		})
+	}
+}
+
+// TestSettingsSchema_NoDuplicateNestedFieldNames validates that settingsSchema has no duplicate
+// nested field names across different parent keys. If two parent keys define the same nested
+// field name, knownNestedFieldNames would have nondeterministic behavior due to map iteration order.
+// This test catches such issues at CI/CD time before deployment.
+func TestSettingsSchema_NoDuplicateNestedFieldNames(t *testing.T) {
+	// Track which parent key owns each field name
+	fieldToParent := make(map[string]string)
+
+	for parentKey, nestedFields := range settingsSchema {
+		for fieldName := range nestedFields {
+			if existingParent, exists := fieldToParent[fieldName]; exists {
+				t.Fatalf(
+					"settingsSchema has duplicate nested field name %q: defined in both %q and %q. "+
+						"This causes nondeterministic behavior in knownNestedFieldNames. "+
+						"Use unique field names or qualified names (e.g., %q instead of %q).",
+					fieldName,
+					existingParent,
+					parentKey,
+					parentKey+fieldName[:1]+string(fieldName[1:]), // Suggest qualified name
+					fieldName,
+				)
+			}
+
+			fieldToParent[fieldName] = parentKey
+		}
+	}
+
+	// Also verify knownNestedFieldNames was built correctly
+	for fieldName, expectedParent := range fieldToParent {
+		actualParent, exists := knownNestedFieldNames[fieldName]
+		if !exists {
+			t.Errorf("knownNestedFieldNames missing field %q (expected parent: %q)", fieldName, expectedParent)
+		} else if actualParent != expectedParent {
+			t.Errorf("knownNestedFieldNames[%q] = %q, expected %q", fieldName, actualParent, expectedParent)
+		}
+	}
+
+	// Verify no extra fields in knownNestedFieldNames
+	for fieldName := range knownNestedFieldNames {
+		if _, exists := fieldToParent[fieldName]; !exists {
+			t.Errorf("knownNestedFieldNames contains unexpected field %q", fieldName)
+		}
 	}
 }
 
