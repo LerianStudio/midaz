@@ -160,6 +160,7 @@ var (
 	ErrTenantNotProvisioned                     = errors.New("0146")
 	ErrUnknownSettingsField                     = errors.New("0147")
 	ErrInvalidSettingsFieldType                 = errors.New("0148")
+	ErrSettingsRootLevelField                   = errors.New("0149")
 )
 
 // List of CRM errors.

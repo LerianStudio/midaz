@@ -6,8 +6,10 @@ package mmodel
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -299,6 +301,7 @@ func TestValidateSettings(t *testing.T) {
 		input       map[string]any
 		wantErr     bool
 		errContains string
+		wantErrCode string // structured error code to assert, if non-empty
 	}{
 		{
 			name:    "nil settings returns no error",
@@ -391,6 +394,46 @@ func TestValidateSettings(t *testing.T) {
 			wantErr:     true,
 			errContains: "validateAccountType",
 		},
+		{
+			name: "root-level validateAccountType returns error with parent key in message",
+			input: map[string]any{
+				"validateAccountType": true,
+			},
+			wantErr:     true,
+			errContains: "accounting",
+			wantErrCode: "0149",
+		},
+		{
+			name: "root-level validateRoutes returns error with field name in message",
+			input: map[string]any{
+				"validateRoutes": false,
+			},
+			wantErr:     true,
+			errContains: "validateRoutes",
+			wantErrCode: "0149",
+		},
+		{
+			name: "mixed root-level and nested returns error for root-level",
+			input: map[string]any{
+				"validateAccountType": true,
+				"accounting": map[string]any{
+					"validateRoutes": true,
+				},
+			},
+			wantErr:     true,
+			errContains: "validateAccountType",
+			wantErrCode: "0149",
+		},
+		{
+			name: "multiple root-level fields returns error for first alphabetically",
+			input: map[string]any{
+				"validateAccountType": false,
+				"validateRoutes":      true,
+			},
+			wantErr:     true,
+			errContains: "validateAccountType", // Deterministic: alphabetically first field is reported
+			wantErrCode: "0149",
+		},
 	}
 
 	for _, tt := range tests {
@@ -399,6 +442,13 @@ func TestValidateSettings(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
+
+				if tt.wantErrCode != "" {
+					var vErr pkg.ValidationError
+					require.True(t, errors.As(err, &vErr), "expected ValidationError type, got %T", err)
+					assert.Equal(t, tt.wantErrCode, vErr.Code, "expected error code %q, got %q", tt.wantErrCode, vErr.Code)
+				}
+
 				assert.Contains(t, err.Error(), tt.errContains)
 			} else {
 				require.NoError(t, err)
@@ -591,6 +641,57 @@ func TestDeepMergeSettings(t *testing.T) {
 	}
 }
 
+// TestSettingsSchema_NoDuplicateNestedFieldNames validates that settingsSchema has no duplicate
+// nested field names across different parent keys. If two parent keys define the same nested
+// field name, knownNestedFieldNames would have nondeterministic behavior due to map iteration order.
+// This test catches such issues at CI/CD time before deployment.
+func TestSettingsSchema_NoDuplicateNestedFieldNames(t *testing.T) {
+	// Track which parent key owns each field name
+	fieldToParent := make(map[string]string)
+
+	for parentKey, nestedFields := range settingsSchema {
+		for fieldName := range nestedFields {
+			if existingParent, exists := fieldToParent[fieldName]; exists {
+				// Build suggestion safely, handling empty fieldName
+				suggestion := parentKey
+				if fieldName != "" {
+					suggestion = parentKey + "." + fieldName
+				}
+
+				t.Fatalf(
+					"settingsSchema has duplicate nested field name %q: defined in both %q and %q. "+
+						"This causes nondeterministic behavior in knownNestedFieldNames. "+
+						"Use unique field names or qualified names (e.g., %q instead of %q).",
+					fieldName,
+					existingParent,
+					parentKey,
+					suggestion,
+					fieldName,
+				)
+			}
+
+			fieldToParent[fieldName] = parentKey
+		}
+	}
+
+	// Also verify knownNestedFieldNames was built correctly
+	for fieldName, expectedParent := range fieldToParent {
+		actualParent, exists := knownNestedFieldNames[fieldName]
+		if !exists {
+			t.Errorf("knownNestedFieldNames missing field %q (expected parent: %q)", fieldName, expectedParent)
+		} else if actualParent != expectedParent {
+			t.Errorf("knownNestedFieldNames[%q] = %q, expected %q", fieldName, actualParent, expectedParent)
+		}
+	}
+
+	// Verify no extra fields in knownNestedFieldNames
+	for fieldName := range knownNestedFieldNames {
+		if _, exists := fieldToParent[fieldName]; !exists {
+			t.Errorf("knownNestedFieldNames contains unexpected field %q", fieldName)
+		}
+	}
+}
+
 // FuzzValidateSettings verifies ValidateSettings never panics on arbitrary JSON input.
 // It uses JSON strings as fuzz input since Go's fuzzing only supports primitive types.
 // The function must either return nil (valid) or an error (invalid) - never panic.
@@ -620,6 +721,11 @@ func FuzzValidateSettings(f *testing.F) {
 		`123`,
 		`true`,
 		`false`,
+		// Root-level field cases (should be nested under parent key)
+		`{"validateAccountType": true}`,
+		`{"validateRoutes": false}`,
+		`{"validateAccountType": true, "validateRoutes": false}`,
+		`{"validateAccountType": true, "accounting": {"validateRoutes": true}}`,
 	}
 
 	for _, seed := range seeds {
