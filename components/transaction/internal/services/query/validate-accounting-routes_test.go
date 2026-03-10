@@ -609,14 +609,14 @@ func TestValidateDirectionRouteMatch(t *testing.T) {
 			direction:     "credit",
 			operationType: "source",
 			expectError:   true,
-			errorCode:     "0151",
+			errorCode:     "0152",
 		},
 		{
 			name:          "debit direction with destination route fails",
 			direction:     "debit",
 			operationType: "destination",
 			expectError:   true,
-			errorCode:     "0151",
+			errorCode:     "0152",
 		},
 		{
 			name:          "credit direction with destination route passes",
@@ -779,7 +779,7 @@ func TestValidateCounterparts(t *testing.T) {
 				"sender-2": "route-1",
 			},
 			expectError: true,
-			errorCode:   "0150",
+			errorCode:   "0151",
 		},
 		{
 			name: "route with only credit operations fails",
@@ -802,7 +802,7 @@ func TestValidateCounterparts(t *testing.T) {
 				"receiver-2": "route-1",
 			},
 			expectError: true,
-			errorCode:   "0150",
+			errorCode:   "0151",
 		},
 		{
 			name: "multiple routes all with counterparts passes",
@@ -868,7 +868,7 @@ func TestValidateCounterparts(t *testing.T) {
 				"sender-b":   "route-2",
 			},
 			expectError: true,
-			errorCode:   "0150",
+			errorCode:   "0151",
 		},
 		{
 			name:        "nil routeMap passes with no routes to validate",
@@ -934,7 +934,7 @@ func TestValidateCounterparts(t *testing.T) {
 				"receiver": "route-1",
 			},
 			expectError: true,
-			errorCode:   "0150",
+			errorCode:   "0151",
 		},
 	}
 
