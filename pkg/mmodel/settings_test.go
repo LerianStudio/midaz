@@ -391,6 +391,42 @@ func TestValidateSettings(t *testing.T) {
 			wantErr:     true,
 			errContains: "validateAccountType",
 		},
+		{
+			name: "root-level validateAccountType returns error with parent key in message",
+			input: map[string]any{
+				"validateAccountType": true,
+			},
+			wantErr:     true,
+			errContains: "accounting",
+		},
+		{
+			name: "root-level validateRoutes returns error with field name in message",
+			input: map[string]any{
+				"validateRoutes": false,
+			},
+			wantErr:     true,
+			errContains: "validateRoutes",
+		},
+		{
+			name: "mixed root-level and nested returns error for root-level",
+			input: map[string]any{
+				"validateAccountType": true,
+				"accounting": map[string]any{
+					"validateRoutes": true,
+				},
+			},
+			wantErr:     true,
+			errContains: "validateAccountType",
+		},
+		{
+			name: "multiple root-level fields returns error for first alphabetically",
+			input: map[string]any{
+				"validateAccountType": false,
+				"validateRoutes":      true,
+			},
+			wantErr:     true,
+			errContains: "validateAccountType", // Deterministic: alphabetically first field is reported
+		},
 	}
 
 	for _, tt := range tests {
@@ -620,6 +656,11 @@ func FuzzValidateSettings(f *testing.F) {
 		`123`,
 		`true`,
 		`false`,
+		// Root-level field cases (should be nested under parent key)
+		`{"validateAccountType": true}`,
+		`{"validateRoutes": false}`,
+		`{"validateAccountType": true, "validateRoutes": false}`,
+		`{"validateAccountType": true, "accounting": {"validateRoutes": true}}`,
 	}
 
 	for _, seed := range seeds {

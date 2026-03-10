@@ -1261,6 +1261,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Settings Field Type",
 			Message:    fmt.Sprintf("The settings field '%v' has an invalid type. Expected %v.", args...),
 		},
+		constant.ErrSettingsRootLevelField: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrSettingsRootLevelField.Error(),
+			Title:      "Settings Field at Root Level",
+			Message:    fmt.Sprintf("The settings field '%v' must be nested under '%v'. Expected structure: {\"%v\": {\"%v\": value}}.", args...),
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
