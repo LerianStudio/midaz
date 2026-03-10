@@ -211,7 +211,7 @@ func TestIntegration_Migration000023_CheckConstraintRejectsInvalid(t *testing.T)
 				INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, action, created_at)
 				VALUES (gen_random_uuid(), $1, $2, $3, NOW())
 			`, opRouteID, txRouteID, action)
-			assert.Error(t, err, "CHECK constraint must reject action %q", action)
+			require.Error(t, err, "CHECK constraint must reject action %q", action)
 			assert.Contains(t, err.Error(), "chk_otr_action",
 				"error must reference the CHECK constraint for action %q", action)
 		})
@@ -254,7 +254,7 @@ func TestIntegration_Migration000023_UniqueIndexPreventsDuplicates(t *testing.T)
 		INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, action, created_at)
 		VALUES (gen_random_uuid(), $1, $2, 'direct', NOW())
 	`, opRouteID, txRouteID)
-	assert.Error(t, err, "unique index must prevent duplicate (op_route, tx_route, action)")
+	require.Error(t, err, "unique index must prevent duplicate (op_route, tx_route, action)")
 	assert.Contains(t, err.Error(), "idx_operation_transaction_route_unique",
 		"error must reference the unique index")
 

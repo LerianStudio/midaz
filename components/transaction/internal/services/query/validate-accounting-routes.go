@@ -88,6 +88,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	// once in uniqueFrom and once in uniqueTo, so we must subtract the shared
 	// count to avoid double-counting.
 	bidirectionalFromRoutes := make(map[string]bool)
+
 	for _, routeID := range validate.OperationRoutesFrom {
 		if _, isBidirectional := transactionRouteCache.Bidirectional[routeID]; isBidirectional {
 			bidirectionalFromRoutes[routeID] = true
@@ -95,6 +96,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	}
 
 	sharedBidirectionalRoutes := make(map[string]bool)
+
 	for _, routeID := range validate.OperationRoutesTo {
 		if bidirectionalFromRoutes[routeID] {
 			sharedBidirectionalRoutes[routeID] = true
@@ -114,6 +116,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	}
 
 	mergedRouteMap := make(map[string]string)
+
 	for alias, routeID := range validate.OperationRoutesFrom {
 		if sharedBidirectionalRoutes[routeID] {
 			mergedRouteMap[alias] = routeID
