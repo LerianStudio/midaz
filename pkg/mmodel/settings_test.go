@@ -655,7 +655,7 @@ func TestSettingsSchema_NoDuplicateNestedFieldNames(t *testing.T) {
 				// Build suggestion safely, handling empty fieldName
 				suggestion := parentKey
 				if fieldName != "" {
-					suggestion = parentKey + fieldName[:1] + fieldName[1:]
+					suggestion = parentKey + "." + fieldName
 				}
 
 				t.Fatalf(
