@@ -82,22 +82,11 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	destinationRoutesCount := len(transactionRouteCache.Destination)
 	bidirectionalRoutesCount := len(transactionRouteCache.Bidirectional)
 
-	totalCacheRoutes := sourceRoutesCount + destinationRoutesCount + bidirectionalRoutesCount
-	totalUsedRoutes := uniqueFromCount + uniqueToCount
-
-	if totalUsedRoutes != totalCacheRoutes || uniqueFromCount < sourceRoutesCount || uniqueToCount < destinationRoutesCount {
-		err := pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting route count mismatch", err)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Route count mismatch: from=%d to=%d, cache has source=%d destination=%d bidirectional=%d", uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount))
-
-		return err
-	}
-
-	// Build merged route map for counterpart validation.
-	// Only validate counterparts for bidirectional routes that appear on BOTH sides
-	// of the transaction (from AND to). A bidirectional route used on only one side
-	// (e.g., src1 in "from" only) doesn't need a counterpart in the same transaction.
+	// Build shared bidirectional route set first — needed both for count
+	// validation and for counterpart validation below.
+	// A bidirectional route appearing on BOTH from and to sides is counted
+	// once in uniqueFrom and once in uniqueTo, so we must subtract the shared
+	// count to avoid double-counting.
 	bidirectionalFromRoutes := make(map[string]bool)
 	for _, routeID := range validate.OperationRoutesFrom {
 		if _, isBidirectional := transactionRouteCache.Bidirectional[routeID]; isBidirectional {
@@ -110,6 +99,18 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 		if bidirectionalFromRoutes[routeID] {
 			sharedBidirectionalRoutes[routeID] = true
 		}
+	}
+
+	totalCacheRoutes := sourceRoutesCount + destinationRoutesCount + bidirectionalRoutesCount
+	totalUsedRoutes := uniqueFromCount + uniqueToCount - len(sharedBidirectionalRoutes)
+
+	if totalUsedRoutes != totalCacheRoutes || uniqueFromCount < sourceRoutesCount || uniqueToCount < destinationRoutesCount {
+		err := pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting route count mismatch", err)
+
+		logger.Warnf("Route count mismatch: from=%d to=%d, cache has source=%d destination=%d bidirectional=%d shared=%d", uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount, len(sharedBidirectionalRoutes))
+
+		return err
 	}
 
 	mergedRouteMap := make(map[string]string)

@@ -45,7 +45,7 @@ type OperationPostgreSQLModel struct {
 	DeletedAt             sql.NullTime     // Deletion timestamp (if soft-deleted)
 	Route                 *string          // Route
 	BalanceAffected       bool             // BalanceAffected default true
-	Direction             string           // Direction of the operation (source, destination, bidirectional)
+	Direction             string           // Direction of the operation (debit, credit)
 	RouteID               *string          // Route ID referencing operation_route table
 	Metadata              map[string]any   // Additional custom attributes
 }
@@ -235,10 +235,10 @@ type Operation struct {
 	// format: boolean
 	BalanceAffected bool `json:"balanceAffected" example:"true" format:"boolean"`
 
-	// Direction of the operation (source, destination, bidirectional)
-	// example: source
+	// Direction of the operation (debit, credit)
+	// example: debit
 	// maxLength: 50
-	Direction string `json:"direction,omitempty" example:"source" maxLength:"50"`
+	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50"`
 
 	// Route ID referencing the operation route that generated this operation
 	// example: 00000000-0000-0000-0000-000000000000
@@ -605,10 +605,10 @@ type OperationLog struct {
 	// format: boolean
 	BalanceAffected bool `json:"balanceAffected" example:"true" format:"boolean"`
 
-	// Direction of the operation (source, destination, bidirectional)
-	// example: source
+	// Direction of the operation (debit, credit)
+	// example: debit
 	// maxLength: 50
-	Direction string `json:"direction,omitempty" example:"source" maxLength:"50"`
+	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50"`
 
 	// Route ID referencing the operation route that generated this operation
 	// example: 00000000-0000-0000-0000-000000000000
