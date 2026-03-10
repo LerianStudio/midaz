@@ -1,3 +1,14 @@
+## [v3.5.3] - 2026-03-09
+
+### 🐛 Bug Fixes
+- restore description field to CRM Address model
+
+### 🔧 Maintenance
+- remove beta version libCommons
+- update fiber to 2.52.12
+- Update CHANGELOG
+
+
 ## [v3.5.2] - 2026-02-24
 
 ### ✨ Features
