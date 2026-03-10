@@ -32,10 +32,13 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 	operationRouteID2 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		Description:     "Test Description",
-		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
-		Metadata:        map[string]any{"key": "value"},
+		Title:       "Test Transaction Route",
+		Description: "Test Description",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{Action: "direct", OperationRouteID: operationRouteID1},
+			{Action: "direct", OperationRouteID: operationRouteID2},
+		},
+		Metadata: map[string]any{"key": "value"},
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
@@ -78,7 +81,7 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
@@ -113,9 +116,12 @@ func TestCreateTransactionRouteSuccessWithoutMetadata(t *testing.T) {
 	operationRouteID2 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		Description:     "Test Description",
-		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
+		Title:       "Test Transaction Route",
+		Description: "Test Description",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{Action: "direct", OperationRouteID: operationRouteID1},
+			{Action: "direct", OperationRouteID: operationRouteID2},
+		},
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
@@ -144,7 +150,7 @@ func TestCreateTransactionRouteSuccessWithoutMetadata(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
@@ -170,8 +176,10 @@ func TestCreateTransactionRouteErrorOperationRoutesNotFound(t *testing.T) {
 	operationRouteID1 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		OperationRoutes: []uuid.UUID{operationRouteID1},
+		Title: "Test Transaction Route",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{Action: "direct", OperationRouteID: operationRouteID1},
+		},
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
@@ -182,7 +190,7 @@ func TestCreateTransactionRouteErrorOperationRoutesNotFound(t *testing.T) {
 	expectedError := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(nil, expectedError).
 		Times(1)
 
@@ -203,8 +211,10 @@ func TestCreateTransactionRouteErrorMissingDebitRoute(t *testing.T) {
 	operationRouteID1 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		OperationRoutes: []uuid.UUID{operationRouteID1},
+		Title: "Test Transaction Route",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{Action: "direct", OperationRouteID: operationRouteID1},
+		},
 	}
 
 	// Only credit operation route, missing debit
@@ -221,7 +231,7 @@ func TestCreateTransactionRouteErrorMissingDebitRoute(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
@@ -243,8 +253,10 @@ func TestCreateTransactionRouteErrorMissingCreditRoute(t *testing.T) {
 	operationRouteID1 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		OperationRoutes: []uuid.UUID{operationRouteID1},
+		Title: "Test Transaction Route",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{Action: "direct", OperationRouteID: operationRouteID1},
+		},
 	}
 
 	// Only debit operation route, missing credit
@@ -261,7 +273,7 @@ func TestCreateTransactionRouteErrorMissingCreditRoute(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
@@ -284,8 +296,11 @@ func TestCreateTransactionRouteErrorTransactionRouteCreationFails(t *testing.T) 
 	operationRouteID2 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
+		Title: "Test Transaction Route",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{Action: "direct", OperationRouteID: operationRouteID1},
+			{Action: "direct", OperationRouteID: operationRouteID2},
+		},
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
@@ -308,7 +323,7 @@ func TestCreateTransactionRouteErrorTransactionRouteCreationFails(t *testing.T) 
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
@@ -336,9 +351,12 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	operationRouteID2 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
-		Metadata:        map[string]any{"key": "value"},
+		Title: "Test Transaction Route",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{Action: "direct", OperationRouteID: operationRouteID1},
+			{Action: "direct", OperationRouteID: operationRouteID2},
+		},
+		Metadata: map[string]any{"key": "value"},
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
@@ -369,7 +387,7 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 

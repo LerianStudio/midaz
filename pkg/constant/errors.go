@@ -164,6 +164,11 @@ var (
 	ErrRouteNotBidirectional                    = errors.New("0150")
 	ErrMissingCounterpart                       = errors.New("0151")
 	ErrDirectionRouteMismatch                   = errors.New("0152")
+	ErrNoSourceForAction                        = errors.New("0153")
+	ErrNoDestinationForAction                   = errors.New("0154")
+	ErrInvalidRouteAction                       = errors.New("0155")
+	ErrDuplicateActionRoute                     = errors.New("0156")
+	ErrNoRoutesForAction                        = errors.New("0157")
 )
 
 // List of CRM errors.

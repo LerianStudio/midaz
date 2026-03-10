@@ -38,6 +38,16 @@ type TransactionRoute struct {
 	DeletedAt *time.Time `json:"deletedAt" example:"2025-01-01T00:00:00Z"`
 } // @name TransactionRoute
 
+// OperationRouteActionInput represents an operation route with its associated action.
+//
+// @Description OperationRouteActionInput payload for associating an operation route with an action in a transaction route.
+type OperationRouteActionInput struct {
+	// The action for this operation route association.
+	Action string `json:"action" validate:"required,oneof=direct hold commit cancel revert" example:"direct"`
+	// The unique identifier of the Operation Route.
+	OperationRouteID uuid.UUID `json:"operationRouteId" validate:"required" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+} // @name OperationRouteActionInput
+
 // CreateTransactionRouteInput is a struct designed to store CreateRouteInput data.
 //
 // swagger:model CreateTransactionRouteInput
@@ -50,8 +60,18 @@ type CreateTransactionRouteInput struct {
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// An object containing accounting data of Operation Routes from the Transaction Route.
-	OperationRoutes []uuid.UUID `json:"operationRoutes,omitempty" validate:"required"`
+	OperationRoutes []OperationRouteActionInput `json:"operationRoutes,omitempty" validate:"required,dive"`
 } // @name CreateTransactionRouteInput
+
+// OperationRouteIDs extracts the operation route UUIDs from the input.
+func (c *CreateTransactionRouteInput) OperationRouteIDs() []uuid.UUID {
+	ids := make([]uuid.UUID, len(c.OperationRoutes))
+	for i, route := range c.OperationRoutes {
+		ids[i] = route.OperationRouteID
+	}
+
+	return ids
+}
 
 // UpdateTransactionRouteInput is a struct designed to store transaction route update data.
 //
@@ -65,14 +85,37 @@ type UpdateTransactionRouteInput struct {
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// An object containing accounting data of Operation Routes from the Transaction Route.
-	OperationRoutes *[]uuid.UUID `json:"operationRoutes,omitempty"`
+	OperationRoutes *[]OperationRouteActionInput `json:"operationRoutes,omitempty" validate:"omitempty,dive"`
 } // @name UpdateTransactionRouteInput
+
+// OperationRouteIDs extracts the operation route UUIDs from the input.
+// Returns nil if OperationRoutes is nil.
+func (u *UpdateTransactionRouteInput) OperationRouteIDs() []uuid.UUID {
+	if u.OperationRoutes == nil {
+		return nil
+	}
+
+	ids := make([]uuid.UUID, len(*u.OperationRoutes))
+	for i, route := range *u.OperationRoutes {
+		ids[i] = route.OperationRouteID
+	}
+
+	return ids
+}
+
+// ActionRouteCache represents cached routes grouped by operation type for a single action.
+type ActionRouteCache struct {
+	Source        map[string]OperationRouteCache `json:"source,omitempty" msgpack:"source,omitempty"`
+	Destination   map[string]OperationRouteCache `json:"destination,omitempty" msgpack:"destination,omitempty"`
+	Bidirectional map[string]OperationRouteCache `json:"bidirectional,omitempty" msgpack:"bidirectional,omitempty"`
+}
 
 // TransactionRouteCache represents the cache structure for transaction routes in Redis
 type TransactionRouteCache struct {
 	Source        map[string]OperationRouteCache `json:"source"`
 	Destination   map[string]OperationRouteCache `json:"destination"`
 	Bidirectional map[string]OperationRouteCache `json:"bidirectional,omitempty"`
+	Actions       map[string]ActionRouteCache    `json:"actions,omitempty" msgpack:"actions,omitempty"`
 }
 
 // OperationRouteCache represents the cached data for a single operation route
@@ -88,12 +131,13 @@ type AccountCache struct {
 }
 
 // ToCache converts the transaction route into a cache structure for Redis storage.
-// Returns a TransactionRouteCache struct with routes pre-categorized by type.
+// Returns a TransactionRouteCache struct with routes pre-categorized by type and grouped by action.
 func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 	cacheData := TransactionRouteCache{
 		Source:        make(map[string]OperationRouteCache),
 		Destination:   make(map[string]OperationRouteCache),
 		Bidirectional: make(map[string]OperationRouteCache),
+		Actions:       make(map[string]ActionRouteCache),
 	}
 
 	for _, operationRoute := range tr.OperationRoutes {
@@ -108,7 +152,7 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 			}
 		}
 
-		// Categorize by operation type
+		// Categorize by operation type (legacy fields)
 		routeID := operationRoute.ID.String()
 
 		switch operationRoute.OperationType {
@@ -118,6 +162,32 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 			cacheData.Destination[routeID] = routeData
 		case "bidirectional":
 			cacheData.Bidirectional[routeID] = routeData
+		}
+
+		// Group by action (only for known operation types)
+		action := operationRoute.Action
+
+		switch operationRoute.OperationType {
+		case "source", "destination", "bidirectional":
+			actionCache, exists := cacheData.Actions[action]
+			if !exists {
+				actionCache = ActionRouteCache{
+					Source:        make(map[string]OperationRouteCache),
+					Destination:   make(map[string]OperationRouteCache),
+					Bidirectional: make(map[string]OperationRouteCache),
+				}
+			}
+
+			switch operationRoute.OperationType {
+			case "source":
+				actionCache.Source[routeID] = routeData
+			case "destination":
+				actionCache.Destination[routeID] = routeData
+			case "bidirectional":
+				actionCache.Bidirectional[routeID] = routeData
+			}
+
+			cacheData.Actions[action] = actionCache
 		}
 	}
 
