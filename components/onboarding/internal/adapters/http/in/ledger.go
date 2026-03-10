@@ -384,7 +384,7 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 // GetLedgerSettings retrieves the settings for a specific ledger.
 //
 //	@Summary		Get ledger settings
-//	@Description	Returns the current configuration settings for a specific ledger. Returns an empty object {} if no settings have been defined.
+//	@Description	Returns the current configuration settings for a specific ledger. If no settings have been persisted, returns the default settings object.
 //	@Tags			Ledgers
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"

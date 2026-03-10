@@ -95,6 +95,20 @@ const docTemplateonboarding = `{
                         "description": "Sort direction for results based on creation date",
                         "name": "sort_order",
                         "in": "query"
+                    },
+                    {
+                        "maxLength": 256,
+                        "type": "string",
+                        "description": "Filter organizations by legal name (case-insensitive, prefix match)",
+                        "name": "legal_name",
+                        "in": "query"
+                    },
+                    {
+                        "maxLength": 256,
+                        "type": "string",
+                        "description": "Filter organizations by doing business as name (case-insensitive, prefix match)",
+                        "name": "doing_business_as",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -561,6 +575,13 @@ const docTemplateonboarding = `{
                         "description": "Sort direction for results based on creation date",
                         "name": "sort_order",
                         "in": "query"
+                    },
+                    {
+                        "maxLength": 256,
+                        "type": "string",
+                        "description": "Filter ledgers by name (case-insensitive, prefix match)",
+                        "name": "name",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -986,6 +1007,171 @@ const docTemplateonboarding = `{
                     },
                     "404": {
                         "description": "Ledger or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{id}/settings": {
+            "get": {
+                "description": "Returns the current configuration settings for a specific ledger. If no settings have been persisted, returns the default settings object.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Ledgers"
+                ],
+                "summary": "Get ledger settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully retrieved ledger settings",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Ledger not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Setting a key to null stores a JSON null value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Ledgers"
+                ],
+                "summary": "Update ledger settings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID for tracing",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID in UUID format",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID in UUID format",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)",
+                        "name": "settings",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully updated ledger settings",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body, unknown field (0147), or invalid field type (0148)",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Ledger not found",
                         "schema": {
                             "$ref": "#/definitions/Error"
                         }
@@ -4099,6 +4285,12 @@ const docTemplateonboarding = `{
                     "minLength": 2,
                     "example": "US"
                 },
+                "description": {
+                    "description": "A descriptive label for the address (e.g., \"Home\", \"Office\", \"Billing\")\nexample: Home\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "Home"
+                },
                 "line1": {
                     "description": "Primary address line (street address or PO Box)\nexample: 123 Financial Avenue\nmaxLength: 256",
                     "type": "string",
@@ -4360,6 +4552,14 @@ const docTemplateonboarding = `{
                     "type": "string",
                     "maxLength": 256
                 },
+                "settings": {
+                    "description": "Dynamic configuration settings for this ledger. When nil, no settings are persisted (optional).\nexample: {\"accounting\": {\"validateAccountType\": true}}",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/mmodel.LedgerSettings"
+                        }
+                    ]
+                },
                 "status": {
                     "description": "Current operating status of the ledger (defaults to ACTIVE if not specified)\nrequired: false",
                     "allOf": [
@@ -4561,6 +4761,11 @@ const docTemplateonboarding = `{
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "settings": {
+                    "description": "Dynamic configuration settings for this ledger\nexample: {\"accounting\": {\"validateAccountType\": true}}",
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "status": {
                     "description": "Current operating status of the ledger",
@@ -5036,6 +5241,32 @@ const docTemplateonboarding = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/Status"
+                        }
+                    ]
+                }
+            }
+        },
+        "mmodel.AccountingValidation": {
+            "type": "object",
+            "properties": {
+                "validateAccountType": {
+                    "description": "ValidateAccountType enables validation of account types during transaction processing.\nWhen true, accounts must have types that match the operation route rules.\nDefault: false (permissive - no validation)",
+                    "type": "boolean"
+                },
+                "validateRoutes": {
+                    "description": "ValidateRoutes enables validation of transaction routes during processing.\nWhen true, transactions must specify valid route IDs that exist in the ledger.\nDefault: false (permissive - no validation)",
+                    "type": "boolean"
+                }
+            }
+        },
+        "mmodel.LedgerSettings": {
+            "type": "object",
+            "properties": {
+                "accounting": {
+                    "description": "Accounting contains validation settings for accounting operations.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/mmodel.AccountingValidation"
                         }
                     ]
                 }

@@ -203,6 +203,14 @@ definitions:
         maxLength: 2
         minLength: 2
         type: string
+      description:
+        description: |-
+          A descriptive label for the address (e.g., "Home", "Office", "Billing")
+          example: Home
+          maxLength: 100
+        example: Home
+        maxLength: 100
+        type: string
       line1:
         description: |-
           Primary address line (street address or PO Box)
@@ -472,6 +480,12 @@ definitions:
           maxLength: 256
         maxLength: 256
         type: string
+      settings:
+        allOf:
+        - $ref: '#/definitions/mmodel.LedgerSettings'
+        description: |-
+          Dynamic configuration settings for this ledger. When nil, no settings are persisted (optional).
+          example: {"accounting": {"validateAccountType": true}}
       status:
         allOf:
         - $ref: '#/definitions/Status'
@@ -693,7 +707,11 @@ definitions:
         format: uuid
         type: string
       settings:
-        $ref: '#/definitions/LedgerSettings'
+        additionalProperties: {}
+        description: |-
+          Dynamic configuration settings for this ledger
+          example: {"accounting": {"validateAccountType": true}}
+        type: object
       status:
         allOf:
         - $ref: '#/definitions/Status'
@@ -707,26 +725,6 @@ definitions:
         format: date-time
         type: string
     type: object
-  LedgerSettings:
-    description: Ledger configuration settings. Only known fields are allowed; unknown
-      fields return error 0147 (ErrUnknownSettingsField). Invalid types return error
-      0148 (ErrInvalidSettingsFieldType).
-    type: object
-    properties:
-      accounting:
-        description: Accounting validation settings
-        type: object
-        properties:
-          validateAccountType:
-            description: When true, validates account types against route rules. Default false. May be JSON null.
-            type: boolean
-            x-nullable: true
-          validateRoutes:
-            description: When true, validates transaction routes. Default false. May be JSON null.
-            type: boolean
-            x-nullable: true
-        additionalProperties: false
-    additionalProperties: false
   Organization:
     description: Complete organization entity containing all fields including system-generated
       fields like ID, creation timestamps, and metadata. This is the response format
@@ -1169,6 +1167,28 @@ definitions:
         allOf:
         - $ref: '#/definitions/Status'
         description: Updated status of the segment (active, inactive, pending)
+    type: object
+  mmodel.AccountingValidation:
+    properties:
+      validateAccountType:
+        description: |-
+          ValidateAccountType enables validation of account types during transaction processing.
+          When true, accounts must have types that match the operation route rules.
+          Default: false (permissive - no validation)
+        type: boolean
+      validateRoutes:
+        description: |-
+          ValidateRoutes enables validation of transaction routes during processing.
+          When true, transactions must specify valid route IDs that exist in the ledger.
+          Default: false (permissive - no validation)
+        type: boolean
+    type: object
+  mmodel.LedgerSettings:
+    properties:
+      accounting:
+        allOf:
+        - $ref: '#/definitions/mmodel.AccountingValidation'
+        description: Accounting contains validation settings for accounting operations.
     type: object
 host: localhost:3000
 info:
@@ -1816,7 +1836,8 @@ paths:
         "200":
           description: Successfully retrieved ledger settings
           schema:
-            $ref: '#/definitions/LedgerSettings'
+            additionalProperties: true
+            type: object
         "401":
           description: Unauthorized access
           schema:
@@ -1847,7 +1868,7 @@ paths:
         not specified in the update. Example: updating only ''accounting.validateRoutes''
         preserves the existing ''accounting.validateAccountType'' value. Setting a
         key to null stores a JSON null value. Allowed fields: accounting.validateAccountType
-        (boolean | null), accounting.validateRoutes (boolean | null).'
+        (boolean), accounting.validateRoutes (boolean).'
       parameters:
       - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
@@ -1869,20 +1890,22 @@ paths:
         required: true
         type: string
       - description: 'Settings to merge with existing settings. Only known fields
-          allowed: accounting.validateAccountType (boolean | null), accounting.validateRoutes
-          (boolean | null)'
+          allowed: accounting.validateAccountType (bool), accounting.validateRoutes
+          (bool)'
         in: body
         name: settings
         required: true
         schema:
-          $ref: '#/definitions/LedgerSettings'
+          additionalProperties: true
+          type: object
       produces:
       - application/json
       responses:
         "200":
           description: Successfully updated ledger settings
           schema:
-            $ref: '#/definitions/LedgerSettings'
+            additionalProperties: true
+            type: object
         "400":
           description: Invalid request body, unknown field (0147), or invalid field
             type (0148)
