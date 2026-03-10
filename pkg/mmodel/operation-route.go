@@ -29,6 +29,8 @@ type OperationRoute struct {
 	Code string `json:"code,omitempty" example:"EXT-001"`
 	// The type of the operation route.
 	OperationType string `json:"operationType,omitempty" example:"source" enum:"source,destination,bidirectional"`
+	// The action associated with this operation route in the context of a transaction route.
+	Action string `json:"action,omitempty" example:"direct" enum:"direct,hold,commit,cancel,revert"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.

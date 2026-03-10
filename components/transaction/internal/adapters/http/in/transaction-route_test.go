@@ -44,7 +44,10 @@ func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
 			jsonBody: `{
 				"title": "Payment Settlement",
 				"description": "Route for payment settlement transactions",
-				"operationRoutes": ["01965ed9-7fa4-75b2-8872-fc9e8509ab0a", "01965ed9-7fa4-75b2-8872-fc9e8509ab0b"],
+				"operationRoutes": [
+					{"action": "direct", "operationRouteId": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"},
+					{"action": "direct", "operationRouteId": "01965ed9-7fa4-75b2-8872-fc9e8509ab0b"}
+				],
 				"metadata": {"category": "settlement"}
 			}`,
 			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID uuid.UUID) {
@@ -108,7 +111,10 @@ func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
 			jsonBody: `{
 				"title": "Payment Settlement",
 				"description": "Route for payment settlement transactions",
-				"operationRoutes": ["01965ed9-7fa4-75b2-8872-fc9e8509ab0a", "01965ed9-7fa4-75b2-8872-fc9e8509ab0b"]
+				"operationRoutes": [
+					{"action": "direct", "operationRouteId": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"},
+					{"action": "direct", "operationRouteId": "01965ed9-7fa4-75b2-8872-fc9e8509ab0b"}
+				]
 			}`,
 			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID uuid.UUID) {
 				opRoute1ID := uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0a")

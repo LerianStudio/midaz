@@ -83,13 +83,13 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 
 // handleOperationRouteUpdates processes operation route relationship updates by comparing existing vs new operation routes.
 // It returns arrays of operation route IDs to add and remove, or an error if validation fails.
-func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteIDs []uuid.UUID) (toAdd, toRemove []uuid.UUID, err error) {
+func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteInputs []mmodel.OperationRouteActionInput) (toAdd, toRemove []uuid.UUID, err error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.handle_operation_route_updates")
 	defer span.End()
 
-	if len(newOperationRouteIDs) < 2 {
+	if len(newOperationRouteInputs) < 2 {
 		return nil, nil, pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
@@ -97,6 +97,12 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error fetching current transaction route: %v", err))
 		return nil, nil, err
+	}
+
+	// Extract UUIDs from the action inputs for FindByIDs
+	newOperationRouteIDs := make([]uuid.UUID, len(newOperationRouteInputs))
+	for i, input := range newOperationRouteInputs {
+		newOperationRouteIDs[i] = input.OperationRouteID
 	}
 
 	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, newOperationRouteIDs)
