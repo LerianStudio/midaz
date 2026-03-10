@@ -19,6 +19,7 @@ import (
 func goleakIgnores() []goleak.Option {
 	return []goleak.Option{
 		goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
+		goleak.IgnoreTopFunction("github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/cache.(*InMemoryCache).cleanupLoop"),
 		goleak.IgnoreAnyFunction("testing.tRunner"),
 		goleak.IgnoreAnyFunction("testing.tRunner.func1"),
 		goleak.IgnoreAnyFunction("testing.(*T).Run"),
