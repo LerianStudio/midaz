@@ -2,7 +2,7 @@ module github.com/LerianStudio/midaz/v3
 
 go 1.25.0
 
-toolchain go1.25.7
+toolchain go1.25.8
 
 require (
 	github.com/LerianStudio/lib-auth/v2 v2.5.0-beta.6

@@ -23,6 +23,14 @@ definitions:
         maxLength: 2
         minLength: 2
         type: string
+      description:
+        description: |-
+          A descriptive label for the address (e.g., "Home", "Office", "Billing")
+          example: Home
+          maxLength: 100
+        example: Home
+        maxLength: 100
+        type: string
       line1:
         description: |-
           Primary address line (street address or PO Box)

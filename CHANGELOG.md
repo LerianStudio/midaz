@@ -9,6 +9,9 @@
 - remove no-op semantic-release/exec plugin entry
 - fix linting issues
 - add write-behind cache mock expectations to existing transaction tests
+- update release version
+- update version
+- update deps
 - remove filterStaleBalances to prevent silent balance update drops
 - add redis backup queue for commit/cancel transactions and correct consumer fromTo logic for canceled status
 - prevent balance version increment when no actual balance change occurs in Lua script
@@ -23,6 +26,11 @@
 - remove publisher confirms
 - skip write-behind update in sync mode to prevent orphaned Redis entries
 - add TTL safety nets and correct write-behind cache lifecycle
+- go.sum
+- update sqlmock expectations to include balance version columns
+- loop through all state transitions in CheckHealth to handle cold-start connections
+- adjust semantic release flow
+- releaserc
 - add SetNX revert lock with write-behind-first lookup to prevent duplicate reversals
 - remove idempotency reverse lookup in favor of write-behind cache
 - promote transaction status to APPROVED before write-behind and queue
@@ -39,6 +47,20 @@
 - enhance balance key handling in Redis consumer to ensure default key is used when not specified
 - update group size in Lua script and add balance key handling in Redis consumer
 - update lib-commons dependency to v2.3.1
+- race condition, test and remove panic from rabbit initialization
+- update RabbitMQ producer to handle publish confirmations and improve idempotency key management
+- update version to 3.3.14
+- define explicit column lists for account and operation queries to ensure backward compatibility
+- update hotfix version to 3.3.13
+- implement account alias sanitization in transaction processing and add utility function for alias cleanup
+- simplify GitHub Actions workflow by removing hotfix branch triggers and updating tag handling
+- update hotfix version from 3.3.11 to 3.3.12 in .releaserc.yml and comment out transaction validation in Lua script
+- remove trailing newline at end of Dockerfile for consistent formatting
+- change release type for feat from minor to patch in .releaserc.yml
+- update application version from 3.3.10 to 3.3.11 in .env.example
+- add missing newline at end of Dockerfile for proper formatting
+- update hotfix version from 3.3.10 to 3.3.11 in .releaserc.yml
+- remove trailing newline in Dockerfile for cleaner formatting
 - update CronTimeToRun and MessageTimeOfLife constants in Redis consumer for improved processing efficiency
 - remove handleReturns method and update message publishing parameters in RabbitMQ producer
 - implement distributed lock mechanism in Redis consumer to prevent duplicate transaction processing across pods
@@ -48,6 +70,8 @@
 - change ContentType to application/octet-stream for msgpack binary payload in RabbitMQ producer
 - add transaction validation in Lua script and enhance error handling in Redis consumer
 - enhance error handling for transaction backup cache operations
+- update lib-commons dependency to v2.3.1 and update go.sum
+- add complexity comment
 - initialize operations slice for new transactions in PostgreSQL repository
 - simplify logging for duplicate operation and transaction inserts
 - refactor operation scanning in transaction retrieval to improve handling of nullable fields
@@ -55,7 +79,6 @@
 - handle unique constraint violations for operation and transaction inserts
 - add panic recovery and nil validation for transaction messages in Redis consumer
 - remove lock deletion on transaction errors after balance retrieval
-- remove pending transaction lock after errors only
 - update frontend dependencies (next to 15.5.7 and react to 19.1.2)
 - correct comment wording in transaction handler for clarity
 - update hotfix branch configuration in release settings
@@ -66,9 +89,15 @@
 - update CHANGELOG
 - configure pipeline to trigger build on hotfix branches
 - bump hotfix branch versions (3.3.8 through 3.3.14)
-
-
-## [v3.5.1] - 2026-01-19
+- update hotfix branch version to 3.3.10
+- add panic recovery and nil validation for transaction messages in Redis consumer
+- update hotfix branch version to 3.3.9
+- remove pending transaction lock after errors only
+- update next version to 15.5.7 and react to 19.1.2
+- update releaserc.yml to version 3.3.8
+- correct comment wording in transaction handler for clarity
+- update hotfix branch configuration in release settings
+- update version
 
 ### 🐛 Bug Fixes
 - remove CPF and CNPJ validation functions and related tests

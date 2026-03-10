@@ -26,6 +26,7 @@ func goleakIgnores() []goleak.Option {
 		goleak.IgnoreAnyFunction("testing.(*M).Run"),
 		goleak.IgnoreAnyFunction("go.uber.org/goleak.(*opts).retry"),
 		goleak.IgnoreAnyFunction("go.uber.org/goleak.Find"),
+		goleak.IgnoreAnyFunction("github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/cache.(*InMemoryCache).cleanupLoop"),
 	}
 }
 
