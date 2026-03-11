@@ -169,6 +169,7 @@ var (
 	ErrInvalidRouteAction                       = errors.New("0155")
 	ErrDuplicateActionRoute                     = errors.New("0156")
 	ErrNoRoutesForAction                        = errors.New("0157")
+	ErrTooManyOperationRoutes                   = errors.New("0158")
 )
 
 // List of CRM errors.
