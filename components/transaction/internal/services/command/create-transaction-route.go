@@ -48,7 +48,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 	}
 
 	// Validate operation route types
-	if err := validateOperationRouteTypes(operationRouteList); err != nil {
+	if err := validateOperationRouteTypes(payload.OperationRoutes, operationRouteList); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate operation route types", err)
 
 		logger.Errorf("Operation route validation failed: %v", err)
@@ -56,10 +56,21 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		return nil, err
 	}
 
-	// Convert to slice for assignment
-	operationRoutes := make([]mmodel.OperationRoute, 0, len(operationRouteList))
+	// Build a map from route ID to fetched operation route for lookup
+	routeByID := make(map[uuid.UUID]*mmodel.OperationRoute, len(operationRouteList))
 	for _, operationRoute := range operationRouteList {
-		operationRoutes = append(operationRoutes, *operationRoute)
+		routeByID[operationRoute.ID] = operationRoute
+	}
+
+	// Convert to slice for assignment, preserving the action from the input payload
+	operationRoutes := make([]mmodel.OperationRoute, 0, len(payload.OperationRoutes))
+	for _, input := range payload.OperationRoutes {
+		if fetched, ok := routeByID[input.OperationRouteID]; ok {
+			route := *fetched
+			route.Action = input.Action
+
+			operationRoutes = append(operationRoutes, route)
+		}
 	}
 
 	transactionRoute.OperationRoutes = operationRoutes
@@ -100,27 +111,78 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 	return createdTransactionRoute, nil
 }
 
-// validateOperationRouteTypes validates that operation routes contain both source and destination types.
-// Returns an error if either source or destination type is missing.
-func validateOperationRouteTypes(operationRoutes []*mmodel.OperationRoute) error {
-	hasSource := false
-	hasDestination := false
+// validateOperationRouteTypes validates per-action operation route types.
+// It checks that each action value is valid, detects duplicate (action, routeID) pairs,
+// and ensures every distinct action has at least one source and one destination route
+// (bidirectional counts as both).
+func validateOperationRouteTypes(actionInputs []mmodel.OperationRouteActionInput, opRoutes []*mmodel.OperationRoute) error {
+	entityType := reflect.TypeOf(mmodel.TransactionRoute{}).Name()
 
-	for _, operationRoute := range operationRoutes {
-		switch operationRoute.OperationType {
-		case "source":
-			hasSource = true
-		case "destination":
-			hasDestination = true
-		case "bidirectional":
-			hasSource = true
-			hasDestination = true
+	// Build a set of valid actions for O(1) lookup
+	validActionSet := make(map[string]bool, len(constant.ValidActions))
+	for _, a := range constant.ValidActions {
+		validActionSet[a] = true
+	}
+
+	// Build a map from route ID to operation route for type lookup
+	routeByID := make(map[uuid.UUID]*mmodel.OperationRoute, len(opRoutes))
+	for _, r := range opRoutes {
+		routeByID[r.ID] = r
+	}
+
+	// Validate actions and detect duplicates
+	type routeActionKey struct {
+		RouteID uuid.UUID
+		Action  string
+	}
+
+	seen := make(map[routeActionKey]bool, len(actionInputs))
+
+	// Group routes by action: action -> list of operation types
+	actionRouteTypes := make(map[string][]string)
+
+	for _, input := range actionInputs {
+		if !validActionSet[input.Action] {
+			return pkg.ValidateBusinessError(constant.ErrInvalidRouteAction, entityType, input.Action)
 		}
 
-		if hasSource && hasDestination {
-			return nil
+		key := routeActionKey{RouteID: input.OperationRouteID, Action: input.Action}
+		if seen[key] {
+			return pkg.ValidateBusinessError(constant.ErrDuplicateActionRoute, entityType, input.OperationRouteID.String(), input.Action)
+		}
+
+		seen[key] = true
+
+		if route, ok := routeByID[input.OperationRouteID]; ok {
+			actionRouteTypes[input.Action] = append(actionRouteTypes[input.Action], route.OperationType)
 		}
 	}
 
-	return pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	// For each action group, validate at least 1 source + 1 destination
+	for action, opTypes := range actionRouteTypes {
+		hasSource := false
+		hasDestination := false
+
+		for _, opType := range opTypes {
+			switch opType {
+			case "source":
+				hasSource = true
+			case "destination":
+				hasDestination = true
+			case "bidirectional":
+				hasSource = true
+				hasDestination = true
+			}
+		}
+
+		if !hasSource {
+			return pkg.ValidateBusinessError(constant.ErrNoSourceForAction, entityType, action)
+		}
+
+		if !hasDestination {
+			return pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, entityType, action)
+		}
+	}
+
+	return nil
 }
