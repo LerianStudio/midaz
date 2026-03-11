@@ -59,7 +59,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
 	}
 
-	return handler.createTransaction(c, *transactionInput, transactionStatus)
+	return handler.createTransaction(c, *transactionInput, transactionStatus, deriveTransactionAction(transactionInput.Pending))
 }
 
 // CreateTransactionAnnotation method that create transaction using JSON
@@ -95,7 +95,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 	transactionInput := input.BuildTransaction()
 	logger.Infof("Create an transaction annotation without an affected balance: %#v", transactionInput)
 
-	return handler.createTransaction(c, *transactionInput, constant.NOTED)
+	return handler.createTransaction(c, *transactionInput, constant.NOTED, deriveTransactionAction(false))
 }
 
 // CreateTransactionInflow method that creates a transaction without specifying a source
@@ -136,7 +136,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
 	}
 
-	response := handler.createTransaction(c, *transactionInput, constant.CREATED)
+	response := handler.createTransaction(c, *transactionInput, constant.CREATED, deriveTransactionAction(false))
 
 	return response
 }
@@ -184,7 +184,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
 	}
 
-	return handler.createTransaction(c, *transactionInput, transactionStatus)
+	return handler.createTransaction(c, *transactionInput, transactionStatus, deriveTransactionAction(transactionInput.Pending))
 }
 
 // CreateTransactionDSL method that create transaction using DSL
@@ -272,7 +272,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
 	}
 
-	response := handler.createTransaction(c, transactionInput, constant.CREATED)
+	response := handler.createTransaction(c, transactionInput, constant.CREATED, deriveTransactionAction(false))
 
 	return response
 }
@@ -503,7 +503,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		}
 	}
 
-	response := handler.createTransaction(c, transactionReverted, constant.CREATED)
+	response := handler.createTransaction(c, transactionReverted, constant.CREATED, deriveRevertAction())
 
 	return response
 }
@@ -1275,7 +1275,7 @@ func (handler *TransactionHandler) buildStandardOp(
 }
 
 // createTransaction func that received struct from DSL parsed and create Transaction
-func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string) error {
+func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string, action string) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -1401,7 +1401,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &transactionInput, validate, transactionStatus)
+	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &transactionInput, validate, transactionStatus, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
 
@@ -1589,7 +1589,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus)
+	commitCancelAction := deriveCommitCancelAction(transactionStatus)
+
+	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus, commitCancelAction)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
 

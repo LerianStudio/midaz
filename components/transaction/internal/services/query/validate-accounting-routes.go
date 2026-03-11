@@ -29,7 +29,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *pkgTransaction.Responses) error {
+func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *pkgTransaction.Responses, action string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
@@ -76,11 +76,25 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 		return err
 	}
 
+	actionCache, found := transactionRouteCache.Actions[action]
+	if !found {
+		err := pkg.ValidateBusinessError(constant.ErrNoRoutesForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), action)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No routes found for action", err)
+
+		logger.Warnf("No routes found for action '%s' in transaction route cache", action)
+
+		return err
+	}
+
+	sourceRoutes := actionCache.Source
+	destinationRoutes := actionCache.Destination
+	bidirectionalRoutes := actionCache.Bidirectional
+
 	uniqueFromCount := uniqueValues(validate.OperationRoutesFrom)
 	uniqueToCount := uniqueValues(validate.OperationRoutesTo)
-	sourceRoutesCount := len(transactionRouteCache.Source)
-	destinationRoutesCount := len(transactionRouteCache.Destination)
-	bidirectionalRoutesCount := len(transactionRouteCache.Bidirectional)
+	sourceRoutesCount := len(sourceRoutes)
+	destinationRoutesCount := len(destinationRoutes)
+	bidirectionalRoutesCount := len(bidirectionalRoutes)
 
 	// Build shared bidirectional route set first — needed both for count
 	// validation and for counterpart validation below.
@@ -90,7 +104,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	bidirectionalFromRoutes := make(map[string]bool)
 
 	for _, routeID := range validate.OperationRoutesFrom {
-		if _, isBidirectional := transactionRouteCache.Bidirectional[routeID]; isBidirectional {
+		if _, isBidirectional := bidirectionalRoutes[routeID]; isBidirectional {
 			bidirectionalFromRoutes[routeID] = true
 		}
 	}
@@ -139,14 +153,14 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 		}
 	}
 
-	// Pass ledgerSettings to validateAccountRules for account type validation control
-	return validateAccountRules(ctx, transactionRouteCache, validate, operations, ledgerSettings)
+	// Pass ledgerSettings and action-filtered routes to validateAccountRules for account type validation control
+	return validateAccountRules(ctx, sourceRoutes, destinationRoutes, bidirectionalRoutes, validate, operations, ledgerSettings)
 }
 
 // validateAccountRules validates each operation against its corresponding route rule.
 // If ledgerSettings.Accounting.ValidateAccountType is false, all per-operation rule validation is skipped
 // (including route-existence and account-type checks).
-func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *pkgTransaction.Responses, operations []mmodel.BalanceOperation, ledgerSettings mmodel.LedgerSettings) error {
+func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, bidirectionalRoutes map[string]mmodel.OperationRouteCache, validate *pkgTransaction.Responses, operations []mmodel.BalanceOperation, ledgerSettings mmodel.LedgerSettings) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "usecase.validate_account_rules")
@@ -180,13 +194,13 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 		var found bool
 
 		if isSource {
-			cacheRule, found = transactionRouteCache.Source[routeID]
+			cacheRule, found = sourceRoutes[routeID]
 		} else {
-			cacheRule, found = transactionRouteCache.Destination[routeID]
+			cacheRule, found = destinationRoutes[routeID]
 		}
 
 		if !found {
-			cacheRule, found = transactionRouteCache.Bidirectional[routeID]
+			cacheRule, found = bidirectionalRoutes[routeID]
 		}
 
 		if !found {
@@ -294,11 +308,6 @@ func validateDirectionRouteMatch(operation mmodel.BalanceOperation, routeCache m
 
 	direction := strings.ToLower(operation.Amount.Direction)
 	opType := strings.ToLower(routeCache.OperationType)
-
-	// Stale cache entries may have empty OperationType — skip validation
-	if opType == "" {
-		return nil
-	}
 
 	switch opType {
 	case "source":

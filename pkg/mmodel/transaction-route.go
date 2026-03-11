@@ -113,10 +113,7 @@ type ActionRouteCache struct {
 
 // TransactionRouteCache represents the cache structure for transaction routes in Redis
 type TransactionRouteCache struct {
-	Source        map[string]OperationRouteCache `json:"source"`
-	Destination   map[string]OperationRouteCache `json:"destination"`
-	Bidirectional map[string]OperationRouteCache `json:"bidirectional,omitempty"`
-	Actions       map[string]ActionRouteCache    `json:"actions,omitempty" msgpack:"actions"`
+	Actions map[string]ActionRouteCache `json:"actions" msgpack:"actions"`
 }
 
 // OperationRouteCache represents the cached data for a single operation route
@@ -132,13 +129,10 @@ type AccountCache struct {
 }
 
 // ToCache converts the transaction route into a cache structure for Redis storage.
-// Returns a TransactionRouteCache struct with routes pre-categorized by type and grouped by action.
+// Returns a TransactionRouteCache struct with routes grouped by action and categorized by operation type.
 func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 	cacheData := TransactionRouteCache{
-		Source:        make(map[string]OperationRouteCache),
-		Destination:   make(map[string]OperationRouteCache),
-		Bidirectional: make(map[string]OperationRouteCache),
-		Actions:       make(map[string]ActionRouteCache),
+		Actions: make(map[string]ActionRouteCache),
 	}
 
 	for _, operationRoute := range tr.OperationRoutes {
@@ -153,19 +147,7 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 			}
 		}
 
-		// Categorize by operation type (legacy fields)
 		routeID := operationRoute.ID.String()
-
-		switch operationRoute.OperationType {
-		case "source":
-			cacheData.Source[routeID] = routeData
-		case "destination":
-			cacheData.Destination[routeID] = routeData
-		case "bidirectional":
-			cacheData.Bidirectional[routeID] = routeData
-		}
-
-		// Group by action (only for known operation types)
 		action := operationRoute.Action
 
 		switch operationRoute.OperationType {
@@ -193,12 +175,6 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 	}
 
 	return cacheData
-}
-
-// IsStale returns true when the cache entry was serialized before the Actions field was introduced.
-// Old cache entries (pre-migration) deserialize with Actions == nil, indicating a DB refresh is needed.
-func (trcd *TransactionRouteCache) IsStale() bool {
-	return trcd.Actions == nil
 }
 
 // FromMsgpack parses msgpack binary data into TransactionRouteCache.
