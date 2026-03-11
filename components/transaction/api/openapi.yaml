@@ -473,6 +473,17 @@ paths:
         name: type
         schema:
           type: string
+      - description: Filter by direction
+        in: query
+        name: direction
+        schema:
+          type: string
+      - description: Filter by operation route ID
+        in: query
+        name: route_id
+        schema:
+          format: uuid
+          type: string
       responses:
         "200":
           content:
@@ -3093,6 +3104,132 @@ components:
           minimum: 0
           type: integer
       type: object
+    BalanceHistory:
+      description: Historical balance snapshot at a specific point in time. Does not
+        include permission flags (allowSending/allowReceiving) as these are not tracked
+        historically.
+      example:
+        assetCode: USD
+        onHold: 500.0
+        accountType: creditCard
+        available: 1500.0
+        version: 1
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
+        accountId: 00000000-0000-0000-0000-000000000000
+        createdAt: 2021-01-01T00:00:00Z
+        alias: '@person1'
+        id: 00000000-0000-0000-0000-000000000000
+        key: asset-freeze
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        accountId:
+          description: |-
+            Account that holds this balance
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        accountType:
+          description: |-
+            Type of account holding this balance
+            example: creditCard
+            maxLength: 50
+          example: creditCard
+          maxLength: 50
+          type: string
+        alias:
+          description: |-
+            Alias for the account, used for easy identification or tagging
+            example: @person1
+            maxLength: 256
+          example: '@person1'
+          maxLength: 256
+          type: string
+        assetCode:
+          description: |-
+            Asset code identifying the currency or asset type of this balance
+            example: USD
+            minLength: 2
+            maxLength: 10
+          example: USD
+          maxLength: 10
+          minLength: 2
+          type: string
+        available:
+          description: |-
+            Amount available for transactions (in the smallest unit of the asset, e.g. cents)
+            example: 1500
+            minimum: 0
+          example: 1500.0
+          minimum: 0
+          type: number
+        createdAt:
+          description: |-
+            Timestamp when the balance was created (RFC3339 format)
+            example: 2021-01-01T00:00:00Z
+            format: date-time
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+        id:
+          description: |-
+            Unique identifier for the balance (UUID format)
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        key:
+          description: |-
+            Unique key for the balance
+            example: asset-freeze
+            maxLength: 100
+          example: asset-freeze
+          maxLength: 100
+          type: string
+        ledgerId:
+          description: |-
+            Ledger containing the account this balance belongs to
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        onHold:
+          description: |-
+            Amount currently on hold and unavailable for transactions
+            example: 500
+            minimum: 0
+          example: 500.0
+          minimum: 0
+          type: number
+        organizationId:
+          description: |-
+            Organization that owns this balance
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        updatedAt:
+          description: |-
+            Timestamp when the balance was last updated (RFC3339 format)
+            example: 2021-01-01T00:00:00Z
+            format: date-time
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+        version:
+          description: |-
+            Optimistic concurrency control version
+            example: 1
+            minimum: 1
+          example: 1
+          minimum: 1
+          type: integer
+      type: object
     CreateAdditionalBalance:
       description: Request payload for creating a new balance with specified permissions
         and custom key.
@@ -3412,8 +3549,10 @@ components:
         metadata:
           key: '{}'
         operationRoutes:
-        - operationRoutes
-        - operationRoutes
+        - action: direct
+          operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - action: direct
+          operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         description: Settlement route for service charges
         title: Charge Settlement
       properties:
@@ -3431,7 +3570,7 @@ components:
           description: An object containing accounting data of Operation Routes from
             the Transaction Route.
           items:
-            type: string
+            $ref: '#/components/schemas/OperationRouteActionInput'
           type: array
         title:
           description: Short text summarizing the purpose of the transaction. Used
@@ -3510,11 +3649,13 @@ components:
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
         route: 00000000-0000-0000-0000-000000000000
+        routeId: 00000000-0000-0000-0000-000000000000
         balance: '{}'
         balanceAfter: '{}'
         id: 00000000-0000-0000-0000-000000000000
         balanceKey: asset-freeze
         balanceId: 00000000-0000-0000-0000-000000000000
+        direction: debit
         status: '{}'
         updatedAt: 2021-01-01T00:00:00Z
       properties:
@@ -3614,6 +3755,14 @@ components:
           example: Credit card operation
           maxLength: 256
           type: string
+        direction:
+          description: |-
+            Direction of the operation (debit, credit)
+            example: debit
+            maxLength: 50
+          example: debit
+          maxLength: 50
+          type: string
         id:
           description: |-
             Unique identifier for the operation
@@ -3653,6 +3802,14 @@ components:
           example: 00000000-0000-0000-0000-000000000000
           format: string
           type: string
+        routeId:
+          description: |-
+            Route ID referencing the operation route that generated this operation
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
@@ -3686,18 +3843,19 @@ components:
     OperationRoute:
       description: OperationRoute object
       example:
-        ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        createdAt: 2021-01-01T00:00:00Z
-        deletedAt: 2021-01-01T00:00:00Z
         metadata:
           key: '{}'
         code: EXT-001
         description: This operation route handles cash-in transactions from service
           charge collections
+        title: Cashin from service charge
+        ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        createdAt: 2021-01-01T00:00:00Z
+        deletedAt: 2021-01-01T00:00:00Z
+        action: direct
         operationType: source
         id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        title: Cashin from service charge
         account: '{}'
         updatedAt: 2021-01-01T00:00:00Z
       properties:
@@ -3706,6 +3864,11 @@ components:
           - $ref: '#/components/schemas/AccountRule'
           description: The account selection rule configuration.
           type: object
+        action:
+          description: The action associated with this operation route in the context
+            of a transaction route.
+          example: direct
+          type: string
         code:
           description: External reference of the operation route.
           example: EXT-001
@@ -3756,6 +3919,31 @@ components:
           example: 2021-01-01T00:00:00Z
           format: date-time
           type: string
+      type: object
+    OperationRouteActionInput:
+      description: OperationRouteActionInput payload for associating an operation
+        route with an action in a transaction route.
+      example:
+        action: direct
+        operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+      properties:
+        action:
+          description: The action for this operation route association.
+          enum:
+          - direct
+          - hold
+          - commit
+          - cancel
+          - revert
+          example: direct
+          type: string
+        operationRouteId:
+          description: The unique identifier of the Operation Route.
+          example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+      required:
+      - action
+      - operationRouteId
       type: object
     Pagination:
       description: Pagination is the struct designed to store the pagination data
@@ -3843,11 +4031,13 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
+          direction: debit
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
         - accountAlias: '@person1'
@@ -3866,11 +4056,13 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
+          direction: debit
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
         route: 00000000-0000-0000-0000-000000000000
@@ -4022,32 +4214,34 @@ components:
         metadata:
           key: '{}'
         operationRoutes:
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
+        - metadata:
             key: '{}'
           code: EXT-001
           description: This operation route handles cash-in transactions from service
             charge collections
+          title: Cashin from service charge
+          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          title: Cashin from service charge
           account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
+        - metadata:
             key: '{}'
           code: EXT-001
           description: This operation route handles cash-in transactions from service
             charge collections
+          title: Cashin from service charge
+          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          title: Cashin from service charge
           account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
         description: Settlement route for service charges
@@ -4216,8 +4410,10 @@ components:
         metadata:
           key: '{}'
         operationRoutes:
-        - operationRoutes
-        - operationRoutes
+        - action: direct
+          operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - action: direct
+          operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         description: Settlement route for service charges
         title: Charge Settlement
       properties:
@@ -4235,7 +4431,7 @@ components:
           description: An object containing accounting data of Operation Routes from
             the Transaction Route.
           items:
-            type: string
+            $ref: '#/components/schemas/OperationRouteActionInput'
           type: array
         title:
           description: Short text summarizing the purpose of the transaction. Used
@@ -4370,132 +4566,6 @@ components:
             Custom key-value pairs for extending the balance information
             example: {"purpose": "Main savings", "category": "Personal"}
           type: object
-        onHold:
-          description: |-
-            Amount currently on hold and unavailable for transactions
-            example: 500
-            minimum: 0
-          example: 500.0
-          minimum: 0
-          type: number
-        organizationId:
-          description: |-
-            Organization that owns this balance
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-        updatedAt:
-          description: |-
-            Timestamp when the balance was last updated (RFC3339 format)
-            example: 2021-01-01T00:00:00Z
-            format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
-          type: string
-        version:
-          description: |-
-            Optimistic concurrency control version
-            example: 1
-            minimum: 1
-          example: 1
-          minimum: 1
-          type: integer
-      type: object
-    BalanceHistory:
-      description: Historical balance snapshot at a specific point in time. Does not
-        include permission flags (allowSending/allowReceiving) as these are not tracked
-        historically.
-      example:
-        assetCode: USD
-        onHold: 500.0
-        accountType: creditCard
-        available: 1500.0
-        version: 1
-        ledgerId: 00000000-0000-0000-0000-000000000000
-        organizationId: 00000000-0000-0000-0000-000000000000
-        accountId: 00000000-0000-0000-0000-000000000000
-        createdAt: 2021-01-01T00:00:00Z
-        alias: '@person1'
-        id: 00000000-0000-0000-0000-000000000000
-        key: asset-freeze
-        updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        accountId:
-          description: |-
-            Account that holds this balance
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-        accountType:
-          description: |-
-            Type of account holding this balance
-            example: creditCard
-            maxLength: 50
-          example: creditCard
-          maxLength: 50
-          type: string
-        alias:
-          description: |-
-            Alias for the account, used for easy identification or tagging
-            example: @person1
-            maxLength: 256
-          example: '@person1'
-          maxLength: 256
-          type: string
-        assetCode:
-          description: |-
-            Asset code identifying the currency or asset type of this balance
-            example: USD
-            minLength: 2
-            maxLength: 10
-          example: USD
-          maxLength: 10
-          minLength: 2
-          type: string
-        available:
-          description: |-
-            Amount available for transactions (in the smallest unit of the asset, e.g. cents)
-            example: 1500
-            minimum: 0
-          example: 1500.0
-          minimum: 0
-          type: number
-        createdAt:
-          description: |-
-            Timestamp when the balance was created (RFC3339 format)
-            example: 2021-01-01T00:00:00Z
-            format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
-          type: string
-        id:
-          description: |-
-            Unique identifier for the balance (UUID format)
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-        key:
-          description: |-
-            Unique key for the balance
-            example: asset-freeze
-            maxLength: 100
-          example: asset-freeze
-          maxLength: 100
-          type: string
-        ledgerId:
-          description: |-
-            Ledger containing the account this balance belongs to
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
         onHold:
           description: |-
             Amount currently on hold and unavailable for transactions
@@ -4666,11 +4736,13 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
+          direction: debit
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
         - accountAlias: '@person1'
@@ -4689,11 +4761,13 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
+          direction: debit
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
@@ -4777,32 +4851,34 @@ components:
         limit: 0
         page: '{}'
         items:
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
+        - metadata:
             key: '{}'
           code: EXT-001
           description: This operation route handles cash-in transactions from service
             charge collections
+          title: Cashin from service charge
+          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          title: Cashin from service charge
           account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
+        - metadata:
             key: '{}'
           code: EXT-001
           description: This operation route handles cash-in transactions from service
             charge collections
+          title: Cashin from service charge
+          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          title: Cashin from service charge
           account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
@@ -4842,32 +4918,34 @@ components:
           metadata:
             key: '{}'
           operationRoutes:
-          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            metadata:
+          - metadata:
               key: '{}'
             code: EXT-001
             description: This operation route handles cash-in transactions from service
               charge collections
+            title: Cashin from service charge
+            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            createdAt: 2021-01-01T00:00:00Z
+            deletedAt: 2021-01-01T00:00:00Z
+            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            title: Cashin from service charge
             account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
-          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            metadata:
+          - metadata:
               key: '{}'
             code: EXT-001
             description: This operation route handles cash-in transactions from service
               charge collections
+            title: Cashin from service charge
+            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            createdAt: 2021-01-01T00:00:00Z
+            deletedAt: 2021-01-01T00:00:00Z
+            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            title: Cashin from service charge
             account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           description: Settlement route for service charges
@@ -4881,32 +4959,34 @@ components:
           metadata:
             key: '{}'
           operationRoutes:
-          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            metadata:
+          - metadata:
               key: '{}'
             code: EXT-001
             description: This operation route handles cash-in transactions from service
               charge collections
+            title: Cashin from service charge
+            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            createdAt: 2021-01-01T00:00:00Z
+            deletedAt: 2021-01-01T00:00:00Z
+            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            title: Cashin from service charge
             account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
-          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            metadata:
+          - metadata:
               key: '{}'
             code: EXT-001
             description: This operation route handles cash-in transactions from service
               charge collections
+            title: Cashin from service charge
+            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+            createdAt: 2021-01-01T00:00:00Z
+            deletedAt: 2021-01-01T00:00:00Z
+            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            title: Cashin from service charge
             account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           description: Settlement route for service charges
@@ -4975,11 +5055,13 @@ components:
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
             route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
+            direction: debit
             status: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           - accountAlias: '@person1'
@@ -4998,11 +5080,13 @@ components:
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
             route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
+            direction: debit
             status: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
@@ -5041,11 +5125,13 @@ components:
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
             route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
+            direction: debit
             status: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           - accountAlias: '@person1'
@@ -5064,11 +5150,13 @@ components:
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
             route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
+            direction: debit
             status: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000

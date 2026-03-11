@@ -639,6 +639,19 @@
                         "description": "DEBIT, CREDIT",
                         "name": "type",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by direction",
+                        "name": "direction",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by operation route ID",
+                        "name": "route_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -4259,7 +4272,7 @@
                     "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/OperationRouteActionInput"
                     }
                 },
                 "title": {
@@ -4396,6 +4409,12 @@
                     "maxLength": 256,
                     "example": "Credit card operation"
                 },
+                "direction": {
+                    "description": "Direction of the operation (debit, credit)\nexample: debit\nmaxLength: 50",
+                    "type": "string",
+                    "maxLength": 50,
+                    "example": "debit"
+                },
                 "id": {
                     "description": "Unique identifier for the operation\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
@@ -4423,6 +4442,12 @@
                     "description": "Route\nexample: 00000000-0000-0000-0000-000000000000\nformat: string",
                     "type": "string",
                     "format": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "routeId": {
+                    "description": "Route ID referencing the operation route that generated this operation\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
@@ -4464,6 +4489,11 @@
                             "$ref": "#/definitions/AccountRule"
                         }
                     ]
+                },
+                "action": {
+                    "description": "The action associated with this operation route in the context of a transaction route.",
+                    "type": "string",
+                    "example": "direct"
                 },
                 "code": {
                     "description": "External reference of the operation route.",
@@ -4522,6 +4552,33 @@
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "OperationRouteActionInput": {
+            "description": "OperationRouteActionInput payload for associating an operation route with an action in a transaction route.",
+            "type": "object",
+            "required": [
+                "action",
+                "operationRouteId"
+            ],
+            "properties": {
+                "action": {
+                    "description": "The action for this operation route association.",
+                    "type": "string",
+                    "enum": [
+                        "direct",
+                        "hold",
+                        "commit",
+                        "cancel",
+                        "revert"
+                    ],
+                    "example": "direct"
+                },
+                "operationRouteId": {
+                    "description": "The unique identifier of the Operation Route.",
+                    "type": "string",
+                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
                 }
             }
         },
@@ -4851,7 +4908,7 @@
                     "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/OperationRouteActionInput"
                     }
                 },
                 "title": {
