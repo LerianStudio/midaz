@@ -707,11 +707,11 @@ definitions:
         format: uuid
         type: string
       settings:
-        additionalProperties: {}
+        allOf:
+        - $ref: '#/definitions/mmodel.LedgerSettings'
         description: |-
-          Dynamic configuration settings for this ledger
+          Dynamic configuration settings for this ledger. May be null if no settings are configured.
           example: {"accounting": {"validateAccountType": true}}
-        type: object
       status:
         allOf:
         - $ref: '#/definitions/Status'
@@ -1836,8 +1836,7 @@ paths:
         "200":
           description: Successfully retrieved ledger settings
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/mmodel.LedgerSettings'
         "401":
           description: Unauthorized access
           schema:
@@ -1896,16 +1895,14 @@ paths:
         name: settings
         required: true
         schema:
-          additionalProperties: true
-          type: object
+          $ref: '#/definitions/mmodel.LedgerSettings'
       produces:
       - application/json
       responses:
         "200":
           description: Successfully updated ledger settings
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/mmodel.LedgerSettings'
         "400":
           description: Invalid request body, unknown field (0147), or invalid field
             type (0148)

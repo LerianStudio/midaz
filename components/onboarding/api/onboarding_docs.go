@@ -1063,8 +1063,7 @@ const docTemplateonboarding = `{
                     "200": {
                         "description": "Successfully retrieved ledger settings",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/mmodel.LedgerSettings"
                         }
                     },
                     "401": {
@@ -1139,8 +1138,7 @@ const docTemplateonboarding = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/mmodel.LedgerSettings"
                         }
                     }
                 ],
@@ -1148,8 +1146,7 @@ const docTemplateonboarding = `{
                     "200": {
                         "description": "Successfully updated ledger settings",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/mmodel.LedgerSettings"
                         }
                     },
                     "400": {
@@ -4763,9 +4760,12 @@ const docTemplateonboarding = `{
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "settings": {
-                    "description": "Dynamic configuration settings for this ledger\nexample: {\"accounting\": {\"validateAccountType\": true}}",
-                    "type": "object",
-                    "additionalProperties": {}
+                    "description": "Dynamic configuration settings for this ledger. May be null if no settings are configured.\nexample: {\"accounting\": {\"validateAccountType\": true}}",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/mmodel.LedgerSettings"
+                        }
+                    ]
                 },
                 "status": {
                     "description": "Current operating status of the ledger",
