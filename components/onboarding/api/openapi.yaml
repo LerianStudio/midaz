@@ -69,6 +69,20 @@ paths:
           - asc
           - desc
           type: string
+      - description: Filter organizations by legal name (case-insensitive, prefix
+          match)
+        in: query
+        name: legal_name
+        schema:
+          maxLength: 256
+          type: string
+      - description: Filter organizations by doing business as name (case-insensitive,
+          prefix match)
+        in: query
+        name: doing_business_as
+        schema:
+          maxLength: 256
+          type: string
       responses:
         "200":
           content:
@@ -451,6 +465,12 @@ paths:
           - asc
           - desc
           type: string
+      - description: Filter ledgers by name (case-insensitive, prefix match)
+        in: query
+        name: name
+        schema:
+          maxLength: 256
+          type: string
       responses:
         "200":
           content:
@@ -817,7 +837,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{id}/settings:
     get:
       description: Returns the current configuration settings for a specific ledger.
-        Returns an empty object {} if no settings have been defined.
+        If no settings have been persisted, returns the default settings object.
       parameters:
       - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
@@ -847,7 +867,8 @@ paths:
           content:
             application/json:
               schema:
-                additionalProperties: true
+                additionalProperties:
+                  type: object
                 type: object
           description: Successfully retrieved ledger settings
         "401":
@@ -878,12 +899,15 @@ paths:
       tags:
       - Ledgers
     patch:
-      description: Updates the configuration settings for a specific ledger. New settings
-        are merged at TOP LEVEL only (shallow merge). Nested objects are REPLACED
-        entirely, not deep-merged. To update a nested key, you must send the complete
-        nested object. Setting a key to null will set its value to null; keys are
-        retained, not removed. Server-side validation limits apply - maximum payload
-        size of 64KB, maximum 100 top-level keys, and maximum nesting depth of 10 levels.
+      description: 'Updates the configuration settings for a specific ledger using
+        schema-aware deep merge. Only known settings fields are allowed - unknown
+        fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced
+        - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested
+        objects (like ''accounting'') are deep-merged, preserving existing properties
+        not specified in the update. Example: updating only ''accounting.validateRoutes''
+        preserves the existing ''accounting.validateAccountType'' value. Setting a
+        key to null stores a JSON null value. Allowed fields: accounting.validateAccountType
+        (boolean), accounting.validateRoutes (boolean).'
       parameters:
       - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
@@ -912,16 +936,18 @@ paths:
         content:
           application/json:
             schema:
-              additionalProperties: true
               type: object
-        description: Settings to merge with existing settings
+        description: 'Settings to merge with existing settings. Only known fields
+          allowed: accounting.validateAccountType (bool), accounting.validateRoutes
+          (bool)'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                additionalProperties: true
+                additionalProperties:
+                  type: object
                 type: object
           description: Successfully updated ledger settings
         "400":
@@ -929,7 +955,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid request body
+          description: Invalid request body, unknown field (0147), or invalid field
+            type (0148)
         "401":
           content:
             application/json:
@@ -3621,6 +3648,14 @@ components:
           maxLength: 2
           minLength: 2
           type: string
+        description:
+          description: |-
+            A descriptive label for the address (e.g., "Home", "Office", "Billing")
+            example: Home
+            maxLength: 100
+          example: Home
+          maxLength: 100
+          type: string
         line1:
           description: |-
             Primary address line (street address or PO Box)
@@ -3924,6 +3959,7 @@ components:
         units within an organization that group related financial accounts and assets
         together.
       example:
+        settings: '{}'
         metadata:
           key: '{}'
         name: name
@@ -3944,6 +3980,13 @@ components:
             maxLength: 256
           maxLength: 256
           type: string
+        settings:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.LedgerSettings'
+          description: |-
+            Dynamic configuration settings for this ledger. When nil, no settings are persisted (optional).
+            example: {"accounting": {"validateAccountType": true}}
+          type: object
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
@@ -4149,6 +4192,9 @@ components:
       example:
         organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
+        settings:
+          accounting:
+            validateAccountType: true
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
           key: '{}'
@@ -4204,6 +4250,13 @@ components:
           example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        settings:
+          additionalProperties:
+            type: object
+          description: |-
+            Dynamic configuration settings for this ledger
+            example: {"accounting": {"validateAccountType": true}}
+          type: object
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
@@ -4769,6 +4822,29 @@ components:
           description: Updated status of the segment (active, inactive, pending)
           type: object
       type: object
+    mmodel.AccountingValidation:
+      properties:
+        validateAccountType:
+          description: |-
+            ValidateAccountType enables validation of account types during transaction processing.
+            When true, accounts must have types that match the operation route rules.
+            Default: false (permissive - no validation)
+          type: boolean
+        validateRoutes:
+          description: |-
+            ValidateRoutes enables validation of transaction routes during processing.
+            When true, transactions must specify valid route IDs that exist in the ledger.
+            Default: false (permissive - no validation)
+          type: boolean
+      type: object
+    mmodel.LedgerSettings:
+      properties:
+        accounting:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.AccountingValidation'
+          description: Accounting contains validation settings for accounting operations.
+          type: object
+      type: object
     inline_response_200:
       example:
         Pagination:
@@ -4829,6 +4905,9 @@ components:
         items:
         - organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
+          settings:
+            accounting:
+              validateAccountType: true
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
             key: '{}'
@@ -4838,6 +4917,9 @@ components:
           updatedAt: 2021-01-01T00:00:00Z
         - organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
+          settings:
+            accounting:
+              validateAccountType: true
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
             key: '{}'
