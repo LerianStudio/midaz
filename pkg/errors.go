@@ -1285,6 +1285,42 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Direction Route Mismatch",
 			Message:    fmt.Sprintf("Operation direction '%v' is not compatible with route operation type '%v' for operation '%v'.", args...),
 		},
+		constant.ErrNoSourceForAction: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrNoSourceForAction.Error(),
+			Title:      "No Source for Action",
+			Message:    fmt.Sprintf("The action '%v' requires at least one source operation route. Please add a source route for this action.", args...),
+		},
+		constant.ErrNoDestinationForAction: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrNoDestinationForAction.Error(),
+			Title:      "No Destination for Action",
+			Message:    fmt.Sprintf("The action '%v' requires at least one destination operation route. Please add a destination route for this action.", args...),
+		},
+		constant.ErrInvalidRouteAction: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidRouteAction.Error(),
+			Title:      "Invalid Route Action",
+			Message:    fmt.Sprintf("The action '%v' is not a valid route action. Please provide a valid action value.", args...),
+		},
+		constant.ErrDuplicateActionRoute: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrDuplicateActionRoute.Error(),
+			Title:      "Duplicate Action Route",
+			Message:    fmt.Sprintf("The operation route '%v' is already assigned to the action '%v'. Please remove the duplicate entry.", args...),
+		},
+		constant.ErrNoRoutesForAction: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrNoRoutesForAction.Error(),
+			Title:      "No Routes for Action",
+			Message:    fmt.Sprintf("No routes found for action '%v'. Please configure operation routes for this action in the transaction route.", args...),
+		},
+		constant.ErrTooManyOperationRoutes: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTooManyOperationRoutes.Error(),
+			Title:      "Too Many Operation Routes",
+			Message:    "The number of operation routes exceeds the maximum allowed. Please reduce the number of operation routes and try again.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

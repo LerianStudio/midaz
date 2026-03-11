@@ -40,6 +40,7 @@ type TransactionRoute struct {
 
 // OperationRouteActionInput represents an operation route with its associated action.
 //
+// swagger:model OperationRouteActionInput
 // @Description OperationRouteActionInput payload for associating an operation route with an action in a transaction route.
 type OperationRouteActionInput struct {
 	// The action for this operation route association.
@@ -105,9 +106,9 @@ func (u *UpdateTransactionRouteInput) OperationRouteIDs() []uuid.UUID {
 
 // ActionRouteCache represents cached routes grouped by operation type for a single action.
 type ActionRouteCache struct {
-	Source        map[string]OperationRouteCache `json:"source,omitempty" msgpack:"source,omitempty"`
-	Destination   map[string]OperationRouteCache `json:"destination,omitempty" msgpack:"destination,omitempty"`
-	Bidirectional map[string]OperationRouteCache `json:"bidirectional,omitempty" msgpack:"bidirectional,omitempty"`
+	Source        map[string]OperationRouteCache `json:"source,omitempty" msgpack:"source"`
+	Destination   map[string]OperationRouteCache `json:"destination,omitempty" msgpack:"destination"`
+	Bidirectional map[string]OperationRouteCache `json:"bidirectional,omitempty" msgpack:"bidirectional"`
 }
 
 // TransactionRouteCache represents the cache structure for transaction routes in Redis
@@ -115,7 +116,7 @@ type TransactionRouteCache struct {
 	Source        map[string]OperationRouteCache `json:"source"`
 	Destination   map[string]OperationRouteCache `json:"destination"`
 	Bidirectional map[string]OperationRouteCache `json:"bidirectional,omitempty"`
-	Actions       map[string]ActionRouteCache    `json:"actions,omitempty" msgpack:"actions,omitempty"`
+	Actions       map[string]ActionRouteCache    `json:"actions,omitempty" msgpack:"actions"`
 }
 
 // OperationRouteCache represents the cached data for a single operation route
@@ -194,9 +195,38 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 	return cacheData
 }
 
-// FromMsgpack parses msgpack binary data into TransactionRouteCache
+// IsStale returns true when the cache entry was serialized before the Actions field was introduced.
+// Old cache entries (pre-migration) deserialize with Actions == nil, indicating a DB refresh is needed.
+func (trcd *TransactionRouteCache) IsStale() bool {
+	return trcd.Actions == nil
+}
+
+// FromMsgpack parses msgpack binary data into TransactionRouteCache.
+// After deserialization, inner ActionRouteCache maps are normalized to
+// prevent nil pointer dereference when iterating over Source, Destination,
+// or Bidirectional fields that were absent in the serialized data.
 func (trcd *TransactionRouteCache) FromMsgpack(data []byte) error {
-	return msgpack.Unmarshal(data, trcd)
+	if err := msgpack.Unmarshal(data, trcd); err != nil {
+		return err
+	}
+
+	for action, actionCache := range trcd.Actions {
+		if actionCache.Source == nil {
+			actionCache.Source = make(map[string]OperationRouteCache)
+		}
+
+		if actionCache.Destination == nil {
+			actionCache.Destination = make(map[string]OperationRouteCache)
+		}
+
+		if actionCache.Bidirectional == nil {
+			actionCache.Bidirectional = make(map[string]OperationRouteCache)
+		}
+
+		trcd.Actions[action] = actionCache
+	}
+
+	return nil
 }
 
 // ToMsgpack converts TransactionRouteCache to msgpack binary data
