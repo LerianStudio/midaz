@@ -4193,7 +4193,8 @@ components:
         organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
         settings:
-          key: '{}'
+          accounting:
+            validateAccountType: true
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
           key: '{}'
@@ -4905,7 +4906,8 @@ components:
         - organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           settings:
-            key: '{}'
+            accounting:
+              validateAccountType: true
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
             key: '{}'
@@ -4916,7 +4918,8 @@ components:
         - organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           settings:
-            key: '{}'
+            accounting:
+              validateAccountType: true
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
             key: '{}'
