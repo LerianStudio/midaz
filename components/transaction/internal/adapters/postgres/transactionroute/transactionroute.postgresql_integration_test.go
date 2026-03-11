@@ -192,6 +192,49 @@ func TestIntegration_TransactionRouteRepository_FindByID(t *testing.T) {
 	assert.Equal(t, "Route to be found", found.Description, "description should match")
 	assert.Len(t, found.OperationRoutes, 1, "should have 1 operation route linked")
 	assert.Equal(t, opRouteID, found.OperationRoutes[0].ID, "linked operation route ID should match")
+	assert.Equal(t, "direct", found.OperationRoutes[0].Action, "action should default to direct")
+}
+
+func TestIntegration_TransactionRouteRepository_FindByID_WithAction(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	// Create operation routes
+	opRouteHold := pgtestutil.CreateTestOperationRouteSimple(t, container.DB, orgID, ledgerID, "Hold Route", "source")
+	opRouteDirect := pgtestutil.CreateTestOperationRouteSimple(t, container.DB, orgID, ledgerID, "Direct Route", "destination")
+
+	// Create transaction route via fixture
+	params := pgtestutil.TransactionRouteParams{
+		Title:       "Route With Actions",
+		Description: "Route testing action persistence",
+	}
+	transactionRouteID := pgtestutil.CreateTestTransactionRoute(t, container.DB, orgID, ledgerID, params)
+
+	// Create links with explicit actions
+	pgtestutil.CreateTestOperationTransactionRouteLinkWithAction(t, container.DB, opRouteHold, transactionRouteID, "hold")
+	pgtestutil.CreateTestOperationTransactionRouteLinkWithAction(t, container.DB, opRouteDirect, transactionRouteID, "direct")
+
+	ctx := context.Background()
+
+	// Act
+	found, err := repo.FindByID(ctx, orgID, ledgerID, transactionRouteID)
+
+	// Assert
+	require.NoError(t, err, "FindByID should not return error")
+	require.NotNil(t, found, "found transaction route should not be nil")
+	require.Len(t, found.OperationRoutes, 2, "should have 2 operation routes linked")
+
+	// Build a map of operation route ID to action for order-independent assertion
+	actionsByRouteID := make(map[uuid.UUID]string)
+	for _, opRoute := range found.OperationRoutes {
+		actionsByRouteID[opRoute.ID] = opRoute.Action
+	}
+
+	assert.Equal(t, "hold", actionsByRouteID[opRouteHold], "hold operation route should have action=hold")
+	assert.Equal(t, "direct", actionsByRouteID[opRouteDirect], "direct operation route should have action=direct")
 }
 
 func TestIntegration_TransactionRouteRepository_FindByID_WithoutOperationRoutes(t *testing.T) {
@@ -379,7 +422,10 @@ func TestIntegration_TransactionRouteRepository_Update_AddOperationRoutes(t *tes
 	}
 
 	// Act - add operation routes
-	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, []uuid.UUID{opRouteID1, opRouteID2}, nil)
+	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, []mmodel.OperationRouteActionInput{
+		{OperationRouteID: opRouteID1, Action: "direct"},
+		{OperationRouteID: opRouteID2, Action: "direct"},
+	}, nil)
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
@@ -415,7 +461,9 @@ func TestIntegration_TransactionRouteRepository_Update_RemoveOperationRoutes(t *
 	}
 
 	// Act - remove one operation route
-	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, nil, []uuid.UUID{opRouteID2})
+	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, nil, []mmodel.OperationRouteActionInput{
+		{OperationRouteID: opRouteID2, Action: "direct"},
+	})
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
@@ -526,7 +574,10 @@ func TestIntegration_TransactionRouteRepository_Delete_WithOperationRoutes(t *te
 	ctx := context.Background()
 
 	// Act - delete with operation route removals
-	err := repo.Delete(ctx, orgID, ledgerID, transactionRouteID, []uuid.UUID{opRouteID1, opRouteID2})
+	err := repo.Delete(ctx, orgID, ledgerID, transactionRouteID, []mmodel.OperationRouteActionInput{
+		{OperationRouteID: opRouteID1, Action: "direct"},
+		{OperationRouteID: opRouteID2, Action: "direct"},
+	})
 
 	// Assert
 	require.NoError(t, err, "Delete should not return error")

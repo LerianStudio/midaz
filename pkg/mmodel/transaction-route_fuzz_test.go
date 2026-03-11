@@ -5,6 +5,7 @@
 package mmodel
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -87,18 +88,6 @@ func FuzzToCache(f *testing.F) {
 		cache := tr.ToCache()
 
 		// Basic structural invariants
-		if cache.Source == nil {
-			t.Error("Source map should never be nil")
-		}
-
-		if cache.Destination == nil {
-			t.Error("Destination map should never be nil")
-		}
-
-		if cache.Bidirectional == nil {
-			t.Error("Bidirectional map should never be nil")
-		}
-
 		if cache.Actions == nil {
 			t.Error("Actions map should never be nil")
 		}
@@ -112,16 +101,100 @@ func FuzzToCache(f *testing.F) {
 			}
 			// Note: routes with the same ID would collapse in the map, but since we use uuid.New()
 			// they should all be unique
-			totalLegacy := len(cache.Source) + len(cache.Destination) + len(cache.Bidirectional)
-
-			if totalLegacy != numRoutes {
-				t.Errorf("legacy fields route count %d != input count %d", totalLegacy, numRoutes)
-			}
-
 			if totalInActions != numRoutes {
 				t.Errorf("actions route count %d != input count %d", totalInActions, numRoutes)
 			}
 		}
+	})
+}
+
+// FuzzFromMsgpack_ArbitraryBytes feeds random bytes into FromMsgpack to verify it never
+// panics on any input. This is the highest-priority fuzz target for cache deserialization
+// because FromMsgpack receives data from Redis, which may contain corrupted, truncated,
+// pre-migration (old schema), or completely arbitrary bytes.
+func FuzzFromMsgpack_ArbitraryBytes(f *testing.F) {
+	// Seed 1: valid msgpack from a fully-populated TransactionRouteCache
+	validCache := TransactionRouteCache{
+		Actions: map[string]ActionRouteCache{
+			"direct": {
+				Source:        map[string]OperationRouteCache{"route-1": {OperationType: "source", Account: &AccountCache{RuleType: "alias", ValidIf: "@cash"}}},
+				Destination:   map[string]OperationRouteCache{"route-2": {OperationType: "destination"}},
+				Bidirectional: map[string]OperationRouteCache{},
+			},
+		},
+	}
+
+	validBytes, err := validCache.ToMsgpack()
+	if err != nil {
+		f.Fatalf("failed to create valid msgpack seed: %v", err)
+	}
+
+	f.Add(validBytes)
+
+	// Seed 2: empty byte slice
+	f.Add([]byte{})
+
+	// Seed 3: single byte (boundary - minimal input)
+	f.Add([]byte{0x00})
+
+	// Seed 4: truncated valid msgpack (first half of a valid payload)
+	if len(validBytes) > 2 {
+		f.Add(validBytes[:len(validBytes)/2])
+	}
+
+	// Seed 5: cache format with nil Actions to simulate pre-migration cache
+	legacyCache := TransactionRouteCache{}
+
+	legacyBytes, err := legacyCache.ToMsgpack()
+	if err != nil {
+		f.Fatalf("failed to create legacy msgpack seed: %v", err)
+	}
+
+	f.Add(legacyBytes)
+
+	// Seed 6: JSON instead of msgpack (wrong format entirely)
+	f.Add([]byte(`{"source":{"r1":{"operationType":"source"}},"destination":{}}`))
+
+	// Seed 7: null bytes and control characters (binary garbage)
+	f.Add([]byte{0xff, 0xfe, 0xfd, 0x00, 0x01, 0x80, 0x90, 0xa0, 0xc0, 0xd0})
+
+	// Seed 8: large repeated byte pattern (boundary - memory pressure)
+	f.Add([]byte(strings.Repeat("\x92\x80\x80", 100)))
+
+	// Seed 9: msgpack fixmap with unexpected nested types
+	f.Add([]byte{
+		0x84, 0xa6, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0xc0,
+		0xab, 0x64, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0xc0,
+		0xad, 0x62, 0x69, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0xc0,
+		0xa7, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0xc0,
+	})
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// Bound input to prevent excessive memory usage from decompression bombs
+		if len(data) > 4096 {
+			data = data[:4096]
+		}
+
+		var cache TransactionRouteCache
+
+		// Primary property: FromMsgpack must never panic on any input
+		err := cache.FromMsgpack(data)
+		if err != nil {
+			// Error is acceptable -- corrupted data should return an error, not panic
+			return
+		}
+
+		// Secondary property: if deserialization succeeds, re-serialization must not panic
+		roundtripped, err := cache.ToMsgpack()
+		if err != nil {
+			// Serialization failure after successful deserialization is noteworthy but not a crash
+			return
+		}
+
+		// Quaternary property: roundtrip deserialization must not panic
+		var cache2 TransactionRouteCache
+
+		_ = cache2.FromMsgpack(roundtripped)
 	})
 }
 
@@ -190,8 +263,8 @@ func FuzzToCacheMsgpackRoundTrip(f *testing.F) {
 			t.Fatalf("FromMsgpack failed: %v", err)
 		}
 
-		if len(restored.Source) != len(cache.Source) {
-			t.Errorf("Source count mismatch: got %d, want %d", len(restored.Source), len(cache.Source))
+		if len(restored.Actions) != len(cache.Actions) {
+			t.Errorf("Actions count mismatch: got %d, want %d", len(restored.Actions), len(cache.Actions))
 		}
 	})
 }
