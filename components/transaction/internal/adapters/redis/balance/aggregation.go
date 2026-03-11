@@ -164,9 +164,16 @@ func (a *InMemoryAggregator) Aggregate(ctx context.Context, balances []*Aggregat
 		result = append(result, ab)
 	}
 
+	// Precompute key strings to avoid repeated allocations during sort.
+	// sort.Slice comparator is called O(n log n) times; caching reduces allocations to O(n).
+	keys := make([]string, len(result))
+	for k := range result {
+		keys[k] = result[k].Key.String()
+	}
+
 	// Sort by composite key for deterministic output
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].Key.String() < result[j].Key.String()
+		return keys[i] < keys[j]
 	})
 
 	return result
