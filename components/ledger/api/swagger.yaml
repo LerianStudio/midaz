@@ -12,7 +12,7 @@ info:
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
-  version: v3.5.1
+  version: v3.5.2
 host: localhost:3002
 basePath: /
 paths:
@@ -68,6 +68,18 @@ paths:
         type: string
         description: Sort direction for results based on creation date
         name: sort_order
+        in: query
+      - maxLength: 256
+        type: string
+        description: Filter organizations by legal name (case-insensitive, prefix
+          match)
+        name: legal_name
+        in: query
+      - maxLength: 256
+        type: string
+        description: Filter organizations by doing business as name (case-insensitive,
+          prefix match)
+        name: doing_business_as
         in: query
       responses:
         '200':
@@ -386,6 +398,11 @@ paths:
         description: Sort direction for results based on creation date
         name: sort_order
         in: query
+      - maxLength: 256
+        type: string
+        description: Filter ledgers by name (case-insensitive, prefix match)
+        name: name
+        in: query
       responses:
         '200':
           description: Successfully retrieved ledgers list
@@ -673,6 +690,130 @@ paths:
             $ref: '#/definitions/Error'
         '404':
           description: Ledger or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{id}/settings:
+    get:
+      description: Returns the current configuration settings for a specific ledger.
+        Returns an empty object {} if no settings have been defined.
+      produces:
+      - application/json
+      tags:
+      - Ledgers
+      summary: Get ledger settings
+      parameters:
+      - type: string
+        description: 'Authorization Bearer Token with format: Bearer {token}'
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID for tracing
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID in UUID format
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID in UUID format
+        name: id
+        in: path
+        required: true
+      responses:
+        '200':
+          description: Successfully retrieved ledger settings
+          schema:
+            type: object
+            additionalProperties: true
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+    patch:
+      description: 'Updates the configuration settings for a specific ledger using
+        schema-aware deep merge. Only known settings fields are allowed - unknown
+        fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced
+        - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested
+        objects (like ''accounting'') are deep-merged, preserving existing properties
+        not specified in the update. Example: updating only ''accounting.validateRoutes''
+        preserves the existing ''accounting.validateAccountType'' value. Setting a
+        key to null stores a JSON null value. Allowed fields: accounting.validateAccountType
+        (boolean), accounting.validateRoutes (boolean).'
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - Ledgers
+      summary: Update ledger settings
+      parameters:
+      - type: string
+        description: 'Authorization Bearer Token with format: Bearer {token}'
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID for tracing
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID in UUID format
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID in UUID format
+        name: id
+        in: path
+        required: true
+      - description: 'Settings to merge with existing settings. Only known fields
+          allowed: accounting.validateAccountType (bool), accounting.validateRoutes
+          (bool)'
+        name: settings
+        in: body
+        required: true
+        schema:
+          type: object
+          additionalProperties: true
+      responses:
+        '200':
+          description: Successfully updated ledger settings
+          schema:
+            type: object
+            additionalProperties: true
+        '400':
+          description: Invalid request body, unknown field (0147), or invalid field
+            type (0148)
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Ledger not found
           schema:
             $ref: '#/definitions/Error'
         '500':
@@ -3096,6 +3237,15 @@ paths:
       - type: string
         description: DEBIT, CREDIT
         name: type
+        in: query
+      - type: string
+        description: Filter by direction
+        name: direction
+        in: query
+      - type: string
+        format: uuid
+        description: Filter by operation route ID
+        name: route_id
         in: query
       responses:
         '200':
@@ -5564,6 +5714,16 @@ definitions:
         maxLength: 2
         minLength: 2
         example: US
+      description:
+        description: 'A descriptive label for the address (e.g., "Home", "Office",
+          "Billing")
+
+          example: Home
+
+          maxLength: 100'
+        type: string
+        maxLength: 100
+        example: Home
       line1:
         description: 'Primary address line (street address or PO Box)
 
@@ -5861,6 +6021,13 @@ definitions:
           maxLength: 256'
         type: string
         maxLength: 256
+      settings:
+        description: 'Dynamic configuration settings for this ledger. When nil, no
+          settings are persisted (optional).
+
+          example: {"accounting": {"validateAccountType": true}}'
+        allOf:
+        - $ref: '#/definitions/mmodel.LedgerSettings'
       status:
         description: 'Current operating status of the ledger (defaults to ACTIVE if
           not specified)
@@ -6103,6 +6270,12 @@ definitions:
         type: string
         format: uuid
         example: 00000000-0000-0000-0000-000000000000
+      settings:
+        description: 'Dynamic configuration settings for this ledger
+
+          example: {"accounting": {"validateAccountType": true}}'
+        type: object
+        additionalProperties: {}
       status:
         description: Current operating status of the ledger
         allOf:
@@ -6598,6 +6771,32 @@ definitions:
         description: Updated status of the segment (active, inactive, pending)
         allOf:
         - $ref: '#/definitions/Status'
+  mmodel.AccountingValidation:
+    type: object
+    properties:
+      validateAccountType:
+        description: 'ValidateAccountType enables validation of account types during
+          transaction processing.
+
+          When true, accounts must have types that match the operation route rules.
+
+          Default: false (permissive - no validation)'
+        type: boolean
+      validateRoutes:
+        description: 'ValidateRoutes enables validation of transaction routes during
+          processing.
+
+          When true, transactions must specify valid route IDs that exist in the ledger.
+
+          Default: false (permissive - no validation)'
+        type: boolean
+  mmodel.LedgerSettings:
+    type: object
+    properties:
+      accounting:
+        description: Accounting contains validation settings for accounting operations.
+        allOf:
+        - $ref: '#/definitions/mmodel.AccountingValidation'
   AccountRule:
     description: AccountRule object containing the rule type and condition for account
       selection in operation routes.
@@ -7336,7 +7535,7 @@ definitions:
           the Transaction Route.
         type: array
         items:
-          type: string
+          $ref: '#/definitions/OperationRouteActionInput'
       title:
         description: Short text summarizing the purpose of the transaction. Used as
           an entry note for identification.
@@ -7452,6 +7651,15 @@ definitions:
         type: string
         maxLength: 256
         example: Credit card operation
+      direction:
+        description: 'Direction of the operation (debit, credit)
+
+          example: debit
+
+          maxLength: 50'
+        type: string
+        maxLength: 50
+        example: debit
       id:
         description: 'Unique identifier for the operation
 
@@ -7494,6 +7702,16 @@ definitions:
         type: string
         format: string
         example: 00000000-0000-0000-0000-000000000000
+      routeId:
+        description: 'Route ID referencing the operation route that generated this
+          operation
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
       status:
         description: Operation status information
         allOf:
@@ -7533,6 +7751,11 @@ definitions:
         description: The account selection rule configuration.
         allOf:
         - $ref: '#/definitions/AccountRule'
+      action:
+        description: The action associated with this operation route in the context
+          of a transaction route.
+        type: string
+        example: direct
       code:
         description: External reference of the operation route.
         type: string
@@ -7582,6 +7805,28 @@ definitions:
         type: string
         format: date-time
         example: '2021-01-01T00:00:00Z'
+  OperationRouteActionInput:
+    description: OperationRouteActionInput payload for associating an operation route
+      with an action in a transaction route.
+    type: object
+    required:
+    - action
+    - operationRouteId
+    properties:
+      action:
+        description: The action for this operation route association.
+        type: string
+        enum:
+        - direct
+        - hold
+        - commit
+        - cancel
+        - revert
+        example: direct
+      operationRouteId:
+        description: The unique identifier of the Operation Route.
+        type: string
+        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
   Transaction:
     description: Transaction is a struct designed to store transaction data. Represents
       a financial transaction that consists of multiple operations affecting account
@@ -7891,7 +8136,7 @@ definitions:
           the Transaction Route.
         type: array
         items:
-          type: string
+          $ref: '#/definitions/OperationRouteActionInput'
       title:
         description: Short text summarizing the purpose of the transaction. Used as
           an entry note for identification.

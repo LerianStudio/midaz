@@ -660,7 +660,7 @@ definitions:
         description: An object containing accounting data of Operation Routes from
           the Transaction Route.
         items:
-          type: string
+          $ref: '#/definitions/OperationRouteActionInput'
         type: array
       title:
         description: Short text summarizing the purpose of the transaction. Used as
@@ -816,6 +816,14 @@ definitions:
         example: Credit card operation
         maxLength: 256
         type: string
+      direction:
+        description: |-
+          Direction of the operation (debit, credit)
+          example: debit
+          maxLength: 50
+        example: debit
+        maxLength: 50
+        type: string
       id:
         description: |-
           Unique identifier for the operation
@@ -854,6 +862,14 @@ definitions:
         example: 00000000-0000-0000-0000-000000000000
         format: string
         type: string
+      routeId:
+        description: |-
+          Route ID referencing the operation route that generated this operation
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        type: string
       status:
         allOf:
         - $ref: '#/definitions/Status'
@@ -890,6 +906,11 @@ definitions:
         allOf:
         - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
+      action:
+        description: The action associated with this operation route in the context
+          of a transaction route.
+        example: direct
+        type: string
       code:
         description: External reference of the operation route.
         example: EXT-001
@@ -939,6 +960,28 @@ definitions:
         example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
+    type: object
+  OperationRouteActionInput:
+    description: OperationRouteActionInput payload for associating an operation route
+      with an action in a transaction route.
+    properties:
+      action:
+        description: The action for this operation route association.
+        enum:
+        - direct
+        - hold
+        - commit
+        - cancel
+        - revert
+        example: direct
+        type: string
+      operationRouteId:
+        description: The unique identifier of the Operation Route.
+        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        type: string
+    required:
+    - action
+    - operationRouteId
     type: object
   Pagination:
     description: Pagination is the struct designed to store the pagination data of
@@ -1269,7 +1312,7 @@ definitions:
         description: An object containing accounting data of Operation Routes from
           the Transaction Route.
         items:
-          type: string
+          $ref: '#/definitions/OperationRouteActionInput'
         type: array
       title:
         description: Short text summarizing the purpose of the transaction. Used as
@@ -1876,6 +1919,15 @@ paths:
       - description: DEBIT, CREDIT
         in: query
         name: type
+        type: string
+      - description: Filter by direction
+        in: query
+        name: direction
+        type: string
+      - description: Filter by operation route ID
+        format: uuid
+        in: query
+        name: route_id
         type: string
       produces:
       - application/json
