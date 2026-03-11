@@ -216,10 +216,12 @@ func TestTransactionRoute_ToCache(t *testing.T) {
 
 			cache := tt.transactionRoute.ToCache()
 
-			assert.NotNil(t, cache.Source)
-			assert.NotNil(t, cache.Destination)
-			assert.Len(t, cache.Source, tt.wantSourceCount)
-			assert.Len(t, cache.Destination, tt.wantDestCount)
+			assert.NotNil(t, cache.Actions)
+
+			// These tests use routes without an explicit Action, so they group under ""
+			defaultAction := cache.Actions[""]
+			assert.Len(t, defaultAction.Source, tt.wantSourceCount)
+			assert.Len(t, defaultAction.Destination, tt.wantDestCount)
 		})
 	}
 }
@@ -252,7 +254,8 @@ func TestTransactionRoute_ToCache_AccountRuleMapping(t *testing.T) {
 	cache := transactionRoute.ToCache()
 
 	routeIDStr := routeID.String()
-	sourceRoute, exists := cache.Source[routeIDStr]
+	defaultAction := cache.Actions[""]
+	sourceRoute, exists := defaultAction.Source[routeIDStr]
 	require.True(t, exists, "Source route should exist in cache")
 
 	require.NotNil(t, sourceRoute.Account)
@@ -264,20 +267,25 @@ func TestTransactionRouteCache_FromMsgpack(t *testing.T) {
 	t.Parallel()
 
 	original := TransactionRouteCache{
-		Source: map[string]OperationRouteCache{
-			"route-1": {
-				Account: &AccountCache{
-					RuleType: "alias",
-					ValidIf:  "@source",
+		Actions: map[string]ActionRouteCache{
+			"direct": {
+				Source: map[string]OperationRouteCache{
+					"route-1": {
+						Account: &AccountCache{
+							RuleType: "alias",
+							ValidIf:  "@source",
+						},
+					},
 				},
-			},
-		},
-		Destination: map[string]OperationRouteCache{
-			"route-2": {
-				Account: &AccountCache{
-					RuleType: "account_type",
-					ValidIf:  []any{"deposit"},
+				Destination: map[string]OperationRouteCache{
+					"route-2": {
+						Account: &AccountCache{
+							RuleType: "account_type",
+							ValidIf:  []any{"deposit"},
+						},
+					},
 				},
+				Bidirectional: map[string]OperationRouteCache{},
 			},
 		},
 	}
@@ -292,10 +300,11 @@ func TestTransactionRouteCache_FromMsgpack(t *testing.T) {
 	err = restored.FromMsgpack(data)
 	require.NoError(t, err)
 
-	assert.Len(t, restored.Source, 1)
-	assert.Len(t, restored.Destination, 1)
+	directAction := restored.Actions["direct"]
+	assert.Len(t, directAction.Source, 1)
+	assert.Len(t, directAction.Destination, 1)
 
-	sourceRoute, exists := restored.Source["route-1"]
+	sourceRoute, exists := directAction.Source["route-1"]
 	require.True(t, exists)
 	require.NotNil(t, sourceRoute.Account)
 	assert.Equal(t, "alias", sourceRoute.Account.RuleType)
@@ -312,25 +321,29 @@ func TestTransactionRouteCache_ToMsgpack(t *testing.T) {
 		{
 			name: "empty cache",
 			cache: TransactionRouteCache{
-				Source:      map[string]OperationRouteCache{},
-				Destination: map[string]OperationRouteCache{},
+				Actions: map[string]ActionRouteCache{},
 			},
 			wantErr: false,
 		},
 		{
 			name: "cache with data",
 			cache: TransactionRouteCache{
-				Source: map[string]OperationRouteCache{
-					"src-1": {
-						Account: &AccountCache{
-							RuleType: "alias",
-							ValidIf:  "@account",
+				Actions: map[string]ActionRouteCache{
+					"direct": {
+						Source: map[string]OperationRouteCache{
+							"src-1": {
+								Account: &AccountCache{
+									RuleType: "alias",
+									ValidIf:  "@account",
+								},
+							},
 						},
-					},
-				},
-				Destination: map[string]OperationRouteCache{
-					"dst-1": {
-						Account: nil,
+						Destination: map[string]OperationRouteCache{
+							"dst-1": {
+								Account: nil,
+							},
+						},
+						Bidirectional: map[string]OperationRouteCache{},
 					},
 				},
 			},
@@ -339,10 +352,15 @@ func TestTransactionRouteCache_ToMsgpack(t *testing.T) {
 		{
 			name: "cache with nil account",
 			cache: TransactionRouteCache{
-				Source: map[string]OperationRouteCache{
-					"route": {Account: nil},
+				Actions: map[string]ActionRouteCache{
+					"direct": {
+						Source: map[string]OperationRouteCache{
+							"route": {Account: nil},
+						},
+						Destination:   map[string]OperationRouteCache{},
+						Bidirectional: map[string]OperationRouteCache{},
+					},
 				},
-				Destination: map[string]OperationRouteCache{},
 			},
 			wantErr: false,
 		},
@@ -377,23 +395,28 @@ func TestTransactionRouteCache_RoundTrip(t *testing.T) {
 	t.Parallel()
 
 	original := TransactionRouteCache{
-		Source: map[string]OperationRouteCache{
-			"source-route-uuid": {
-				Account: &AccountCache{
-					RuleType: "alias",
-					ValidIf:  "@merchant_account",
+		Actions: map[string]ActionRouteCache{
+			"direct": {
+				Source: map[string]OperationRouteCache{
+					"source-route-uuid": {
+						Account: &AccountCache{
+							RuleType: "alias",
+							ValidIf:  "@merchant_account",
+						},
+					},
 				},
-			},
-		},
-		Destination: map[string]OperationRouteCache{
-			"dest-route-uuid-1": {
-				Account: &AccountCache{
-					RuleType: "account_type",
-					ValidIf:  []any{"checking", "savings"},
+				Destination: map[string]OperationRouteCache{
+					"dest-route-uuid-1": {
+						Account: &AccountCache{
+							RuleType: "account_type",
+							ValidIf:  []any{"checking", "savings"},
+						},
+					},
+					"dest-route-uuid-2": {
+						Account: nil,
+					},
 				},
-			},
-			"dest-route-uuid-2": {
-				Account: nil,
+				Bidirectional: map[string]OperationRouteCache{},
 			},
 		},
 	}
@@ -407,21 +430,23 @@ func TestTransactionRouteCache_RoundTrip(t *testing.T) {
 	err = restored.FromMsgpack(data)
 	require.NoError(t, err)
 
+	directAction := restored.Actions["direct"]
+
 	// Verify source
-	assert.Len(t, restored.Source, 1)
-	sourceRoute := restored.Source["source-route-uuid"]
+	assert.Len(t, directAction.Source, 1)
+	sourceRoute := directAction.Source["source-route-uuid"]
 	require.NotNil(t, sourceRoute.Account)
 	assert.Equal(t, "alias", sourceRoute.Account.RuleType)
 	assert.Equal(t, "@merchant_account", sourceRoute.Account.ValidIf)
 
 	// Verify destinations
-	assert.Len(t, restored.Destination, 2)
+	assert.Len(t, directAction.Destination, 2)
 
-	destRoute1 := restored.Destination["dest-route-uuid-1"]
+	destRoute1 := directAction.Destination["dest-route-uuid-1"]
 	require.NotNil(t, destRoute1.Account)
 	assert.Equal(t, "account_type", destRoute1.Account.RuleType)
 
-	destRoute2 := restored.Destination["dest-route-uuid-2"]
+	destRoute2 := directAction.Destination["dest-route-uuid-2"]
 	assert.Nil(t, destRoute2.Account)
 }
 
@@ -601,10 +626,8 @@ func TestTransactionRoute_ToCache_WithActions(t *testing.T) {
 	assert.Len(t, holdActions.Destination, 0)
 	assert.Len(t, holdActions.Bidirectional, 1, "hold action should have 1 bidirectional route")
 
-	// Legacy fields should still be populated
-	assert.Len(t, cache.Source, 1)
-	assert.Len(t, cache.Destination, 1)
-	assert.Len(t, cache.Bidirectional, 1)
+	// Verify total action keys
+	assert.Len(t, cache.Actions, 2, "should have 'direct' and 'hold' action groups")
 }
 
 func TestTransactionRoute_ToCache_SingleAction(t *testing.T) {
@@ -679,25 +702,6 @@ func TestTransactionRouteCache_Actions_RoundTrip(t *testing.T) {
 	t.Parallel()
 
 	original := TransactionRouteCache{
-		Source: map[string]OperationRouteCache{
-			"route-1": {
-				Account: &AccountCache{
-					RuleType: "alias",
-					ValidIf:  "@source",
-				},
-				OperationType: "source",
-			},
-		},
-		Destination: map[string]OperationRouteCache{
-			"route-2": {
-				Account: &AccountCache{
-					RuleType: "alias",
-					ValidIf:  "@dest",
-				},
-				OperationType: "destination",
-			},
-		},
-		Bidirectional: map[string]OperationRouteCache{},
 		Actions: map[string]ActionRouteCache{
 			"direct": {
 				Source: map[string]OperationRouteCache{
@@ -732,10 +736,6 @@ func TestTransactionRouteCache_Actions_RoundTrip(t *testing.T) {
 	var restored TransactionRouteCache
 	err = restored.FromMsgpack(data)
 	require.NoError(t, err)
-
-	// Verify legacy fields
-	assert.Len(t, restored.Source, 1)
-	assert.Len(t, restored.Destination, 1)
 
 	// Verify Actions roundtrip
 	require.NotNil(t, restored.Actions)
@@ -937,10 +937,6 @@ func TestTransactionRoute_ToCache_MultipleRoutesPerAction(t *testing.T) {
 	require.True(t, exists)
 	assert.Len(t, directActions.Source, 2, "direct action should have 2 source routes")
 	assert.Len(t, directActions.Destination, 1, "direct action should have 1 destination route")
-
-	// Legacy fields
-	assert.Len(t, cache.Source, 2)
-	assert.Len(t, cache.Destination, 1)
 }
 
 func TestTransactionRoute_ToCache_AllActionTypes(t *testing.T) {
@@ -994,13 +990,7 @@ func TestTransactionRoute_ToCache_NilOperationRoutes(t *testing.T) {
 
 	cache := transactionRoute.ToCache()
 
-	assert.NotNil(t, cache.Source)
-	assert.NotNil(t, cache.Destination)
-	assert.NotNil(t, cache.Bidirectional)
 	assert.NotNil(t, cache.Actions)
-	assert.Len(t, cache.Source, 0)
-	assert.Len(t, cache.Destination, 0)
-	assert.Len(t, cache.Bidirectional, 0)
 	assert.Len(t, cache.Actions, 0)
 }
 
@@ -1031,12 +1021,6 @@ func TestTransactionRoute_ToCache_BidirectionalWithAction(t *testing.T) {
 	}
 
 	cache := transactionRoute.ToCache()
-
-	// Legacy field
-	assert.Len(t, cache.Bidirectional, 1)
-	bidiRoute, exists := cache.Bidirectional[bidiID.String()]
-	require.True(t, exists)
-	assert.Equal(t, "bidirectional", bidiRoute.OperationType)
 
 	// Actions map
 	holdAction, exists := cache.Actions["hold"]
@@ -1071,9 +1055,6 @@ func TestTransactionRoute_ToCache_UnknownOperationType_NoPhantomAction(t *testin
 
 	cache := transactionRoute.ToCache()
 
-	assert.Len(t, cache.Source, 0)
-	assert.Len(t, cache.Destination, 0)
-	assert.Len(t, cache.Bidirectional, 0)
 	assert.Len(t, cache.Actions, 0, "unknown operation type must not create a phantom action entry")
 }
 

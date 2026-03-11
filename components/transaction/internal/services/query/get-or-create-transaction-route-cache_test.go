@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -38,12 +39,24 @@ func TestGetOrCreateTransactionRouteCache_CacheHit(t *testing.T) {
 
 	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
-	// Create expected cache data in msgpack format
-	expectedCacheData := mmodel.TransactionRouteCache{
-		Source:      map[string]mmodel.OperationRouteCache{"operation1": {Account: &mmodel.AccountCache{RuleType: "alias", ValidIf: "@cash"}}},
-		Destination: map[string]mmodel.OperationRouteCache{},
+	// Create cache data with Actions populated
+	cacheToSerialize := mmodel.TransactionRouteCache{
+		Actions: map[string]mmodel.ActionRouteCache{
+			"direct": {
+				Source:        map[string]mmodel.OperationRouteCache{"operation1": {Account: &mmodel.AccountCache{RuleType: "alias", ValidIf: "@cash"}, OperationType: "source"}},
+				Destination:   map[string]mmodel.OperationRouteCache{},
+				Bidirectional: map[string]mmodel.OperationRouteCache{},
+			},
+		},
 	}
-	expectedCacheBytes, _ := expectedCacheData.ToMsgpack()
+	expectedCacheBytes, err := cacheToSerialize.ToMsgpack()
+	require.NoError(t, err)
+
+	// Deserialize to get the actual expected shape after msgpack roundtrip
+	// (msgpack may convert empty maps to nil for omitempty fields)
+	var expectedCacheData mmodel.TransactionRouteCache
+	err = expectedCacheData.FromMsgpack(expectedCacheBytes)
+	require.NoError(t, err)
 
 	mockRedisRepo.EXPECT().
 		GetBytes(gomock.Any(), expectedKey).
@@ -94,7 +107,8 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_Success(t *testing.T) {
 	}
 
 	expectedCacheData := transactionRoute.ToCache()
-	expectedCacheBytes, _ := expectedCacheData.ToMsgpack()
+	expectedCacheBytes, err := expectedCacheData.ToMsgpack()
+	require.NoError(t, err)
 
 	mockRedisRepo.EXPECT().
 		GetBytes(gomock.Any(), expectedKey).
@@ -145,7 +159,8 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_EmptyCache(t *testing.T) {
 	}
 
 	expectedCacheData := transactionRoute.ToCache()
-	expectedCacheBytes, _ := expectedCacheData.ToMsgpack()
+	expectedCacheBytes, err := expectedCacheData.ToMsgpack()
+	require.NoError(t, err)
 
 	mockRedisRepo.EXPECT().
 		GetBytes(gomock.Any(), expectedKey).
@@ -196,7 +211,8 @@ func TestGetOrCreateTransactionRouteCache_RedisGetError(t *testing.T) {
 	}
 
 	expectedCacheData := transactionRoute.ToCache()
-	expectedCacheBytes, _ := expectedCacheData.ToMsgpack()
+	expectedCacheBytes, err := expectedCacheData.ToMsgpack()
+	require.NoError(t, err)
 
 	mockRedisRepo.EXPECT().
 		GetBytes(gomock.Any(), expectedKey).
@@ -320,7 +336,8 @@ func TestGetOrCreateTransactionRouteCache_CacheCreationFails(t *testing.T) {
 	}
 
 	expectedCacheData := transactionRoute.ToCache()
-	expectedCacheBytes, _ := expectedCacheData.ToMsgpack()
+	expectedCacheBytes, err := expectedCacheData.ToMsgpack()
+	require.NoError(t, err)
 	redisError := errors.New("redis connection error")
 
 	mockRedisRepo.EXPECT().

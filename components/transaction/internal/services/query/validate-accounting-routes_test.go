@@ -11,6 +11,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -243,7 +244,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			TransactionRoute: transactionRouteID.String(),
 		}
 
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
+		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
 		assert.NoError(t, err)
 	})
@@ -267,7 +268,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			TransactionRoute: transactionRouteID.String(),
 		}
 
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
+		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
 		assert.NoError(t, err)
 	})
@@ -300,7 +301,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			TransactionRoute: "",
 		}
 
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
+		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "0114")
@@ -334,7 +335,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			TransactionRoute: "invalid-uuid-format",
 		}
 
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
+		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "0115")
@@ -364,7 +365,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			TransactionRoute: transactionRouteID.String(),
 		}
 
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate)
+		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
 		assert.NoError(t, err, "must return nil when settings fetch fails (graceful degradation)")
 	})
@@ -387,9 +388,13 @@ func TestValidateAccountRules(t *testing.T) {
 		{
 			name: "Account type validation disabled returns nil",
 			transactionRouteCache: mmodel.TransactionRouteCache{
-				Source:        map[string]mmodel.OperationRouteCache{},
-				Destination:   map[string]mmodel.OperationRouteCache{},
-				Bidirectional: map[string]mmodel.OperationRouteCache{},
+				Actions: map[string]mmodel.ActionRouteCache{
+					"direct": {
+						Source:        map[string]mmodel.OperationRouteCache{},
+						Destination:   map[string]mmodel.OperationRouteCache{},
+						Bidirectional: map[string]mmodel.OperationRouteCache{},
+					},
+				},
 			},
 			validate: &pkgTransaction.Responses{
 				From:                map[string]pkgTransaction.Amount{"op-alias": {}},
@@ -414,17 +419,21 @@ func TestValidateAccountRules(t *testing.T) {
 		{
 			name: "Operation found in From map with source route validates successfully",
 			transactionRouteCache: mmodel.TransactionRouteCache{
-				Source: map[string]mmodel.OperationRouteCache{
-					routeID: {
-						OperationType: "source",
-						Account: &mmodel.AccountCache{
-							RuleType: "account_type",
-							ValidIf:  []string{"asset"},
+				Actions: map[string]mmodel.ActionRouteCache{
+					"direct": {
+						Source: map[string]mmodel.OperationRouteCache{
+							routeID: {
+								OperationType: "source",
+								Account: &mmodel.AccountCache{
+									RuleType: "account_type",
+									ValidIf:  []string{"asset"},
+								},
+							},
 						},
+						Destination:   map[string]mmodel.OperationRouteCache{},
+						Bidirectional: map[string]mmodel.OperationRouteCache{},
 					},
 				},
-				Destination:   map[string]mmodel.OperationRouteCache{},
-				Bidirectional: map[string]mmodel.OperationRouteCache{},
 			},
 			validate: &pkgTransaction.Responses{
 				From:                map[string]pkgTransaction.Amount{"op-alias": {}},
@@ -449,17 +458,21 @@ func TestValidateAccountRules(t *testing.T) {
 		{
 			name: "Operation found in To map with destination route validates successfully",
 			transactionRouteCache: mmodel.TransactionRouteCache{
-				Source: map[string]mmodel.OperationRouteCache{},
-				Destination: map[string]mmodel.OperationRouteCache{
-					routeID: {
-						OperationType: "destination",
-						Account: &mmodel.AccountCache{
-							RuleType: "account_type",
-							ValidIf:  []string{"liability"},
+				Actions: map[string]mmodel.ActionRouteCache{
+					"direct": {
+						Source: map[string]mmodel.OperationRouteCache{},
+						Destination: map[string]mmodel.OperationRouteCache{
+							routeID: {
+								OperationType: "destination",
+								Account: &mmodel.AccountCache{
+									RuleType: "account_type",
+									ValidIf:  []string{"liability"},
+								},
+							},
 						},
+						Bidirectional: map[string]mmodel.OperationRouteCache{},
 					},
 				},
-				Bidirectional: map[string]mmodel.OperationRouteCache{},
 			},
 			validate: &pkgTransaction.Responses{
 				From:                map[string]pkgTransaction.Amount{},
@@ -484,9 +497,13 @@ func TestValidateAccountRules(t *testing.T) {
 		{
 			name: "Operation not in either From or To map is skipped",
 			transactionRouteCache: mmodel.TransactionRouteCache{
-				Source:        map[string]mmodel.OperationRouteCache{},
-				Destination:   map[string]mmodel.OperationRouteCache{},
-				Bidirectional: map[string]mmodel.OperationRouteCache{},
+				Actions: map[string]mmodel.ActionRouteCache{
+					"direct": {
+						Source:        map[string]mmodel.OperationRouteCache{},
+						Destination:   map[string]mmodel.OperationRouteCache{},
+						Bidirectional: map[string]mmodel.OperationRouteCache{},
+					},
+				},
 			},
 			validate: &pkgTransaction.Responses{
 				From:                map[string]pkgTransaction.Amount{},
@@ -511,9 +528,13 @@ func TestValidateAccountRules(t *testing.T) {
 		{
 			name: "Route not found in any cache returns error",
 			transactionRouteCache: mmodel.TransactionRouteCache{
-				Source:        map[string]mmodel.OperationRouteCache{},
-				Destination:   map[string]mmodel.OperationRouteCache{},
-				Bidirectional: map[string]mmodel.OperationRouteCache{},
+				Actions: map[string]mmodel.ActionRouteCache{
+					"direct": {
+						Source:        map[string]mmodel.OperationRouteCache{},
+						Destination:   map[string]mmodel.OperationRouteCache{},
+						Bidirectional: map[string]mmodel.OperationRouteCache{},
+					},
+				},
 			},
 			validate: &pkgTransaction.Responses{
 				From:                map[string]pkgTransaction.Amount{"op-alias": {}},
@@ -539,14 +560,18 @@ func TestValidateAccountRules(t *testing.T) {
 		{
 			name: "Bidirectional fallback path succeeds",
 			transactionRouteCache: mmodel.TransactionRouteCache{
-				Source:      map[string]mmodel.OperationRouteCache{},
-				Destination: map[string]mmodel.OperationRouteCache{},
-				Bidirectional: map[string]mmodel.OperationRouteCache{
-					routeID: {
-						OperationType: "bidirectional",
-						Account: &mmodel.AccountCache{
-							RuleType: "account_type",
-							ValidIf:  []string{"asset"},
+				Actions: map[string]mmodel.ActionRouteCache{
+					"direct": {
+						Source:      map[string]mmodel.OperationRouteCache{},
+						Destination: map[string]mmodel.OperationRouteCache{},
+						Bidirectional: map[string]mmodel.OperationRouteCache{
+							routeID: {
+								OperationType: "bidirectional",
+								Account: &mmodel.AccountCache{
+									RuleType: "account_type",
+									ValidIf:  []string{"asset"},
+								},
+							},
 						},
 					},
 				},
@@ -575,7 +600,8 @@ func TestValidateAccountRules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateAccountRules(ctx, tt.transactionRouteCache, tt.validate, tt.operations, tt.ledgerSettings)
+			actionCache := tt.transactionRouteCache.Actions["direct"]
+			err := validateAccountRules(ctx, actionCache.Source, actionCache.Destination, actionCache.Bidirectional, tt.validate, tt.operations, tt.ledgerSettings)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -650,10 +676,11 @@ func TestValidateDirectionRouteMatch(t *testing.T) {
 			errorCode:     "0103",
 		},
 		{
-			name:          "empty operationType from stale cache returns nil",
+			name:          "empty operationType returns error",
 			direction:     "debit",
 			operationType: "",
-			expectError:   false,
+			expectError:   true,
+			errorCode:     "0103",
 		},
 	}
 

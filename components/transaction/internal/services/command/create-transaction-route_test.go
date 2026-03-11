@@ -239,7 +239,7 @@ func TestCreateTransactionRouteErrorMissingDebitRoute(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	expectedError := pkg.ValidateBusinessError(constant.ErrNoSourceForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "direct")
 	assert.Equal(t, expectedError, err)
 }
 
@@ -281,7 +281,7 @@ func TestCreateTransactionRouteErrorMissingCreditRoute(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	expectedError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "direct")
 	assert.Equal(t, expectedError, err)
 }
 
@@ -411,68 +411,105 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 
 // TestValidateOperationRouteTypesSuccess tests successful validation
 func TestValidateOperationRouteTypesSuccess(t *testing.T) {
+	sourceID := uuid.New()
+	destID := uuid.New()
+
 	operationRoutes := []*mmodel.OperationRoute{
-		{OperationType: "source"},
-		{OperationType: "destination"},
+		{ID: sourceID, OperationType: "source"},
+		{ID: destID, OperationType: "destination"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	actionInputs := []mmodel.OperationRouteActionInput{
+		{Action: "direct", OperationRouteID: sourceID},
+		{Action: "direct", OperationRouteID: destID},
+	}
+
+	err := validateOperationRouteTypes(actionInputs, operationRoutes)
 	assert.NoError(t, err)
 }
 
 // TestValidateOperationRouteTypesBidirectionalOnly tests that bidirectional routes satisfy both source and destination
 func TestValidateOperationRouteTypesBidirectionalOnly(t *testing.T) {
+	bidiID := uuid.New()
+
 	operationRoutes := []*mmodel.OperationRoute{
-		{OperationType: "bidirectional"},
+		{ID: bidiID, OperationType: "bidirectional"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	actionInputs := []mmodel.OperationRouteActionInput{
+		{Action: "direct", OperationRouteID: bidiID},
+	}
+
+	err := validateOperationRouteTypes(actionInputs, operationRoutes)
 	assert.NoError(t, err)
 }
 
 // TestValidateOperationRouteTypesBidirectionalWithSource tests bidirectional mixed with source
 func TestValidateOperationRouteTypesBidirectionalWithSource(t *testing.T) {
+	bidiID := uuid.New()
+	sourceID := uuid.New()
+
 	operationRoutes := []*mmodel.OperationRoute{
-		{OperationType: "bidirectional"},
-		{OperationType: "source"},
+		{ID: bidiID, OperationType: "bidirectional"},
+		{ID: sourceID, OperationType: "source"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	actionInputs := []mmodel.OperationRouteActionInput{
+		{Action: "direct", OperationRouteID: bidiID},
+		{Action: "direct", OperationRouteID: sourceID},
+	}
+
+	err := validateOperationRouteTypes(actionInputs, operationRoutes)
 	assert.NoError(t, err)
 }
 
-// TestValidateOperationRouteTypesMissingDebit tests validation error when debit is missing
+// TestValidateOperationRouteTypesMissingDebit tests validation error when source is missing for action
 func TestValidateOperationRouteTypesMissingDebit(t *testing.T) {
+	destID1 := uuid.New()
+	destID2 := uuid.New()
+
 	operationRoutes := []*mmodel.OperationRoute{
-		{OperationType: "destination"},
-		{OperationType: "destination"},
+		{ID: destID1, OperationType: "destination"},
+		{ID: destID2, OperationType: "destination"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	actionInputs := []mmodel.OperationRouteActionInput{
+		{Action: "direct", OperationRouteID: destID1},
+		{Action: "direct", OperationRouteID: destID2},
+	}
+
+	err := validateOperationRouteTypes(actionInputs, operationRoutes)
 	assert.Error(t, err)
-	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	expectedError := pkg.ValidateBusinessError(constant.ErrNoSourceForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "direct")
 	assert.Equal(t, expectedError, err)
 }
 
-// TestValidateOperationRouteTypesMissingCredit tests validation error when credit is missing
+// TestValidateOperationRouteTypesMissingCredit tests validation error when destination is missing for action
 func TestValidateOperationRouteTypesMissingCredit(t *testing.T) {
+	sourceID1 := uuid.New()
+	sourceID2 := uuid.New()
+
 	operationRoutes := []*mmodel.OperationRoute{
-		{OperationType: "source"},
-		{OperationType: "source"},
+		{ID: sourceID1, OperationType: "source"},
+		{ID: sourceID2, OperationType: "source"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	actionInputs := []mmodel.OperationRouteActionInput{
+		{Action: "direct", OperationRouteID: sourceID1},
+		{Action: "direct", OperationRouteID: sourceID2},
+	}
+
+	err := validateOperationRouteTypes(actionInputs, operationRoutes)
 	assert.Error(t, err)
-	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	expectedError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "direct")
 	assert.Equal(t, expectedError, err)
 }
 
-// TestValidateOperationRouteTypesEmpty tests validation with empty array
+// TestValidateOperationRouteTypesEmpty tests validation with empty arrays
 func TestValidateOperationRouteTypesEmpty(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{}
+	actionInputs := []mmodel.OperationRouteActionInput{}
 
-	err := validateOperationRouteTypes(operationRoutes)
-	assert.Error(t, err)
-	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.Equal(t, expectedError, err)
+	err := validateOperationRouteTypes(actionInputs, operationRoutes)
+	assert.NoError(t, err)
 }

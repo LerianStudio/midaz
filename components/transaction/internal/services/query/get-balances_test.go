@@ -179,7 +179,7 @@ func TestGetBalances(t *testing.T) {
 			Times(1)
 
 		transactionID := uuid.New()
-		balancesBefore, balancesAfter, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
+		balancesBefore, balancesAfter, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED, constant.ActionDirect)
 		assert.NoError(t, err)
 		assert.Len(t, balancesBefore, 3)
 		assert.NotNil(t, balancesAfter, "after balances should not be nil")
@@ -308,7 +308,7 @@ func TestGetBalances(t *testing.T) {
 			Times(1)
 
 		transactionID := uuid.New()
-		balances, _, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED)
+		balances, _, err := uc.GetBalances(ctx, organizationID, ledgerID, transactionID, nil, validate, constant.CREATED, constant.ActionDirect)
 
 		assert.NoError(t, err)
 		assert.Len(t, balances, 2)
@@ -376,7 +376,7 @@ func TestGetAccountAndLock(t *testing.T) {
 			Return(&mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil)
 
 		transactionID := uuid.New()
-		result, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, constant.CREATED)
+		result, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, constant.CREATED, constant.ActionDirect)
 
 		assert.NoError(t, err)
 		assert.Len(t, result.Before, 1)
@@ -511,7 +511,7 @@ func TestGetAccountAndLock_DoubleEntrySplitting(t *testing.T) {
 				})
 
 			transactionID := uuid.New()
-			result, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, tt.transactionType)
+			result, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, nil, validate, balances, tt.transactionType, constant.ActionDirect)
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
@@ -611,7 +611,7 @@ func TestGetAccountAndLock_DoubleEntry_SeenDeduplication(t *testing.T) {
 		})
 
 	transactionID := uuid.New()
-	result, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, transactionInput, validate, balances, constant.PENDING)
+	result, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, transactionInput, validate, balances, constant.PENDING, constant.ActionHold)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
