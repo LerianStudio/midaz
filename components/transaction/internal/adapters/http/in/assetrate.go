@@ -66,12 +66,9 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of AssetRate with ledger ID: %s", ledgerID.String()))
 
 	payload := p.(*assetrate.CreateAssetRateInput)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create an AssetRate with details: %#v", payload))
+	logSafePayload(ctx, logger, "Request to create an AssetRate", payload)
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
 	assetRate, err := handler.Command.CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, payload)
 	if err != nil {
@@ -198,10 +195,7 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert query parameters to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	pagination := http.Pagination{
 		Limit:     headerParams.Limit,

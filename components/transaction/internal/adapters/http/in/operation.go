@@ -91,10 +91,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	if headerParams.Metadata != nil {
 		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Operations by account and metadata")
 
-		err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to convert metadata headerParams to JSON string", err)
-		}
+		recordSafeQueryAttributes(span, headerParams)
 
 		trans, cur, err := handler.Query.GetAllMetadataOperations(ctx, organizationID, ledgerID, accountID, *headerParams)
 		if err != nil {
@@ -249,11 +246,9 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 	payload := p.(*operation.UpdateOperationInput)
 
-	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update an Operation with details: %#v", payload))
+	logSafePayload(ctx, logger, "Request to update an Operation", payload)
 
 	_, err = handler.Command.UpdateOperation(ctx, organizationID, ledgerID, transactionID, operationID, payload)
 	if err != nil {

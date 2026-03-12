@@ -70,12 +70,8 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 
 	payload := i.(*mmodel.CreateOperationRouteInput)
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create an operation route with details: %#v", payload))
+	recordSafePayloadAttributes(span, payload)
+	logSafePayload(ctx, logger, "Request to create an operation route", payload)
 
 	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
 		return http.WithError(c, err)
@@ -201,16 +197,13 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Operation Route with Operation Route ID: %s", id.String()))
 
 	payload := i.(*mmodel.UpdateOperationRouteInput)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update an Operation Route with details: %#v", payload))
+	logSafePayload(ctx, logger, "Request to update an operation route", payload)
 
 	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
 	_, err = handler.Command.UpdateOperationRoute(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
@@ -342,10 +335,7 @@ func (handler *OperationRouteHandler) GetAllOperationRoutes(c *fiber.Ctx) error 
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert metadata headerParams to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
@@ -403,10 +393,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 	_, span := tracer.Start(ctx, "handler.validate_account_rule")
 	defer span.End()
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.account", account, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert account to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, account)
 
 	if account == nil {
 		return nil

@@ -62,12 +62,8 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 
 	payload := i.(*mmodel.CreateTransactionRouteInput)
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create a transaction route with details: %#v", payload))
+	recordSafePayloadAttributes(span, payload)
+	logSafePayload(ctx, logger, "Request to create a transaction route", payload)
 
 	transactionRoute, err := handler.Command.CreateTransactionRoute(ctx, organizationID, ledgerID, payload)
 	if err != nil {
@@ -197,12 +193,8 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 
 	payload := i.(*mmodel.UpdateTransactionRouteInput)
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update transaction route with details: %#v", payload))
+	recordSafePayloadAttributes(span, payload)
+	logSafePayload(ctx, logger, "Request to update a transaction route", payload)
 
 	_, err = handler.Command.UpdateTransactionRoute(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
@@ -344,10 +336,7 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert metadata headerParams to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
@@ -380,10 +369,7 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 
 	headerParams.Metadata = &bson.M{}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert headerParams to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	transactionRoutes, cur, err := handler.Query.GetAllTransactionRoutes(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {

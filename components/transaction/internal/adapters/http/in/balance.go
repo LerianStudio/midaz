@@ -75,10 +75,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert headerParams to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
@@ -163,10 +160,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert headerParams to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
@@ -355,12 +349,9 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Balance with Organization ID: %s, Ledger ID: %s, and ID: %s", organizationID.String(), ledgerID.String(), balanceID.String()))
 
 	payload := p.(*mmodel.UpdateBalance)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update a Balance with details: %#v", payload))
+	logSafePayload(ctx, logger, "Request to update a Balance", payload)
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
 	balance, err := handler.Command.Update(ctx, organizationID, ledgerID, balanceID, *payload)
 	if err != nil {
@@ -538,17 +529,12 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 	}
 
 	payload := p.(*mmodel.CreateAdditionalBalance)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create a Balance with details: %#v", payload))
+	logSafePayload(ctx, logger, "Request to create a Balance", payload)
 
 	ctx, span := tracer.Start(ctx, "handler.create_additional_balance")
 	defer span.End()
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to convert payload to JSON string", err)
-
-		return http.WithError(c, err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
 	balance, err := handler.Command.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, payload)
 	if err != nil {
