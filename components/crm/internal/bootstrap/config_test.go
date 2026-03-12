@@ -6,11 +6,13 @@ package bootstrap
 
 import (
 	"context"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -364,6 +366,60 @@ func TestBuildTenantClientOptions_RejectsHTTPOutsideDevelopment(t *testing.T) {
 	_, err := buildTenantClientOptions(&Config{EnvName: "production"}, "http://tenant-manager:8080")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must use https")
+}
+
+func TestBuildTenantClientOptions_AllowsHTTPInSafeEnvironments(t *testing.T) {
+	t.Parallel()
+
+	for _, envName := range []string{"local", "development", "dev", "test", "testing"} {
+		envName := envName
+		t.Run(envName, func(t *testing.T) {
+			t.Parallel()
+
+			opts, err := buildTenantClientOptions(&Config{EnvName: envName}, "http://tenant-manager:8080")
+			require.NoError(t, err)
+			assert.NotEmpty(t, opts)
+		})
+	}
+}
+
+func TestBuildTenantClientOptions_InvalidURLReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildTenantClientOptions(&Config{EnvName: "development"}, "://bad-url")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid MULTI_TENANT_URL")
+}
+
+func TestAllowInsecureTenantManagerHTTP(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, allowInsecureTenantManagerHTTP(" local "))
+	assert.True(t, allowInsecureTenantManagerHTTP("DEV"))
+	assert.True(t, allowInsecureTenantManagerHTTP("testing"))
+	assert.False(t, allowInsecureTenantManagerHTTP("production"))
+	assert.False(t, allowInsecureTenantManagerHTTP("staging"))
+}
+
+func TestRedactedTenantManagerURL(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "https://user:xxxxx@example.com", redactedTenantManagerURL("https://user:secret@example.com"))
+	assert.Equal(t, "invalid-url", redactedTenantManagerURL("://bad-url"))
+}
+
+func TestWrapTenantMiddlewareWithMetrics_PreservesError(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := fiber.ErrUnauthorized
+	handler := wrapTenantMiddlewareWithMetrics(func(_ *fiber.Ctx) error { return expectedErr }, nil, newMockLogger())
+	app := fiber.New()
+	app.Get("/", handler)
+
+	req := httptest.NewRequest(fiber.MethodGet, "/", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
 }
 
 func TestResolveMongoURI_LegacySchemeValueBuildsFullURI(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
@@ -522,4 +523,58 @@ func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing
 	assert.Nil(t, resultAlias.BankingDetails.IBAN)
 	require.NotNil(t, resultAlias.RegulatoryFields)
 	assert.Nil(t, resultAlias.RegulatoryFields.ParticipantDocument)
+}
+
+func TestMongoDBModel_ToEntity_InvalidOptionalCiphertextReturnsError(t *testing.T) {
+	t.Parallel()
+
+	crypto := testutils.SetupCrypto(t)
+	aliasID := uuid.New()
+
+	model := &MongoDBModel{
+		ID:       &aliasID,
+		Document: mustEncrypt(t, crypto, "12345678901"),
+		BankingDetails: &BankingMongoDBModel{
+			Account: testutils.Ptr("not-a-valid-ciphertext"),
+		},
+	}
+
+	_, err := model.ToEntity(crypto)
+	require.Error(t, err)
+}
+
+func TestMongoDBModel_FromEntity_EncryptOptionalFailureReturnsError(t *testing.T) {
+	t.Parallel()
+
+	crypto := &libCrypto.Crypto{}
+	aliasID := uuid.New()
+	now := time.Now().UTC().Truncate(time.Second)
+
+	alias := &mmodel.Alias{
+		ID:        &aliasID,
+		Document:  testutils.Ptr("12345678901"),
+		Type:      testutils.Ptr("NATURAL_PERSON"),
+		LedgerID:  testutils.Ptr("ledger-1"),
+		AccountID: testutils.Ptr("account-1"),
+		BankingDetails: &mmodel.BankingDetails{
+			Account: testutils.Ptr(""),
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	var model MongoDBModel
+	err := model.FromEntity(alias, crypto)
+	require.Error(t, err)
+}
+
+func mustEncrypt(t *testing.T, crypto interface {
+	Encrypt(*string) (*string, error)
+}, value string) *string {
+	t.Helper()
+
+	encrypted, err := crypto.Encrypt(testutils.Ptr(value))
+	require.NoError(t, err)
+
+	return encrypted
 }

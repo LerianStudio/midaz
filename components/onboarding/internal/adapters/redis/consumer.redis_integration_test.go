@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 	"github.com/google/uuid"
@@ -386,26 +385,4 @@ func TestIntegration_RedisNamespacing_TTLIsRespected(t *testing.T) {
 	assert.Empty(t, retrieved, "IS-5: Get on expired key must return empty string (cache-miss)")
 
 	t.Log("IS-5 PASS: Tenant-prefixed key expires correctly after the specified TTL")
-}
-
-// =============================================================================
-// HELPER: build a RedisConsumerRepository directly from a connection address
-// (kept here to avoid duplicating logic in chaos tests)
-// =============================================================================
-
-// buildOnboardingRepo creates a RedisConsumerRepository connected to the given
-// Redis address using a lib-commons RedisConnection.
-func buildOnboardingRepo(t *testing.T, addr string) *RedisConsumerRepository {
-	t.Helper()
-
-	conn := redistestutil.CreateConnection(t, addr)
-
-	return &RedisConsumerRepository{conn: conn}
-}
-
-// buildOnboardingRepoWithConn creates a RedisConsumerRepository from an existing
-// lib-commons RedisConnection (used in chaos tests where the connection is
-// pre-configured to route through Toxiproxy).
-func buildOnboardingRepoWithConn(conn *libRedis.Client) *RedisConsumerRepository {
-	return &RedisConsumerRepository{conn: conn}
 }

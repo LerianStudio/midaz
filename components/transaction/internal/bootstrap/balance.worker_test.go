@@ -449,8 +449,6 @@ type mockRedisClient struct {
 	ttlErr       error
 	getResult    string
 	getErr       error
-	zRemResult   int64
-	zRemErr      error
 	ttlCallCount int
 	getCallCount int
 }

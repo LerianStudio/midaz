@@ -35,11 +35,10 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 	conn := mongotestutil.CreateConnection(t, container.URI, container.DBName)
 	crypto := testutils.SetupCrypto(t)
 
-	return &MongoDBRepository{
-		connection:   conn,
-		Database:     container.DBName,
-		DataSecurity: crypto,
-	}
+	repo, err := NewMongoDBRepository(conn, crypto)
+	require.NoError(t, err)
+
+	return repo
 }
 
 // ============================================================================
