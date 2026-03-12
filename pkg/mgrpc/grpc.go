@@ -28,25 +28,51 @@ type GRPCConnection struct {
 	Logger libLog.Logger
 }
 
-// Connect keeps a singleton connection with gRPC.
-func (c *GRPCConnection) Connect() error {
+func (c *GRPCConnection) log(ctx context.Context, level libLog.Level, msg string, fields ...libLog.Field) {
+	if c == nil || c.Logger == nil {
+		return
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	c.Logger.Log(ctx, level, msg, fields...)
+}
+
+func (c *GRPCConnection) connect(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	conn, err := grpc.NewClient(c.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		c.Logger.Log(context.Background(), libLog.LevelError, "Failed to connect on gRPC", libLog.Err(err))
+		c.log(ctx, libLog.LevelError, "Failed to connect on gRPC", libLog.Err(err))
 		return err
 	}
 
-	c.Logger.Log(context.Background(), libLog.LevelInfo, "Connected to gRPC ✅")
+	c.log(ctx, libLog.LevelInfo, "Connected to gRPC ✅")
 
 	c.Conn = conn
 
 	return nil
+
+}
+
+// Connect keeps a singleton connection with gRPC.
+func (c *GRPCConnection) Connect() error {
+	return c.connect(context.Background())
 }
 
 // GetNewClient returns a connection to gRPC, reconnect it if necessary.
 func (c *GRPCConnection) GetNewClient() (*grpc.ClientConn, error) {
+	return c.GetNewClientWithContext(context.Background())
+}
+
+// GetNewClientWithContext returns a connection to gRPC, reconnecting it with caller context when necessary.
+func (c *GRPCConnection) GetNewClientWithContext(ctx context.Context) (*grpc.ClientConn, error) {
 	if c.Conn == nil {
-		if err := c.Connect(); err != nil {
+		if err := c.connect(ctx); err != nil {
 			log.Printf("ERRCONECT %s", err)
 			return nil, err
 		}
@@ -121,10 +147,10 @@ func getHealthCheckTimeout() time.Duration {
 // a configurable timeout from GRPC_HEALTH_CHECK_TIMEOUT environment variable (default: 5 seconds).
 func (c *GRPCConnection) CheckHealth(ctx context.Context) error {
 	if c.Conn == nil {
-		c.Logger.Log(ctx, libLog.LevelWarn, "gRPC connection is nil, attempting to establish connection")
+		c.log(ctx, libLog.LevelWarn, "gRPC connection is nil, attempting to establish connection")
 
-		if err := c.Connect(); err != nil {
-			c.Logger.Log(ctx, libLog.LevelError, "Failed to establish gRPC connection during health check", libLog.Err(err))
+		if err := c.connect(ctx); err != nil {
+			c.log(ctx, libLog.LevelError, "Failed to establish gRPC connection during health check", libLog.Err(err))
 
 			return ErrGRPCConnectionNotReady
 		}
@@ -143,7 +169,7 @@ func (c *GRPCConnection) CheckHealth(ctx context.Context) error {
 		}
 
 		if state == connectivity.Shutdown {
-			c.Logger.Log(ctx, libLog.LevelWarn, "gRPC connection is shut down")
+			c.log(ctx, libLog.LevelWarn, "gRPC connection is shut down")
 
 			return ErrGRPCConnectionNotReady
 		}
@@ -153,7 +179,7 @@ func (c *GRPCConnection) CheckHealth(ctx context.Context) error {
 		}
 
 		if !c.Conn.WaitForStateChange(timeoutCtx, state) {
-			c.Logger.Log(
+			c.log(
 				ctx,
 				libLog.LevelWarn,
 				"gRPC connection failed to become ready within timeout",

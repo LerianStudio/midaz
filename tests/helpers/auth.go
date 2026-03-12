@@ -8,10 +8,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"testing"
 	"time"
 )
 
@@ -91,16 +89,4 @@ func AuthenticateFromEnv() error {
 
 	// Export for the duration of the process so helpers.AuthHeaders picks it up
 	return os.Setenv("TEST_AUTH_HEADER", "Bearer "+token)
-}
-
-// RunTestsWithAuth authenticates using env (if configured) and runs tests, failing fast on auth errors.
-// Usage in each package's TestMain:
-//
-//	func TestMain(m *testing.M) { helpers.RunTestsWithAuth(m) }
-func RunTestsWithAuth(m *testing.M) {
-	if err := AuthenticateFromEnv(); err != nil {
-		log.Fatalf("Failed to authenticate from environment: %v", err)
-	}
-
-	os.Exit(m.Run())
 }

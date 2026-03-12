@@ -7,7 +7,6 @@ package http
 import (
 	"fmt"
 	"net/http"
-	"runtime/debug"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -54,18 +53,17 @@ func WithRecover(opts ...RecoverMiddlewareOption) fiber.Handler {
 					logger = ctxLogger
 				}
 
-				stack := debug.Stack()
-				panicErr := fmt.Errorf("panic recovered: %v", r)
+				panicErr := fmt.Errorf("panic recovered")
+				panicType := fmt.Sprintf("%T", r)
 
 				logger.Log(c.UserContext(), libLog.LevelError, "panic recovered",
-					libLog.Any("panic", r),
-					libLog.String("stack", string(stack)),
+					libLog.String("panic_type", panicType),
 				)
 
 				span := trace.SpanFromContext(c.UserContext())
 				if span.IsRecording() {
 					span.RecordError(panicErr)
-					span.SetStatus(codes.Error, fmt.Sprintf("Panic: %v", r))
+					span.SetStatus(codes.Error, "panic recovered")
 				}
 
 				_ = c.Status(http.StatusInternalServerError).JSON(fiber.Map{
