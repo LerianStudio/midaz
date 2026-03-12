@@ -61,12 +61,8 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 
 	payload := i.(*mmodel.CreatePortfolioInput)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create a Portfolio with details: %#v", payload))
-
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	logSafePayload(ctx, logger, "Request to create a portfolio", payload)
+	recordSafePayloadAttributes(span, payload)
 
 	portfolio, err := handler.Command.CreatePortfolio(ctx, organizationID, ledgerID, payload)
 	if err != nil {
@@ -125,10 +121,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert query params to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
@@ -258,15 +251,11 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String()))
 
 	payload := i.(*mmodel.UpdatePortfolioInput)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update an Portfolio with details: %#v", payload))
+	logSafePayload(ctx, logger, fmt.Sprintf("Request to update portfolio with ID: %s", id.String()), payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
-	_, err = handler.Command.UpdatePortfolioByID(ctx, organizationID, ledgerID, id, payload)
-	if err != nil {
+	if _, err := handler.Command.UpdatePortfolioByID(ctx, organizationID, ledgerID, id, payload); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Portfolio on command", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Portfolio with ID: %s, Error: %s", id.String(), err.Error()))

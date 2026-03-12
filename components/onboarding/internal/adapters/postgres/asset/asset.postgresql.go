@@ -62,15 +62,19 @@ type Repository interface {
 
 // AssetPostgreSQLRepository is a Postgresql-specific implementation of the AssetRepository.
 type AssetPostgreSQLRepository struct {
-	connection *libPostgres.Client
-	tableName  string
+	connection    *libPostgres.Client
+	tableName     string
+	requireTenant bool
 }
 
 // NewAssetPostgreSQLRepository returns a new instance of AssetPostgreSQLRepository using the given Postgres connection.
-func NewAssetPostgreSQLRepository(pc *libPostgres.Client) *AssetPostgreSQLRepository {
+func NewAssetPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *AssetPostgreSQLRepository {
 	c := &AssetPostgreSQLRepository{
 		connection: pc,
 		tableName:  "asset",
+	}
+	if len(requireTenant) > 0 {
+		c.requireTenant = requireTenant[0]
 	}
 
 	return c
@@ -82,6 +86,9 @@ func NewAssetPostgreSQLRepository(pc *libPostgres.Client) *AssetPostgreSQLReposi
 func (r *AssetPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "onboarding"); err == nil {
 		return db, nil
+	}
+	if r.requireTenant {
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
 	return r.connection.Resolver(ctx)

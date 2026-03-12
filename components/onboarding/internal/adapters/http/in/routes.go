@@ -30,7 +30,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.FiberErrorHandler(ctx, err)
+			return legacyFiberErrorHandler(ctx, err)
 		},
 	})
 
@@ -39,6 +39,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
+	f.Use(http.BridgeLibAuthHTTPContext())
 
 	// Register all routes
 	RegisterRoutesToApp(f, auth, ah, ph, lh, ih, oh, sh, ath)

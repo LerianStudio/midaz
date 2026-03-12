@@ -5,6 +5,8 @@
 package bootstrap
 
 import (
+	"context"
+
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
@@ -18,6 +20,7 @@ type Server struct {
 	serverAddress string
 	logger        libLog.Logger
 	telemetry     libOpentelemetry.Telemetry
+	shutdownHooks []func(context.Context) error
 }
 
 // ServerAddress returns is a convenience method to return the server address.
@@ -40,9 +43,14 @@ func NewServer(cfg *Config, app *fiber.App, logger libLog.Logger, telemetry *lib
 
 // Run runs the server.
 func (s *Server) Run(l *libCommons.Launcher) error {
-	libCommonsServer.NewServerManager(nil, &s.telemetry, s.logger).
-		WithHTTPServer(s.app, s.serverAddress).
-		StartWithGracefulShutdown()
+	serverManager := libCommonsServer.NewServerManager(nil, &s.telemetry, s.logger).
+		WithHTTPServer(s.app, s.serverAddress)
+
+	for _, hook := range s.shutdownHooks {
+		serverManager = serverManager.WithShutdownHook(hook)
+	}
+
+	serverManager.StartWithGracefulShutdown()
 
 	return nil
 }

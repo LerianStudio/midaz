@@ -61,15 +61,19 @@ type Repository interface {
 
 // AccountTypePostgreSQLRepository is a PostgreSQL implementation of the AccountTypeRepository.
 type AccountTypePostgreSQLRepository struct {
-	connection *libPostgres.Client
-	tableName  string
+	connection    *libPostgres.Client
+	tableName     string
+	requireTenant bool
 }
 
 // NewAccountTypePostgreSQLRepository creates a new instance of AccountTypePostgreSQLRepository.
-func NewAccountTypePostgreSQLRepository(pc *libPostgres.Client) *AccountTypePostgreSQLRepository {
+func NewAccountTypePostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *AccountTypePostgreSQLRepository {
 	c := &AccountTypePostgreSQLRepository{
 		connection: pc,
 		tableName:  "account_type",
+	}
+	if len(requireTenant) > 0 {
+		c.requireTenant = requireTenant[0]
 	}
 
 	return c
@@ -81,6 +85,9 @@ func NewAccountTypePostgreSQLRepository(pc *libPostgres.Client) *AccountTypePost
 func (r *AccountTypePostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "onboarding"); err == nil {
 		return db, nil
+	}
+	if r.requireTenant {
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
 	return r.connection.Resolver(ctx)
