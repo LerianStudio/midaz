@@ -939,8 +939,8 @@ func TestIntegration_BalanceRepository_SyncBatch_UpdatesMultipleBalances(t *test
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Create two balances
@@ -997,12 +997,12 @@ func TestIntegration_BalanceRepository_SyncBatch_IgnoresOlderVersions(t *testing
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Insert balance with version 10
-	balanceID := libCommons.GenerateUUIDv7()
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := container.DB.Exec(`
@@ -1043,8 +1043,8 @@ func TestIntegration_BalanceRepository_SyncBatch_EmptyBatchReturnsZero(t *testin
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -1061,8 +1061,8 @@ func TestIntegration_BalanceRepository_SyncBatch_PartialUpdate(t *testing.T) {
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Create balance with version 5
@@ -1072,7 +1072,7 @@ func TestIntegration_BalanceRepository_SyncBatch_PartialUpdate(t *testing.T) {
 	balanceID := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
 
 	// Create another balance with version 10 (via direct insert)
-	balanceID2 := libCommons.GenerateUUIDv7()
+	balanceID2 := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 	_, err := container.DB.Exec(`
 		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
@@ -1123,8 +1123,8 @@ func TestIntegration_BalanceRepository_SyncBatch_RespectsContextCancellation(t *
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create a cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1133,7 +1133,7 @@ func TestIntegration_BalanceRepository_SyncBatch_RespectsContextCancellation(t *
 	// Batch with balances
 	balances := []mmodel.BalanceRedis{
 		{
-			ID:        libCommons.GenerateUUIDv7().String(),
+			ID:        uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			Available: decimal.NewFromInt(500),
 			OnHold:    decimal.NewFromInt(10),
 			Version:   10,
@@ -1154,8 +1154,8 @@ func TestIntegration_BalanceRepository_SyncBatch_InvalidUUID(t *testing.T) {
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -1183,8 +1183,8 @@ func TestIntegration_BalanceRepository_SyncBatch_LargeBatch(t *testing.T) {
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create 150 test balances in the database
 	balanceIDs := make([]uuid.UUID, 150)
