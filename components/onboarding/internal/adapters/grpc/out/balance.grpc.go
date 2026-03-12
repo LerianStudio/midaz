@@ -60,7 +60,7 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 	ctx, span := tracer.Start(ctx, "grpc.create_balance")
 	defer span.End()
 
-	conn, err := b.conn.GetNewClient()
+	conn, err := b.conn.GetNewClientWithContext(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get new client", err)
 
@@ -105,7 +105,7 @@ func (b *BalanceGRPCRepository) DeleteAllBalancesByAccountID(ctx context.Context
 	ctx, span := tracer.Start(ctx, "grpc.delete_all_balances_by_account_id")
 	defer span.End()
 
-	conn, err := b.conn.GetNewClient()
+	conn, err := b.conn.GetNewClientWithContext(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get new client", err)
 		return err

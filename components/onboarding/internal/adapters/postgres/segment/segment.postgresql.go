@@ -60,15 +60,19 @@ type Repository interface {
 
 // SegmentPostgreSQLRepository is a Postgresql-specific implementation of the Repository.
 type SegmentPostgreSQLRepository struct {
-	connection *libPostgres.Client
-	tableName  string
+	connection    *libPostgres.Client
+	tableName     string
+	requireTenant bool
 }
 
 // NewSegmentPostgreSQLRepository returns a new instance of SegmentPostgreSQLRepository using the given Postgres connection.
-func NewSegmentPostgreSQLRepository(pc *libPostgres.Client) *SegmentPostgreSQLRepository {
+func NewSegmentPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *SegmentPostgreSQLRepository {
 	c := &SegmentPostgreSQLRepository{
 		connection: pc,
 		tableName:  "segment",
+	}
+	if len(requireTenant) > 0 {
+		c.requireTenant = requireTenant[0]
 	}
 
 	return c
@@ -80,6 +84,9 @@ func NewSegmentPostgreSQLRepository(pc *libPostgres.Client) *SegmentPostgreSQLRe
 func (p *SegmentPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "onboarding"); err == nil {
 		return db, nil
+	}
+	if p.requireTenant {
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
 	return p.connection.Resolver(ctx)

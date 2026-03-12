@@ -68,13 +68,13 @@ func initMultiTenantPostgres(opts *Options, cfg *Config, logger libLog.Logger) (
 	return &postgresComponents{
 		connection:       conn,
 		pgManager:        pgMgr,
-		organizationRepo: organization.NewOrganizationPostgreSQLRepository(conn),
-		ledgerRepo:       ledger.NewLedgerPostgreSQLRepository(conn),
-		accountRepo:      account.NewAccountPostgreSQLRepository(conn),
-		assetRepo:        asset.NewAssetPostgreSQLRepository(conn),
-		portfolioRepo:    portfolio.NewPortfolioPostgreSQLRepository(conn),
-		segmentRepo:      segment.NewSegmentPostgreSQLRepository(conn),
-		accountTypeRepo:  accounttype.NewAccountTypePostgreSQLRepository(conn),
+		organizationRepo: organization.NewOrganizationPostgreSQLRepository(conn, true),
+		ledgerRepo:       ledger.NewLedgerPostgreSQLRepository(conn, true),
+		accountRepo:      account.NewAccountPostgreSQLRepository(conn, true),
+		assetRepo:        asset.NewAssetPostgreSQLRepository(conn, true),
+		portfolioRepo:    portfolio.NewPortfolioPostgreSQLRepository(conn, true),
+		segmentRepo:      segment.NewSegmentPostgreSQLRepository(conn, true),
+		accountTypeRepo:  accounttype.NewAccountTypePostgreSQLRepository(conn, true),
 	}, nil
 }
 

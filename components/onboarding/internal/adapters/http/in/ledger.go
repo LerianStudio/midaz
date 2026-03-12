@@ -59,12 +59,9 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	payload := i.(*mmodel.CreateLedgerInput)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create an ledger with details: %#v", payload))
+	logSafePayload(ctx, logger, "Request to create a ledger", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
 	ledger, err := handler.Command.CreateLedger(ctx, organizationID, payload)
 	if err != nil {
@@ -163,10 +160,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert query params to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
@@ -256,15 +250,11 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	payload := p.(*mmodel.UpdateLedgerInput)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update a Ledger with details: %#v", payload))
+	logSafePayload(ctx, logger, fmt.Sprintf("Request to update ledger with ID: %s", id.String()), payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
-	_, err = handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
-	if err != nil {
+	if _, err := handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger on command", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Ledger with ID: %s, Error: %s", id.String(), err.Error()))

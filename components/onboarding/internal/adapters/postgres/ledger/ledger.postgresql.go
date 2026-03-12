@@ -65,15 +65,19 @@ type Repository interface {
 
 // LedgerPostgreSQLRepository is a Postgresql-specific implementation of the LedgerRepository.
 type LedgerPostgreSQLRepository struct {
-	connection *libPostgres.Client
-	tableName  string
+	connection    *libPostgres.Client
+	tableName     string
+	requireTenant bool
 }
 
 // NewLedgerPostgreSQLRepository returns a new instance of LedgerPostgresRepository using the given Postgres connection.
-func NewLedgerPostgreSQLRepository(pc *libPostgres.Client) *LedgerPostgreSQLRepository {
+func NewLedgerPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *LedgerPostgreSQLRepository {
 	c := &LedgerPostgreSQLRepository{
 		connection: pc,
 		tableName:  "ledger",
+	}
+	if len(requireTenant) > 0 {
+		c.requireTenant = requireTenant[0]
 	}
 
 	return c
@@ -85,6 +89,9 @@ func NewLedgerPostgreSQLRepository(pc *libPostgres.Client) *LedgerPostgreSQLRepo
 func (r *LedgerPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "onboarding"); err == nil {
 		return db, nil
+	}
+	if r.requireTenant {
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
 	return r.connection.Resolver(ctx)

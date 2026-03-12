@@ -62,15 +62,19 @@ type Repository interface {
 
 // OrganizationPostgreSQLRepository is a Postgresql-specific implementation of the OrganizationRepository.
 type OrganizationPostgreSQLRepository struct {
-	connection *libPostgres.Client
-	tableName  string
+	connection    *libPostgres.Client
+	tableName     string
+	requireTenant bool
 }
 
 // NewOrganizationPostgreSQLRepository returns a new instance of OrganizationPostgresRepository using the given Postgres connection.
-func NewOrganizationPostgreSQLRepository(pc *libPostgres.Client) *OrganizationPostgreSQLRepository {
+func NewOrganizationPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *OrganizationPostgreSQLRepository {
 	c := &OrganizationPostgreSQLRepository{
 		connection: pc,
 		tableName:  "organization",
+	}
+	if len(requireTenant) > 0 {
+		c.requireTenant = requireTenant[0]
 	}
 
 	return c
@@ -82,6 +86,9 @@ func NewOrganizationPostgreSQLRepository(pc *libPostgres.Client) *OrganizationPo
 func (r *OrganizationPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "onboarding"); err == nil {
 		return db, nil
+	}
+	if r.requireTenant {
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
 	return r.connection.Resolver(ctx)

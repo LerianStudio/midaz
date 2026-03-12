@@ -61,15 +61,19 @@ type Repository interface {
 
 // PortfolioPostgreSQLRepository is a Postgresql-specific implementation of the PortfolioRepository.
 type PortfolioPostgreSQLRepository struct {
-	connection *libPostgres.Client
-	tableName  string
+	connection    *libPostgres.Client
+	tableName     string
+	requireTenant bool
 }
 
 // NewPortfolioPostgreSQLRepository returns a new instance of PortfolioPostgreSQLRepository using the given Postgres connection.
-func NewPortfolioPostgreSQLRepository(pc *libPostgres.Client) *PortfolioPostgreSQLRepository {
+func NewPortfolioPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *PortfolioPostgreSQLRepository {
 	c := &PortfolioPostgreSQLRepository{
 		connection: pc,
 		tableName:  "portfolio",
+	}
+	if len(requireTenant) > 0 {
+		c.requireTenant = requireTenant[0]
 	}
 
 	return c
@@ -81,6 +85,9 @@ func NewPortfolioPostgreSQLRepository(pc *libPostgres.Client) *PortfolioPostgreS
 func (r *PortfolioPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "onboarding"); err == nil {
 		return db, nil
+	}
+	if r.requireTenant {
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
 	return r.connection.Resolver(ctx)

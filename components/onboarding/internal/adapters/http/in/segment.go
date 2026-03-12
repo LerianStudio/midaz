@@ -60,12 +60,9 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of Segment with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String()))
 
 	payload := i.(*mmodel.CreateSegmentInput)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create a Segment with details: %#v", payload))
+	logSafePayload(ctx, logger, "Request to create a segment", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
 	segment, err := handler.Command.CreateSegment(ctx, organizationID, ledgerID, payload)
 	if err != nil {
@@ -124,10 +121,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert query params to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
@@ -257,15 +251,11 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String()))
 
 	payload := i.(*mmodel.UpdateSegmentInput)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update an Segment with details: %#v", payload))
+	logSafePayload(ctx, logger, fmt.Sprintf("Request to update segment with ID: %s", id.String()), payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
-	_, err = handler.Command.UpdateSegmentByID(ctx, organizationID, ledgerID, id, payload)
-	if err != nil {
+	if _, err := handler.Command.UpdateSegmentByID(ctx, organizationID, ledgerID, id, payload); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Segment on command", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Segment with ID: %s, Error: %s", id.String(), err.Error()))

@@ -13,7 +13,9 @@ import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
@@ -368,6 +370,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
+	serverAPI.shutdownHooks = buildShutdownHooks(pg.connection, mgo.connection, redisConnection)
 
 	return &Service{
 		Server: serverAPI,
@@ -389,13 +392,31 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}, nil
 }
 
+func buildShutdownHooks(pg *libPostgres.Client, mongo *libMongo.Client, redisConn *libRedis.Client) []func(context.Context) error {
+	hooks := make([]func(context.Context) error, 0, 3)
+
+	if redisConn != nil {
+		hooks = append(hooks, func(_ context.Context) error { return redisConn.Close() })
+	}
+
+	if mongo != nil {
+		hooks = append(hooks, func(ctx context.Context) error { return mongo.Close(ctx) })
+	}
+
+	if pg != nil {
+		hooks = append(hooks, func(_ context.Context) error { return pg.Close() })
+	}
+
+	return hooks
+}
+
 func initLogger(opts *Options, cfg *Config) (libLog.Logger, error) {
 	if opts != nil && opts.Logger != nil {
 		return opts.Logger, nil
 	}
 
 	logger, err := libZap.New(libZap.Config{
-		Environment:     libZap.EnvironmentDevelopment,
+		Environment:     resolveLoggerEnvironment(cfg.EnvName),
 		Level:           cfg.LogLevel,
 		OTelLibraryName: cfg.OtelLibraryName,
 	})
@@ -404,6 +425,21 @@ func initLogger(opts *Options, cfg *Config) (libLog.Logger, error) {
 	}
 
 	return logger, nil
+}
+
+func resolveLoggerEnvironment(env string) libZap.Environment {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case string(libZap.EnvironmentProduction):
+		return libZap.EnvironmentProduction
+	case string(libZap.EnvironmentStaging):
+		return libZap.EnvironmentStaging
+	case string(libZap.EnvironmentUAT):
+		return libZap.EnvironmentUAT
+	case string(libZap.EnvironmentLocal):
+		return libZap.EnvironmentLocal
+	default:
+		return libZap.EnvironmentDevelopment
+	}
 }
 
 func resolveBalancePort(opts *Options, cfg *Config, logger libLog.Logger) (mbootstrap.BalancePort, error) {

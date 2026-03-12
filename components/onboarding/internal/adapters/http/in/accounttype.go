@@ -56,12 +56,8 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 
 	payload := i.(*mmodel.CreateAccountTypeInput)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create an account type with details: %#v", payload))
+	recordSafePayloadAttributes(span, payload)
+	logSafePayload(ctx, logger, "Request to create an account type", payload)
 
 	accountType, err := handler.Command.CreateAccountType(ctx, organizationID, ledgerID, payload)
 	if err != nil {
@@ -154,15 +150,10 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 
 	payload := i.(*mmodel.UpdateAccountTypeInput)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
+	logSafePayload(ctx, logger, fmt.Sprintf("Request to update account type with ID: %s", id.String()), payload)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update account type with ID: %s and details: %#v", id, payload))
-
-	_, err = handler.Command.UpdateAccountType(ctx, organizationID, ledgerID, id, payload)
-	if err != nil {
+	if _, err := handler.Command.UpdateAccountType(ctx, organizationID, ledgerID, id, payload); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account type", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update account type with ID: %s, Error: %s", id.String(), err.Error()))
@@ -271,10 +262,7 @@ func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert query params to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	pagination := http.Pagination{
 		Limit:      headerParams.Limit,

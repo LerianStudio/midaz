@@ -57,7 +57,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 
 	payload := i.(*mmodel.CreateAccountInput)
 	portfolioID := payload.PortfolioID
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create a Account with details: %#v", payload))
+	logSafePayload(ctx, logger, "Request to create an account", payload)
 
 	if !libCommons.IsNilOrEmpty(portfolioID) {
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of Account with Portfolio ID: %s", *portfolioID))
@@ -66,12 +66,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_account")
 	defer span.End()
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to convert payload to JSON string", err)
-
-		return http.WithError(c, err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
 	token := c.Get("Authorization")
 
@@ -139,10 +134,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert query params to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
@@ -371,15 +363,11 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Account with ID: %s", id.String()))
 
 	payload := i.(*mmodel.UpdateAccountInput)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update an Account with details: %#v", payload))
+	logSafePayload(ctx, logger, fmt.Sprintf("Request to update account with ID: %s", id.String()), payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
-	_, err = handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload)
-	if err != nil {
+	if _, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Account on command", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error()))

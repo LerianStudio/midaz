@@ -61,12 +61,9 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of Asset with ledger ID: %s", ledgerID.String()))
 
 	payload := a.(*mmodel.CreateAssetInput)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create a Asset with details: %#v", payload))
+	logSafePayload(ctx, logger, "Request to create an asset", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
 	token := c.Get("Authorization")
 
@@ -130,10 +127,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert query params to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
@@ -263,15 +257,11 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String()))
 
 	payload := a.(*mmodel.UpdateAssetInput)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update an Asset with details: %#v", payload))
+	logSafePayload(ctx, logger, fmt.Sprintf("Request to update asset with ID: %s", id.String()), payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
-	_, err = handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload)
-	if err != nil {
+	if _, err := handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Asset on command", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Asset with ID: %s, Error: %s", id.String(), err.Error()))
