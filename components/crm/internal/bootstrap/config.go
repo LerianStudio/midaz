@@ -5,15 +5,17 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
+	"net/url"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libCrypto "github.com/LerianStudio/lib-commons/v3/commons/crypto"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
@@ -23,34 +25,34 @@ import (
 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
-	EnvName                 string `env:"ENV_NAME"`
-	ProtoAddress            string `env:"PROTO_ADDRESS"`
-	ServerAddress           string `env:"SERVER_ADDRESS"`
-	LogLevel                string `env:"LOG_LEVEL"`
-	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
-	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
-	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
-	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	EnableTelemetry         bool   `env:"ENABLE_TELEMETRY"`
-	MongoURI                string `env:"MONGO_URI"`
-	MongoDBHost             string `env:"MONGO_HOST"`
-	MongoDBName             string `env:"MONGO_NAME"`
-	MongoDBUser             string `env:"MONGO_USER"`
-	MongoDBPassword         string `env:"MONGO_PASSWORD"`
-	MongoDBPort             string `env:"MONGO_PORT"`
-	MongoDBParameters       string `env:"MONGO_PARAMETERS"`
-	MaxPoolSize             int    `env:"MONGO_MAX_POOL_SIZE"`
-	HashSecretKey           string `env:"LCRYPTO_HASH_SECRET_KEY"`
-	EncryptSecretKey        string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
-	AuthAddress             string `env:"PLUGIN_AUTH_ADDRESS"`
-	AuthEnabled             bool   `env:"PLUGIN_AUTH_ENABLED"`
+	EnvName                             string `env:"ENV_NAME"`
+	ProtoAddress                        string `env:"PROTO_ADDRESS"`
+	ServerAddress                       string `env:"SERVER_ADDRESS"`
+	LogLevel                            string `env:"LOG_LEVEL"`
+	OtelServiceName                     string `env:"OTEL_RESOURCE_SERVICE_NAME"`
+	OtelLibraryName                     string `env:"OTEL_LIBRARY_NAME"`
+	OtelServiceVersion                  string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
+	OtelDeploymentEnv                   string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
+	OtelColExporterEndpoint             string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	EnableTelemetry                     bool   `env:"ENABLE_TELEMETRY"`
+	MongoURI                            string `env:"MONGO_URI"`
+	MongoDBHost                         string `env:"MONGO_HOST"`
+	MongoDBName                         string `env:"MONGO_NAME"`
+	MongoDBUser                         string `env:"MONGO_USER"`
+	MongoDBPassword                     string `env:"MONGO_PASSWORD"`
+	MongoDBPort                         string `env:"MONGO_PORT"`
+	MongoDBParameters                   string `env:"MONGO_PARAMETERS"`
+	MaxPoolSize                         int    `env:"MONGO_MAX_POOL_SIZE"`
+	HashSecretKey                       string `env:"LCRYPTO_HASH_SECRET_KEY"`
+	EncryptSecretKey                    string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
+	AuthAddress                         string `env:"PLUGIN_AUTH_ADDRESS"`
+	AuthEnabled                         bool   `env:"PLUGIN_AUTH_ENABLED"`
 	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED"`
 	MultiTenantURL                      string `env:"MULTI_TENANT_URL"`
-	MultiTenantTimeout                  int    `env:"MULTI_TENANT_TIMEOUT"`                    // seconds (HTTP client timeout)
-	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`           // seconds before idle connection eviction
-	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`           // max concurrent tenant pools
-	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`  // failures before circuit opens
+	MultiTenantTimeout                  int    `env:"MULTI_TENANT_TIMEOUT"`                     // seconds (HTTP client timeout)
+	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`            // seconds before idle connection eviction
+	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`            // max concurrent tenant pools
+	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`   // failures before circuit opens
 	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"` // seconds before circuit resets
 }
 
@@ -78,20 +80,24 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	} else {
 		var err error
 
-		logger, err = libZap.InitializeLoggerWithError()
+		logger, err = libZap.New(libZap.Config{
+			Environment:     libZap.EnvironmentDevelopment,
+			Level:           cfg.LogLevel,
+			OTelLibraryName: cfg.OtelLibraryName,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize logger: %w", err)
 		}
 	}
 
 	if cfg.MultiTenantEnabled {
-		logger.Info("Multi-tenant mode ENABLED")
+		logger.Log(context.Background(), libLog.LevelInfo, "Multi-tenant mode ENABLED")
 	} else {
-		logger.Info("Running in SINGLE-TENANT MODE")
+		logger.Log(context.Background(), libLog.LevelInfo, "Running in SINGLE-TENANT MODE")
 	}
 
 	// Init Open telemetry to control logs and flows
-	telemetry, err := libOpentelemetry.InitializeTelemetryWithError(&libOpentelemetry.TelemetryConfig{
+	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -108,19 +114,39 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Extract port and parameters for MongoDB connection (handles backward compatibility)
 	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
 
-	// Build MongoDB connection string using centralized utility (ensures correct format)
-	mongoSource := libMongo.BuildConnectionString(
-		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, mongoPort, mongoParameters, logger)
+	mongoURI := cfg.MongoURI
+	if mongoURI == "" {
+		query, queryErr := url.ParseQuery(mongoParameters)
+		if queryErr != nil {
+			return nil, fmt.Errorf("failed to parse mongodb parameters: %w", queryErr)
+		}
+
+		mongoURI, err = libMongo.BuildURI(libMongo.URIConfig{
+			Scheme:   "mongodb",
+			Username: cfg.MongoDBUser,
+			Password: cfg.MongoDBPassword,
+			Host:     cfg.MongoDBHost,
+			Port:     mongoPort,
+			Database: cfg.MongoDBName,
+			Query:    query,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to build mongodb uri: %w", err)
+		}
+	}
 
 	if cfg.MaxPoolSize <= 0 {
 		cfg.MaxPoolSize = 100
 	}
 
-	mongoConnection := &libMongo.MongoConnection{
-		ConnectionStringSource: mongoSource,
-		Database:               cfg.MongoDBName,
-		Logger:                 logger,
-		MaxPoolSize:            uint64(cfg.MaxPoolSize), // #nosec G115 -- guarded by <= 0 check above
+	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{
+		URI:         mongoURI,
+		Database:    cfg.MongoDBName,
+		MaxPoolSize: uint64(cfg.MaxPoolSize), // #nosec G115 -- guarded by <= 0 check above
+		Logger:      logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize mongodb client: %w", err)
 	}
 
 	dataSecurity := &libCrypto.Crypto{
@@ -157,7 +183,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Service: useCases,
 	}
 
-	auth := middleware.NewAuthClient(cfg.AuthAddress, cfg.AuthEnabled, &logger)
+	auth := middleware.NewAuthClient(cfg.AuthAddress, cfg.AuthEnabled, nil)
 
 	tenantMiddleware, err := initTenantMiddleware(cfg, logger, telemetry)
 	if err != nil {

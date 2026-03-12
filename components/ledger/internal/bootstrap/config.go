@@ -5,21 +5,22 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/middleware"
-	tmmongo "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/mongo"
-	tmpostgres "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
+	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
+	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
@@ -94,10 +95,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
-		return nil, fmt.Errorf(
-			"MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
-				"running multi-tenant mode without authentication allows cross-tenant data access",
-		)
+		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
+			"running multi-tenant mode without authentication allows cross-tenant data access")
 	}
 
 	var baseLogger libLog.Logger
@@ -106,13 +105,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	} else {
 		var err error
 
-		baseLogger, err = libZap.InitializeLoggerWithError()
+		baseLogger, err = libZap.New(libZap.Config{
+			Environment:     libZap.EnvironmentDevelopment,
+			Level:           cfg.LogLevel,
+			OTelLibraryName: cfg.OtelLibraryName,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize logger: %w", err)
 		}
 	}
 
-	telemetry, err := libOpentelemetry.InitializeTelemetryWithError(&libOpentelemetry.TelemetryConfig{
+	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -128,23 +131,23 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Generate startup ID for tracing initialization issues
 	startupID := uuid.New().String()
 
-	ledgerLogger := baseLogger.WithFields(
-		"component", "ledger",
-		"startup_id", startupID,
+	ledgerLogger := baseLogger.With(
+		libLog.String("component", "ledger"),
+		libLog.String("startup_id", startupID),
 	)
-	transactionLogger := baseLogger.WithFields(
-		"component", "transaction",
-		"startup_id", startupID,
+	transactionLogger := baseLogger.With(
+		libLog.String("component", "transaction"),
+		libLog.String("startup_id", startupID),
 	)
-	onboardingLogger := baseLogger.WithFields(
-		"component", "onboarding",
-		"startup_id", startupID,
+	onboardingLogger := baseLogger.With(
+		libLog.String("component", "onboarding"),
+		libLog.String("startup_id", startupID),
 	)
 
-	ledgerLogger.WithFields(
-		"version", cfg.Version,
-		"env", cfg.EnvName,
-	).Info("Starting unified ledger component")
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Starting unified ledger component",
+		libLog.String("version", cfg.Version),
+		libLog.String("env", cfg.EnvName),
+	)
 
 	// Multi-tenant setup: prefer injected client from Options, fall back to config-based creation.
 	var tenantClient *tmclient.Client
@@ -163,7 +166,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	}
 
-	ledgerLogger.Info("Initializing transaction module...")
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Initializing transaction module...")
 
 	var stateListener libCircuitBreaker.StateChangeListener
 
@@ -197,9 +200,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to get MetadataIndexPort from transaction module")
 	}
 
-	ledgerLogger.Info("Transaction module initialized, BalancePort and MetadataIndexPort available for in-process calls")
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Transaction module initialized, BalancePort and MetadataIndexPort available for in-process calls")
 
-	ledgerLogger.Info("Initializing onboarding module in UNIFIED MODE...")
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Initializing onboarding module in UNIFIED MODE...")
 
 	// Initialize onboarding module in unified mode with the BalancePort for direct calls
 	// No intermediate adapter needed - the transaction.UseCase is passed directly
@@ -216,7 +219,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize onboarding module: %w", err)
 	}
 
-	ledgerLogger.Info("Onboarding module initialized")
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Onboarding module initialized")
 
 	// Get the metadata port from onboarding for metadata index operations
 	onboardingMetadataRepo := onboardingService.GetMetadataIndexPort()
@@ -234,15 +237,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	transactionService.SetSettingsPort(settingsPort)
 
-	ledgerLogger.Info("SettingsPort wired from onboarding to transaction for in-process settings queries")
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "SettingsPort wired from onboarding to transaction for in-process settings queries")
 
-	ledgerLogger.Info("Both metadata index repositories available for settings routes")
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Both metadata index repositories available for settings routes")
 
 	// Build MultiPoolMiddleware for per-tenant database routing
 	multiPoolMiddleware := buildMultiPoolMiddleware(cfg, ledgerLogger, transactionService, onboardingService)
 
 	// Create auth client for metadata index routes
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &ledgerLogger)
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
 
 	// Create metadata index handler with both repositories
 	metadataIndexHandler := &httpin.MetadataIndexHandler{
@@ -253,7 +256,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Create route registrar for ledger-specific routes (metadata indexes)
 	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler)
 
-	ledgerLogger.Info("Creating unified HTTP server on " + cfg.ServerAddress)
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
 	// Create the unified server that consolidates all routes on a single port
 	unifiedServer := NewUnifiedServer(
@@ -266,11 +269,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		ledgerRouteRegistrar,
 	)
 
-	ledgerLogger.WithFields(
-		"version", cfg.Version,
-		"env", cfg.EnvName,
-		"server_address", cfg.ServerAddress,
-	).Info("Unified ledger component started successfully with single-port mode")
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
+		libLog.String("version", cfg.Version),
+		libLog.String("env", cfg.EnvName),
+		libLog.String("server_address", cfg.ServerAddress),
+	)
 
 	return &Service{
 		OnboardingService:  onboardingService,
@@ -312,17 +315,20 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 		cbTimeoutSec = 30
 	}
 
-	tenantClient := tmclient.NewClient(
+	tenantClient, err := tmclient.NewClient(
 		tenantManagerURL,
 		logger,
 		tmclient.WithCircuitBreaker(cbThreshold, time.Duration(cbTimeoutSec)*time.Second),
 	)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to initialize tenant manager client: %w", err)
+	}
 
-	logger.WithFields(
-		"service", tenantServiceName,
-		"environment", cfg.MultiTenantEnvironment,
-		"tenant_manager_configured", true,
-	).Info("Multi-tenant mode enabled")
+	logger.Log(context.Background(), libLog.LevelInfo, "Multi-tenant mode enabled",
+		libLog.String("service", tenantServiceName),
+		libLog.String("environment", cfg.MultiTenantEnvironment),
+		libLog.Bool("tenant_manager_configured", true),
+	)
 
 	return tenantClient, tenantServiceName, nil
 }
@@ -358,7 +364,7 @@ func buildMultiPoolMiddleware(
 			),
 		)
 	} else {
-		logger.Warn("Transaction module managers not available for multi-tenant routing")
+		logger.Log(context.Background(), libLog.LevelWarn, "Transaction module managers not available for multi-tenant routing")
 	}
 
 	// Onboarding module (default route): safe two-return type assertions with typed nil checks
@@ -377,7 +383,7 @@ func buildMultiPoolMiddleware(
 			),
 		)
 	} else {
-		logger.Warn("Onboarding module managers not available for multi-tenant default route")
+		logger.Log(context.Background(), libLog.LevelWarn, "Onboarding module managers not available for multi-tenant default route")
 	}
 
 	multiPoolOpts = append(multiPoolOpts,
@@ -398,7 +404,7 @@ func buildMultiPoolMiddleware(
 
 	multiPoolMiddleware := tmmiddleware.NewMultiPoolMiddleware(multiPoolOpts...)
 
-	logger.Info("MultiPoolMiddleware configured for per-tenant database routing")
+	logger.Log(context.Background(), libLog.LevelInfo, "MultiPoolMiddleware configured for per-tenant database routing")
 
 	return multiPoolMiddleware
 }

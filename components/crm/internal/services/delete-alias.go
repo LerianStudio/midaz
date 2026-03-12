@@ -7,13 +7,17 @@ package services
 import (
 	"context"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+
+	// DeleteAliasByID removes an alias by its id and holder id
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// DeleteAliasByID removes an alias by its id and holder id
 func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, hardDelete bool) error {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -27,12 +31,12 @@ func (uc *UseCase) DeleteAliasByID(ctx context.Context, organizationID string, h
 		attribute.String("app.request.alias_id", id.String()),
 	)
 
-	logger.Infof("Delete alias by id %v", id)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Delete alias by id %v", id))
 
 	err := uc.AliasRepo.Delete(ctx, organizationID, holderID, id, hardDelete)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to delete alias by id: %v", err)
-		logger.Errorf("Failed to delete alias by id: %v", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to delete alias by id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete alias by id: %v", err))
 
 		return err
 	}

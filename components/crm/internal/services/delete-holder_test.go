@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -29,7 +29,7 @@ func TestDeleteHolderByID(t *testing.T) {
 		AliasRepo:  mockAliasRepo,
 	}
 
-	holderID := libCommons.GenerateUUIDv7()
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	testCases := []struct {
 		name        string

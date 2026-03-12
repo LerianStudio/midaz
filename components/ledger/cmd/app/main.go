@@ -5,11 +5,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/bootstrap"
 )
 
@@ -26,7 +28,11 @@ import (
 func main() {
 	libCommons.InitLocalEnvConfig()
 
-	logger, err := libZap.InitializeLoggerWithError()
+	logger, err := libZap.New(libZap.Config{
+		Environment:     libZap.EnvironmentDevelopment,
+		Level:           "info",
+		OTelLibraryName: "midaz-ledger",
+	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 
@@ -37,8 +43,8 @@ func main() {
 		Logger: logger,
 	})
 	if err != nil {
-		logger.Errorf("Failed to initialize ledger service: %v", err)
-		_ = logger.Sync()
+		logger.Log(context.Background(), libLog.LevelError, fmt.Sprintf("Failed to initialize ledger service: %v", err))
+		_ = logger.Sync(context.Background())
 
 		os.Exit(1)
 	}

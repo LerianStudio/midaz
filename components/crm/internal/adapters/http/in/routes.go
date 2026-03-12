@@ -9,9 +9,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
@@ -23,7 +23,7 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.HandleFiberError(ctx, err)
+			return libHTTP.FiberErrorHandler(ctx, err)
 		},
 	})
 	tlMid := libHTTP.NewTelemetryMiddleware(tl)

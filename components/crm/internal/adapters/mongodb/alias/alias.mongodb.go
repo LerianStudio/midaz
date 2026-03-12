@@ -17,11 +17,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libCrypto "github.com/LerianStudio/lib-commons/v3/commons/crypto"
-	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	mongoUtils "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -45,27 +46,19 @@ type Repository interface {
 
 // MongoDBRepository is a MongoDB-specific implementation of Repository
 type MongoDBRepository struct {
-	connection   *libMongo.MongoConnection
-	Database     string
+	connection   *libMongo.Client
 	DataSecurity *libCrypto.Crypto
 }
 
 // NewMongoDBRepository returns a new instance of MongoDBRepository using the given MongoDB connection.
 // In multi-tenant mode, connection may be nil — the per-request tenant context provides the database.
-func NewMongoDBRepository(connection *libMongo.MongoConnection, dataSecurity *libCrypto.Crypto) (*MongoDBRepository, error) {
+func NewMongoDBRepository(connection *libMongo.Client, dataSecurity *libCrypto.Crypto) (*MongoDBRepository, error) {
 	r := &MongoDBRepository{
 		DataSecurity: dataSecurity,
 	}
 
 	if connection != nil {
 		r.connection = connection
-		r.Database = connection.Database
-
-		if connection.ConnectionStringSource != "" {
-			if _, err := r.connection.GetDB(context.Background()); err != nil {
-				return nil, fmt.Errorf("failed to connect to MongoDB for alias repository: %w", err)
-			}
-		}
 	}
 
 	return r, nil
@@ -84,7 +77,11 @@ func (am *MongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, 
 		return nil, fmt.Errorf("no database connection available: multi-tenant context required but not present, and no static connection configured")
 	}
 
-	return tmcore.ResolveMongo(ctx, am.connection, am.Database)
+	if db := tmcore.GetMongoFromContext(ctx); db != nil {
+		return db, nil
+	}
+
+	return am.connection.Database(ctx)
 }
 
 // Create inserts an alias into mongo
@@ -104,7 +101,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return nil, err
 	}
@@ -113,7 +110,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	err = createIndexes(coll)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to create indexes", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to create indexes", err)
 
 		return nil, err
 	}
@@ -126,7 +123,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 	record := &MongoDBModel{}
 
 	if err := record.FromEntity(alias, am.DataSecurity); err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert alias to model", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
 
 		return nil, err
 	}
@@ -136,14 +133,14 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	spanInsert.SetAttributes(attributes...)
 
-	err = libOpenTelemetry.SetSpanAttributesFromStruct(&spanInsert, "app.request.repository_input", record)
+	err = libOpenTelemetry.SetSpanAttributesFromValue(spanInsert, "app.request.repository_input", record, nil)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanInsert, "Failed to set span attributes", err)
+		libOpenTelemetry.HandleSpanError(spanInsert, "Failed to set span attributes", err)
 	}
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanInsert, "Failed to insert alias", err)
+		libOpenTelemetry.HandleSpanError(spanInsert, "Failed to insert alias", err)
 
 		if mongo.IsDuplicateKeyError(err) {
 			if strings.Contains(err.Error(), "account_id") {
@@ -156,7 +153,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	result, err := record.ToEntity(am.DataSecurity)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert alias to model", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
 
 		return nil, err
 	}
@@ -182,7 +179,7 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return nil, err
 	}
@@ -202,7 +199,7 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 
 	err = coll.FindOne(ctx, filter).Decode(&record)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to find account", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to find account", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, pkg.ValidateBusinessError(cn.ErrAliasNotFound, reflect.TypeOf(mmodel.Alias{}).Name())
@@ -213,7 +210,7 @@ func (am *MongoDBRepository) Find(ctx context.Context, organizationID string, ho
 
 	result, err := record.ToEntity(am.DataSecurity)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert alias to model", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
 
 		return nil, err
 	}
@@ -239,7 +236,7 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return nil, err
 	}
@@ -251,29 +248,29 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	spanUpdate.SetAttributes(attributes...)
 
-	err = libOpenTelemetry.SetSpanAttributesFromStruct(&spanUpdate, "app.request.repository_input", alias)
+	err = libOpenTelemetry.SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", alias, nil)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to set span attributes", err)
+		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to set span attributes", err)
 	}
 
 	aliasToUpdate := &MongoDBModel{}
 
 	if err := aliasToUpdate.FromEntity(alias, am.DataSecurity); err != nil {
-		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to convert alias to model", err)
+		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to convert alias to model", err)
 
 		return nil, err
 	}
 
 	bsonData, err := bson.Marshal(aliasToUpdate)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to marshal alias", err)
+		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to marshal alias", err)
 
 		return nil, err
 	}
 
 	var updateDocument bson.M
 	if err := bson.Unmarshal(bsonData, &updateDocument); err != nil {
-		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to unmarshal alias", err)
+		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to unmarshal alias", err)
 
 		return nil, err
 	}
@@ -288,7 +285,7 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	updateResult, err := coll.UpdateOne(ctx, filter, update)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to update alias", err)
+		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to update alias", err)
 
 		return nil, err
 	}
@@ -306,14 +303,14 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	err = coll.FindOne(ctx, filter).Decode(&record)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find alias after update", err)
+		libOpenTelemetry.HandleSpanError(spanFind, "Failed to find alias after update", err)
 
 		return nil, err
 	}
 
 	result, err := record.ToEntity(am.DataSecurity)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to convert alias to model", err)
+		libOpenTelemetry.HandleSpanError(spanFind, "Failed to convert alias to model", err)
 
 		return nil, err
 	}
@@ -339,7 +336,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return nil, err
 	}
@@ -354,20 +351,20 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	spanFind.SetAttributes(attributes...)
 
-	err = libOpenTelemetry.SetSpanAttributesFromStruct(&spanFind, "app.request.repository_filter", query)
+	err = libOpenTelemetry.SetSpanAttributesFromValue(spanFind, "app.request.repository_filter", query, nil)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to set span attributes", err)
+		libOpenTelemetry.HandleSpanError(spanFind, "Failed to set span attributes", err)
 	}
 
 	filter, err := am.buildAliasFilter(query, holderID, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanFind, "Invalid metadata value", err)
+		libOpenTelemetry.HandleSpanError(spanFind, "Invalid metadata value", err)
 		return nil, err
 	}
 
 	cursor, err := coll.Find(ctx, filter, &opts)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find aliases", err)
+		libOpenTelemetry.HandleSpanError(spanFind, "Failed to find aliases", err)
 
 		return nil, err
 	}
@@ -379,7 +376,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	for cursor.Next(ctx) {
 		var holder MongoDBModel
 		if err := cursor.Decode(&holder); err != nil {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to decode aliases", err)
+			libOpenTelemetry.HandleSpanError(span, "Failed to decode aliases", err)
 
 			return nil, err
 		}
@@ -388,13 +385,13 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	}
 
 	if err := cursor.Err(); err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to iterate aliases", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to iterate aliases", err)
 
 		return nil, err
 	}
 
 	if err := cursor.Close(ctx); err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to close cursor", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to close cursor", err)
 
 		return nil, err
 	}
@@ -403,7 +400,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	for i, alias := range aliases {
 		results[i], err = alias.ToEntity(am.DataSecurity)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to convert alias to model", err)
+			libOpenTelemetry.HandleSpanError(span, "Failed to convert alias to model", err)
 
 			return nil, err
 		}
@@ -497,7 +494,7 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return err
 	}
@@ -519,7 +516,7 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	if hardDelete {
 		deleted, err := coll.DeleteOne(ctx, filter, opts)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(&spanDelete, "Failed to delete alias", err)
+			libOpenTelemetry.HandleSpanError(spanDelete, "Failed to delete alias", err)
 
 			return err
 		}
@@ -538,7 +535,7 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 
 		updateResult, err := coll.UpdateOne(ctx, filter, update)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(&spanDelete, "Failed to delete alias", err)
+			libOpenTelemetry.HandleSpanError(spanDelete, "Failed to delete alias", err)
 
 			return err
 		}
@@ -548,7 +545,7 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 		}
 	}
 
-	logger.Infoln("Deleted a document with id: ", id.String(), " (hard delete: ", hardDelete, ")")
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintln("Deleted a document with id: ", id.String(), " (hard delete: ", hardDelete, ")"))
 
 	return nil
 }
@@ -569,7 +566,7 @@ func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, h
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return 0, err
 	}
@@ -588,7 +585,7 @@ func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, h
 
 	count, err := coll.CountDocuments(ctx, filter)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanCount, "Failed to count aliases by holder", err)
+		libOpenTelemetry.HandleSpanError(spanCount, "Failed to count aliases by holder", err)
 
 		return 0, err
 	}
@@ -615,7 +612,7 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 
 	db, err := am.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
 		return err
 	}
 
@@ -640,7 +637,7 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 
 	result, err := coll.UpdateOne(ctx, filter, update)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to delete related party", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to delete related party", err)
 		return err
 	}
 
@@ -652,7 +649,7 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 		return pkg.ValidateBusinessError(cn.ErrRelatedPartyNotFound, reflect.TypeOf(mmodel.RelatedParty{}).Name())
 	}
 
-	logger.Infoln("Deleted related party with id: ", relatedPartyID.String(), " from alias: ", aliasID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintln("Deleted related party with id: ", relatedPartyID.String(), " from alias: ", aliasID.String()))
 
 	return nil
 }
