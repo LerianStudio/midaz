@@ -7,14 +7,16 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/middleware"
-	tmmongo "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/mongo"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
+	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
@@ -37,74 +39,94 @@ func initTenantMiddleware(cfg *Config, logger libLog.Logger, telemetry *libOpent
 		return nil, fmt.Errorf("MULTI_TENANT_URL must not be blank when MULTI_TENANT_ENABLED=true")
 	}
 
-	// Build client options
-	var clientOpts []tmclient.ClientOption
+	clientOpts := buildTenantClientOptions(cfg, mtURL)
+
+	tmClient, err := tmclient.NewClient(mtURL, logger, clientOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize tenant manager client: %w", err)
+	}
+
+	mongoOpts := buildMongoManagerOptions(cfg, logger)
+
+	mongoManager := tmmongo.NewManager(tmClient, in.ApplicationName, mongoOpts...)
+
+	emitTenantMetric(context.Background(), telemetry, logger, utils.TenantConnectionsTotal)
+
+	tenantMid := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithMongoManager(mongoManager),
+	)
+
+	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Multi-tenant middleware initialized: url=%s service=%s",
+		mtURL, in.ApplicationName))
+
+	return wrapTenantMiddlewareWithMetrics(tenantMid.WithTenantDB, telemetry, logger), nil
+}
+
+func buildTenantClientOptions(cfg *Config, mtURL string) []tmclient.ClientOption {
+	clientOpts := make([]tmclient.ClientOption, 0)
 
 	if cfg.MultiTenantTimeout > 0 {
-		clientOpts = append(clientOpts,
-			tmclient.WithTimeout(time.Duration(cfg.MultiTenantTimeout)*time.Second))
+		clientOpts = append(clientOpts, tmclient.WithTimeout(time.Duration(cfg.MultiTenantTimeout)*time.Second))
 	}
 
 	if cfg.MultiTenantCircuitBreakerThreshold > 0 {
 		clientOpts = append(clientOpts,
-			tmclient.WithCircuitBreaker(cfg.MultiTenantCircuitBreakerThreshold,
-				time.Duration(cfg.MultiTenantCircuitBreakerTimeoutSec)*time.Second))
+			tmclient.WithCircuitBreaker(
+				cfg.MultiTenantCircuitBreakerThreshold,
+				time.Duration(cfg.MultiTenantCircuitBreakerTimeoutSec)*time.Second,
+			),
+		)
 	}
 
-	tmClient := tmclient.NewClient(mtURL, logger, clientOpts...)
+	if parsedURL, parseErr := url.Parse(mtURL); parseErr == nil && strings.EqualFold(parsedURL.Scheme, "http") {
+		clientOpts = append(clientOpts, tmclient.WithAllowInsecureHTTP())
+	}
 
-	// Build mongo manager options
-	var mongoOpts []tmmongo.Option
+	return clientOpts
+}
 
-	mongoOpts = append(mongoOpts,
+func buildMongoManagerOptions(cfg *Config, logger libLog.Logger) []tmmongo.Option {
+	mongoOpts := []tmmongo.Option{
 		tmmongo.WithModule(in.ApplicationName),
 		tmmongo.WithLogger(logger),
-	)
+	}
 
 	if cfg.MultiTenantMaxTenantPools > 0 {
 		mongoOpts = append(mongoOpts, tmmongo.WithMaxTenantPools(cfg.MultiTenantMaxTenantPools))
 	}
 
 	if cfg.MultiTenantIdleTimeoutSec > 0 {
-		mongoOpts = append(mongoOpts,
-			tmmongo.WithIdleTimeout(time.Duration(cfg.MultiTenantIdleTimeoutSec)*time.Second))
+		mongoOpts = append(mongoOpts, tmmongo.WithIdleTimeout(time.Duration(cfg.MultiTenantIdleTimeoutSec)*time.Second))
 	}
 
-	mongoManager := tmmongo.NewManager(tmClient, in.ApplicationName, mongoOpts...)
+	return mongoOpts
+}
 
-	// Emit tenant_connections_total metric for MongoDB manager creation (connection pool setup).
-	if telemetry != nil && telemetry.MetricsFactory != nil {
-		telemetry.MetricsFactory.Counter(utils.TenantConnectionsTotal).
-			WithAttributes(
-				attribute.String("service", in.ApplicationName),
-				attribute.String("db", "mongodb"),
-			).
-			AddOne(context.Background())
+func emitTenantMetric(ctx context.Context, telemetry *libOpentelemetry.Telemetry, logger libLog.Logger, metric metrics.Metric) {
+	if telemetry == nil || telemetry.MetricsFactory == nil {
+		return
 	}
 
-	tenantMid := tmmiddleware.NewTenantMiddleware(
-		tmmiddleware.WithMongoManager(mongoManager),
-	)
+	counter, err := telemetry.MetricsFactory.Counter(metric)
+	if err != nil {
+		return
+	}
 
-	logger.Infof("Multi-tenant middleware initialized: url=%s service=%s",
-		mtURL, in.ApplicationName)
+	if err = counter.WithAttributes(
+		attribute.String("service", in.ApplicationName),
+		attribute.String("db", "mongodb"),
+	).AddOne(ctx); err != nil {
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("failed to increment metric %v: %v", metric, err))
+	}
+}
 
-	baseHandler := tenantMid.WithTenantDB
-
-	// Wrap handler to emit tenant_connection_errors_total on middleware errors.
-	wrappedHandler := func(c *fiber.Ctx) error {
+func wrapTenantMiddlewareWithMetrics(baseHandler fiber.Handler, telemetry *libOpentelemetry.Telemetry, logger libLog.Logger) fiber.Handler {
+	return func(c *fiber.Ctx) error {
 		err := baseHandler(c)
-		if err != nil && telemetry != nil && telemetry.MetricsFactory != nil {
-			telemetry.MetricsFactory.Counter(utils.TenantConnectionErrorsTotal).
-				WithAttributes(
-					attribute.String("service", in.ApplicationName),
-					attribute.String("db", "mongodb"),
-				).
-				AddOne(c.UserContext())
+		if err != nil {
+			emitTenantMetric(c.UserContext(), telemetry, logger, utils.TenantConnectionErrorsTotal)
 		}
 
 		return err
 	}
-
-	return wrappedHandler, nil
 }

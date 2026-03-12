@@ -10,11 +10,12 @@ import (
 	"net/http"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/middleware"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
@@ -118,12 +119,21 @@ func (s *StubTransactionService) GetMultiTenantConsumer() interface{} {
 // Ensure StubTransactionService implements transaction.TransactionService
 var _ transaction.TransactionService = (*StubTransactionService)(nil)
 
+func newTestLogger(t *testing.T) libLog.Logger {
+	t.Helper()
+
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "ledger-test"})
+	require.NoError(t, err, "logger init must not fail")
+
+	return logger
+}
+
 // TestService_GetRunnables_ReturnsAllComponents verifies that Service.Run()
 // correctly collects runnables from both onboarding and transaction services.
 // This is a unit test that uses stubs to verify the composition logic.
 func TestService_GetRunnables_ReturnsAllComponents(t *testing.T) {
 	// Arrange
-	logger := libZap.InitializeLogger()
+	logger := newTestLogger(t)
 
 	// Create stub runnables for onboarding
 	onboardingRunnable := &StubRunnable{name: "onboarding-server"}
@@ -286,7 +296,7 @@ func TestService_CompositionContract(t *testing.T) {
 		service := &Service{
 			OnboardingService:  &StubService{},
 			TransactionService: &StubTransactionService{},
-			Logger:             libZap.InitializeLogger(),
+			Logger:             newTestLogger(t),
 			Telemetry:          &libOpentelemetry.Telemetry{},
 		}
 
@@ -430,7 +440,7 @@ func TestMidazErrorMapper(t *testing.T) {
 func TestNewUnifiedServer_AcceptsMultiPoolMiddleware(t *testing.T) {
 	t.Parallel()
 
-	logger := libZap.InitializeLogger()
+	logger := newTestLogger(t)
 	telemetry := &libOpentelemetry.Telemetry{}
 
 	t.Run("nil_middleware_creates_server_without_tenant_db", func(t *testing.T) {

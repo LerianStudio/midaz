@@ -10,9 +10,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -54,9 +56,9 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 
 	out, err := handler.Service.CreateHolder(ctx, organizationID, payload)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to create holder", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to create holder", err)
 
-		logger.Errorf("Failed to create holder: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create holder: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -102,13 +104,13 @@ func (handler *HolderHandler) GetHolderByID(c *fiber.Ctx) error {
 		attribute.Bool("app.request.include_deleted", includeDeleted),
 	)
 
-	logger.Infof("Initiating retrieval of Holder with ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Holder with ID: %s", id.String()))
 
 	holder, err := handler.Service.GetHolderByID(ctx, organizationID, id, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to retrieve holder", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to retrieve holder", err)
 
-		logger.Errorf("Failed to retrieve Holder with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Holder with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -150,9 +152,9 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 
 	fieldsToRemove, ok := c.Locals("patchRemove").([]string)
 	if !ok {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get fields to remove", cn.ErrInternalServer)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get fields to remove", cn.ErrInternalServer)
 
-		logger.Errorf("Failed to get fields to remove")
+		logger.Log(ctx, libLog.LevelError, "Failed to get fields to remove")
 
 		return http.WithError(c, cn.ErrInternalServer)
 	}
@@ -163,18 +165,18 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.holder_id", id.String()),
 	)
 
-	err = libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.fields_to_remove", fieldsToRemove)
+	err = libOpenTelemetry.SetSpanAttributesFromValue(span, "app.request.fields_to_remove", fieldsToRemove, nil)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert fields_to_remove to JSON string", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to convert fields_to_remove to JSON string", err)
 	}
 
-	logger.Infof("Request to update holder with id: %v", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update holder with id: %v", id.String()))
 
 	holder, err := handler.Service.UpdateHolderByID(ctx, organizationID, id, payload, fieldsToRemove)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to update holder", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to update holder", err)
 
-		logger.Errorf("Failed to update Holder with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Holder with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -219,13 +221,13 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 		attribute.Bool("app.request.hard_delete", hardDelete),
 	)
 
-	logger.Infof("Initiating removal of holder with ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of holder with ID: %s", id.String()))
 
 	err = handler.Service.DeleteHolderByID(ctx, organizationID, id, hardDelete)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to delete holder", err)
 
-		logger.Errorf("Failed to delete Holder with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete Holder with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -248,7 +250,7 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 //	@Param			include_deleted		query		string	false	"Return includes logically deleted holders."
 //	@Param			external_id			query		string	false	"Filter holders by externalID"
 //	@Param			document			query		string	false	"Filter holders by document"
-//	@Success		200					{object}	libPostgres.Pagination{items=[]mmodel.Holder,page=int,limit=int}
+//	@Success		200					{object}	http.Pagination{items=[]mmodel.Holder,page=int,limit=int}
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError
@@ -263,14 +265,14 @@ func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	pagination := libPostgres.Pagination{
+	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
 		Page:      headerParams.Page,
 		SortOrder: headerParams.SortOrder,
@@ -285,16 +287,16 @@ func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 		attribute.Bool("app.request.include_deleted", includeDeleted),
 	)
 
-	err = libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
+	err = libOpenTelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert query_params to JSON string", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to convert query_params to JSON string", err)
 	}
 
 	holders, err := handler.Service.GetAllHolders(ctx, organizationID, *headerParams, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get all holders", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get all holders", err)
 
-		logger.Errorf("Failed to get all holders, Error: %v", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get all holders, Error: %v", err.Error()))
 
 		return http.WithError(c, err)
 	}

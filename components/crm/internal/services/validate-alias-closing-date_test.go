@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -25,9 +25,9 @@ func TestValidateAliasClosingDate(t *testing.T) {
 
 	mockAliasRepo := alias.NewMockRepository(ctrl)
 
-	organizationID := libCommons.GenerateUUIDv7().String()
-	holderID := libCommons.GenerateUUIDv7()
-	aliasID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	aliasID := uuid.Must(libCommons.GenerateUUIDv7())
 	createdAt := time.Now().Add(-24 * time.Hour)
 
 	uc := &UseCase{

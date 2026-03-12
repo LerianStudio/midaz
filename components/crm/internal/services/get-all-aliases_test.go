@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -24,12 +24,12 @@ func TestGetAllAliases(t *testing.T) {
 
 	mockAliasRepo := alias.NewMockRepository(ctrl)
 
-	holderID := libCommons.GenerateUUIDv7()
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	id1 := libCommons.GenerateUUIDv7()
-	id2 := libCommons.GenerateUUIDv7()
-	accountId := libCommons.GenerateUUIDv7().String()
-	ledgerId := libCommons.GenerateUUIDv7().String()
+	id1 := uuid.Must(libCommons.GenerateUUIDv7())
+	id2 := uuid.Must(libCommons.GenerateUUIDv7())
+	accountId := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	ledgerId := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	document := "98765432109"
 	account := "123450"
 	iban := "US12345678901234567810"

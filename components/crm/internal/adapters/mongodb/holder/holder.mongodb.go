@@ -17,11 +17,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libCrypto "github.com/LerianStudio/lib-commons/v3/commons/crypto"
-	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	mongoUtils "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -43,26 +44,28 @@ type Repository interface {
 
 // MongoDBRepository is a MongoDB-specific implementation of Repository
 type MongoDBRepository struct {
-	connection   *libMongo.MongoConnection
+	connection   *libMongo.Client
 	Database     string
 	DataSecurity *libCrypto.Crypto
 }
 
 // NewMongoDBRepository returns a new instance of MongoDBRepository using the given MongoDB connection.
 // In multi-tenant mode, connection may be nil — the per-request tenant context provides the database.
-func NewMongoDBRepository(connection *libMongo.MongoConnection, dataSecurity *libCrypto.Crypto) (*MongoDBRepository, error) {
+func NewMongoDBRepository(connection *libMongo.Client, dataSecurity *libCrypto.Crypto) (*MongoDBRepository, error) {
 	r := &MongoDBRepository{
 		DataSecurity: dataSecurity,
 	}
 
 	if connection != nil {
 		r.connection = connection
-		r.Database = connection.Database
 
-		if connection.ConnectionStringSource != "" {
-			if _, err := r.connection.GetDB(context.Background()); err != nil {
-				return nil, fmt.Errorf("failed to connect to MongoDB for holder repository: %w", err)
-			}
+		db, err := r.connection.Database(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to MongoDB for holder repository: %w", err)
+		}
+
+		if db != nil {
+			r.Database = db.Name()
 		}
 	}
 
@@ -82,7 +85,11 @@ func (hm *MongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, 
 		return nil, fmt.Errorf("no database connection available: multi-tenant context required but not present, and no static connection configured")
 	}
 
-	return tmcore.ResolveMongo(ctx, hm.connection, hm.Database)
+	if db := tmcore.GetMongoFromContext(ctx); db != nil {
+		return db, nil
+	}
+
+	return hm.connection.Database(ctx)
 }
 
 // Create inserts a holder into mongo.
@@ -101,7 +108,7 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	db, err := hm.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return nil, err
 	}
@@ -110,7 +117,7 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	err = createIndexes(coll)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to create indexes", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to create indexes", err)
 
 		return nil, err
 	}
@@ -118,7 +125,7 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 	record := &MongoDBModel{}
 
 	if err := record.FromEntity(holder, hm.DataSecurity); err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert holder to model", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
 		return nil, err
 	}
@@ -127,14 +134,14 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	spanInsert.SetAttributes(attributes...)
 
-	err = libOpenTelemetry.SetSpanAttributesFromStruct(&spanInsert, "app.request.repository_input", record)
+	err = libOpenTelemetry.SetSpanAttributesFromValue(spanInsert, "app.request.repository_input", record, nil)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanInsert, "Failed to convert record to JSON string", err)
+		libOpenTelemetry.HandleSpanError(spanInsert, "Failed to convert record to JSON string", err)
 	}
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanInsert, "Failed to insert holder", err)
+		libOpenTelemetry.HandleSpanError(spanInsert, "Failed to insert holder", err)
 
 		if mongo.IsDuplicateKeyError(err) {
 			if strings.Contains(err.Error(), "document") {
@@ -149,7 +156,7 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	result, err := record.ToEntity(hm.DataSecurity)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert holder to model", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
 		return nil, err
 	}
@@ -175,7 +182,7 @@ func (hm *MongoDBRepository) Find(ctx context.Context, organizationID string, id
 
 	db, err := hm.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return nil, err
 	}
@@ -198,7 +205,7 @@ func (hm *MongoDBRepository) Find(ctx context.Context, organizationID string, id
 
 	err = coll.FindOne(ctx, filter).Decode(&record)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to find holder", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to find holder", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())
@@ -211,7 +218,7 @@ func (hm *MongoDBRepository) Find(ctx context.Context, organizationID string, id
 
 	result, err := record.ToEntity(hm.DataSecurity)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert holder to model", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
 		return nil, err
 	}
@@ -236,7 +243,7 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	db, err := hm.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return nil, err
 	}
@@ -251,20 +258,20 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	spanFind.SetAttributes(attributes...)
 
-	err = libOpenTelemetry.SetSpanAttributesFromStruct(&spanFind, "app.request.repository_filter", query)
+	err = libOpenTelemetry.SetSpanAttributesFromValue(spanFind, "app.request.repository_filter", query, nil)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to convert query to JSON string", err)
+		libOpenTelemetry.HandleSpanError(spanFind, "Failed to convert query to JSON string", err)
 	}
 
 	filter, err := hm.buildHolderFilter(query, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanFind, "Invalid metadata value", err)
+		libOpenTelemetry.HandleSpanError(spanFind, "Invalid metadata value", err)
 		return nil, err
 	}
 
 	cursor, err := coll.Find(ctx, filter, &opts)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find holder", err)
+		libOpenTelemetry.HandleSpanError(spanFind, "Failed to find holder", err)
 
 		return nil, err
 	}
@@ -276,7 +283,7 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	for cursor.Next(ctx) {
 		var holder MongoDBModel
 		if err := cursor.Decode(&holder); err != nil {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to decode holder", err)
+			libOpenTelemetry.HandleSpanError(span, "Failed to decode holder", err)
 
 			return nil, err
 		}
@@ -285,13 +292,13 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	}
 
 	if err := cursor.Err(); err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to iterate holders", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to iterate holders", err)
 
 		return nil, err
 	}
 
 	if err := cursor.Close(ctx); err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to close cursor", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to close cursor", err)
 
 		return nil, err
 	}
@@ -300,7 +307,7 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	for i, holder := range holders {
 		results[i], err = holder.ToEntity(hm.DataSecurity)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to convert holder to model", err)
+			libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
 			return nil, err
 		}
@@ -357,7 +364,7 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	db, err := hm.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return nil, err
 	}
@@ -368,29 +375,29 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	spanUpdate.SetAttributes(attributes...)
 
-	err = libOpenTelemetry.SetSpanAttributesFromStruct(&spanUpdate, "app.request.repository_input", holder)
+	err = libOpenTelemetry.SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", holder, nil)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to convert holder to JSON string", err)
+		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to convert holder to JSON string", err)
 	}
 
 	holderToUpdate := &MongoDBModel{}
 
 	if err := holderToUpdate.FromEntity(holder, hm.DataSecurity); err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert holder to model", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
 		return nil, err
 	}
 
 	bsonData, err := bson.Marshal(holderToUpdate)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to marshal holder", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to marshal holder", err)
 
 		return nil, err
 	}
 
 	var updateDocument bson.M
 	if err := bson.Unmarshal(bsonData, &updateDocument); err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to unmarshal holder", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to unmarshal holder", err)
 
 		return nil, err
 	}
@@ -399,13 +406,13 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	updateResult, err := coll.UpdateByID(ctx, id, update)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanUpdate, "Failed to update holder", err)
+		libOpenTelemetry.HandleSpanError(spanUpdate, "Failed to update holder", err)
 
 		return nil, err
 	}
 
 	if updateResult.MatchedCount == 0 {
-		libOpenTelemetry.HandleSpanError(&spanUpdate, "Holder not found", cn.ErrHolderNotFound)
+		libOpenTelemetry.HandleSpanError(spanUpdate, "Holder not found", cn.ErrHolderNotFound)
 
 		return nil, pkg.ValidateBusinessError(cn.ErrHolderNotFound, reflect.TypeOf(mmodel.Holder{}).Name())
 	}
@@ -420,7 +427,7 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	err = coll.FindOne(ctx, bson.M{"_id": id}).Decode(&record)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&spanFind, "Failed to find holder after update", err)
+		libOpenTelemetry.HandleSpanError(spanFind, "Failed to find holder after update", err)
 
 		return nil, err
 	}
@@ -429,7 +436,7 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	result, err := record.ToEntity(hm.DataSecurity)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert holder to model", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
 
 		return nil, err
 	}
@@ -455,7 +462,7 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 
 	db, err := hm.getDatabase(ctx)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get database", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
 
 		return err
 	}
@@ -477,7 +484,7 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	if hardDelete {
 		deleted, err := coll.DeleteOne(ctx, filter, opts)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(&spanDelete, "Failed to delete holder", err)
+			libOpenTelemetry.HandleSpanError(spanDelete, "Failed to delete holder", err)
 
 			return err
 		}
@@ -496,7 +503,7 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 
 		updateResult, err := coll.UpdateOne(ctx, filter, update)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(&spanDelete, "Failed to delete holder", err)
+			libOpenTelemetry.HandleSpanError(spanDelete, "Failed to delete holder", err)
 
 			return err
 		}
@@ -506,7 +513,7 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 		}
 	}
 
-	logger.Infoln("Deleted a document with id: ", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintln("Deleted a document with id: ", id.String()))
 
 	return nil
 }

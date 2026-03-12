@@ -9,9 +9,10 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -22,7 +23,7 @@ func TestCreateHolder(t *testing.T) {
 
 	mockRepo := holder.NewMockRepository(ctrl)
 
-	holderID := libCommons.GenerateUUIDv7()
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 	name := "John Smith"
 	document := "90217469051"
 

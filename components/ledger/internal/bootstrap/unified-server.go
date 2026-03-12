@@ -5,12 +5,15 @@
 package bootstrap
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v3/commons/server"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/middleware"
+	"context"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v4/commons/server"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -45,7 +48,7 @@ func NewUnifiedServer(
 		AppName:               "Midaz Unified Ledger API",
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.HandleFiberError(ctx, err)
+			return libHTTP.FiberErrorHandler(ctx, err)
 		},
 	})
 
@@ -59,7 +62,7 @@ func NewUnifiedServer(
 	// Nil-safe: only applied when multi-tenant mode is enabled.
 	if multiPoolMiddleware != nil {
 		app.Use(multiPoolMiddleware.WithTenantDB)
-		logger.Info("Multi-tenant MultiPoolMiddleware enabled")
+		logger.Log(context.Background(), libLog.LevelInfo, "Multi-tenant MultiPoolMiddleware enabled")
 	}
 
 	// Health check for the unified server
@@ -94,7 +97,7 @@ func NewUnifiedServer(
 // Run implements mbootstrap.Runnable interface.
 // Starts the unified HTTP server with graceful shutdown support.
 func (s *UnifiedServer) Run(l *libCommons.Launcher) error {
-	s.logger.Infof("Starting Unified HTTP Server on %s", s.serverAddress)
+	s.logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Starting Unified HTTP Server on %s", s.serverAddress))
 
 	libCommonsServer.NewServerManager(nil, s.telemetry, s.logger).
 		WithHTTPServer(s.app, s.serverAddress).

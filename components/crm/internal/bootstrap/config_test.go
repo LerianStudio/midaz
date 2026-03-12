@@ -5,11 +5,12 @@
 package bootstrap
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -357,21 +358,8 @@ type mockLogger struct{}
 
 func newMockLogger() *mockLogger { return &mockLogger{} }
 
-func (m *mockLogger) Info(args ...any)                                  {}
-func (m *mockLogger) Infof(format string, args ...any)                  {}
-func (m *mockLogger) Infoln(args ...any)                                {}
-func (m *mockLogger) Error(args ...any)                                 {}
-func (m *mockLogger) Errorf(format string, args ...any)                 {}
-func (m *mockLogger) Errorln(args ...any)                               {}
-func (m *mockLogger) Warn(args ...any)                                  {}
-func (m *mockLogger) Warnf(format string, args ...any)                  {}
-func (m *mockLogger) Warnln(args ...any)                                {}
-func (m *mockLogger) Debug(args ...any)                                 {}
-func (m *mockLogger) Debugf(format string, args ...any)                 {}
-func (m *mockLogger) Debugln(args ...any)                               {}
-func (m *mockLogger) Fatal(args ...any)                                 {}
-func (m *mockLogger) Fatalf(format string, args ...any)                 {}
-func (m *mockLogger) Fatalln(args ...any)                               {}
-func (m *mockLogger) WithFields(fields ...any) libLog.Logger            { return m }
-func (m *mockLogger) WithDefaultMessageTemplate(s string) libLog.Logger { return m }
-func (m *mockLogger) Sync() error                                       { return nil }
+func (m *mockLogger) Log(_ context.Context, _ libLog.Level, _ string, _ ...libLog.Field) {}
+func (m *mockLogger) With(_ ...libLog.Field) libLog.Logger                               { return m }
+func (m *mockLogger) WithGroup(_ string) libLog.Logger                                   { return m }
+func (m *mockLogger) Enabled(_ libLog.Level) bool                                        { return true }
+func (m *mockLogger) Sync(_ context.Context) error                                       { return nil }
