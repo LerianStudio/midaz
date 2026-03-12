@@ -1448,18 +1448,18 @@ func (r *BalancePostgreSQLRepository) SyncBatch(ctx context.Context, organizatio
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return 0, err
 	}
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to begin transaction", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to begin transaction", err)
 
-		logger.Errorf("Failed to begin transaction: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to begin transaction: %v", err))
 
 		return 0, err
 	}
@@ -1472,7 +1472,7 @@ func (r *BalancePostgreSQLRepository) SyncBatch(ctx context.Context, organizatio
 		}
 
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			logger.Errorf("Failed to rollback transaction: %v", rollbackErr)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to rollback transaction: %v", rollbackErr))
 		}
 	}()
 
@@ -1483,18 +1483,18 @@ func (r *BalancePostgreSQLRepository) SyncBatch(ctx context.Context, organizatio
 	for _, balance := range balances {
 		// Check for context cancellation before processing each balance
 		if ctx.Err() != nil {
-			libOpentelemetry.HandleSpanError(&span, "Context cancelled during batch sync", ctx.Err())
+			libOpentelemetry.HandleSpanError(span, "Context cancelled during batch sync", ctx.Err())
 
-			logger.Warnf("SyncBatch cancelled: %v", ctx.Err())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("SyncBatch cancelled: %v", ctx.Err()))
 
 			return 0, ctx.Err()
 		}
 
 		id, parseErr := uuid.Parse(balance.ID)
 		if parseErr != nil {
-			libOpentelemetry.HandleSpanError(&span, "Invalid balance ID", parseErr)
+			libOpentelemetry.HandleSpanError(span, "Invalid balance ID", parseErr)
 
-			logger.Errorf("Invalid balance ID %s: %v", balance.ID, parseErr)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid balance ID %s: %v", balance.ID, parseErr))
 
 			return 0, parseErr
 		}
@@ -1509,18 +1509,18 @@ func (r *BalancePostgreSQLRepository) SyncBatch(ctx context.Context, organizatio
 			  AND deleted_at IS NULL
 		`, balance.Available, balance.OnHold, balance.Version, now, organizationID, ledgerID, id)
 		if execErr != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to update balance", execErr)
+			libOpentelemetry.HandleSpanError(span, "Failed to update balance", execErr)
 
-			logger.Errorf("Failed to update balance %s: %v", balance.ID, execErr)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balance %s: %v", balance.ID, execErr))
 
 			return 0, execErr
 		}
 
 		rowsAffected, rowsErr := result.RowsAffected()
 		if rowsErr != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", rowsErr)
+			libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", rowsErr)
 
-			logger.Errorf("Failed to get rows affected for balance %s: %v", balance.ID, rowsErr)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected for balance %s: %v", balance.ID, rowsErr))
 
 			return 0, rowsErr
 		}
@@ -1528,21 +1528,21 @@ func (r *BalancePostgreSQLRepository) SyncBatch(ctx context.Context, organizatio
 		totalUpdated += rowsAffected
 
 		if rowsAffected == 0 {
-			logger.Debugf("Balance %s skipped: version %d not newer than DB", balance.ID, balance.Version)
+			logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Balance %s skipped: version %d not newer than DB", balance.ID, balance.Version))
 		}
 	}
 
 	if commitErr := tx.Commit(); commitErr != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to commit transaction", commitErr)
+		libOpentelemetry.HandleSpanError(span, "Failed to commit transaction", commitErr)
 
-		logger.Errorf("Failed to commit batch sync: %v", commitErr)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to commit batch sync: %v", commitErr))
 
 		return 0, commitErr
 	}
 
 	committed = true
 
-	logger.Infof("SyncBatch: updated %d of %d balances", totalUpdated, len(balances))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("SyncBatch: updated %d of %d balances", totalUpdated, len(balances)))
 
 	return totalUpdated, nil
 }

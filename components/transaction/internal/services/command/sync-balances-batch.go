@@ -6,9 +6,11 @@ package command
 
 import (
 	"context"
+	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	redisBalance "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -55,8 +57,8 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 
 	balanceMap, err := uc.RedisRepo.GetBalancesByKeys(ctx, keys)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get balances by keys", err)
-		logger.Errorf("Failed to get balances by keys: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get balances by keys", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances by keys: %v", err))
 
 		return nil, err
 	}
@@ -67,7 +69,7 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	for _, key := range keys {
 		balance := balanceMap[key]
 		if balance == nil {
-			logger.Debugf("Balance key %s has no data (expired), marking as orphaned", key)
+			logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Balance key %s has no data (expired), marking as orphaned", key))
 			orphanedKeys = append(orphanedKeys, key)
 
 			continue
@@ -75,7 +77,7 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 
 		compositeKey, parseErr := redisBalance.BalanceCompositeKeyFromRedisKey(key)
 		if parseErr != nil {
-			logger.Warnf("Failed to parse composite key from %s: %v", key, parseErr)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to parse composite key from %s: %v", key, parseErr))
 			orphanedKeys = append(orphanedKeys, key)
 
 			continue
@@ -97,21 +99,28 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	// Handle case where all keys are orphaned (no valid balances to sync)
 	if len(deduplicated) == 0 {
 		if len(orphanedKeys) > 0 {
-			logger.Infof("No valid balances to sync, cleaning up %d orphaned keys", len(orphanedKeys))
+			logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("No valid balances to sync, cleaning up %d orphaned keys", len(orphanedKeys)))
 
 			removed, cleanupErr := uc.RedisRepo.RemoveBalanceSyncKeysBatch(ctx, orphanedKeys)
 			if cleanupErr != nil {
-				logger.Warnf("Failed to remove orphaned keys from schedule: %v", cleanupErr)
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove orphaned keys from schedule: %v", cleanupErr))
 
-				metricFactory.Counter(utils.BalanceSyncCleanupFailures).WithLabels(map[string]string{
-					"organization_id": organizationID.String(),
-					"ledger_id":       ledgerID.String(),
-				}).AddOne(ctx)
+				counter, counterErr := metricFactory.Counter(utils.BalanceSyncCleanupFailures)
+				if counterErr != nil {
+					logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to create counter %v: %v", utils.BalanceSyncCleanupFailures, counterErr))
+				} else {
+					if metricErr := counter.WithLabels(map[string]string{
+						"organization_id": organizationID.String(),
+						"ledger_id":       ledgerID.String(),
+					}).AddOne(ctx); metricErr != nil {
+						logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to increment counter %v: %v", utils.BalanceSyncCleanupFailures, metricErr))
+					}
+				}
 			}
 
 			result.KeysRemoved = removed
 		} else {
-			logger.Info("No balances to sync after aggregation")
+			logger.Log(ctx, libLog.LevelInfo, "No balances to sync after aggregation")
 		}
 
 		return result, nil
@@ -130,8 +139,8 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 
 	synced, err := uc.BalanceRepo.SyncBatch(ctx, organizationID, ledgerID, balancesToSync)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to sync batch to database", err)
-		logger.Errorf("Failed to sync batch to database: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to sync batch to database", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to sync batch to database: %v", err))
 
 		return nil, err
 	}
@@ -140,18 +149,25 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 
 	removed, err := uc.RedisRepo.RemoveBalanceSyncKeysBatch(ctx, keysToRemove)
 	if err != nil {
-		logger.Warnf("Failed to remove synced keys from schedule: %v", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove synced keys from schedule: %v", err))
 
-		metricFactory.Counter(utils.BalanceSyncCleanupFailures).WithLabels(map[string]string{
-			"organization_id": organizationID.String(),
-			"ledger_id":       ledgerID.String(),
-		}).AddOne(ctx)
+		counter, counterErr := metricFactory.Counter(utils.BalanceSyncCleanupFailures)
+		if counterErr != nil {
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to create counter %v: %v", utils.BalanceSyncCleanupFailures, counterErr))
+		} else {
+			if metricErr := counter.WithLabels(map[string]string{
+				"organization_id": organizationID.String(),
+				"ledger_id":       ledgerID.String(),
+			}).AddOne(ctx); metricErr != nil {
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to increment counter %v: %v", utils.BalanceSyncCleanupFailures, metricErr))
+			}
+		}
 	}
 
 	result.KeysRemoved = removed
 
-	logger.Infof("SyncBalancesBatch: processed=%d, aggregated=%d, synced=%d, removed=%d",
-		result.KeysProcessed, result.BalancesAggregated, result.BalancesSynced, result.KeysRemoved)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("SyncBalancesBatch: processed=%d, aggregated=%d, synced=%d, removed=%d",
+		result.KeysProcessed, result.BalancesAggregated, result.BalancesSynced, result.KeysRemoved))
 
 	return result, nil
 }
