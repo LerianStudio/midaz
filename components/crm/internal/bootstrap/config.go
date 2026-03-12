@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -96,6 +97,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		logger.Log(context.Background(), libLog.LevelInfo, "Running in SINGLE-TENANT MODE")
 	}
 
+	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
+		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true")
+	}
+
 	// Init Open telemetry to control logs and flows
 	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
@@ -110,43 +115,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
 
-	// Mongo DB
-	// Extract port and parameters for MongoDB connection (handles backward compatibility)
-	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
-
-	mongoURI := cfg.MongoURI
-	if mongoURI == "" {
-		query, queryErr := url.ParseQuery(mongoParameters)
-		if queryErr != nil {
-			return nil, fmt.Errorf("failed to parse mongodb parameters: %w", queryErr)
-		}
-
-		mongoURI, err = libMongo.BuildURI(libMongo.URIConfig{
-			Scheme:   "mongodb",
-			Username: cfg.MongoDBUser,
-			Password: cfg.MongoDBPassword,
-			Host:     cfg.MongoDBHost,
-			Port:     mongoPort,
-			Database: cfg.MongoDBName,
-			Query:    query,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to build mongodb uri: %w", err)
-		}
-	}
-
-	if cfg.MaxPoolSize <= 0 {
-		cfg.MaxPoolSize = 100
-	}
-
-	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{
-		URI:         mongoURI,
-		Database:    cfg.MongoDBName,
-		MaxPoolSize: uint64(cfg.MaxPoolSize), // #nosec G115 -- guarded by <= 0 check above
-		Logger:      logger,
-	})
+	mongoConnection, err := initMongoConnection(cfg, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize mongodb client: %w", err)
+		return nil, err
 	}
 
 	dataSecurity := &libCrypto.Crypto{
@@ -197,4 +168,72 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Server: serverAPI,
 		Logger: logger,
 	}, nil
+}
+
+func initMongoConnection(cfg *Config, logger libLog.Logger) (*libMongo.Client, error) {
+	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(cfg.MongoDBPort, cfg.MongoDBParameters, logger)
+
+	hasStaticMongo := strings.TrimSpace(cfg.MongoURI) != "" || strings.TrimSpace(cfg.MongoDBHost) != ""
+	if !hasStaticMongo {
+		if cfg.MultiTenantEnabled {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("mongo configuration is required in single-tenant mode")
+	}
+
+	mongoURI, err := resolveMongoURI(cfg, mongoPort, mongoParameters)
+	if err != nil {
+		return nil, err
+	}
+
+	if cfg.MaxPoolSize <= 0 {
+		cfg.MaxPoolSize = 100
+	}
+
+	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{
+		URI:         mongoURI,
+		Database:    cfg.MongoDBName,
+		MaxPoolSize: uint64(cfg.MaxPoolSize), // #nosec G115 -- guarded by <= 0 check above
+		Logger:      logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize mongodb client: %w", err)
+	}
+
+	return mongoConnection, nil
+}
+
+func resolveMongoURI(cfg *Config, mongoPort, mongoParameters string) (string, error) {
+	rawURI := strings.TrimSpace(cfg.MongoURI)
+	query, err := url.ParseQuery(mongoParameters)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse mongodb parameters: %w", err)
+	}
+
+	switch {
+	case rawURI == "", rawURI == "mongodb", rawURI == "mongodb+srv":
+		scheme := rawURI
+		if scheme == "" {
+			scheme = "mongodb"
+		}
+
+		mongoURI, buildErr := libMongo.BuildURI(libMongo.URIConfig{
+			Scheme:   scheme,
+			Username: cfg.MongoDBUser,
+			Password: cfg.MongoDBPassword,
+			Host:     cfg.MongoDBHost,
+			Port:     mongoPort,
+			Query:    query,
+		})
+		if buildErr != nil {
+			return "", fmt.Errorf("failed to build mongodb uri: %w", buildErr)
+		}
+
+		return mongoURI, nil
+	case strings.Contains(rawURI, "://"):
+		return rawURI, nil
+	default:
+		return "", fmt.Errorf("invalid MONGO_URI format: expected full URI or legacy scheme value")
+	}
 }

@@ -61,7 +61,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   query,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, query, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1},
 						{ID: &id2},
@@ -79,7 +79,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   queryWithDocument,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithDocument, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1, Document: &document},
 					}, nil)
@@ -95,7 +95,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   queryWithAccountId,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithAccountId, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1, AccountID: &accountId},
 					}, nil)
@@ -111,7 +111,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   queryWithLedgerId,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithLedgerId, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1, LedgerID: &ledgerId},
 					}, nil)
@@ -127,7 +127,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   queryWithbankingDetailsAccount,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithbankingDetailsAccount, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1, BankingDetails: &mmodel.BankingDetails{Account: &account}},
 					}, nil)
@@ -143,7 +143,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   queryWithbankingDetailsIban,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithbankingDetailsIban, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1, BankingDetails: &mmodel.BankingDetails{IBAN: &iban}},
 					}, nil)
@@ -159,7 +159,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   queryWithbankingDetailsBranch,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithbankingDetailsBranch, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1, BankingDetails: &mmodel.BankingDetails{Branch: &branch}},
 					}, nil)
@@ -175,7 +175,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   query,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, query, false).
 					Return([]*mmodel.Alias{}, nil)
 			},
 			expectedErr:    nil,
@@ -187,7 +187,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   query,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, query, false).
 					Return(nil, errors.New("database error"))
 			},
 			expectedErr:    errors.New("database error"),
@@ -200,7 +200,7 @@ func TestGetAllAliases(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			accounts, err := uc.GetAllAliases(ctx, uuid.New().String(), testCase.holderId, query, false)
+			accounts, err := uc.GetAllAliases(ctx, uuid.New().String(), testCase.holderId, testCase.filter, false)
 
 			if testCase.expectedErr != nil {
 				assert.NotNil(t, err)

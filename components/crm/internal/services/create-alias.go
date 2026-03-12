@@ -30,7 +30,13 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
 
-	aliasID := uuid.Must(libCommons.GenerateUUIDv7())
+	aliasID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "Failed to generate alias id", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate alias id: %v", err))
+
+		return nil, err
+	}
 
 	alias := &mmodel.Alias{
 		ID:        &aliasID,
@@ -70,7 +76,13 @@ func (uc *UseCase) CreateAlias(ctx context.Context, organizationID string, holde
 		}
 
 		for _, rp := range cai.RelatedParties {
-			rpID := uuid.Must(libCommons.GenerateUUIDv7())
+			rpID, rpErr := libCommons.GenerateUUIDv7()
+			if rpErr != nil {
+				libOpenTelemetry.HandleSpanError(span, "Failed to generate related party id", rpErr)
+				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate related party id: %v", rpErr))
+
+				return nil, rpErr
+			}
 			rp.ID = &rpID
 		}
 

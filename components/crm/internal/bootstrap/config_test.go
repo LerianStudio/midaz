@@ -138,6 +138,7 @@ func TestInitTenantMiddleware(t *testing.T) {
 			name: "returns non-nil middleware when enabled with valid URL",
 			cfg: &Config{
 				MultiTenantEnabled: true,
+				EnvName:            "development",
 				MultiTenantURL:     "http://tenant-manager:8080",
 			},
 			expectNil: false,
@@ -146,6 +147,7 @@ func TestInitTenantMiddleware(t *testing.T) {
 			name: "returns non-nil middleware with all config options set",
 			cfg: &Config{
 				MultiTenantEnabled:                 true,
+				EnvName:                            "development",
 				MultiTenantURL:                     "http://tenant-manager:8080",
 				MultiTenantTimeout:                 30,
 				MultiTenantIdleTimeoutSec:          300,
@@ -225,6 +227,7 @@ func TestInitTenantMiddleware_URLWhitespaceVariations(t *testing.T) {
 
 			cfg := &Config{
 				MultiTenantEnabled: true,
+				EnvName:            "development",
 				MultiTenantURL:     tt.url,
 			}
 			logger := newMockLogger()
@@ -305,6 +308,7 @@ func TestInitTenantMiddleware_MetricsEmission(t *testing.T) {
 
 		cfg := &Config{
 			MultiTenantEnabled: true,
+			EnvName:            "development",
 			MultiTenantURL:     "http://tenant-manager:8080",
 		}
 		logger := newMockLogger()
@@ -338,6 +342,7 @@ func TestInitTenantMiddleware_MetricsEmission(t *testing.T) {
 
 		cfg := &Config{
 			MultiTenantEnabled: true,
+			EnvName:            "development",
 			MultiTenantURL:     "http://tenant-manager:8080",
 		}
 		logger := newMockLogger()
@@ -351,6 +356,37 @@ func TestInitTenantMiddleware_MetricsEmission(t *testing.T) {
 		assert.NotNil(t, mw,
 			"middleware must be non-nil even when MetricsFactory is nil")
 	})
+}
+
+func TestBuildTenantClientOptions_RejectsHTTPOutsideDevelopment(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildTenantClientOptions(&Config{EnvName: "production"}, "http://tenant-manager:8080")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must use https")
+}
+
+func TestResolveMongoURI_LegacySchemeValueBuildsFullURI(t *testing.T) {
+	t.Parallel()
+
+	uri, err := resolveMongoURI(&Config{
+		MongoURI:        "mongodb",
+		MongoDBHost:     "midaz-mongodb",
+		MongoDBUser:     "midaz",
+		MongoDBPassword: "lerian",
+	}, "5703", "")
+	require.NoError(t, err)
+	assert.Contains(t, uri, "mongodb://")
+	assert.Contains(t, uri, "midaz-mongodb")
+	assert.NotContains(t, uri, "/crm")
+}
+
+func TestResolveMongoURI_InvalidLegacyValueReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := resolveMongoURI(&Config{MongoURI: "mongodb-invalid"}, "5703", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid MONGO_URI format")
 }
 
 // mockLogger implements libLog.Logger for testing.

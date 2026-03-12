@@ -39,7 +39,10 @@ func initTenantMiddleware(cfg *Config, logger libLog.Logger, telemetry *libOpent
 		return nil, fmt.Errorf("MULTI_TENANT_URL must not be blank when MULTI_TENANT_ENABLED=true")
 	}
 
-	clientOpts := buildTenantClientOptions(cfg, mtURL)
+	clientOpts, err := buildTenantClientOptions(cfg, mtURL)
+	if err != nil {
+		return nil, err
+	}
 
 	tmClient, err := tmclient.NewClient(mtURL, logger, clientOpts...)
 	if err != nil {
@@ -56,13 +59,13 @@ func initTenantMiddleware(cfg *Config, logger libLog.Logger, telemetry *libOpent
 		tmmiddleware.WithMongoManager(mongoManager),
 	)
 
-	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Multi-tenant middleware initialized: url=%s service=%s",
-		mtURL, in.ApplicationName))
+	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Multi-tenant middleware initialized: target=%s service=%s",
+		redactedTenantManagerURL(mtURL), in.ApplicationName))
 
 	return wrapTenantMiddlewareWithMetrics(tenantMid.WithTenantDB, telemetry, logger), nil
 }
 
-func buildTenantClientOptions(cfg *Config, mtURL string) []tmclient.ClientOption {
+func buildTenantClientOptions(cfg *Config, mtURL string) ([]tmclient.ClientOption, error) {
 	clientOpts := make([]tmclient.ClientOption, 0)
 
 	if cfg.MultiTenantTimeout > 0 {
@@ -78,11 +81,38 @@ func buildTenantClientOptions(cfg *Config, mtURL string) []tmclient.ClientOption
 		)
 	}
 
-	if parsedURL, parseErr := url.Parse(mtURL); parseErr == nil && strings.EqualFold(parsedURL.Scheme, "http") {
+	parsedURL, err := url.Parse(mtURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid MULTI_TENANT_URL: %w", err)
+	}
+
+	if strings.EqualFold(parsedURL.Scheme, "http") {
+		if !allowInsecureTenantManagerHTTP(cfg.EnvName) {
+			return nil, fmt.Errorf("MULTI_TENANT_URL must use https outside local/development/test environments")
+		}
+
 		clientOpts = append(clientOpts, tmclient.WithAllowInsecureHTTP())
 	}
 
-	return clientOpts
+	return clientOpts, nil
+}
+
+func allowInsecureTenantManagerHTTP(env string) bool {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case "local", "development", "dev", "test", "testing":
+		return true
+	default:
+		return false
+	}
+}
+
+func redactedTenantManagerURL(raw string) string {
+	parsedURL, err := url.Parse(raw)
+	if err != nil {
+		return "invalid-url"
+	}
+
+	return parsedURL.Redacted()
 }
 
 func buildMongoManagerOptions(cfg *Config, logger libLog.Logger) []tmmongo.Option {

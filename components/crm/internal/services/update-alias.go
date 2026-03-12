@@ -72,7 +72,13 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 		}
 
 		for _, rp := range uai.RelatedParties {
-			rpID := uuid.Must(libCommons.GenerateUUIDv7())
+			rpID, rpErr := libCommons.GenerateUUIDv7()
+			if rpErr != nil {
+				libOpenTelemetry.HandleSpanError(span, "Failed to generate related party id", rpErr)
+				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate related party id: %v", rpErr))
+
+				return nil, rpErr
+			}
 			alias.RelatedParties = append(alias.RelatedParties, &mmodel.RelatedParty{
 				ID:        &rpID,
 				Document:  rp.Document,

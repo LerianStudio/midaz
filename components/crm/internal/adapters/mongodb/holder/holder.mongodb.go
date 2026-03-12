@@ -45,7 +45,6 @@ type Repository interface {
 // MongoDBRepository is a MongoDB-specific implementation of Repository
 type MongoDBRepository struct {
 	connection   *libMongo.Client
-	Database     string
 	DataSecurity *libCrypto.Crypto
 }
 
@@ -59,13 +58,8 @@ func NewMongoDBRepository(connection *libMongo.Client, dataSecurity *libCrypto.C
 	if connection != nil {
 		r.connection = connection
 
-		db, err := r.connection.Database(context.Background())
-		if err != nil {
+		if _, err := r.connection.Database(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to connect to MongoDB for holder repository: %w", err)
-		}
-
-		if db != nil {
-			r.Database = db.Name()
 		}
 	}
 
@@ -224,126 +218,6 @@ func (hm *MongoDBRepository) Find(ctx context.Context, organizationID string, id
 	}
 
 	return result, nil
-}
-
-// FindAll get all holders that match the query filter
-func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string, query http.QueryHeader, includeDeleted bool) ([]*mmodel.Holder, error) {
-	_, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "mongodb.find_all_holders")
-	defer span.End()
-
-	attributes := []attribute.KeyValue{
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID),
-		attribute.Bool("app.request.include_deleted", includeDeleted),
-	}
-
-	span.SetAttributes(attributes...)
-
-	db, err := hm.getDatabase(ctx)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to get database", err)
-
-		return nil, err
-	}
-
-	coll := db.Collection(strings.ToLower("holders_" + organizationID))
-
-	limit := int64(query.Limit)
-	skip := int64(query.Page*query.Limit - query.Limit)
-	opts := options.FindOptions{Limit: &limit, Skip: &skip}
-
-	ctx, spanFind := tracer.Start(ctx, "mongodb.find_all_holders.find")
-
-	spanFind.SetAttributes(attributes...)
-
-	err = libOpenTelemetry.SetSpanAttributesFromValue(spanFind, "app.request.repository_filter", query, nil)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanFind, "Failed to convert query to JSON string", err)
-	}
-
-	filter, err := hm.buildHolderFilter(query, includeDeleted)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanFind, "Invalid metadata value", err)
-		return nil, err
-	}
-
-	cursor, err := coll.Find(ctx, filter, &opts)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanFind, "Failed to find holder", err)
-
-		return nil, err
-	}
-
-	spanFind.End()
-
-	var holders []*MongoDBModel
-
-	for cursor.Next(ctx) {
-		var holder MongoDBModel
-		if err := cursor.Decode(&holder); err != nil {
-			libOpenTelemetry.HandleSpanError(span, "Failed to decode holder", err)
-
-			return nil, err
-		}
-
-		holders = append(holders, &holder)
-	}
-
-	if err := cursor.Err(); err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to iterate holders", err)
-
-		return nil, err
-	}
-
-	if err := cursor.Close(ctx); err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to close cursor", err)
-
-		return nil, err
-	}
-
-	results := make([]*mmodel.Holder, len(holders))
-	for i, holder := range holders {
-		results[i], err = holder.ToEntity(hm.DataSecurity)
-		if err != nil {
-			libOpenTelemetry.HandleSpanError(span, "Failed to convert holder to model", err)
-
-			return nil, err
-		}
-	}
-
-	return results, nil
-}
-
-func (hm *MongoDBRepository) buildHolderFilter(query http.QueryHeader, includeDeleted bool) (bson.D, error) {
-	filter := bson.D{}
-
-	if !includeDeleted {
-		filter = append(filter, bson.E{Key: "deleted_at", Value: nil})
-	}
-
-	if query.ExternalID != nil && *query.ExternalID != "" {
-		filter = append(filter, bson.E{Key: "external_id", Value: *query.ExternalID})
-	}
-
-	if query.Document != nil && *query.Document != "" {
-		documentHash := hm.DataSecurity.GenerateHash(query.Document)
-		filter = append(filter, bson.E{Key: "search.document", Value: documentHash})
-	}
-
-	if query.Metadata != nil {
-		for k, v := range *query.Metadata {
-			safeValue, err := http.ValidateMetadataValue(v)
-			if err != nil {
-				return nil, err
-			}
-
-			filter = append(filter, bson.E{Key: k, Value: safeValue})
-		}
-	}
-
-	return filter, nil
 }
 
 // Update a holder by id
@@ -516,60 +390,4 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintln("Deleted a document with id: ", id.String()))
 
 	return nil
-}
-
-// createIndexes creates indexes for specific fields, if it not exists
-func createIndexes(collection *mongo.Collection) error {
-	indexModels := []mongo.IndexModel{
-		{
-			Keys: bson.D{{Key: "search.document", Value: 1}},
-			Options: options.Index().
-				SetUnique(true).
-				SetPartialFilterExpression(bson.D{
-					{Key: "deleted_at", Value: nil},
-				}),
-		},
-		{
-			Keys: bson.D{
-				{Key: "deleted_at", Value: 1},
-			},
-			Options: options.Index().
-				SetPartialFilterExpression(bson.D{
-					{Key: "deleted_at", Value: nil},
-				}),
-		},
-		{
-			Keys: bson.D{
-				{Key: "external_id", Value: 1},
-			},
-			Options: options.Index().
-				SetPartialFilterExpression(bson.D{
-					{Key: "deleted_at", Value: nil},
-				}),
-		},
-		{
-			Keys: bson.D{
-				{Key: "search.document", Value: 1},
-				{Key: "external_id", Value: 1},
-			},
-			Options: options.Index().
-				SetUnique(true).
-				SetPartialFilterExpression(bson.D{
-					{Key: "deleted_at", Value: nil},
-				}),
-		},
-		{
-			Keys: bson.D{
-				{Key: "type", Value: 1},
-				{Key: "deleted_at", Value: 1},
-			},
-		},
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, err := collection.Indexes().CreateMany(ctx, indexModels)
-
-	return err
 }

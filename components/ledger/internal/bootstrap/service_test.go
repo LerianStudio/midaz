@@ -161,21 +161,16 @@ func TestService_GetRunnables_ReturnsAllComponents(t *testing.T) {
 		Telemetry:          &libOpentelemetry.Telemetry{},
 	}
 
-	// Act - collect runnables from both services (simulating what Run() does)
-	onboardingResult := service.OnboardingService.GetRunnables()
-	transactionResult := service.TransactionService.GetRunnables()
-	totalRunnables := len(onboardingResult) + len(transactionResult)
+	service.UnifiedServer = &UnifiedServer{}
+
+	// Act
+	runnables := service.GetRunnables()
 
 	// Assert
-	assert.Equal(t, 1, len(onboardingResult), "Onboarding should have 1 runnable")
-	assert.Equal(t, 3, len(transactionResult), "Transaction should have 3 runnables (no gRPC in unified mode)")
-	assert.Equal(t, 4, totalRunnables, "Total runnables should be 4")
-
-	// Verify specific runnable names
-	assert.Equal(t, "Onboarding Server", onboardingResult[0].Name)
-	assert.Equal(t, "Transaction Fiber Server", transactionResult[0].Name)
-	assert.Equal(t, "Transaction RabbitMQ Consumer", transactionResult[1].Name)
-	assert.Equal(t, "Transaction Redis Consumer", transactionResult[2].Name)
+	require.Len(t, runnables, 3)
+	assert.Equal(t, "Unified HTTP Server", runnables[0].Name)
+	assert.Equal(t, "Transaction RabbitMQ Consumer", runnables[1].Name)
+	assert.Equal(t, "Transaction Redis Consumer", runnables[2].Name)
 }
 
 // TestInitServers_UnifiedMode_BalancePortWiring verifies that in unified mode,

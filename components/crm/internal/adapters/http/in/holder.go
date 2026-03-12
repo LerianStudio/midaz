@@ -46,7 +46,10 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_holder")
 	defer span.End()
 
-	payload := p.(*mmodel.CreateHolderInput)
+	payload, ok := p.(*mmodel.CreateHolderInput)
+	if !ok || payload == nil {
+		return http.WithError(c, cn.ErrInternalServer)
+	}
 	organizationID := c.Get("X-Organization-Id")
 
 	span.SetAttributes(
@@ -148,7 +151,10 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 	}
 
 	organizationID := c.Get("X-Organization-Id")
-	payload := p.(*mmodel.UpdateHolderInput)
+	payload, ok := p.(*mmodel.UpdateHolderInput)
+	if !ok || payload == nil {
+		return http.WithError(c, cn.ErrInternalServer)
+	}
 
 	fieldsToRemove, ok := c.Locals("patchRemove").([]string)
 	if !ok {

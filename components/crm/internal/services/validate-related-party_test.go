@@ -28,6 +28,12 @@ func TestValidateRelatedParty(t *testing.T) {
 		expectedErr error
 	}{
 		{
+			name:        "Error when related party is nil",
+			party:       nil,
+			expectErr:   true,
+			expectedErr: cn.ErrInvalidRelatedPartyRole,
+		},
+		{
 			name: "Success with valid related party",
 			party: &mmodel.RelatedParty{
 				Document:  "12345678900",
@@ -162,6 +168,13 @@ func TestValidateRelatedParties(t *testing.T) {
 		parties   []*mmodel.RelatedParty
 		expectErr bool
 	}{
+		{
+			name: "Error when parties contains nil entry",
+			parties: []*mmodel.RelatedParty{
+				nil,
+			},
+			expectErr: true,
+		},
 		{
 			name: "Success with multiple valid parties",
 			parties: []*mmodel.RelatedParty{
