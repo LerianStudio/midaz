@@ -10,7 +10,7 @@ ALTER TABLE operation_transaction_route
 
 -- Drop action column
 ALTER TABLE operation_transaction_route
-    DROP COLUMN action;
+    DROP COLUMN IF EXISTS action;
 
 -- Recreate original unique index without action
 CREATE UNIQUE INDEX idx_operation_transaction_route_unique

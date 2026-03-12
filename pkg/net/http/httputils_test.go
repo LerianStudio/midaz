@@ -933,10 +933,11 @@ func TestValidateParameters_WithDirectionCredit(t *testing.T) {
 func TestValidateParameters_WithInvalidDirection(t *testing.T) {
 	params := map[string]string{"direction": "invalid"}
 
-	_, err := ValidateParameters(params)
+	result, err := ValidateParameters(params)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "direction")
+	assert.Nil(t, result)
 }
 
 func TestValidateParameters_WithRouteID(t *testing.T) {
@@ -953,10 +954,11 @@ func TestValidateParameters_WithRouteID(t *testing.T) {
 func TestValidateParameters_WithInvalidRouteID(t *testing.T) {
 	params := map[string]string{"route_id": "not-a-uuid"}
 
-	_, err := ValidateParameters(params)
+	result, err := ValidateParameters(params)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "route_id")
+	assert.Nil(t, result)
 }
 
 func TestValidateParameters_DirectionAndRouteIDNilByDefault(t *testing.T) {

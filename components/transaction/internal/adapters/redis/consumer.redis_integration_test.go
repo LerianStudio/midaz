@@ -2238,11 +2238,12 @@ func TestIntegration_Redis_DoubleEntryCanceled_RouteValidationEnabled_PerFieldAt
 // TestIntegration_Redis_DoubleEntryCanceled_FullSourceLifecycle
 // verifies the complete source balance lifecycle with route validation:
 //
-//	PENDING (v1->v3): DEBIT(Available--) + ON_HOLD(OnHold++)
-//	CANCELED (v3->v5): RELEASE(OnHold--) + CREDIT(Available++)
+//	PENDING (v1->v2): ON_HOLD(OnHold++)
+//	CANCELED (v2->v4): RELEASE(OnHold--) + CREDIT(Available++)
 //
-// After the full lifecycle, the balance should return to its original state,
-// and the version chain should be continuous: v1->v2->v3->v4->v5.
+// With routeValidationEnabled, ON_HOLD only modifies OnHold (not Available).
+// The CREDIT during CANCELED adds to Available, resulting in a net gain.
+// Version chain: v1->v2->v3->v4.
 func TestIntegration_Redis_DoubleEntryCanceled_FullSourceLifecycle(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -2355,11 +2356,11 @@ func TestIntegration_Redis_DoubleEntryCanceled_FullSourceLifecycle(t *testing.T)
 // TestIntegration_Redis_DoubleEntryApproved_FullSourceLifecycle
 // verifies the complete source balance lifecycle for APPROVED with route validation:
 //
-//	PENDING (v1->v3): DEBIT(Available--) + ON_HOLD(OnHold++)
-//	APPROVED (v3->v4): DEBIT(OnHold--)
+//	PENDING (v1->v2): ON_HOLD(OnHold++)
+//	APPROVED (v2->v3): DEBIT(OnHold--)
 //
-// For APPROVED, the source's Available was already decremented during PENDING,
-// so only OnHold needs to be released. The destination gets CREDIT(Available++).
+// With routeValidationEnabled, ON_HOLD only modifies OnHold (not Available).
+// The APPROVED DEBIT releases the OnHold. Version chain: v1->v2->v3.
 func TestIntegration_Redis_DoubleEntryApproved_FullSourceLifecycle(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
