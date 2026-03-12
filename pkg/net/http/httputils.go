@@ -6,6 +6,8 @@ package http
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"io"
 	"mime/multipart"
 	"strconv"
@@ -13,10 +15,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v3/commons/constants"
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/gofiber/fiber/v2"
@@ -56,12 +57,34 @@ type QueryHeader struct {
 
 // Pagination entity from query parameter from get apis
 type Pagination struct {
-	Limit     int
-	Page      int
-	Cursor    string
-	SortOrder string
-	StartDate time.Time
-	EndDate   time.Time
+	Items      any       `json:"items"`
+	Limit      int       `json:"limit"`
+	Page       int       `json:"page"`
+	Cursor     string    `json:"cursor,omitempty"`
+	SortOrder  string    `json:"sort_order,omitempty"`
+	StartDate  time.Time `json:"start_date,omitempty"`
+	EndDate    time.Time `json:"end_date,omitempty"`
+	NextCursor string    `json:"next_cursor,omitempty"`
+	PrevCursor string    `json:"prev_cursor,omitempty"`
+}
+
+// SetItems sets the pagination items payload.
+func (p *Pagination) SetItems(items any) {
+	if p == nil {
+		return
+	}
+
+	p.Items = items
+}
+
+// SetCursor sets forward and backward cursor values.
+func (p *Pagination) SetCursor(next, prev string) {
+	if p == nil {
+		return
+	}
+
+	p.NextCursor = next
+	p.PrevCursor = prev
 }
 
 // ValidateParameters validate and return struct of default parameters
@@ -278,13 +301,39 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 	}
 
 	if !libCommons.IsNilOrEmpty(&cursor) {
-		_, err := libHTTP.DecodeCursor(cursor)
-		if err != nil {
-			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
+		if _, err := libHTTP.DecodeCursor(cursor); err != nil {
+			if !isLegacyJSONBase64Cursor(cursor) {
+				return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
+			}
 		}
 	}
 
 	return nil
+}
+
+func isLegacyJSONBase64Cursor(cursor string) bool {
+	candidates := []string{cursor}
+
+	if missing := len(cursor) % 4; missing != 0 {
+		candidates = append(candidates, cursor+strings.Repeat("=", 4-missing))
+	}
+
+	for _, candidate := range candidates {
+		decoded, err := base64.StdEncoding.DecodeString(candidate)
+		if err != nil {
+			decoded, err = base64.RawStdEncoding.DecodeString(candidate)
+			if err != nil {
+				continue
+			}
+		}
+
+		var payload map[string]any
+		if err := json.Unmarshal(decoded, &payload); err == nil && len(payload) > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
@@ -295,7 +344,7 @@ func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 	// Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
 	t, err := strconv.Atoi(iTTL)
 	if err != nil || t <= 0 {
-		t = libRedis.TTL
+		t = 300
 	}
 
 	ttl := time.Duration(t)
@@ -324,10 +373,7 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	}
 
 	defer func(file multipart.File) {
-		err := file.Close()
-		if err != nil {
-			panic(0)
-		}
+		_ = file.Close()
 	}(file)
 
 	buf := new(bytes.Buffer)

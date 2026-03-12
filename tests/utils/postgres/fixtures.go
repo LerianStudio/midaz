@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
@@ -46,7 +46,7 @@ func CreateTestOrganization(t *testing.T, db *sql.DB) uuid.UUID {
 func CreateTestOrganizationWithParams(t *testing.T, db *sql.DB, params OrganizationParams) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := db.Exec(`
@@ -83,7 +83,7 @@ func CreateTestLedger(t *testing.T, db *sql.DB, orgID uuid.UUID) uuid.UUID {
 func CreateTestLedgerWithParams(t *testing.T, db *sql.DB, orgID uuid.UUID, params LedgerParams) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := db.Exec(`
@@ -157,7 +157,7 @@ func CreateTestPortfolio(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID) uu
 func CreateTestPortfolioWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params PortfolioParams) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := db.Exec(`
@@ -173,7 +173,7 @@ func CreateTestPortfolioWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uui
 func CreateTestAsset(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, code string) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	_, err := db.Exec(`
 		INSERT INTO asset (id, name, type, code, organization_id, ledger_id, status, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -207,7 +207,7 @@ func DefaultAssetParams() AssetParams {
 func CreateTestAssetWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params AssetParams) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := db.Exec(`
@@ -225,7 +225,7 @@ func CreateTestAssetWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UU
 func CreateTestAccount(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, portfolioID *uuid.UUID, name, alias, assetCode string, deletedAt *time.Time) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	var portfolioIDVal any
@@ -274,7 +274,7 @@ func DefaultBalanceParams() BalanceParams {
 func CreateTestBalance(t *testing.T, db *sql.DB, orgID, ledgerID, accountID uuid.UUID, params BalanceParams) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := db.Exec(`
@@ -331,7 +331,7 @@ func DefaultTransactionParams() TransactionParams {
 func CreateTestTransaction(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params TransactionParams) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	var parentID any
@@ -390,7 +390,7 @@ type OperationParams struct {
 func CreateTestOperation(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params OperationParams) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	// Set defaults for optional fields
@@ -564,7 +564,7 @@ func DefaultSegmentParams() SegmentParams {
 func CreateTestSegmentWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params SegmentParams) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := db.Exec(`
@@ -597,7 +597,7 @@ func DefaultAccountTypeParams() AccountTypeParams {
 func CreateTestAccountType(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params AccountTypeParams) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := db.Exec(`
@@ -638,11 +638,11 @@ func DefaultAssetRateParams() AssetRateParams {
 func CreateTestAssetRate(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params AssetRateParams) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	// external_id is NOT NULL in schema, so generate one if not provided
-	externalID := libCommons.GenerateUUIDv7()
+	externalID := uuid.Must(libCommons.GenerateUUIDv7())
 	if params.ExternalID != nil {
 		externalID = *params.ExternalID
 	}
@@ -706,7 +706,7 @@ func DefaultOperationRouteParams() OperationRouteParams {
 func CreateTestOperationRoute(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params OperationRouteParams) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := db.Exec(`
@@ -755,7 +755,7 @@ func DefaultTransactionRouteParams() TransactionRouteParams {
 func CreateTestTransactionRoute(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, params TransactionRouteParams) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := db.Exec(`
@@ -781,7 +781,7 @@ func CreateTestTransactionRouteSimple(t *testing.T, db *sql.DB, orgID, ledgerID 
 func CreateTestOperationTransactionRouteLink(t *testing.T, db *sql.DB, operationRouteID, transactionRouteID uuid.UUID) uuid.UUID {
 	t.Helper()
 
-	id := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := db.Exec(`

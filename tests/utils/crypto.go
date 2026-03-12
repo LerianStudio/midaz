@@ -7,8 +7,8 @@ package testutils
 import (
 	"testing"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v3/commons/crypto"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +32,7 @@ const (
 func SetupCrypto(t *testing.T) *libCrypto.Crypto {
 	t.Helper()
 
-	logger := &libLog.GoLogger{Level: libLog.InfoLevel}
+	logger := &libLog.GoLogger{Level: libLog.LevelInfo}
 
 	crypto := &libCrypto.Crypto{
 		HashSecretKey:    TestHashKey,

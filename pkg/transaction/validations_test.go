@@ -10,9 +10,9 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/LerianStudio/lib-commons/v3/commons"
-	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
-	"github.com/LerianStudio/lib-commons/v3/commons/log"
+	"github.com/LerianStudio/lib-commons/v4/commons"
+	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	"github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel"
@@ -23,7 +23,7 @@ func TestValidateBalancesRules(t *testing.T) {
 
 	// Create a context with logger and tracer
 	ctx := context.Background()
-	logger := &log.GoLogger{Level: log.InfoLevel}
+	logger := &log.GoLogger{Level: log.LevelInfo}
 	ctx = commons.ContextWithLogger(ctx, logger)
 	tracer := otel.Tracer("test")
 	ctx = commons.ContextWithTracer(ctx, tracer)

@@ -4,7 +4,7 @@
 
 package utils
 
-import "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry/metrics"
+import "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 
 var (
 	BalanceSynced = metrics.Metric{

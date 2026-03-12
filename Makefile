@@ -447,6 +447,35 @@ clear-envs:
 # Service Commands
 #-------------------------------------------------------
 
+.PHONY: up-backend
+up-backend:
+	$(call print_title,Starting backend services for system chaos tests)
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	@echo "Starting infrastructure services..."
+	@cd $(INFRA_DIR) && $(MAKE) up
+	@echo "Starting onboarding service..."
+	@cd $(ONBOARDING_DIR) && $(MAKE) up
+	@echo "Starting transaction service..."
+	@cd $(TRANSACTION_DIR) && $(MAKE) up
+	@echo "[ok] Backend services started successfully"
+
+.PHONY: down-backend
+down-backend:
+	$(call print_title,Stopping backend services for system chaos tests)
+	@echo "Stopping transaction service..."
+	@if [ -f "$(TRANSACTION_DIR)/docker-compose.yml" ]; then \
+		(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+	fi
+	@echo "Stopping onboarding service..."
+	@if [ -f "$(ONBOARDING_DIR)/docker-compose.yml" ]; then \
+		(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+	fi
+	@echo "Stopping infrastructure services..."
+	@if [ -f "$(INFRA_DIR)/docker-compose.yml" ]; then \
+		(cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+	fi
+	@echo "[ok] Backend services stopped successfully"
+
 .PHONY: up
 up:
 	$(call print_title,Starting all services with Docker Compose)
