@@ -265,6 +265,23 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 		return false
 	}
 
+	// Check for shutdown before starting batch processing
+	if w.shouldShutdown(ctx) {
+		w.logger.Info("BalanceSyncWorker: shutting down...")
+		return true
+	}
+
+	// This is guaranteed by the worker's scheduling mechanism which fetches keys
+	// from a single ZSET scoped per tenant context. In multi-tenant mode,
+	// processTenantBalances is called per-tenant, ensuring batch homogeneity.
+	orgID, ledgerID, extractErr := w.extractIDsFromMember(members[0])
+	if extractErr == nil {
+		return w.processBalancesToExpireBatch(ctx, orgID, ledgerID, members)
+	}
+
+	w.logger.Warnf("BalanceSyncWorker: failed to extract IDs for batch, falling back to individual processing: %v", extractErr)
+
+	// Fallback: individual processing (only when batch mode fails)
 	workers := w.maxWorkers
 	if int64(workers) > w.batchSize {
 		workers = int(w.batchSize)
@@ -313,6 +330,58 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 	wg.Wait()
 
 	return true
+}
+
+// processBalancesToExpireBatch processes all due keys using batch aggregation.
+// This is more efficient than individual processing as it:
+//  1. Fetches all balance values in single MGET
+//  2. Aggregates by composite key, keeping only highest version
+//  3. Persists in single database transaction
+//  4. Removes all processed keys in batch
+//
+// Returns true if any balances were processed.
+func (w *BalanceSyncWorker) processBalancesToExpireBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string) bool {
+	if len(keys) == 0 {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	_, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "balance.worker.process_batch")
+	defer span.End()
+
+	result, err := w.useCase.SyncBalancesBatch(ctx, organizationID, ledgerID, keys)
+	if err != nil {
+		w.logger.Errorf("BalanceSyncWorker: batch sync failed: %v", err)
+
+		// Emit failure metric for monitoring
+		metricFactory.Counter(utils.BalanceSyncBatchFailures).WithLabels(map[string]string{
+			"organization_id": organizationID.String(),
+			"ledger_id":       ledgerID.String(),
+		}).AddOne(ctx)
+
+		return false
+	}
+
+	if result.BalancesSynced > 0 {
+		metricFactory.Counter(utils.BalanceSynced).WithLabels(map[string]string{
+			"organization_id": organizationID.String(),
+			"ledger_id":       ledgerID.String(),
+			"mode":            "batch",
+		}).Add(ctx, result.BalancesSynced)
+	}
+
+	// Log aggregation ratio for monitoring deduplication effectiveness
+	if result.KeysProcessed > 0 {
+		aggregationRatio := float64(result.BalancesAggregated) / float64(result.KeysProcessed)
+		w.logger.Infof("BalanceSyncWorker: batch processed=%d, aggregated=%d (ratio=%.2f), synced=%d",
+			result.KeysProcessed, result.BalancesAggregated, aggregationRatio, result.BalancesSynced)
+	}
+
+	return result.BalancesSynced > 0 || result.BalancesAggregated > 0
 }
 
 // waitForNextOrBackoff waits based on the next schedule entry or backs off if none.
@@ -409,7 +478,7 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 
 	synced, err := w.useCase.SyncBalance(ctx, organizationID, ledgerID, balance)
 	if err != nil {
-		w.logger.Errorf("BalanceSyncWorker: SyncBalance error for member %s with content %+v: %v", member, balance, err)
+		w.logger.Errorf("BalanceSyncWorker: SyncBalance error for member %s, balanceID=%s: %v", member, balance.ID, err)
 
 		return
 	}
@@ -418,6 +487,7 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 		metricFactory.Counter(utils.BalanceSynced).WithLabels(map[string]string{
 			"organization_id": organizationID.String(),
 			"ledger_id":       ledgerID.String(),
+			"mode":            "individual",
 		}).AddOne(ctx)
 
 		w.logger.Infof("BalanceSyncWorker: Synced key %s", member)
