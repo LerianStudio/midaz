@@ -5,12 +5,12 @@
 package in
 
 import (
+	"fmt"
+
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -50,6 +50,7 @@ func (handler *HolderHandler) CreateHolder(p any, c *fiber.Ctx) error {
 	if !ok || payload == nil {
 		return http.WithError(c, cn.ErrInternalServer)
 	}
+
 	organizationID := c.Get("X-Organization-Id")
 
 	span.SetAttributes(
@@ -151,6 +152,7 @@ func (handler *HolderHandler) UpdateHolder(p any, c *fiber.Ctx) error {
 	}
 
 	organizationID := c.Get("X-Organization-Id")
+
 	payload, ok := p.(*mmodel.UpdateHolderInput)
 	if !ok || payload == nil {
 		return http.WithError(c, cn.ErrInternalServer)

@@ -8,12 +8,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -85,6 +84,7 @@ func (p *SegmentPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB,
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "onboarding"); err == nil {
 		return db, nil
 	}
+
 	if p.requireTenant {
 		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}

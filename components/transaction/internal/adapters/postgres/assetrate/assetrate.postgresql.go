@@ -8,12 +8,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -82,6 +81,7 @@ func (r *AssetRatePostgreSQLRepository) getDB(ctx context.Context) (dbresolver.D
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "transaction"); err == nil {
 		return db, nil
 	}
+
 	if r.requireTenant {
 		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}

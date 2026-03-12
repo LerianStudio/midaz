@@ -7,12 +7,11 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
 	"time"
-
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libConstant "github.com/LerianStudio/lib-commons/v4/commons/constants"

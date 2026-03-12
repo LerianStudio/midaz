@@ -6,9 +6,8 @@ package services
 
 import (
 	"context"
-	"time"
-
 	"fmt"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -79,6 +78,7 @@ func (uc *UseCase) UpdateAliasByID(ctx context.Context, organizationID string, h
 
 				return nil, rpErr
 			}
+
 			alias.RelatedParties = append(alias.RelatedParties, &mmodel.RelatedParty{
 				ID:        &rpID,
 				Document:  rp.Document,

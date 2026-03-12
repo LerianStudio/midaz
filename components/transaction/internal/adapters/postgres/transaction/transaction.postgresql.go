@@ -9,12 +9,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -115,6 +114,7 @@ func (r *TransactionPostgreSQLRepository) getDB(ctx context.Context) (dbresolver
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "transaction"); err == nil {
 		return db, nil
 	}
+
 	if r.requireTenant {
 		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
@@ -907,7 +907,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 
 // FindOrListAllWithOperations retrieves a list of transactions from the database using the provided IDs.
 //
-//nolint:gocyclo // Complexity due to LEFT JOIN NULL handling for transactions without operations
+
 func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

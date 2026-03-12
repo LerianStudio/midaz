@@ -38,7 +38,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	service.Logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Onboarding service initialized successfully"))
+	service.Logger.Log(context.Background(), libLog.LevelInfo, "Onboarding service initialized successfully")
 
 	service.Run()
 }

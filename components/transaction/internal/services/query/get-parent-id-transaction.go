@@ -6,9 +6,8 @@ package query
 
 import (
 	"context"
-	"reflect"
-
 	"fmt"
+	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
