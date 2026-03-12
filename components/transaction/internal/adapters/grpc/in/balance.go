@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	balance "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type BalanceProto struct {
@@ -36,14 +37,14 @@ func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRe
 
 	defer span.End()
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", req, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to convert payload to JSON string", err)
+	span.SetAttributes(
+		attribute.String("app.request.payload.type", "BalanceRequest"),
+		attribute.Bool("app.request.payload.has_account_id", req.GetAccountId() != ""),
+		attribute.Bool("app.request.payload.has_alias", req.GetAlias() != ""),
+		attribute.Bool("app.request.payload.has_key", req.GetKey() != ""),
+	)
 
-		return nil, err
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create balance for account id: %s with alias: %s and key: %s", req.GetAccountId(), req.GetAlias(), req.GetKey()))
+	logger.Log(ctx, libLog.LevelInfo, "Initiating create balance request")
 
 	orgID, err := uuid.Parse(req.GetOrganizationId())
 	if err != nil {
@@ -116,14 +117,12 @@ func (b *BalanceProto) DeleteAllBalancesByAccountID(ctx context.Context, req *ba
 
 	defer span.End()
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", req, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to convert payload to JSON string", err)
+	span.SetAttributes(
+		attribute.String("app.request.payload.type", "DeleteAllBalancesByAccountIDRequest"),
+		attribute.Bool("app.request.payload.has_account_id", req.GetAccountId() != ""),
+	)
 
-		return nil, err
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating delete all balances by account id for account id: %s", req.GetAccountId()))
+	logger.Log(ctx, libLog.LevelInfo, "Initiating delete all balances by account id request")
 
 	orgID, err := uuid.Parse(req.GetOrganizationId())
 	if err != nil {
