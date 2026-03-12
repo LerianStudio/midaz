@@ -68,6 +68,7 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error
 	Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
+	SyncBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error)
 	UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error
 	ListByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAccountIDAtTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time) ([]*mmodel.Balance, error)
@@ -1406,6 +1407,125 @@ func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, 
 	}
 
 	return affected > 0, nil
+}
+
+// SyncBatch persists multiple balances from cache to database in a single transaction.
+// This is more efficient than calling Sync in a loop as it:
+// 1. Uses a single database transaction for all updates
+// 2. Reduces round-trips between application and database
+// 3. Provides atomicity - all updates succeed or all fail
+//
+// Uses optimistic locking: only updates balances where version < incoming version.
+// Returns count of actually updated rows.
+func (r *BalancePostgreSQLRepository) SyncBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
+	if len(balances) == 0 {
+		return 0, nil
+	}
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.sync_batch")
+	defer span.End()
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return 0, err
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to begin transaction", err)
+
+		logger.Errorf("Failed to begin transaction: %v", err)
+
+		return 0, err
+	}
+
+	committed := false
+
+	defer func() {
+		if committed {
+			return
+		}
+
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			logger.Errorf("Failed to rollback transaction: %v", rollbackErr)
+		}
+	}()
+
+	var totalUpdated int64
+
+	now := time.Now()
+
+	for _, balance := range balances {
+		// Check for context cancellation before processing each balance
+		if ctx.Err() != nil {
+			libOpentelemetry.HandleSpanError(&span, "Context cancelled during batch sync", ctx.Err())
+
+			logger.Warnf("SyncBatch cancelled: %v", ctx.Err())
+
+			return 0, ctx.Err()
+		}
+
+		id, parseErr := uuid.Parse(balance.ID)
+		if parseErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "Invalid balance ID", parseErr)
+
+			logger.Errorf("Invalid balance ID %s: %v", balance.ID, parseErr)
+
+			return 0, parseErr
+		}
+
+		result, execErr := tx.ExecContext(ctx, `
+			UPDATE balance
+			SET available = $1, on_hold = $2, version = $3, updated_at = $4
+			WHERE organization_id = $5
+			  AND ledger_id = $6
+			  AND id = $7
+			  AND version < $3
+			  AND deleted_at IS NULL
+		`, balance.Available, balance.OnHold, balance.Version, now, organizationID, ledgerID, id)
+		if execErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to update balance", execErr)
+
+			logger.Errorf("Failed to update balance %s: %v", balance.ID, execErr)
+
+			return 0, execErr
+		}
+
+		rowsAffected, rowsErr := result.RowsAffected()
+		if rowsErr != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", rowsErr)
+
+			logger.Errorf("Failed to get rows affected for balance %s: %v", balance.ID, rowsErr)
+
+			return 0, rowsErr
+		}
+
+		totalUpdated += rowsAffected
+
+		if rowsAffected == 0 {
+			logger.Debugf("Balance %s skipped: version %d not newer than DB", balance.ID, balance.Version)
+		}
+	}
+
+	if commitErr := tx.Commit(); commitErr != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to commit transaction", commitErr)
+
+		logger.Errorf("Failed to commit batch sync: %v", commitErr)
+
+		return 0, commitErr
+	}
+
+	committed = true
+
+	logger.Infof("SyncBatch: updated %d of %d balances", totalUpdated, len(balances))
+
+	return totalUpdated, nil
 }
 
 func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error {

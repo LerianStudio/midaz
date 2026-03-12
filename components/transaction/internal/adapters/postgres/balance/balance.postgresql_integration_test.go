@@ -941,6 +941,308 @@ func TestIntegration_BalanceRepository_Sync_IgnoresOlderVersion(t *testing.T) {
 }
 
 // ============================================================================
+// SyncBatch Tests (Batch Redis → Postgres)
+// ============================================================================
+
+func TestIntegration_BalanceRepository_SyncBatch_UpdatesMultipleBalances(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+
+	// Create two balances
+	params1 := pgtestutil.DefaultBalanceParams()
+	params1.Alias = "@batch-1"
+	params1.Available = decimal.NewFromInt(100)
+	balanceID1 := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params1)
+
+	params2 := pgtestutil.DefaultBalanceParams()
+	params2.Alias = "@batch-2"
+	params2.Available = decimal.NewFromInt(200)
+	balanceID2 := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params2)
+
+	ctx := context.Background()
+
+	// Batch of balances to sync
+	balances := []mmodel.BalanceRedis{
+		{
+			ID:        balanceID1.String(),
+			Available: decimal.NewFromInt(500),
+			OnHold:    decimal.NewFromInt(10),
+			Version:   10,
+		},
+		{
+			ID:        balanceID2.String(),
+			Available: decimal.NewFromInt(600),
+			OnHold:    decimal.NewFromInt(20),
+			Version:   10,
+		},
+	}
+
+	// Act
+	updated, err := repo.SyncBatch(ctx, orgID, ledgerID, balances)
+
+	// Assert
+	require.NoError(t, err, "SyncBatch should not return error")
+	assert.Equal(t, int64(2), updated, "should update both balances")
+
+	// Verify first balance
+	found1, err := repo.Find(ctx, orgID, ledgerID, balanceID1)
+	require.NoError(t, err)
+	assert.True(t, found1.Available.Equal(decimal.NewFromInt(500)), "balance 1 available should be synced")
+	assert.True(t, found1.OnHold.Equal(decimal.NewFromInt(10)), "balance 1 on_hold should be synced")
+
+	// Verify second balance
+	found2, err := repo.Find(ctx, orgID, ledgerID, balanceID2)
+	require.NoError(t, err)
+	assert.True(t, found2.Available.Equal(decimal.NewFromInt(600)), "balance 2 available should be synced")
+	assert.True(t, found2.OnHold.Equal(decimal.NewFromInt(20)), "balance 2 on_hold should be synced")
+}
+
+func TestIntegration_BalanceRepository_SyncBatch_IgnoresOlderVersions(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+
+	// Insert balance with version 10
+	balanceID := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+
+	_, err := container.DB.Exec(`
+		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	`, balanceID, orgID, ledgerID, accountID, "@batch-old", "default", "USD",
+		decimal.NewFromInt(1000), decimal.Zero, 10, "deposit", true, true, now, now)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Try to sync with older version
+	balances := []mmodel.BalanceRedis{
+		{
+			ID:        balanceID.String(),
+			Available: decimal.NewFromInt(500),
+			OnHold:    decimal.NewFromInt(25),
+			Version:   5, // older than 10
+		},
+	}
+
+	// Act
+	updated, err := repo.SyncBatch(ctx, orgID, ledgerID, balances)
+
+	// Assert
+	require.NoError(t, err, "SyncBatch should not error for old version")
+	assert.Equal(t, int64(0), updated, "should indicate no balances were updated")
+
+	// Verify original values unchanged
+	found, err := repo.Find(ctx, orgID, ledgerID, balanceID)
+	require.NoError(t, err)
+	assert.True(t, found.Available.Equal(decimal.NewFromInt(1000)), "available should be unchanged")
+	assert.Equal(t, int64(10), found.Version, "version should be unchanged")
+}
+
+func TestIntegration_BalanceRepository_SyncBatch_EmptyBatchReturnsZero(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	ctx := context.Background()
+
+	// Act - empty batch
+	updated, err := repo.SyncBatch(ctx, orgID, ledgerID, []mmodel.BalanceRedis{})
+
+	// Assert
+	require.NoError(t, err, "SyncBatch should not error for empty batch")
+	assert.Equal(t, int64(0), updated, "should return 0 for empty batch")
+}
+
+func TestIntegration_BalanceRepository_SyncBatch_PartialUpdate(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := createTestAccountID()
+
+	// Create balance with version 5
+	params := pgtestutil.DefaultBalanceParams()
+	params.Alias = "@partial"
+	params.Available = decimal.NewFromInt(100)
+	balanceID := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
+
+	// Create another balance with version 10 (via direct insert)
+	balanceID2 := libCommons.GenerateUUIDv7()
+	now := time.Now().Truncate(time.Microsecond)
+	_, err := container.DB.Exec(`
+		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	`, balanceID2, orgID, ledgerID, accountID, "@partial-high", "default", "USD",
+		decimal.NewFromInt(200), decimal.Zero, 10, "deposit", true, true, now, now)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Batch: first one newer (should update), second one older (should skip)
+	balances := []mmodel.BalanceRedis{
+		{
+			ID:        balanceID.String(),
+			Available: decimal.NewFromInt(500),
+			OnHold:    decimal.NewFromInt(10),
+			Version:   10, // higher than default (1), should update
+		},
+		{
+			ID:        balanceID2.String(),
+			Available: decimal.NewFromInt(600),
+			OnHold:    decimal.NewFromInt(20),
+			Version:   5, // lower than 10, should skip
+		},
+	}
+
+	// Act
+	updated, err := repo.SyncBatch(ctx, orgID, ledgerID, balances)
+
+	// Assert
+	require.NoError(t, err, "SyncBatch should not return error")
+	assert.Equal(t, int64(1), updated, "should update only one balance")
+
+	// Verify first balance was updated
+	found1, err := repo.Find(ctx, orgID, ledgerID, balanceID)
+	require.NoError(t, err)
+	assert.True(t, found1.Available.Equal(decimal.NewFromInt(500)), "balance 1 should be updated")
+
+	// Verify second balance was NOT updated
+	found2, err := repo.Find(ctx, orgID, ledgerID, balanceID2)
+	require.NoError(t, err)
+	assert.True(t, found2.Available.Equal(decimal.NewFromInt(200)), "balance 2 should be unchanged")
+	assert.Equal(t, int64(10), found2.Version, "balance 2 version should be unchanged")
+}
+
+func TestIntegration_BalanceRepository_SyncBatch_RespectsContextCancellation(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	// Create a cancelled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// Batch with balances
+	balances := []mmodel.BalanceRedis{
+		{
+			ID:        libCommons.GenerateUUIDv7().String(),
+			Available: decimal.NewFromInt(500),
+			OnHold:    decimal.NewFromInt(10),
+			Version:   10,
+		},
+	}
+
+	// Act
+	updated, err := repo.SyncBatch(ctx, orgID, ledgerID, balances)
+
+	// Assert
+	require.Error(t, err, "SyncBatch should return error for cancelled context")
+	assert.Equal(t, int64(0), updated, "should return 0 updates")
+	assert.ErrorIs(t, err, context.Canceled, "error should be context.Canceled")
+}
+
+func TestIntegration_BalanceRepository_SyncBatch_InvalidUUID(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	ctx := context.Background()
+
+	// Batch with invalid UUID
+	balances := []mmodel.BalanceRedis{
+		{
+			ID:        "not-a-valid-uuid",
+			Available: decimal.NewFromInt(500),
+			OnHold:    decimal.NewFromInt(10),
+			Version:   10,
+		},
+	}
+
+	// Act
+	updated, err := repo.SyncBatch(ctx, orgID, ledgerID, balances)
+
+	// Assert
+	require.Error(t, err, "SyncBatch should return error for invalid UUID")
+	assert.Equal(t, int64(0), updated, "should return 0 updates")
+	assert.Contains(t, err.Error(), "invalid", "error should mention invalid")
+}
+
+func TestIntegration_BalanceRepository_SyncBatch_LargeBatch(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+
+	// Create 150 test balances in the database
+	balanceIDs := make([]uuid.UUID, 150)
+	for i := range 150 {
+		accountID := createTestAccountID()
+		params := pgtestutil.BalanceParams{
+			Alias:          "@batch-" + accountID.String()[:8],
+			Key:            "default",
+			AssetCode:      "USD",
+			Available:      decimal.NewFromInt(int64(100 + i)),
+			OnHold:         decimal.Zero,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+		}
+		balanceIDs[i] = pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
+	}
+
+	ctx := context.Background()
+
+	// Prepare batch update with all 150 balances
+	balances := make([]mmodel.BalanceRedis, 150)
+	for i := range 150 {
+		balances[i] = mmodel.BalanceRedis{
+			ID:        balanceIDs[i].String(),
+			Available: decimal.NewFromInt(int64(1000 + i)),
+			OnHold:    decimal.NewFromInt(int64(i)),
+			Version:   100, // Higher than initial version (1)
+		}
+	}
+
+	// Act
+	updated, err := repo.SyncBatch(ctx, orgID, ledgerID, balances)
+
+	// Assert
+	require.NoError(t, err, "SyncBatch should handle large batch without error")
+	assert.Equal(t, int64(150), updated, "should update all 150 balances")
+
+	// Verify a sample of updates
+	for _, idx := range []int{0, 50, 100, 149} {
+		found, err := repo.Find(ctx, orgID, ledgerID, balanceIDs[idx])
+		require.NoError(t, err)
+		assert.True(t, found.Available.Equal(decimal.NewFromInt(int64(1000+idx))),
+			"balance %d available should be updated", idx)
+	}
+}
+
+// ============================================================================
 // ListAll Tests (covers date filtering and pagination)
 // ============================================================================
 

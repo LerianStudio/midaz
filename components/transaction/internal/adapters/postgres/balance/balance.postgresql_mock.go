@@ -12,7 +12,7 @@ package balance
 import (
 	context "context"
 	reflect "reflect"
-	"time"
+	time "time"
 
 	http "github.com/LerianStudio/lib-commons/v3/commons/net/http"
 	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -281,6 +281,21 @@ func (m *MockRepository) Sync(ctx context.Context, organizationID, ledgerID uuid
 func (mr *MockRepositoryMockRecorder) Sync(ctx, organizationID, ledgerID, b any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sync", reflect.TypeOf((*MockRepository)(nil).Sync), ctx, organizationID, ledgerID, b)
+}
+
+// SyncBatch mocks base method.
+func (m *MockRepository) SyncBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SyncBatch", ctx, organizationID, ledgerID, balances)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SyncBatch indicates an expected call of SyncBatch.
+func (mr *MockRepositoryMockRecorder) SyncBatch(ctx, organizationID, ledgerID, balances any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncBatch", reflect.TypeOf((*MockRepository)(nil).SyncBatch), ctx, organizationID, ledgerID, balances)
 }
 
 // Update mocks base method.
