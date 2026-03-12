@@ -292,9 +292,61 @@ func boolToInt(b bool) int {
 
 // balanceAtomicResponse is the JSON structure returned by the Lua atomic balance script.
 // It contains both BEFORE (pre-mutation) and AFTER (post-mutation) balance snapshots.
+//
+// Note: cjson in Redis/Valkey may encode empty arrays as {} (object) instead of [] (array).
+// The custom UnmarshalJSON handles this edge case by treating empty objects as empty slices.
 type balanceAtomicResponse struct {
 	Before []mmodel.BalanceRedis `json:"before"`
 	After  []mmodel.BalanceRedis `json:"after"`
+}
+
+// UnmarshalJSON handles cjson's empty-array-as-object encoding quirk.
+// When no balance changes occurred, cjson may return {"before":{},"after":{}} instead
+// of {"before":[],"after":[]}. This method normalizes both forms.
+func (r *balanceAtomicResponse) UnmarshalJSON(data []byte) error {
+	// Try standard unmarshal first (works when cjson returns proper arrays)
+	type Alias balanceAtomicResponse
+
+	var alias Alias
+	if err := json.Unmarshal(data, &alias); err == nil {
+		*r = balanceAtomicResponse(alias)
+		return nil
+	}
+
+	// Fallback: handle cjson empty-object-as-array quirk
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	unmarshalField := func(field json.RawMessage) ([]mmodel.BalanceRedis, error) {
+		trimmed := string(field)
+		if trimmed == "{}" {
+			return []mmodel.BalanceRedis{}, nil
+		}
+
+		var result []mmodel.BalanceRedis
+		if err := json.Unmarshal(field, &result); err != nil {
+			return nil, err
+		}
+
+		return result, nil
+	}
+
+	var err error
+	if beforeData, ok := raw["before"]; ok {
+		if r.Before, err = unmarshalField(beforeData); err != nil {
+			return fmt.Errorf("unmarshal before: %w", err)
+		}
+	}
+
+	if afterData, ok := raw["after"]; ok {
+		if r.After, err = unmarshalField(afterData); err != nil {
+			return fmt.Errorf("unmarshal after: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // balanceRedisToBalance converts a BalanceRedis (Lua/cache format) to a Balance (domain model),

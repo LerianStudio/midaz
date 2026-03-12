@@ -623,7 +623,8 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 		Pass:                   rabbitmqtestutil.DefaultPassword,
 		Logger:                 logger,
 	}
-	producerRepo := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	producerRepo, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	require.NoError(t, err, "NewProducerRabbitMQ must succeed")
 
 	// Create use cases with RabbitMQ producer
 	queryUC := &query.UseCase{

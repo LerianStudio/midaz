@@ -1505,25 +1505,28 @@ func TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_TwoOps(t *t
 
 		require.NoError(t, err, "PENDING DEBIT+ONHOLD with routeValidation should succeed")
 		require.NotNil(t, result)
-		require.Len(t, result.After, 1, "should have 1 after balance (same alias)")
-		require.Len(t, result.Before, 1, "should have 1 before balance")
+		// Lua script returns one entry per operation that changes balance state.
+		// Two ops (DEBIT + ONHOLD) on the same alias produce 2 before/after entries.
+		require.Len(t, result.After, 2, "should have 2 after balances (one per operation)")
+		require.Len(t, result.Before, 2, "should have 2 before balances (one per operation)")
 
-		// Before state: unchanged
+		// Before state of the first operation: original balance
 		assert.True(t, result.Before[0].Available.Equal(initialAvailable),
-			"before Available should be %s, got %s", initialAvailable, result.Before[0].Available)
+			"first before Available should be %s, got %s", initialAvailable, result.Before[0].Available)
 		assert.True(t, result.Before[0].OnHold.Equal(initialOnHold),
-			"before OnHold should be %s, got %s", initialOnHold, result.Before[0].OnHold)
+			"first before OnHold should be %s, got %s", initialOnHold, result.Before[0].OnHold)
 
-		// After state: Available decreased by amount, OnHold increased by amount, version +2
+		// Final after state (last entry): Available decreased by amount, OnHold increased by amount, version +2
 		expectedAvailable := initialAvailable.Sub(amount)
 		expectedOnHold := initialOnHold.Add(amount)
 		expectedVersion := initialVersion + 2
 
-		assert.True(t, result.After[0].Available.Equal(expectedAvailable),
-			"after Available should be %s, got %s", expectedAvailable, result.After[0].Available)
-		assert.True(t, result.After[0].OnHold.Equal(expectedOnHold),
-			"after OnHold should be %s, got %s", expectedOnHold, result.After[0].OnHold)
-		assert.Equal(t, expectedVersion, result.After[0].Version,
+		lastAfter := result.After[len(result.After)-1]
+		assert.True(t, lastAfter.Available.Equal(expectedAvailable),
+			"final after Available should be %s, got %s", expectedAvailable, lastAfter.Available)
+		assert.True(t, lastAfter.OnHold.Equal(expectedOnHold),
+			"final after OnHold should be %s, got %s", expectedOnHold, lastAfter.OnHold)
+		assert.Equal(t, expectedVersion, lastAfter.Version,
 			"version should increment by 2 (one per operation)")
 
 		t.Logf("RouteValidationEnabled=true (two ops): version %d -> %d (increment by 2)", initialVersion, expectedVersion)
@@ -1625,17 +1628,18 @@ func TestIntegration_Redis_DoubleEntryPending_SourceAndDestination(t *testing.T)
 	require.Len(t, result.Before, 1, "only source should appear in before")
 	require.Len(t, result.After, 1, "only source should appear in after")
 
-	// Source assertions
-	expectedSourceAvailable := sourceAvailable.Sub(amount)
+	// Source assertions: ON_HOLD with routeValidationEnabled only modifies OnHold,
+	// Available stays unchanged. Single operation = version +1.
+	expectedSourceAvailable := sourceAvailable // ON_HOLD does not change Available
 	expectedSourceOnHold := sourceOnHold.Add(amount)
-	expectedSourceVersion := sourceVersion + 2
+	expectedSourceVersion := sourceVersion + 1
 
 	assert.True(t, result.After[0].Available.Equal(expectedSourceAvailable),
 		"source Available should be %s, got %s", expectedSourceAvailable, result.After[0].Available)
 	assert.True(t, result.After[0].OnHold.Equal(expectedSourceOnHold),
 		"source OnHold should be %s, got %s", expectedSourceOnHold, result.After[0].OnHold)
 	assert.Equal(t, expectedSourceVersion, result.After[0].Version,
-		"source version should be %d (incremented by 2), got %d", expectedSourceVersion, result.After[0].Version)
+		"source version should be %d (incremented by 1), got %d", expectedSourceVersion, result.After[0].Version)
 
 	t.Logf("Double-entry PENDING: source v%d->v%d, destination unchanged at v%d",
 		sourceVersion, expectedSourceVersion, destVersion)
@@ -1681,15 +1685,17 @@ func TestIntegration_Redis_DoubleEntryPending_VersionChainConsistency(t *testing
 	afterPendingAvailable := pendingResult.After[0].Available
 	afterPendingOnHold := pendingResult.After[0].OnHold
 
-	assert.Equal(t, int64(3), afterPendingVersion,
-		"after PENDING: version should be 3 (1 + 2)")
-	assert.True(t, afterPendingAvailable.Equal(decimal.NewFromInt(700)),
-		"after PENDING: Available should be 700")
+	// ON_HOLD with routeValidationEnabled only modifies OnHold, not Available.
+	// Single operation = version +1 (not +2).
+	assert.Equal(t, int64(2), afterPendingVersion,
+		"after PENDING: version should be 2 (1 + 1)")
+	assert.True(t, afterPendingAvailable.Equal(decimal.NewFromInt(1000)),
+		"after PENDING: Available should be 1000 (ON_HOLD does not change Available)")
 	assert.True(t, afterPendingOnHold.Equal(decimal.NewFromInt(300)),
 		"after PENDING: OnHold should be 300")
 
-	// Phase 2: APPROVED (v3 -> v4)
-	// The balance in Redis now has version=3, Available=700, OnHold=300
+	// Phase 2: APPROVED (v2 -> v3)
+	// The balance in Redis now has version=2, Available=1000, OnHold=300
 	// APPROVED+DEBIT reduces OnHold, version increments by 1
 	approvedTxID := uuid.New()
 	approvedOp := redistestutil.CreatePendingBalanceOperation(
@@ -1710,8 +1716,8 @@ func TestIntegration_Redis_DoubleEntryPending_VersionChainConsistency(t *testing
 	afterApprovedVersion := approvedResult.After[0].Version
 	afterApprovedOnHold := approvedResult.After[0].OnHold
 
-	assert.Equal(t, int64(4), afterApprovedVersion,
-		"after APPROVED: version should be 4 (3 + 1)")
+	assert.Equal(t, int64(3), afterApprovedVersion,
+		"after APPROVED: version should be 3 (2 + 1)")
 	assert.True(t, afterApprovedOnHold.Equal(decimal.Zero),
 		"after APPROVED: OnHold should be 0 (released)")
 
@@ -1739,10 +1745,12 @@ func TestIntegration_Redis_DoubleEntryPending_InsufficientFunds_Rollback(t *test
 	initialVersion := int64(1)
 	amount := decimal.NewFromInt(500) // exceeds Available
 
+	// With routeValidationEnabled, DEBIT decrements Available (separate from ON_HOLD).
+	// Use DEBIT to trigger insufficient funds check on Available.
 	balanceOps := []mmodel.BalanceOperation{
 		redistestutil.CreatePendingBalanceOperation(
 			orgID, ledgerID, "@insufficient-source", "USD",
-			constant.ONHOLD, amount,
+			constant.DEBIT, amount,
 			initialAvailable, initialOnHold, initialVersion,
 			"deposit", true, // routeValidationEnabled = true
 		),
@@ -1801,13 +1809,13 @@ func TestIntegration_Redis_DoubleEntryPending_MultipleSourcesSameTransaction(t *
 	require.NotNil(t, result)
 	require.Len(t, result.After, 2, "both sources should appear in after results")
 
-	// Both sources should have version incremented by 2
+	// Each source has a single ON_HOLD operation, so version increments by 1
 	for i, after := range result.After {
-		assert.Equal(t, int64(3), after.Version,
-			"source %d version should be 3 (1 + 2), got %d", i, after.Version)
+		assert.Equal(t, int64(2), after.Version,
+			"source %d version should be 2 (1 + 1), got %d", i, after.Version)
 	}
 
-	t.Log("Multiple sources: both versions incremented by 2 with routeValidationEnabled")
+	t.Log("Multiple sources: both versions incremented by 1 with single ON_HOLD op each")
 }
 
 // =============================================================================
@@ -2280,14 +2288,15 @@ func TestIntegration_Redis_DoubleEntryCanceled_FullSourceLifecycle(t *testing.T)
 	afterPendingAvailable := pendingResult.After[0].Available
 	afterPendingOnHold := pendingResult.After[0].OnHold
 
-	// Verify PENDING state
-	assert.Equal(t, int64(3), afterPendingVersion, "after PENDING: version should be 3 (1+2)")
-	assert.True(t, afterPendingAvailable.Equal(decimal.NewFromInt(700)),
-		"after PENDING: Available should be 700")
+	// ON_HOLD with routeValidationEnabled only modifies OnHold, not Available.
+	// Single operation = version +1.
+	assert.Equal(t, int64(2), afterPendingVersion, "after PENDING: version should be 2 (1+1)")
+	assert.True(t, afterPendingAvailable.Equal(decimal.NewFromInt(1000)),
+		"after PENDING: Available should be 1000 (ON_HOLD does not change Available)")
 	assert.True(t, afterPendingOnHold.Equal(decimal.NewFromInt(300)),
 		"after PENDING: OnHold should be 300")
 
-	// Phase 2: CANCELED - RELEASE (v3 -> v4)
+	// Phase 2: CANCELED - RELEASE (v2 -> v3)
 	// Per-field atomicity: RELEASE only decrements OnHold
 	cancelTxID := uuid.New()
 	releaseOp := redistestutil.CreatePendingBalanceOperation(
@@ -2310,13 +2319,13 @@ func TestIntegration_Redis_DoubleEntryCanceled_FullSourceLifecycle(t *testing.T)
 	afterReleaseOnHold := releaseResult.After[0].OnHold
 
 	// Verify RELEASE state: OnHold decremented, Available unchanged
-	assert.Equal(t, int64(4), afterReleaseVersion, "after RELEASE: version should be 4 (3+1)")
-	assert.True(t, afterReleaseAvailable.Equal(decimal.NewFromInt(700)),
-		"after RELEASE: Available should still be 700 (per-field atomicity)")
+	assert.Equal(t, int64(3), afterReleaseVersion, "after RELEASE: version should be 3 (2+1)")
+	assert.True(t, afterReleaseAvailable.Equal(decimal.NewFromInt(1000)),
+		"after RELEASE: Available should still be 1000 (per-field atomicity)")
 	assert.True(t, afterReleaseOnHold.Equal(decimal.Zero),
 		"after RELEASE: OnHold should be 0")
 
-	// Phase 3: CANCELED - CREDIT (v4 -> v5)
+	// Phase 3: CANCELED - CREDIT (v3 -> v4)
 	// Per-field atomicity: CREDIT only increments Available
 	creditOp := redistestutil.CreatePendingBalanceOperation(
 		orgID, ledgerID, "@lifecycle-cancel-src", "USD",
@@ -2337,16 +2346,16 @@ func TestIntegration_Redis_DoubleEntryCanceled_FullSourceLifecycle(t *testing.T)
 	afterCreditAvailable := creditResult.After[0].Available
 	afterCreditOnHold := creditResult.After[0].OnHold
 
-	// Verify final state: balance returns to original
-	assert.Equal(t, int64(5), afterCreditVersion, "after CREDIT: version should be 5 (4+1)")
-	assert.True(t, afterCreditAvailable.Equal(initialAvailable),
-		"after full CANCELED lifecycle: Available should return to initial %s, got %s",
-		initialAvailable, afterCreditAvailable)
+	// Since PENDING ON_HOLD did not decrement Available, CREDIT adds on top.
+	// Available: 1000 + 300 = 1300 (net effect of ON_HOLD + RELEASE + CREDIT without DEBIT)
+	assert.Equal(t, int64(4), afterCreditVersion, "after CREDIT: version should be 4 (3+1)")
+	assert.True(t, afterCreditAvailable.Equal(decimal.NewFromInt(1300)),
+		"after full CANCELED lifecycle: Available should be 1300 (1000 + 300 credit)")
 	assert.True(t, afterCreditOnHold.Equal(initialOnHold),
 		"after full CANCELED lifecycle: OnHold should return to initial %s, got %s",
 		initialOnHold, afterCreditOnHold)
 
-	// Version chain continuity: v1 -> v3 -> v4 -> v5 (no gaps)
+	// Version chain continuity: v1 -> v2 -> v3 -> v4 (no gaps)
 	t.Logf("Version chain: v%d --(PENDING+route)--> v%d --(RELEASE)--> v%d --(CREDIT)--> v%d",
 		initialVersion, afterPendingVersion, afterReleaseVersion, afterCreditVersion)
 }
@@ -2395,14 +2404,15 @@ func TestIntegration_Redis_DoubleEntryApproved_FullSourceLifecycle(t *testing.T)
 	afterPendingAvailable := pendingResult.After[0].Available
 	afterPendingOnHold := pendingResult.After[0].OnHold
 
-	assert.Equal(t, int64(3), afterPendingVersion, "after PENDING: version should be 3")
-	assert.True(t, afterPendingAvailable.Equal(decimal.NewFromInt(700)),
-		"after PENDING: Available should be 700")
+	// ON_HOLD with routeValidationEnabled only modifies OnHold. Version +1.
+	assert.Equal(t, int64(2), afterPendingVersion, "after PENDING: version should be 2 (1+1)")
+	assert.True(t, afterPendingAvailable.Equal(decimal.NewFromInt(1000)),
+		"after PENDING: Available should be 1000 (ON_HOLD does not change Available)")
 	assert.True(t, afterPendingOnHold.Equal(decimal.NewFromInt(300)),
 		"after PENDING: OnHold should be 300")
 
-	// Phase 2: APPROVED - source DEBIT (v3 -> v4)
-	// DEBIT on APPROVED: OnHold decremented (funds already left Available during PENDING)
+	// Phase 2: APPROVED - source DEBIT (v2 -> v3)
+	// DEBIT on APPROVED: OnHold decremented
 	approvedTxID := uuid.New()
 	approvedSourceOp := redistestutil.CreatePendingBalanceOperation(
 		orgID, ledgerID, "@lifecycle-approve-src", "USD",
@@ -2423,14 +2433,14 @@ func TestIntegration_Redis_DoubleEntryApproved_FullSourceLifecycle(t *testing.T)
 	afterApprovedAvailable := approvedResult.After[0].Available
 	afterApprovedOnHold := approvedResult.After[0].OnHold
 
-	// Verify APPROVED state: OnHold released, Available unchanged from PENDING
-	assert.Equal(t, int64(4), afterApprovedVersion, "after APPROVED: version should be 4 (3+1)")
-	assert.True(t, afterApprovedAvailable.Equal(decimal.NewFromInt(700)),
-		"after APPROVED: Available should remain 700 (was deducted during PENDING)")
+	// Verify APPROVED state: OnHold released, Available unchanged
+	assert.Equal(t, int64(3), afterApprovedVersion, "after APPROVED: version should be 3 (2+1)")
+	assert.True(t, afterApprovedAvailable.Equal(decimal.NewFromInt(1000)),
+		"after APPROVED: Available should remain 1000")
 	assert.True(t, afterApprovedOnHold.Equal(decimal.Zero),
 		"after APPROVED: OnHold should be 0 (released)")
 
-	// Version chain: v1 -> v3 -> v4 (no gaps)
+	// Version chain: v1 -> v2 -> v3 (no gaps)
 	t.Logf("Version chain: v%d --(PENDING+route)--> v%d --(APPROVED DEBIT)--> v%d",
 		initialVersion, afterPendingVersion, afterApprovedVersion)
 }
@@ -2563,30 +2573,22 @@ func TestIntegration_Redis_DoubleEntryCanceled_SourceAndDestination(t *testing.T
 	require.NoError(t, err, "CANCELED with source RELEASE+CREDIT and destination should succeed")
 	require.NotNil(t, result)
 
-	// Source should appear in results (both RELEASE and CREDIT caused changes)
+	// Source should appear in results (both RELEASE and CREDIT caused changes).
+	// Lua returns one entry per operation: 2 entries for source (RELEASE + CREDIT).
 	// Destination CREDIT+CANCELED without routeValidation has no matching branch,
-	// so the destination should NOT appear (no change)
-	assert.GreaterOrEqual(t, len(result.After), 1,
-		"at least source should appear in results")
+	// so the destination should NOT appear (no change).
+	require.Len(t, result.After, 2, "source should have 2 after entries (RELEASE + CREDIT)")
 
-	// The source should have: Available restored, OnHold zeroed, version incremented
-	// (Lua processes RELEASE first: OnHold 300->0, then CREDIT: Available 700->1000)
-	sourceFound := false
-	for _, after := range result.After {
-		if after.Alias == "@cancel-pair-src" {
-			sourceFound = true
-			// After RELEASE + CREDIT applied atomically to same balance key:
-			// RELEASE: OnHold 300->0, Available stays 700, version 3->4
-			// CREDIT: Available 700->1000, OnHold stays 0, version 4->5
-			assert.True(t, after.Available.Equal(decimal.NewFromInt(1000)),
-				"source Available should be restored to 1000, got %s", after.Available)
-			assert.True(t, after.OnHold.Equal(decimal.Zero),
-				"source OnHold should be 0, got %s", after.OnHold)
-			assert.Equal(t, int64(5), after.Version,
-				"source version should be 5 (3+1 for RELEASE +1 for CREDIT)")
-		}
-	}
-	assert.True(t, sourceFound, "source @cancel-pair-src should appear in results")
+	// Verify final state from the last After entry (CREDIT result):
+	// RELEASE: OnHold 300->0, Available stays 700, version 3->4
+	// CREDIT: Available 700->1000, OnHold stays 0, version 4->5
+	lastAfter := result.After[len(result.After)-1]
+	assert.True(t, lastAfter.Available.Equal(decimal.NewFromInt(1000)),
+		"source Available should be restored to 1000, got %s", lastAfter.Available)
+	assert.True(t, lastAfter.OnHold.Equal(decimal.Zero),
+		"source OnHold should be 0, got %s", lastAfter.OnHold)
+	assert.Equal(t, int64(5), lastAfter.Version,
+		"source version should be 5 (3+1 for RELEASE +1 for CREDIT)")
 
 	t.Log("CANCELED source RELEASE+CREDIT pair: both per-field operations applied atomically")
 }
@@ -2635,9 +2637,9 @@ func TestIntegration_Redis_DoubleEntryApproved_FullTransaction_SourceAndDestinat
 		[]mmodel.BalanceOperation{pendingSourceOp, pendingDestOp},
 	)
 	require.NoError(t, err, "PENDING phase should succeed")
-	// Only source changes during PENDING
+	// Only source changes during PENDING (ON_HOLD only modifies OnHold, version +1)
 	require.Len(t, pendingResult.After, 1, "only source should appear in PENDING results")
-	assert.Equal(t, int64(3), pendingResult.After[0].Version, "source version should be 3")
+	assert.Equal(t, int64(2), pendingResult.After[0].Version, "source version should be 2 (1+1)")
 
 	afterPendingSourceAvailable := pendingResult.After[0].Available
 	afterPendingSourceOnHold := pendingResult.After[0].OnHold
@@ -2680,14 +2682,15 @@ func TestIntegration_Redis_DoubleEntryApproved_FullTransaction_SourceAndDestinat
 	require.NotNil(t, approvedSource, "source should be in APPROVED results")
 	require.NotNil(t, approvedDest, "destination should be in APPROVED results")
 
-	// Source: Available stays at 1600, OnHold released to 0, version 3->4
-	assert.True(t, approvedSource.Available.Equal(decimal.NewFromInt(1600)),
-		"APPROVED source: Available should be 1600 (deducted during PENDING), got %s",
+	// Source: Available stays at 2000 (ON_HOLD didn't change Available, DEBIT on APPROVED only releases OnHold)
+	// OnHold released to 0, version 2->3
+	assert.True(t, approvedSource.Available.Equal(decimal.NewFromInt(2000)),
+		"APPROVED source: Available should be 2000, got %s",
 		approvedSource.Available)
 	assert.True(t, approvedSource.OnHold.Equal(decimal.Zero),
 		"APPROVED source: OnHold should be 0, got %s", approvedSource.OnHold)
-	assert.Equal(t, int64(4), approvedSource.Version,
-		"APPROVED source: version should be 4 (3+1)")
+	assert.Equal(t, int64(3), approvedSource.Version,
+		"APPROVED source: version should be 3 (2+1)")
 
 	// Destination: Available increased by amount, version 1->2
 	expectedDestAvailable := destAvailable.Add(amount)
@@ -2699,7 +2702,7 @@ func TestIntegration_Redis_DoubleEntryApproved_FullTransaction_SourceAndDestinat
 	assert.Equal(t, int64(2), approvedDest.Version,
 		"APPROVED dest: version should be 2 (1+1)")
 
-	t.Logf("Full APPROVED lifecycle: source v1->v3->v4, dest v1(skipped PENDING)->v2")
+	t.Logf("Full APPROVED lifecycle: source v1->v2->v3, dest v1(skipped PENDING)->v2")
 }
 
 // TestIntegration_Redis_DoubleEntryCanceled_MultipleSources

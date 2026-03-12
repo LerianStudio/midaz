@@ -114,6 +114,11 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 			Return(nil).
 			AnyTimes()
 
+		mockRedisRepo.EXPECT().
+			Del(gomock.Any(), gomock.Any()).
+			Return(nil).
+			AnyTimes()
+
 		// Create UseCase with mocked repos
 		uc := &command.UseCase{
 			TransactionRepo: mockTransactionRepo,
