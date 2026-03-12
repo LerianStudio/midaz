@@ -588,7 +588,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_ReturnsOperations(t *t
 	ctx := context.Background()
 
 	// Act
-	operations, cur, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, nil, defaultPagination())
+	operations, cur, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, OperationFilter{}, defaultPagination())
 
 	// Assert
 	require.NoError(t, err, "FindAllByAccount should not return error")
@@ -639,7 +639,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_FiltersByOperationType
 
 	// Act - filter by DEBIT type
 	debitType := "DEBIT"
-	debitOps, _, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, &debitType, defaultPagination())
+	debitOps, _, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, OperationFilter{OperationType: &debitType}, defaultPagination())
 
 	require.NoError(t, err)
 	assert.Len(t, debitOps, 2, "should return only DEBIT operations")
@@ -649,7 +649,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_FiltersByOperationType
 
 	// Act - filter by CREDIT type
 	creditType := "CREDIT"
-	creditOps, _, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, &creditType, defaultPagination())
+	creditOps, _, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, OperationFilter{OperationType: &creditType}, defaultPagination())
 
 	require.NoError(t, err)
 	assert.Len(t, creditOps, 3, "should return only CREDIT operations")
@@ -668,7 +668,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_EmptyForNonExistentAcc
 	ctx := context.Background()
 
 	// Act
-	operations, _, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, nonExistentAccountID, nil, defaultPagination())
+	operations, _, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, nonExistentAccountID, OperationFilter{}, defaultPagination())
 
 	// Assert
 	require.NoError(t, err, "should not error for empty result")
@@ -707,7 +707,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_Pagination(t *testing.
 		StartDate: time.Now().AddDate(-1, 0, 0),
 		EndDate:   time.Now().AddDate(0, 0, 1),
 	}
-	page1, cur1, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, nil, page1Filter)
+	page1, cur1, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, OperationFilter{}, page1Filter)
 
 	require.NoError(t, err)
 	assert.Len(t, page1, 3)
@@ -721,7 +721,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_Pagination(t *testing.
 		StartDate: time.Now().AddDate(-1, 0, 0),
 		EndDate:   time.Now().AddDate(0, 0, 1),
 	}
-	page2, cur2, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, nil, page2Filter)
+	page2, cur2, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, OperationFilter{}, page2Filter)
 
 	require.NoError(t, err)
 	assert.Len(t, page2, 3)
@@ -735,7 +735,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_Pagination(t *testing.
 		StartDate: time.Now().AddDate(-1, 0, 0),
 		EndDate:   time.Now().AddDate(0, 0, 1),
 	}
-	page3, cur3, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, nil, page3Filter)
+	page3, cur3, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, OperationFilter{}, page3Filter)
 
 	require.NoError(t, err)
 	assert.Len(t, page3, 1)

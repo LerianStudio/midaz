@@ -38,7 +38,9 @@ func CreateBalanceOperationWithAvailable(organizationID, ledgerID uuid.UUID, ali
 func CreateBalanceOperationWithOnHold(organizationID, ledgerID uuid.UUID, alias, assetCode, operation string, amount, available, onHold decimal.Decimal, accountType string) mmodel.BalanceOperation {
 	balanceID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
-	balanceKey := "default"
+	// Use alias as part of the balance key so different aliases map to different Redis keys.
+	// This matches production behavior where each account has a unique cache key.
+	balanceKey := alias + "#default"
 
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balanceKey)
 
