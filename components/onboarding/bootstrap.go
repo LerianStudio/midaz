@@ -14,6 +14,7 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -24,7 +25,7 @@ type OnboardingService interface {
 
 	// GetRouteRegistrar returns a function that registers onboarding routes to a Fiber app.
 	// This is used by the unified ledger server to consolidate all routes on a single port.
-	GetRouteRegistrar() func(*fiber.App)
+	GetRouteRegistrar(routeOptions *midazhttp.ProtectedRouteOptions) func(fiber.Router)
 
 	// GetMetadataIndexPort returns the metadata index port for use by other modules.
 	// This allows direct in-process calls for metadata index operations when running in unified mode.

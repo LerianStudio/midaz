@@ -34,7 +34,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Use(http.BridgeLibAuthHTTPContext())
 
 	// Register metadata index routes
-	RegisterRoutesToApp(f, auth, mdi)
+	RegisterRoutesToApp(f, auth, mdi, nil)
 
 	// Health
 	f.Get("/health", libHTTP.Ping)
@@ -49,25 +49,34 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 
 // RegisterRoutesToApp registers ledger routes (metadata indexes) to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
-func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, mdi *MetadataIndexHandler) {
+func RegisterRoutesToApp(f fiber.Router, auth *middleware.AuthClient, mdi *MetadataIndexHandler, routeOptions *http.ProtectedRouteOptions) {
 	// Metadata Indexes
 	f.Post("/v1/settings/metadata-indexes/entities/:entity_name",
-		auth.Authorize(midazName, "settings", "post"),
-		http.WithBody(new(mmodel.CreateMetadataIndexInput), mdi.CreateMetadataIndex))
+		http.ProtectedRouteChain(
+			auth.Authorize(midazName, "settings", "post"),
+			routeOptions,
+			http.WithBody(new(mmodel.CreateMetadataIndexInput), mdi.CreateMetadataIndex),
+		)...)
 
 	f.Get("/v1/settings/metadata-indexes",
-		auth.Authorize(midazName, "settings", "get"),
-		mdi.GetAllMetadataIndexes)
+		http.ProtectedRouteChain(
+			auth.Authorize(midazName, "settings", "get"),
+			routeOptions,
+			mdi.GetAllMetadataIndexes,
+		)...)
 
 	f.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key",
-		auth.Authorize(midazName, "settings", "delete"),
-		mdi.DeleteMetadataIndex)
+		http.ProtectedRouteChain(
+			auth.Authorize(midazName, "settings", "delete"),
+			routeOptions,
+			mdi.DeleteMetadataIndex,
+		)...)
 }
 
 // CreateRouteRegistrar returns a function that registers ledger routes to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
-func CreateRouteRegistrar(auth *middleware.AuthClient, mdi *MetadataIndexHandler) func(*fiber.App) {
-	return func(fiberApp *fiber.App) {
-		RegisterRoutesToApp(fiberApp, auth, mdi)
+func CreateRouteRegistrar(auth *middleware.AuthClient, mdi *MetadataIndexHandler, routeOptions *http.ProtectedRouteOptions) func(fiber.Router) {
+	return func(fiberRouter fiber.Router) {
+		RegisterRoutesToApp(fiberRouter, auth, mdi, routeOptions)
 	}
 }

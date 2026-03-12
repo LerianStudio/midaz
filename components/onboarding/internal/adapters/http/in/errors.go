@@ -45,3 +45,13 @@ func legacyFiberErrorHandler(c *fiber.Ctx, err error) error {
 
 	return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
 }
+
+func LegacyErrorBoundary() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if err := c.Next(); err != nil {
+			return legacyFiberErrorHandler(c, err)
+		}
+
+		return nil
+	}
+}

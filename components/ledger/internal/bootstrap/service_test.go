@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,8 +49,8 @@ func (s *StubService) GetRunnables() []mbootstrap.RunnableConfig {
 	return s.runnables
 }
 
-func (s *StubService) GetRouteRegistrar() func(*fiber.App) {
-	return func(app *fiber.App) {}
+func (s *StubService) GetRouteRegistrar(_ *midazhttp.ProtectedRouteOptions) func(fiber.Router) {
+	return func(router fiber.Router) {}
 }
 
 func (s *StubService) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
@@ -96,8 +97,8 @@ func (s *StubTransactionService) GetMetadataIndexPort() mbootstrap.MetadataIndex
 	return s.metadataIndexRepo
 }
 
-func (s *StubTransactionService) GetRouteRegistrar() func(*fiber.App) {
-	return func(app *fiber.App) {}
+func (s *StubTransactionService) GetRouteRegistrar(_ *midazhttp.ProtectedRouteOptions) func(fiber.Router) {
+	return func(router fiber.Router) {}
 }
 
 func (s *StubTransactionService) SetSettingsPort(port mbootstrap.SettingsPort) {
@@ -430,42 +431,42 @@ func TestMidazErrorMapper(t *testing.T) {
 	}
 }
 
-// TestNewUnifiedServer_AcceptsMultiPoolMiddleware verifies that NewUnifiedServer
-// accepts a *tmmiddleware.MultiPoolMiddleware parameter and creates a valid server.
-func TestNewUnifiedServer_AcceptsMultiPoolMiddleware(t *testing.T) {
+// TestNewUnifiedServer_CreatesServer verifies that NewUnifiedServer creates a
+// valid server without requiring global tenant middleware wiring.
+func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger(t)
 	telemetry := &libOpentelemetry.Telemetry{}
 
-	t.Run("nil_middleware_creates_server_without_tenant_db", func(t *testing.T) {
+	t.Run("creates_server_without_route_registrars", func(t *testing.T) {
 		t.Parallel()
 
 		server := NewUnifiedServer(
 			":0",
 			logger,
 			telemetry,
-			nil, // multiPoolMiddleware is nil
 		)
 
-		require.NotNil(t, server, "NewUnifiedServer should return non-nil server when middleware is nil")
+		require.NotNil(t, server, "NewUnifiedServer should return non-nil server")
 		assert.Equal(t, ":0", server.ServerAddress())
 	})
 
-	t.Run("non_nil_middleware_accepted_by_server", func(t *testing.T) {
+	t.Run("creates_server_with_route_registrar", func(t *testing.T) {
 		t.Parallel()
-
-		// Create a middleware with no routes (enabled=false) to avoid needing real managers
-		middleware := tmmiddleware.NewMultiPoolMiddleware()
 
 		server := NewUnifiedServer(
 			":0",
 			logger,
 			telemetry,
-			middleware,
+			func(router fiber.Router) {
+				router.Get("/test", func(c *fiber.Ctx) error {
+					return c.SendStatus(fiber.StatusNoContent)
+				})
+			},
 		)
 
-		require.NotNil(t, server, "NewUnifiedServer should return non-nil server when middleware is provided")
+		require.NotNil(t, server, "NewUnifiedServer should return non-nil server when a registrar is provided")
 		assert.Equal(t, ":0", server.ServerAddress())
 	})
 }

@@ -37,3 +37,19 @@ func TestLegacyFiberErrorHandler_PreservesLegacyErrorEnvelope(t *testing.T) {
 		require.JSONEq(t, `{"error":"Internal Server Error"}`, string(body))
 	})
 }
+
+func TestLegacyErrorBoundary_PreservesLegacyErrorEnvelopeInGroupMiddleware(t *testing.T) {
+	t.Parallel()
+
+	app := fiber.New()
+	group := app.Group("", LegacyErrorBoundary())
+	group.Get("/bad-request", func(c *fiber.Ctx) error {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid request")
+	})
+
+	resp, err := app.Test(httptest.NewRequest("GET", "/bad-request", nil))
+	require.NoError(t, err)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"error":"invalid request"}`, string(body))
+}

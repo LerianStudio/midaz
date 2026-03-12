@@ -25,6 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
@@ -241,8 +242,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Both metadata index repositories available for settings routes")
 
-	// Build MultiPoolMiddleware for per-tenant database routing
-	multiPoolMiddleware := buildMultiPoolMiddleware(cfg, ledgerLogger, transactionService, onboardingService)
+	routeSetup, err := buildUnifiedRouteSetup(cfg, ledgerLogger, onboardingService, transactionService)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create auth client for metadata index routes
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
@@ -251,10 +254,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	metadataIndexHandler := &httpin.MetadataIndexHandler{
 		OnboardingMetadataRepo:  onboardingMetadataRepo,
 		TransactionMetadataRepo: transactionMetadataRepo,
+		OnboardingMongoManager:  routeSetup.onboardingMongoManager,
+		TransactionMongoManager: routeSetup.transactionMongoManager,
 	}
 
 	// Create route registrar for ledger-specific routes (metadata indexes)
-	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler)
+	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
 
 	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
@@ -263,9 +268,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		cfg.ServerAddress,
 		ledgerLogger,
 		telemetry,
-		multiPoolMiddleware,
-		onboardingService.GetRouteRegistrar(),
-		transactionService.GetRouteRegistrar(),
+		onboardingService.GetRouteRegistrar(routeSetup.onboardingRouteOptions),
+		transactionService.GetRouteRegistrar(routeSetup.transactionRouteOptions),
 		ledgerRouteRegistrar,
 	)
 
@@ -282,6 +286,74 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger:             ledgerLogger,
 		Telemetry:          telemetry,
 	}, nil
+}
+
+type unifiedRouteSetup struct {
+	onboardingRouteOptions  *midazhttp.ProtectedRouteOptions
+	transactionRouteOptions *midazhttp.ProtectedRouteOptions
+	ledgerRouteOptions      *midazhttp.ProtectedRouteOptions
+	onboardingMongoManager  *tmmongo.Manager
+	transactionMongoManager *tmmongo.Manager
+}
+
+func buildUnifiedRouteSetup(
+	cfg *Config,
+	logger libLog.Logger,
+	onboardingService onboarding.OnboardingService,
+	transactionService transaction.TransactionService,
+) (*unifiedRouteSetup, error) {
+	setup := &unifiedRouteSetup{}
+	if !cfg.MultiTenantEnabled {
+		return setup, nil
+	}
+
+	onboardingMiddleware, err := buildModuleTenantMiddleware(
+		"onboarding",
+		logger,
+		onboardingService.GetPGManager(),
+		onboardingService.GetMongoManager(),
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	transactionMiddleware, err := buildModuleTenantMiddleware(
+		"transaction",
+		logger,
+		transactionService.GetPGManager(),
+		transactionService.GetMongoManager(),
+		transactionService.GetMultiTenantConsumer(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	setup.onboardingMongoManager, err = requireMongoManager("onboarding", onboardingService.GetMongoManager())
+	if err != nil {
+		return nil, err
+	}
+
+	setup.transactionMongoManager, err = requireMongoManager("transaction", transactionService.GetMongoManager())
+	if err != nil {
+		return nil, err
+	}
+
+	authAssertion := midazhttp.MarkTrustedAuthAssertion()
+
+	setup.onboardingRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, onboardingMiddleware.WithTenantDB},
+	}
+
+	setup.transactionRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, transactionMiddleware.WithTenantDB},
+	}
+
+	setup.ledgerRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion},
+	}
+
+	return setup, nil
 }
 
 // initTenantClient creates the multi-tenant client when multi-tenant mode is enabled.
@@ -333,80 +405,44 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 	return tenantClient, tenantServiceName, nil
 }
 
-// buildMultiPoolMiddleware constructs the per-tenant database routing middleware.
-// Returns nil when multi-tenant is disabled.
-func buildMultiPoolMiddleware(
-	cfg *Config,
-	logger libLog.Logger,
-	transactionService transaction.TransactionService,
-	onboardingService onboarding.OnboardingService,
-) *tmmiddleware.MultiPoolMiddleware {
-	if !cfg.MultiTenantEnabled {
-		return nil
+func buildModuleTenantMiddleware(moduleName string, logger libLog.Logger, rawPGManager, rawMongoManager, rawConsumer any) (*tmmiddleware.MultiPoolMiddleware, error) {
+	pgManager, ok := rawPGManager.(*tmpostgres.Manager)
+	if !ok || pgManager == nil {
+		return nil, fmt.Errorf("%s multi-tenant PostgreSQL manager not available", moduleName)
 	}
 
-	var multiPoolOpts []tmmiddleware.MultiPoolOption
-
-	// Transaction module route: safe two-return type assertions with typed nil checks
-	rawTxnPG := transactionService.GetPGManager()
-	rawTxnMgo := transactionService.GetMongoManager()
-
-	txnPGMgr, pgOk := rawTxnPG.(*tmpostgres.Manager)
-	txnMgoMgr, mgoOk := rawTxnMgo.(*tmmongo.Manager)
-
-	if pgOk && mgoOk && txnPGMgr != nil && txnMgoMgr != nil {
-		multiPoolOpts = append(multiPoolOpts,
-			tmmiddleware.WithRoute(
-				[]string{"/v1/organizations"},
-				"transaction",
-				txnPGMgr,
-				txnMgoMgr,
-			),
-		)
-	} else {
-		logger.Log(context.Background(), libLog.LevelWarn, "Transaction module managers not available for multi-tenant routing")
+	mongoManager, ok := rawMongoManager.(*tmmongo.Manager)
+	if !ok || mongoManager == nil {
+		return nil, fmt.Errorf("%s multi-tenant MongoDB manager not available", moduleName)
 	}
 
-	// Onboarding module (default route): safe two-return type assertions with typed nil checks
-	rawOnbPG := onboardingService.GetPGManager()
-	rawOnbMgo := onboardingService.GetMongoManager()
-
-	onbPGMgr, pgOk := rawOnbPG.(*tmpostgres.Manager)
-	onbMgoMgr, mgoOk := rawOnbMgo.(*tmmongo.Manager)
-
-	if pgOk && mgoOk && onbPGMgr != nil && onbMgoMgr != nil {
-		multiPoolOpts = append(multiPoolOpts,
-			tmmiddleware.WithDefaultRoute(
-				"onboarding",
-				onbPGMgr,
-				onbMgoMgr,
-			),
-		)
-	} else {
-		logger.Log(context.Background(), libLog.LevelWarn, "Onboarding module managers not available for multi-tenant default route")
-	}
-
-	multiPoolOpts = append(multiPoolOpts,
-		tmmiddleware.WithCrossModuleInjection(),
-		tmmiddleware.WithPublicPaths("/health", "/version", "/swagger"),
+	options := []tmmiddleware.MultiPoolOption{
+		tmmiddleware.WithDefaultRoute(moduleName, pgManager, mongoManager),
 		tmmiddleware.WithMultiPoolLogger(logger),
 		tmmiddleware.WithErrorMapper(midazErrorMapper),
-	)
+	}
 
-	// Consumer trigger
-	if mtConsumer := transactionService.GetMultiTenantConsumer(); mtConsumer != nil {
-		if consumer, ok := mtConsumer.(tmmiddleware.ConsumerTrigger); ok {
-			multiPoolOpts = append(multiPoolOpts,
-				tmmiddleware.WithConsumerTrigger(consumer),
-			)
+	if rawConsumer != nil {
+		consumer, ok := rawConsumer.(tmmiddleware.ConsumerTrigger)
+		if ok {
+			options = append(options, tmmiddleware.WithConsumerTrigger(consumer))
 		}
 	}
 
-	multiPoolMiddleware := tmmiddleware.NewMultiPoolMiddleware(multiPoolOpts...)
+	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
+		libLog.String("module", moduleName),
+	)
 
-	logger.Log(context.Background(), libLog.LevelInfo, "MultiPoolMiddleware configured for per-tenant database routing")
+	return tmmiddleware.NewMultiPoolMiddleware(options...), nil
+}
 
-	return multiPoolMiddleware
+func requireMongoManager(moduleName string, rawMongoManager any) (*tmmongo.Manager, error) {
+	mongoManager, ok := rawMongoManager.(*tmmongo.Manager)
+	if !ok || mongoManager == nil {
+		return nil, fmt.Errorf("%s multi-tenant MongoDB manager not available", moduleName)
+	}
+
+	return mongoManager, nil
 }
 
 // midazErrorMapper converts tenant-manager errors into Midaz-specific HTTP responses.
