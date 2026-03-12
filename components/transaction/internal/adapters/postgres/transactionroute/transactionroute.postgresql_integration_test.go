@@ -195,15 +195,14 @@ func TestIntegration_TransactionRouteRepository_FindByID(t *testing.T) {
 }
 
 func TestIntegration_TransactionRouteRepository_FindByID_WithoutOperationRoutes(t *testing.T) {
-	// SKIP: This test covers a scenario that cannot occur through normal business flows:
-	// - Create: OperationRoutes field has validate:"required" (pkg/mmodel/transaction-route.go:49)
-	// - Update: Requires len(operationRoutes) >= 2 (services/command/update-transaction-route.go:85-86)
+	// This scenario is worth covering because the repository now uses sql.Null* scan targets
+	// for LEFT JOIN output and should tolerate routes with zero linked operation routes.
 	//
-	// The repository crashes on NULL values from LEFT JOIN when no operation routes exist.
-	// This is acceptable since business rules prevent this state.
-	//
-	// Future fix (defense-in-depth): Make otr struct fields nullable in FindByID (lines 268-274).
-	t.Skip("Skipped: business rules prevent zero operation routes")
+	// It remains skipped because the transaction component integration harness currently
+	// cannot apply migration 000017 in the ephemeral database used by this test package
+	// (`CREATE INDEX CONCURRENTLY` inside a transactional migrator).
+	// That blocker is unrelated to the transaction-route null-scan logic under test.
+	t.Skip("blocked by transaction migration harness for 000017; null-scan path still needs dedicated integration validation")
 
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)

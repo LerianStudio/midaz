@@ -31,15 +31,31 @@ import (
 const ApplicationName = "transaction"
 
 // initLogger initializes the logger from options or creates a new one.
-func initLogger(opts *Options) (libLog.Logger, error) {
+func initLogger(opts *Options, cfg *Config) (libLog.Logger, error) {
 	if opts != nil && opts.Logger != nil {
 		return opts.Logger, nil
 	}
 
 	return libZap.New(libZap.Config{
-		Environment:     libZap.EnvironmentLocal,
+		Environment:     resolveLoggerEnvironment(cfg.EnvName),
+		Level:           cfg.LogLevel,
 		OTelLibraryName: ApplicationName,
 	})
+}
+
+func resolveLoggerEnvironment(env string) libZap.Environment {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case string(libZap.EnvironmentProduction):
+		return libZap.EnvironmentProduction
+	case string(libZap.EnvironmentStaging):
+		return libZap.EnvironmentStaging
+	case string(libZap.EnvironmentUAT):
+		return libZap.EnvironmentUAT
+	case string(libZap.EnvironmentDevelopment):
+		return libZap.EnvironmentDevelopment
+	default:
+		return libZap.EnvironmentLocal
+	}
 }
 
 // buildRabbitMQConnectionString constructs an AMQP connection string with optional vhost.
@@ -233,13 +249,20 @@ type handlers struct {
 	transactionRoute *in.TransactionRouteHandler
 }
 
-// initRedis creates the Redis connection and consumer repository.
-func initRedis(cfg *Config, logger libLog.Logger) (*redis.RedisConsumerRepository, *libRedis.Client, error) {
+func buildRedisConfig(cfg *Config, logger libLog.Logger) (libRedis.Config, error) {
 	redisAddresses := strings.Split(cfg.RedisHost, ",")
 
-	topology := libRedis.Topology{Standalone: &libRedis.StandaloneTopology{Address: redisAddresses[0]}}
+	if len(redisAddresses) == 0 || strings.TrimSpace(redisAddresses[0]) == "" {
+		return libRedis.Config{}, fmt.Errorf("redis host is required")
+	}
+
+	topology := libRedis.Topology{}
 	if cfg.RedisMasterName != "" {
-		topology = libRedis.Topology{Sentinel: &libRedis.SentinelTopology{Addresses: redisAddresses, MasterName: cfg.RedisMasterName}}
+		topology.Sentinel = &libRedis.SentinelTopology{Addresses: redisAddresses, MasterName: cfg.RedisMasterName}
+	} else if len(redisAddresses) > 1 {
+		topology.Cluster = &libRedis.ClusterTopology{Addresses: redisAddresses}
+	} else {
+		topology.Standalone = &libRedis.StandaloneTopology{Address: redisAddresses[0]}
 	}
 
 	var tlsCfg *libRedis.TLSConfig
@@ -259,7 +282,7 @@ func initRedis(cfg *Config, logger libLog.Logger) (*redis.RedisConsumerRepositor
 		auth = libRedis.Auth{StaticPassword: &libRedis.StaticPasswordAuth{Password: cfg.RedisPassword}}
 	}
 
-	redisConnection, err := libRedis.New(context.Background(), libRedis.Config{
+	return libRedis.Config{
 		Topology: topology,
 		TLS:      tlsCfg,
 		Auth:     auth,
@@ -277,7 +300,17 @@ func initRedis(cfg *Config, logger libLog.Logger) (*redis.RedisConsumerRepositor
 			MaxRetryBackoff: time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 		},
 		Logger: logger,
-	})
+	}, nil
+}
+
+// initRedis creates the Redis connection and consumer repository.
+func initRedis(cfg *Config, logger libLog.Logger) (*redis.RedisConsumerRepository, *libRedis.Client, error) {
+	redisConfig, err := buildRedisConfig(cfg, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	redisConnection, err := libRedis.New(context.Background(), redisConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize redis client: %w", err)
 	}
@@ -352,7 +385,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	logger, err := initLogger(opts)
+	logger, err := initLogger(opts, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
@@ -437,7 +470,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
-	rmq.wireConsumer(commandUseCase)
+	if err := rmq.wireConsumer(commandUseCase); err != nil {
+		return nil, err
+	}
 
 	h := initHandlers(commandUseCase, queryUseCase)
 

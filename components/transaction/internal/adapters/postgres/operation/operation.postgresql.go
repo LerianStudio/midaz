@@ -52,8 +52,9 @@ type Repository interface {
 
 // OperationPostgreSQLRepository is a Postgresql-specific implementation of the OperationRepository.
 type OperationPostgreSQLRepository struct {
-	connection *libPostgres.Client
-	tableName  string
+	connection    *libPostgres.Client
+	tableName     string
+	requireTenant bool
 }
 
 var operationColumnList = []string{
@@ -105,10 +106,13 @@ var operationPointInTimeColumns = []string{
 }
 
 // NewOperationPostgreSQLRepository returns a new instance of OperationPostgreSQLRepository using the given Postgres connection.
-func NewOperationPostgreSQLRepository(pc *libPostgres.Client) *OperationPostgreSQLRepository {
+func NewOperationPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *OperationPostgreSQLRepository {
 	c := &OperationPostgreSQLRepository{
 		connection: pc,
 		tableName:  "operation",
+	}
+	if len(requireTenant) > 0 {
+		c.requireTenant = requireTenant[0]
 	}
 
 	return c
@@ -120,6 +124,9 @@ func NewOperationPostgreSQLRepository(pc *libPostgres.Client) *OperationPostgreS
 func (r *OperationPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "transaction"); err == nil {
 		return db, nil
+	}
+	if r.requireTenant {
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
 	return r.connection.Resolver(ctx)
@@ -349,7 +356,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	}
 
 	hasPagination := len(operations) > filter.Limit
-	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && decodedCursor.Direction == libHTTP.CursorDirectionPrev
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
 
 	operations = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.Direction, operations, filter.Limit)
 
@@ -916,7 +923,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 	}
 
 	hasPagination := len(operations) > filter.Limit
-	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && decodedCursor.Direction == libHTTP.CursorDirectionPrev
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
 
 	operations = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.Direction, operations, filter.Limit)
 
@@ -1119,7 +1126,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 	}
 
 	hasPagination := len(operations) > filter.Limit
-	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && decodedCursor.Direction == libHTTP.CursorDirectionPrev
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
 
 	operations = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.Direction, operations, filter.Limit)
 

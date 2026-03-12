@@ -43,14 +43,15 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		for _, balance := range balances {
 			after, ok := afterMap[balance.Alias]
 			if !ok {
+				err := fmt.Errorf("missing AFTER state for alias %s", balance.Alias)
 				spanUpdateBalances.SetAttributes(
-					attribute.String("balances.skipped_after_alias", balance.Alias),
-					attribute.String("balances.skip_reason", "missing_after_state"),
+					attribute.String("balances.missing_after_alias", balance.Alias),
+					attribute.String("balances.failure_reason", "missing_after_state"),
 				)
+				libOpentelemetry.HandleSpanError(spanUpdateBalances, "Incomplete AFTER state payload", err)
+				logger.Log(ctx, libLog.LevelError, err.Error())
 
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("No AFTER state for alias %s, skipping", balance.Alias))
-
-				continue
+				return err
 			}
 
 			newBalances = append(newBalances, &mmodel.Balance{

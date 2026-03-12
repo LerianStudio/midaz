@@ -33,11 +33,11 @@ func newDisconnectedDatabase(t *testing.T, dbName string) *mongo.Database {
 	return client.Database(dbName)
 }
 
-// newPlaceholderConnection creates a *libMongo.Client with only a Logger
-// set (no ConnectionStringSource). This simulates the multi-tenant bootstrap mode
+// newPlaceholderConnection creates a minimal *libMongo.Client placeholder.
+// This simulates the multi-tenant bootstrap mode
 // where the static connection is a placeholder and the real database comes from
 // the per-request tenant context.
-func newPlaceholderConnection(_ string) *libMongo.Client {
+func newPlaceholderConnection() *libMongo.Client {
 	return &libMongo.Client{}
 }
 
@@ -51,17 +51,14 @@ func TestNewMetadataMongoDBRepository_NoPanic(t *testing.T) {
 	tests := []struct {
 		name       string
 		connection *libMongo.Client
-		wantDB     string
 	}{
 		{
 			name:       "placeholder_connection_for_multi_tenant_mode",
-			connection: newPlaceholderConnection("tenant-placeholder"),
-			wantDB:     "",
+			connection: newPlaceholderConnection(),
 		},
 		{
 			name:       "connection_without_active_client",
 			connection: &libMongo.Client{},
-			wantDB:     "",
 		},
 	}
 
@@ -75,7 +72,6 @@ func TestNewMetadataMongoDBRepository_NoPanic(t *testing.T) {
 
 				// Assert — struct fields are set correctly
 				require.NotNil(t, repo, "returned repository must not be nil")
-				assert.Equal(t, tt.wantDB, repo.Database, "Database field should reflect connection database when available")
 				assert.Same(t, tt.connection, repo.connection, "connection reference should be stored as-is")
 			})
 		})
@@ -114,8 +110,7 @@ func TestGetDatabase_ReturnsTenantDB_WhenContextHasTenantMongo(t *testing.T) {
 
 			// Arrange
 			repo := &MetadataMongoDBRepository{
-				connection: newPlaceholderConnection("static-db"),
-				Database:   "static-db",
+				connection: newPlaceholderConnection(),
 			}
 			ctx := tmcore.ContextWithTenantMongo(context.Background(), tt.tenantDB)
 
@@ -135,8 +130,7 @@ func TestGetDatabase_TenantDB_TakesPrecedence_OverStaticConnection(t *testing.T)
 	t.Parallel()
 
 	repo := &MetadataMongoDBRepository{
-		connection: newPlaceholderConnection("static-db"),
-		Database:   "static-db",
+		connection: newPlaceholderConnection(),
 	}
 
 	tenantDB := newDisconnectedDatabase(t, "tenant-priority")
@@ -183,8 +177,7 @@ func TestGetDatabase_FallsBackToStaticConnection_WhenNoTenantContext(t *testing.
 			// Arrange — placeholder connection without a live MongoDB client.
 			// GetDB will attempt to connect and fail since there is no real server.
 			repo := &MetadataMongoDBRepository{
-				connection: newPlaceholderConnection("fallback-db"),
-				Database:   "fallback-db",
+				connection: newPlaceholderConnection(),
 			}
 
 			// Act
@@ -209,8 +202,7 @@ func TestGetDatabase_FallsBack_WhenTenantDBIsNilInContext(t *testing.T) {
 	ctx := tmcore.ContextWithTenantMongo(context.Background(), nil)
 
 	repo := &MetadataMongoDBRepository{
-		connection: newPlaceholderConnection("fallback-nil-db"),
-		Database:   "fallback-nil-db",
+		connection: newPlaceholderConnection(),
 	}
 
 	// Act
@@ -225,8 +217,7 @@ func TestGetDatabase_StaticConnection_ReturnsErrorWithPlaceholder(t *testing.T) 
 	t.Parallel()
 
 	repo := &MetadataMongoDBRepository{
-		connection: newPlaceholderConnection("MyDatabase"),
-		Database:   "MyDatabase",
+		connection: newPlaceholderConnection(),
 	}
 
 	// Act — no tenant context, so falls back to static connection
@@ -235,4 +226,16 @@ func TestGetDatabase_StaticConnection_ReturnsErrorWithPlaceholder(t *testing.T) 
 	// Assert — placeholder static connection is not connected and should fail
 	require.Error(t, dbErr, "getDatabase should return error when static connection has no active client")
 	assert.Nil(t, db, "database should be nil when static connection is not connected")
+}
+
+func TestGetDatabase_RequireTenantWithoutContext_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMetadataMongoDBRepository(newPlaceholderConnection(), true)
+
+	db, err := repo.getDatabase(context.Background())
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "tenant mongo database missing from context")
+	assert.Nil(t, db, "database should be nil when fail-closed tenant mode has no tenant context")
 }

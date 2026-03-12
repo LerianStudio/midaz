@@ -54,7 +54,7 @@ func initMultiTenantMongo(opts *Options, logger libLog.Logger) (*mongoComponents
 	)
 
 	return &mongoComponents{
-		metadataRepo: mongodb.NewMetadataMongoDBRepository(nil),
+		metadataRepo: mongodb.NewMetadataMongoDBRepository(nil, true),
 		mongoManager: mongoMgr,
 	}, nil
 }

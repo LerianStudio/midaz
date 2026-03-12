@@ -772,7 +772,7 @@ func TestGetAllBalances(t *testing.T) {
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
 		assert.NoError(t, err)
-		assert.Nil(t, res)
+		assert.Empty(t, res)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
 }

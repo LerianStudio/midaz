@@ -14,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 
 	// OperationHandler struct contains a cqrs use case for managing operations.
@@ -58,9 +57,20 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_operations_by_account")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	accountID := c.Locals("account_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	accountID, err := http.GetUUIDFromLocals(c, "account_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -150,10 +160,25 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_operation_by_account")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	accountID := c.Locals("account_id").(uuid.UUID)
-	operationID := c.Locals("operation_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	accountID, err := http.GetUUIDFromLocals(c, "account_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	operationID, err := http.GetUUIDFromLocals(c, "operation_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of Operation by account")
 
@@ -200,10 +225,25 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_operation")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
-	operationID := c.Locals("operation_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	operationID, err := http.GetUUIDFromLocals(c, "operation_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String(), operationID.String()))
 
@@ -215,7 +255,7 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update an Operation with details: %#v", payload))
 
-	_, err := handler.Command.UpdateOperation(ctx, organizationID, ledgerID, transactionID, operationID, payload)
+	_, err = handler.Command.UpdateOperation(ctx, organizationID, ledgerID, transactionID, operationID, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Operation on command", err)
 

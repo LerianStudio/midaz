@@ -14,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 
 	// AssetRateHandler struct contains a cqrs use case for managing asset rate.
@@ -53,8 +52,15 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 	ctx, span := tracer.Start(ctx, "handler.create_asset_rate")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of AssetRate with organization ID: %s", organizationID.String()))
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of AssetRate with ledger ID: %s", ledgerID.String()))
@@ -62,7 +68,7 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 	payload := p.(*assetrate.CreateAssetRateInput)
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create an AssetRate with details: %#v", payload))
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
 	}
@@ -106,9 +112,20 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_external_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	externalID := c.Locals("external_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	externalID, err := http.GetUUIDFromLocals(c, "external_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and external ID: '%s'",
 		organizationID.String(), ledgerID.String(), externalID.String()))
@@ -160,8 +177,16 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_asset_code")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	assetCode := c.Params("asset_code")
 
 	headerParams, err := http.ValidateParameters(c.Queries())

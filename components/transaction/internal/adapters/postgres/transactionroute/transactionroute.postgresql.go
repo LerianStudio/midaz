@@ -49,15 +49,19 @@ type Repository interface {
 
 // TransactionRoutePostgreSQLRepository is a PostgreSQL implementation of the TransactionRouteRepository.
 type TransactionRoutePostgreSQLRepository struct {
-	connection *libPostgres.Client
-	tableName  string
+	connection    *libPostgres.Client
+	tableName     string
+	requireTenant bool
 }
 
 // NewTransactionRoutePostgreSQLRepository creates a new instance of TransactionRoutePostgreSQLRepository.
-func NewTransactionRoutePostgreSQLRepository(pc *libPostgres.Client) *TransactionRoutePostgreSQLRepository {
+func NewTransactionRoutePostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *TransactionRoutePostgreSQLRepository {
 	c := &TransactionRoutePostgreSQLRepository{
 		connection: pc,
 		tableName:  "transaction_route",
+	}
+	if len(requireTenant) > 0 {
+		c.requireTenant = requireTenant[0]
 	}
 
 	return c
@@ -69,6 +73,9 @@ func NewTransactionRoutePostgreSQLRepository(pc *libPostgres.Client) *Transactio
 func (r *TransactionRoutePostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "transaction"); err == nil {
 		return db, nil
+	}
+	if r.requireTenant {
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
 	return r.connection.Resolver(ctx)
@@ -282,14 +289,27 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 		var tr TransactionRoutePostgreSQLModel
 
 		var otr struct {
-			ID                 uuid.UUID
-			OperationRouteID   uuid.UUID
-			TransactionRouteID uuid.UUID
-			CreatedAt          time.Time
-			DeletedAt          *time.Time
+			ID                 sql.NullString
+			OperationRouteID   sql.NullString
+			TransactionRouteID sql.NullString
+			CreatedAt          sql.NullTime
+			DeletedAt          sql.NullTime
 		}
 
-		var opRoute operationroute.OperationRoutePostgreSQLModel
+		var opRouteData struct {
+			ID                 sql.NullString
+			OrganizationID     sql.NullString
+			LedgerID           sql.NullString
+			Title              sql.NullString
+			Description        sql.NullString
+			OperationType      sql.NullString
+			AccountRuleType    sql.NullString
+			AccountRuleValidIf sql.NullString
+			CreatedAt          sql.NullTime
+			UpdatedAt          sql.NullTime
+			DeletedAt          sql.NullTime
+			Code               sql.NullString
+		}
 
 		if err := rows.Scan(
 			// Transaction route fields
@@ -308,18 +328,18 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			&otr.CreatedAt,
 			&otr.DeletedAt,
 			// Operation route fields
-			&opRoute.ID,
-			&opRoute.OrganizationID,
-			&opRoute.LedgerID,
-			&opRoute.Title,
-			&opRoute.Description,
-			&opRoute.OperationType,
-			&opRoute.AccountRuleType,
-			&opRoute.AccountRuleValidIf,
-			&opRoute.CreatedAt,
-			&opRoute.UpdatedAt,
-			&opRoute.DeletedAt,
-			&opRoute.Code,
+			&opRouteData.ID,
+			&opRouteData.OrganizationID,
+			&opRouteData.LedgerID,
+			&opRouteData.Title,
+			&opRouteData.Description,
+			&opRouteData.OperationType,
+			&opRouteData.AccountRuleType,
+			&opRouteData.AccountRuleValidIf,
+			&opRouteData.CreatedAt,
+			&opRouteData.UpdatedAt,
+			&opRouteData.DeletedAt,
+			&opRouteData.Code,
 		); err != nil {
 			errMsg := "Failed to scan transaction route"
 
@@ -345,11 +365,43 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			transactionRoute.OperationRoutes = make([]mmodel.OperationRoute, 0)
 		}
 
-		nilUUID := uuid.UUID{}
-		if opRoute.ID != nilUUID && !operationRoutesMap[opRoute.ID] {
+		if opRouteData.ID.Valid {
+			opRouteID, parseErr := uuid.Parse(opRouteData.ID.String)
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			if operationRoutesMap[opRouteID] {
+				continue
+			}
+
+			organizationUUID, parseErr := uuid.Parse(opRouteData.OrganizationID.String)
+			if parseErr != nil {
+				return nil, parseErr
+			}
+
+			ledgerUUID, parseErr := uuid.Parse(opRouteData.LedgerID.String)
+			if parseErr != nil {
+				return nil, parseErr
+			}
+
+			opRoute := operationroute.OperationRoutePostgreSQLModel{
+				ID:                 opRouteID,
+				OrganizationID:     organizationUUID,
+				LedgerID:           ledgerUUID,
+				Title:              opRouteData.Title.String,
+				Description:        opRouteData.Description.String,
+				OperationType:      opRouteData.OperationType.String,
+				AccountRuleType:    opRouteData.AccountRuleType.String,
+				AccountRuleValidIf: opRouteData.AccountRuleValidIf.String,
+				CreatedAt:          opRouteData.CreatedAt.Time,
+				UpdatedAt:          opRouteData.UpdatedAt.Time,
+				DeletedAt:          opRouteData.DeletedAt,
+				Code:               opRouteData.Code,
+			}
+
 			operationRoute := opRoute.ToEntity()
 			transactionRoute.OperationRoutes = append(transactionRoute.OperationRoutes, *operationRoute)
-			operationRoutesMap[opRoute.ID] = true
+			operationRoutesMap[opRouteID] = true
 		}
 	}
 
@@ -677,7 +729,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 	}
 
 	hasPagination := len(transactionRoutes) > filter.Limit
-	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && decodedCursor.Direction == libHTTP.CursorDirectionPrev
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
 
 	transactionRoutes = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.Direction, transactionRoutes, filter.Limit)
 

@@ -700,8 +700,6 @@ func TestIntegration_Chaos_Redis_ConcurrentBalanceOperations(t *testing.T) {
 		t.Skip("skipping chaos test in short mode")
 	}
 
-	t.Skip("skipping: lib-commons RedisConnection.GetClient() fix")
-
 	infra := setupRedisChaosInfra(t)
 	defer infra.cleanup()
 
@@ -771,8 +769,6 @@ func TestIntegration_Chaos_Redis_InsufficientFundsUnderLoad(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
 	}
-
-	t.Skip("skipping: lib-commons RedisConnection.GetClient() fix")
 
 	infra := setupRedisChaosInfra(t)
 	defer infra.cleanup()

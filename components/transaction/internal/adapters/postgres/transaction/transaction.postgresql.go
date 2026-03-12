@@ -90,15 +90,19 @@ var transactionColumns = strings.Join(transactionColumnList, ", ")
 
 // TransactionPostgreSQLRepository is a Postgresql-specific implementation of the TransactionRepository.
 type TransactionPostgreSQLRepository struct {
-	connection *libPostgres.Client
-	tableName  string
+	connection    *libPostgres.Client
+	tableName     string
+	requireTenant bool
 }
 
 // NewTransactionPostgreSQLRepository returns a new instance of TransactionPostgreSQLRepository using the given Postgres connection.
-func NewTransactionPostgreSQLRepository(pc *libPostgres.Client) *TransactionPostgreSQLRepository {
+func NewTransactionPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *TransactionPostgreSQLRepository {
 	c := &TransactionPostgreSQLRepository{
 		connection: pc,
 		tableName:  "transaction",
+	}
+	if len(requireTenant) > 0 {
+		c.requireTenant = requireTenant[0]
 	}
 
 	return c
@@ -110,6 +114,9 @@ func NewTransactionPostgreSQLRepository(pc *libPostgres.Client) *TransactionPost
 func (r *TransactionPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "transaction"); err == nil {
 		return db, nil
+	}
+	if r.requireTenant {
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
 	return r.connection.Resolver(ctx)
@@ -315,7 +322,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	}
 
 	hasPagination := len(transactions) > filter.Limit
-	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && decodedCursor.Direction == libHTTP.CursorDirectionPrev
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
 
 	transactions = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.Direction, transactions, filter.Limit)
 
@@ -1135,7 +1142,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	}
 
 	hasPagination := len(transactions) > filter.Limit
-	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && decodedCursor.Direction == libHTTP.CursorDirectionPrev
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
 
 	transactions = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.Direction, transactions, filter.Limit)
 

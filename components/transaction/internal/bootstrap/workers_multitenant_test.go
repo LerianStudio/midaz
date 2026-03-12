@@ -822,8 +822,7 @@ func TestRedisQueueConsumer_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 }
 
 // TestResolveTenantConnections_NoTenantID verifies that resolveTenantConnections
-// returns the context unchanged and no error when there is no tenant ID in the
-// context (single-tenant fallback path).
+// fails closed when there is no tenant ID in the context.
 func TestResolveTenantConnections_NoTenantID(t *testing.T) {
 	t.Parallel()
 
@@ -831,9 +830,9 @@ func TestResolveTenantConnections_NoTenantID(t *testing.T) {
 	rmq := &rabbitMQComponents{}
 
 	result, err := resolveTenantConnections(ctx, rmq)
-	require.NoError(t, err)
+	require.Error(t, err)
 	assert.Equal(t, ctx, result,
-		"context should be unchanged when no tenant ID is present")
+		"context should be unchanged when tenant resolution fails before enrichment")
 }
 
 // TestResolveTenantConnections_NilManagers verifies that resolveTenantConnections
