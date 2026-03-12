@@ -159,3 +159,15 @@ func TestContextMetadataInjection(t *testing.T) {
 		})
 	}
 }
+
+func TestConnect_DoesNotPanicWithoutLogger(t *testing.T) {
+	t.Parallel()
+
+	conn := &GRPCConnection{Addr: "passthrough:///midaz-transaction"}
+
+	require.NotPanics(t, func() {
+		require.NoError(t, conn.Connect())
+	})
+	require.NotNil(t, conn.Conn)
+	_ = conn.Conn.Close()
+}

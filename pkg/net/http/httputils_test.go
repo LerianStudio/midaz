@@ -6,6 +6,7 @@ package http
 
 import (
 	"bytes"
+	"encoding/base64"
 	"io"
 	"mime/multipart"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -59,17 +61,21 @@ func TestValidateParameters_WithPage(t *testing.T) {
 }
 
 func TestValidateParameters_WithCursor(t *testing.T) {
-	// Create a valid base64 cursor
-	cursor := "eyJpZCI6IjEyMyJ9" // {"id":"123"} in base64
+	legacyCursor := "eyJpZCI6IjEyMyJ9" // {"id":"123"} in base64
 
 	params := map[string]string{
-		"cursor": cursor,
+		"cursor": legacyCursor,
 	}
 
 	result, err := ValidateParameters(params)
 
 	require.NoError(t, err)
-	assert.Equal(t, cursor, result.Cursor)
+	assert.NotEqual(t, legacyCursor, result.Cursor)
+
+	decodedCursor, err := libHTTP.DecodeCursor(result.Cursor)
+	require.NoError(t, err)
+	assert.Equal(t, "123", decodedCursor.ID)
+	assert.Equal(t, libHTTP.CursorDirectionPrev, decodedCursor.Direction)
 }
 
 func TestValidateParameters_WithSortOrderDesc(t *testing.T) {
@@ -293,19 +299,19 @@ func TestValidateDates_WithMaxDateRangeZero(t *testing.T) {
 }
 
 func TestValidatePagination_ValidParams(t *testing.T) {
-	err := validatePagination("", "asc", 10)
+	_, err := validatePagination("", "asc", 10)
 
 	require.NoError(t, err)
 }
 
 func TestValidatePagination_ValidParamsDesc(t *testing.T) {
-	err := validatePagination("", "desc", 50)
+	_, err := validatePagination("", "desc", 50)
 
 	require.NoError(t, err)
 }
 
 func TestValidatePagination_InvalidSortOrder(t *testing.T) {
-	err := validatePagination("", "invalid", 10)
+	_, err := validatePagination("", "invalid", 10)
 
 	assert.Error(t, err)
 }
@@ -313,24 +319,55 @@ func TestValidatePagination_InvalidSortOrder(t *testing.T) {
 func TestValidatePagination_LimitExceeded(t *testing.T) {
 	t.Setenv("MAX_PAGINATION_LIMIT", "100")
 
-	err := validatePagination("", "asc", 150)
+	_, err := validatePagination("", "asc", 150)
 
 	assert.Error(t, err)
 }
 
 func TestValidatePagination_InvalidCursor(t *testing.T) {
-	err := validatePagination("invalid-cursor", "asc", 10)
+	_, err := validatePagination("invalid-cursor", "asc", 10)
 
 	assert.Error(t, err)
 }
 
-func TestValidatePagination_ValidCursor(t *testing.T) {
-	// Valid base64 encoded cursor
-	cursor := "eyJpZCI6IjEyMyJ9"
+func TestValidatePagination_ValidV4Cursor(t *testing.T) {
+	cursor := "eyJpZCI6IjEyMyIsImRpcmVjdGlvbiI6Im5leHQifQ=="
 
-	err := validatePagination(cursor, "asc", 10)
+	normalizedCursor, err := validatePagination(cursor, "asc", 10)
 
 	require.NoError(t, err)
+	assert.Equal(t, cursor, normalizedCursor)
+}
+
+func TestValidatePagination_NormalizesLegacyCursor(t *testing.T) {
+	legacyCursor := "eyJpZCI6IjEyMyIsInBvaW50c19uZXh0Ijp0cnVlfQ=="
+
+	normalizedCursor, err := validatePagination(legacyCursor, "asc", 10)
+
+	require.NoError(t, err)
+	assert.NotEqual(t, legacyCursor, normalizedCursor)
+
+	decodedCursor, err := libHTTP.DecodeCursor(normalizedCursor)
+	require.NoError(t, err)
+	assert.Equal(t, "123", decodedCursor.ID)
+	assert.Equal(t, libHTTP.CursorDirectionNext, decodedCursor.Direction)
+
+	decodedLegacy, err := base64.StdEncoding.DecodeString(legacyCursor)
+	require.NoError(t, err)
+	assert.Contains(t, string(decodedLegacy), "points_next")
+}
+
+func TestValidatePagination_NormalizesLegacyCursorWithoutPointsNext(t *testing.T) {
+	legacyCursor := "eyJpZCI6IjEyMyJ9"
+
+	normalizedCursor, err := validatePagination(legacyCursor, "asc", 10)
+
+	require.NoError(t, err)
+
+	decodedCursor, err := libHTTP.DecodeCursor(normalizedCursor)
+	require.NoError(t, err)
+	assert.Equal(t, "123", decodedCursor.ID)
+	assert.Equal(t, libHTTP.CursorDirectionPrev, decodedCursor.Direction)
 }
 
 func TestGetIdempotencyKeyAndTTL_WithValidValues(t *testing.T) {
@@ -358,8 +395,7 @@ func TestGetIdempotencyKeyAndTTL_WithInvalidTTL(t *testing.T) {
 	app.Get("/test", func(c *fiber.Ctx) error {
 		key, ttl := GetIdempotencyKeyAndTTL(c)
 		assert.Equal(t, "test-key", key)
-		// Default TTL when invalid
-		assert.True(t, ttl > 0)
+		assert.Equal(t, time.Duration(300), ttl)
 		return c.SendStatus(fiber.StatusOK)
 	})
 
@@ -378,8 +414,7 @@ func TestGetIdempotencyKeyAndTTL_WithNegativeTTL(t *testing.T) {
 	app.Get("/test", func(c *fiber.Ctx) error {
 		key, ttl := GetIdempotencyKeyAndTTL(c)
 		assert.Equal(t, "test-key", key)
-		// Default TTL when negative
-		assert.True(t, ttl > 0)
+		assert.Equal(t, time.Duration(300), ttl)
 		return c.SendStatus(fiber.StatusOK)
 	})
 
@@ -398,7 +433,7 @@ func TestGetIdempotencyKeyAndTTL_WithEmptyHeaders(t *testing.T) {
 	app.Get("/test", func(c *fiber.Ctx) error {
 		key, ttl := GetIdempotencyKeyAndTTL(c)
 		assert.Empty(t, key)
-		assert.True(t, ttl > 0)
+		assert.Equal(t, time.Duration(300), ttl)
 		return c.SendStatus(fiber.StatusOK)
 	})
 
@@ -438,9 +473,11 @@ func TestGetFileFromHeader_InvalidExtension(t *testing.T) {
 	// Create multipart form with invalid file extension
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	part, _ := writer.CreateFormFile(libConstants.DSL, "test.txt")
-	_, _ = io.WriteString(part, "file content")
-	writer.Close()
+	part, err := writer.CreateFormFile(libConstants.DSL, "test.txt")
+	require.NoError(t, err)
+	_, err = io.WriteString(part, "file content")
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
 
 	req := httptest.NewRequest("POST", "/upload", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -462,9 +499,11 @@ func TestGetFileFromHeader_EmptyFile(t *testing.T) {
 	// Create multipart form with empty file
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	part, _ := writer.CreateFormFile(libConstants.DSL, "test"+libConstants.FileExtension)
-	_, _ = io.WriteString(part, "")
-	writer.Close()
+	part, err := writer.CreateFormFile(libConstants.DSL, "test"+libConstants.FileExtension)
+	require.NoError(t, err)
+	_, err = io.WriteString(part, "")
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
 
 	req := httptest.NewRequest("POST", "/upload", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -491,9 +530,11 @@ func TestGetFileFromHeader_ValidFile(t *testing.T) {
 	// Create multipart form with valid file
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	part, _ := writer.CreateFormFile(libConstants.DSL, "test"+libConstants.FileExtension)
-	_, _ = io.WriteString(part, expectedContent)
-	writer.Close()
+	part, err := writer.CreateFormFile(libConstants.DSL, "test"+libConstants.FileExtension)
+	require.NoError(t, err)
+	_, err = io.WriteString(part, expectedContent)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
 
 	req := httptest.NewRequest("POST", "/upload", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())

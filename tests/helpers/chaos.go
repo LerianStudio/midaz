@@ -21,14 +21,14 @@ func RunChaosTests(m *testing.M) {
 }
 
 func runChaosTests(m *testing.M) int {
-	if err := AuthenticateFromEnv(); err != nil {
-		log.Printf("chaos auth failed: %v", err)
-		return 1
-	}
-
 	if os.Getenv("CHAOS") != "1" {
 		log.Printf("chaos tests skipped (set CHAOS=1 to enable)")
 		return 0
+	}
+
+	if err := AuthenticateFromEnv(); err != nil {
+		log.Printf("chaos auth failed: %v", err)
+		return 1
 	}
 
 	env := LoadEnvironment()

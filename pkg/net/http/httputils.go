@@ -59,11 +59,11 @@ type QueryHeader struct {
 type Pagination struct {
 	Items      any       `json:"items"`
 	Limit      int       `json:"limit"`
-	Page       int       `json:"page"`
-	Cursor     string    `json:"cursor,omitempty"`
-	SortOrder  string    `json:"sort_order,omitempty"`
-	StartDate  time.Time `json:"start_date,omitempty"`
-	EndDate    time.Time `json:"end_date,omitempty"`
+	Page       int       `json:"page,omitempty"`
+	Cursor     string    `json:"-"`
+	SortOrder  string    `json:"-"`
+	StartDate  time.Time `json:"-"`
+	EndDate    time.Time `json:"-"`
 	NextCursor string    `json:"next_cursor,omitempty"`
 	PrevCursor string    `json:"prev_cursor,omitempty"`
 }
@@ -203,7 +203,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		return nil, err
 	}
 
-	err = validatePagination(cursor, sortOrder, limit)
+	cursor, err = validatePagination(cursor, sortOrder, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -288,30 +288,40 @@ func validateDates(startDate, endDate *time.Time) error {
 	return nil
 }
 
+type legacyCursor struct {
+	ID         string `json:"id"`
+	PointsNext bool   `json:"points_next"`
+}
+
 // ValidatePagination validate pagination parameters
-func validatePagination(cursor, sortOrder string, limit int) error {
+func validatePagination(cursor, sortOrder string, limit int) (string, error) {
 	maxPaginationLimit := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
 
 	if limit > maxPaginationLimit {
-		return pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
+		return "", pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
 	}
 
 	if (sortOrder != string(constant.Asc)) && (sortOrder != string(constant.Desc)) {
-		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
 	}
 
-	if !libCommons.IsNilOrEmpty(&cursor) {
-		if _, err := libHTTP.DecodeCursor(cursor); err != nil {
-			if !isLegacyJSONBase64Cursor(cursor) {
-				return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
-			}
-		}
+	if libCommons.IsNilOrEmpty(&cursor) {
+		return "", nil
 	}
 
-	return nil
+	if _, err := libHTTP.DecodeCursor(cursor); err == nil {
+		return cursor, nil
+	}
+
+	normalizedCursor, err := normalizeLegacyCursor(cursor)
+	if err != nil {
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
+	}
+
+	return normalizedCursor, nil
 }
 
-func isLegacyJSONBase64Cursor(cursor string) bool {
+func normalizeLegacyCursor(cursor string) (string, error) {
 	candidates := []string{cursor}
 
 	if missing := len(cursor) % 4; missing != 0 {
@@ -327,13 +337,24 @@ func isLegacyJSONBase64Cursor(cursor string) bool {
 			}
 		}
 
-		var payload map[string]any
-		if err := json.Unmarshal(decoded, &payload); err == nil && len(payload) > 0 {
-			return true
+		var payload legacyCursor
+		if err := json.Unmarshal(decoded, &payload); err != nil {
+			continue
 		}
+
+		if payload.ID == "" {
+			continue
+		}
+
+		direction := libHTTP.CursorDirectionPrev
+		if payload.PointsNext {
+			direction = libHTTP.CursorDirectionNext
+		}
+
+		return libHTTP.EncodeCursor(libHTTP.Cursor{ID: payload.ID, Direction: direction})
 	}
 
-	return false
+	return "", libHTTP.ErrInvalidCursor
 }
 
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
