@@ -67,12 +67,12 @@ func initMultiTenantPostgres(opts *Options, cfg *Config, logger libLog.Logger) (
 	return &postgresComponents{
 		connection:           conn,
 		pgManager:            pgMgr,
-		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn),
-		operationRepo:        operation.NewOperationPostgreSQLRepository(conn),
-		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn),
-		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn),
-		operationRouteRepo:   operationroute.NewOperationRoutePostgreSQLRepository(conn),
-		transactionRouteRepo: transactionroute.NewTransactionRoutePostgreSQLRepository(conn),
+		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn, true),
+		operationRepo:        operation.NewOperationPostgreSQLRepository(conn, true),
+		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn, true),
+		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, true),
+		operationRouteRepo:   operationroute.NewOperationRoutePostgreSQLRepository(conn, true),
+		transactionRouteRepo: transactionroute.NewTransactionRoutePostgreSQLRepository(conn, true),
 	}, nil
 }
 

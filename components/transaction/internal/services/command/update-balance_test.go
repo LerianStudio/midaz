@@ -321,7 +321,7 @@ func TestUpdateBalances_FallbackPath_NilAfter(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestUpdateBalances_PrimaryPath_SkipsMissingAlias(t *testing.T) {
+func TestUpdateBalances_PrimaryPath_FailsOnMissingAlias(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -335,29 +335,20 @@ func TestUpdateBalances_PrimaryPath_SkipsMissingAlias(t *testing.T) {
 		{ID: "bal-2", Alias: "@bob"},
 	}
 
-	// Only @alice has AFTER state (no change for @bob)
+	// Only @alice has AFTER state; incomplete payload must fail closed.
 	balancesAfter := []*mmodel.Balance{
 		{Alias: "@alice", Available: decimal.NewFromInt(900), OnHold: decimal.NewFromInt(0), Version: 2},
 	}
 
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
-
-	mockBalanceRepo.EXPECT().
-		BalancesUpdate(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []*mmodel.Balance) error {
-			// Only @alice should be persisted, @bob is skipped
-			require.Len(t, balances, 1)
-			assert.Equal(t, "bal-1", balances[0].ID)
-			assert.Equal(t, "@alice", balances[0].Alias)
-
-			return nil
-		}).Times(1)
+	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 	uc := UseCase{BalanceRepo: mockBalanceRepo}
 
 	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, pkgTransaction.Responses{}, balancesBefore, balancesAfter)
 
-	assert.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing AFTER state for alias @bob")
 }
 
 func TestUpdateBalances_BalancesUpdateError(t *testing.T) {

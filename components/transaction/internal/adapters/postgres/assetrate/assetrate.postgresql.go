@@ -57,15 +57,19 @@ type Repository interface {
 
 // AssetRatePostgreSQLRepository is a Postgresql-specific implementation of the AssetRateRepository.
 type AssetRatePostgreSQLRepository struct {
-	connection *libPostgres.Client
-	tableName  string
+	connection    *libPostgres.Client
+	tableName     string
+	requireTenant bool
 }
 
 // NewAssetRatePostgreSQLRepository returns a new instance of AssetRatePostgreSQLRepository using the given Postgres connection.
-func NewAssetRatePostgreSQLRepository(pc *libPostgres.Client) *AssetRatePostgreSQLRepository {
+func NewAssetRatePostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *AssetRatePostgreSQLRepository {
 	c := &AssetRatePostgreSQLRepository{
 		connection: pc,
 		tableName:  "asset_rate",
+	}
+	if len(requireTenant) > 0 {
+		c.requireTenant = requireTenant[0]
 	}
 
 	return c
@@ -77,6 +81,9 @@ func NewAssetRatePostgreSQLRepository(pc *libPostgres.Client) *AssetRatePostgreS
 func (r *AssetRatePostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "transaction"); err == nil {
 		return db, nil
+	}
+	if r.requireTenant {
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
 	return r.connection.Resolver(ctx)
@@ -99,7 +106,12 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 	}
 
 	record := &AssetRatePostgreSQLModel{}
-	record.FromEntity(assetRate)
+	if err := record.FromEntity(assetRate); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to convert asset rate to model", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to convert asset rate to model: %v", err))
+
+		return nil, err
+	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
@@ -449,7 +461,12 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 	}
 
 	record := &AssetRatePostgreSQLModel{}
-	record.FromEntity(assetRate)
+	if err := record.FromEntity(assetRate); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to convert asset rate to model", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to convert asset rate to model: %v", err))
+
+		return nil, err
+	}
 
 	var updates []string
 

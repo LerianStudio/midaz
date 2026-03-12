@@ -16,7 +16,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 
 	// BalanceHandler struct contains a cqrs use case for managing balances.
@@ -57,8 +56,15 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_balances")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -133,9 +139,20 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_balances_by_account_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	accountID := c.Locals("account_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	accountID, err := http.GetUUIDFromLocals(c, "account_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -204,9 +221,20 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_balance_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	balanceID := c.Locals("balance_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	balanceID, err := http.GetUUIDFromLocals(c, "balance_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of balance by id")
 
@@ -250,13 +278,24 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.delete_balance_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	balanceID := c.Locals("balance_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	balanceID, err := http.GetUUIDFromLocals(c, "balance_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, "Initiating delete balance by id")
 
-	err := handler.Command.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
+	err = handler.Command.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete balance by id", err)
 
@@ -298,16 +337,27 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.update_balance")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	balanceID := c.Locals("balance_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	balanceID, err := http.GetUUIDFromLocals(c, "balance_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Balance with Organization ID: %s, Ledger ID: %s, and ID: %s", organizationID.String(), ledgerID.String(), balanceID.String()))
 
 	payload := p.(*mmodel.UpdateBalance)
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update a Balance with details: %#v", payload))
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
 	}
@@ -351,8 +401,16 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_balances_by_alias")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	alias := c.Params("alias")
 
 	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of balances by alias")
@@ -403,8 +461,16 @@ func (handler *BalanceHandler) GetBalancesExternalByCode(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_balances_external_by_code")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	code := c.Params("code")
 	alias := cn.DefaultExternalAccountAliasPrefix + code
 
@@ -456,9 +522,20 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	accountID := c.Locals("account_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	accountID, err := http.GetUUIDFromLocals(c, "account_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	payload := p.(*mmodel.CreateAdditionalBalance)
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create a Balance with details: %#v", payload))
@@ -466,7 +543,7 @@ func (handler *BalanceHandler) CreateAdditionalBalance(p any, c *fiber.Ctx) erro
 	ctx, span := tracer.Start(ctx, "handler.create_additional_balance")
 	defer span.End()
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to convert payload to JSON string", err)
 

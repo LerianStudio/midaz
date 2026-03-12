@@ -139,7 +139,8 @@ func TestAssetRatePostgreSQLModel_FromEntity(t *testing.T) {
 		}
 
 		var model AssetRatePostgreSQLModel
-		model.FromEntity(entity)
+		err := model.FromEntity(entity)
+		require.NoError(t, err)
 
 		assert.NotEmpty(t, model.ID, "ID should be generated")
 		assert.NotEqual(t, entity.ID, model.ID, "ID should be newly generated, not copied from entity")
@@ -173,7 +174,8 @@ func TestAssetRatePostgreSQLModel_FromEntity(t *testing.T) {
 		}
 
 		var model AssetRatePostgreSQLModel
-		model.FromEntity(entity)
+		err := model.FromEntity(entity)
+		require.NoError(t, err)
 
 		assert.NotEmpty(t, model.ID, "ID should be generated")
 		assert.Equal(t, entity.OrganizationID, model.OrganizationID)
@@ -204,12 +206,42 @@ func TestAssetRatePostgreSQLModel_FromEntity(t *testing.T) {
 
 		var model1 AssetRatePostgreSQLModel
 		var model2 AssetRatePostgreSQLModel
-		model1.FromEntity(entity)
-		model2.FromEntity(entity)
+		err := model1.FromEntity(entity)
+		require.NoError(t, err)
+		err = model2.FromEntity(entity)
+		require.NoError(t, err)
 
 		assert.NotEmpty(t, model1.ID)
 		assert.NotEmpty(t, model2.ID)
 		assert.NotEqual(t, model1.ID, model2.ID, "Each call should generate a unique ID")
 		assert.Len(t, model1.ID, 36, "ID should be a valid UUID string (36 chars with hyphens)")
+	})
+
+	t.Run("returns_error_when_entity_is_nil", func(t *testing.T) {
+		var model AssetRatePostgreSQLModel
+
+		err := model.FromEntity(nil)
+
+		require.Error(t, err)
+		assert.EqualError(t, err, "asset rate scale is required")
+	})
+
+	t.Run("returns_error_when_scale_is_nil", func(t *testing.T) {
+		entity := &AssetRate{
+			OrganizationID: "org-nil-scale",
+			LedgerID:       "ledger-nil-scale",
+			From:           "USD",
+			To:             "BRL",
+			Rate:           5.25,
+			Scale:          nil,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
+		}
+
+		var model AssetRatePostgreSQLModel
+		err := model.FromEntity(entity)
+
+		require.Error(t, err)
+		assert.EqualError(t, err, "asset rate scale is required")
 	})
 }

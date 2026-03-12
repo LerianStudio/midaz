@@ -43,20 +43,15 @@ type Repository interface {
 
 // MetadataMongoDBRepository is a MongoDD-specific implementation of the MetadataRepository.
 type MetadataMongoDBRepository struct {
-	connection *libMongo.Client
-	Database   string
+	connection    *libMongo.Client
+	requireTenant bool
 }
 
 // NewMetadataMongoDBRepository returns a new instance of MetadataMongoDBLRepository using the given MongoDB connection.
-func NewMetadataMongoDBRepository(mc *libMongo.Client) *MetadataMongoDBRepository {
-	r := &MetadataMongoDBRepository{
-		connection: mc,
-	}
-
-	if mc != nil {
-		if db, err := mc.Database(context.Background()); err == nil && db != nil {
-			r.Database = db.Name()
-		}
+func NewMetadataMongoDBRepository(mc *libMongo.Client, requireTenant ...bool) *MetadataMongoDBRepository {
+	r := &MetadataMongoDBRepository{connection: mc}
+	if len(requireTenant) > 0 {
+		r.requireTenant = requireTenant[0]
 	}
 
 	// Connection is validated per-request via getDatabase(ctx).
@@ -71,6 +66,9 @@ func NewMetadataMongoDBRepository(mc *libMongo.Client) *MetadataMongoDBRepositor
 func (mmr *MetadataMongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, error) {
 	if db := tmcore.GetMongoFromContext(ctx); db != nil {
 		return db, nil
+	}
+	if mmr.requireTenant {
+		return nil, fmt.Errorf("tenant mongo database missing from context")
 	}
 
 	if mmr.connection == nil {

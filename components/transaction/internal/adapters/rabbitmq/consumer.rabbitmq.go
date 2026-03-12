@@ -19,6 +19,28 @@ import (
 	attribute "go.opentelemetry.io/otel/attribute"
 )
 
+func resolveMessageHeaderID(headers amqp.Table) string {
+	if raw, found := headers[libConstants.HeaderID]; found {
+		switch value := raw.(type) {
+		case string:
+			if value != "" {
+				return value
+			}
+		case []byte:
+			if len(value) > 0 {
+				return string(value)
+			}
+		}
+	}
+
+	generatedID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		generatedID = uuid.New()
+	}
+
+	return generatedID.String()
+}
+
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
 // It defines methods for registering queues and running consumers.
 type ConsumerRepository interface {
@@ -158,26 +180,18 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 // startWorker starts a worker that processes messages from the queue.
 func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc QueueHandlerFunc, messages <-chan amqp.Delivery) {
 	for msg := range messages {
-		midazID, found := msg.Headers[libConstants.HeaderID]
-		if !found {
-			generatedID, err := libCommons.GenerateUUIDv7()
-			if err != nil {
-				generatedID = uuid.New()
-			}
-
-			midazID = generatedID.String()
-		}
+		midazID := resolveMessageHeaderID(msg.Headers)
 
 		log := cr.With(
-			libLog.String(libConstants.HeaderID, midazID.(string)),
+			libLog.String(libConstants.HeaderID, midazID),
 		)
 
 		ctx := libCommons.ContextWithLogger(
-			libCommons.ContextWithHeaderID(context.Background(), midazID.(string)),
+			libCommons.ContextWithHeaderID(context.Background(), midazID),
 			log,
 		)
 
-		ctx = libCommons.ContextWithHeaderID(ctx, midazID.(string))
+		ctx = libCommons.ContextWithHeaderID(ctx, midazID)
 		ctx = libOpentelemetry.ExtractTraceContextFromQueueHeaders(ctx, msg.Headers)
 
 		logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)

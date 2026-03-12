@@ -331,9 +331,20 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	_, span := tracer.Start(ctx, "handler.commit_transaction")
 	defer span.End()
@@ -378,9 +389,20 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	_, span := tracer.Start(ctx, "handler.cancel_transaction")
 	defer span.End()
@@ -426,9 +448,20 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
 	defer span.End()
@@ -525,9 +558,20 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 	ctx, span := tracer.Start(ctx, "handler.update_transaction")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String()))
 
@@ -538,7 +582,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
 	}
 
-	_, err := handler.Command.UpdateTransaction(ctx, organizationID, ledgerID, transactionID, payload)
+	_, err = handler.Command.UpdateTransaction(ctx, organizationID, ledgerID, transactionID, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction on command", err)
 
@@ -587,9 +631,20 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_transaction")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	// Try to get transaction from write-behind cache (operations already embedded)
 	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID); wbErr == nil {
@@ -665,8 +720,15 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_transactions")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -848,8 +910,13 @@ func (handler *TransactionHandler) BuildOperations(
 					description = transactionInput.Description
 				}
 
+				operationID, err := libCommons.GenerateUUIDv7()
+				if err != nil {
+					return nil, nil, err
+				}
+
 				operations = append(operations, &operation.Operation{
-					ID:              uuid.Must(libCommons.GenerateUUIDv7()).String(),
+					ID:              operationID.String(),
 					TransactionID:   tran.ID,
 					Description:     description,
 					Type:            amt.Operation,
@@ -893,10 +960,36 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	_, span := tracer.Start(ctx, "handler.create_transaction")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	parentID, _ := c.Locals("transaction_id").(uuid.UUID)
-	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	parentID := uuid.Nil
+	if c.Locals("transaction_id") != nil {
+		parentID, err = http.GetUUIDFromLocals(c, "transaction_id")
+		if err != nil {
+			return http.WithError(c, err)
+		}
+	}
+
+	transactionID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate transaction id: %v", err))
+
+		return http.WithError(c, pkg.InternalServerError{
+			Code:    "INTERNAL_SERVER_ERROR",
+			Title:   "Internal Server Error",
+			Message: "Failed to generate transaction id",
+			Err:     err,
+		})
+	}
 
 	c.Set(libConstants.IdempotencyReplayed, "false")
 

@@ -5,6 +5,7 @@
 package assetrate
 
 import (
+	"fmt"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -171,7 +172,11 @@ func (a *AssetRatePostgreSQLModel) ToEntity() *AssetRate {
 }
 
 // FromEntity converts an entity AssetRate to AssetRatePostgreSQLModel
-func (a *AssetRatePostgreSQLModel) FromEntity(assetRate *AssetRate) {
+func (a *AssetRatePostgreSQLModel) FromEntity(assetRate *AssetRate) error {
+	if assetRate == nil || assetRate.Scale == nil {
+		return fmt.Errorf("asset rate scale is required")
+	}
+
 	*a = AssetRatePostgreSQLModel{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		OrganizationID: assetRate.OrganizationID,
@@ -186,6 +191,8 @@ func (a *AssetRatePostgreSQLModel) FromEntity(assetRate *AssetRate) {
 		CreatedAt:      assetRate.CreatedAt,
 		UpdatedAt:      assetRate.UpdatedAt,
 	}
+
+	return nil
 }
 
 // AssetRateResponse represents a success response containing a single asset rate.

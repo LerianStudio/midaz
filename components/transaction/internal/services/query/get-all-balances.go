@@ -42,7 +42,7 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 	if len(balances) == 0 {
 		libOpentelemetry.HandleSpanEvent(span, "No balances found")
 
-		return nil, libHTTP.CursorPagination{}, nil
+		return []*mmodel.Balance{}, libHTTP.CursorPagination{}, nil
 	}
 
 	balanceCacheKeys := make([]string, len(balances))

@@ -15,7 +15,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -51,12 +50,19 @@ func (handler *TransactionRouteHandler) CreateTransactionRoute(i any, c *fiber.C
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_route")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	payload := i.(*mmodel.CreateTransactionRouteInput)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
 	}
@@ -116,9 +122,20 @@ func (handler *TransactionRouteHandler) GetTransactionRouteByID(c *fiber.Ctx) er
 	ctx, span := tracer.Start(ctx, "handler.get_transaction_route_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("transaction_route_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "transaction_route_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to get transaction route with ID: %s", id.String()))
 
@@ -161,15 +178,26 @@ func (handler *TransactionRouteHandler) UpdateTransactionRoute(i any, c *fiber.C
 	ctx, span := tracer.Start(ctx, "handler.update_transaction_route")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("transaction_route_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "transaction_route_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update transaction route with ID: %s", id.String()))
 
 	payload := i.(*mmodel.UpdateTransactionRouteInput)
 
-	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
 	}
@@ -232,13 +260,24 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 	ctx, span := tracer.Start(ctx, "handler.delete_transaction_route_by_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	id := c.Locals("transaction_route_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	id, err := http.GetUUIDFromLocals(c, "transaction_route_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to delete transaction route with ID: %s", id.String()))
 
-	err := handler.Command.DeleteTransactionRouteByID(ctx, organizationID, ledgerID, id)
+	err = handler.Command.DeleteTransactionRouteByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete transaction route", err)
 
@@ -286,8 +325,15 @@ func (handler *TransactionRouteHandler) GetAllTransactionRoutes(c *fiber.Ctx) er
 	ctx, span := tracer.Start(ctx, "handler.get_all_transaction_routes")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {

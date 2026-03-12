@@ -51,15 +51,19 @@ type Repository interface {
 
 // OperationRoutePostgreSQLRepository is a PostgreSQL implementation of the OperationRouteRepository.
 type OperationRoutePostgreSQLRepository struct {
-	connection *libPostgres.Client
-	tableName  string
+	connection    *libPostgres.Client
+	tableName     string
+	requireTenant bool
 }
 
 // NewOperationRoutePostgreSQLRepository creates a new instance of OperationRoutePostgreSQLRepository.
-func NewOperationRoutePostgreSQLRepository(pc *libPostgres.Client) *OperationRoutePostgreSQLRepository {
+func NewOperationRoutePostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *OperationRoutePostgreSQLRepository {
 	c := &OperationRoutePostgreSQLRepository{
 		connection: pc,
 		tableName:  "operation_route",
+	}
+	if len(requireTenant) > 0 {
+		c.requireTenant = requireTenant[0]
 	}
 
 	return c
@@ -71,6 +75,9 @@ func NewOperationRoutePostgreSQLRepository(pc *libPostgres.Client) *OperationRou
 func (r *OperationRoutePostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "transaction"); err == nil {
 		return db, nil
+	}
+	if r.requireTenant {
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
 	return r.connection.Resolver(ctx)
@@ -588,7 +595,7 @@ func (r *OperationRoutePostgreSQLRepository) FindAll(ctx context.Context, organi
 	}
 
 	hasPagination := len(operationRoutes) > filter.Limit
-	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && decodedCursor.Direction == libHTTP.CursorDirectionPrev
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
 
 	operationRoutes = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.Direction, operationRoutes, filter.Limit)
 

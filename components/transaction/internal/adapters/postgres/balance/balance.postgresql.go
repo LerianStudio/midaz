@@ -79,15 +79,19 @@ type Repository interface {
 
 // BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
 type BalancePostgreSQLRepository struct {
-	connection *libPostgres.Client
-	tableName  string
+	connection    *libPostgres.Client
+	tableName     string
+	requireTenant bool
 }
 
 // NewBalancePostgreSQLRepository returns a new instance of BalancePostgreSQLRepository using the given Postgres connection.
-func NewBalancePostgreSQLRepository(pc *libPostgres.Client) *BalancePostgreSQLRepository {
+func NewBalancePostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *BalancePostgreSQLRepository {
 	c := &BalancePostgreSQLRepository{
 		connection: pc,
 		tableName:  "balance",
+	}
+	if len(requireTenant) > 0 {
+		c.requireTenant = requireTenant[0]
 	}
 
 	return c
@@ -99,6 +103,9 @@ func NewBalancePostgreSQLRepository(pc *libPostgres.Client) *BalancePostgreSQLRe
 func (r *BalancePostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "transaction"); err == nil {
 		return db, nil
+	}
+	if r.requireTenant {
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
 	return r.connection.Resolver(ctx)
@@ -466,7 +473,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 	}
 
 	hasPagination := len(balances) > filter.Limit
-	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && decodedCursor.Direction == libHTTP.CursorDirectionPrev
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
 
 	balances = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.Direction, balances, filter.Limit)
 
@@ -596,7 +603,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 	}
 
 	hasPagination := len(balances) > filter.Limit
-	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor) || !hasPagination && decodedCursor.Direction == libHTTP.CursorDirectionPrev
+	isFirstPage := libCommons.IsNilOrEmpty(&filter.Cursor)
 
 	balances = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.Direction, balances, filter.Limit)
 

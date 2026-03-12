@@ -44,7 +44,7 @@ type rabbitMQComponents struct {
 	// Must be called after UseCase creation because the handler needs UseCase.
 	// - Single-tenant: creates consumer connection, routes, and MultiQueueConsumer
 	// - Multi-tenant: registers BTO handler on the MultiTenantConsumer
-	wireConsumer func(useCase *command.UseCase)
+	wireConsumer func(useCase *command.UseCase) error
 }
 
 // initRabbitMQ initializes RabbitMQ producer and consumer components.
@@ -141,7 +141,7 @@ func initMultiTenantRabbitMQ(
 	// The closure captures rmqComponents by pointer so that pgManager and mongoManager
 	// can be set after initRabbitMQ returns (they are initialized in initPostgres/initMongo
 	// and wired in config.go before wireConsumer is called).
-	rmqComponents.wireConsumer = func(useCase *command.UseCase) {
+	rmqComponents.wireConsumer = func(useCase *command.UseCase) error {
 		if err := consumer.Register(
 			queueName,
 			func(ctx context.Context, delivery amqp.Delivery) error {
@@ -170,8 +170,10 @@ func initMultiTenantRabbitMQ(
 				return nil
 			},
 		); err != nil {
-			logger.Log(context.Background(), libLog.LevelError, fmt.Sprintf("failed to register rabbitmq consumer for queue %s: %v", queueName, err))
+			return fmt.Errorf("failed to register rabbitmq consumer for queue %s: %w", queueName, err)
 		}
+
+		return nil
 	}
 
 	return rmqComponents, nil
@@ -188,7 +190,7 @@ func initMultiTenantRabbitMQ(
 func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (context.Context, error) {
 	tenantID := tmcore.GetTenantIDFromContext(ctx)
 	if tenantID == "" {
-		return ctx, nil
+		return ctx, fmt.Errorf("missing tenant context in multi-tenant consumer")
 	}
 
 	if rmq.pgManager != nil {
@@ -337,7 +339,7 @@ func initSingleTenantRabbitMQ(
 
 	// wireConsumer creates the single-tenant consumer with dedicated connection credentials.
 	// Deferred to after UseCase creation because NewMultiQueueConsumer registers the handler internally.
-	rmq.wireConsumer = func(useCase *command.UseCase) {
+	rmq.wireConsumer = func(useCase *command.UseCase) error {
 		rabbitConsumerSource := buildRabbitMQConnectionString(
 			cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass,
 			cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
@@ -362,6 +364,8 @@ func initSingleTenantRabbitMQ(
 		)
 
 		rmq.multiQueueConsumer = NewMultiQueueConsumer(routes, useCase)
+
+		return nil
 	}
 
 	return rmq, nil
