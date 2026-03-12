@@ -10,9 +10,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -165,15 +164,12 @@ func (r *recordingRedisClient) HGetAll(ctx context.Context, key string) *redis.M
 	return cmd
 }
 
-func newRecordingConnection(t *testing.T) (*libRedis.RedisConnection, *recordingRedisClient) {
+func newRecordingConnection(t *testing.T) (*staticRedisProvider, *recordingRedisClient) {
 	t.Helper()
 
 	client := &recordingRedisClient{t: t}
 
-	return &libRedis.RedisConnection{
-		Client:    client,
-		Connected: true,
-	}, client
+	return &staticRedisProvider{client: client}, client
 }
 
 // scriptCapturingRedisClient extends recordingRedisClient with the ability to capture
@@ -268,16 +264,13 @@ func (s *scriptCapturingRedisClient) capturedScriptArgs() []any {
 	return s.evalCalls[0].Args
 }
 
-func newScriptCapturingConnection(t *testing.T) (*libRedis.RedisConnection, *scriptCapturingRedisClient) {
+func newScriptCapturingConnection(t *testing.T) (*staticRedisProvider, *scriptCapturingRedisClient) {
 	t.Helper()
 
 	client := &scriptCapturingRedisClient{}
 	client.recordingRedisClient.t = t
 
-	return &libRedis.RedisConnection{
-		Client:    client,
-		Connected: true,
-	}, client
+	return &staticRedisProvider{client: client}, client
 }
 
 // =============================================================================
@@ -645,10 +638,10 @@ func TestKeyNamespacing_ProcessBalanceAtomicOperation(t *testing.T) {
 
 			balanceOp := mmodel.BalanceOperation{
 				Balance: &mmodel.Balance{
-					ID:             libCommons.GenerateUUIDv7().String(),
+					ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 					OrganizationID: organizationID.String(),
 					LedgerID:       ledgerID.String(),
-					AccountID:      libCommons.GenerateUUIDv7().String(),
+					AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 					Alias:          "@sender",
 					Key:            balanceKeyStr,
 					AssetCode:      "USD",

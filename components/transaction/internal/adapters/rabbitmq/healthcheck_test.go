@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -22,7 +22,9 @@ import (
 
 // TestMain verifies no goroutine leaks across all tests in this package.
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m,
+		goleak.IgnoreAnyFunction("github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq.(*ConsumerRoutes).RunConsumers.func1"),
+	)
 }
 
 // =============================================================================
@@ -46,7 +48,7 @@ func TestRabbitMQHealthCheckFunc_ReturnsErrorWhenUnhealthy(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockConn := NewMockRabbitMQHealthChecker(ctrl)
-	mockConn.EXPECT().HealthCheck().Return(false)
+	mockConn.EXPECT().HealthCheck().Return(false, nil)
 
 	healthCheckFn := NewRabbitMQHealthCheckFunc(mockConn)
 
@@ -62,8 +64,8 @@ func TestRabbitMQHealthCheckFunc_ReturnsNilWhenHealthy(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockConn := NewMockRabbitMQHealthChecker(ctrl)
-	mockConn.EXPECT().HealthCheck().Return(true)
-	mockConn.EXPECT().EnsureChannelWithContext(gomock.Any()).Return(nil)
+	mockConn.EXPECT().HealthCheck().Return(true, nil)
+	mockConn.EXPECT().EnsureChannelContext(gomock.Any()).Return(nil)
 
 	healthCheckFn := NewRabbitMQHealthCheckFunc(mockConn)
 
@@ -79,8 +81,8 @@ func TestRabbitMQHealthCheckFunc_ReturnsErrorWhenChannelUnavailable(t *testing.T
 	defer ctrl.Finish()
 
 	mockConn := NewMockRabbitMQHealthChecker(ctrl)
-	mockConn.EXPECT().HealthCheck().Return(true)
-	mockConn.EXPECT().EnsureChannelWithContext(gomock.Any()).Return(errors.New("channel closed"))
+	mockConn.EXPECT().HealthCheck().Return(true, nil)
+	mockConn.EXPECT().EnsureChannelContext(gomock.Any()).Return(errors.New("channel closed"))
 
 	healthCheckFn := NewRabbitMQHealthCheckFunc(mockConn)
 
@@ -200,7 +202,7 @@ func (m *mockHealthChecker) GetHealthStatus() map[string]string {
 	return result
 }
 
-func (m *mockHealthChecker) OnStateChange(serviceName string, from, to libCircuitBreaker.State) {
+func (m *mockHealthChecker) OnStateChange(_ context.Context, serviceName string, from, to libCircuitBreaker.State) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.stateChanges = append(m.stateChanges, stateChangeRecord{
@@ -244,10 +246,7 @@ func (m *mockHealthChecker) getStateChanges() []stateChangeRecord {
 
 func setupTestLogger(ctrl *gomock.Controller) *libLog.MockLogger {
 	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Info(gomock.Any()).AnyTimes()
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Warnf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Log(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	return logger
 }
 
@@ -296,7 +295,7 @@ func TestStateAwareHealthChecker_StartsWhenCircuitOpens(t *testing.T) {
 	assert.False(t, stateAware.IsRunning())
 
 	// Simulate circuit opening: CLOSED -> OPEN
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 
 	// Health checker should now be running
 	assert.True(t, mockHC.isStarted(), "underlying should start when circuit opens")
@@ -315,11 +314,11 @@ func TestStateAwareHealthChecker_StopsWhenAllCircuitsClose(t *testing.T) {
 	require.NoError(t, err)
 
 	// Open the circuit first
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 	assert.True(t, stateAware.IsRunning())
 
 	// Close the circuit: OPEN -> CLOSED
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
 
 	// Health checker should now be stopped
 	assert.True(t, mockHC.isStopped(), "underlying should stop when all circuits close")
@@ -339,12 +338,12 @@ func TestStateAwareHealthChecker_KeepsRunningDuringHalfOpen(t *testing.T) {
 	t.Cleanup(func() { stateAware.Stop() })
 
 	// Open the circuit
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 	assert.True(t, stateAware.IsRunning())
 	startCountAfterOpen := mockHC.getStartCount()
 
 	// Transition to half-open: OPEN -> HALF-OPEN
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
 
 	// Should keep running (no additional start/stop)
 	assert.True(t, stateAware.IsRunning(), "should keep running during half-open")
@@ -363,12 +362,12 @@ func TestStateAwareHealthChecker_StopsWhenHalfOpenCloses(t *testing.T) {
 	require.NoError(t, err)
 
 	// Open then half-open
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
 	assert.True(t, stateAware.IsRunning())
 
 	// Close from half-open: HALF-OPEN -> CLOSED
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateHalfOpen, libCircuitBreaker.StateClosed)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateHalfOpen, libCircuitBreaker.StateClosed)
 
 	// Health checker should stop
 	assert.False(t, stateAware.IsRunning())
@@ -386,22 +385,22 @@ func TestStateAwareHealthChecker_MultipleServices(t *testing.T) {
 	require.NoError(t, err)
 
 	// Open first service
-	stateAware.OnStateChange("service-1", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "service-1", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 	assert.True(t, stateAware.IsRunning())
 	assert.Equal(t, 1, mockHC.getStartCount())
 
 	// Open second service (should not start again)
-	stateAware.OnStateChange("service-2", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "service-2", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 	assert.True(t, stateAware.IsRunning())
 	assert.Equal(t, 1, mockHC.getStartCount(), "should not start again when already running")
 
 	// Close first service (still has service-2 open)
-	stateAware.OnStateChange("service-1", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
+	stateAware.OnStateChange(context.Background(), "service-1", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
 	assert.True(t, stateAware.IsRunning(), "should keep running while service-2 is open")
 	assert.Equal(t, 0, mockHC.getStopCount())
 
 	// Close second service (now all closed)
-	stateAware.OnStateChange("service-2", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
+	stateAware.OnStateChange(context.Background(), "service-2", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
 	assert.False(t, stateAware.IsRunning(), "should stop when all services close")
 	assert.Equal(t, 1, mockHC.getStopCount())
 }
@@ -418,7 +417,7 @@ func TestStateAwareHealthChecker_ForwardsStateChanges(t *testing.T) {
 	t.Cleanup(func() { stateAware.Stop() })
 
 	// Trigger state change
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 
 	// Verify it was forwarded to underlying
 	changes := mockHC.getStateChanges()
@@ -471,7 +470,7 @@ func TestStateAwareHealthChecker_StopWhenRunning(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start by opening a circuit
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 	assert.True(t, stateAware.IsRunning())
 
 	// Explicit stop
@@ -513,19 +512,19 @@ func TestStateAwareHealthChecker_GetUnhealthyServices(t *testing.T) {
 	assert.Empty(t, stateAware.GetUnhealthyServices())
 
 	// Open a circuit
-	stateAware.OnStateChange("service-1", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "service-1", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 	unhealthy := stateAware.GetUnhealthyServices()
 	assert.Len(t, unhealthy, 1)
 	assert.Equal(t, libCircuitBreaker.StateOpen, unhealthy["service-1"])
 
 	// Half-open another
-	stateAware.OnStateChange("service-2", libCircuitBreaker.StateClosed, libCircuitBreaker.StateHalfOpen)
+	stateAware.OnStateChange(context.Background(), "service-2", libCircuitBreaker.StateClosed, libCircuitBreaker.StateHalfOpen)
 	unhealthy = stateAware.GetUnhealthyServices()
 	assert.Len(t, unhealthy, 2)
 	assert.Equal(t, libCircuitBreaker.StateHalfOpen, unhealthy["service-2"])
 
 	// Close first service
-	stateAware.OnStateChange("service-1", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
+	stateAware.OnStateChange(context.Background(), "service-1", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
 	unhealthy = stateAware.GetUnhealthyServices()
 	assert.Len(t, unhealthy, 1)
 	assert.NotContains(t, unhealthy, "service-1")
@@ -543,14 +542,14 @@ func TestStateAwareHealthChecker_HalfOpenToOpen(t *testing.T) {
 	t.Cleanup(func() { stateAware.Stop() })
 
 	// Open -> Half-open -> Open (failure in half-open)
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 	assert.True(t, stateAware.IsRunning())
 
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
 	assert.True(t, stateAware.IsRunning())
 
 	// Back to open (failure during half-open test)
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateHalfOpen, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateHalfOpen, libCircuitBreaker.StateOpen)
 	assert.True(t, stateAware.IsRunning(), "should keep running when going back to open")
 
 	unhealthy := stateAware.GetUnhealthyServices()
@@ -569,8 +568,8 @@ func TestStateAwareHealthChecker_IdempotentStart(t *testing.T) {
 	t.Cleanup(func() { stateAware.Stop() })
 
 	// Multiple opens of same service should only start once
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateOpen) // Unusual but possible
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateOpen) // Unusual but possible
 
 	assert.Equal(t, 1, mockHC.getStartCount())
 }
@@ -652,9 +651,9 @@ func TestStateAwareHealthChecker_ConcurrentStateChanges(t *testing.T) {
 			for j := 0; j < numOperations; j++ {
 				// Alternate between opening and closing circuits
 				if j%2 == 0 {
-					stateAware.OnStateChange(serviceName, libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+					stateAware.OnStateChange(context.Background(), serviceName, libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 				} else {
-					stateAware.OnStateChange(serviceName, libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
+					stateAware.OnStateChange(context.Background(), serviceName, libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
 				}
 			}
 		}(i)
@@ -691,11 +690,11 @@ func TestStateAwareHealthChecker_ConcurrentMultipleServices(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < 50; j++ {
 				// Open circuit
-				stateAware.OnStateChange(serviceName, libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+				stateAware.OnStateChange(context.Background(), serviceName, libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 				// Transition to half-open
-				stateAware.OnStateChange(serviceName, libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
+				stateAware.OnStateChange(context.Background(), serviceName, libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
 				// Close circuit
-				stateAware.OnStateChange(serviceName, libCircuitBreaker.StateHalfOpen, libCircuitBreaker.StateClosed)
+				stateAware.OnStateChange(context.Background(), serviceName, libCircuitBreaker.StateHalfOpen, libCircuitBreaker.StateClosed)
 			}
 		}(svc)
 	}
@@ -728,7 +727,7 @@ func TestStateAwareHealthChecker_RecoveryMonitorDetectsReset(t *testing.T) {
 	require.NoError(t, err)
 
 	// Open the circuit
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 	assert.True(t, stateAware.IsRunning())
 	assert.Len(t, stateAware.GetUnhealthyServices(), 1)
 
@@ -763,8 +762,8 @@ func TestStateAwareHealthChecker_RecoveryMonitorPartialRecovery(t *testing.T) {
 	t.Cleanup(func() { stateAware.Stop() })
 
 	// Open both circuits
-	stateAware.OnStateChange("service-1", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
-	stateAware.OnStateChange("service-2", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "service-1", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "service-2", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 	assert.True(t, stateAware.IsRunning())
 	assert.Len(t, stateAware.GetUnhealthyServices(), 2)
 
@@ -801,7 +800,7 @@ func TestStateAwareHealthChecker_GoroutineCleanupOnStop(t *testing.T) {
 	beforeStart := runtime.NumGoroutine()
 
 	// Start the monitor by opening a circuit
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 	assert.True(t, stateAware.IsRunning(), "health checker should be running")
 	time.Sleep(50 * time.Millisecond) // Let goroutine start
 
@@ -834,11 +833,11 @@ func TestStateAwareHealthChecker_GoroutineCleanupOnAllCircuitsClose(t *testing.T
 	require.NoError(t, err)
 
 	// Start by opening a circuit
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 	time.Sleep(50 * time.Millisecond)
 
 	// Close the circuit (this should stop the monitor)
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
 	time.Sleep(50 * time.Millisecond)
 
 	runtime.GC()
@@ -865,7 +864,7 @@ func TestStateAwareHealthChecker_DoubleStopIsIdempotent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start by opening a circuit
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 	assert.True(t, stateAware.IsRunning())
 
 	// Double stop - should not panic or cause issues
@@ -920,7 +919,7 @@ func TestStateAwareHealthChecker_ConcurrentStartStop(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 100; i++ {
-			stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+			stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 		}
 	}()
 
@@ -928,7 +927,7 @@ func TestStateAwareHealthChecker_ConcurrentStartStop(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 100; i++ {
-			stateAware.OnStateChange("test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
+			stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
 		}
 	}()
 
@@ -967,7 +966,7 @@ func TestStateAwareHealthChecker_ConcurrentOnStateChangeAndStop(t *testing.T) {
 	t.Cleanup(func() { stateAware.Stop() })
 
 	// Start the health checker
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -976,8 +975,8 @@ func TestStateAwareHealthChecker_ConcurrentOnStateChangeAndStop(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
-			stateAware.OnStateChange("service-"+string(rune('a'+i%5)), libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
-			stateAware.OnStateChange("service-"+string(rune('a'+i%5)), libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
+			stateAware.OnStateChange(context.Background(), "service-"+string(rune('a'+i%5)), libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+			stateAware.OnStateChange(context.Background(), "service-"+string(rune('a'+i%5)), libCircuitBreaker.StateOpen, libCircuitBreaker.StateClosed)
 		}
 	}()
 
@@ -1009,8 +1008,8 @@ func TestRabbitMQHealthCheckFunc_ErrorWrappingPreservesOriginalError(t *testing.
 	originalErr := errors.New("channel closed by server")
 
 	mockConn := NewMockRabbitMQHealthChecker(ctrl)
-	mockConn.EXPECT().HealthCheck().Return(true)
-	mockConn.EXPECT().EnsureChannelWithContext(gomock.Any()).Return(originalErr)
+	mockConn.EXPECT().HealthCheck().Return(true, nil)
+	mockConn.EXPECT().EnsureChannelContext(gomock.Any()).Return(originalErr)
 
 	healthCheckFn := NewRabbitMQHealthCheckFunc(mockConn)
 
@@ -1034,8 +1033,8 @@ func TestRabbitMQHealthCheckFunc_ErrorWrappingWithMultipleErrors(t *testing.T) {
 	wrappedErr := errors.Join(errors.New("network error"), innerErr)
 
 	mockConn := NewMockRabbitMQHealthChecker(ctrl)
-	mockConn.EXPECT().HealthCheck().Return(true)
-	mockConn.EXPECT().EnsureChannelWithContext(gomock.Any()).Return(wrappedErr)
+	mockConn.EXPECT().HealthCheck().Return(true, nil)
+	mockConn.EXPECT().EnsureChannelContext(gomock.Any()).Return(wrappedErr)
 
 	healthCheckFn := NewRabbitMQHealthCheckFunc(mockConn)
 
@@ -1068,7 +1067,7 @@ func TestStateAwareHealthChecker_StopDuringRecoveryMonitorExecution(t *testing.T
 	require.NoError(t, err)
 
 	// Open the circuit to start the monitor
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 	assert.True(t, stateAware.IsRunning())
 
 	// Give the monitor time to potentially start a tick
@@ -1106,7 +1105,7 @@ func TestStateAwareHealthChecker_RecoveryCheckDuringStop(t *testing.T) {
 	require.NoError(t, err)
 
 	// Open circuit to start monitor
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -1166,7 +1165,7 @@ func TestStateAwareHealthChecker_StartsWhenCircuitOpens_Parallel(t *testing.T) {
 	assert.False(t, mockHC.isStarted())
 	assert.False(t, stateAware.IsRunning())
 
-	stateAware.OnStateChange("test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	stateAware.OnStateChange(context.Background(), "test-service", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 
 	assert.True(t, mockHC.isStarted())
 	assert.True(t, stateAware.IsRunning())
@@ -1201,13 +1200,13 @@ func TestStateAwareHealthChecker_ConcurrentStateChanges_DeterministicFinalState(
 			defer wg.Done()
 			serviceName := "test-service"
 			// Open
-			stateAware.OnStateChange(serviceName, libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+			stateAware.OnStateChange(context.Background(), serviceName, libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
 			time.Sleep(time.Millisecond)
 			// Half-open
-			stateAware.OnStateChange(serviceName, libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
+			stateAware.OnStateChange(context.Background(), serviceName, libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
 			time.Sleep(time.Millisecond)
 			// Close
-			stateAware.OnStateChange(serviceName, libCircuitBreaker.StateHalfOpen, libCircuitBreaker.StateClosed)
+			stateAware.OnStateChange(context.Background(), serviceName, libCircuitBreaker.StateHalfOpen, libCircuitBreaker.StateClosed)
 		}(i)
 	}
 

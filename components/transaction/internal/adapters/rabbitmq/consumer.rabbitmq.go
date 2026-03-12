@@ -8,12 +8,13 @@ import (
 	"context"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v3/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	attribute "go.opentelemetry.io/otel/attribute"
 )
@@ -73,17 +74,18 @@ func (cr *ConsumerRoutes) Register(queueName string, handler QueueHandlerFunc) {
 // RunConsumers init consume for all registry queues.
 func (cr *ConsumerRoutes) RunConsumers() error {
 	for queueName, handler := range cr.routes {
-		cr.Infof("Initializing consumer for queue: %s", queueName)
+		cr.Log(context.Background(), libLog.LevelInfo, "Initializing consumer for queue", libLog.String("queue", queueName))
 
 		go func(queueName string, handler QueueHandlerFunc) {
 			backoff := utils.InitialBackoff
+			bgCtx := context.Background()
 
 			for {
 				if err := cr.conn.EnsureChannel(); err != nil {
-					cr.Errorf("[Consumer %s] failed to ensure channel: %v", queueName, err)
+					cr.Log(bgCtx, libLog.LevelError, "failed to ensure channel", libLog.String("queue", queueName), libLog.Err(err))
 
 					sleepDuration := utils.FullJitter(backoff)
-					cr.Infof("[Consumer %s] retrying EnsureChannel in %v...", queueName, sleepDuration)
+					cr.Log(bgCtx, libLog.LevelInfo, "retrying EnsureChannel", libLog.String("queue", queueName), libLog.Any("sleepDuration", sleepDuration))
 					time.Sleep(sleepDuration)
 
 					backoff = utils.NextBackoff(backoff)
@@ -96,10 +98,10 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 					0,
 					false,
 				); err != nil {
-					cr.Errorf("[Consumer %s] failed to set QoS: %v", queueName, err)
+					cr.Log(bgCtx, libLog.LevelError, "failed to set QoS", libLog.String("queue", queueName), libLog.Err(err))
 
 					sleepDuration := utils.FullJitter(backoff)
-					cr.Infof("[Consumer %s] retrying QoS in %v...", queueName, sleepDuration)
+					cr.Log(bgCtx, libLog.LevelInfo, "retrying QoS", libLog.String("queue", queueName), libLog.Any("sleepDuration", sleepDuration))
 					time.Sleep(sleepDuration)
 
 					backoff = utils.NextBackoff(backoff)
@@ -117,10 +119,10 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 					nil,
 				)
 				if err != nil {
-					cr.Errorf("[Consumer %s] failed to start consuming: %v", queueName, err)
+					cr.Log(bgCtx, libLog.LevelError, "failed to start consuming", libLog.String("queue", queueName), libLog.Err(err))
 
 					sleepDuration := utils.FullJitter(backoff)
-					cr.Infof("[Consumer %s] retrying Consume in %v...", queueName, sleepDuration)
+					cr.Log(bgCtx, libLog.LevelInfo, "retrying Consume", libLog.String("queue", queueName), libLog.Any("sleepDuration", sleepDuration))
 					time.Sleep(sleepDuration)
 
 					backoff = utils.NextBackoff(backoff)
@@ -128,7 +130,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 					continue
 				}
 
-				cr.Infof("[Consumer %s] consuming started", queueName)
+				cr.Log(bgCtx, libLog.LevelInfo, "consuming started", libLog.String("queue", queueName))
 
 				backoff = utils.InitialBackoff
 
@@ -140,12 +142,12 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 				}
 
 				if errClose := <-notifyClose; errClose != nil {
-					cr.Warnf("[Consumer %s] channel closed: %v", queueName, errClose)
+					cr.Log(bgCtx, libLog.LevelWarn, "channel closed", libLog.String("queue", queueName), libLog.Err(errClose))
 				} else {
-					cr.Warnf("[Consumer %s] channel closed: no error info", queueName)
+					cr.Log(bgCtx, libLog.LevelWarn, "channel closed: no error info", libLog.String("queue", queueName))
 				}
 
-				cr.Warnf("[Consumer %s] restarting...", queueName)
+				cr.Log(bgCtx, libLog.LevelWarn, "restarting consumer", libLog.String("queue", queueName))
 			}
 		}(queueName, handler)
 	}
@@ -158,12 +160,17 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 	for msg := range messages {
 		midazID, found := msg.Headers[libConstants.HeaderID]
 		if !found {
-			midazID = libCommons.GenerateUUIDv7().String()
+			generatedID, err := libCommons.GenerateUUIDv7()
+			if err != nil {
+				generatedID = uuid.New()
+			}
+
+			midazID = generatedID.String()
 		}
 
-		log := cr.Logger.WithFields(
-			libConstants.HeaderID, midazID.(string),
-		).WithDefaultMessageTemplate(midazID.(string) + libConstants.LoggerDefaultSeparator)
+		log := cr.With(
+			libLog.String(libConstants.HeaderID, midazID.(string)),
+		)
 
 		ctx := libCommons.ContextWithLogger(
 			libCommons.ContextWithHeaderID(context.Background(), midazID.(string)),
@@ -178,16 +185,16 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 
 		ctx = libCommons.ContextWithSpanAttributes(ctx, attribute.String("app.request.request_id", reqId))
 
-		err := libOpentelemetry.SetSpanAttributesFromStruct(&spanConsumer, "app.request.rabbitmq.consumer.message", msg.Body)
+		err := libOpentelemetry.SetSpanAttributesFromValue(spanConsumer, "app.request.rabbitmq.consumer.message", msg.Body, nil)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&spanConsumer, "Failed to convert message to JSON string", err)
+			libOpentelemetry.HandleSpanError(spanConsumer, "Failed to convert message to JSON string", err)
 		}
 
 		err = handlerFunc(ctx, msg.Body)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanConsumer, "Error processing message from queue", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanConsumer, "Error processing message from queue", err)
 			spanConsumer.End()
-			logger.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
+			logger.Log(ctx, libLog.LevelError, "Error processing message from queue", libLog.Int("workerID", workerID), libLog.String("queue", queue), libLog.Err(err))
 
 			_ = msg.Nack(false, true)
 
@@ -199,5 +206,5 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 		_ = msg.Ack(false)
 	}
 
-	cr.Warnf("[Consumer %s] worker %d stopped (channel closed)", queue, workerID)
+	cr.Log(context.Background(), libLog.LevelWarn, "worker stopped (channel closed)", libLog.String("queue", queue), libLog.Int("workerID", workerID))
 }

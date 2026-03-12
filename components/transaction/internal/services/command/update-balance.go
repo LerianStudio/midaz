@@ -8,19 +8,23 @@ import (
 	"context"
 	"encoding/json"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+
+	// UpdateBalances persists balance updates to PostgreSQL.
+	// When balancesAfter is non-empty, it uses the Lua-computed AFTER states directly (primary path).
+	// When balancesAfter is empty (legacy payloads during rolling update), it falls back to
+	// recalculating via OperateBalances for backward compatibility.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// UpdateBalances persists balance updates to PostgreSQL.
-// When balancesAfter is non-empty, it uses the Lua-computed AFTER states directly (primary path).
-// When balancesAfter is empty (legacy payloads during rolling update), it falls back to
-// recalculating via OperateBalances for backward compatibility.
 func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate pkgTransaction.Responses, balances []*mmodel.Balance, balancesAfter []*mmodel.Balance) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -44,7 +48,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 					attribute.String("balances.skip_reason", "missing_after_state"),
 				)
 
-				logger.Warnf("No AFTER state for alias %s, skipping", balance.Alias)
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("No AFTER state for alias %s, skipping", balance.Alias))
 
 				continue
 			}
@@ -73,8 +77,8 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 			calculateBalances, err := pkgTransaction.OperateBalances(fromTo[balance.Alias], *balance.ToTransactionBalance())
 			if err != nil {
-				libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
-				logger.Errorf("Failed to update balances on database: %v", err.Error())
+				libOpentelemetry.HandleSpanError(spanUpdateBalances, "Failed to update balances on database", err)
+				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances on database: %v", err.Error()))
 				spanBalance.End()
 
 				return err
@@ -97,8 +101,8 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	}
 
 	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances on database", err)
-		logger.Errorf("Failed to update balances on database: %v", err.Error())
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdateBalances, "Failed to update balances on database", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances on database: %v", err.Error()))
 
 		return err
 	}
@@ -114,12 +118,12 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	ctx, span := tracer.Start(ctx, "exec.update_balance")
 	defer span.End()
 
-	logger.Infof("Trying to update balance")
+	logger.Log(ctx, libLog.LevelInfo, "Trying to update balance")
 
 	balance, err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update balance on repo", err)
-		logger.Errorf("Error update balance: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balance on repo", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error update balance: %v", err))
 
 		return nil, err
 	}
@@ -129,14 +133,14 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 
 	value, rerr := uc.RedisRepo.Get(ctx, internalKey)
 	if rerr != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance cache value on redis", rerr)
-		logger.Warnf("Failed to get balance cache value on redis: %v", rerr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache value on redis", rerr)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get balance cache value on redis: %v", rerr))
 	}
 
 	if value != "" {
 		cached := mmodel.BalanceRedis{}
 		if uerr := json.Unmarshal([]byte(value), &cached); uerr != nil {
-			logger.Warnf("Error unmarshalling balance cache value: %v", uerr)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error unmarshalling balance cache value: %v", uerr))
 		} else {
 			balance.Available = cached.Available
 			balance.OnHold = cached.OnHold

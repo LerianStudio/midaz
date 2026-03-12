@@ -6,10 +6,10 @@ package bootstrap
 
 import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	"github.com/LerianStudio/lib-commons/v3/commons/opentelemetry/metrics"
-	tmconsumer "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/consumer"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
+	tmconsumer "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/consumer"
 	httpin "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"

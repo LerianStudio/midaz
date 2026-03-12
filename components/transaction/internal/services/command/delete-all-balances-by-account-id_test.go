@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	midazpkg "github.com/LerianStudio/midaz/v3/pkg"
@@ -27,7 +27,7 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	accountID := uuid.New()
-	requestID := libCommons.GenerateUUIDv7()
+	requestID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	t.Run("list balances error", func(t *testing.T) {
 		uc, mockBalanceRepo, _ := setupDeleteAllBalancesUseCase(t)

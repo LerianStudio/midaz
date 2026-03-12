@@ -9,8 +9,11 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -24,7 +27,7 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 	ctx, span := tracer.Start(ctx, "command.update_operation_route")
 	defer span.End()
 
-	logger.Infof("Trying to update operation route: %v", input)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update operation route: %v", input))
 
 	operationRoute := &mmodel.OperationRoute{
 		Title:       input.Title,
@@ -35,28 +38,28 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 
 	operationRouteUpdated, err := uc.OperationRouteRepo.Update(ctx, organizationID, ledgerID, id, operationRoute)
 	if err != nil {
-		logger.Errorf("Error updating operation route on repo by id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating operation route on repo by id: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update operation route on repo by id", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update operation route on repo by id", err)
 
-			logger.Warnf("Error updating operation route on repo by id: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error updating operation route on repo by id: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update operation route on repo by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update operation route on repo by id", err)
 
 		return nil, err
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), id.String(), input.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
 
-		logger.Errorf("Error updating metadata on repo by id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating metadata on repo by id: %v", err))
 
 		return nil, err
 	}

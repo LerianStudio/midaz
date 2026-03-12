@@ -12,9 +12,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -29,19 +27,11 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *OperationPostgreSQLRepository {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           container.Config.DBName,
-		ReplicaDBName:           container.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
 	return NewOperationPostgreSQLRepository(conn)
 }
@@ -63,9 +53,9 @@ func createTestDependencies(t *testing.T, container *pgtestutil.ContainerResult)
 	t.Helper()
 
 	// These entities exist only in onboarding DB - use random UUIDs
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Balance exists in transaction DB
 	balanceParams := pgtestutil.DefaultBalanceParams()
@@ -107,7 +97,7 @@ func TestIntegration_OperationRepository_Create_Success(t *testing.T) {
 	statusDesc := "Operation approved"
 
 	operation := &Operation{
-		ID:              libCommons.GenerateUUIDv7().String(),
+		ID:              uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		TransactionID:   ids.TransactionID.String(),
 		Description:     "Test debit operation",
 		Type:            "DEBIT",
@@ -265,7 +255,7 @@ func TestIntegration_OperationRepository_Find_ReturnsEntityNotFoundError(t *test
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -355,7 +345,7 @@ func TestIntegration_OperationRepository_FindByAccount_ReturnsEntityNotFoundErro
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -390,7 +380,7 @@ func TestIntegration_OperationRepository_FindByAccount_WrongAccountReturnsError(
 	opID := pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 
 	// Try to find with different account
-	differentAccountID := libCommons.GenerateUUIDv7()
+	differentAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -444,7 +434,7 @@ func TestIntegration_OperationRepository_FindAll_EmptyForNonExistentTransaction(
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentTxID := libCommons.GenerateUUIDv7()
+	nonExistentTxID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -673,7 +663,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_EmptyForNonExistentAcc
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentAccountID := libCommons.GenerateUUIDv7()
+	nonExistentAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -806,10 +796,7 @@ func TestIntegration_OperationRepository_ListByIDs_EmptyForNonExistentIDs(t *tes
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentIDs := []uuid.UUID{
-		libCommons.GenerateUUIDv7(),
-		libCommons.GenerateUUIDv7(),
-	}
+	nonExistentIDs := []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7()), uuid.Must(libCommons.GenerateUUIDv7())}
 
 	ctx := context.Background()
 
@@ -926,7 +913,7 @@ func TestIntegration_OperationRepository_Update_ReturnsEntityNotFoundError(t *te
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -1028,7 +1015,7 @@ func TestIntegration_OperationRepository_Delete_ReturnsEntityNotFoundError(t *te
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -1175,7 +1162,7 @@ func TestIntegration_OperationRepository_SchemaDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			opID := libCommons.GenerateUUIDv7()
+			opID := uuid.Must(libCommons.GenerateUUIDv7())
 			now := time.Now().Truncate(time.Microsecond)
 
 			args := tt.argsFunc(opID, now)
@@ -1201,7 +1188,7 @@ func TestIntegration_OperationRepository_NewColumnMigration_BackwardsCompatible(
 
 	// Insert operation with only the minimum required columns
 	// This simulates a row that existed before a new column was added
-	opID := libCommons.GenerateUUIDv7()
+	opID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := container.DB.Exec(`
@@ -1257,7 +1244,7 @@ func TestIntegration_OperationRepository_DecimalPrecision_Preserved(t *testing.T
 	largeAmount, _ := decimal.NewFromString("123456789012345678901234567890.123456789012345678901234567890")
 	largeAvailable, _ := decimal.NewFromString("987654321098765432109876543210.987654321098765432109876543210")
 
-	opID := libCommons.GenerateUUIDv7()
+	opID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := container.DB.Exec(`

@@ -10,18 +10,22 @@ import (
 	"sort"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
+
+	// GetBalances methods responsible to get balances from a database.
+	// Returns two slices: before (pre-mutation) and after (post-mutation) balance states.
+	// Before is used by BuildOperations for operation snapshots.
+	// After is used by UpdateBalances for PostgreSQL persistence.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// GetBalances methods responsible to get balances from a database.
-// Returns two slices: before (pre-mutation) and after (post-mutation) balance states.
-// Before is used by BuildOperations for operation snapshots.
-// After is used by UpdateBalances for PostgreSQL persistence.
 func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string) (before []*mmodel.Balance, after []*mmodel.Balance, err error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -38,9 +42,9 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 	if len(aliases) > 0 {
 		balancesByAliases, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account by alias on balance database", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account by alias on balance database", err)
 
-			logger.Error("Failed to get account by alias on balance database", err.Error())
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get account by alias on balance database: %v", err))
 
 			return nil, nil, err
 		}
@@ -50,9 +54,9 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 
 	result, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, transactionInput, validate, balances, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances and update on redis", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances and update on redis", err)
 
-		logger.Error("Failed to get balances and update on redis", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances and update on redis: %v", err))
 
 		return nil, nil, err
 	}
@@ -67,7 +71,7 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 	ctx, span := tracer.Start(ctx, "usecase.validate_if_balance_exists_on_redis")
 	defer span.End()
 
-	logger.Infof("Checking if balances exists on redis")
+	logger.Log(ctx, libLog.LevelInfo, "Checking if balances exists on redis")
 
 	newBalances := make([]*mmodel.Balance, 0)
 
@@ -81,9 +85,9 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 			b := mmodel.BalanceRedis{}
 
 			if err := json.Unmarshal([]byte(value), &b); err != nil {
-				libOpentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
+				libOpentelemetry.HandleSpanError(span, "Error to Deserialization json", err)
 
-				logger.Warnf("Error to Deserialization json: %v", err)
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error to Deserialization json: %v", err))
 
 				continue
 			}
@@ -154,9 +158,9 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 	err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, balanceOperations, validate)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate accounting rules", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate accounting rules", err)
 
-		logger.Error("Failed to validate accounting rules", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate accounting rules: %v", err))
 
 		return nil, err
 	}
@@ -173,9 +177,9 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 			*validate,
 			txBalances,
 		); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate balances", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate balances", err)
 
-			logger.Errorf("Failed to validate balances: %v", err.Error())
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balances: %v", err.Error()))
 
 			return nil, err
 		}
@@ -183,9 +187,9 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 	result, err := uc.RedisRepo.ProcessBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID, transactionStatus, validate.Pending, balanceOperations)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to lock balance", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to lock balance", err)
 
-		logger.Error("Failed to lock balance", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to lock balance: %v", err))
 
 		return nil, err
 	}

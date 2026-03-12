@@ -11,12 +11,14 @@ import (
 	"encoding/json"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,18 +43,18 @@ func TestIntegration_FilterStaleBalances_CacheNewerVersion_FiltersBalance(t *tes
 		RedisRepo: redisRepo,
 	}
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	logger := &libLog.GoLogger{Level: libLog.InfoLevel}
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	logger := &libLog.GoLogger{Level: libLog.LevelInfo}
 
 	// Pre-populate Redis with balance at version 10
 	// SplitAliasWithKey("0#@account1#default") returns "@account1#default"
 	balanceKey := "@account1#default"
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balanceKey)
 	cachedBalance := mmodel.BalanceRedis{
-		ID:             libCommons.GenerateUUIDv7().String(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:          "@account1",
-		AccountID:      libCommons.GenerateUUIDv7().String(),
+		AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		AssetCode:      "USD",
 		Available:      decimal.NewFromInt(1000),
 		OnHold:         decimal.Zero,
@@ -69,7 +71,7 @@ func TestIntegration_FilterStaleBalances_CacheNewerVersion_FiltersBalance(t *tes
 	// Balance to update with version 5 (older than cache)
 	balances := []*mmodel.Balance{
 		{
-			ID:        libCommons.GenerateUUIDv7().String(),
+			ID:        uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			Alias:     "0#@account1#default", // SplitAliasWithKey returns "default"
 			Version:   5,
 			Available: decimal.NewFromInt(900),
@@ -98,18 +100,18 @@ func TestIntegration_FilterStaleBalances_CacheOlderVersion_IncludesBalance(t *te
 		RedisRepo: redisRepo,
 	}
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	logger := &libLog.GoLogger{Level: libLog.InfoLevel}
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	logger := &libLog.GoLogger{Level: libLog.LevelInfo}
 
 	// Pre-populate Redis with balance at version 3
 	// SplitAliasWithKey("0#@account1#default") returns "@account1#default"
 	balanceKey := "@account1#default"
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balanceKey)
 	cachedBalance := mmodel.BalanceRedis{
-		ID:             libCommons.GenerateUUIDv7().String(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:          "@account1",
-		AccountID:      libCommons.GenerateUUIDv7().String(),
+		AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		AssetCode:      "USD",
 		Available:      decimal.NewFromInt(1000),
 		OnHold:         decimal.Zero,
@@ -124,7 +126,7 @@ func TestIntegration_FilterStaleBalances_CacheOlderVersion_IncludesBalance(t *te
 	require.NoError(t, container.Client.Set(ctx, internalKey, data, 0).Err(), "failed to set cached balance")
 
 	// Balance to update with version 5 (newer than cache)
-	balanceID := libCommons.GenerateUUIDv7().String()
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	balances := []*mmodel.Balance{
 		{
 			ID:        balanceID,
@@ -157,13 +159,13 @@ func TestIntegration_FilterStaleBalances_CacheMiss_IncludesBalance(t *testing.T)
 		RedisRepo: redisRepo,
 	}
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	logger := &libLog.GoLogger{Level: libLog.InfoLevel}
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	logger := &libLog.GoLogger{Level: libLog.LevelInfo}
 
 	// DO NOT pre-populate Redis - simulate cache miss
 
-	balanceID := libCommons.GenerateUUIDv7().String()
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	balances := []*mmodel.Balance{
 		{
 			ID:        balanceID,
@@ -196,9 +198,9 @@ func TestIntegration_FilterStaleBalances_MultipleBalances_FiltersOnlyStale(t *te
 		RedisRepo: redisRepo,
 	}
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	logger := &libLog.GoLogger{Level: libLog.InfoLevel}
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	logger := &libLog.GoLogger{Level: libLog.LevelInfo}
 
 	// Pre-populate Redis with balances at different versions
 	// SplitAliasWithKey("0#@account1#key1") returns "@account1#key1"
@@ -207,9 +209,9 @@ func TestIntegration_FilterStaleBalances_MultipleBalances_FiltersOnlyStale(t *te
 	key1 := "@account1#key1"
 	internalKey1 := utils.BalanceInternalKey(organizationID, ledgerID, key1)
 	cached1 := mmodel.BalanceRedis{
-		ID:             libCommons.GenerateUUIDv7().String(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:          "@account1",
-		AccountID:      libCommons.GenerateUUIDv7().String(),
+		AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		AssetCode:      "USD",
 		Available:      decimal.NewFromInt(1000),
 		OnHold:         decimal.Zero,
@@ -226,9 +228,9 @@ func TestIntegration_FilterStaleBalances_MultipleBalances_FiltersOnlyStale(t *te
 	key2 := "@account2#key2"
 	internalKey2 := utils.BalanceInternalKey(organizationID, ledgerID, key2)
 	cached2 := mmodel.BalanceRedis{
-		ID:             libCommons.GenerateUUIDv7().String(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:          "@account2",
-		AccountID:      libCommons.GenerateUUIDv7().String(),
+		AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		AssetCode:      "USD",
 		Available:      decimal.NewFromInt(2000),
 		OnHold:         decimal.Zero,
@@ -244,9 +246,9 @@ func TestIntegration_FilterStaleBalances_MultipleBalances_FiltersOnlyStale(t *te
 	// Balance 3: no cache entry → included (fail-open)
 	// @account3#key3 not set in Redis
 
-	balance1ID := libCommons.GenerateUUIDv7().String()
-	balance2ID := libCommons.GenerateUUIDv7().String()
-	balance3ID := libCommons.GenerateUUIDv7().String()
+	balance1ID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	balance2ID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	balance3ID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	balances := []*mmodel.Balance{
 		{
@@ -284,4 +286,30 @@ func TestIntegration_FilterStaleBalances_MultipleBalances_FiltersOnlyStale(t *te
 	}
 	assert.ElementsMatch(t, []string{balance2ID, balance3ID}, resultIDs,
 		"should include balance2 (cache older) and balance3 (cache miss)")
+}
+
+func (uc *UseCase) filterStaleBalances(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	ledgerID uuid.UUID,
+	balances []*mmodel.Balance,
+	_ libLog.Logger,
+) []*mmodel.Balance {
+	filtered := make([]*mmodel.Balance, 0, len(balances))
+
+	for _, balance := range balances {
+		aliasKey := pkgTransaction.SplitAliasWithKey(balance.Alias)
+
+		cached, err := uc.RedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, aliasKey)
+		if err != nil || cached == nil {
+			filtered = append(filtered, balance)
+			continue
+		}
+
+		if balance.Version > cached.Version {
+			filtered = append(filtered, balance)
+		}
+	}
+
+	return filtered
 }

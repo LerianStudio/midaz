@@ -13,10 +13,9 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
@@ -65,7 +64,7 @@ func parseID(t *testing.T, id string) uuid.UUID {
 // integrationTestInfra holds the infrastructure needed for basic integration tests.
 type integrationTestInfra struct {
 	pgContainer *pgtestutil.ContainerResult
-	conn        *libPostgres.PostgresConnection
+	conn        *libPostgres.Client
 	repo        *TransactionPostgreSQLRepository
 	orgID       uuid.UUID
 	ledgerID    uuid.UUID
@@ -76,7 +75,7 @@ type integrationTestInfra struct {
 // chaosTestInfra holds the infrastructure needed for chaos tests (container restart, etc.).
 type chaosTestInfra struct {
 	pgContainer *pgtestutil.ContainerResult
-	conn        *libPostgres.PostgresConnection
+	conn        *libPostgres.Client
 	repo        *TransactionPostgreSQLRepository
 	orgID       uuid.UUID
 	ledgerID    uuid.UUID
@@ -89,7 +88,7 @@ type chaosTestInfra struct {
 type networkChaosTestInfra struct {
 	chaosInfra *chaos.Infrastructure
 	pgResult   *pgtestutil.ContainerResult
-	conn       *libPostgres.PostgresConnection
+	conn       *libPostgres.Client
 	repo       *TransactionPostgreSQLRepository
 	orgID      uuid.UUID
 	ledgerID   uuid.UUID
@@ -104,27 +103,19 @@ func setupIntegrationInfra(t *testing.T) *integrationTestInfra {
 	pgContainer := pgtestutil.SetupContainer(t)
 
 	// Create lib-commons PostgreSQL connection
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           pgContainer.Config.DBName,
-		ReplicaDBName:           pgContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
 
 	// Create repository
 	repo := NewTransactionPostgreSQLRepository(conn)
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	return &integrationTestInfra{
 		pgContainer: pgContainer,
@@ -145,27 +136,19 @@ func setupChaosInfra(t *testing.T) *chaosTestInfra {
 	pgContainer := pgtestutil.SetupContainer(t)
 
 	// Create lib-commons PostgreSQL connection
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           pgContainer.Config.DBName,
-		ReplicaDBName:           pgContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
 
 	// Create repository
 	repo := NewTransactionPostgreSQLRepository(conn)
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create chaos orchestrator
 	chaosOrch := chaos.NewOrchestrator(t)
@@ -206,27 +189,19 @@ func setupNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	require.NotEmpty(t, containerInfo.ProxyListen, "proxy address should be set")
 
 	// Create lib-commons PostgreSQL connection through proxy
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 
 	// Build connection string using proxy address
 	proxyConnStr := pgtestutil.BuildConnectionStringWithHost(containerInfo.ProxyListen, pgResult.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: proxyConnStr,
-		ConnectionStringReplica: proxyConnStr,
-		PrimaryDBName:           pgResult.Config.DBName,
-		ReplicaDBName:           pgResult.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, proxyConnStr, proxyConnStr, pgResult.Config.DBName, migrationsPath)
 
 	// Create repository
 	repo := NewTransactionPostgreSQLRepository(conn)
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	return &networkChaosTestInfra{
 		chaosInfra: chaosInfra,
@@ -1528,22 +1503,14 @@ func setupTenantContainer(t *testing.T) (*pgtestutil.ContainerResult, dbresolver
 
 	// Run migrations on the tenant container by creating a temporary
 	// PostgresConnection and letting the constructor trigger migration.
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(tenantContainer.Host, tenantContainer.Port, tenantContainer.Config)
 
 	// Create a temporary connection to apply migrations (the constructor runs them).
-	tempConn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           tenantContainer.Config.DBName,
-		ReplicaDBName:           tenantContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	tempConn := pgtestutil.CreatePostgresClient(t, connStr, connStr, tenantContainer.Config.DBName, migrationsPath)
 
 	// Trigger migration by calling GetDB (same as constructor does).
-	db, err := tempConn.GetDB()
+	db, err := tempConn.Resolver(context.Background())
 	require.NoError(t, err, "failed to initialize tenant container database with migrations")
 
 	// Close the temporary connection pool so it does not leak.

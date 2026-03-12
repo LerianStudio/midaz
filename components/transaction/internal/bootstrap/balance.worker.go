@@ -15,12 +15,12 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	tmpostgres "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -31,7 +31,7 @@ import (
 // BalanceSyncWorker continuously processes keys scheduled for pre-expiry actions.
 // Ensures that the balance is synced before the key expires.
 type BalanceSyncWorker struct {
-	redisConn          *libRedis.RedisConnection
+	redisConn          *libRedis.Client
 	logger             libLog.Logger
 	idleWait           time.Duration
 	batchSize          int64
@@ -42,7 +42,7 @@ type BalanceSyncWorker struct {
 	pgManager          *tmpostgres.Manager
 }
 
-func NewBalanceSyncWorker(conn *libRedis.RedisConnection, logger libLog.Logger, useCase *command.UseCase, maxWorkers int) *BalanceSyncWorker {
+func NewBalanceSyncWorker(conn *libRedis.Client, logger libLog.Logger, useCase *command.UseCase, maxWorkers int) *BalanceSyncWorker {
 	if maxWorkers <= 0 {
 		maxWorkers = 5
 	}
@@ -62,7 +62,7 @@ func NewBalanceSyncWorker(conn *libRedis.RedisConnection, logger libLog.Logger, 
 // to be considered ready (isMultiTenantReady). The worker uses tenantClient to discover active
 // tenants and pgManager to resolve per-tenant PostgreSQL connections.
 func NewBalanceSyncWorkerMultiTenant(
-	conn *libRedis.RedisConnection,
+	conn *libRedis.Client,
 	logger libLog.Logger,
 	useCase *command.UseCase,
 	maxWorkers int,
@@ -100,18 +100,18 @@ func (w *BalanceSyncWorker) runSingleTenant() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	w.logger.Info("BalanceSyncWorker started (single-tenant mode)")
+	w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker started (single-tenant mode)")
 
 	rds, err := w.redisConn.GetClient(ctx)
 	if err != nil {
-		w.logger.Errorf("BalanceSyncWorker: failed to get redis client: %v", err)
+		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get redis client: %v", err))
 
 		return err
 	}
 
 	for {
 		if w.shouldShutdown(ctx) {
-			w.logger.Info("BalanceSyncWorker: shutting down...")
+			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
 
 			return nil
 		}
@@ -121,7 +121,7 @@ func (w *BalanceSyncWorker) runSingleTenant() error {
 		}
 
 		if w.waitForNextOrBackoff(ctx, rds) {
-			w.logger.Info("BalanceSyncWorker: shutting down...")
+			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
 
 			return nil
 		}
@@ -136,18 +136,18 @@ func (w *BalanceSyncWorker) runMultiTenant() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	w.logger.Info("BalanceSyncWorker started (multi-tenant mode)")
+	w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker started (multi-tenant mode)")
 
 	rds, err := w.redisConn.GetClient(ctx)
 	if err != nil {
-		w.logger.Errorf("BalanceSyncWorker: failed to get redis client: %v", err)
+		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get redis client: %v", err))
 
 		return err
 	}
 
 	for {
 		if w.shouldShutdown(ctx) {
-			w.logger.Info("BalanceSyncWorker: shutting down...")
+			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
 
 			return nil
 		}
@@ -165,7 +165,7 @@ func (w *BalanceSyncWorker) runMultiTenant() error {
 
 		for _, tenant := range tenants {
 			if w.shouldShutdown(ctx) {
-				w.logger.Info("BalanceSyncWorker: shutting down...")
+				w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
 
 				return nil
 			}
@@ -177,7 +177,7 @@ func (w *BalanceSyncWorker) runMultiTenant() error {
 
 		if !processed {
 			if w.waitForNextOrBackoff(ctx, rds) {
-				w.logger.Info("BalanceSyncWorker: shutting down...")
+				w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
 
 				return nil
 			}
@@ -191,10 +191,10 @@ func (w *BalanceSyncWorker) runMultiTenant() error {
 func (w *BalanceSyncWorker) discoverActiveTenants(ctx context.Context, rds redis.UniversalClient) ([]*tmclient.TenantSummary, bool) {
 	tenants, err := w.tenantClient.GetActiveTenantsByService(ctx, "transaction")
 	if err != nil {
-		w.logger.Errorf("BalanceSyncWorker: failed to get active tenants: %v", err)
+		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get active tenants: %v", err))
 
 		if w.waitForNextOrBackoff(ctx, rds) {
-			w.logger.Info("BalanceSyncWorker: shutting down...")
+			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
 
 			return nil, true
 		}
@@ -203,10 +203,10 @@ func (w *BalanceSyncWorker) discoverActiveTenants(ctx context.Context, rds redis
 	}
 
 	if len(tenants) == 0 {
-		w.logger.Info("BalanceSyncWorker: no active tenants found, backing off")
+		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: no active tenants found, backing off")
 
 		if w.waitForNextOrBackoff(ctx, rds) {
-			w.logger.Info("BalanceSyncWorker: shutting down...")
+			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
 
 			return nil, true
 		}
@@ -225,14 +225,14 @@ func (w *BalanceSyncWorker) processTenantBalances(ctx context.Context, tenant *t
 
 	conn, err := w.pgManager.GetConnection(tenantCtx, tenant.ID)
 	if err != nil {
-		w.logger.Errorf("BalanceSyncWorker: failed to get PG connection for tenant %s: %v", tenant.ID, err)
+		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get PG connection for tenant %s: %v", tenant.ID, err))
 
 		return false
 	}
 
 	db, err := conn.GetDB()
 	if err != nil {
-		w.logger.Errorf("BalanceSyncWorker: failed to get DB for tenant %s: %v", tenant.ID, err)
+		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get DB for tenant %s: %v", tenant.ID, err))
 
 		return false
 	}
@@ -255,7 +255,7 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 	members, err := w.useCase.RedisRepo.GetBalanceSyncKeys(ctx, w.batchSize)
 	if err != nil {
 		if !errors.Is(err, redis.Nil) {
-			w.logger.Warnf("BalanceSyncWorker: get balance sync keys error: %v", err)
+			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: get balance sync keys error: %v", err))
 		}
 
 		return false
@@ -297,7 +297,7 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 
 	for _, m := range members {
 		if w.shouldShutdown(ctx) {
-			w.logger.Info("BalanceSyncWorker: shutting down...")
+			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
 
 			return true
 		}
@@ -315,7 +315,7 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 
 			defer func() {
 				if r := recover(); r != nil {
-					w.logger.Errorf("BalanceSyncWorker: panic recovered while processing %s: %v", member, r)
+					w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: panic recovered while processing %s: %v", member, r))
 				}
 			}()
 
@@ -389,18 +389,18 @@ func (w *BalanceSyncWorker) processBalancesToExpireBatch(ctx context.Context, or
 func (w *BalanceSyncWorker) waitForNextOrBackoff(ctx context.Context, rds redis.UniversalClient) bool {
 	next, err := rds.ZRangeWithScores(ctx, utils.BalanceSyncScheduleKey, 0, 0).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		w.logger.Warnf("BalanceSyncWorker: zrangewithscores error: %v", err)
+		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: zrangewithscores error: %v", err))
 
 		return waitOrDone(ctx, w.idleWait, w.logger)
 	}
 
 	if len(next) == 0 {
-		w.logger.Info("BalanceSyncWorker: nothing scheduled; back off.")
+		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: nothing scheduled; back off.")
 
 		return waitOrDone(ctx, w.idleWait, w.logger)
 	}
 
-	w.logger.Infof("BalanceSyncWorker: next: %+v", next[0])
+	w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: next: %+v", next[0]))
 
 	return w.waitUntilDue(ctx, int64(next[0].Score), w.logger)
 }
@@ -423,17 +423,17 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 
 	ttl, err := rds.TTL(ctx, member).Result()
 	if err != nil {
-		w.logger.Warnf("BalanceSyncWorker: TTL error for %s: %v", member, err)
+		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: TTL error for %s: %v", member, err))
 
 		return
 	}
 
 	// Handle missing key regardless of TTL sentinel representation (-2 or -2s)
 	if ttl == -2 || ttl == -2*time.Second {
-		w.logger.Warnf("BalanceSyncWorker: already-gone key: %s, removing from schedule", member)
+		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: already-gone key: %s, removing from schedule", member))
 
 		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-			w.logger.Warnf("BalanceSyncWorker: failed to remove expired balance sync key %s: %v", member, remErr)
+			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove expired balance sync key %s: %v", member, remErr))
 		}
 
 		return
@@ -442,13 +442,13 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 	val, err := rds.Get(ctx, member).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			w.logger.Warnf("BalanceSyncWorker: missing key on GET: %s, removing from schedule", member)
+			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: missing key on GET: %s, removing from schedule", member))
 
 			if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-				w.logger.Warnf("BalanceSyncWorker: failed to remove missing balance sync key %s: %v", member, remErr)
+				w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove missing balance sync key %s: %v", member, remErr))
 			}
 		} else {
-			w.logger.Warnf("BalanceSyncWorker: GET error for %s: %v", member, err)
+			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: GET error for %s: %v", member, err))
 		}
 
 		return
@@ -456,10 +456,10 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 
 	organizationID, ledgerID, err := w.extractIDsFromMember(member)
 	if err != nil {
-		w.logger.Warnf("BalanceSyncWorker: extractIDsFromMember error for %s: %v", member, err)
+		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: extractIDsFromMember error for %s: %v", member, err))
 
 		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-			w.logger.Warnf("BalanceSyncWorker: failed to remove unparsable balance sync key %s: %v", member, remErr)
+			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove unparsable balance sync key %s: %v", member, remErr))
 		}
 
 		return
@@ -467,10 +467,10 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 
 	var balance mmodel.BalanceRedis
 	if err := json.Unmarshal([]byte(val), &balance); err != nil {
-		w.logger.Warnf("BalanceSyncWorker: Unmarshal error for %s: %v", member, err)
+		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: Unmarshal error for %s: %v", member, err))
 
 		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-			w.logger.Warnf("BalanceSyncWorker: failed to remove unmarshalable balance sync key %s: %v", member, remErr)
+			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove unmarshalable balance sync key %s: %v", member, remErr))
 		}
 
 		return
@@ -490,11 +490,11 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 			"mode":            "individual",
 		}).AddOne(ctx)
 
-		w.logger.Infof("BalanceSyncWorker: Synced key %s", member)
+		w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: Synced key %s", member))
 	}
 
 	if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-		w.logger.Warnf("BalanceSyncWorker: failed to remove balance sync key %s: %v", member, remErr)
+		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove balance sync key %s: %v", member, remErr))
 	}
 }
 
@@ -504,7 +504,7 @@ func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool
 		return false
 	}
 
-	logger.Infof("BalanceSyncWorker: waiting for %s", d.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: waiting for %s", d.String()))
 
 	t := time.NewTimer(d)
 	defer t.Stop()

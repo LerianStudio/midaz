@@ -9,16 +9,20 @@ import (
 	"encoding/json"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
+
+	// GetBalanceByID gets data in the repository.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// GetBalanceByID gets data in the repository.
 func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -27,9 +31,9 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 
 	balance, err := uc.BalanceRepo.Find(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get balance on repo by id", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get balance on repo by id", err)
 
-		logger.Errorf("Error getting balance: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balance: %v", err))
 
 		return nil, err
 	}
@@ -37,9 +41,9 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 	if balance == nil {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance not found", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance not found", err)
 
-		logger.Warnf("Balance not found")
+		logger.Log(ctx, libLog.LevelWarn, "Balance not found")
 
 		return nil, err
 	}
@@ -49,15 +53,15 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 
 	value, rerr := uc.RedisRepo.Get(ctx, internalKey)
 	if rerr != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance cache value on redis", rerr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache value on redis", rerr)
 
-		logger.Warnf("Failed to get balance cache value on redis: %v", rerr)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get balance cache value on redis: %v", rerr))
 	}
 
 	if value != "" {
 		cached := mmodel.BalanceRedis{}
 		if uerr := json.Unmarshal([]byte(value), &cached); uerr != nil {
-			logger.Warnf("Error unmarshalling balance cache value: %v", uerr)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error unmarshalling balance cache value: %v", uerr))
 		} else {
 			balance.Available = cached.Available
 			balance.OnHold = cached.OnHold

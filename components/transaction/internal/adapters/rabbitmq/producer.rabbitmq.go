@@ -10,10 +10,11 @@ import (
 	"os"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v3/commons/constants"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -60,14 +61,19 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 		return true
 	}
 
-	return prmq.conn.HealthCheck()
+	healthy, err := prmq.conn.HealthCheck()
+	if err != nil {
+		return false
+	}
+
+	return healthy
 }
 
 // ProducerDefault sends a message to a RabbitMQ queue for further processing.
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
-	logger.Infof("Init sent message to exchange: %s, key: %s", exchange, key)
+	logger.Log(ctx, libLog.LevelInfo, "Init sent message", libLog.String("exchange", exchange), libLog.String("key", key))
 
 	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
 	defer spanProducer.End()
@@ -79,8 +85,8 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
 	if err := prmq.conn.EnsureChannel(); err != nil {
-		logger.Errorf("Failed to ensure channel: %v", err)
-		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to ensure channel", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to ensure channel", libLog.Err(err))
+		libOpentelemetry.HandleSpanError(spanProducer, "Failed to ensure channel", err)
 
 		return nil, err
 	}
@@ -98,13 +104,13 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		},
 	)
 	if err != nil {
-		logger.Errorf("Failed to publish message to exchange: %s, key: %s: %v", exchange, key, err)
-		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to publish message", libLog.String("exchange", exchange), libLog.String("key", key), libLog.Err(err))
+		libOpentelemetry.HandleSpanError(spanProducer, "Failed to publish message", err)
 
 		return nil, err
 	}
 
-	logger.Infof("Messages sent successfully to exchange: %s, key: %s", exchange, key)
+	logger.Log(ctx, libLog.LevelInfo, "Message sent successfully", libLog.String("exchange", exchange), libLog.String("key", key))
 
 	return nil, nil
 }
@@ -114,7 +120,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
-	logger.Infof("Init sent message to exchange: %s, key: %s (with context)", exchange, key)
+	logger.Log(ctx, libLog.LevelInfo, "Init sent message with context", libLog.String("exchange", exchange), libLog.String("key", key))
 
 	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message_with_context")
 	defer spanProducer.End()
@@ -125,9 +131,9 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.C
 
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
-	if err := prmq.conn.EnsureChannelWithContext(ctx); err != nil {
-		logger.Errorf("Failed to ensure channel with context: %v", err)
-		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to ensure channel with context", err)
+	if err := prmq.conn.EnsureChannelContext(ctx); err != nil {
+		logger.Log(ctx, libLog.LevelError, "Failed to ensure channel with context", libLog.Err(err))
+		libOpentelemetry.HandleSpanError(spanProducer, "Failed to ensure channel with context", err)
 
 		return nil, err
 	}
@@ -145,13 +151,13 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.C
 		},
 	)
 	if err != nil {
-		logger.Errorf("Failed to publish message to exchange: %s, key: %s: %v", exchange, key, err)
-		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to publish message", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to publish message", libLog.String("exchange", exchange), libLog.String("key", key), libLog.Err(err))
+		libOpentelemetry.HandleSpanError(spanProducer, "Failed to publish message", err)
 
 		return nil, err
 	}
 
-	logger.Infof("Messages sent successfully to exchange: %s, key: %s (with context)", exchange, key)
+	logger.Log(ctx, libLog.LevelInfo, "Message sent successfully with context", libLog.String("exchange", exchange), libLog.String("key", key))
 
 	return nil, nil
 }

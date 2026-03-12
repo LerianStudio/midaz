@@ -33,7 +33,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,7 +50,7 @@ func sanitizeQuickString(s string, maxLen int) string {
 
 // newPropertyRepo creates a TransactionPostgreSQLRepository with a
 // placeholder connection suitable for property tests. The static connection
-// has no live PostgreSQL server behind it, so r.connection.GetDB() will fail.
+// has no live PostgreSQL server behind it, so r.connection.Resolver(context.Background()) will fail.
 // This is intentional: it forces the fallback path to produce a clear error,
 // letting us distinguish which code path getDB actually took.
 func newPropertyRepo() *TransactionPostgreSQLRepository {

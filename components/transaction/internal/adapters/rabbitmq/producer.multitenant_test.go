@@ -9,9 +9,9 @@ import (
 	"errors"
 	"testing"
 
-	libConstants "github.com/LerianStudio/lib-commons/v3/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,10 +35,7 @@ func setupMultiTenantMocks(t *testing.T) (
 	ctrl := gomock.NewController(t)
 
 	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Warnf(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Errorf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Log(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
 	provider := NewMockChannelProvider(ctrl)
 	channel := NewMockPublishableChannel(ctrl)
@@ -712,8 +709,7 @@ func TestMultiTenantProducer_ProducerDefault_EmptyStringTenantID(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			logger := libLog.NewMockLogger(ctrl)
-			logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-			logger.EXPECT().Errorf(gomock.Any(), gomock.Any()).AnyTimes()
+			logger.EXPECT().Log(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
 			provider := NewMockChannelProvider(ctrl)
 			producer := NewMultiTenantProducerWithProvider(provider, logger)

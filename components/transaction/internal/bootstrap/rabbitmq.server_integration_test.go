@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
@@ -114,6 +114,11 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 			Return(nil).
 			AnyTimes()
 
+		mockRedisRepo.EXPECT().
+			Del(gomock.Any(), gomock.Any()).
+			Return(nil).
+			AnyTimes()
+
 		// Create UseCase with mocked repos
 		uc := &command.UseCase{
 			TransactionRepo: mockTransactionRepo,
@@ -136,17 +141,19 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 		rmqtestutil.SetupQueue(t, rmqContainer.Channel, queueName, exchange, routingKey)
 
 		// Create consumer infrastructure (following existing integration test patterns)
-		logger := libZap.InitializeLogger()
+		logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+		require.NoError(t, err)
 		healthCheckURL := "http://" + rmqContainer.Host + ":" + rmqContainer.MgmtPort
 
 		conn := &libRabbitmq.RabbitMQConnection{
-			ConnectionStringSource: rmqContainer.URI,
-			HealthCheckURL:         healthCheckURL,
-			Host:                   rmqContainer.Host,
-			Port:                   rmqContainer.AMQPPort,
-			User:                   rmqtestutil.DefaultUser,
-			Pass:                   rmqtestutil.DefaultPassword,
-			Logger:                 logger,
+			ConnectionStringSource:   rmqContainer.URI,
+			HealthCheckURL:           healthCheckURL,
+			AllowInsecureHealthCheck: true,
+			Host:                     rmqContainer.Host,
+			Port:                     rmqContainer.AMQPPort,
+			User:                     rmqtestutil.DefaultUser,
+			Pass:                     rmqtestutil.DefaultPassword,
+			Logger:                   logger,
 		}
 
 		telemetry := &libOpentelemetry.Telemetry{}
@@ -163,7 +170,7 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 		consumerRoutes.Register(queueName, consumer.handlerBTOQueue)
 
 		// Start consumer
-		err := consumerRoutes.RunConsumers()
+		err = consumerRoutes.RunConsumers()
 		require.NoError(t, err)
 
 		// Give consumer time to start

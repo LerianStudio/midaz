@@ -13,13 +13,15 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v3/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	tmpostgres "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	postgreTransaction "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
@@ -95,12 +97,12 @@ func (r *RedisQueueConsumer) runSingleTenant() error {
 	ticker := time.NewTicker(CronTimeToRun)
 	defer ticker.Stop()
 
-	r.Logger.Info("RedisQueueConsumer started (single-tenant mode)")
+	r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer started (single-tenant mode)")
 
 	for {
 		select {
 		case <-ctx.Done():
-			r.Logger.Info("RedisQueueConsumer: shutting down...")
+			r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer: shutting down...")
 			return nil
 
 		case <-ticker.C:
@@ -120,25 +122,25 @@ func (r *RedisQueueConsumer) runMultiTenant() error {
 	ticker := time.NewTicker(CronTimeToRun)
 	defer ticker.Stop()
 
-	r.Logger.Info("RedisQueueConsumer started (multi-tenant mode)")
+	r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer started (multi-tenant mode)")
 
 	for {
 		select {
 		case <-ctx.Done():
-			r.Logger.Info("RedisQueueConsumer: shutting down...")
+			r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer: shutting down...")
 			return nil
 
 		case <-ticker.C:
 			tenants, err := r.tenantClient.GetActiveTenantsByService(ctx, "transaction")
 			if err != nil {
-				r.Logger.Errorf("RedisQueueConsumer: failed to get active tenants: %v", err)
+				r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("RedisQueueConsumer: failed to get active tenants: %v", err))
 
 				continue
 			}
 
 			for _, tenant := range tenants {
 				if ctx.Err() != nil {
-					r.Logger.Info("RedisQueueConsumer: shutting down...")
+					r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer: shutting down...")
 					return nil
 				}
 
@@ -146,14 +148,14 @@ func (r *RedisQueueConsumer) runMultiTenant() error {
 
 				conn, err := r.pgManager.GetConnection(tenantCtx, tenant.ID)
 				if err != nil {
-					r.Logger.Errorf("RedisQueueConsumer: failed to get PG connection for tenant %s: %v", tenant.ID, err)
+					r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("RedisQueueConsumer: failed to get PG connection for tenant %s: %v", tenant.ID, err))
 
 					continue
 				}
 
 				db, err := conn.GetDB()
 				if err != nil {
-					r.Logger.Errorf("RedisQueueConsumer: failed to get DB for tenant %s: %v", tenant.ID, err)
+					r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("RedisQueueConsumer: failed to get DB for tenant %s: %v", tenant.ID, err))
 
 					continue
 				}
@@ -172,15 +174,15 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	ctx, span := tracer.Start(ctx, "redis.consumer.read_messages_from_queue")
 	defer span.End()
 
-	r.Logger.Infof("Init cron to read messages from redis...")
+	r.Logger.Log(ctx, libLog.LevelInfo, "Init cron to read messages from redis...")
 
 	messages, err := r.TransactionHandler.Command.RedisRepo.ReadAllMessagesFromQueue(ctx)
 	if err != nil {
-		r.Logger.Errorf("Err to read messages from redis: %v", err)
+		r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Err to read messages from redis: %v", err))
 		return
 	}
 
-	r.Logger.Infof("Total of read %d messages from queue", len(messages))
+	r.Logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Total of read %d messages from queue", len(messages)))
 
 	if len(messages) == 0 {
 		return
@@ -195,13 +197,13 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 Outer:
 	for key, message := range messages {
 		if ctx.Err() != nil {
-			r.Logger.Warnf("Shutdown in progress: skipping remaining messages")
+			r.Logger.Log(ctx, libLog.LevelWarn, "Shutdown in progress: skipping remaining messages")
 			break Outer
 		}
 
 		var transaction mmodel.TransactionRedisQueue
 		if err := json.Unmarshal([]byte(message), &transaction); err != nil {
-			r.Logger.Warnf("Error unmarshalling message from Redis: %v", err)
+			r.Logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error unmarshalling message from Redis: %v", err))
 			continue
 		}
 
@@ -217,7 +219,7 @@ Outer:
 		go func(key string, m mmodel.TransactionRedisQueue) {
 			defer func() {
 				if rec := recover(); rec != nil {
-					r.Logger.Warnf("Panic recovered while processing message (key: %s): %v. Message will remain in queue.", key, rec)
+					r.Logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Panic recovered while processing message (key: %s): %v. Message will remain in queue.", key, rec))
 				}
 
 				<-sem
@@ -230,8 +232,8 @@ Outer:
 
 	wg.Wait()
 
-	r.Logger.Infof("Total of messagens under %d minute(s) : %d", MessageTimeOfLife, totalMessagesLessThanOneHour)
-	r.Logger.Infof("Finished processing total of %d eligible messages", len(messages)-totalMessagesLessThanOneHour)
+	r.Logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Total of messagens under %d minute(s) : %d", MessageTimeOfLife, totalMessagesLessThanOneHour))
+	r.Logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Finished processing total of %d eligible messages", len(messages)-totalMessagesLessThanOneHour))
 }
 
 // processMessage handles a single Redis backup queue message: acquires a distributed lock,
@@ -242,9 +244,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 	msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	logger := r.Logger.WithFields(
-		libConstants.HeaderID, m.HeaderID,
-	).WithDefaultMessageTemplate(m.HeaderID + " | ")
+	logger := r.Logger.With(libLog.String(libConstants.HeaderID, m.HeaderID))
 
 	ctxWithLogger := libCommons.ContextWithLogger(
 		libCommons.ContextWithHeaderID(msgCtx, m.HeaderID),
@@ -256,7 +256,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 
 	select {
 	case <-msgCtxWithSpan.Done():
-		logger.Warn("Transaction message processing cancelled due to shutdown/timeout")
+		logger.Log(msgCtxWithSpan, libLog.LevelWarn, "Transaction message processing cancelled due to shutdown/timeout")
 
 		return
 	default:
@@ -269,19 +269,19 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 
 	success, err := r.TransactionHandler.Command.RedisRepo.SetNX(msgCtxWithSpan, lockKey, "", ConsumerLockTTL)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanLock, "Failed to acquire lock", err)
+		libOpentelemetry.HandleSpanError(spanLock, "Failed to acquire lock", err)
 		spanLock.End()
 
-		logger.Warnf("Failed to acquire lock for message %s: %v", key, err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to acquire lock for message %s: %v", key, err))
 
 		return
 	}
 
 	if !success {
-		libOpentelemetry.HandleSpanEvent(&spanLock, "Lock already held by another pod")
+		libOpentelemetry.HandleSpanEvent(spanLock, "Lock already held by another pod")
 		spanLock.End()
 
-		logger.Infof("Message %s already being processed by another pod, skipping", key)
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Message %s already being processed by another pod, skipping", key))
 
 		return
 	}
@@ -289,7 +289,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 	spanLock.End()
 
 	if m.Validate == nil {
-		logger.Warnf("Message (key: %s) has nil Validate field, skipping. Message will remain in queue.", key)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Message (key: %s) has nil Validate field, skipping. Message will remain in queue.", key))
 
 		return
 	}
@@ -345,7 +345,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 			})
 		}
 
-		logger.Infof("Using %d AFTER balances from backup for direct persistence", len(balancesAfter))
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Using %d AFTER balances from backup for direct persistence", len(balancesAfter)))
 	}
 
 	var parentTransactionID *string
@@ -377,7 +377,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 			operations = append(operations, operation.OperationFromRedis(r))
 		}
 
-		logger.Infof("Using %d materialized operations from backup", len(operations))
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Using %d materialized operations from backup", len(operations)))
 	} else {
 		var fromTo []pkgTransaction.FromTo
 
@@ -394,9 +394,9 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
 		)
 		if buildErr != nil {
-			libOpentelemetry.HandleSpanError(&msgSpan, "Failed to validate balances", buildErr)
+			libOpentelemetry.HandleSpanError(msgSpan, "Failed to validate balances", buildErr)
 
-			logger.Errorf("Failed to validate balance: %v", buildErr.Error())
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balance: %v", buildErr.Error()))
 
 			return
 		}
@@ -411,12 +411,12 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 	if err := r.TransactionHandler.Command.WriteTransactionAsync(
 		msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.TransactionInput, m.Validate, balances, balancesAfter, tran,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&msgSpan, "Failed sending message to queue", err)
+		libOpentelemetry.HandleSpanError(msgSpan, "Failed sending message to queue", err)
 
-		logger.Errorf("Failed sending message: %s to queue: %v", key, err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed sending message: %s to queue: %v", key, err.Error()))
 
 		return
 	}
 
-	logger.Infof("Transaction message processed: %s", key)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction message processed: %s", key))
 }
