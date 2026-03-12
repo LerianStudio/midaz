@@ -6,9 +6,8 @@ package services
 
 import (
 	"context"
-	"time"
-
 	"fmt"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"

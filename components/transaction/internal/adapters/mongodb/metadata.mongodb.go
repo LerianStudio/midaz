@@ -67,6 +67,7 @@ func (mmr *MetadataMongoDBRepository) getDatabase(ctx context.Context) (*mongo.D
 	if db := tmcore.GetMongoFromContext(ctx); db != nil {
 		return db, nil
 	}
+
 	if mmr.requireTenant {
 		return nil, fmt.Errorf("tenant mongo database missing from context")
 	}

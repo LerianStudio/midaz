@@ -56,7 +56,6 @@ func (c *GRPCConnection) connect(ctx context.Context) error {
 	c.Conn = conn
 
 	return nil
-
 }
 
 // Connect keeps a singleton connection with gRPC.

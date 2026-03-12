@@ -6,7 +6,6 @@ package query
 
 import (
 	"context"
-
 	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"

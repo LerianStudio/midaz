@@ -7,11 +7,10 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
-
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"

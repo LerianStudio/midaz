@@ -7,10 +7,9 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
-
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"

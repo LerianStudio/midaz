@@ -570,7 +570,8 @@ func TestMongoDBModel_FromEntity_EncryptOptionalFailureReturnsError(t *testing.T
 
 func mustEncrypt(t *testing.T, crypto interface {
 	Encrypt(*string) (*string, error)
-}, value string) *string {
+}, value string,
+) *string {
 	t.Helper()
 
 	encrypted, err := crypto.Encrypt(testutils.Ptr(value))

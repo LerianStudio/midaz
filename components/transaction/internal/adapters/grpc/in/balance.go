@@ -6,14 +6,13 @@ package in
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/google/uuid"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-
-	"fmt"
 
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"

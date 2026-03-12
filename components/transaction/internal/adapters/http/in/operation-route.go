@@ -6,10 +6,9 @@ package in
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
-
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"

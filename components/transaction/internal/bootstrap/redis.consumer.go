@@ -7,13 +7,12 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
-
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"

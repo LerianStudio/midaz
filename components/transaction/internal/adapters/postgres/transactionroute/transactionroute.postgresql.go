@@ -8,12 +8,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
@@ -74,6 +73,7 @@ func (r *TransactionRoutePostgreSQLRepository) getDB(ctx context.Context) (dbres
 	if db, err := tmcore.GetModulePostgresForTenant(ctx, "transaction"); err == nil {
 		return db, nil
 	}
+
 	if r.requireTenant {
 		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
@@ -370,6 +370,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			if parseErr != nil {
 				return nil, parseErr
 			}
+
 			if operationRoutesMap[opRouteID] {
 				continue
 			}

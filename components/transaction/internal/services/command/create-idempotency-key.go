@@ -7,9 +7,8 @@ package command
 import (
 	"context"
 	"errors"
-	"time"
-
 	"fmt"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"

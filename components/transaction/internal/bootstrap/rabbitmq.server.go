@@ -6,9 +6,8 @@ package bootstrap
 
 import (
 	"context"
-	"os"
-
 	"fmt"
+	"os"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
