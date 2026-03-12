@@ -48,7 +48,10 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_alias")
 	defer span.End()
 
-	payload := p.(*mmodel.CreateAliasInput)
+	payload, ok := p.(*mmodel.CreateAliasInput)
+	if !ok || payload == nil {
+		return http.WithError(c, cn.ErrInternalServer)
+	}
 
 	holderID, err := http.GetUUIDFromLocals(c, "holder_id")
 	if err != nil {
@@ -170,7 +173,10 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 	}
 
 	organizationID := c.Get("X-Organization-Id")
-	payload := p.(*mmodel.UpdateAliasInput)
+	payload, ok := p.(*mmodel.UpdateAliasInput)
+	if !ok || payload == nil {
+		return http.WithError(c, cn.ErrInternalServer)
+	}
 
 	fieldsToRemove, ok := c.Locals("patchRemove").([]string)
 	if !ok {

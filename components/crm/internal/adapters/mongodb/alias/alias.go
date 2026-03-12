@@ -70,6 +70,14 @@ func encryptOptional(ds *libCrypto.Crypto, value *string) (*string, error) {
 	return ds.Encrypt(value)
 }
 
+func decryptOptional(ds *libCrypto.Crypto, value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+
+	return ds.Decrypt(value)
+}
+
 // mapBankingDetailsFromEntity encrypts and maps banking details to MongoDB model.
 func mapBankingDetailsFromEntity(bd *mmodel.BankingDetails, ds *libCrypto.Crypto) (*BankingMongoDBModel, *string, *string, error) {
 	account, err := encryptOptional(ds, bd.Account)
@@ -251,12 +259,12 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	}
 
 	if amm.BankingDetails != nil {
-		accountNumber, err := ds.Decrypt(amm.BankingDetails.Account)
+		accountNumber, err := decryptOptional(ds, amm.BankingDetails.Account)
 		if err != nil {
 			return nil, err
 		}
 
-		iban, err := ds.Decrypt(amm.BankingDetails.IBAN)
+		iban, err := decryptOptional(ds, amm.BankingDetails.IBAN)
 		if err != nil {
 			return nil, err
 		}
@@ -277,7 +285,7 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	}
 
 	if amm.RegulatoryFields != nil {
-		participantDocument, err := ds.Decrypt(amm.RegulatoryFields.ParticipantDocument)
+		participantDocument, err := decryptOptional(ds, amm.RegulatoryFields.ParticipantDocument)
 		if err != nil {
 			return nil, err
 		}

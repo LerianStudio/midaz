@@ -31,6 +31,11 @@ func (uc *UseCase) ValidateRelatedParty(ctx context.Context, party *mmodel.Relat
 	_, span := tracer.Start(ctx, "service.validate_related_party")
 	defer span.End()
 
+	if party == nil {
+		libOpenTelemetry.HandleSpanError(span, "Related party payload is nil", cn.ErrInvalidRelatedPartyRole)
+		return pkg.ValidateBusinessError(cn.ErrInvalidRelatedPartyRole, reflect.TypeOf(mmodel.RelatedParty{}).Name())
+	}
+
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Validating related party: role=%s", party.Role))
 
 	if strings.TrimSpace(party.Document) == "" {

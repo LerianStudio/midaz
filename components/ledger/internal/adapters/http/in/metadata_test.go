@@ -10,9 +10,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	stdhttp "net/http"
 	"net/http/httptest"
 	"testing"
 
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/gofiber/fiber/v2"
@@ -20,6 +22,26 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
+
+func newMetadataHandlerTestApp(register func(app *fiber.App)) *fiber.App {
+	app := fiber.New(fiber.Config{ErrorHandler: libHTTP.FiberErrorHandler})
+	register(app)
+
+	return app
+}
+
+func assertJSONErrorResponse(t *testing.T, resp *stdhttp.Response) {
+	t.Helper()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var errBody map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &errBody), "expected JSON error body, got: %s", string(respBody))
+	assert.NotEmpty(t, errBody["code"])
+	assert.NotEmpty(t, errBody["title"])
+	assert.NotEmpty(t, errBody["message"])
+}
 
 func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 	t.Parallel()
@@ -139,11 +161,11 @@ func TestMetadataIndexHandler_CreateMetadataIndex(t *testing.T) {
 				TransactionMetadataRepo: mockTransactionRepo,
 			}
 
-			app := fiber.New()
-
-			app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
-				c.SetUserContext(context.Background())
-				return handler.CreateMetadataIndex(tt.payload, c)
+			app := newMetadataHandlerTestApp(func(app *fiber.App) {
+				app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
+					c.SetUserContext(context.Background())
+					return handler.CreateMetadataIndex(tt.payload, c)
+				})
 			})
 
 			body, err := json.Marshal(tt.payload)
@@ -210,11 +232,11 @@ func TestMetadataIndexHandler_CreateMetadataIndex_InvalidPayload(t *testing.T) {
 				TransactionMetadataRepo: mockTransactionRepo,
 			}
 
-			app := fiber.New()
-
-			app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
-				c.SetUserContext(context.Background())
-				return handler.CreateMetadataIndex(tt.payload, c)
+			app := newMetadataHandlerTestApp(func(app *fiber.App) {
+				app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
+					c.SetUserContext(context.Background())
+					return handler.CreateMetadataIndex(tt.payload, c)
+				})
 			})
 
 			req := httptest.NewRequest("POST", "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader([]byte("{}")))
@@ -246,12 +268,12 @@ func TestMetadataIndexHandler_CreateMetadataIndex_EmptyEntityName(t *testing.T) 
 		MetadataKey: "tier",
 	}
 
-	app := fiber.New()
-
-	// Route without :entity_name param so c.Params("entity_name") returns ""
-	app.Post("/v1/settings/metadata-indexes/entities", func(c *fiber.Ctx) error {
-		c.SetUserContext(context.Background())
-		return handler.CreateMetadataIndex(payload, c)
+	app := newMetadataHandlerTestApp(func(app *fiber.App) {
+		// Route without :entity_name param so c.Params("entity_name") returns ""
+		app.Post("/v1/settings/metadata-indexes/entities", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+			return handler.CreateMetadataIndex(payload, c)
+		})
 	})
 
 	body, err := json.Marshal(payload)
@@ -468,11 +490,11 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 				TransactionMetadataRepo: mockTransactionRepo,
 			}
 
-			app := fiber.New()
-
-			app.Get("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
-				c.SetUserContext(context.Background())
-				return handler.GetAllMetadataIndexes(c)
+			app := newMetadataHandlerTestApp(func(app *fiber.App) {
+				app.Get("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
+					c.SetUserContext(context.Background())
+					return handler.GetAllMetadataIndexes(c)
+				})
 			})
 
 			req := httptest.NewRequest("GET", "/v1/settings/metadata-indexes"+tt.queryParams, nil)
@@ -491,6 +513,10 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes(t *testing.T) {
 				require.NoError(t, err)
 
 				tt.validateBody(t, result)
+			}
+
+			if resp.StatusCode != fiber.StatusOK {
+				assertJSONErrorResponse(t, resp)
 			}
 		})
 	}
@@ -576,11 +602,11 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 				TransactionMetadataRepo: mockTransactionRepo,
 			}
 
-			app := fiber.New()
-
-			app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c *fiber.Ctx) error {
-				c.SetUserContext(context.Background())
-				return handler.DeleteMetadataIndex(c)
+			app := newMetadataHandlerTestApp(func(app *fiber.App) {
+				app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c *fiber.Ctx) error {
+					c.SetUserContext(context.Background())
+					return handler.DeleteMetadataIndex(c)
+				})
 			})
 
 			url := "/v1/settings/metadata-indexes/entities/" + tt.entityName + "/key/" + tt.indexKey
@@ -590,6 +616,10 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			if resp.StatusCode != fiber.StatusNoContent {
+				assertJSONErrorResponse(t, resp)
+			}
 		})
 	}
 }
@@ -608,12 +638,12 @@ func TestMetadataIndexHandler_DeleteMetadataIndex_EmptyEntityName(t *testing.T) 
 		TransactionMetadataRepo: mockTransactionRepo,
 	}
 
-	app := fiber.New()
-
-	// Route without :entity_name param so c.Params("entity_name") returns ""
-	app.Delete("/v1/settings/metadata-indexes/entities", func(c *fiber.Ctx) error {
-		c.SetUserContext(context.Background())
-		return handler.DeleteMetadataIndex(c)
+	app := newMetadataHandlerTestApp(func(app *fiber.App) {
+		// Route without :entity_name param so c.Params("entity_name") returns ""
+		app.Delete("/v1/settings/metadata-indexes/entities", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+			return handler.DeleteMetadataIndex(c)
+		})
 	})
 
 	req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/entities", nil)

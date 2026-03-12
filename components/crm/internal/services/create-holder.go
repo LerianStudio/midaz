@@ -17,7 +17,6 @@ import (
 
 	// CreateHolder inserts a holder data in the repository
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	"github.com/google/uuid"
 )
 
 func (uc *UseCase) CreateHolder(ctx context.Context, organizationID string, chi *mmodel.CreateHolderInput) (*mmodel.Holder, error) {
@@ -31,7 +30,13 @@ func (uc *UseCase) CreateHolder(ctx context.Context, organizationID string, chi 
 		attribute.String("app.request.organization_id", organizationID),
 	)
 
-	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpenTelemetry.HandleSpanError(span, "Failed to generate holder id", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate holder id: %v", err))
+
+		return nil, err
+	}
 
 	holder := &mmodel.Holder{
 		ID:            &holderID,
