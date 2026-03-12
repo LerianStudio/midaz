@@ -22,3 +22,6 @@ bootstrap.go
 # HTTP routing infrastructure (no business logic)
 routes.go
 swagger.go
+
+# Transaction HTTP orchestration helper (covered via handler/integration tests)
+transaction_creation_helpers.go
