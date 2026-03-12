@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
@@ -24,8 +24,8 @@ import (
 )
 
 func TestGetAllTransactions(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	filter := http.QueryHeader{
 		Limit:        10,
 		Page:         1,
@@ -203,8 +203,8 @@ func TestGetAllTransactions(t *testing.T) {
 func TestGetOperationsByTransaction(t *testing.T) {
 	t.Parallel()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	transactionID := uuid.New()
 	filter := http.QueryHeader{
 		Limit:     10,

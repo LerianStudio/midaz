@@ -10,7 +10,7 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -29,9 +29,9 @@ func TestUpdateBalance(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	allowSending := false
 
@@ -85,9 +85,9 @@ func TestUpdateBalance_RepoError(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	errMSG := "errDatabaseItemNotFound"
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	allowSending := true
 	allowReceiving := false
@@ -123,9 +123,9 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	allowSending := false
 
@@ -199,8 +199,8 @@ func TestUpdateBalances_PrimaryPath_UsesAfterDirectly(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balancesBefore := []*mmodel.Balance{
 		{
@@ -272,8 +272,8 @@ func TestUpdateBalances_FallbackPath_NilAfter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balancesBefore := []*mmodel.Balance{
 		{
@@ -327,8 +327,8 @@ func TestUpdateBalances_PrimaryPath_SkipsMissingAlias(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balancesBefore := []*mmodel.Balance{
 		{ID: "bal-1", Alias: "@alice"},
@@ -366,8 +366,8 @@ func TestUpdateBalances_BalancesUpdateError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balancesBefore := []*mmodel.Balance{
 		{ID: "bal-1", Alias: "@alice"},

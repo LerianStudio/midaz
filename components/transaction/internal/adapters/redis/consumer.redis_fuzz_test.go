@@ -9,25 +9,24 @@ import (
 	"strings"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	tmvalkey "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/valkey"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmvalkey "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/valkey"
+	// =============================================================================
+	// FUZZ TESTS — Redis Key Namespacing (T-001)
+	//
+	// These fuzz tests exercise tmvalkey.GetKeyFromContext with arbitrary key and
+	// tenantID inputs to verify:
+	//   1. No panic under any input (including Unicode, null bytes, very long strings,
+	//      colons, empty strings, and strings that already look like namespaced keys).
+	//   2. Namespacing invariants are preserved for all inputs.
+	//
+	// Run each function with:
+	//
+	//	go test -run=^$ -fuzz=FuzzKeyNamespacing_SimpleKey  -fuzztime=30s \
+	//	    ./components/transaction/internal/adapters/redis/
+	//
+	// =============================================================================
 )
-
-// =============================================================================
-// FUZZ TESTS — Redis Key Namespacing (T-001)
-//
-// These fuzz tests exercise tmvalkey.GetKeyFromContext with arbitrary key and
-// tenantID inputs to verify:
-//   1. No panic under any input (including Unicode, null bytes, very long strings,
-//      colons, empty strings, and strings that already look like namespaced keys).
-//   2. Namespacing invariants are preserved for all inputs.
-//
-// Run each function with:
-//
-//	go test -run=^$ -fuzz=FuzzKeyNamespacing_SimpleKey  -fuzztime=30s \
-//	    ./components/transaction/internal/adapters/redis/
-//
-// =============================================================================
 
 // FuzzKeyNamespacing_SimpleKey fuzzes the single-key namespacing path used by
 // Set, SetNX, Get, Del, Incr, SetBytes, and GetBytes.
@@ -75,35 +74,35 @@ func FuzzKeyNamespacing_SimpleKey(f *testing.F) {
 		}
 
 		// Call the function under test — must not panic.
-		result := tmvalkey.GetKeyFromContext(ctx, key)
+		result, err := tmvalkey.GetKeyFromContext(ctx, key)
+		if err != nil {
+			t.Fatalf("unexpected namespacing error: %v", err)
+		}
 
 		// Invariant 1: non-empty tenantID → prefix is applied.
 		if tenantID != "" {
 			expectedPrefix := "tenant:" + tenantID + ":"
 			if !strings.HasPrefix(result, expectedPrefix) {
-				t.Errorf(
-					"FuzzKeyNamespacing_SimpleKey: expected result to have prefix %q, got %q (key=%q, tenantID=%q)",
-					expectedPrefix, result, key, tenantID,
-				)
+				t.Errorf("FuzzKeyNamespacing_SimpleKey: expected result to have prefix %q, got %q (key=%q, tenantID=%q)",
+					expectedPrefix, result, key, tenantID)
 			}
 		}
 
 		// Invariant 2: empty tenantID → key is returned unchanged.
 		if tenantID == "" && result != key {
-			t.Errorf(
-				"FuzzKeyNamespacing_SimpleKey: expected key unchanged for empty tenantID, got %q (key=%q)",
-				result, key,
-			)
+			t.Errorf("FuzzKeyNamespacing_SimpleKey: expected key unchanged for empty tenantID, got %q (key=%q)",
+				result, key)
 		}
 
 		// Invariant 3: determinism — calling again with the same context and key
 		// must return the same value.
-		result2 := tmvalkey.GetKeyFromContext(ctx, key)
+		result2, err := tmvalkey.GetKeyFromContext(ctx, key)
+		if err != nil {
+			t.Fatalf("unexpected namespacing error in second call: %v", err)
+		}
 		if result != result2 {
-			t.Errorf(
-				"FuzzKeyNamespacing_SimpleKey: non-deterministic result: first=%q second=%q (key=%q, tenantID=%q)",
-				result, result2, key, tenantID,
-			)
+			t.Errorf("FuzzKeyNamespacing_SimpleKey: non-deterministic result: first=%q second=%q (key=%q, tenantID=%q)",
+				result, result2, key, tenantID)
 		}
 	})
 }
@@ -195,10 +194,8 @@ func FuzzKeyNamespacing_MGet(f *testing.F) {
 
 		// Invariant 1: result count never exceeds input key count.
 		if len(result) > keyCount {
-			t.Errorf(
-				"FuzzKeyNamespacing_MGet: result has %d entries but only %d keys were requested",
-				len(result), keyCount,
-			)
+			t.Errorf("FuzzKeyNamespacing_MGet: result has %d entries but only %d keys were requested",
+				len(result), keyCount)
 		}
 
 		// Invariant 2: result map keys are the ORIGINAL keys (not namespaced).
@@ -213,10 +210,8 @@ func FuzzKeyNamespacing_MGet(f *testing.F) {
 			}
 
 			if !found {
-				t.Errorf(
-					"FuzzKeyNamespacing_MGet: result map contains unexpected key %q (not in original keys)",
-					resultKey,
-				)
+				t.Errorf("FuzzKeyNamespacing_MGet: result map contains unexpected key %q (not in original keys)",
+					resultKey)
 			}
 		}
 
@@ -226,10 +221,8 @@ func FuzzKeyNamespacing_MGet(f *testing.F) {
 
 			for resultKey := range result {
 				if strings.HasPrefix(resultKey, prefix) {
-					t.Errorf(
-						"FuzzKeyNamespacing_MGet: result map contains namespaced key %q (tenantID=%q)",
-						resultKey, tenantID,
-					)
+					t.Errorf("FuzzKeyNamespacing_MGet: result map contains namespaced key %q (tenantID=%q)",
+						resultKey, tenantID)
 				}
 			}
 		}
@@ -244,19 +237,15 @@ func FuzzKeyNamespacing_MGet(f *testing.F) {
 
 				for i, sent := range sentKeys {
 					if !strings.HasPrefix(sent, expectedPrefix) {
-						t.Errorf(
-							"FuzzKeyNamespacing_MGet: key sent to Redis at index %d (%q) missing prefix %q",
-							i, sent, expectedPrefix,
-						)
+						t.Errorf("FuzzKeyNamespacing_MGet: key sent to Redis at index %d (%q) missing prefix %q",
+							i, sent, expectedPrefix)
 					}
 				}
 			} else {
 				for i, sent := range sentKeys {
 					if sent != keys[i] {
-						t.Errorf(
-							"FuzzKeyNamespacing_MGet: key sent to Redis at index %d (%q) != original key (%q) with no tenant",
-							i, sent, keys[i],
-						)
+						t.Errorf("FuzzKeyNamespacing_MGet: key sent to Redis at index %d (%q) != original key (%q) with no tenant",
+							i, sent, keys[i])
 					}
 				}
 			}
@@ -339,34 +328,26 @@ func FuzzKeyNamespacing_QueueKey(f *testing.F) {
 
 			// Invariant 1: queue hash key is namespaced.
 			if !strings.HasPrefix(sentQueueKey, expectedPrefix) {
-				t.Errorf(
-					"FuzzKeyNamespacing_QueueKey: queue key %q missing prefix %q (tenantID=%q)",
-					sentQueueKey, expectedPrefix, tenantID,
-				)
+				t.Errorf("FuzzKeyNamespacing_QueueKey: queue key %q missing prefix %q (tenantID=%q)",
+					sentQueueKey, expectedPrefix, tenantID)
 			}
 
 			// Invariant 2: message field key is namespaced.
 			if !strings.HasPrefix(sentMsgKey, expectedPrefix) {
-				t.Errorf(
-					"FuzzKeyNamespacing_QueueKey: msg field key %q missing prefix %q (tenantID=%q, msgKey=%q)",
-					sentMsgKey, expectedPrefix, tenantID, msgKey,
-				)
+				t.Errorf("FuzzKeyNamespacing_QueueKey: msg field key %q missing prefix %q (tenantID=%q, msgKey=%q)",
+					sentMsgKey, expectedPrefix, tenantID, msgKey)
 			}
 		} else {
 			// Invariant 3: without tenant, queue key equals the constant.
 			if sentQueueKey != TransactionBackupQueue {
-				t.Errorf(
-					"FuzzKeyNamespacing_QueueKey: expected queue key %q, got %q (no tenant)",
-					TransactionBackupQueue, sentQueueKey,
-				)
+				t.Errorf("FuzzKeyNamespacing_QueueKey: expected queue key %q, got %q (no tenant)",
+					TransactionBackupQueue, sentQueueKey)
 			}
 
 			// Invariant 4: without tenant, message field key is unchanged.
 			if sentMsgKey != msgKey {
-				t.Errorf(
-					"FuzzKeyNamespacing_QueueKey: expected msg field key %q, got %q (no tenant)",
-					msgKey, sentMsgKey,
-				)
+				t.Errorf("FuzzKeyNamespacing_QueueKey: expected msg field key %q, got %q (no tenant)",
+					msgKey, sentMsgKey)
 			}
 		}
 	})

@@ -10,9 +10,9 @@ package transaction
 import (
 	"fmt"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/gofiber/fiber/v2"

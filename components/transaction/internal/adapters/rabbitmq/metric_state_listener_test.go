@@ -5,10 +5,11 @@
 package rabbitmq
 
 import (
+	"context"
 	"testing"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
-	"github.com/LerianStudio/lib-commons/v3/commons/opentelemetry/metrics"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -23,7 +24,8 @@ func TestNewMetricStateListener_NilFactory_ReturnsError(t *testing.T) {
 func TestNewMetricStateListener_ValidFactory_ReturnsListener(t *testing.T) {
 	mp := sdkmetric.NewMeterProvider()
 	meter := mp.Meter("test")
-	factory := metrics.NewMetricsFactory(meter, nil)
+	factory, err := metrics.NewMetricsFactory(meter, nil)
+	require.NoError(t, err)
 
 	listener, err := NewMetricStateListener(factory)
 
@@ -34,15 +36,17 @@ func TestNewMetricStateListener_ValidFactory_ReturnsListener(t *testing.T) {
 func TestMetricStateListener_OnStateChange_UpdatesMetric(t *testing.T) {
 	mp := sdkmetric.NewMeterProvider()
 	meter := mp.Meter("test")
-	factory := metrics.NewMetricsFactory(meter, nil)
+	factory, err := metrics.NewMetricsFactory(meter, nil)
+	require.NoError(t, err)
 
 	listener, err := NewMetricStateListener(factory)
 	require.NoError(t, err)
 
 	// Test state transitions - should not panic
-	listener.OnStateChange("rabbitmq-producer", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
-	listener.OnStateChange("rabbitmq-producer", libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
-	listener.OnStateChange("rabbitmq-producer", libCircuitBreaker.StateHalfOpen, libCircuitBreaker.StateClosed)
+	ctx := context.Background()
+	listener.OnStateChange(ctx, "rabbitmq-producer", libCircuitBreaker.StateClosed, libCircuitBreaker.StateOpen)
+	listener.OnStateChange(ctx, "rabbitmq-producer", libCircuitBreaker.StateOpen, libCircuitBreaker.StateHalfOpen)
+	listener.OnStateChange(ctx, "rabbitmq-producer", libCircuitBreaker.StateHalfOpen, libCircuitBreaker.StateClosed)
 }
 
 func TestStateToMetricValue(t *testing.T) {

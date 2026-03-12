@@ -22,10 +22,9 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	"github.com/google/uuid"
@@ -43,7 +42,7 @@ type chaosNetworkTransactionInfra struct {
 	pgResult   *pgtestutil.ContainerResult
 	chaosInfra *chaos.Infrastructure
 	repo       *TransactionPostgreSQLRepository
-	conn       *libPostgres.PostgresConnection
+	conn       *libPostgres.Client
 	proxy      *chaos.Proxy
 	orgID      uuid.UUID
 	ledgerID   uuid.UUID
@@ -81,25 +80,17 @@ func setupTransactionChaosNetworkInfra(t *testing.T) *chaosNetworkTransactionInf
 	require.NotEmpty(t, containerInfo.ProxyListen, "proxy listen address must be non-empty")
 
 	// 6. Build TransactionPostgreSQLRepository connected through proxy
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 
 	proxyConnStr := pgtestutil.BuildConnectionStringWithHost(containerInfo.ProxyListen, pgResult.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: proxyConnStr,
-		ConnectionStringReplica: proxyConnStr,
-		PrimaryDBName:           pgResult.Config.DBName,
-		ReplicaDBName:           pgResult.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, proxyConnStr, proxyConnStr, pgResult.Config.DBName, migrationsPath)
 
 	repo := NewTransactionPostgreSQLRepository(conn)
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	return &chaosNetworkTransactionInfra{
 		pgResult:   pgResult,
@@ -422,7 +413,7 @@ func TestIntegration_Chaos_Transaction_GetDB_NetworkPartition(t *testing.T) {
 
 	// Build a tenant context that uses the same proxied DB (simulating the
 	// tenant path going through the same PostgreSQL instance).
-	tenantDB, err := infra.conn.GetDB()
+	tenantDB, err := infra.conn.Resolver(context.Background())
 	require.NoError(t, err, "setup: must be able to get DB from proxied connection")
 
 	tenantCtx := tmcore.ContextWithModulePGConnection(ctx, "transaction", tenantDB)

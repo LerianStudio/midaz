@@ -8,8 +8,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/lib-commons/v3/commons/opentelemetry/metrics"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -23,7 +23,8 @@ func TestRabbitMQComponents_MetricsFactoryField(t *testing.T) {
 
 	mp := sdkmetric.NewMeterProvider()
 	meter := mp.Meter("test")
-	factory := metrics.NewMetricsFactory(meter, nil)
+	factory, err := metrics.NewMetricsFactory(meter, nil)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name           string
@@ -69,7 +70,8 @@ func TestResolveTenantConnections_EmitsMetrics_OnNilManagersNoError(t *testing.T
 
 	mp := sdkmetric.NewMeterProvider()
 	meter := mp.Meter("test")
-	factory := metrics.NewMetricsFactory(meter, nil)
+	factory, err := metrics.NewMetricsFactory(meter, nil)
+	require.NoError(t, err)
 
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-001")
 	rmq := &rabbitMQComponents{
@@ -110,7 +112,8 @@ func TestMultiTenantConsumerRunnable_MetricsFactoryField(t *testing.T) {
 
 	mp := sdkmetric.NewMeterProvider()
 	meter := mp.Meter("test")
-	factory := metrics.NewMetricsFactory(meter, nil)
+	factory, err := metrics.NewMetricsFactory(meter, nil)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name           string

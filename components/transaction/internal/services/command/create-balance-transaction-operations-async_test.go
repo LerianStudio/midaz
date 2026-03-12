@@ -10,7 +10,7 @@ import (
 	"errors"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
@@ -36,24 +36,11 @@ func Int64Ptr(v int64) *int64 {
 // MockLogger is a mock implementation of logger for testing
 type MockLogger struct{}
 
-func (m *MockLogger) Debug(args ...any)                                        {}
-func (m *MockLogger) Debugf(format string, args ...any)                        {}
-func (m *MockLogger) Debugln(args ...any)                                      {}
-func (m *MockLogger) Info(args ...any)                                         {}
-func (m *MockLogger) Infof(format string, args ...any)                         {}
-func (m *MockLogger) Infoln(args ...any)                                       {}
-func (m *MockLogger) Warn(args ...any)                                         {}
-func (m *MockLogger) Warnf(format string, args ...any)                         {}
-func (m *MockLogger) Warnln(args ...any)                                       {}
-func (m *MockLogger) Error(args ...any)                                        {}
-func (m *MockLogger) Errorf(format string, args ...any)                        {}
-func (m *MockLogger) Errorln(args ...any)                                      {}
-func (m *MockLogger) Fatal(args ...any)                                        {}
-func (m *MockLogger) Fatalf(format string, args ...any)                        {}
-func (m *MockLogger) Fatalln(args ...any)                                      {}
-func (m *MockLogger) Sync() error                                              { return nil }
-func (m *MockLogger) WithDefaultMessageTemplate(template string) libLog.Logger { return m }
-func (m *MockLogger) WithFields(args ...any) libLog.Logger                     { return m }
+func (m *MockLogger) Log(_ context.Context, _ libLog.Level, _ string, _ ...libLog.Field) {}
+func (m *MockLogger) With(_ ...libLog.Field) libLog.Logger                               { return m }
+func (m *MockLogger) WithGroup(_ string) libLog.Logger                                   { return m }
+func (m *MockLogger) Enabled(_ libLog.Level) bool                                        { return true }
+func (m *MockLogger) Sync(_ context.Context) error                                       { return nil }
 
 func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 	t.Run("success", func(t *testing.T) {

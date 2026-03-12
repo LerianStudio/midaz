@@ -12,9 +12,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -30,19 +28,11 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *BalancePostgreSQLRepository {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           container.Config.DBName,
-		ReplicaDBName:           container.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
 	return NewBalancePostgreSQLRepository(conn)
 }
@@ -50,7 +40,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Bala
 // createTestAccountForBalance inserts a minimal account directly for balance tests.
 // Transaction component doesn't have account table, so we skip FK validation.
 func createTestAccountID() uuid.UUID {
-	return libCommons.GenerateUUIDv7()
+	return uuid.Must(libCommons.GenerateUUIDv7())
 }
 
 // ============================================================================
@@ -63,8 +53,8 @@ func TestIntegration_BalanceRepository_Find_ReturnsBalance(t *testing.T) {
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Insert test balance directly
@@ -108,9 +98,9 @@ func TestIntegration_BalanceRepository_Find_ReturnsEntityNotFoundError(t *testin
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistentID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -132,8 +122,8 @@ func TestIntegration_BalanceRepository_Find_IgnoresDeletedBalance(t *testing.T) 
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Insert deleted balance
@@ -170,10 +160,10 @@ func TestIntegration_BalanceRepository_Create_Success(t *testing.T) {
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
-	balanceID := libCommons.GenerateUUIDv7()
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	now := time.Now().Truncate(time.Microsecond)
 
@@ -270,10 +260,10 @@ func TestIntegration_BalanceRepository_SchemaDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			orgID := libCommons.GenerateUUIDv7()
-			ledgerID := libCommons.GenerateUUIDv7()
-			accountID := libCommons.GenerateUUIDv7()
-			balanceID := libCommons.GenerateUUIDv7()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			accountID := uuid.Must(libCommons.GenerateUUIDv7())
+			balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 			now := time.Now().Truncate(time.Microsecond)
 
 			args := tt.argsFunc(balanceID, orgID, ledgerID, accountID, now)
@@ -297,8 +287,8 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_ReturnsBalances(t *tes
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Create multiple balances for same account with different keys
@@ -329,9 +319,9 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_EmptyForNonExistentAcc
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistentAccountID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -348,8 +338,8 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_FiltersByDateRange(t *
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Create a balance (created today)
@@ -387,8 +377,8 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_Pagination(t *testing.
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Create 7 balances with different keys for the same account
@@ -450,8 +440,8 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_PreservesLargePrecisio
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Use shared helper to create balance with large precision values
@@ -478,8 +468,8 @@ func TestIntegration_BalanceRepository_Delete_SoftDeletesBalance(t *testing.T) {
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	params := pgtestutil.DefaultBalanceParams()
@@ -511,9 +501,9 @@ func TestIntegration_BalanceRepository_Delete_ReturnsErrorForNonExistent(t *test
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistentID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -536,8 +526,8 @@ func TestIntegration_BalanceRepository_Update_ReturnsUpdatedBalance(t *testing.T
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	params := pgtestutil.DefaultBalanceParams()
@@ -586,8 +576,8 @@ func TestIntegration_BalanceRepository_Update_ReturnedBalanceMatchesPersistedDat
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	params := pgtestutil.DefaultBalanceParams()
@@ -637,9 +627,9 @@ func TestIntegration_BalanceRepository_Update_ReturnsEntityNotFoundError(t *test
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistentID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -664,8 +654,8 @@ func TestIntegration_BalanceRepository_Update_ChangesAllowFlags(t *testing.T) {
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	params := pgtestutil.DefaultBalanceParams()
@@ -718,8 +708,8 @@ func TestIntegration_BalanceRepository_ListByAliases_ReturnsMatchingBalances(t *
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID1 := createTestAccountID()
 	accountID2 := createTestAccountID()
 
@@ -759,8 +749,8 @@ func TestIntegration_BalanceRepository_ListByAliases_PreservesLargePrecision(t *
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Use shared helper to create balance with large precision values
@@ -783,8 +773,8 @@ func TestIntegration_BalanceRepository_ListByAliases_EmptyForNonExistentAlias(t 
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -805,8 +795,8 @@ func TestIntegration_BalanceRepository_FindByAccountIDAndKey_ReturnsBalance(t *t
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	params := pgtestutil.DefaultBalanceParams()
@@ -831,8 +821,8 @@ func TestIntegration_BalanceRepository_FindByAccountIDAndKey_ReturnsErrorForWron
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	params := pgtestutil.DefaultBalanceParams()
@@ -862,8 +852,8 @@ func TestIntegration_BalanceRepository_Sync_UpdatesBalanceFromRedis(t *testing.T
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	params := pgtestutil.DefaultBalanceParams()
@@ -901,12 +891,12 @@ func TestIntegration_BalanceRepository_Sync_IgnoresOlderVersion(t *testing.T) {
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Insert balance with version 10
-	balanceID := libCommons.GenerateUUIDv7()
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := container.DB.Exec(`
@@ -1251,8 +1241,8 @@ func TestIntegration_BalanceRepository_ListAll_ReturnsBalances(t *testing.T) {
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID1 := createTestAccountID()
 	accountID2 := createTestAccountID()
 
@@ -1282,8 +1272,8 @@ func TestIntegration_BalanceRepository_ListAll_FiltersByDateRange(t *testing.T) 
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Create a balance (created today)
@@ -1322,8 +1312,8 @@ func TestIntegration_BalanceRepository_ListAll_Pagination(t *testing.T) {
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create 7 balances
 	for i := 0; i < 7; i++ {
@@ -1384,8 +1374,8 @@ func TestIntegration_BalanceRepository_ListAll_EmptyForNonExistentLedger(t *test
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	nonExistentLedgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentLedgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -1402,8 +1392,8 @@ func TestIntegration_BalanceRepository_ListAll_PreservesLargePrecision(t *testin
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Use shared helper to create balance with large precision values
@@ -1446,7 +1436,7 @@ type largePrecisionTestData struct {
 func createLargePrecisionBalance(t *testing.T, container *pgtestutil.ContainerResult, orgID, ledgerID, accountID uuid.UUID, alias string) largePrecisionTestData {
 	t.Helper()
 
-	balanceID := libCommons.GenerateUUIDv7()
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 	largeAvail, _ := decimal.NewFromString("123456789012345678901234567890.123456789012345678901234567890")
 	largeHold, _ := decimal.NewFromString("987654321098765432109876543210.987654321098765432109876543210")
 	now := time.Now().Truncate(time.Microsecond)
@@ -1479,12 +1469,12 @@ func TestIntegration_BalancesUpdate_OptimisticLock_HighestVersionWins(t *testing
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	// Create balance with version 5 directly
-	balanceID := libCommons.GenerateUUIDv7()
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := container.DB.Exec(`
@@ -1547,8 +1537,8 @@ func TestIntegration_BalancesUpdate_ParallelUpdates_DifferentBalances(t *testing
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -1618,8 +1608,8 @@ func TestIntegration_BalancesUpdate_SequentialVersioning(t *testing.T) {
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
 
 	params := pgtestutil.BalanceParams{
@@ -1673,8 +1663,8 @@ func TestIntegration_BalancesUpdate_EmptySlice_NoError(t *testing.T) {
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -1689,8 +1679,8 @@ func TestIntegration_BalancesUpdate_BatchUpdate_AllSucceed(t *testing.T) {
 
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 

@@ -10,9 +10,12 @@ import (
 
 	"github.com/google/uuid"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 
+	"fmt"
+
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -33,38 +36,38 @@ func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRe
 
 	defer span.End()
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", req)
+	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", req, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to convert payload to JSON string", err)
 
 		return nil, err
 	}
 
-	logger.Infof("Initiating create balance for account id: %s with alias: %s and key: %s", req.GetAccountId(), req.GetAlias(), req.GetKey())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create balance for account id: %s with alias: %s and key: %s", req.GetAccountId(), req.GetAlias(), req.GetKey()))
 
 	orgID, err := uuid.Parse(req.GetOrganizationId())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid organization_id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid organization_id", err)
 
-		logger.Errorf("Invalid organization_id, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid organization_id, Error: %s", err.Error()))
 
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Balance{}).Name(), "organizationId")
 	}
 
 	ledgerID, err := uuid.Parse(req.GetLedgerId())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid ledger_id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ledger_id", err)
 
-		logger.Errorf("Invalid ledger_id, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid ledger_id, Error: %s", err.Error()))
 
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Balance{}).Name(), "ledgerId")
 	}
 
 	accountID, err := uuid.Parse(req.GetAccountId())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid account_id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account_id", err)
 
-		logger.Errorf("Invalid account_id, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid account_id, Error: %s", err.Error()))
 
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Balance{}).Name(), "accountId")
 	}
@@ -84,14 +87,14 @@ func (b *BalanceProto) CreateBalance(ctx context.Context, req *balance.BalanceRe
 
 	created, err := b.Command.CreateBalanceSync(ctx, input)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create balance on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create balance on command", err)
 
-		logger.Errorf("Failed to create balance, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create balance, Error: %s", err.Error()))
 
 		return nil, err
 	}
 
-	logger.Infof("Successfully created balance")
+	logger.Log(ctx, libLog.LevelInfo, "Successfully created balance")
 
 	resp := &balance.BalanceResponse{
 		Id:             created.ID,
@@ -113,47 +116,47 @@ func (b *BalanceProto) DeleteAllBalancesByAccountID(ctx context.Context, req *ba
 
 	defer span.End()
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", req)
+	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", req, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to convert payload to JSON string", err)
 
 		return nil, err
 	}
 
-	logger.Infof("Initiating delete all balances by account id for account id: %s", req.GetAccountId())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating delete all balances by account id for account id: %s", req.GetAccountId()))
 
 	orgID, err := uuid.Parse(req.GetOrganizationId())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid organization_id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid organization_id", err)
 
-		logger.Errorf("Invalid organization_id, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid organization_id, Error: %s", err.Error()))
 
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Balance{}).Name(), "organizationId")
 	}
 
 	ledgerID, err := uuid.Parse(req.GetLedgerId())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid ledger_id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ledger_id", err)
 
-		logger.Errorf("Invalid ledger_id, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid ledger_id, Error: %s", err.Error()))
 
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Balance{}).Name(), "ledgerId")
 	}
 
 	accountID, err := uuid.Parse(req.GetAccountId())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid account_id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account_id", err)
 
-		logger.Errorf("Invalid account_id, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid account_id, Error: %s", err.Error()))
 
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Balance{}).Name(), "accountId")
 	}
 
 	err = b.Command.DeleteAllBalancesByAccountID(ctx, orgID, ledgerID, accountID, req.GetRequestId())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete all balances by account id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete all balances by account id", err)
 
-		logger.Errorf("Failed to delete all balances by account id, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete all balances by account id, Error: %s", err.Error()))
 
 		return nil, err
 	}

@@ -5,11 +5,12 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	tmpostgres "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
@@ -21,7 +22,7 @@ import (
 
 // postgresComponents holds PostgreSQL-related components initialized during bootstrap.
 type postgresComponents struct {
-	connection           *libPostgres.PostgresConnection
+	connection           *libPostgres.Client
 	pgManager            *tmpostgres.Manager // nil in single-tenant mode; reserved for MultiPoolMiddleware wiring
 	transactionRepo      *transaction.TransactionPostgreSQLRepository
 	operationRepo        *operation.OperationPostgreSQLRepository
@@ -43,7 +44,7 @@ func initPostgres(opts *Options, cfg *Config, logger libLog.Logger) (*postgresCo
 
 // initMultiTenantPostgres initializes PostgreSQL in multi-tenant mode.
 func initMultiTenantPostgres(opts *Options, cfg *Config, logger libLog.Logger) (*postgresComponents, error) {
-	logger.Info("Initializing multi-tenant PostgreSQL for transaction")
+	logger.Log(context.Background(), libLog.LevelInfo, "Initializing multi-tenant PostgreSQL for transaction")
 
 	if opts.TenantClient == nil {
 		return nil, fmt.Errorf("TenantClient is required for multi-tenant PostgreSQL initialization")
@@ -98,10 +99,13 @@ func initSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*postgresCompo
 var postgresConnector = defaultPostgresConnector
 
 // defaultPostgresConnector builds a PostgresConnection from Config and establishes the connection.
-func defaultPostgresConnector(cfg *Config, logger libLog.Logger) (*libPostgres.PostgresConnection, error) {
-	conn := buildPostgresConnection(cfg, logger)
+func defaultPostgresConnector(cfg *Config, logger libLog.Logger) (*libPostgres.Client, error) {
+	conn, err := buildPostgresConnection(cfg, logger)
+	if err != nil {
+		return nil, err
+	}
 
-	if err := conn.Connect(); err != nil {
+	if err := conn.Connect(context.Background()); err != nil {
 		return nil, err
 	}
 
@@ -109,7 +113,7 @@ func defaultPostgresConnector(cfg *Config, logger libLog.Logger) (*libPostgres.P
 }
 
 // buildPostgresConnection creates a PostgresConnection from Config using prefixed env var fallback.
-func buildPostgresConnection(cfg *Config, logger libLog.Logger) *libPostgres.PostgresConnection {
+func buildPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Client, error) {
 	dbHost := utils.EnvFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
 	dbUser := utils.EnvFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
 	dbPassword := utils.EnvFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
@@ -133,14 +137,16 @@ func buildPostgresConnection(cfg *Config, logger libLog.Logger) *libPostgres.Pos
 	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		dbReplicaHost, dbReplicaUser, dbReplicaPassword, dbReplicaName, dbReplicaPort, dbReplicaSSLMode)
 
-	return &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: postgreSourcePrimary,
-		ConnectionStringReplica: postgreSourceReplica,
-		PrimaryDBName:           dbName,
-		ReplicaDBName:           dbReplicaName,
-		Component:               ApplicationName,
-		Logger:                  logger,
-		MaxOpenConnections:      maxOpenConns,
-		MaxIdleConnections:      maxIdleConns,
+	conn, err := libPostgres.New(libPostgres.Config{
+		PrimaryDSN:         postgreSourcePrimary,
+		ReplicaDSN:         postgreSourceReplica,
+		Logger:             logger,
+		MaxOpenConnections: maxOpenConns,
+		MaxIdleConnections: maxIdleConns,
+	})
+	if err != nil {
+		return nil, err
 	}
+
+	return conn, nil
 }

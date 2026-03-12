@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 )
 
@@ -96,11 +96,21 @@ func NewCircuitBreakerManager(
 		return nil, ErrInvalidMinRequests
 	}
 
+	// lib-commons v4 validation requires MinRequests=0 when FailureRatio=0 (consecutive-only mode).
+	if cbConfig.FailureRatio == 0 {
+		cbConfig.MinRequests = 0
+	}
+
 	// Create circuit breaker manager
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager, err := libCircuitBreaker.NewManager(logger)
+	if err != nil {
+		return nil, err
+	}
 
 	// Initialize circuit breaker for RabbitMQ with provided config
-	cbManager.GetOrCreate(rabbitmq.CircuitBreakerServiceName, rabbitmq.RabbitMQCircuitBreakerConfig(cbConfig))
+	if _, err = cbManager.GetOrCreate(rabbitmq.CircuitBreakerServiceName, rabbitmq.RabbitMQCircuitBreakerConfig(cbConfig)); err != nil {
+		return nil, err
+	}
 
 	// Register state change listener if provided
 	if stateListener != nil {
@@ -153,13 +163,13 @@ func NewCircuitBreakerManager(
 
 // Start begins the health checker background process.
 func (cbm *CircuitBreakerManager) Start() {
-	cbm.logger.Info("Starting circuit breaker manager")
+	cbm.logger.Log(context.Background(), libLog.LevelInfo, "Starting circuit breaker manager")
 	cbm.HealthChecker.Start()
 }
 
 // Stop gracefully stops the health checker.
 func (cbm *CircuitBreakerManager) Stop() {
-	cbm.logger.Info("Stopping circuit breaker manager")
+	cbm.logger.Log(context.Background(), libLog.LevelInfo, "Stopping circuit breaker manager")
 	cbm.HealthChecker.Stop()
 }
 

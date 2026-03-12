@@ -9,9 +9,12 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -26,23 +29,23 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 	ctx, span := tracer.Start(ctx, "query.get_all_operations")
 	defer span.End()
 
-	logger.Infof("Retrieving operations by account")
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving operations by account")
 
 	op, cur, err := uc.OperationRepo.FindAll(ctx, organizationID, ledgerID, transactionID, filter.ToCursorPagination())
 	if err != nil {
-		logger.Errorf("Error getting all operations on repo: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting all operations on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get all operations on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get all operations on repo", err)
 
-			logger.Warnf("Error getting all operations on repo: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting all operations on repo: %v", err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get all operations on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get all operations on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -60,9 +63,9 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb operation", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb operation", err)
 
-		logger.Warnf("Error getting metadata on mongodb operation: %v", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting metadata on mongodb operation: %v", err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

@@ -92,26 +92,27 @@ func (mr *MockRabbitMQHealthCheckerMockRecorder) EnsureChannel() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureChannel", reflect.TypeOf((*MockRabbitMQHealthChecker)(nil).EnsureChannel))
 }
 
-// EnsureChannelWithContext mocks base method.
-func (m *MockRabbitMQHealthChecker) EnsureChannelWithContext(ctx context.Context) error {
+// EnsureChannelContext mocks base method.
+func (m *MockRabbitMQHealthChecker) EnsureChannelContext(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnsureChannelWithContext", ctx)
+	ret := m.ctrl.Call(m, "EnsureChannelContext", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// EnsureChannelWithContext indicates an expected call of EnsureChannelWithContext.
-func (mr *MockRabbitMQHealthCheckerMockRecorder) EnsureChannelWithContext(ctx any) *gomock.Call {
+// EnsureChannelContext indicates an expected call of EnsureChannelContext.
+func (mr *MockRabbitMQHealthCheckerMockRecorder) EnsureChannelContext(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureChannelWithContext", reflect.TypeOf((*MockRabbitMQHealthChecker)(nil).EnsureChannelWithContext), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureChannelContext", reflect.TypeOf((*MockRabbitMQHealthChecker)(nil).EnsureChannelContext), ctx)
 }
 
 // HealthCheck mocks base method.
-func (m *MockRabbitMQHealthChecker) HealthCheck() bool {
+func (m *MockRabbitMQHealthChecker) HealthCheck() (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HealthCheck")
 	ret0, _ := ret[0].(bool)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // HealthCheck indicates an expected call of HealthCheck.

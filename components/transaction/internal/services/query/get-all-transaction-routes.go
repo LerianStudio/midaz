@@ -9,9 +9,11 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -19,34 +21,36 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+
+	// GetAllTransactionRoutes fetch all Transaction Routes from the repository
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// GetAllTransactionRoutes fetch all Transaction Routes from the repository
 func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transaction_routes")
 	defer span.End()
 
-	logger.Infof("Retrieving transaction routes")
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving transaction routes")
 
 	transactionRoutes, cur, err := uc.TransactionRouteRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
-		logger.Errorf("Error getting transaction routes on repo: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting transaction routes on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction routes on repo", err)
 
-			logger.Warnf("Error getting transaction routes on repo: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting transaction routes on repo: %v", err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transaction routes on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction routes on repo", err)
 
-		logger.Errorf("Error getting transaction routes on repo: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting transaction routes on repo: %v", err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -61,9 +65,9 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, 
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb transaction route", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb transaction route", err)
 
-			logger.Warnf("Error getting metadata on mongodb transaction route: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting metadata on mongodb transaction route: %v", err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}

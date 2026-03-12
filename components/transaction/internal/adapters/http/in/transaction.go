@@ -15,12 +15,13 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	libConstants "github.com/LerianStudio/lib-commons/v3/commons/constants"
+	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
@@ -35,6 +36,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // TransactionHandler struct that handle transaction
@@ -74,16 +76,16 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 
 	input := p.(*transaction.CreateTransactionInput)
 	transactionInput := input.BuildTransaction()
-	logger.Infof("Request to create an transaction with details: %#v", transactionInput)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create an transaction with details: %#v", transactionInput))
 
 	transactionStatus := constant.CREATED
 	if transactionInput.Pending {
 		transactionStatus = constant.PENDING
 	}
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", transactionInput)
+	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", transactionInput, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert transaction input to JSON string", err)
 	}
 
 	return handler.createTransaction(c, *transactionInput, transactionStatus)
@@ -120,7 +122,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 
 	input := p.(*transaction.CreateTransactionInput)
 	transactionInput := input.BuildTransaction()
-	logger.Infof("Create an transaction annotation without an affected balance: %#v", transactionInput)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Create an transaction annotation without an affected balance: %#v", transactionInput))
 
 	return handler.createTransaction(c, *transactionInput, constant.NOTED)
 }
@@ -156,11 +158,11 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 
 	input := p.(*transaction.CreateTransactionInflowInput)
 	transactionInput := input.BuildInflowEntry()
-	logger.Infof("Request to create an transaction inflow with details: %#v", transactionInput)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create an transaction inflow with details: %#v", transactionInput))
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", transactionInput)
+	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", transactionInput, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert transaction input to JSON string", err)
 	}
 
 	response := handler.createTransaction(c, *transactionInput, constant.CREATED)
@@ -199,16 +201,16 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 
 	input := p.(*transaction.CreateTransactionOutflowInput)
 	transactionInput := input.BuildOutflowEntry()
-	logger.Infof("Request to create an transaction outflow with details: %#v", transactionInput)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create an transaction outflow with details: %#v", transactionInput))
 
 	transactionStatus := constant.CREATED
 	if transactionInput.Pending {
 		transactionStatus = constant.PENDING
 	}
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", transactionInput)
+	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", transactionInput, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert transaction input to JSON string", err)
 	}
 
 	return handler.createTransaction(c, *transactionInput, transactionStatus)
@@ -252,24 +254,24 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 		"/ledgers/"+c.Params("ledger_id")+
 		"/transactions/json>; rel=\"successor-version\"")
 
-	logger.Warnf("DEPRECATED ENDPOINT: POST /transactions/dsl called. "+
+	logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("DEPRECATED ENDPOINT: POST /transactions/dsl called. "+
 		"request_id=%s. Use POST /transactions/json instead. "+
-		"Sunset date: 2026-08-01", c.Get("X-Request-Id"))
+		"Sunset date: 2026-08-01", c.Get("X-Request-Id")))
 
 	_, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Error("Failed to validate query parameters: ", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
 	dsl, err := http.GetFileFromHeader(c)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get file from Header", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get file from Header", err)
 
-		logger.Error("Failed to get file from Header: ", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get file from Header: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -278,7 +280,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	if errListener != nil && len(errListener.Errors) > 0 {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name(), errListener.Errors)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate script in DSL", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate script in DSL", err)
 
 		return http.WithError(c, err)
 	}
@@ -289,14 +291,14 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	if !ok {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to parse script in DSL", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse script in DSL", err)
 
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.transaction.send", transactionInput.Send)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.transaction.send", transactionInput.Send, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction input to JSON string", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert transaction input to JSON string", err)
 	}
 
 	response := handler.createTransaction(c, transactionInput, constant.CREATED)
@@ -340,9 +342,9 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	if err != nil {
 		tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
 
-			logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
 
 			return http.WithError(c, err)
 		}
@@ -387,9 +389,9 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 	if err != nil {
 		tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
 
-			logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
 
 			return http.WithError(c, err)
 		}
@@ -433,9 +435,9 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 	parent, err := handler.Query.GetParentByTransactionID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Parent Transaction on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Parent Transaction on query", err)
 
-		logger.Errorf("Failed to retrieve Parent Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Parent Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -443,18 +445,18 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	if parent != nil {
 		err = pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction Has Already Parent Transaction", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
 
-		logger.Errorf("Transaction Has Already Parent Transaction with ID: %s, Error: %s", transactionID.String(), err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Transaction Has Already Parent Transaction with ID: %s, Error: %s", transactionID.String(), err))
 
 		return http.WithError(c, err)
 	}
 
 	tran, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
 
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -462,9 +464,9 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	if tran.ParentTransactionID != nil {
 		err = pkg.ValidateBusinessError(constant.ErrTransactionIDIsAlreadyARevert, "RevertTransaction")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction Has Already Parent Transaction", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
 
-		logger.Errorf("Transaction Has Already Parent Transaction with ID: %s, Error: %s", transactionID.String(), err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Transaction Has Already Parent Transaction with ID: %s, Error: %s", transactionID.String(), err))
 
 		return http.WithError(c, err)
 	}
@@ -472,9 +474,9 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	if tran.Status.Code != constant.APPROVED {
 		err = pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "RevertTransaction")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction CantRevert Transaction", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction CantRevert Transaction", err)
 
-		logger.Errorf("Transaction CantRevert Transaction with ID: %s, Error: %s", transactionID.String(), err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Transaction CantRevert Transaction with ID: %s, Error: %s", transactionID.String(), err))
 
 		return http.WithError(c, err)
 	}
@@ -483,9 +485,9 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	if transactionReverted.IsEmpty() {
 		err = pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction can't be reverted", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction can't be reverted", err)
 
-		logger.Errorf("Parent Transaction can't be reverted with ID: %s, Error: %s", transactionID.String(), err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Parent Transaction can't be reverted with ID: %s, Error: %s", transactionID.String(), err))
 
 		return http.WithError(c, err)
 	}
@@ -527,34 +529,34 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	transactionID := c.Locals("transaction_id").(uuid.UUID)
 
-	logger.Infof("Initiating update of Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String()))
 
 	payload := p.(*transaction.UpdateTransactionInput)
-	logger.Infof("Request to update an Transaction with details: %#v", payload)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update an Transaction with details: %#v", payload))
 
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+	if err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
 	}
 
 	_, err := handler.Command.UpdateTransaction(ctx, organizationID, ledgerID, transactionID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction on command", err)
 
-		logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
 	trans, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
 
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String()))
 
 	return http.OK(c, trans)
 }
@@ -598,9 +600,9 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve transaction on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
 
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -609,9 +611,9 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -620,16 +622,16 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 	tran, err = handler.Query.GetOperationsByTransaction(ctxGetTransaction, organizationID, ledgerID, tran, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetTransaction, "Failed to retrieve Operations", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetTransaction, "Failed to retrieve Operations", err)
 
-		logger.Errorf("Failed to retrieve Operations with ID: %s, Error: %s", transactionID.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Operations with ID: %s, Error: %s", transactionID.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
 	spanGetTransaction.End()
 
-	logger.Infof("Successfully retrieved Transaction with ID: %s", transactionID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Transaction with ID: %s", transactionID.String()))
 
 	return http.OK(c, tran)
 }
@@ -649,7 +651,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]transaction.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
+//	@Success		200				{object}	http.Pagination{items=[]transaction.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -668,19 +670,19 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert metadata headerParams to JSON string", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert metadata headerParams to JSON string", err)
 	}
 
-	pagination := libPostgres.Pagination{
+	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
 		SortOrder: headerParams.SortOrder,
 		StartDate: headerParams.StartDate,
@@ -688,18 +690,18 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Infof("Initiating retrieval of all Transactions by metadata")
+		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Transactions by metadata")
 
 		trans, cur, err := handler.Query.GetAllMetadataTransactions(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Transactions by metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Transactions by metadata", err)
 
-			logger.Errorf("Failed to retrieve all Transactions, Error: %s", err.Error())
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Transactions, Error: %s", err.Error()))
 
 			return http.WithError(c, err)
 		}
 
-		logger.Infof("Successfully retrieved all Transactions by metadata")
+		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Transactions by metadata")
 
 		pagination.SetItems(trans)
 		pagination.SetCursor(cur.Next, cur.Prev)
@@ -707,20 +709,20 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 		return http.OK(c, pagination)
 	}
 
-	logger.Infof("Initiating retrieval of all Transactions ")
+	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Transactions ")
 
 	headerParams.Metadata = &bson.M{}
 
 	trans, cur, err := handler.Query.GetAllTransactions(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Transactions", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Transactions", err)
 
-		logger.Errorf("Failed to retrieve all Transactions, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Transactions, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved all Transactions")
+	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Transactions")
 
 	pagination.SetItems(trans)
 	pagination.SetCursor(cur.Next, cur.Prev)
@@ -749,7 +751,7 @@ func (handler *TransactionHandler) HandleAccountFields(entries []pkgTransaction.
 	return result
 }
 
-func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, transactionInput pkgTransaction.Transaction, transactionStatus string) (time.Time, error) {
+func (handler *TransactionHandler) checkTransactionDate(ctx context.Context, logger libLog.Logger, transactionInput pkgTransaction.Transaction, transactionStatus string) (time.Time, error) {
 	now := time.Now()
 	transactionDate := now
 
@@ -757,13 +759,13 @@ func (handler *TransactionHandler) checkTransactionDate(logger libLog.Logger, tr
 		if transactionInput.TransactionDate.After(now) {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, "validateTransactionDate")
 
-			logger.Warnf("transaction date cannot be a future date: %v", err.Error())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("transaction date cannot be a future date: %v", err.Error()))
 
 			return time.Time{}, err
 		} else if transactionStatus == constant.PENDING {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidPendingFutureTransactionDate, "validateTransactionDate")
 
-			logger.Warnf("pending transaction cannot be used together a transaction date: %v", err.Error())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("pending transaction cannot be used together a transaction date: %v", err.Error()))
 
 			return time.Time{}, err
 		} else {
@@ -797,15 +799,15 @@ func (handler *TransactionHandler) BuildOperations(
 	for _, blc := range balances {
 		for i := range fromTo {
 			if blc.Alias == fromTo[i].AccountAlias {
-				logger.Infof("Creating operation for account id: %s and account alias: %s", blc.ID, blc.Alias)
+				logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Creating operation for account id: %s and account alias: %s", blc.ID, blc.Alias))
 
 				preBalances = append(preBalances, blc)
 
 				amt, bat, err := pkgTransaction.ValidateFromToOperation(fromTo[i], *validate, blc.ToTransactionBalance())
 				if err != nil {
-					libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
+					libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
-					logger.Errorf("Failed to validate balance: %v", err.Error())
+					logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balance: %v", err.Error()))
 
 					return nil, nil, err
 				}
@@ -847,7 +849,7 @@ func (handler *TransactionHandler) BuildOperations(
 				}
 
 				operations = append(operations, &operation.Operation{
-					ID:              libCommons.GenerateUUIDv7().String(),
+					ID:              uuid.Must(libCommons.GenerateUUIDv7()).String(),
 					TransactionID:   tran.ID,
 					Description:     description,
 					Type:            amt.Operation,
@@ -869,7 +871,13 @@ func (handler *TransactionHandler) BuildOperations(
 					BalanceAffected: !isAnnotation,
 				})
 
-				metricFactory.RecordTransactionProcessed(ctx, tran.OrganizationID, tran.LedgerID)
+				if err := metricFactory.RecordTransactionProcessed(
+					ctx,
+					attribute.String("organization_id", tran.OrganizationID),
+					attribute.String("ledger_id", tran.LedgerID),
+				); err != nil {
+					libOpentelemetry.HandleSpanError(span, "Failed to record transaction processed metric", err)
+				}
 			}
 		}
 	}
@@ -888,32 +896,32 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	parentID, _ := c.Locals("transaction_id").(uuid.UUID)
-	transactionID := libCommons.GenerateUUIDv7()
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	c.Set(libConstants.IdempotencyReplayed, "false")
 
-	transactionDate, err := handler.checkTransactionDate(logger, transactionInput, transactionStatus)
+	transactionDate, err := handler.checkTransactionDate(ctx, logger, transactionInput, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to check transaction date", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to check transaction date", err)
 
-		logger.Errorf("Failed to check transaction date: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to check transaction date: %v", err))
 
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", transactionInput)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", transactionInput, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert transaction to JSON string", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert transaction to JSON string", err)
 
-		logger.Errorf("Failed to convert transaction to JSON string, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to convert transaction to JSON string, Error: %s", err.Error()))
 	}
 
 	if transactionInput.Send.Value.LessThanOrEqual(decimal.Zero) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, reflect.TypeOf(transaction.Transaction{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid transaction with non-positive value", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction with non-positive value", err)
 
-		logger.Warnf("Transaction value must be greater than zero")
+		logger.Log(ctx, libLog.LevelWarn, "Transaction value must be greater than zero")
 
 		return http.WithError(c, err)
 	}
@@ -938,18 +946,18 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	value, internalKey, err := handler.Command.CreateOrCheckIdempotencyKey(ctxIdempotency, organizationID, ledgerID, key, hash, ttl)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanIdempotency, "Error on create or check redis idempotency key", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanIdempotency, "Error on create or check redis idempotency key", err)
 		spanIdempotency.End()
 
-		logger.Infof("Error on create or check redis idempotency key: %v", err.Error())
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Error on create or check redis idempotency key: %v", err.Error()))
 
 		return http.WithError(c, err)
 	} else if !libCommons.IsNilOrEmpty(value) {
 		t := transaction.Transaction{}
 		if err = json.Unmarshal([]byte(*value), &t); err != nil {
-			libOpentelemetry.HandleSpanError(&spanIdempotency, "Error to deserialization idempotency transaction json on redis", err)
+			libOpentelemetry.HandleSpanError(spanIdempotency, "Error to deserialization idempotency transaction json on redis", err)
 
-			logger.Errorf("Error to deserialization idempotency transaction json on redis: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to deserialization idempotency transaction json on redis: %v", err))
 			spanIdempotency.End()
 
 			return http.WithError(c, err)
@@ -965,9 +973,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate send source and distribute", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 
-		logger.Warnf("Failed to validate send source and distribute: %v", err.Error())
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to validate send source and distribute: %v", err.Error()))
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
 
@@ -980,9 +988,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	err = handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, transactionInput, validate, transactionStatus, transactionDate, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanSendTransactionToRedisQueue, "Failed to send transaction to backup cache", err)
+		libOpentelemetry.HandleSpanError(spanSendTransactionToRedisQueue, "Failed to send transaction to backup cache", err)
 
-		logger.Errorf("Failed to send transaction to backup cache: %v", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to send transaction to backup cache: %v", err.Error()))
 
 		// Only delete idempotency key if marshal failed
 		// If Redis is down, Del would also fail
@@ -1001,9 +1009,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &transactionInput, validate, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
 
-		logger.Errorf("Failed to get balances: %v", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances: %v", err.Error()))
 
 		_ = handler.Command.RedisRepo.Del(ctx, *internalKey)
 
@@ -1050,9 +1058,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
-		logger.Errorf("Failed to validate balance: %v", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balance: %v", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -1079,9 +1087,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "failed to update BTO", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "failed to update BTO", err)
 
-		logger.Errorf("failed to update BTO - transaction: %s - Error: %v", tran.ID, err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("failed to update BTO - transaction: %s - Error: %v", tran.ID, err))
 
 		return http.WithError(c, err)
 	}
@@ -1113,9 +1121,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	success, err := handler.Command.RedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set on redis", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to set on redis", err)
 
-		logger.Errorf("Failed to set on redis: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to set on redis: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -1124,9 +1132,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	if !success {
 		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction is locked", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is locked", err)
 
-		logger.Errorf("Failed, Transaction: %s is locked, Error: %s", tran.ID, err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed, Transaction: %s is locked, Error: %s", tran.ID, err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -1135,9 +1143,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	// On success, the lock remains until TTL expires to prevent duplicate processing.
 	deleteLockOnError := func() {
 		if delErr := handler.Command.RedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete pending transaction lock", delErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete pending transaction lock", delErr)
 
-			logger.Errorf("Failed to delete pending transaction lock key: %v", delErr)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete pending transaction lock key: %v", delErr))
 		}
 	}
 
@@ -1158,9 +1166,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	if tran.Status.Code != constant.PENDING {
 		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction is not pending", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is not pending", err)
 
-		logger.Errorf("Failed, Transaction: %s is not pending, Error: %s", tran.ID, err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed, Transaction: %s is not pending, Error: %s", tran.ID, err.Error()))
 
 		deleteLockOnError()
 
@@ -1169,9 +1177,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate send source and distribute", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 
-		logger.Error("Failed to validate send source and distribute: %v", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate send source and distribute: %s", err.Error()))
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
 
@@ -1184,9 +1192,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanGetBalances, "Failed to get balances", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
 
-		logger.Errorf("Failed to get balances: %v", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances: %v", err.Error()))
 		spanGetBalances.End()
 
 		deleteLockOnError()
@@ -1209,9 +1217,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	operations, preBalances, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, time.Now(), false)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
-		logger.Errorf("Failed to validate balance: %v", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balance: %v", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -1224,9 +1232,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	ctxBackup, spanBackup := tracer.Start(ctx, "handler.commit_or_cancel_transaction.send_to_redis_queue")
 
 	if backupErr := handler.Command.SendTransactionToRedisQueue(ctxBackup, organizationID, ledgerID, tran.IDtoUUID(), transactionInput, validate, transactionStatus, time.Now(), preBalances); backupErr != nil {
-		libOpentelemetry.HandleSpanError(&spanBackup, "Failed to send transaction to backup cache", backupErr)
+		libOpentelemetry.HandleSpanError(spanBackup, "Failed to send transaction to backup cache", backupErr)
 
-		logger.Warnf("Failed to send commit/cancel transaction to backup cache: %v", backupErr)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to send commit/cancel transaction to backup cache: %v", backupErr))
 	}
 
 	spanBackup.End()
@@ -1235,9 +1243,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
 		_, err = handler.Command.UpdateTransactionStatus(ctx, tran)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction status synchronously", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction status synchronously", err)
 
-			logger.Errorf("Failed to update transaction status synchronously for Transaction: %s, Error: %s", tran.ID, err.Error())
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update transaction status synchronously for Transaction: %s, Error: %s", tran.ID, err.Error()))
 		}
 	}
 
@@ -1245,9 +1253,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "failed to update BTO", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "failed to update BTO", err)
 
-		logger.Errorf("failed to update BTO - transaction: %s - Error: %v", tran.ID, err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("failed to update BTO - transaction: %s - Error: %v", tran.ID, err))
 
 		return http.WithError(c, err)
 	}

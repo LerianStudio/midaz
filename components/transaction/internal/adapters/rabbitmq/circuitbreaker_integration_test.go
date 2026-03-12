@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
 
@@ -67,7 +67,7 @@ type cbTestStateChangeListener struct {
 	records []cbStateChangeRecord
 }
 
-func (l *cbTestStateChangeListener) OnStateChange(serviceName string, from, to libCircuitBreaker.State) {
+func (l *cbTestStateChangeListener) OnStateChange(_ context.Context, serviceName string, from, to libCircuitBreaker.State) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.records = append(l.records, cbStateChangeRecord{
@@ -110,16 +110,18 @@ func setupCircuitBreakerTestInfra(t *testing.T, cbConfig CircuitBreakerConfig) *
 	rmqtestutil.SetupQueue(t, rmqContainer.Channel, queue, exchange, routingKey)
 
 	// Create lib-commons RabbitMQ connection
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 	healthCheckURL := "http://" + rmqContainer.Host + ":" + rmqContainer.MgmtPort
 	conn := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rmqContainer.URI,
-		HealthCheckURL:         healthCheckURL,
-		Host:                   rmqContainer.Host,
-		Port:                   rmqContainer.AMQPPort,
-		User:                   rmqtestutil.DefaultUser,
-		Pass:                   rmqtestutil.DefaultPassword,
-		Logger:                 logger,
+		ConnectionStringSource:   rmqContainer.URI,
+		HealthCheckURL:           healthCheckURL,
+		AllowInsecureHealthCheck: true,
+		Host:                     rmqContainer.Host,
+		Port:                     rmqContainer.AMQPPort,
+		User:                     rmqtestutil.DefaultUser,
+		Pass:                     rmqtestutil.DefaultPassword,
+		Logger:                   logger,
 	}
 
 	// Create raw producer
@@ -127,7 +129,8 @@ func setupCircuitBreakerTestInfra(t *testing.T, cbConfig CircuitBreakerConfig) *
 	require.NoError(t, err, "failed to create raw producer")
 
 	// Create circuit breaker manager
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager, err := libCircuitBreaker.NewManager(logger)
+	require.NoError(t, err, "failed to create circuit breaker manager")
 
 	// Initialize circuit breaker with provided config
 	cbManager.GetOrCreate(CircuitBreakerServiceName, RabbitMQCircuitBreakerConfig(cbConfig))
@@ -261,9 +264,9 @@ func TestIntegration_CircuitBreaker_HealthCheck(t *testing.T) {
 	healthy := infra.cbProducer.CheckRabbitMQHealth()
 	assert.True(t, healthy, "health check should pass when RabbitMQ is healthy")
 
-	// Circuit should be healthy
-	assert.True(t, infra.cbProducer.IsCircuitHealthy(),
-		"circuit should report healthy when closed")
+	// Circuit should remain in closed state after successful health check.
+	assert.Equal(t, libCircuitBreaker.StateClosed, infra.cbProducer.GetCircuitState(),
+		"circuit should remain closed when RabbitMQ is healthy")
 
 	t.Log("Integration test passed: health check verified")
 }

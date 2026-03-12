@@ -9,23 +9,27 @@ import (
 	"reflect"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
+
+	// CreateTransaction creates a new transaction persisting data in the repository.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// CreateTransaction creates a new transaction persisting data in the repository.
 func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, t *pkgTransaction.Transaction) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_transaction")
 	defer span.End()
 
-	logger.Infof("Trying to create new transaction")
+	logger.Log(ctx, libLog.LevelInfo, "Trying to create new transaction")
 
 	description := constant.APPROVED
 	status := transaction.Status{
@@ -41,7 +45,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	}
 
 	save := &transaction.Transaction{
-		ID:                       libCommons.GenerateUUIDv7().String(),
+		ID:                       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		ParentTransactionID:      parentTransactionID,
 		OrganizationID:           organizationID.String(),
 		LedgerID:                 ledgerID.String(),
@@ -57,9 +61,9 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 	tran, err := uc.TransactionRepo.Create(ctx, save)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create transaction on repo", err)
 
-		logger.Errorf("Error creating t: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating t: %v", err))
 
 		return nil, err
 	}
@@ -74,9 +78,9 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), &meta); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create transaction metadata", err)
 
-			logger.Errorf("Error into creating transactiont metadata: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error into creating transactiont metadata: %v", err))
 
 			return nil, err
 		}

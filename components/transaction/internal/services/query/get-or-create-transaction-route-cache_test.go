@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
@@ -26,9 +26,9 @@ func TestGetOrCreateTransactionRouteCache_CacheHit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
@@ -61,10 +61,10 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -122,9 +122,9 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_EmptyCache(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -173,9 +173,9 @@ func TestGetOrCreateTransactionRouteCache_RedisGetError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -224,9 +224,9 @@ func TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound(t *testing.T)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -260,9 +260,9 @@ func TestGetOrCreateTransactionRouteCache_DatabaseError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -297,9 +297,9 @@ func TestGetOrCreateTransactionRouteCache_CacheCreationFails(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -350,9 +350,9 @@ func TestGetOrCreateTransactionRouteCache_ToCacheDataError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
