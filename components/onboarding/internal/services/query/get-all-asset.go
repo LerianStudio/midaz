@@ -9,40 +9,44 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
+
+	// GetAllAssets fetch all Asset from the repository
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// GetAllAssets fetch all Asset from the repository
 func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Asset, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_assets")
 	defer span.End()
 
-	logger.Infof("Retrieving assets")
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving assets")
 
 	assets, err := uc.AssetRepo.FindAll(ctx, organizationID, ledgerID, filter.ToOffsetPagination())
 	if err != nil {
-		logger.Errorf("Error getting assets on repo: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting assets on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
-			logger.Warn("No assets found")
+			logger.Log(ctx, libLog.LevelWarn, "No assets found")
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get assets on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get assets on repo", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get assets on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get assets on repo", err)
 
 		return nil, err
 	}
@@ -60,7 +64,7 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uu
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
 
 		return nil, err
 	}

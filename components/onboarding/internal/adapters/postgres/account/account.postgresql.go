@@ -13,11 +13,14 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/v3/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -70,20 +73,15 @@ type Repository interface {
 
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
 type AccountPostgreSQLRepository struct {
-	connection *libPostgres.PostgresConnection
+	connection *libPostgres.Client
 	tableName  string
 }
 
 // NewAccountPostgreSQLRepository returns a new instance of AccountPostgreSQLRepository using the given Postgres connection.
-func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *AccountPostgreSQLRepository {
+func NewAccountPostgreSQLRepository(pc *libPostgres.Client) *AccountPostgreSQLRepository {
 	c := &AccountPostgreSQLRepository{
 		connection: pc,
 		tableName:  "account",
-	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
 	}
 
 	return c
@@ -93,7 +91,11 @@ func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Account
 // In multi-tenant mode, the middleware injects a tenant-specific dbresolver.DB into context.
 // In single-tenant mode (or when no tenant context exists), falls back to the static connection.
 func (r *AccountPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
-	return tmcore.ResolveModuleDB(ctx, "onboarding", r.connection)
+	if db, err := tmcore.GetModulePostgresForTenant(ctx, "onboarding"); err == nil {
+		return db, nil
+	}
+
+	return r.connection.Resolver(ctx)
 }
 
 // Create a new account entity into Postgresql and returns it.
@@ -105,9 +107,9 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -158,9 +160,9 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 	query, args, err := builder.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -173,16 +175,16 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute query", err)
 
-			logger.Errorf("Failed to execute query: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -191,9 +193,9 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
 
-		logger.Errorf("Failed to get rows affected: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
 
 		return nil, err
 	}
@@ -201,9 +203,9 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create account", err)
 
-		logger.Warnf("Failed to create account: %v", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to create account: %v", err))
 
 		return nil, err
 	}
@@ -220,9 +222,9 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -249,9 +251,9 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -260,9 +262,9 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -291,7 +293,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 			&acc.DeletedAt,
 			&acc.Blocked,
 		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
 			return nil, err
 		}
@@ -300,9 +302,9 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
 
-		logger.Errorf("Failed to iterate rows: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to iterate rows: %v", err))
 
 		return nil, err
 	}
@@ -319,9 +321,9 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -342,9 +344,9 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 	query, args, err := findOne.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -379,16 +381,16 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
-			logger.Warnf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-		logger.Errorf("Failed to scan row: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 		return nil, err
 	}
@@ -405,9 +407,9 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -427,9 +429,9 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 
 	query, args, err := findOne.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -464,16 +466,16 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
-			logger.Warnf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-		logger.Errorf("Failed to scan row: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 		return nil, err
 	}
@@ -490,9 +492,9 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -513,9 +515,9 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 
 	query, args, err := findOne.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -550,16 +552,16 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
-			logger.Warnf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-		logger.Errorf("Failed to scan row: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 		return nil, err
 	}
@@ -576,9 +578,9 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return false, err
 	}
@@ -595,9 +597,9 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 	query, args, err := builder.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return false, err
 	}
@@ -613,9 +615,9 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 			return false, nil
 		}
 
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return false, err
 	}
@@ -624,9 +626,9 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 	err = pkg.ValidateBusinessError(constant.ErrAliasUnavailability, reflect.TypeOf(mmodel.Account{}).Name(), alias)
 
-	libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Alias is already taken", err)
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Alias is already taken", err)
 
-	logger.Warnf("Alias is already taken: %v", alias)
+	logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Alias is already taken: %v", alias))
 
 	return true, err
 }
@@ -640,9 +642,9 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -664,9 +666,9 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -675,9 +677,9 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -706,9 +708,9 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 			&acc.DeletedAt,
 			&acc.Blocked,
 		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-			logger.Errorf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
@@ -717,9 +719,9 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
 
-		logger.Errorf("Failed to iterate rows: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to iterate rows: %v", err))
 
 		return nil, err
 	}
@@ -736,9 +738,9 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -757,9 +759,9 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -768,9 +770,9 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -799,9 +801,9 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 			&acc.DeletedAt,
 			&acc.Blocked,
 		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-			logger.Errorf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
@@ -810,9 +812,9 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
 
-		logger.Errorf("Failed to iterate rows: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to iterate rows: %v", err))
 
 		return nil, err
 	}
@@ -853,9 +855,9 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -900,9 +902,9 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	query, args, err := builder.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -915,16 +917,16 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
 
-			logger.Errorf("Failed to execute update query: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
 
-		logger.Errorf("Failed to execute update query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
 
 		return nil, err
 	}
@@ -933,7 +935,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
 
 		return nil, err
 	}
@@ -941,9 +943,9 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account", err)
 
-		logger.Warnf("Failed to update account: %v", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to update account: %v", err))
 
 		return nil, err
 	}
@@ -960,9 +962,9 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return err
 	}
@@ -981,9 +983,9 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 	query, args, err := builder.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return err
 	}
@@ -991,9 +993,9 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 
 	if _, err := db.ExecContext(ctx, query, args...); err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
@@ -1012,9 +1014,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -1032,9 +1034,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -1043,9 +1045,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -1074,9 +1076,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 			&acc.DeletedAt,
 			&acc.Blocked,
 		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-			logger.Errorf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
@@ -1085,9 +1087,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
 
-		logger.Errorf("Failed to iterate rows: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to iterate rows: %v", err))
 
 		return nil, err
 	}
@@ -1104,9 +1106,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -1124,9 +1126,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -1135,9 +1137,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -1166,9 +1168,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 			&acc.DeletedAt,
 			&acc.Blocked,
 		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-			logger.Errorf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
@@ -1177,9 +1179,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
 
-		logger.Errorf("Failed to iterate rows: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to iterate rows: %v", err))
 
 		return nil, err
 	}
@@ -1198,9 +1200,9 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return count, err
 	}
@@ -1214,9 +1216,9 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 	query, args, err := builder.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return count, err
 	}
@@ -1225,9 +1227,9 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return count, err
 	}

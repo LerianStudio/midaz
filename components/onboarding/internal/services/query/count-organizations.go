@@ -9,38 +9,42 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+
+	// CountOrganizations returns the total count of organizations
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// CountOrganizations returns the total count of organizations
 func (uc *UseCase) CountOrganizations(ctx context.Context) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.count_organizations")
 	defer span.End()
 
-	logger.Infof("Counting organizations")
+	logger.Log(ctx, libLog.LevelInfo, "Counting organizations")
 
 	count, err := uc.OrganizationRepo.Count(ctx)
 	if err != nil {
-		logger.Errorf("Error counting organizations on repo: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting organizations on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
-			logger.Warn("No organizations found")
+			logger.Log(ctx, libLog.LevelWarn, "No organizations found")
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count organizations on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count organizations on repo", err)
 
 			return 0, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count organizations on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count organizations on repo", err)
 
 		return 0, err
 	}

@@ -25,7 +25,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	tmvalkey "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/valkey"
+	tmvalkey "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/valkey"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,7 +50,10 @@ func sanitizeQuickStringOnboarding(s string, maxLen int) string {
 func TestProperty_KeyNamespacing_Identity(t *testing.T) {
 	property := func(key string) bool {
 		key = sanitizeQuickStringOnboarding(key, 512)
-		result := tmvalkey.GetKey("", key)
+		result, err := tmvalkey.GetKey("", key)
+		if err != nil {
+			return false
+		}
 
 		return result == key
 	}
@@ -77,7 +80,10 @@ func TestProperty_KeyNamespacing_PrefixStructure(t *testing.T) {
 			return true
 		}
 
-		result := tmvalkey.GetKey(tenantID, key)
+		result, err := tmvalkey.GetKey(tenantID, key)
+		if err != nil {
+			return false
+		}
 		expectedPrefix := "tenant:" + tenantID + ":"
 
 		startsCorrectly := strings.HasPrefix(result, expectedPrefix)
@@ -104,8 +110,15 @@ func TestProperty_KeyNamespacing_Reversibility(t *testing.T) {
 		tenantID = sanitizeQuickStringOnboarding(tenantID, 256)
 		key = sanitizeQuickStringOnboarding(key, 512)
 
-		namespaced := tmvalkey.GetKey(tenantID, key)
-		recovered := tmvalkey.StripTenantPrefix(tenantID, namespaced)
+		namespaced, err := tmvalkey.GetKey(tenantID, key)
+		if err != nil {
+			return false
+		}
+
+		recovered, err := tmvalkey.StripTenantPrefix(tenantID, namespaced)
+		if err != nil {
+			return false
+		}
 
 		return recovered == key
 	}

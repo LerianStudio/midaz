@@ -31,8 +31,8 @@ import (
 	"testing"
 	"testing/quick"
 
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,8 +60,7 @@ func TestProperty_InitPostgres_MultiTenantAlwaysHasPGManager(t *testing.T) {
 
 	withTestConnector(t)
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
 	cfg := &Config{}
 
@@ -74,9 +73,14 @@ func TestProperty_InitPostgres_MultiTenantAlwaysHasPGManager(t *testing.T) {
 			serviceName = "onboarding"
 		}
 
+		client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+		if err != nil {
+			return false
+		}
+
 		opts := &Options{
 			MultiTenantEnabled: true,
-			TenantClient:       tmclient.NewClient("http://localhost:0", logger),
+			TenantClient:       client,
 			TenantServiceName:  serviceName,
 		}
 
@@ -89,7 +93,7 @@ func TestProperty_InitPostgres_MultiTenantAlwaysHasPGManager(t *testing.T) {
 		return result.pgManager != nil
 	}
 
-	err = quick.Check(property, &quick.Config{MaxCount: 100})
+	err := quick.Check(property, &quick.Config{MaxCount: 100})
 	require.NoError(t, err,
 		"Property violated: initPostgres in multi-tenant mode returned nil pgManager")
 }
@@ -107,8 +111,7 @@ func TestProperty_InitPostgres_SingleTenantNeverHasPGManager(t *testing.T) {
 
 	withTestConnector(t)
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
 	cfg := &Config{}
 
@@ -117,9 +120,14 @@ func TestProperty_InitPostgres_SingleTenantNeverHasPGManager(t *testing.T) {
 
 		// Single-tenant: MultiTenantEnabled=false, but vary other options
 		// to prove they don't accidentally trigger multi-tenant mode.
+		client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+		if err != nil {
+			return false
+		}
+
 		opts := &Options{
 			MultiTenantEnabled: false,
-			TenantClient:       tmclient.NewClient("http://localhost:0", logger),
+			TenantClient:       client,
 			TenantServiceName:  serviceName,
 		}
 
@@ -132,7 +140,7 @@ func TestProperty_InitPostgres_SingleTenantNeverHasPGManager(t *testing.T) {
 		return result.pgManager == nil
 	}
 
-	err = quick.Check(property, &quick.Config{MaxCount: 100})
+	err := quick.Check(property, &quick.Config{MaxCount: 100})
 	require.NoError(t, err,
 		"Property violated: initPostgres in single-tenant mode returned non-nil pgManager")
 }
@@ -150,8 +158,7 @@ func TestProperty_InitPostgres_AllReposAlwaysNonNil(t *testing.T) {
 
 	withTestConnector(t)
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
 	cfg := &Config{}
 
@@ -164,9 +171,14 @@ func TestProperty_InitPostgres_AllReposAlwaysNonNil(t *testing.T) {
 
 		var opts *Options
 		if multiTenant {
+			client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+			if err != nil {
+				return false
+			}
+
 			opts = &Options{
 				MultiTenantEnabled: true,
-				TenantClient:       tmclient.NewClient("http://localhost:0", logger),
+				TenantClient:       client,
 				TenantServiceName:  serviceName,
 			}
 		}
@@ -186,7 +198,7 @@ func TestProperty_InitPostgres_AllReposAlwaysNonNil(t *testing.T) {
 			result.accountTypeRepo != nil
 	}
 
-	err = quick.Check(property, &quick.Config{MaxCount: 100})
+	err := quick.Check(property, &quick.Config{MaxCount: 100})
 	require.NoError(t, err,
 		"Property violated: initPostgres returned nil for one or more repository fields")
 }
@@ -202,8 +214,7 @@ func TestProperty_InitPostgres_AllReposAlwaysNonNil(t *testing.T) {
 func TestProperty_BuildPostgresConnection_NeverPanics(t *testing.T) {
 	t.Parallel()
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
 	property := func(host, port, user, password, dbname, sslmode string) bool {
 		host = sanitizePropertyString(host, 256)
@@ -228,16 +239,18 @@ func TestProperty_BuildPostgresConnection_NeverPanics(t *testing.T) {
 			ReplicaDBSSLMode:  sslmode,
 		}
 
-		conn := buildPostgresConnection(cfg, logger)
+		conn, err := buildPostgresConnection(cfg, logger)
+		if err != nil {
+			return false
+		}
 
-		// Property: must always return a non-nil connection with the
-		// correct component name.
-		return conn != nil && conn.Component == ApplicationName
+		// Property: must always return a non-nil connection.
+		return conn != nil
 	}
 
-	err = quick.Check(property, &quick.Config{MaxCount: 100})
+	err := quick.Check(property, &quick.Config{MaxCount: 100})
 	require.NoError(t, err,
-		"Property violated: buildPostgresConnection panicked or returned nil/wrong component")
+		"Property violated: buildPostgresConnection panicked or returned nil")
 }
 
 // =============================================================================

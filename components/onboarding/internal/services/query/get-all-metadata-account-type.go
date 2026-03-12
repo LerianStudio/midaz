@@ -9,31 +9,35 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
+
+	// GetAllMetadataAccountType fetch all Account Types from the repository filtered by metadata
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// GetAllMetadataAccountType fetch all Account Types from the repository filtered by metadata
 func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.AccountType, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_account_type")
 	defer span.End()
 
-	logger.Infof("Retrieving account types by metadata")
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving account types by metadata")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), filter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -48,19 +52,19 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 
 	accountTypes, err := uc.AccountTypeRepo.ListByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
-		logger.Errorf("Error getting account types on repo by query params: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting account types on repo by query params: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account types on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account types on repo", err)
 
-			logger.Warn("No account types found")
+			logger.Log(ctx, libLog.LevelWarn, "No account types found")
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account types on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account types on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

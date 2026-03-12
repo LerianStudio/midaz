@@ -10,8 +10,8 @@ package onboarding
 import (
 	"fmt"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/gofiber/fiber/v2"

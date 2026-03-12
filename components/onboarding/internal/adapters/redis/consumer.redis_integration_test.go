@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 	"github.com/google/uuid"
 	redisv9 "github.com/redis/go-redis/v9"
@@ -406,6 +406,6 @@ func buildOnboardingRepo(t *testing.T, addr string) *RedisConsumerRepository {
 // buildOnboardingRepoWithConn creates a RedisConsumerRepository from an existing
 // lib-commons RedisConnection (used in chaos tests where the connection is
 // pre-configured to route through Toxiproxy).
-func buildOnboardingRepoWithConn(conn *libRedis.RedisConnection) *RedisConsumerRepository {
+func buildOnboardingRepoWithConn(conn *libRedis.Client) *RedisConsumerRepository {
 	return &RedisConsumerRepository{conn: conn}
 }

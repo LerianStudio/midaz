@@ -9,32 +9,36 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
+
+	// GetAllMetadataSegments fetch all Segments from the repository
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// GetAllMetadataSegments fetch all Segments from the repository
 func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Segment, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_segments")
 	defer span.End()
 
-	logger.Infof("Retrieving segments")
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving segments")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), filter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo by query params", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo by query params", err)
 
-		logger.Warn("No metadata found")
+		logger.Log(ctx, libLog.LevelWarn, "No metadata found")
 
 		return nil, err
 	}
@@ -49,19 +53,19 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 
 	segments, err := uc.SegmentRepo.FindByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
-		logger.Errorf("Error getting segments on repo by query params: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting segments on repo by query params: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get segments on repo by query params", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get segments on repo by query params", err)
 
-			logger.Warn("No segments found")
+			logger.Log(ctx, libLog.LevelWarn, "No segments found")
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get segments on repo by query params", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get segments on repo by query params", err)
 
 		return nil, err
 	}

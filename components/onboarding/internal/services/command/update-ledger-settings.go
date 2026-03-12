@@ -7,20 +7,24 @@ package command
 import (
 	"context"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+
+	// UpdateLedgerSettings updates the settings for a specific ledger using schema-aware deep merge.
+	// 1. Validates input settings against the LedgerSettings schema (rejects unknown fields, enforces types)
+	// 2. Atomically fetches existing settings, deep merges, and writes back using SELECT FOR UPDATE
+	// 3. Invalidates the cache after successful write
+	// Returns the merged settings after the update.
+	// Returns an error if the ledger does not exist or if validation fails.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// UpdateLedgerSettings updates the settings for a specific ledger using schema-aware deep merge.
-// 1. Validates input settings against the LedgerSettings schema (rejects unknown fields, enforces types)
-// 2. Atomically fetches existing settings, deep merges, and writes back using SELECT FOR UPDATE
-// 3. Invalidates the cache after successful write
-// Returns the merged settings after the update.
-// Returns an error if the ledger does not exist or if validation fails.
 func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -32,13 +36,13 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 		attribute.String("ledger_id", ledgerID.String()),
 	)
 
-	logger.Infof("Updating settings for ledger: %s", ledgerID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Updating settings for ledger: %s", ledgerID.String()))
 
 	// Validate input settings against schema before any DB operations
 	if err := mmodel.ValidateSettings(settings); err != nil {
-		logger.Errorf("Settings validation failed: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Settings validation failed: %v", err))
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Settings validation failed", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Settings validation failed", err)
 
 		return nil, err
 	}
@@ -51,9 +55,9 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 			return mmodel.DeepMergeSettings(existing, settings), nil
 		})
 	if err != nil {
-		logger.Errorf("Error updating ledger settings atomically: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating ledger settings atomically: %v", err))
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update ledger settings", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger settings", err)
 
 		return nil, err
 	}
@@ -66,7 +70,7 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 	// Invalidate cache after successful write
 	uc.invalidateSettingsCache(ctx, organizationID, ledgerID)
 
-	logger.Infof("Successfully updated settings for ledger: %s", ledgerID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated settings for ledger: %s", ledgerID.String()))
 
 	return updatedSettings, nil
 }
@@ -86,8 +90,8 @@ func (uc *UseCase) invalidateSettingsCache(ctx context.Context, organizationID, 
 
 	cacheKey := utils.LedgerSettingsInternalKey(organizationID, ledgerID)
 	if err := uc.RedisRepo.Del(ctx, cacheKey); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to invalidate ledger settings cache", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to invalidate ledger settings cache", err)
 
-		logger.Warnf("Failed to invalidate ledger settings cache: %v", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to invalidate ledger settings cache: %v", err))
 	}
 }

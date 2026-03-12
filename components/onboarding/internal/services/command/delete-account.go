@@ -9,33 +9,37 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libConstant "github.com/LerianStudio/lib-commons/v3/commons/constants"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libConstant "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/metadata"
+
+	// DeleteAccountByID deletes an account from the repository by ids.
+	// It first deletes all balances associated with the account via the BalancePort interface,
+	// which can be either local (in-process) or remote (gRPC) depending on the deployment mode.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// DeleteAccountByID deletes an account from the repository by ids.
-// It first deletes all balances associated with the account via the BalancePort interface,
-// which can be either local (in-process) or remote (gRPC) depending on the deployment mode.
 func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, token string) error {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_account_by_id")
 	defer span.End()
 
-	logger.Infof("Remove account for id: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Remove account for id: %s", id.String()))
 
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find account by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find account by id", err)
 
-		logger.Errorf("Error finding account by id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error finding account by id: %v", err))
 
 		return err
 	}
@@ -49,9 +53,9 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 
 	err = uc.BalancePort.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, uuid.MustParse(accFound.ID), requestID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete all balances by account id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete all balances by account id", err)
 
-		logger.Errorf("Failed to delete all balances by account id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete all balances by account id: %v", err))
 
 		var (
 			unauthorized pkg.UnauthorizedError
@@ -69,16 +73,16 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-			logger.Warnf("Account ID not found: %s", id.String())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Account ID not found: %s", id.String()))
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete account on repo by id", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete account on repo by id", err)
 
 			return err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete account on repo by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete account on repo by id", err)
 
-		logger.Errorf("Error deleting account: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error deleting account: %v", err))
 
 		return err
 	}

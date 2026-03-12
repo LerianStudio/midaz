@@ -14,11 +14,14 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/v3/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -62,20 +65,15 @@ type Repository interface {
 
 // LedgerPostgreSQLRepository is a Postgresql-specific implementation of the LedgerRepository.
 type LedgerPostgreSQLRepository struct {
-	connection *libPostgres.PostgresConnection
+	connection *libPostgres.Client
 	tableName  string
 }
 
 // NewLedgerPostgreSQLRepository returns a new instance of LedgerPostgresRepository using the given Postgres connection.
-func NewLedgerPostgreSQLRepository(pc *libPostgres.PostgresConnection) *LedgerPostgreSQLRepository {
+func NewLedgerPostgreSQLRepository(pc *libPostgres.Client) *LedgerPostgreSQLRepository {
 	c := &LedgerPostgreSQLRepository{
 		connection: pc,
 		tableName:  "ledger",
-	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
 	}
 
 	return c
@@ -85,7 +83,11 @@ func NewLedgerPostgreSQLRepository(pc *libPostgres.PostgresConnection) *LedgerPo
 // In multi-tenant mode, the middleware injects a tenant-specific dbresolver.DB into context.
 // In single-tenant mode (or when no tenant context exists), falls back to the static connection.
 func (r *LedgerPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
-	return tmcore.ResolveModuleDB(ctx, "onboarding", r.connection)
+	if db, err := tmcore.GetModulePostgresForTenant(ctx, "onboarding"); err == nil {
+		return db, nil
+	}
+
+	return r.connection.Resolver(ctx)
 }
 
 // Create a new Ledger entity into Postgresql and returns it.
@@ -97,9 +99,9 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -114,8 +116,8 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 
 	settingsJSON, err := json.Marshal(record.Settings)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to marshal settings", err)
-		logger.Errorf("Failed to marshal settings: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to marshal settings", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to marshal settings: %v", err))
 
 		return nil, err
 	}
@@ -138,16 +140,16 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Ledger{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
 
-			logger.Warnf("Failed to execute update query: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to execute update query: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
 
-		logger.Errorf("Failed to execute update query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
 
 		return nil, err
 	}
@@ -156,9 +158,9 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
 
-		logger.Errorf("Failed to get rows affected: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
 
 		return nil, err
 	}
@@ -166,7 +168,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create ledger. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create ledger. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -183,9 +185,9 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -202,9 +204,9 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		spanQuery.End()
 
@@ -221,22 +223,22 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-		logger.Errorf("Failed to scan row: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 		return nil, err
 	}
 
 	if len(settingsJSON) > 0 {
 		if err := json.Unmarshal(settingsJSON, &ledger.Settings); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal settings", err)
-			logger.Errorf("Failed to unmarshal settings: %v", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal settings", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal settings: %v", err))
 
 			return nil, err
 		}
@@ -254,9 +256,9 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -281,9 +283,9 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -292,7 +294,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to query database", err)
 
 		return nil, err
 	}
@@ -306,17 +308,17 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 		var settingsJSON []byte
 		if err := rows.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
 			&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt, &settingsJSON); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-			logger.Errorf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
 
 		if len(settingsJSON) > 0 {
 			if err := json.Unmarshal(settingsJSON, &ledger.Settings); err != nil {
-				libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal settings", err)
-				logger.Errorf("Failed to unmarshal settings: %v", err)
+				libOpentelemetry.HandleSpanError(span, "Failed to unmarshal settings", err)
+				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal settings: %v", err))
 
 				return nil, err
 			}
@@ -326,7 +328,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows", err)
 
 		return nil, err
 	}
@@ -343,9 +345,9 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return false, err
 	}
@@ -360,7 +362,7 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
 
 		spanQuery.End()
 
@@ -369,7 +371,7 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to query database", err)
 
 		return false, err
 	}
@@ -380,7 +382,7 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 	if rows.Next() {
 		err := pkg.ValidateBusinessError(constant.ErrLedgerNameConflict, reflect.TypeOf(mmodel.Ledger{}).Name(), name)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Ledger name conflict", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Ledger name conflict", err)
 
 		return true, err
 	}
@@ -401,9 +403,9 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -421,7 +423,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
 
 		spanQuery.End()
 
@@ -430,7 +432,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to query database", err)
 
 		return nil, err
 	}
@@ -444,17 +446,17 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 		var settingsJSON []byte
 		if err := rows.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
 			&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt, &settingsJSON); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-			logger.Errorf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
 
 		if len(settingsJSON) > 0 {
 			if err := json.Unmarshal(settingsJSON, &ledger.Settings); err != nil {
-				libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal settings", err)
-				logger.Errorf("Failed to unmarshal settings: %v", err)
+				libOpentelemetry.HandleSpanError(span, "Failed to unmarshal settings", err)
+				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal settings: %v", err))
 
 				return nil, err
 			}
@@ -464,7 +466,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows", err)
 
 		return nil, err
 	}
@@ -481,9 +483,9 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -532,16 +534,16 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Ledger{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
 
-			logger.Warnf("Failed to execute update query: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to execute update query: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
 
-		logger.Errorf("Failed to execute update query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
 
 		return nil, err
 	}
@@ -550,9 +552,9 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
 
-		logger.Errorf("Failed to get rows affected: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
 
 		return nil, err
 	}
@@ -560,7 +562,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update ledger. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -577,9 +579,9 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return err
 	}
@@ -588,7 +590,7 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 
 	result, err := db.ExecContext(ctx, `UPDATE ledger SET deleted_at = now() WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL`, organizationID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute database query", err)
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute database query", err)
 
 		return err
 	}
@@ -597,9 +599,9 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
 
-		logger.Errorf("Failed to get rows affected: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
 
 		return err
 	}
@@ -607,7 +609,7 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete ledger. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete ledger. Rows affected is 0", err)
 
 		return err
 	}
@@ -626,9 +628,9 @@ func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID u
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return count, err
 	}
@@ -638,7 +640,7 @@ func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID u
 
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM ledger WHERE organization_id = $1 AND deleted_at IS NULL", organizationID).Scan(&count)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to query database", err)
 
 		return count, err
 	}
@@ -655,8 +657,8 @@ func (r *LedgerPostgreSQLRepository) GetSettings(ctx context.Context, organizati
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-		logger.Errorf("Failed to get database connection: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -674,13 +676,13 @@ func (r *LedgerPostgreSQLRepository) GetSettings(ctx context.Context, organizati
 	if err := row.Scan(&settingsJSON); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Ledger not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Ledger not found", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-		logger.Errorf("Failed to scan row: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 		return nil, err
 	}
@@ -689,8 +691,8 @@ func (r *LedgerPostgreSQLRepository) GetSettings(ctx context.Context, organizati
 
 	if len(settingsJSON) > 0 {
 		if err := json.Unmarshal(settingsJSON, &settings); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal settings", err)
-			logger.Errorf("Failed to unmarshal settings: %v", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal settings", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal settings: %v", err))
 
 			return nil, err
 		}
@@ -713,8 +715,8 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-		logger.Errorf("Failed to get database connection: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -727,8 +729,8 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 
 	settingsJSON, err := json.Marshal(settings)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to marshal settings", err)
-		logger.Errorf("Failed to marshal settings: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to marshal settings", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to marshal settings: %v", err))
 
 		return nil, err
 	}
@@ -761,13 +763,13 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Ledger not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Ledger not found", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to update settings", err)
-		logger.Errorf("Failed to update settings: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to update settings", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update settings: %v", err))
 
 		return nil, err
 	}
@@ -776,8 +778,8 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 
 	if len(updatedSettingsJSON) > 0 {
 		if err := json.Unmarshal(updatedSettingsJSON, &updatedSettings); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal updated settings", err)
-			logger.Errorf("Failed to unmarshal updated settings: %v", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal updated settings", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal updated settings: %v", err))
 
 			return nil, err
 		}
@@ -787,7 +789,7 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 		updatedSettings = make(map[string]any)
 	}
 
-	logger.Infof("Successfully updated settings for ledger %s", ledgerID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated settings for ledger %s", ledgerID.String()))
 
 	return updatedSettings, nil
 }
@@ -803,8 +805,8 @@ func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organi
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-		logger.Errorf("Failed to get database connection: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -816,8 +818,8 @@ func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organi
 
 	settingsJSON, err := json.Marshal(settings)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to marshal settings", err)
-		logger.Errorf("Failed to marshal settings: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to marshal settings", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to marshal settings: %v", err))
 
 		return nil, err
 	}
@@ -841,13 +843,13 @@ func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organi
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Ledger not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Ledger not found", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to replace settings", err)
-		logger.Errorf("Failed to replace settings: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to replace settings", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to replace settings: %v", err))
 
 		return nil, err
 	}
@@ -856,8 +858,8 @@ func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organi
 
 	if len(updatedSettingsJSON) > 0 {
 		if err := json.Unmarshal(updatedSettingsJSON, &updatedSettings); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal updated settings", err)
-			logger.Errorf("Failed to unmarshal updated settings: %v", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal updated settings", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal updated settings: %v", err))
 
 			return nil, err
 		}
@@ -867,7 +869,7 @@ func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organi
 		updatedSettings = make(map[string]any)
 	}
 
-	logger.Infof("Successfully replaced settings for ledger %s", ledgerID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully replaced settings for ledger %s", ledgerID.String()))
 
 	return updatedSettings, nil
 }
@@ -884,15 +886,15 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 
 	if mergeFn == nil {
 		err := pkg.ValidateBusinessError(constant.ErrBadRequest, "merge function must not be nil")
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Nil merge function", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Nil merge function", err)
 
 		return nil, err
 	}
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-		logger.Errorf("Failed to get database connection: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -900,8 +902,8 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 	// Begin transaction
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to begin transaction", err)
-		logger.Errorf("Failed to begin transaction: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to begin transaction", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to begin transaction: %v", err))
 
 		return nil, err
 	}
@@ -920,7 +922,7 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 
 		if err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
-				logger.Errorf("Failed to rollback transaction: %v", rbErr)
+				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to rollback transaction: %v", rbErr))
 			}
 		}
 	}()
@@ -941,13 +943,13 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 
 		if errors.Is(scanErr, sql.ErrNoRows) {
 			err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Ledger not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Ledger not found", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan settings", err)
-		logger.Errorf("Failed to scan settings: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to scan settings", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan settings: %v", err))
 
 		return nil, err
 	}
@@ -958,8 +960,8 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 	if len(settingsJSON) > 0 {
 		if unmarshalErr := json.Unmarshal(settingsJSON, &existingSettings); unmarshalErr != nil {
 			err = unmarshalErr
-			libOpentelemetry.HandleSpanError(&span, "Failed to unmarshal existing settings", err)
-			logger.Errorf("Failed to unmarshal existing settings: %v", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal existing settings", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to unmarshal existing settings: %v", err))
 
 			return nil, err
 		}
@@ -973,8 +975,8 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 	mergedSettings, mergeErr := mergeFn(existingSettings)
 	if mergeErr != nil {
 		err = mergeErr
-		libOpentelemetry.HandleSpanError(&span, "Failed to merge settings", err)
-		logger.Errorf("Failed to merge settings: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to merge settings", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to merge settings: %v", err))
 
 		return nil, err
 	}
@@ -988,8 +990,8 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 	mergedJSON, marshalErr := json.Marshal(mergedSettings)
 	if marshalErr != nil {
 		err = marshalErr
-		libOpentelemetry.HandleSpanError(&span, "Failed to marshal merged settings", err)
-		logger.Errorf("Failed to marshal merged settings: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to marshal merged settings", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to marshal merged settings: %v", err))
 
 		return nil, err
 	}
@@ -1005,8 +1007,8 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 
 	if execErr != nil {
 		err = execErr
-		libOpentelemetry.HandleSpanError(&span, "Failed to update settings", err)
-		logger.Errorf("Failed to update settings: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to update settings", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update settings: %v", err))
 
 		return nil, err
 	}
@@ -1014,13 +1016,13 @@ func (r *LedgerPostgreSQLRepository) UpdateSettingsAtomic(ctx context.Context, o
 	// Commit transaction
 	if commitErr := tx.Commit(); commitErr != nil {
 		err = commitErr
-		libOpentelemetry.HandleSpanError(&span, "Failed to commit transaction", err)
-		logger.Errorf("Failed to commit transaction: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to commit transaction", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to commit transaction: %v", err))
 
 		return nil, err
 	}
 
-	logger.Infof("Successfully updated settings atomically for ledger %s", ledgerID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated settings atomically for ledger %s", ledgerID.String()))
 
 	return mergedSettings, nil
 }

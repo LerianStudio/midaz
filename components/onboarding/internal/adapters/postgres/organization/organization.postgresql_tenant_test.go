@@ -8,22 +8,19 @@ import (
 	"context"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// newPlaceholderPostgresConnection creates a *libPostgres.PostgresConnection
+// newPlaceholderPostgresConnection creates a *libPostgres.Client
 // with minimal fields set. This simulates a multi-tenant bootstrap mode where
 // the static connection is a placeholder and the real database comes from the
 // per-request tenant context.
-func newPlaceholderPostgresConnection() *libPostgres.PostgresConnection {
-	return &libPostgres.PostgresConnection{
-		Logger: &libLog.NoneLogger{},
-	}
+func newPlaceholderPostgresConnection() *libPostgres.Client {
+	return &libPostgres.Client{}
 }
 
 // =============================================================================
