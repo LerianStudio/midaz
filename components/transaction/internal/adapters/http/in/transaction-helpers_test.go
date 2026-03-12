@@ -67,6 +67,11 @@ func TestDeriveActionForCommitOrCancel(t *testing.T) {
 			transactionStatus: cn.CANCELED,
 			expectedAction:    cn.ActionCancel,
 		},
+		{
+			name:              "unexpected status defaults to action=cancel",
+			transactionStatus: "UNKNOWN",
+			expectedAction:    cn.ActionCancel,
+		},
 	}
 
 	for _, tt := range tests {

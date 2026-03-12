@@ -8,4 +8,11 @@ END WHERE direction IS NULL;
 
 ALTER TABLE operation ALTER COLUMN direction SET NOT NULL;
 
-ALTER TABLE operation ADD CONSTRAINT chk_operation_direction CHECK (LOWER(direction) IN ('debit', 'credit'));
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'chk_operation_direction'
+    ) THEN
+        ALTER TABLE operation ADD CONSTRAINT chk_operation_direction CHECK (LOWER(direction) IN ('debit', 'credit'));
+    END IF;
+END $$;

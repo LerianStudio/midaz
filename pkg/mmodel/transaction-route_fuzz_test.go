@@ -191,7 +191,7 @@ func FuzzFromMsgpack_ArbitraryBytes(f *testing.F) {
 			return
 		}
 
-		// Quaternary property: roundtrip deserialization must not panic
+		// Tertiary property: roundtrip deserialization must not panic
 		var cache2 TransactionRouteCache
 
 		_ = cache2.FromMsgpack(roundtripped)
