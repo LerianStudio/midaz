@@ -1,0 +1,131 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	redisBalance "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis/balance"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/google/uuid"
+)
+
+// SyncBalancesBatchResult holds the result of a batch sync operation.
+type SyncBalancesBatchResult struct {
+	// KeysProcessed is the number of Redis keys that were attempted
+	KeysProcessed int
+	// BalancesAggregated is the number of unique balances after deduplication
+	BalancesAggregated int
+	// BalancesSynced is the number of balances actually written to database
+	BalancesSynced int64
+	// KeysRemoved is the number of keys removed from the schedule
+	KeysRemoved int64
+}
+
+// SyncBalancesBatch performs a batch sync of balances from Redis to PostgreSQL.
+//
+// Algorithm:
+//  1. Fetch balance values for all provided keys using MGET
+//  2. Aggregate by composite key, keeping only highest version per key
+//  3. Persist aggregated balances to database in single transaction
+//  4. Remove synced keys from the schedule
+//
+// This method is resilient to:
+//   - Missing keys (already expired): skipped in aggregation
+//   - Version conflicts: optimistic locking in DB update
+//   - Partial failures: keys only removed after successful DB write
+func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string) (*SyncBalancesBatchResult, error) {
+	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.sync_balances_batch")
+	defer span.End()
+
+	result := &SyncBalancesBatchResult{
+		KeysProcessed: len(keys),
+	}
+
+	if len(keys) == 0 {
+		return result, nil
+	}
+
+	balanceMap, err := uc.RedisRepo.GetBalancesByKeys(ctx, keys)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get balances by keys", err)
+		logger.Errorf("Failed to get balances by keys: %v", err)
+
+		return nil, err
+	}
+
+	aggregatedBalances := make([]*redisBalance.AggregatedBalance, 0, len(keys))
+
+	for _, key := range keys {
+		balance := balanceMap[key]
+		if balance == nil {
+			logger.Debugf("Balance key %s has no data (expired), skipping", key)
+			continue
+		}
+
+		compositeKey, parseErr := redisBalance.BalanceCompositeKeyFromRedisKey(key)
+		if parseErr != nil {
+			logger.Warnf("Failed to parse composite key from %s: %v", key, parseErr)
+			continue
+		}
+
+		compositeKey.AssetCode = balance.AssetCode
+
+		aggregatedBalances = append(aggregatedBalances, &redisBalance.AggregatedBalance{
+			RedisKey: key,
+			Balance:  balance,
+			Key:      compositeKey,
+		})
+	}
+
+	aggregator := redisBalance.NewInMemoryAggregator()
+	deduplicated := aggregator.Aggregate(ctx, aggregatedBalances)
+	result.BalancesAggregated = len(deduplicated)
+
+	if len(deduplicated) == 0 {
+		logger.Info("No balances to sync after aggregation")
+		return result, nil
+	}
+
+	balancesToSync := make([]mmodel.BalanceRedis, 0, len(deduplicated))
+	keysToRemove := make([]string, 0, len(deduplicated))
+
+	for _, ab := range deduplicated {
+		balancesToSync = append(balancesToSync, *ab.Balance)
+		keysToRemove = append(keysToRemove, ab.RedisKey)
+	}
+
+	synced, err := uc.BalanceRepo.SyncBatch(ctx, organizationID, ledgerID, balancesToSync)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to sync batch to database", err)
+		logger.Errorf("Failed to sync batch to database: %v", err)
+
+		return nil, err
+	}
+
+	result.BalancesSynced = synced
+
+	removed, err := uc.RedisRepo.RemoveBalanceSyncKeysBatch(ctx, keysToRemove)
+	if err != nil {
+		logger.Warnf("Failed to remove synced keys from schedule: %v", err)
+
+		metricFactory.Counter(utils.BalanceSyncCleanupFailures).WithLabels(map[string]string{
+			"organization_id": organizationID.String(),
+			"ledger_id":       ledgerID.String(),
+		}).AddOne(ctx)
+	}
+
+	result.KeysRemoved = removed
+
+	logger.Infof("SyncBalancesBatch: processed=%d, aggregated=%d, synced=%d, removed=%d",
+		result.KeysProcessed, result.BalancesAggregated, result.BalancesSynced, result.KeysRemoved)
+
+	return result, nil
+}
