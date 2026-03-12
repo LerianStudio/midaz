@@ -16,6 +16,10 @@ import (
 
 func ApplyCursorPagination(findAll squirrel.SelectBuilder, decodedCursor libHTTP.Cursor, orderDirection string, limit int) (squirrel.SelectBuilder, error) {
 	normalizedOrder := strings.ToUpper(strings.TrimSpace(orderDirection))
+	if normalizedOrder == "" {
+		normalizedOrder = cn.SortDirASC
+	}
+
 	if normalizedOrder != cn.SortDirASC && normalizedOrder != cn.SortDirDESC {
 		return findAll, fmt.Errorf("invalid sort order: %s", orderDirection)
 	}
