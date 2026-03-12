@@ -25,6 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/trace"
 )
 
 //go:embed scripts/balance_atomic_operation.lua
@@ -60,6 +61,7 @@ func tenantKeysFromContext(ctx context.Context, keys []string) ([]string, error)
 		if err != nil {
 			return nil, err
 		}
+
 		prefixedKeys[i] = prefixedKey
 	}
 
@@ -197,6 +199,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis key: %v", err))
+
 		return "", err
 	}
 
@@ -250,6 +253,7 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis keys", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis keys: %v", err))
+
 		return nil, err
 	}
 
@@ -301,6 +305,7 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis key: %v", err))
+
 		return err
 	}
 
@@ -368,6 +373,12 @@ func boolToInt(b bool) int {
 type balanceAtomicResponse struct {
 	Before balanceRedisList `json:"before"`
 	After  balanceRedisList `json:"after"`
+}
+
+type balanceAtomicOperationPlan struct {
+	args          []any
+	mapBalances   map[string]*mmodel.Balance
+	notedBalances []*mmodel.Balance
 }
 
 // balanceRedisList accepts either a JSON array or a single JSON object.
@@ -467,53 +478,38 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 	}
 }
 
-// ProcessBalanceAtomicOperation executes the balance_atomic_operation.lua script.
-//
-// BALANCE SCHEDULING FLOW:
-//  1. This method calls the Lua script with scheduleSync=1 (balance sync is always enabled)
-//  2. Lua script updates hot balance in Redis atomically
-//  3. Lua script calculates dueAt = now + ttl - 600 (10 min before expiry)
-//  4. Lua script calls ZADD to schedule:{transactions}:balance-sync with score=dueAt
-//  5. BalanceSyncWorker polls the sorted set for due balances
-//  6. Worker calls SyncBalancesBatch to persist to database
-//
-// This enables decoupled balance persistence:
-//   - Transaction handler is append-only (no blocking on balance DB write)
-//   - Balance DB writes are aggregated and batched by the worker
-//   - Only the latest version per balance is persisted (aggregation)
-func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+// balanceSyncScheduleFlag is always 1 (enabled). Balance sync is always active.
+const balanceSyncScheduleFlag = 1
 
-	ctx, span := tracer.Start(ctx, "redis.process_balance_atomic_operation")
-	defer span.End()
-
-	rds, err := rr.conn.GetClient(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get redis: %v", err))
-
-		return nil, err
-	}
-
+func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(
+	ctx context.Context,
+	transactionStatus string,
+	pending bool,
+	balancesOperation []mmodel.BalanceOperation,
+	logger libLog.Logger,
+	span trace.Span,
+) (*balanceAtomicOperationPlan, error) {
 	isPending := 0
 	if pending {
 		isPending = 1
 	}
 
-	balances := make([]*mmodel.Balance, 0)
-	mapBalances := make(map[string]*mmodel.Balance)
-	args := []any{}
+	plan := &balanceAtomicOperationPlan{
+		args:          make([]any, 0, len(balancesOperation)*16),
+		mapBalances:   make(map[string]*mmodel.Balance, len(balancesOperation)),
+		notedBalances: make([]*mmodel.Balance, 0, len(balancesOperation)),
+	}
 
 	for _, blcs := range balancesOperation {
 		prefixedInternalKey, err := tenantKeyFromContextOrError(ctx, blcs.InternalKey)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to namespace balance key", err)
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace balance key: %v", err))
+
 			return nil, err
 		}
 
-		args = append(args,
+		plan.args = append(plan.args,
 			prefixedInternalKey,
 			isPending,
 			transactionStatus,
@@ -532,86 +528,112 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 			blcs.Balance.Key,
 		)
 
-		mapBalances[blcs.Alias] = blcs.Balance
+		plan.mapBalances[blcs.Alias] = blcs.Balance
 
 		if transactionStatus == constant.NOTED {
 			blcs.Balance.Alias = blcs.Alias
-
-			balances = append(balances, blcs.Balance)
+			plan.notedBalances = append(plan.notedBalances, blcs.Balance)
 		}
 	}
 
-	if transactionStatus == constant.NOTED {
-		return &mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil
-	}
+	return plan, nil
+}
 
-	ctx, spanScript := tracer.Start(ctx, "redis.process_balance_atomic_operation.script")
-
-	script := redis.NewScript(balanceAtomicOperationLua)
-
+func resolveBalanceAtomicKeys(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) ([]string, error) {
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
-	// Balance sync is always enabled - prepend flag (1 = enabled) to args
-	scheduleSync := 1
+	return tenantKeysFromContext(ctx, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey})
+}
 
-	finalArgs := append([]any{scheduleSync}, args...)
+func mapBalanceAtomicScriptError(span trace.Span, err error) error {
+	if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", mappedErr)
 
-	prefixedBackupQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupQueue)
-	if err != nil {
-		return nil, err
-	}
-	prefixedTransactionKey, err := tenantKeyFromContextOrError(ctx, transactionKey)
-	if err != nil {
-		return nil, err
-	}
-	prefixedBalanceSyncKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
-	if err != nil {
-		return nil, err
+		return mappedErr
 	}
 
-	result, err := script.Run(ctx, rds, []string{prefixedBackupQueue, prefixedTransactionKey, prefixedBalanceSyncKey}, finalArgs...).Result()
+	if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", mappedErr)
+
+		return mappedErr
+	}
+
+	if strings.Contains(err.Error(), constant.ErrTransactionBackupCacheRetrievalFailed.Error()) {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrTransactionBackupCacheRetrievalFailed, "validateBalance")
+		libOpentelemetry.HandleSpanError(span, "Failed run lua script on redis", mappedErr)
+
+		return mappedErr
+	}
+
+	libOpentelemetry.HandleSpanError(span, "Failed run lua script on redis", err)
+
+	return err
+}
+
+func (rr *RedisConsumerRepository) runBalanceAtomicScript(
+	ctx context.Context,
+	rds redis.UniversalClient,
+	logger libLog.Logger,
+	span trace.Span,
+	keys []string,
+	finalArgs []any,
+) (any, error) {
+	script := redis.NewScript(balanceAtomicOperationLua)
+
+	result, err := script.Run(ctx, rds, keys, finalArgs...).Result()
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed run lua script on redis: %v", err))
 
-		if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
-			err := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanScript, "Failed run lua script on redis", err)
-
-			return nil, err
-		} else if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
-			err := pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanScript, "Failed run lua script on redis", err)
-
-			return nil, err
-		} else if strings.Contains(err.Error(), constant.ErrTransactionBackupCacheRetrievalFailed.Error()) {
-			err := pkg.ValidateBusinessError(constant.ErrTransactionBackupCacheRetrievalFailed, "validateBalance")
-
-			libOpentelemetry.HandleSpanError(spanScript, "Failed run lua script on redis", err)
-
-			return nil, err
-		}
-
-		libOpentelemetry.HandleSpanError(spanScript, "Failed run lua script on redis", err)
-
-		return nil, err
+		return nil, mapBalanceAtomicScriptError(span, err)
 	}
 
-	spanScript.End()
+	return result, nil
+}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: transaction written to %s with key %s", prefixedBackupQueue, prefixedTransactionKey))
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("result value: %v", result))
-
-	var balanceJSON []byte
-
-	switch v := result.(type) {
+func normalizeBalanceAtomicResult(result any) ([]byte, error) {
+	switch value := result.(type) {
 	case string:
-		balanceJSON = []byte(v)
+		return []byte(value), nil
 	case []byte:
-		balanceJSON = v
+		return value, nil
 	default:
-		err = fmt.Errorf("unexpected result type from Redis: %T", result)
+		return nil, fmt.Errorf("unexpected result type from Redis: %T", result)
+	}
+}
+
+func collectBalanceSnapshots(
+	ctx context.Context,
+	logger libLog.Logger,
+	balances balanceRedisList,
+	mapBalances map[string]*mmodel.Balance,
+	missingMessage string,
+) []*mmodel.Balance {
+	collected := make([]*mmodel.Balance, 0, len(balances))
+	for _, balanceRedis := range balances {
+		balance := balanceRedisToBalance(balanceRedis, mapBalances)
+		if balance == nil {
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(missingMessage, balanceRedis.Alias, balanceRedis.ID))
+
+			continue
+		}
+
+		collected = append(collected, balance)
+	}
+
+	return collected
+}
+
+func decodeBalanceAtomicResult(
+	ctx context.Context,
+	logger libLog.Logger,
+	span trace.Span,
+	result any,
+	mapBalances map[string]*mmodel.Balance,
+) (*mmodel.BalanceAtomicResult, error) {
+	balanceJSON, err := normalizeBalanceAtomicResult(result)
+	if err != nil {
 		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Warning: %v", err))
 
 		return nil, err
@@ -620,37 +642,60 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	var atomicResp balanceAtomicResponse
 	if err := json.Unmarshal(balanceJSON, &atomicResp); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Error to Deserialization json", err)
-
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to Deserialization json: %v", err))
 
 		return nil, err
 	}
 
-	beforeBalances := make([]*mmodel.Balance, 0, len(atomicResp.Before))
-	for _, b := range atomicResp.Before {
-		bal := balanceRedisToBalance(b, mapBalances)
-		if bal == nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to find balance for alias: %v, id: %v", b.Alias, b.ID))
+	return &mmodel.BalanceAtomicResult{
+		Before: collectBalanceSnapshots(ctx, logger, atomicResp.Before, mapBalances, "Failed to find balance for alias: %v, id: %v"),
+		After:  collectBalanceSnapshots(ctx, logger, atomicResp.After, mapBalances, "Failed to find after balance for alias: %v, id: %v"),
+	}, nil
+}
 
-			continue
-		}
+func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-		beforeBalances = append(beforeBalances, bal)
+	ctx, span := tracer.Start(ctx, "redis.process_balance_atomic_operation")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get redis: %v", err))
+
+		return nil, err
 	}
 
-	afterBalances := make([]*mmodel.Balance, 0, len(atomicResp.After))
-	for _, b := range atomicResp.After {
-		bal := balanceRedisToBalance(b, mapBalances)
-		if bal == nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to find after balance for alias: %v, id: %v", b.Alias, b.ID))
-
-			continue
-		}
-
-		afterBalances = append(afterBalances, bal)
+	plan, err := rr.buildBalanceAtomicOperationPlan(ctx, transactionStatus, pending, balancesOperation, logger, span)
+	if err != nil {
+		return nil, err
 	}
 
-	return &mmodel.BalanceAtomicResult{Before: beforeBalances, After: afterBalances}, nil
+	if transactionStatus == constant.NOTED {
+		return &mmodel.BalanceAtomicResult{Before: plan.notedBalances, After: plan.notedBalances}, nil
+	}
+
+	ctx, spanScript := tracer.Start(ctx, "redis.process_balance_atomic_operation.script")
+	defer spanScript.End()
+
+	prefixedKeys, err := resolveBalanceAtomicKeys(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	finalArgs := append([]any{balanceSyncScheduleFlag}, plan.args...)
+
+	result, err := rr.runBalanceAtomicScript(ctx, rds, logger, spanScript, prefixedKeys, finalArgs)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Backup queue: transaction written to %s with key %s", prefixedKeys[0], prefixedKeys[1]))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("result value: %v", result))
+
+	return decodeBalanceAtomicResult(ctx, logger, span, result, plan.mapBalances)
 }
 
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
@@ -726,6 +771,7 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 	if err != nil {
 		return err
 	}
+
 	key, err = tenantKeyFromContextOrError(ctx, key)
 	if err != nil {
 		return err
@@ -760,6 +806,7 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 	if err != nil {
 		return nil, err
 	}
+
 	key, err = tenantKeyFromContextOrError(ctx, key)
 	if err != nil {
 		return nil, err
@@ -826,6 +873,7 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	if err != nil {
 		return err
 	}
+
 	key, err = tenantKeyFromContextOrError(ctx, key)
 	if err != nil {
 		return err
@@ -869,6 +917,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	if err != nil {
 		return nil, err
 	}
+
 	prefixedLockPrefix, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncLockPrefix)
 	if err != nil {
 		return nil, err
@@ -931,6 +980,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 	if err != nil {
 		return err
 	}
+
 	prefixedLockPrefix, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncLockPrefix)
 	if err != nil {
 		return err
@@ -976,6 +1026,7 @@ func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis key: %v", err))
+
 		return err
 	}
 
@@ -1039,10 +1090,12 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 	}
 
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, key)
+
 	internalKey, err = tenantKeyFromContextOrError(ctx, internalKey)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis key: %v", err))
+
 		return nil, err
 	}
 
@@ -1113,6 +1166,7 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis keys", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis keys: %v", err))
+
 		return nil, err
 	}
 
@@ -1195,12 +1249,15 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis key: %v", err))
+
 		return 0, err
 	}
+
 	prefixedLockPrefix, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncLockPrefix)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis key: %v", err))
+
 		return 0, err
 	}
 

@@ -28,9 +28,77 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
+
+type transactionScope struct {
+	OrganizationID uuid.UUID
+	LedgerID       uuid.UUID
+	ParentID       uuid.UUID
+}
+
+type transactionIdempotencyState struct {
+	key         string
+	hash        string
+	ttl         time.Duration
+	internalKey *string
+	replay      *transaction.Transaction
+}
+
+func readTransactionScope(c *fiber.Ctx) (*transactionScope, error) {
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return nil, err
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return nil, err
+	}
+
+	parentID := uuid.Nil
+	if c.Locals("transaction_id") != nil {
+		parentID, err = http.GetUUIDFromLocals(c, "transaction_id")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &transactionScope{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		ParentID:       parentID,
+	}, nil
+}
+
+func generateTransactionID(ctx context.Context, logger libLog.Logger, span trace.Span) (uuid.UUID, error) {
+	transactionID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate transaction id: %v", err))
+
+		return uuid.Nil, pkg.InternalServerError{
+			Code:    "INTERNAL_SERVER_ERROR",
+			Title:   "Internal Server Error",
+			Message: "Failed to generate transaction id",
+			Err:     err,
+		}
+	}
+
+	return transactionID, nil
+}
+
+func buildParentTransactionID(parentID uuid.UUID) *string {
+	if parentID == uuid.Nil {
+		return nil
+	}
+
+	parentTransactionID := parentID.String()
+
+	return &parentTransactionID
+}
 
 func (handler *TransactionHandler) HandleAccountFields(entries []pkgTransaction.FromTo, isConcat bool) []pkgTransaction.FromTo {
 	result := make([]pkgTransaction.FromTo, 0, len(entries))
@@ -196,35 +264,14 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	_, span := tracer.Start(ctx, "handler.create_transaction")
 	defer span.End()
 
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	scope, err := readTransactionScope(c)
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	transactionID, err := generateTransactionID(ctx, logger, span)
 	if err != nil {
 		return http.WithError(c, err)
-	}
-
-	parentID := uuid.Nil
-	if c.Locals("transaction_id") != nil {
-		parentID, err = http.GetUUIDFromLocals(c, "transaction_id")
-		if err != nil {
-			return http.WithError(c, err)
-		}
-	}
-
-	transactionID, err := libCommons.GenerateUUIDv7()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate transaction id: %v", err))
-
-		return http.WithError(c, pkg.InternalServerError{
-			Code:    "INTERNAL_SERVER_ERROR",
-			Title:   "Internal Server Error",
-			Message: "Failed to generate transaction id",
-			Err:     err,
-		})
 	}
 
 	c.Set(libConstants.IdempotencyReplayed, "false")
@@ -262,38 +309,14 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		fromTo = append(fromTo, to...)
 	}
 
-	ctxIdempotency, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
-
-	ts, _ := libCommons.StructToJSONString(transactionInput)
-	hash := libCommons.HashSHA256(ts)
-	key, ttl := http.GetIdempotencyKeyAndTTL(c)
-
-	value, internalKey, err := handler.Command.CreateOrCheckIdempotencyKey(ctxIdempotency, organizationID, ledgerID, key, hash, ttl)
+	idempotencyState, err := handler.prepareIdempotency(ctx, c, scope.OrganizationID, scope.LedgerID, transactionInput)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanIdempotency, "Error on create or check redis idempotency key", err)
-		spanIdempotency.End()
-
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Error on create or check redis idempotency key: %v", err.Error()))
-
 		return http.WithError(c, err)
-	} else if !libCommons.IsNilOrEmpty(value) {
-		t := transaction.Transaction{}
-		if err = json.Unmarshal([]byte(*value), &t); err != nil {
-			libOpentelemetry.HandleSpanError(spanIdempotency, "Error to deserialization idempotency transaction json on redis", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to deserialization idempotency transaction json on redis: %v", err))
-			spanIdempotency.End()
-
-			return http.WithError(c, err)
-		}
-
-		spanIdempotency.End()
-		c.Set(libConstants.IdempotencyReplayed, "true")
-
-		return http.Created(c, t)
 	}
 
-	spanIdempotency.End()
+	if idempotencyState.replay != nil {
+		return http.Created(c, *idempotencyState.replay)
+	}
 
 	validate, err := pkgTransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
 	if err != nil {
@@ -303,41 +326,27 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
 
-		_ = handler.Command.RedisRepo.Del(ctx, *internalKey)
+		handler.deleteIdempotencyKey(ctx, idempotencyState.internalKey)
 
 		return http.WithError(c, err)
 	}
 
-	ctxSendTransactionToRedisQueue, spanSendTransactionToRedisQueue := tracer.Start(ctx, "handler.create_transaction.send_transaction_to_redis_queue")
-
-	err = handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, transactionInput, validate, transactionStatus, transactionDate, nil)
+	err = handler.sendTransactionToRedisQueue(ctx, scope.OrganizationID, scope.LedgerID, transactionID, transactionInput, validate, transactionStatus, transactionDate, idempotencyState.internalKey)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanSendTransactionToRedisQueue, "Failed to send transaction to backup cache", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to send transaction to backup cache: %v", err.Error()))
-
-		if errors.Is(err, constant.ErrTransactionBackupCacheMarshalFailed) {
-			_ = handler.Command.RedisRepo.Del(ctxSendTransactionToRedisQueue, *internalKey)
-		}
-
-		spanSendTransactionToRedisQueue.End()
-
-		return http.WithError(c, pkg.ValidateBusinessError(err, reflect.TypeOf(transaction.Transaction{}).Name()))
+		return http.WithError(c, err)
 	}
-
-	spanSendTransactionToRedisQueue.End()
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, transactionID, &transactionInput, validate, transactionStatus)
+	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, scope.OrganizationID, scope.LedgerID, transactionID, &transactionInput, validate, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances: %v", err.Error()))
 
-		_ = handler.Command.RedisRepo.Del(ctx, *internalKey)
+		handler.deleteIdempotencyKey(ctx, idempotencyState.internalKey)
 
-		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, organizationID, ledgerID, transactionID.String())
+		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, scope.OrganizationID, scope.LedgerID, transactionID.String())
 		spanGetBalances.End()
 
 		return http.WithError(c, err)
@@ -352,18 +361,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		fromTo = append(fromTo, to...)
 	}
 
-	var parentTransactionID *string
-
-	if parentID != uuid.Nil {
-		str := parentID.String()
-		parentTransactionID = &str
-	}
-
 	tran := &transaction.Transaction{
 		ID:                       transactionID.String(),
-		ParentTransactionID:      parentTransactionID,
-		OrganizationID:           organizationID.String(),
-		LedgerID:                 ledgerID.String(),
+		ParentTransactionID:      buildParentTransactionID(scope.ParentID),
+		OrganizationID:           scope.OrganizationID.String(),
+		LedgerID:                 scope.LedgerID.String(),
 		Description:              transactionInput.Description,
 		Amount:                   &transactionInput.Send.Value,
 		AssetCode:                transactionInput.Send.Asset,
@@ -391,7 +393,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
-	handler.Command.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, transactionID.String(), operations)
+	handler.Command.UpdateTransactionBackupOperations(ctx, scope.OrganizationID, scope.LedgerID, transactionID.String(), operations)
 
 	originalStatus := tran.Status
 
@@ -400,9 +402,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		tran.Status = transaction.Status{Code: approved, Description: &approved}
 	}
 
-	handler.Command.CreateWriteBehindTransaction(ctx, organizationID, ledgerID, tran, transactionInput)
+	handler.Command.CreateWriteBehindTransaction(ctx, scope.OrganizationID, scope.LedgerID, tran, transactionInput)
 
-	err = handler.Command.WriteTransaction(ctx, organizationID, ledgerID, &transactionInput, validate, balancesBefore, balancesAfter, tran)
+	err = handler.Command.WriteTransaction(ctx, scope.OrganizationID, scope.LedgerID, &transactionInput, validate, balancesBefore, balancesAfter, tran)
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
 
@@ -415,11 +417,92 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	tran.Status = originalStatus
 
-	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, organizationID, ledgerID, key, hash, *tran, ttl)
+	go handler.Command.SetValueOnExistingIdempotencyKey(ctx, scope.OrganizationID, scope.LedgerID, idempotencyState.key, idempotencyState.hash, *tran, idempotencyState.ttl)
 
-	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
+	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, scope.OrganizationID, scope.LedgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
+}
+
+func (handler *TransactionHandler) prepareIdempotency(
+	ctx context.Context,
+	c *fiber.Ctx,
+	organizationID, ledgerID uuid.UUID,
+	transactionInput pkgTransaction.Transaction,
+) (*transactionIdempotencyState, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctxIdempotency, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
+	defer spanIdempotency.End()
+
+	ts, _ := libCommons.StructToJSONString(transactionInput)
+	state := &transactionIdempotencyState{
+		hash: libCommons.HashSHA256(ts),
+	}
+
+	state.key, state.ttl = http.GetIdempotencyKeyAndTTL(c)
+
+	value, internalKey, err := handler.Command.CreateOrCheckIdempotencyKey(ctxIdempotency, organizationID, ledgerID, state.key, state.hash, state.ttl)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanIdempotency, "Error on create or check redis idempotency key", err)
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Error on create or check redis idempotency key: %v", err.Error()))
+
+		return nil, err
+	}
+
+	state.internalKey = internalKey
+	if libCommons.IsNilOrEmpty(value) {
+		return state, nil
+	}
+
+	replay := &transaction.Transaction{}
+	if err := json.Unmarshal([]byte(*value), replay); err != nil {
+		libOpentelemetry.HandleSpanError(spanIdempotency, "Error to deserialization idempotency transaction json on redis", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to deserialization idempotency transaction json on redis: %v", err))
+
+		return nil, err
+	}
+
+	c.Set(libConstants.IdempotencyReplayed, "true")
+
+	state.replay = replay
+
+	return state, nil
+}
+
+func (handler *TransactionHandler) sendTransactionToRedisQueue(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	transactionInput pkgTransaction.Transaction,
+	validate *pkgTransaction.Responses,
+	transactionStatus string,
+	transactionDate time.Time,
+	internalKey *string,
+) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctxSendTransactionToRedisQueue, spanSendTransactionToRedisQueue := tracer.Start(ctx, "handler.create_transaction.send_transaction_to_redis_queue")
+	defer spanSendTransactionToRedisQueue.End()
+
+	err := handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, transactionInput, validate, transactionStatus, transactionDate, nil)
+	if err == nil {
+		return nil
+	}
+
+	libOpentelemetry.HandleSpanError(spanSendTransactionToRedisQueue, "Failed to send transaction to backup cache", err)
+	logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to send transaction to backup cache: %v", err.Error()))
+
+	if errors.Is(err, constant.ErrTransactionBackupCacheMarshalFailed) {
+		handler.deleteIdempotencyKey(ctxSendTransactionToRedisQueue, internalKey)
+	}
+
+	return pkg.ValidateBusinessError(err, reflect.TypeOf(transaction.Transaction{}).Name())
+}
+
+func (handler *TransactionHandler) deleteIdempotencyKey(ctx context.Context, internalKey *string) {
+	if internalKey != nil {
+		_ = handler.Command.RedisRepo.Del(ctx, *internalKey)
+	}
 }
 
 func (handler *TransactionHandler) ApplyDefaultBalanceKeys(entries []pkgTransaction.FromTo) {
