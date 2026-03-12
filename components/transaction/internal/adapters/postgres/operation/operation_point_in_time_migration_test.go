@@ -30,18 +30,21 @@ func readTransactionMigrationFile(t *testing.T, fileName string) string {
 func TestOperationPointInTimeMigration_SemanticShape(t *testing.T) {
 	t.Parallel()
 
-	up := readTransactionMigrationFile(t, "000017_add_idx_operation_point_in_time.up.sql")
-	down := readTransactionMigrationFile(t, "000017_add_idx_operation_point_in_time.down.sql")
+	pointInTimeUp := readTransactionMigrationFile(t, "000017_add_idx_operation_point_in_time.up.sql")
+	pointInTimeDown := readTransactionMigrationFile(t, "000017_add_idx_operation_point_in_time.down.sql")
+	accountPointInTimeUp := readTransactionMigrationFile(t, "000018_add_idx_operation_account_point_in_time.up.sql")
+	accountPointInTimeDown := readTransactionMigrationFile(t, "000018_add_idx_operation_account_point_in_time.down.sql")
 
-	assert.Contains(t, up, "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_operation_point_in_time")
-	assert.Contains(t, up, "ON operation (organization_id, ledger_id, balance_id, created_at DESC)")
-	assert.Contains(t, up, "INCLUDE (id, balance_key, available_balance_after, on_hold_balance_after, balance_version_after, account_id, asset_code)")
-	assert.Contains(t, up, "WHERE deleted_at IS NULL")
+	assert.Contains(t, pointInTimeUp, "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_operation_point_in_time")
+	assert.Contains(t, pointInTimeUp, "ON operation (organization_id, ledger_id, balance_id, created_at DESC)")
+	assert.Contains(t, pointInTimeUp, "INCLUDE (id, balance_key, available_balance_after, on_hold_balance_after, balance_version_after, account_id, asset_code)")
+	assert.Contains(t, pointInTimeUp, "WHERE deleted_at IS NULL")
 
-	assert.Contains(t, up, "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_operation_account_point_in_time")
-	assert.Contains(t, up, "ON operation (organization_id, ledger_id, account_id, balance_id, created_at DESC)")
-	assert.Contains(t, up, "INCLUDE (id, balance_key, available_balance_after, on_hold_balance_after, balance_version_after, asset_code)")
+	assert.Contains(t, accountPointInTimeUp, "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_operation_account_point_in_time")
+	assert.Contains(t, accountPointInTimeUp, "ON operation (organization_id, ledger_id, account_id, balance_id, created_at DESC)")
+	assert.Contains(t, accountPointInTimeUp, "INCLUDE (id, balance_key, available_balance_after, on_hold_balance_after, balance_version_after, asset_code)")
+	assert.Contains(t, accountPointInTimeUp, "WHERE deleted_at IS NULL")
 
-	assert.Contains(t, down, "DROP INDEX CONCURRENTLY IF EXISTS idx_operation_point_in_time;")
-	assert.Contains(t, down, "DROP INDEX CONCURRENTLY IF EXISTS idx_operation_account_point_in_time;")
+	assert.Contains(t, pointInTimeDown, "DROP INDEX CONCURRENTLY IF EXISTS idx_operation_point_in_time;")
+	assert.Contains(t, accountPointInTimeDown, "DROP INDEX CONCURRENTLY IF EXISTS idx_operation_account_point_in_time;")
 }
