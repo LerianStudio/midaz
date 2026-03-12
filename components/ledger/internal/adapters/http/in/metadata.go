@@ -5,11 +5,15 @@
 package in
 
 import (
+	"context"
+	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
@@ -42,6 +46,8 @@ var transactionEntities = map[string]string{
 type MetadataIndexHandler struct {
 	OnboardingMetadataRepo  mbootstrap.MetadataIndexRepository
 	TransactionMetadataRepo mbootstrap.MetadataIndexRepository
+	OnboardingMongoManager  *tmmongo.Manager
+	TransactionMongoManager *tmmongo.Manager
 }
 
 // getRepoAndCollection returns the appropriate repository and collection name for an entity.
@@ -56,6 +62,63 @@ func (handler *MetadataIndexHandler) getRepoAndCollection(entityName string) (mb
 	}
 
 	return nil, ""
+}
+
+func (handler *MetadataIndexHandler) getMongoManager(entityName string) *tmmongo.Manager {
+	if _, ok := onboardingEntities[entityName]; ok {
+		return handler.OnboardingMongoManager
+	}
+
+	if _, ok := transactionEntities[entityName]; ok {
+		return handler.TransactionMongoManager
+	}
+
+	return nil
+}
+
+func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entityName string) (context.Context, error) {
+	tenantID := tmcore.GetTenantID(ctx)
+	if tenantID == "" {
+		return ctx, nil
+	}
+
+	mongoManager := handler.getMongoManager(entityName)
+	if mongoManager == nil {
+		return nil, fmt.Errorf("multi-tenant mongo manager not configured for entity %s", entityName)
+	}
+
+	tenantDB, err := mongoManager.GetDatabaseForTenant(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return tmcore.ContextWithTenantMongo(ctx, tenantDB), nil
+}
+
+func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, onboardingRepo bool) (context.Context, error) {
+	tenantID := tmcore.GetTenantID(ctx)
+	if tenantID == "" {
+		return ctx, nil
+	}
+
+	mongoManager := handler.TransactionMongoManager
+	groupName := "transaction"
+
+	if onboardingRepo {
+		mongoManager = handler.OnboardingMongoManager
+		groupName = "onboarding"
+	}
+
+	if mongoManager == nil {
+		return nil, fmt.Errorf("multi-tenant mongo manager not configured for %s metadata indexes", groupName)
+	}
+
+	tenantDB, err := mongoManager.GetDatabaseForTenant(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return tmcore.ContextWithTenantMongo(ctx, tenantDB), nil
 }
 
 // isValidEntity checks if the entity name is valid for metadata index operations.
@@ -147,7 +210,16 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 
 	repo, collection := handler.getRepoAndCollection(entityName)
 
-	metadataIndex, err := repo.CreateIndex(ctx, collection, payload)
+	repoCtx, err := handler.contextForEntity(ctx, entityName)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve tenant metadata context", err)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to resolve tenant metadata context, Error: %s", libLog.Err(err))
+
+		return http.WithError(c, err)
+	}
+
+	metadataIndex, err := repo.CreateIndex(repoCtx, collection, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create metadata index", err)
 
@@ -220,7 +292,16 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 		// Return indexes for specific entity
 		repo, collection := handler.getRepoAndCollection(*headerParams.EntityName)
 
-		indexes, err := repo.FindAllIndexes(ctx, collection)
+		repoCtx, err := handler.contextForEntity(ctx, *headerParams.EntityName)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to resolve tenant metadata context", err)
+
+			logger.Log(ctx, libLog.LevelError, "Failed to resolve tenant metadata context, Error: %s", libLog.Err(err))
+
+			return http.WithError(c, err)
+		}
+
+		indexes, err := repo.FindAllIndexes(repoCtx, collection)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata indexes", err)
 
@@ -242,9 +323,27 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 	// Return indexes from all entities
 	var allIndexes []*mmodel.MetadataIndex
 
+	onboardingCtx, err := handler.contextForRepoGroup(ctx, true)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve onboarding tenant metadata context", err)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to resolve onboarding tenant metadata context, Error: %s", libLog.Err(err))
+
+		return http.WithError(c, err)
+	}
+
+	transactionCtx, err := handler.contextForRepoGroup(ctx, false)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve transaction tenant metadata context", err)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to resolve transaction tenant metadata context, Error: %s", libLog.Err(err))
+
+		return http.WithError(c, err)
+	}
+
 	// Fetch from onboarding entities
 	for entityName, collection := range onboardingEntities {
-		indexes, err := handler.OnboardingMetadataRepo.FindAllIndexes(ctx, collection)
+		indexes, err := handler.OnboardingMetadataRepo.FindAllIndexes(onboardingCtx, collection)
 		if err != nil {
 			logger.Log(ctx, libLog.LevelWarn, "Failed to get indexes for entity", libLog.String("entity_name", entityName), libLog.Err(err))
 
@@ -259,7 +358,7 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 
 	// Fetch from transaction entities
 	for entityName, collection := range transactionEntities {
-		indexes, err := handler.TransactionMetadataRepo.FindAllIndexes(ctx, collection)
+		indexes, err := handler.TransactionMetadataRepo.FindAllIndexes(transactionCtx, collection)
 		if err != nil {
 			logger.Log(ctx, libLog.LevelWarn, "Failed to get indexes for entity", libLog.String("entity_name", entityName), libLog.Err(err))
 
@@ -341,7 +440,16 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 
 	repo, collection := handler.getRepoAndCollection(entityName)
 
-	err := repo.DeleteIndex(ctx, collection, indexName)
+	repoCtx, err := handler.contextForEntity(ctx, entityName)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve tenant metadata context", err)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to resolve tenant metadata context, Error: %s", libLog.Err(err))
+
+		return http.WithError(c, err)
+	}
+
+	err = repo.DeleteIndex(repoCtx, collection, indexName)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete metadata index", err)
 

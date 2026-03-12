@@ -13,16 +13,16 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v4/commons/server"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
+	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-// RouteRegistrar is a function that registers routes to an existing Fiber app.
+// RouteRegistrar is a function that registers routes to an existing Fiber router.
 // Each module (onboarding, transaction) implements this to register its routes.
-type RouteRegistrar func(app *fiber.App)
+type RouteRegistrar func(router fiber.Router)
 
 // UnifiedServer consolidates all HTTP APIs (onboarding + transaction) in a single Fiber server.
 // This enables the unified ledger mode where all routes are accessible on a single port.
@@ -34,14 +34,11 @@ type UnifiedServer struct {
 }
 
 // NewUnifiedServer creates a server that exposes all APIs on a single port.
-// It accepts an optional MultiPoolMiddleware for per-tenant database routing
-// and route registration functions from each module to compose all routes
-// in one Fiber app. When multiPoolMiddleware is nil, no tenant routing is applied.
+// Route registrars are responsible for attaching any module-specific middleware.
 func NewUnifiedServer(
 	serverAddress string,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
-	multiPoolMiddleware *tmmiddleware.MultiPoolMiddleware,
 	routeRegistrars ...RouteRegistrar,
 ) *UnifiedServer {
 	app := fiber.New(fiber.Config{
@@ -57,13 +54,7 @@ func NewUnifiedServer(
 	app.Use(tlMid.WithTelemetry(telemetry))
 	app.Use(cors.New())
 	app.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(logger)))
-
-	// Multi-tenant middleware: inserted after logging, before route registration.
-	// Nil-safe: only applied when multi-tenant mode is enabled.
-	if multiPoolMiddleware != nil {
-		app.Use(multiPoolMiddleware.WithTenantDB)
-		logger.Log(context.Background(), libLog.LevelInfo, "Multi-tenant MultiPoolMiddleware enabled")
-	}
+	app.Use(midazhttp.BridgeLibAuthHTTPContext())
 
 	// Health check for the unified server
 	app.Get("/health", libHTTP.Ping)

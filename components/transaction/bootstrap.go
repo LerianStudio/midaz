@@ -15,6 +15,7 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -34,7 +35,7 @@ type TransactionService interface {
 
 	// GetRouteRegistrar returns a function that registers transaction routes to a Fiber app.
 	// This is used by the unified ledger server to consolidate all routes on a single port.
-	GetRouteRegistrar() func(*fiber.App)
+	GetRouteRegistrar(routeOptions *midazhttp.ProtectedRouteOptions) func(fiber.Router)
 
 	// SetSettingsPort sets the settings port for querying ledger settings.
 	// This is called after initialization in unified ledger mode to wire the onboarding
