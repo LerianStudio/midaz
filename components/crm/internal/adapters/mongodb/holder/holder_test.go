@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
@@ -432,6 +433,41 @@ func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing
 	assert.Nil(t, resultHolder.LegalPerson.Representative.Name)
 	assert.Nil(t, resultHolder.LegalPerson.Representative.Document)
 	assert.Nil(t, resultHolder.LegalPerson.Representative.Email)
+}
+
+func TestMapRepresentativeToEntity_InvalidEncryptedEmailReturnsError(t *testing.T) {
+	t.Parallel()
+
+	crypto := testutils.SetupCrypto(t)
+
+	_, err := mapRepresentativeToEntity(crypto, &RepresentativeMongoDBModel{
+		Email: testutils.Ptr("not-a-valid-ciphertext"),
+	})
+	require.Error(t, err)
+}
+
+func TestMongoDBModel_FromEntity_ContactEncryptFailureReturnsError(t *testing.T) {
+	t.Parallel()
+
+	crypto := &libCrypto.Crypto{}
+	holderID := uuid.New()
+	now := time.Now().UTC().Truncate(time.Second)
+
+	holder := &mmodel.Holder{
+		ID:       &holderID,
+		Type:     testutils.Ptr("LEGAL_PERSON"),
+		Name:     testutils.Ptr("John Doe"),
+		Document: testutils.Ptr("12345678901"),
+		Contact: &mmodel.Contact{
+			PrimaryEmail: testutils.Ptr(""),
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	var model MongoDBModel
+	err := model.FromEntity(holder, crypto)
+	require.Error(t, err)
 }
 
 func TestMapAddressFromEntity(t *testing.T) {

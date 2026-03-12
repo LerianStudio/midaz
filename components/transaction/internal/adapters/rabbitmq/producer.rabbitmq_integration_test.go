@@ -60,7 +60,6 @@ type chaosTestInfra struct {
 	conn         *libRabbitmq.RabbitMQConnection
 	producer     *ProducerRabbitMQRepository
 	chaosOrch    *chaos.Orchestrator
-	toxiproxy    *chaos.ToxiproxyResult
 	exchange     string
 	routingKey   string
 	queue        string
