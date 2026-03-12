@@ -9,9 +9,9 @@ import (
 	"os"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -54,21 +54,21 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 	defer span.End()
 
 	payload := p.(*mmodel.CreateOrganizationInput)
-	logger.Infof("Request to create an organization with details: %#v", payload)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to create an organization with details: %#v", payload))
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
 	}
 
 	organization, err := handler.Command.CreateOrganization(ctx, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create organization on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization on command", err)
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully created organization: %s", organization)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully created organization: %v", organization))
 
 	return http.Created(c, organization)
 }
@@ -100,35 +100,35 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	defer span.End()
 
 	id := c.Locals("id").(uuid.UUID)
-	logger.Infof("Initiating update of Organization with ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Organization with ID: %s", id.String()))
 
 	payload := p.(*mmodel.UpdateOrganizationInput)
-	logger.Infof("Request to update an organization with details: %#v", payload)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update an organization with details: %#v", payload))
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.payload", payload, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert payload to JSON string", err)
 	}
 
 	_, err = handler.Command.UpdateOrganizationByID(ctx, id, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update organization on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization on command", err)
 
-		logger.Errorf("Failed to update Organization with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Organization with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve organization on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve organization on query", err)
 
-		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully updated Organization with ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Organization with ID: %s", id.String()))
 
 	return http.OK(c, organizations)
 }
@@ -157,18 +157,18 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	defer span.End()
 
 	id := c.Locals("id").(uuid.UUID)
-	logger.Infof("Initiating retrieval of Organization with ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Organization with ID: %s", id.String()))
 
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve organization on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve organization on query", err)
 
-		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Organization with ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Organization with ID: %s", id.String()))
 
 	return http.OK(c, organizations)
 }
@@ -189,7 +189,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Param			sort_order			query		string																	false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Param			legal_name			query		string																	false	"Filter organizations by legal name (case-insensitive, prefix match)"	maxLength(256)
 //	@Param			doing_business_as	query		string																	false	"Filter organizations by doing business as name (case-insensitive, prefix match)"	maxLength(256)
-//	@Success		200					{object}	libPostgres.Pagination{items=[]mmodel.Organization,page=int,limit=int}	"Successfully retrieved organizations list"
+//	@Success		200					{object}	http.Pagination{items=[]mmodel.Organization,page=int,limit=int}	"Successfully retrieved organizations list"
 //	@Failure		400					{object}	mmodel.Error															"Invalid query parameters"
 //	@Failure		401					{object}	mmodel.Error															"Unauthorized access"
 //	@Failure		403					{object}	mmodel.Error															"Forbidden access"
@@ -205,19 +205,19 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Warnf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
+	err = libOpentelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert query params to JSON string", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert query params to JSON string", err)
 	}
 
-	pagination := libPostgres.Pagination{
+	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
 		Page:      headerParams.Page,
 		SortOrder: headerParams.SortOrder,
@@ -229,43 +229,43 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 		if headerParams.HasNameFilters() {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, reflect.TypeOf(mmodel.Organization{}).Name(), "metadata cannot be combined with name filters (legal_name, doing_business_as)")
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters: metadata and name filters are mutually exclusive", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters: metadata and name filters are mutually exclusive", err)
 
 			return http.WithError(c, err)
 		}
 
-		logger.Infof("Initiating retrieval of all Organizations by metadata")
+		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Organizations by metadata")
 
 		organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all organizations by metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all organizations by metadata", err)
 
-			logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Organizations, Error: %s", err.Error()))
 
 			return http.WithError(c, err)
 		}
 
-		logger.Infof("Successfully retrieved all Organizations by metadata")
+		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Organizations by metadata")
 
 		pagination.SetItems(organizations)
 
 		return http.OK(c, pagination)
 	}
 
-	logger.Infof("Initiating retrieval of all Organizations ")
+	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Organizations ")
 
 	headerParams.Metadata = &bson.M{}
 
 	organizations, err := handler.Query.GetAllOrganizations(ctx, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all organizations", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all organizations", err)
 
-		logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Organizations, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved all Organizations")
+	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Organizations")
 
 	pagination.SetItems(organizations)
 
@@ -297,27 +297,27 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 
 	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating removal of Organization with ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Organization with ID: %s", id.String()))
 
 	if os.Getenv("ENV_NAME") == "production" {
 		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, reflect.TypeOf(mmodel.Organization{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove organization: "+constant.ErrActionNotPermitted.Error(), constant.ErrActionNotPermitted)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove organization: "+constant.ErrActionNotPermitted.Error(), constant.ErrActionNotPermitted)
 
-		logger.Warnf("Failed to remove Organization with ID: %s in ", id.String())
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove Organization with ID: %s in ", id.String()))
 
 		return http.WithError(c, err)
 	}
 
 	if err := handler.Command.DeleteOrganizationByID(ctx, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove organization on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove organization on command", err)
 
-		logger.Errorf("Failed to remove Organization with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Organization with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully removed Organization with ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Organization with ID: %s", id.String()))
 
 	return http.NoContent(c)
 }
@@ -343,18 +343,18 @@ func (handler *OrganizationHandler) CountOrganizations(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.count_organizations")
 	defer span.End()
 
-	logger.Infof("Initiating count of all organizations")
+	logger.Log(ctx, libLog.LevelInfo, "Initiating count of all organizations")
 
 	count, err := handler.Query.CountOrganizations(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count organizations", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count organizations", err)
 
-		logger.Errorf("Failed to count organizations, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to count organizations, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully counted organizations: %d", count)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully counted organizations: %d", count))
 
 	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")

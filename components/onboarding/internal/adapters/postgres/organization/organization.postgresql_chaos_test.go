@@ -22,9 +22,8 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
@@ -43,7 +42,7 @@ type chaosNetworkTestInfra struct {
 	pgResult   *pgtestutil.ContainerResult
 	chaosInfra *chaos.Infrastructure
 	repo       *OrganizationPostgreSQLRepository
-	conn       *libPostgres.PostgresConnection
+	conn       *libPostgres.Client
 	proxy      *chaos.Proxy
 }
 
@@ -79,19 +78,11 @@ func setupOrganizationChaosNetworkInfra(t *testing.T) *chaosNetworkTestInfra {
 	require.NotEmpty(t, containerInfo.ProxyListen, "proxy listen address must be non-empty")
 
 	// 6. Build OrganizationPostgreSQLRepository connected through proxy
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 
 	proxyConnStr := pgtestutil.BuildConnectionStringWithHost(containerInfo.ProxyListen, pgResult.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: proxyConnStr,
-		ConnectionStringReplica: proxyConnStr,
-		PrimaryDBName:           pgResult.Config.DBName,
-		ReplicaDBName:           pgResult.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, proxyConnStr, proxyConnStr, pgResult.Config.DBName, migrationsPath)
 
 	repo := NewOrganizationPostgreSQLRepository(conn)
 
@@ -410,7 +401,7 @@ func TestIntegration_Chaos_Organization_NetworkPartition(t *testing.T) {
 
 	// Build a tenant context that uses the same proxied DB (simulating the
 	// tenant path going through the same PostgreSQL instance).
-	tenantDB, err := infra.conn.GetDB()
+	tenantDB, err := infra.conn.Resolver(context.Background())
 	require.NoError(t, err, "setup: must be able to get DB from proxied connection")
 
 	tenantCtx := tmcore.ContextWithModulePGConnection(ctx, "onboarding", tenantDB)

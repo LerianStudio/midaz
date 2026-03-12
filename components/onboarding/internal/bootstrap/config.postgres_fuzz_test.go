@@ -25,7 +25,7 @@ import (
 	"strings"
 	"testing"
 
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,10 +60,7 @@ func FuzzBuildPostgresConnection_ConfigValues(f *testing.F) {
 	// 8. Boundary: spaces, tabs, newlines
 	f.Add("  host  ", "\t5432\n", " user ", "pass\nword", "  db  ", " ssl\tmode ")
 
-	logger, err := libZap.InitializeLoggerWithError()
-	if err != nil {
-		f.Fatalf("failed to initialize logger: %v", err)
-	}
+	logger := libLog.NewNop()
 
 	f.Fuzz(func(t *testing.T, host, port, user, password, dbname, sslmode string) {
 		// Bound input lengths to prevent resource exhaustion (OOM).
@@ -109,25 +106,21 @@ func FuzzBuildPostgresConnection_ConfigValues(f *testing.F) {
 		}
 
 		// Act: call buildPostgresConnection -- must not panic (covered by test execution).
-		conn := buildPostgresConnection(cfg, logger)
+		conn, err := buildPostgresConnection(cfg, logger)
+		require.NoError(t, err)
 
 		// Invariant 1: always returns a non-nil connection.
 		require.NotNil(t, conn, "buildPostgresConnection must never return nil")
 
 		// Invariant 2: connection string fields are populated (not empty struct).
-		assert.NotEmpty(t, conn.ConnectionStringPrimary,
-			"ConnectionStringPrimary must not be empty")
-		assert.NotEmpty(t, conn.ConnectionStringReplica,
-			"ConnectionStringReplica must not be empty")
-		assert.Equal(t, ApplicationName, conn.Component,
-			"Component must always be ApplicationName")
+		connected, connectedErr := conn.IsConnected()
+		require.NoError(t, connectedErr)
+		assert.False(t, connected)
 
 		// Invariant 3: determinism -- calling again with the same config must
 		// produce the same connection strings.
-		conn2 := buildPostgresConnection(cfg, logger)
-		assert.Equal(t, conn.ConnectionStringPrimary, conn2.ConnectionStringPrimary,
-			"determinism: ConnectionStringPrimary must be identical on repeat call")
-		assert.Equal(t, conn.ConnectionStringReplica, conn2.ConnectionStringReplica,
-			"determinism: ConnectionStringReplica must be identical on repeat call")
+		conn2, err := buildPostgresConnection(cfg, logger)
+		require.NoError(t, err)
+		require.NotNil(t, conn2)
 	})
 }

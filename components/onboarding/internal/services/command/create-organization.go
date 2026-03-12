@@ -9,22 +9,26 @@ import (
 	"reflect"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+
+	// CreateOrganization creates a new organization persists data in the repository.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// CreateOrganization creates a new organization persists data in the repository.
 func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_organization")
 	defer span.End()
 
-	logger.Infof("Trying to create organization: %v", coi)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create organization: %v", coi))
 
 	var status mmodel.Status
 	if coi.Status.IsEmpty() || libCommons.IsNilOrEmpty(&coi.Status.Code) {
@@ -46,7 +50,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	if err := utils.ValidateCountryAddress(coi.Address.Country); err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, reflect.TypeOf(mmodel.Organization{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&spanAddressValidation, "Failed to validate country address", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanAddressValidation, "Failed to validate country address", err)
 
 		return nil, err
 	}
@@ -66,18 +70,18 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 	org, err := uc.OrganizationRepo.Create(ctx, organization)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create organization on repository", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization on repository", err)
 
-		logger.Errorf("Error creating organization: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating organization: %v", err))
 
 		return nil, err
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), org.ID, coi.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create organization metadata", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization metadata", err)
 
-		logger.Errorf("Error creating organization metadata: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating organization metadata: %v", err))
 
 		return nil, err
 	}

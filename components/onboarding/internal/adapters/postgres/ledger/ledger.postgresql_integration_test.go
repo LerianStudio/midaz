@@ -11,9 +11,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	"github.com/google/uuid"
@@ -25,19 +23,11 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *LedgerPostgreSQLRepository {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           container.Config.DBName,
-		ReplicaDBName:           container.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
 	return NewLedgerPostgreSQLRepository(conn)
 }
@@ -490,13 +480,13 @@ func TestIntegration_LedgerRepository_ListByIDs_EdgeCases(t *testing.T) {
 		},
 		{
 			name:        "non-matching ID returns empty",
-			inputIDs:    []uuid.UUID{libCommons.GenerateUUIDv7()},
+			inputIDs:    []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())},
 			expectedLen: 0,
 			expectedIDs: nil,
 		},
 		{
 			name:        "partial match returns only existing",
-			inputIDs:    []uuid.UUID{existingID, libCommons.GenerateUUIDv7()},
+			inputIDs:    []uuid.UUID{existingID, uuid.Must(libCommons.GenerateUUIDv7())},
 			expectedLen: 1,
 			expectedIDs: []uuid.UUID{existingID},
 		},
@@ -587,7 +577,7 @@ func TestIntegration_LedgerRepository_GetSettings_ReturnsErrorWhenLedgerNotFound
 	repo := createRepository(t, container)
 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-	nonExistentLedgerID := libCommons.GenerateUUIDv7()
+	nonExistentLedgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -734,7 +724,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_ReturnsErrorWhenLedgerNotFo
 	repo := createRepository(t, container)
 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-	nonExistentLedgerID := libCommons.GenerateUUIDv7()
+	nonExistentLedgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 

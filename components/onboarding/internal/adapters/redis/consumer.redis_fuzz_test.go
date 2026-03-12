@@ -9,25 +9,24 @@ import (
 	"strings"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	tmvalkey "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/valkey"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmvalkey "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/valkey"
+	// =============================================================================
+	// FUZZ TESTS — Redis Key Namespacing (T-002)
+	//
+	// These fuzz tests exercise tmvalkey.GetKeyFromContext with arbitrary key and
+	// tenantID inputs to verify:
+	//   1. No panic under any input (including Unicode, null bytes, very long strings,
+	//      colons, empty strings, and strings that already look like namespaced keys).
+	//   2. Namespacing invariants are preserved for all inputs.
+	//
+	// Run with:
+	//
+	//	go test -run=^$ -fuzz=FuzzKeyNamespacing_SimpleKey -fuzztime=30s \
+	//	    ./components/onboarding/internal/adapters/redis/
+	//
+	// =============================================================================
 )
-
-// =============================================================================
-// FUZZ TESTS — Redis Key Namespacing (T-002)
-//
-// These fuzz tests exercise tmvalkey.GetKeyFromContext with arbitrary key and
-// tenantID inputs to verify:
-//   1. No panic under any input (including Unicode, null bytes, very long strings,
-//      colons, empty strings, and strings that already look like namespaced keys).
-//   2. Namespacing invariants are preserved for all inputs.
-//
-// Run with:
-//
-//	go test -run=^$ -fuzz=FuzzKeyNamespacing_SimpleKey -fuzztime=30s \
-//	    ./components/onboarding/internal/adapters/redis/
-//
-// =============================================================================
 
 // FuzzKeyNamespacing_SimpleKey fuzzes the single-key namespacing path used by
 // Set, Get, and Del in the onboarding Redis consumer.
@@ -75,35 +74,35 @@ func FuzzKeyNamespacing_SimpleKey(f *testing.F) {
 		}
 
 		// Call the function under test — must not panic.
-		result := tmvalkey.GetKeyFromContext(ctx, key)
+		result, err := tmvalkey.GetKeyFromContext(ctx, key)
+		if err != nil {
+			t.Fatalf("GetKeyFromContext should not fail for generated inputs: %v", err)
+		}
 
 		// Invariant 1: non-empty tenantID → prefix is applied.
 		if tenantID != "" {
 			expectedPrefix := "tenant:" + tenantID + ":"
 			if !strings.HasPrefix(result, expectedPrefix) {
-				t.Errorf(
-					"FuzzKeyNamespacing_SimpleKey: expected result to have prefix %q, got %q (key=%q, tenantID=%q)",
-					expectedPrefix, result, key, tenantID,
-				)
+				t.Errorf("FuzzKeyNamespacing_SimpleKey: expected result to have prefix %q, got %q (key=%q, tenantID=%q)",
+					expectedPrefix, result, key, tenantID)
 			}
 		}
 
 		// Invariant 2: empty tenantID → key is returned unchanged.
 		if tenantID == "" && result != key {
-			t.Errorf(
-				"FuzzKeyNamespacing_SimpleKey: expected key unchanged for empty tenantID, got %q (key=%q)",
-				result, key,
-			)
+			t.Errorf("FuzzKeyNamespacing_SimpleKey: expected key unchanged for empty tenantID, got %q (key=%q)",
+				result, key)
 		}
 
 		// Invariant 3: determinism — calling again with the same context and key
 		// must return the same value.
-		result2 := tmvalkey.GetKeyFromContext(ctx, key)
+		result2, err := tmvalkey.GetKeyFromContext(ctx, key)
+		if err != nil {
+			t.Fatalf("GetKeyFromContext should be deterministic without errors: %v", err)
+		}
 		if result != result2 {
-			t.Errorf(
-				"FuzzKeyNamespacing_SimpleKey: non-deterministic result: first=%q second=%q (key=%q, tenantID=%q)",
-				result, result2, key, tenantID,
-			)
+			t.Errorf("FuzzKeyNamespacing_SimpleKey: non-deterministic result: first=%q second=%q (key=%q, tenantID=%q)",
+				result, result2, key, tenantID)
 		}
 	})
 }

@@ -5,17 +5,18 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
@@ -189,19 +190,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	var logger libLog.Logger
-	if opts != nil && opts.Logger != nil {
-		logger = opts.Logger
-	} else {
-		var err error
-
-		logger, err = libZap.InitializeLoggerWithError()
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize logger: %w", err)
-		}
+	logger, err := initLogger(opts, cfg)
+	if err != nil {
+		return nil, err
 	}
 
-	telemetry, err := libOpentelemetry.InitializeTelemetryWithError(&libOpentelemetry.TelemetryConfig{
+	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -226,29 +220,66 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize MongoDB: %w", err)
 	}
 
-	redisConnection := &libRedis.RedisConnection{
-		Address:                      strings.Split(cfg.RedisHost, ","),
-		Password:                     cfg.RedisPassword,
-		DB:                           cfg.RedisDB,
-		Protocol:                     cfg.RedisProtocol,
-		MasterName:                   cfg.RedisMasterName,
-		UseTLS:                       cfg.RedisTLS,
-		CACert:                       cfg.RedisCACert,
-		UseGCPIAMAuth:                cfg.RedisUseGCPIAM,
-		ServiceAccount:               cfg.RedisServiceAccount,
-		GoogleApplicationCredentials: cfg.GoogleApplicationCredentials,
-		TokenLifeTime:                time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
-		RefreshDuration:              time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
-		Logger:                       logger,
-		PoolSize:                     cfg.RedisPoolSize,
-		MinIdleConns:                 cfg.RedisMinIdleConns,
-		ReadTimeout:                  time.Duration(cfg.RedisReadTimeout) * time.Second,
-		WriteTimeout:                 time.Duration(cfg.RedisWriteTimeout) * time.Second,
-		DialTimeout:                  time.Duration(cfg.RedisDialTimeout) * time.Second,
-		PoolTimeout:                  time.Duration(cfg.RedisPoolTimeout) * time.Second,
-		MaxRetries:                   cfg.RedisMaxRetries,
-		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
-		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
+	redisAddresses := strings.Split(cfg.RedisHost, ",")
+
+	topology := libRedis.Topology{}
+	if cfg.RedisMasterName != "" {
+		topology.Sentinel = &libRedis.SentinelTopology{
+			Addresses:  redisAddresses,
+			MasterName: cfg.RedisMasterName,
+		}
+	} else {
+		if len(redisAddresses) == 0 || redisAddresses[0] == "" {
+			return nil, fmt.Errorf("redis host is required")
+		}
+
+		topology.Standalone = &libRedis.StandaloneTopology{
+			Address: redisAddresses[0],
+		}
+	}
+
+	redisAuth := libRedis.Auth{}
+	if cfg.RedisUseGCPIAM {
+		redisAuth.GCPIAM = &libRedis.GCPIAMAuth{
+			CredentialsBase64: cfg.GoogleApplicationCredentials,
+			ServiceAccount:    cfg.RedisServiceAccount,
+			TokenLifetime:     time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
+			RefreshEvery:      time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
+		}
+	} else {
+		redisAuth.StaticPassword = &libRedis.StaticPasswordAuth{
+			Password: cfg.RedisPassword,
+		}
+	}
+
+	var redisTLS *libRedis.TLSConfig
+	if cfg.RedisTLS {
+		redisTLS = &libRedis.TLSConfig{
+			CACertBase64: cfg.RedisCACert,
+		}
+	}
+
+	redisConnection, err := libRedis.New(context.Background(), libRedis.Config{
+		Topology: topology,
+		TLS:      redisTLS,
+		Auth:     redisAuth,
+		Options: libRedis.ConnectionOptions{
+			DB:              cfg.RedisDB,
+			Protocol:        cfg.RedisProtocol,
+			PoolSize:        cfg.RedisPoolSize,
+			MinIdleConns:    cfg.RedisMinIdleConns,
+			ReadTimeout:     time.Duration(cfg.RedisReadTimeout) * time.Second,
+			WriteTimeout:    time.Duration(cfg.RedisWriteTimeout) * time.Second,
+			DialTimeout:     time.Duration(cfg.RedisDialTimeout) * time.Second,
+			PoolTimeout:     time.Duration(cfg.RedisPoolTimeout) * time.Second,
+			MaxRetries:      cfg.RedisMaxRetries,
+			MinRetryBackoff: time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
+			MaxRetryBackoff: time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
+		},
+		Logger: logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize redis client: %w", err)
 	}
 
 	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection)
@@ -264,53 +295,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	assetPostgreSQLRepository := pg.assetRepo
 	accountTypePostgreSQLRepository := pg.accountTypeRepo
 
-	// Choose balance port based on UnifiedMode:
-	// - If UnifiedMode is true, validate and use provided ports for in-process calls
-	// - Otherwise, use gRPC adapter to call the separate transaction service
-	var balancePort mbootstrap.BalancePort
-
-	if opts != nil && opts.UnifiedMode {
-		if opts.BalancePort == nil {
-			return nil, fmt.Errorf("unified mode requires BalancePort to be provided")
-		}
-
-		logger.Info("Running in UNIFIED MODE - using direct balance port (in-process calls)")
-
-		balancePort = opts.BalancePort
-	} else {
-		if cfg.TransactionGRPCAddress == "" {
-			cfg.TransactionGRPCAddress = "midaz-transaction"
-
-			logger.Warn("TRANSACTION_GRPC_ADDRESS not set, using default: midaz-transaction")
-		}
-
-		if cfg.TransactionGRPCPort == "" {
-			cfg.TransactionGRPCPort = "3011"
-
-			logger.Warn("TRANSACTION_GRPC_PORT not set, using default: 3011")
-		}
-
-		grpcConnection := &mgrpc.GRPCConnection{
-			Addr:   fmt.Sprintf("%s:%s", cfg.TransactionGRPCAddress, cfg.TransactionGRPCPort),
-			Logger: logger,
-		}
-
-		logger.Info("Running in MICROSERVICES MODE - using gRPC balance adapter (network calls)")
-
-		balancePort = grpcout.NewBalanceAdapter(grpcConnection)
+	balancePort, err := resolveBalancePort(opts, cfg, logger)
+	if err != nil {
+		return nil, err
 	}
 
-	// Parse settings cache TTL from config (default: 5m via query.DefaultSettingsCacheTTL)
-	var settingsCacheTTL time.Duration
-
-	if cfg.SettingsCacheTTL != "" {
-		if parsed, err := time.ParseDuration(cfg.SettingsCacheTTL); err == nil && parsed > 0 {
-			settingsCacheTTL = parsed
-			logger.Infof("Settings cache TTL configured: %v", settingsCacheTTL)
-		} else {
-			logger.Warnf("Invalid SETTINGS_CACHE_TTL value '%s', using default", cfg.SettingsCacheTTL)
-		}
-	}
+	settingsCacheTTL := resolveSettingsCacheTTL(cfg, logger)
 
 	queryUseCase := &query.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
@@ -373,7 +363,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:   queryUseCase,
 	}
 
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
 
 	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler)
 
@@ -397,4 +387,71 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		segmentHandler:      segmentHandler,
 		accountTypeHandler:  accountTypeHandler,
 	}, nil
+}
+
+func initLogger(opts *Options, cfg *Config) (libLog.Logger, error) {
+	if opts != nil && opts.Logger != nil {
+		return opts.Logger, nil
+	}
+
+	logger, err := libZap.New(libZap.Config{
+		Environment:     libZap.EnvironmentDevelopment,
+		Level:           cfg.LogLevel,
+		OTelLibraryName: cfg.OtelLibraryName,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize logger: %w", err)
+	}
+
+	return logger, nil
+}
+
+func resolveBalancePort(opts *Options, cfg *Config, logger libLog.Logger) (mbootstrap.BalancePort, error) {
+	if opts != nil && opts.UnifiedMode {
+		if opts.BalancePort == nil {
+			return nil, fmt.Errorf("unified mode requires BalancePort to be provided")
+		}
+
+		logger.Log(context.Background(), libLog.LevelInfo, "Running in UNIFIED MODE - using direct balance port (in-process calls)")
+
+		return opts.BalancePort, nil
+	}
+
+	if cfg.TransactionGRPCAddress == "" {
+		cfg.TransactionGRPCAddress = "midaz-transaction"
+
+		logger.Log(context.Background(), libLog.LevelWarn, "TRANSACTION_GRPC_ADDRESS not set, using default: midaz-transaction")
+	}
+
+	if cfg.TransactionGRPCPort == "" {
+		cfg.TransactionGRPCPort = "3011"
+
+		logger.Log(context.Background(), libLog.LevelWarn, "TRANSACTION_GRPC_PORT not set, using default: 3011")
+	}
+
+	grpcConnection := &mgrpc.GRPCConnection{
+		Addr:   fmt.Sprintf("%s:%s", cfg.TransactionGRPCAddress, cfg.TransactionGRPCPort),
+		Logger: logger,
+	}
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Running in MICROSERVICES MODE - using gRPC balance adapter (network calls)")
+
+	return grpcout.NewBalanceAdapter(grpcConnection), nil
+}
+
+func resolveSettingsCacheTTL(cfg *Config, logger libLog.Logger) time.Duration {
+	if cfg.SettingsCacheTTL == "" {
+		return 0
+	}
+
+	parsed, err := time.ParseDuration(cfg.SettingsCacheTTL)
+	if err != nil || parsed <= 0 {
+		logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("Invalid SETTINGS_CACHE_TTL value '%s', using default", cfg.SettingsCacheTTL))
+
+		return 0
+	}
+
+	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Settings cache TTL configured: %v", parsed))
+
+	return parsed
 }

@@ -9,34 +9,38 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+
+	// GetAccountByAlias get an Account from the repository by given alias (including soft-deleted ones).
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// GetAccountByAlias get an Account from the repository by given alias (including soft-deleted ones).
 func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_account_by_alias")
 	defer span.End()
 
-	logger.Infof("Retrieving account for alias: %s", alias)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving account for alias: %s", alias))
 
 	account, err := uc.AccountRepo.FindAlias(ctx, organizationID, ledgerID, portfolioID, alias)
 	if err != nil {
-		logger.Errorf("Error getting account on repo by alias: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting account on repo by alias: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-			logger.Warnf("No accounts found for alias: %s", alias)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("No accounts found for alias: %s", alias))
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get account on repo by alias", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account on repo by alias", err)
 
 			return nil, err
 		}
@@ -47,9 +51,9 @@ func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledger
 	if account != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Account{}).Name(), alias)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb account", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb account", err)
 
-			logger.Errorf("Error get metadata on mongodb account: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb account: %v", err))
 
 			return nil, err
 		}
