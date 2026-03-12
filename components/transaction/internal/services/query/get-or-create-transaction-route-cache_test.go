@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
@@ -235,7 +236,9 @@ func TestGetOrCreateTransactionRouteCache_RedisGetError(t *testing.T) {
 	assert.Equal(t, expectedCacheData, result)
 }
 
-// TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound tests handling when transaction route is not found
+// TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound tests handling when transaction route is not found.
+// When DB returns ErrDatabaseItemNotFound, the function must store a NOT_FOUND sentinel in Redis with 60s TTL
+// so that subsequent lookups for the same non-existent ID are served from cache.
 func TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -264,11 +267,17 @@ func TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound(t *testing.T)
 		Return(nil, services.ErrDatabaseItemNotFound).
 		Times(1)
 
+	// Sentinel must be stored in Redis with 60s TTL when DB returns not-found
+	mockRedisRepo.EXPECT().
+		SetBytes(gomock.Any(), expectedKey, []byte("NOT_FOUND"), time.Duration(60)).
+		Return(nil).
+		Times(1)
+
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-	assert.Error(t, err)
-	assert.Equal(t, services.ErrDatabaseItemNotFound, err)
-	assert.Equal(t, mmodel.TransactionRouteCache{}, result)
+	assert.Error(t, err, "should return error when route not found in DB")
+	assert.Equal(t, services.ErrDatabaseItemNotFound, err, "error should be ErrDatabaseItemNotFound")
+	assert.Equal(t, mmodel.TransactionRouteCache{}, result, "result should be zero-value cache struct")
 }
 
 // TestGetOrCreateTransactionRouteCache_DatabaseError tests database error handling
@@ -360,6 +369,197 @@ func TestGetOrCreateTransactionRouteCache_CacheCreationFails(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, redisError, err)
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result)
+}
+
+// TestGetOrCreateTransactionRouteCache_CacheHit_NotFoundSentinel tests that when Redis returns the NOT_FOUND
+// sentinel value, the function returns ErrDatabaseItemNotFound immediately without making a DB call.
+func TestGetOrCreateTransactionRouteCache_CacheHit_NotFoundSentinel(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	transactionRouteID := libCommons.GenerateUUIDv7()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	// No TransactionRouteRepo mock set — if DB is called, gomock will fail with unexpected call
+	uc := &UseCase{
+		RedisRepo: mockRedisRepo,
+	}
+
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+
+	// Redis returns the sentinel value
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), expectedKey).
+		Return([]byte("NOT_FOUND"), nil).
+		Times(1)
+
+	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
+
+	assert.Error(t, err, "should return error when sentinel found in cache")
+	assert.Equal(t, services.ErrDatabaseItemNotFound, err, "error should be ErrDatabaseItemNotFound from sentinel")
+	assert.Equal(t, mmodel.TransactionRouteCache{}, result, "result should be zero-value cache struct")
+}
+
+// TestGetOrCreateTransactionRouteCache_CacheMiss_NotFound_StoresSentinel tests that when Redis returns a miss
+// and DB returns ErrDatabaseItemNotFound, the sentinel is stored in Redis with a 60-second TTL.
+func TestGetOrCreateTransactionRouteCache_CacheMiss_NotFound_StoresSentinel(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	transactionRouteID := libCommons.GenerateUUIDv7()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		RedisRepo:            mockRedisRepo,
+		TransactionRouteRepo: mockTransactionRouteRepo,
+	}
+
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+
+	// Cache miss
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), expectedKey).
+		Return(nil, goredis.Nil).
+		Times(1)
+
+	// DB returns not found
+	mockTransactionRouteRepo.EXPECT().
+		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		Return(nil, services.ErrDatabaseItemNotFound).
+		Times(1)
+
+	// Sentinel must be stored with exactly 60s TTL
+	mockRedisRepo.EXPECT().
+		SetBytes(gomock.Any(), expectedKey, []byte("NOT_FOUND"), time.Duration(60)).
+		Return(nil).
+		Times(1)
+
+	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
+
+	assert.Error(t, err, "should return error when route not found")
+	assert.Equal(t, services.ErrDatabaseItemNotFound, err, "error should be ErrDatabaseItemNotFound")
+	assert.Equal(t, mmodel.TransactionRouteCache{}, result, "result should be zero-value cache struct")
+}
+
+// TestGetOrCreateTransactionRouteCache_CacheHit_CorruptedData_FallsBackToDB tests that when Redis returns
+// data that is neither a sentinel nor valid msgpack, the function falls back to DB instead of returning
+// a decode error.
+func TestGetOrCreateTransactionRouteCache_CacheHit_CorruptedData_FallsBackToDB(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	transactionRouteID := libCommons.GenerateUUIDv7()
+	operationRouteID := libCommons.GenerateUUIDv7()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		RedisRepo:            mockRedisRepo,
+		TransactionRouteRepo: mockTransactionRouteRepo,
+	}
+
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+
+	// Redis returns corrupted data (not sentinel, not valid msgpack)
+	corruptedBytes := []byte{0xFF, 0xFE, 0xAB, 0xCD, 0x00, 0x01}
+
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), expectedKey).
+		Return(corruptedBytes, nil).
+		Times(1)
+
+	// DB should be called as fallback
+	transactionRoute := &mmodel.TransactionRoute{
+		ID:             transactionRouteID,
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Title:          "Test Route",
+		OperationRoutes: []mmodel.OperationRoute{
+			{
+				ID:            operationRouteID,
+				OperationType: "source",
+				Account: &mmodel.AccountRule{
+					RuleType: "alias",
+					ValidIf:  "@cash_account",
+				},
+			},
+		},
+	}
+
+	expectedCacheData := transactionRoute.ToCache()
+	expectedCacheBytes, err := expectedCacheData.ToMsgpack()
+	require.NoError(t, err)
+
+	mockTransactionRouteRepo.EXPECT().
+		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		Return(transactionRoute, nil).
+		Times(1)
+
+	// After successful DB fetch, cache should be updated
+	mockRedisRepo.EXPECT().
+		SetBytes(gomock.Any(), expectedKey, expectedCacheBytes, gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
+
+	assert.NoError(t, err, "should not return error when falling back to DB after corrupted cache")
+	assert.Equal(t, expectedCacheData, result, "should return valid data from DB fallback")
+}
+
+// TestGetOrCreateTransactionRouteCache_SentinelSetBytesFails tests that when Redis fails to store the
+// not-found sentinel, the function still returns ErrDatabaseItemNotFound (the write error is logged but swallowed).
+func TestGetOrCreateTransactionRouteCache_SentinelSetBytesFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	transactionRouteID := libCommons.GenerateUUIDv7()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		RedisRepo:            mockRedisRepo,
+		TransactionRouteRepo: mockTransactionRouteRepo,
+	}
+
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+
+	// Cache miss
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), expectedKey).
+		Return(nil, goredis.Nil).
+		Times(1)
+
+	// DB returns not found
+	mockTransactionRouteRepo.EXPECT().
+		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		Return(nil, services.ErrDatabaseItemNotFound).
+		Times(1)
+
+	// Sentinel storage fails
+	mockRedisRepo.EXPECT().
+		SetBytes(gomock.Any(), expectedKey, []byte("NOT_FOUND"), time.Duration(60)).
+		Return(errors.New("redis write error")).
+		Times(1)
+
+	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
+
+	assert.Error(t, err, "should still return error when sentinel storage fails")
+	assert.Equal(t, services.ErrDatabaseItemNotFound, err, "error should be ErrDatabaseItemNotFound regardless of sentinel write failure")
+	assert.Equal(t, mmodel.TransactionRouteCache{}, result, "result should be zero-value cache struct")
 }
 
 // TestGetOrCreateTransactionRouteCache_ToCacheDataError tests msgpack encoding error handling
