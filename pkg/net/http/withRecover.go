@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -57,7 +57,10 @@ func WithRecover(opts ...RecoverMiddlewareOption) fiber.Handler {
 				stack := debug.Stack()
 				panicErr := fmt.Errorf("panic recovered: %v", r)
 
-				logger.Errorf("Panic recovered: %v\nStack trace:\n%s", r, string(stack))
+				logger.Log(c.UserContext(), libLog.LevelError, "panic recovered",
+					libLog.Any("panic", r),
+					libLog.String("stack", string(stack)),
+				)
 
 				span := trace.SpanFromContext(c.UserContext())
 				if span.IsRecording() {

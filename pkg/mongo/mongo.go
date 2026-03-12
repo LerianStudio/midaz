@@ -5,9 +5,11 @@
 package mongo
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/iancoleman/strcase"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -90,11 +92,15 @@ func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger
 
 		if parameters != "" {
 			if logger != nil {
-				logger.Warnf(
-					"MongoDB parameters embedded in MONGO_PORT detected but ignored "+
-						"(MONGO_PARAMETERS takes precedence). Remove embedded parameters from MONGO_PORT. "+
-						"Sanitized port=%s",
-					actualPort,
+				logger.Log(
+					context.Background(),
+					libLog.LevelWarn,
+					fmt.Sprintf(
+						"MongoDB parameters embedded in MONGO_PORT detected but ignored "+
+							"(MONGO_PARAMETERS takes precedence). Remove embedded parameters from MONGO_PORT. "+
+							"Sanitized port=%s",
+						actualPort,
+					),
 				)
 			}
 
@@ -102,11 +108,15 @@ func ExtractMongoPortAndParameters(port, parameters string, logger libLog.Logger
 		}
 
 		if logger != nil {
-			logger.Warnf(
-				"MongoDB parameters embedded in MONGO_PORT detected. "+
-					"Update environment variables to use the MONGO_PARAMETERS environment variable. "+
-					"Sanitized port=%s",
-				actualPort,
+			logger.Log(
+				context.Background(),
+				libLog.LevelWarn,
+				fmt.Sprintf(
+					"MongoDB parameters embedded in MONGO_PORT detected. "+
+						"Update environment variables to use the MONGO_PARAMETERS environment variable. "+
+						"Sanitized port=%s",
+					actualPort,
+				),
 			)
 		}
 

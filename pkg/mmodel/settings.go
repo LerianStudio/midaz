@@ -193,6 +193,7 @@ var settingsSchema = map[string]map[string]string{
 // Automatically derived from settingsSchema to ensure consistency.
 var knownNestedFieldNames = func() map[string]string {
 	result := make(map[string]string)
+
 	for parentKey, nestedFields := range settingsSchema {
 		for fieldName := range nestedFields {
 			result[fieldName] = parentKey

@@ -16,8 +16,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 
-	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -123,16 +122,21 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	}
 }
 
-// CreateConnection creates a libMongo.MongoConnection wrapper for testing.
-func CreateConnection(t *testing.T, uri, dbName string) *libMongo.MongoConnection {
+// CreateConnection creates a libMongo.Client wrapper for testing.
+func CreateConnection(t *testing.T, uri, dbName string) *libMongo.Client {
 	t.Helper()
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err, "failed to initialize logger")
+	conn, err := libMongo.NewClient(context.Background(), libMongo.Config{
+		URI:      uri,
+		Database: dbName,
+	})
+	require.NoError(t, err, "failed to initialize mongo connection")
 
-	return &libMongo.MongoConnection{
-		ConnectionStringSource: uri,
-		Database:               dbName,
-		Logger:                 logger,
-	}
+	t.Cleanup(func() {
+		if closeErr := conn.Close(context.Background()); closeErr != nil {
+			t.Logf("failed to close mongo connection: %v", closeErr)
+		}
+	})
+
+	return conn
 }
