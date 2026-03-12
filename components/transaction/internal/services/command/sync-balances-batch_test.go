@@ -342,9 +342,12 @@ func TestSyncBalancesBatch_ScheduleCleanupFailure(t *testing.T) {
 	assert.Equal(t, int64(0), result.KeysRemoved) // cleanup failed
 }
 
-// TestSyncBalancesBatch_AggregationKeepsHighestVersion verifies that when multiple
-// updates for the same balance exist (same composite key), only the highest version
-// is synced to the database. This tests US-02 requirement for version-based deduplication.
+// TestSyncBalancesBatch_AggregationKeepsHighestVersion verifies idempotent handling
+// when the same Redis key appears multiple times in a batch. With the Sorted Set
+// scheduling mechanism, duplicate keys map to the same balance data, and the
+// aggregator deduplicates them to a single entry. Version-based deduplication
+// is thoroughly tested in aggregation_test.go where inputs are constructed
+// directly without Redis layer constraints.
 func TestSyncBalancesBatch_AggregationKeepsHighestVersion(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -353,28 +356,28 @@ func TestSyncBalancesBatch_AggregationKeepsHighestVersion(t *testing.T) {
 	ledgerID := libCommons.GenerateUUIDv7()
 	balanceID := libCommons.GenerateUUIDv7()
 
-	// Two keys for the SAME account but different partition timestamps
-	// (simulating multiple updates within the batch window)
+	// Same Redis key appearing twice in the batch (simulates duplicate scheduling).
+	// With Sorted Set architecture, identical keys return the same balance from Redis.
 	key1 := "balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#default"
 	key2 := "balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#default"
 
 	keys := []string{key1, key2}
 
-	// Same balance ID, same asset code, but different versions
-	// The aggregator should keep only version 10 (the higher one)
+	// Since key1 == key2, this map has a single entry (Go map semantics).
+	// Both iterations in the loop retrieve the same balance data.
 	balanceData := map[string]*mmodel.BalanceRedis{
 		key1: {
 			ID:        balanceID.String(),
 			Alias:     "@acc1",
 			AssetCode: "USD",
-			Version:   5, // Lower version
+			Version:   5, // This entry is overwritten by key2 (same key)
 			Available: decimal.NewFromInt(1000),
 		},
 		key2: {
 			ID:        balanceID.String(),
 			Alias:     "@acc1",
 			AssetCode: "USD",
-			Version:   10, // Higher version - this should be synced
+			Version:   10, // Only this entry exists in the map
 			Available: decimal.NewFromInt(2000),
 		},
 	}
@@ -387,13 +390,12 @@ func TestSyncBalancesBatch_AggregationKeepsHighestVersion(t *testing.T) {
 		Return(balanceData, nil).
 		Times(1)
 
-	// Verify that only 1 balance is synced (the deduplicated result)
-	// and that it has the higher version
+	// Verify that only 1 balance is synced after deduplication of identical keys
 	mockBalance.EXPECT().
 		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 			assert.Len(t, balances, 1, "Expected exactly 1 balance after deduplication")
-			assert.Equal(t, int64(10), balances[0].Version, "Expected higher version to be kept")
+			assert.Equal(t, int64(10), balances[0].Version, "Expected the single map entry's version")
 			assert.Equal(t, decimal.NewFromInt(2000), balances[0].Available, "Expected balance with higher version")
 			return 1, nil
 		}).
@@ -413,8 +415,8 @@ func TestSyncBalancesBatch_AggregationKeepsHighestVersion(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, 2, result.KeysProcessed, "Both keys were processed")
-	assert.Equal(t, 1, result.BalancesAggregated, "Only 1 balance after deduplication")
+	assert.Equal(t, 2, result.KeysProcessed, "Both key entries in slice were processed")
+	assert.Equal(t, 1, result.BalancesAggregated, "Deduplicated to 1 balance (same composite key)")
 	assert.Equal(t, int64(1), result.BalancesSynced)
 }
 
