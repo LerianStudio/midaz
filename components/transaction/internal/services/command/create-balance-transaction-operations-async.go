@@ -28,7 +28,16 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// CreateBalanceTransactionOperationsAsync func that is responsible to create all transactions at the same async.
+// CreateBalanceTransactionOperationsAsync processes transaction asynchronously.
+// This is an append-only handler for transactions and operations:
+// - Hot balance already updated atomically by Lua script during validation
+// - Cold balance scheduled for async sync via sorted set (Lua script does ZADD)
+// - Transaction and operations persisted to database
+// - Events sent asynchronously
+//
+// Balance persistence is fully async via BalanceSyncWorker.
+// The Lua script (balance_atomic_operation.lua) does ZADD to schedule:balance-sync
+// when scheduleSync=1, which is the default for all balance-affecting transactions.
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -40,22 +49,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		err := msgpack.Unmarshal(item.Value, &t)
 		if err != nil {
 			logger.Errorf("failed to unmarshal response: %v", err.Error())
-
-			return err
-		}
-	}
-
-	if t.Transaction.Status.Code != constant.NOTED {
-		ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
-		defer spanUpdateBalances.End()
-
-		logger.Infof("Trying to update balances")
-
-		err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances, t.BalancesAfter)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanUpdateBalances, "Failed to update balances", err)
-
-			logger.Errorf("Failed to update balances: %v", err.Error())
 
 			return err
 		}

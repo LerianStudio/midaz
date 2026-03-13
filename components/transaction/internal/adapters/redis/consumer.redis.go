@@ -356,6 +356,20 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 	}
 }
 
+// ProcessBalanceAtomicOperation executes the balance_atomic_operation.lua script.
+//
+// BALANCE SCHEDULING FLOW:
+//  1. This method calls the Lua script with scheduleSync=1 (when balanceSyncEnabled is true)
+//  2. Lua script updates hot balance in Redis atomically
+//  3. Lua script calculates dueAt = now + ttl - 600 (10 min before expiry)
+//  4. Lua script calls ZADD to schedule:{transactions}:balance-sync with score=dueAt
+//  5. BalanceSyncWorker polls the sorted set for due balances
+//  6. Worker calls SyncBalancesBatch to persist to database
+//
+// This enables decoupled balance persistence:
+//   - Transaction handler is append-only (no blocking on balance DB write)
+//   - Balance DB writes are aggregated and batched by the worker
+//   - Only the latest version per balance is persisted (aggregation)
 func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
