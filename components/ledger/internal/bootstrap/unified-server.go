@@ -14,7 +14,6 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	libCommonsServer "github.com/LerianStudio/lib-commons/v4/commons/server"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
-	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
@@ -54,8 +53,6 @@ func NewUnifiedServer(
 	app.Use(tlMid.WithTelemetry(telemetry))
 	app.Use(cors.New())
 	app.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(logger)))
-	app.Use(midazhttp.BridgeLibAuthHTTPContext())
-
 	// Health check for the unified server
 	app.Get("/health", libHTTP.Ping)
 

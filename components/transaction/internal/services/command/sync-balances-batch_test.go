@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -22,8 +22,8 @@ import (
 // TestSyncBalancesBatch_EmptyKeys verifies that when given empty keys,
 // the use case returns immediately with zero synced and no error.
 func TestSyncBalancesBatch_EmptyKeys(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	uc := UseCase{}
 
@@ -43,8 +43,8 @@ func TestSyncBalancesBatch_AllKeysExpired(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	keys := []string{
 		"balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#default",
@@ -79,10 +79,10 @@ func TestSyncBalancesBatch_SuccessWithAggregation(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID1 := libCommons.GenerateUUIDv7()
-	balanceID2 := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID1 := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	keys := []string{
 		"balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#default",
@@ -151,9 +151,9 @@ func TestSyncBalancesBatch_PartialData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	keys := []string{
 		"balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#default",
@@ -212,8 +212,8 @@ func TestSyncBalancesBatch_RedisError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	keys := []string{
 		"balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#default",
@@ -243,9 +243,9 @@ func TestSyncBalancesBatch_DBError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	keys := []string{
 		"balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#default",
@@ -293,9 +293,9 @@ func TestSyncBalancesBatch_ScheduleCleanupFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	keys := []string{
 		"balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#default",
@@ -352,9 +352,9 @@ func TestSyncBalancesBatch_AggregationKeepsHighestVersion(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Same Redis key appearing twice in the batch (simulates duplicate scheduling).
 	// With Sorted Set architecture, identical keys return the same balance from Redis.
@@ -426,9 +426,9 @@ func TestSyncBalancesBatch_InvalidKeyFormat(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Mix of valid and invalid keys
 	validKey := "balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#default"
@@ -447,19 +447,19 @@ func TestSyncBalancesBatch_InvalidKeyFormat(t *testing.T) {
 			Available: decimal.NewFromInt(1000),
 		},
 		invalidKey1: {
-			ID:        libCommons.GenerateUUIDv7().String(),
+			ID:        uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			Alias:     "@acc2",
 			AssetCode: "USD",
 			Version:   3,
 		},
 		invalidKey2: {
-			ID:        libCommons.GenerateUUIDv7().String(),
+			ID:        uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			Alias:     "@acc3",
 			AssetCode: "USD",
 			Version:   2,
 		},
 		invalidKey3: {
-			ID:        libCommons.GenerateUUIDv7().String(),
+			ID:        uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			Alias:     "@acc4",
 			AssetCode: "USD",
 			Version:   1,
@@ -514,10 +514,10 @@ func TestSyncBalancesBatch_ExactKeysRemoved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID1 := libCommons.GenerateUUIDv7()
-	balanceID2 := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID1 := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	key1 := "balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#default"
 	key2 := "balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc2#default"
@@ -587,8 +587,8 @@ func TestSyncBalancesBatch_ContextCancellation(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	keys := []string{
 		"balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#default",
