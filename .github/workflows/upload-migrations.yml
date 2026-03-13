@@ -13,7 +13,7 @@ jobs:
   upload-onboarding-migrations:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@main
     with:
-      s3_bucket: "lerian-development-migrations"
+      s3_bucket: "lerian-migration-files"
       file_pattern: "components/onboarding/migrations/*.sql"
       s3_prefix: "ledger/onboarding/postgresql"
       strip_prefix: "components/onboarding/migrations"
@@ -26,7 +26,7 @@ jobs:
   upload-transaction-migrations:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@main
     with:
-      s3_bucket: "lerian-development-migrations"
+      s3_bucket: "lerian-migration-files"
       file_pattern: "components/transaction/migrations/*.sql"
       s3_prefix: "ledger/transaction/postgresql"
       strip_prefix: "components/transaction/migrations"
