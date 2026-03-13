@@ -26,7 +26,10 @@ const (
 	// DefaultUser is the default RabbitMQ user for test containers.
 	DefaultUser = "test"
 	// DefaultPassword is the default RabbitMQ password for test containers.
-	DefaultPassword = "test"
+	DefaultPassword                  = "test"
+	rabbitMQStartupAttempts          = 3
+	rabbitMQLogStartupTimeout        = 180 * time.Second
+	rabbitMQManagementStartupTimeout = 90 * time.Second
 )
 
 // ContainerConfig holds configuration for RabbitMQ test container.
@@ -81,22 +84,18 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 			"RABBITMQ_DEFAULT_PASS": cfg.Password,
 		},
 		WaitingFor: wait.ForAll(
-			wait.ForLog("Server startup complete").WithStartupTimeout(120*time.Second),
+			wait.ForLog("Server startup complete").WithStartupTimeout(rabbitMQLogStartupTimeout),
 			wait.ForHTTP("/api/health/checks/alarms").
 				WithPort("15672/tcp").
 				WithBasicAuth(cfg.User, cfg.Password).
-				WithStartupTimeout(60*time.Second),
+				WithStartupTimeout(rabbitMQManagementStartupTimeout),
 		),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
 	}
 
-	ctr, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	require.NoError(t, err, "failed to start RabbitMQ container")
+	ctr := startContainerWithRetry(t, ctx, req, "failed to start RabbitMQ container")
 
 	host, err := ctr.Host(ctx)
 	require.NoError(t, err, "failed to get RabbitMQ container host")
@@ -164,22 +163,18 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 		Networks:       []string{networkName},
 		NetworkAliases: map[string][]string{networkName: {networkAlias}},
 		WaitingFor: wait.ForAll(
-			wait.ForLog("Server startup complete").WithStartupTimeout(120*time.Second),
+			wait.ForLog("Server startup complete").WithStartupTimeout(rabbitMQLogStartupTimeout),
 			wait.ForHTTP("/api/health/checks/alarms").
 				WithPort("15672/tcp").
 				WithBasicAuth(cfg.User, cfg.Password).
-				WithStartupTimeout(60*time.Second),
+				WithStartupTimeout(rabbitMQManagementStartupTimeout),
 		),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
 	}
 
-	rmqContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	require.NoError(t, err, "failed to start RabbitMQ container on network %s", networkName)
+	rmqContainer := startContainerWithRetry(t, ctx, req, "failed to start RabbitMQ container on network %s", networkName)
 
 	host, err := rmqContainer.Host(ctx)
 	require.NoError(t, err, "failed to get RabbitMQ container host")
@@ -221,6 +216,35 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 		MgmtPort:  mgmtPort.Port(),
 		URI:       uri,
 	}
+}
+
+func startContainerWithRetry(t *testing.T, ctx context.Context, req testcontainers.ContainerRequest, failureMessage string, args ...any) testcontainers.Container {
+	t.Helper()
+
+	var (
+		ctr testcontainers.Container
+		err error
+	)
+
+	for attempt := 1; attempt <= rabbitMQStartupAttempts; attempt++ {
+		ctr, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+			ContainerRequest: req,
+			Started:          true,
+		})
+		if err == nil {
+			return ctr
+		}
+
+		t.Logf("RabbitMQ container start attempt %d/%d failed: %v", attempt, rabbitMQStartupAttempts, err)
+
+		if attempt < rabbitMQStartupAttempts {
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+	}
+
+	require.NoError(t, err, fmt.Sprintf(failureMessage, args...))
+
+	return nil
 }
 
 // SetupExchange declares an exchange on the RabbitMQ container.
