@@ -56,7 +56,7 @@ func (m *MockLogger) WithDefaultMessageTemplate(template string) libLog.Logger {
 func (m *MockLogger) WithFields(args ...any) libLog.Logger                     { return m }
 
 func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
+	t.Run("success_append_only_transaction_and_operations", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -148,7 +148,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Input:       transactionInput,
 		}
 
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
+		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
+		require.NoError(t, marshalErr, "failed to marshal transaction queue")
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -162,21 +163,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
-			Return(nil, nil).
-			AnyTimes()
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias2").
-			Return(nil, nil).
-			AnyTimes()
-
-		// Mock BalanceRepo.BalancesUpdate
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// NOTE: No BalancesUpdate mock - balance persistence is now async via worker
+		// Hot balance is updated by Lua script, cold balance synced by BalanceSyncWorker
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -212,116 +200,6 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.NoError(t, err)
-	})
-
-	t.Run("error_update_balances", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockTransactionRepo := transaction.NewMockRepository(ctrl)
-		mockOperationRepo := operation.NewMockRepository(ctrl)
-		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-		mockBalanceRepo := balance.NewMockRepository(ctrl)
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
-		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		// Create a UseCase with mock repositories
-		uc := &UseCase{
-			TransactionRepo: mockTransactionRepo,
-			OperationRepo:   mockOperationRepo,
-			MetadataRepo:    mockMetadataRepo,
-			BalanceRepo:     mockBalanceRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
-			RedisRepo:       mockRedisRepo,
-		}
-
-		ctx := context.Background()
-		organizationID := uuid.New()
-		ledgerID := uuid.New()
-		transactionID := uuid.New().String()
-
-		// Mock transaction data with correct types
-		validate := &pkgTransaction.Responses{
-			Aliases: []string{"alias1", "alias2"},
-			From: map[string]pkgTransaction.Amount{
-				"alias1": {
-					Asset: "USD",
-					Value: decimal.NewFromInt(50),
-				},
-			},
-			To: map[string]pkgTransaction.Amount{
-				"alias2": {
-					Asset: "EUR",
-					Value: decimal.NewFromInt(40),
-				},
-			},
-		}
-
-		balances := []*mmodel.Balance{
-			{
-				ID:             uuid.New().String(),
-				AccountID:      uuid.New().String(),
-				OrganizationID: organizationID.String(),
-				LedgerID:       ledgerID.String(),
-				Alias:          "alias1",
-				Available:      decimal.NewFromInt(100),
-				OnHold:         decimal.NewFromInt(0),
-				Version:        1,
-				AccountType:    "deposit",
-				AllowSending:   true,
-				AllowReceiving: true,
-				AssetCode:      "USD",
-			},
-		}
-
-		tran := &transaction.Transaction{
-			ID:             transactionID,
-			OrganizationID: organizationID.String(),
-			LedgerID:       ledgerID.String(),
-			Operations:     []*operation.Operation{},
-			Metadata:       map[string]interface{}{},
-		}
-
-		transactionInput := &pkgTransaction.Transaction{}
-
-		transactionQueue := transaction.TransactionProcessingPayload{
-			Transaction: tran,
-			Validate:    validate,
-			Balances:    balances,
-			Input:       transactionInput,
-		}
-
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
-		queueData := []mmodel.QueueData{
-			{
-				ID:    uuid.New(),
-				Value: transactionBytes,
-			},
-		}
-
-		queue := mmodel.Queue{
-			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
-			QueueData:      queueData,
-		}
-
-		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
-			Return(nil, nil).
-			AnyTimes()
-
-		// Mock BalanceRepo.BalancesUpdate to return an error
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(errors.New("failed to update balances")).
-			Times(1)
-
-		// Call the method
-		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to update balances")
 	})
 
 	t.Run("error_duplicate_transaction", func(t *testing.T) {
@@ -395,7 +273,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Input:       transactionInput,
 		}
 
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
+		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
+		require.NoError(t, marshalErr, "failed to marshal transaction queue")
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -409,17 +288,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
-			Return(nil, nil).
-			AnyTimes()
-
-		// Mock BalanceRepo.BalancesUpdate
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// NOTE: No BalancesUpdate mock - balance persistence is now async via worker
 
 		// Mock TransactionRepo.Create with duplicate key error
 		pgErr := &pgconn.PgError{Code: "23505"}
@@ -592,7 +461,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Input:       transactionInput,
 		}
 
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
+		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
+		require.NoError(t, marshalErr, "failed to marshal transaction queue")
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -606,21 +476,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
-			Return(nil, nil).
-			AnyTimes()
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias2").
-			Return(nil, nil).
-			AnyTimes()
-
-		// Mock BalanceRepo.BalancesUpdate
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// NOTE: No BalancesUpdate mock - balance persistence is now async via worker
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -790,7 +646,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Input:       transactionInput,
 		}
 
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
+		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
+		require.NoError(t, marshalErr, "failed to marshal transaction queue")
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -804,17 +661,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
-			Return(nil, nil).
-			AnyTimes()
-
-		// Mock BalanceRepo.BalancesUpdate
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// NOTE: No BalancesUpdate mock - balance persistence is now async via worker
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -951,7 +798,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Input:       transactionInput,
 		}
 
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
+		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
+		require.NoError(t, marshalErr, "failed to marshal transaction queue")
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -965,17 +813,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
-			Return(nil, nil).
-			AnyTimes()
-
-		// Mock BalanceRepo.BalancesUpdate
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// NOTE: No BalancesUpdate mock - balance persistence is now async via worker
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -1120,7 +958,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Input:       transactionInput,
 		}
 
-		transactionBytes, _ := msgpack.Marshal(transactionQueue)
+		transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
+		require.NoError(t, marshalErr, "failed to marshal transaction queue")
 		queueData := []mmodel.QueueData{
 			{
 				ID:    uuid.New(),
@@ -1134,17 +973,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
-			Return(nil, nil).
-			AnyTimes()
-
-		// Mock BalanceRepo.BalancesUpdate
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// NOTE: No BalancesUpdate mock - balance persistence is now async via worker
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -1293,7 +1122,8 @@ func TestCreateBTOAsync(t *testing.T) {
 		Input:       transactionInput,
 	}
 
-	transactionBytes, _ := msgpack.Marshal(transactionQueue)
+	transactionBytes, marshalErr := msgpack.Marshal(transactionQueue)
+	require.NoError(t, marshalErr, "failed to marshal transaction queue")
 	queueData := []mmodel.QueueData{
 		{
 			ID:    uuid.New(),
@@ -1307,17 +1137,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		QueueData:      queueData,
 	}
 
-	// Mock RedisRepo.ListBalanceByKey for stale balance check (return nil to proceed with update)
-	mockRedisRepo.EXPECT().
-		ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
-		Return(nil, nil).
-		AnyTimes()
-
-	// Mock all the necessary calls to avoid nil pointer dereference
-	mockBalanceRepo.EXPECT().
-		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil).
-		AnyTimes()
+	// NOTE: No BalancesUpdate mock - balance persistence is now async via worker
 
 	mockTransactionRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any()).
