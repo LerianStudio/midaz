@@ -16,6 +16,8 @@ jobs:
       s3_bucket: "lerian-migration-files"
       file_pattern: "components/onboarding/migrations/*.sql"
       s3_prefix: "onboarding"
+      environment_detection: "manual"
+      manual_environment: "development"
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_MIGRATIONS_ROLE_ARN }}
 
@@ -25,5 +27,7 @@ jobs:
       s3_bucket: "lerian-dev-migration-files"
       file_pattern: "components/transaction/migrations/*.sql"
       s3_prefix: "transaction"
+      environment_detection: "manual"
+      manual_environment: "development"
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_MIGRATIONS_ROLE_ARN }}
