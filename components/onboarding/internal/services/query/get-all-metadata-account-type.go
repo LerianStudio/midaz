@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -33,10 +32,18 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving account types by metadata")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), filter)
-	if err != nil || metadata == nil {
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo", err)
+
+		logger.Log(ctx, libLog.LevelError, "Error getting account type metadata on repo")
+
+		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	if metadata == nil || len(metadata) == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No account type metadata found", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -51,8 +58,6 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 
 	accountTypes, err := uc.AccountTypeRepo.ListByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting account types on repo by query params: %v", err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
@@ -63,7 +68,9 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 			return nil, libHTTP.CursorPagination{}, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account types on repo", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get account types on repo", err)
+
+		logger.Log(ctx, libLog.LevelError, "Error getting account types on repo by query params")
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -44,7 +45,8 @@ func TestMetadataIndexHandler_ContextHelpers_MissingManager(t *testing.T) {
 
 	handler := &MetadataIndexHandler{}
 
-	ctx := context.Background()
+	type ctxKey string
+	ctx := context.WithValue(context.Background(), ctxKey("sentinel"), uuid.NewString())
 
 	ctxNoTenant, err := handler.contextForEntity(ctx, "transaction")
 	require.NoError(t, err)
@@ -123,8 +125,6 @@ func TestMetadataIndexHandler_MultiTenantContextResolutionErrors(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -476,15 +476,17 @@ func resolveBalancePort(opts *Options, cfg *Config, logger libLog.Logger) (mboot
 }
 
 func resolveSettingsCacheTTL(cfg *Config, logger libLog.Logger) time.Duration {
+	const defaultSettingsCacheTTL = 5 * time.Minute
+
 	if cfg.SettingsCacheTTL == "" {
-		return 0
+		return defaultSettingsCacheTTL
 	}
 
 	parsed, err := time.ParseDuration(cfg.SettingsCacheTTL)
 	if err != nil || parsed <= 0 {
-		logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("Invalid SETTINGS_CACHE_TTL value '%s', using default", cfg.SettingsCacheTTL))
+		logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("Invalid SETTINGS_CACHE_TTL value '%s', using default %v", cfg.SettingsCacheTTL, defaultSettingsCacheTTL))
 
-		return 0
+		return defaultSettingsCacheTTL
 	}
 
 	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Settings cache TTL configured: %v", parsed))
