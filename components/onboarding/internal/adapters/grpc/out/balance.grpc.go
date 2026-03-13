@@ -71,6 +71,7 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 
 	ctxReq, spanClientReq := tracer.Start(ctx, "grpc.create_balance.client_request")
 	defer spanClientReq.End()
+
 	if err := libOpentelemetry.SetSpanAttributesFromValue(spanClientReq, "app.request.payload", req, nil); err != nil {
 		libOpentelemetry.HandleSpanError(spanClientReq, "Failed to convert BalanceRequest to JSON payload", err)
 	}
@@ -79,7 +80,6 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 	ctxReq = b.conn.ContextMetadataInjection(ctxReq, token)
 
 	resp, err := client.CreateBalance(ctxReq, req)
-
 	if err != nil {
 		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrAccountCreationFailed.Error(), "Account Creation Failed", "Account could not be created")
 		if mapped != err {
@@ -112,6 +112,7 @@ func (b *BalanceGRPCRepository) DeleteAllBalancesByAccountID(ctx context.Context
 
 	ctxReq, spanClientReq := tracer.Start(ctx, "grpc.delete_all_balances_by_account_id.client_request")
 	defer spanClientReq.End()
+
 	if err := libOpentelemetry.SetSpanAttributesFromValue(spanClientReq, "app.request.payload", req, nil); err != nil {
 		libOpentelemetry.HandleSpanError(spanClientReq, "Failed to convert DeleteAllBalancesByAccountIDRequest to JSON payload", err)
 	}
@@ -119,7 +120,6 @@ func (b *BalanceGRPCRepository) DeleteAllBalancesByAccountID(ctx context.Context
 	ctxReq = b.conn.ContextMetadataInjection(ctxReq, token)
 
 	_, err = client.DeleteAllBalancesByAccountID(ctxReq, req)
-
 	if err != nil {
 		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrAccountBalanceDeletion.Error(), "All Balances Deletion Failed", "All balances could not be deleted")
 		if mapped != err {

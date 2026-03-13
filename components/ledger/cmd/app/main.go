@@ -50,5 +50,6 @@ func main() {
 	}
 
 	service.Run()
+
 	_ = logger.Sync(context.Background())
 }

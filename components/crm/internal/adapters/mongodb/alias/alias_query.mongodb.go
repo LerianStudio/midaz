@@ -76,6 +76,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 		return nil, err
 	}
+
 	defer func() {
 		if closeErr := cursor.Close(ctx); closeErr != nil {
 			libOpenTelemetry.HandleSpanError(span, "Failed to close cursor", closeErr)

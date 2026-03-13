@@ -78,6 +78,7 @@ func (handler *MetadataIndexHandler) getMongoManager(entityName string) *tmmongo
 
 func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entityName string) (context.Context, error) {
 	tenantID := tmcore.GetTenantID(ctx)
+
 	mongoManager := handler.getMongoManager(entityName)
 	if tenantID == "" {
 		if mongoManager != nil {
