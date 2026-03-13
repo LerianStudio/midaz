@@ -9,15 +9,14 @@ import (
 	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
-
-	// GetAliasByID retrieves alias by id and its holder id
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// GetAliasByID retrieves an alias by ID and holder ID.
 func (uc *UseCase) GetAliasByID(ctx context.Context, organizationID string, holderID, id uuid.UUID, includeDeleted bool) (*mmodel.Alias, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 

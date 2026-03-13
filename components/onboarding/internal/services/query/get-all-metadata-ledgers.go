@@ -7,10 +7,10 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -18,11 +18,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
-
-	// GetAllMetadataLedgers fetch all Ledgers from the repository
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// GetAllMetadataLedgers fetches all ledgers from the repository.
 func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Ledger, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -32,10 +30,17 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 	logger.Log(ctx, libLog.LevelInfo, "Retrieving ledgers")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), filter)
-	if err != nil || metadata == nil {
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo", err)
+		logger.Log(ctx, libLog.LevelError, "Error getting metadata on repo")
+
+		return nil, err
+	}
+
+	if metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No metadata found", err)
 
 		logger.Log(ctx, libLog.LevelWarn, "No metadata found")
 
@@ -52,8 +57,6 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 
 	ledgers, err := uc.LedgerRepo.ListByIDs(ctx, organizationID, uuids)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting ledgers on repo by query params: %v", err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
@@ -64,7 +67,9 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uui
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get ledgers on repo", err)
+		logger.Log(ctx, libLog.LevelError, "Error getting ledgers on repo")
+
+		libOpentelemetry.HandleSpanError(span, "Failed to get ledgers on repo", err)
 
 		return nil, err
 	}

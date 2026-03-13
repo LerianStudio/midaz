@@ -318,12 +318,12 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	if err := handler.Command.DeleteLedgerByID(ctx, organizationID, id); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove ledger on command", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Ledeger with ID: %s, Error: %s", id.String(), err.Error()))
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Ledger with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Ledeger with ID: %s", id.String()))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Ledger with ID: %s", id.String()))
 
 	return http.NoContent(c)
 }

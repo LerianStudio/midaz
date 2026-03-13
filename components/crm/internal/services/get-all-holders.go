@@ -9,15 +9,14 @@ import (
 	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"go.opentelemetry.io/otel/attribute"
-
-	// GetAllHolders that match a query filter, and returns inside a paginated array
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// GetAllHolders retrieves holders that match the query filter.
 func (uc *UseCase) GetAllHolders(ctx context.Context, organizationID string, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Holder, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 

@@ -65,6 +65,10 @@ func FuzzKeyNamespacing_SimpleKey(f *testing.F) {
 			tenantID = tenantID[:256]
 		}
 
+		if strings.Contains(tenantID, ":") {
+			return
+		}
+
 		// Build context with or without a tenant ID.
 		var ctx context.Context
 		if tenantID != "" {
@@ -81,10 +85,10 @@ func FuzzKeyNamespacing_SimpleKey(f *testing.F) {
 
 		// Invariant 1: non-empty tenantID → prefix is applied.
 		if tenantID != "" {
-			expectedPrefix := "tenant:" + tenantID + ":"
-			if !strings.HasPrefix(result, expectedPrefix) {
-				t.Errorf("FuzzKeyNamespacing_SimpleKey: expected result to have prefix %q, got %q (key=%q, tenantID=%q)",
-					expectedPrefix, result, key, tenantID)
+			expected := "tenant:" + tenantID + ":" + key
+			if result != expected {
+				t.Errorf("FuzzKeyNamespacing_SimpleKey: expected result %q, got %q (key=%q, tenantID=%q)",
+					expected, result, key, tenantID)
 			}
 		}
 

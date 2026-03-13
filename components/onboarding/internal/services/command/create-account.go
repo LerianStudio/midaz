@@ -15,6 +15,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libConstant "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -22,20 +23,18 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/metadata"
-
-	// CreateAccount creates an account and metadata, then synchronously creates the default balance.
-	// The balance is created via the BalancePort interface, which can be either local (in-process)
-	// or remote (gRPC) depending on the deployment mode.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// CreateAccount creates an account and metadata, then synchronously creates the default balance.
+// The balance is created via the BalancePort interface, which can be either local (in-process)
+// or remote (gRPC) depending on the deployment mode.
 func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_account")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create account (sync): %v", cai))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create account organizationID=%s ledgerID=%s type=%s", organizationID.String(), ledgerID.String(), cai.Type))
 
 	// Fail-fast: Check balance service health before proceeding
 	if err := uc.BalancePort.CheckHealth(ctx); err != nil {
@@ -100,7 +99,15 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		}
 	}
 
-	ID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	accountID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate account ID", err)
+		logger.Log(ctx, libLog.LevelError, "Error generating account ID")
+
+		return nil, err
+	}
+
+	ID := accountID.String()
 
 	alias, err := uc.resolveAccountAlias(ctx, organizationID, ledgerID, cai, ID)
 	if err != nil {

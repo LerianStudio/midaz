@@ -11,17 +11,16 @@ import (
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-
-	// DeleteAssetByID delete an asset from the repository by ids.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// DeleteAssetByID deletes an asset from the repository by IDs.
 func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -44,7 +43,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get asset on repo by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting asset: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting asset")
 
 		return err
 	}
@@ -55,7 +54,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve asset external account", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error retrieving asset external account: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error retrieving asset external account")
 
 		return err
 	}
@@ -65,7 +64,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete asset external account", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error deleting asset external account: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error deleting asset external account")
 
 			return err
 		}
@@ -84,7 +83,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete asset on repo by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error deleting asset: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error deleting asset")
 
 		return err
 	}

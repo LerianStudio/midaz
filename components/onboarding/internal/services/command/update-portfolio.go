@@ -11,24 +11,23 @@ import (
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-
-	// UpdatePortfolioByID update a portfolio from the repository by given id.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// UpdatePortfolioByID updates a portfolio from the repository by the given ID.
 func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *mmodel.UpdatePortfolioInput) (*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_portfolio_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update portfolio: %v", upi))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update portfolio %s", id.String()))
 
 	portfolio := &mmodel.Portfolio{
 		EntityID: upi.EntityID,

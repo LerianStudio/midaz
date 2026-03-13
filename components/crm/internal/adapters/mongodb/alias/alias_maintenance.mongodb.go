@@ -52,6 +52,7 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 	filter := bson.D{
 		{Key: "_id", Value: aliasID},
 		{Key: "holder_id", Value: holderID},
+		{Key: "related_parties._id", Value: relatedPartyID},
 		{Key: "deleted_at", Value: nil},
 	}
 

@@ -9,15 +9,14 @@ import (
 	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
-
-	// GetHolderByID fetch a holder from the repository
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// GetHolderByID fetches a holder from the repository.
 func (uc *UseCase) GetHolderByID(ctx context.Context, organizationID string, id uuid.UUID, includeDeleted bool) (*mmodel.Holder, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 

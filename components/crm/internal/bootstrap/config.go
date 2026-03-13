@@ -82,7 +82,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		var err error
 
 		logger, err = libZap.New(libZap.Config{
-			Environment:     libZap.EnvironmentDevelopment,
+			Environment:     resolveLoggerEnvironment(cfg.EnvName),
 			Level:           cfg.LogLevel,
 			OTelLibraryName: cfg.OtelLibraryName,
 		})
@@ -236,5 +236,20 @@ func resolveMongoURI(cfg *Config, mongoPort, mongoParameters string) (string, er
 		return rawURI, nil
 	default:
 		return "", fmt.Errorf("invalid MONGO_URI format: expected full URI or legacy scheme value")
+	}
+}
+
+func resolveLoggerEnvironment(env string) libZap.Environment {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case string(libZap.EnvironmentProduction):
+		return libZap.EnvironmentProduction
+	case string(libZap.EnvironmentStaging):
+		return libZap.EnvironmentStaging
+	case string(libZap.EnvironmentUAT):
+		return libZap.EnvironmentUAT
+	case string(libZap.EnvironmentLocal):
+		return libZap.EnvironmentLocal
+	default:
+		return libZap.EnvironmentDevelopment
 	}
 }

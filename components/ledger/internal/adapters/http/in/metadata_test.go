@@ -668,12 +668,12 @@ func TestMetadataIndexHandler_DeleteMetadataIndex_EmptyIndexKey(t *testing.T) {
 		TransactionMetadataRepo: mockTransactionRepo,
 	}
 
-	app := fiber.New()
-
-	// Register route without :index_key param so c.Params("index_key") returns ""
-	app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key", func(c *fiber.Ctx) error {
-		c.SetUserContext(context.Background())
-		return handler.DeleteMetadataIndex(c)
+	app := newMetadataHandlerTestApp(func(app *fiber.App) {
+		// Route without :index_key param so c.Params("index_key") returns ""
+		app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+			return handler.DeleteMetadataIndex(c)
+		})
 	})
 
 	req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/entities/transaction/key", nil)
@@ -682,4 +682,5 @@ func TestMetadataIndexHandler_DeleteMetadataIndex_EmptyIndexKey(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+	assertJSONErrorResponse(t, resp)
 }

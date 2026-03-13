@@ -19,7 +19,7 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 	ctx, span := tracer.Start(ctx, "command.update_metadata")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update metadata for %s: %v", entityName, entityID))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update metadata for %s", entityName))
 
 	metadataToUpdate := metadata
 
@@ -28,7 +28,7 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error getting metadata on mongodb")
 
 			return nil, err
 		}

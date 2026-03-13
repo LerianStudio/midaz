@@ -13,6 +13,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libConstant "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -20,22 +21,20 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	grpcMetadata "google.golang.org/grpc/metadata"
-
-	// CreateAsset creates an asset and metadata synchronously and ensures an external
-	// account exists for the asset. If a new external account is created, it also
-	// creates the default balance for that account.
-	// The balance is created via the BalancePort interface, which can be either local (in-process)
-	// or remote (gRPC) depending on the deployment mode.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// CreateAsset creates an asset and metadata synchronously and ensures an external
+// account exists for the asset. If a new external account is created, it also
+// creates the default balance for that account.
+// The balance is created via the BalancePort interface, which can be either local (in-process)
+// or remote (gRPC) depending on the deployment mode.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput, token string) (*mmodel.Asset, error) {
 	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_asset")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create asset (sync): %v", cii))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create asset organizationID=%s ledgerID=%s code=%s", organizationID.String(), ledgerID.String(), cii.Code))
 
 	// Fail-fast: Check balance service health before proceeding
 	if err := uc.BalancePort.CheckHealth(ctx); err != nil {

@@ -27,8 +27,7 @@ import (
 // Returns nil when multi-tenant is disabled or the URL is not configured.
 // The middleware extracts tenantId from JWT, resolves the tenant-specific
 // MongoDB connection via Tenant Manager, and injects it into the request context.
-// When telemetry is non-nil, emits tenant_connections_total (on manager creation)
-// and tenant_connection_errors_total (on handler errors).
+// When telemetry is non-nil, emits tenant_connection_errors_total on handler errors.
 func initTenantMiddleware(cfg *Config, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) (fiber.Handler, error) {
 	if !cfg.MultiTenantEnabled {
 		return nil, nil
@@ -52,8 +51,6 @@ func initTenantMiddleware(cfg *Config, logger libLog.Logger, telemetry *libOpent
 	mongoOpts := buildMongoManagerOptions(cfg, logger)
 
 	mongoManager := tmmongo.NewManager(tmClient, in.ApplicationName, mongoOpts...)
-
-	emitTenantMetric(context.Background(), telemetry, logger, utils.TenantConnectionsTotal)
 
 	tenantMid := tmmiddleware.NewTenantMiddleware(
 		tmmiddleware.WithMongoManager(mongoManager),
@@ -86,12 +83,22 @@ func buildTenantClientOptions(cfg *Config, mtURL string) ([]tmclient.ClientOptio
 		return nil, fmt.Errorf("invalid MULTI_TENANT_URL: %w", err)
 	}
 
-	if strings.EqualFold(parsedURL.Scheme, "http") {
+	scheme := strings.ToLower(strings.TrimSpace(parsedURL.Scheme))
+	if scheme == "" || parsedURL.Host == "" {
+		return nil, fmt.Errorf("MULTI_TENANT_URL must be an absolute URL with scheme and host")
+	}
+
+	switch scheme {
+	case "https":
+		return clientOpts, nil
+	case "http":
 		if !allowInsecureTenantManagerHTTP(cfg.EnvName) {
 			return nil, fmt.Errorf("MULTI_TENANT_URL must use https outside local/development/test environments")
 		}
 
 		clientOpts = append(clientOpts, tmclient.WithAllowInsecureHTTP())
+	default:
+		return nil, fmt.Errorf("MULTI_TENANT_URL scheme must be http or https")
 	}
 
 	return clientOpts, nil
@@ -111,6 +118,9 @@ func redactedTenantManagerURL(raw string) string {
 	if err != nil {
 		return "invalid-url"
 	}
+
+	parsedURL.RawQuery = ""
+	parsedURL.Fragment = ""
 
 	return parsedURL.Redacted()
 }
