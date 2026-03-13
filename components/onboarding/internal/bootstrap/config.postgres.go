@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"time"
 
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
@@ -108,7 +109,10 @@ func defaultPostgresConnector(cfg *Config, logger libLog.Logger) (*libPostgres.C
 		return nil, err
 	}
 
-	if err := conn.Connect(context.Background()); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := conn.Connect(ctx); err != nil {
 		return nil, err
 	}
 

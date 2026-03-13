@@ -65,8 +65,6 @@ func TestBuildShutdownHooks(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -106,8 +104,6 @@ func TestNewServer_ServerAddressFallback(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -161,8 +157,8 @@ func TestResolveSettingsCacheTTL(t *testing.T) {
 
 	logger := libLog.NewNop()
 
-	assert.Equal(t, time.Duration(0), resolveSettingsCacheTTL(&Config{}, logger))
-	assert.Equal(t, time.Duration(0), resolveSettingsCacheTTL(&Config{SettingsCacheTTL: "invalid"}, logger))
-	assert.Equal(t, time.Duration(0), resolveSettingsCacheTTL(&Config{SettingsCacheTTL: "-5s"}, logger))
+	assert.Equal(t, 5*time.Minute, resolveSettingsCacheTTL(&Config{}, logger))
+	assert.Equal(t, 5*time.Minute, resolveSettingsCacheTTL(&Config{SettingsCacheTTL: "invalid"}, logger))
+	assert.Equal(t, 5*time.Minute, resolveSettingsCacheTTL(&Config{SettingsCacheTTL: "-5s"}, logger))
 	assert.Equal(t, 30*time.Second, resolveSettingsCacheTTL(&Config{SettingsCacheTTL: "30s"}, logger))
 }
