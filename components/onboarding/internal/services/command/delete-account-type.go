@@ -41,7 +41,7 @@ func (uc *UseCase) DeleteAccountTypeByID(ctx context.Context, organizationID, le
 			return err
 		}
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete Account Type with Account Type ID: %s, Error: %s", id.String(), err.Error()))
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete Account Type with Account Type ID: %s", id.String()))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete Account Type on repo", err)
 

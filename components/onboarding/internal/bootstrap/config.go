@@ -452,6 +452,9 @@ func resolveLoggerEnvironment(env string) libZap.Environment {
 	}
 }
 
+// resolveBalancePort intentionally mutates cfg during initialization when
+// TransactionGRPCAddress or TransactionGRPCPort are blank, applying the default
+// network coordinates required by the gRPC balance adapter.
 func resolveBalancePort(opts *Options, cfg *Config, logger libLog.Logger) (mbootstrap.BalancePort, error) {
 	if opts != nil && opts.UnifiedMode {
 		if opts.BalancePort == nil {
