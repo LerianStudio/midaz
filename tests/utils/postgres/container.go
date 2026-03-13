@@ -107,6 +107,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 
 	for {
 		port, portErr := ctr.MappedPort(ctx, "5432")
+
 		err = portErr
 		if portErr == nil {
 			mappedPort = port.Port()

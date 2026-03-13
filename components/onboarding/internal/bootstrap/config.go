@@ -242,6 +242,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	redisAuth := libRedis.Auth{}
+
 	if cfg.RedisUseGCPIAM {
 		credentialsBase64 := strings.TrimSpace(cfg.GoogleApplicationCredentials)
 		if credentialsBase64 == "" {
