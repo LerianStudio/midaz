@@ -295,10 +295,7 @@ func (handler *HolderHandler) GetAllHolders(c *fiber.Ctx) error {
 		attribute.Bool("app.request.include_deleted", includeDeleted),
 	)
 
-	err = libOpenTelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to convert query_params to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	holders, err := handler.Service.GetAllHolders(ctx, organizationID, *headerParams, includeDeleted)
 	if err != nil {

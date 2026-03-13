@@ -29,7 +29,7 @@ func main() {
 	libCommons.InitLocalEnvConfig()
 
 	logger, err := libZap.New(libZap.Config{
-		Environment:     libZap.EnvironmentDevelopment,
+		Environment:     resolveLoggerEnvironment(os.Getenv("ENV_NAME")),
 		Level:           "info",
 		OTelLibraryName: "midaz-crm",
 	})
@@ -50,4 +50,20 @@ func main() {
 	}
 
 	service.Run()
+	_ = logger.Sync(context.Background())
+}
+
+func resolveLoggerEnvironment(env string) libZap.Environment {
+	switch env {
+	case string(libZap.EnvironmentProduction):
+		return libZap.EnvironmentProduction
+	case string(libZap.EnvironmentStaging):
+		return libZap.EnvironmentStaging
+	case string(libZap.EnvironmentUAT):
+		return libZap.EnvironmentUAT
+	case string(libZap.EnvironmentLocal):
+		return libZap.EnvironmentLocal
+	default:
+		return libZap.EnvironmentDevelopment
+	}
 }

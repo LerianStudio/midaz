@@ -372,7 +372,6 @@ func TestBuildTenantClientOptions_AllowsHTTPInSafeEnvironments(t *testing.T) {
 	t.Parallel()
 
 	for _, envName := range []string{"local", "development", "dev", "test", "testing"} {
-		envName := envName
 		t.Run(envName, func(t *testing.T) {
 			t.Parallel()
 
@@ -389,6 +388,22 @@ func TestBuildTenantClientOptions_InvalidURLReturnsError(t *testing.T) {
 	_, err := buildTenantClientOptions(&Config{EnvName: "development"}, "://bad-url")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid MULTI_TENANT_URL")
+}
+
+func TestBuildTenantClientOptions_RejectsRelativeURL(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildTenantClientOptions(&Config{EnvName: "development"}, "tenant-manager:8080")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "absolute URL")
+}
+
+func TestBuildTenantClientOptions_RejectsUnsupportedScheme(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildTenantClientOptions(&Config{EnvName: "development"}, "ftp://tenant-manager:8080")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "scheme must be http or https")
 }
 
 func TestAllowInsecureTenantManagerHTTP(t *testing.T) {

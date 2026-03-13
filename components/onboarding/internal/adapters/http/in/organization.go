@@ -292,7 +292,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove organization: "+constant.ErrActionNotPermitted.Error(), constant.ErrActionNotPermitted)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove Organization with ID: %s in ", id.String()))
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove Organization with ID: %s in production", id.String()))
 
 		return http.WithError(c, err)
 	}

@@ -11,21 +11,20 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-
-	// CreatePortfolio creates a new portfolio persists data in the repository.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// CreatePortfolio creates a new portfolio and persists it in the repository.
 func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_portfolio")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create portfolio: %v", cpi))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create portfolio organizationID=%s ledgerID=%s entityID=%s", organizationID.String(), ledgerID.String(), cpi.EntityID))
 
 	var status mmodel.Status
 	if cpi.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cpi.Status.Code) {
@@ -38,8 +37,16 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	status.Description = cpi.Status.Description
 
+	portfolioID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate portfolio ID", err)
+		logger.Log(ctx, libLog.LevelError, "Error generating portfolio ID")
+
+		return nil, err
+	}
+
 	portfolio := &mmodel.Portfolio{
-		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		ID:             portfolioID.String(),
 		EntityID:       cpi.EntityID,
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),

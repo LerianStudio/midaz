@@ -11,25 +11,24 @@ import (
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-
-	// UpdateAccountType updates an account type by its ID.
-	// It returns the updated account type and an error if the operation fails.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// UpdateAccountType updates an account type by its ID.
+// It returns the updated account type and an error if the operation fails.
 func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, input *mmodel.UpdateAccountTypeInput) (*mmodel.AccountType, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_account_type")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update account type: %v", input))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update account type %s", id.String()))
 
 	accountType := &mmodel.AccountType{
 		Name:        input.Name,

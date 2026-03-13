@@ -17,7 +17,6 @@ func legacyFiberErrorHandler(c *fiber.Ctx, err error) error {
 	if ctx != nil {
 		span := trace.SpanFromContext(ctx)
 		libOpentelemetry.HandleSpanError(span, "handler error", err)
-		span.End()
 	}
 
 	statusCode := fiber.StatusInternalServerError
@@ -40,9 +39,11 @@ func legacyFiberErrorHandler(c *fiber.Ctx, err error) error {
 			libLog.Err(err),
 		)
 
+		// Keep the legacy response envelope for compatibility with older clients.
 		return c.Status(statusCode).JSON(fiber.Map{"error": stdhttp.StatusText(statusCode)})
 	}
 
+	// Keep the legacy response envelope for compatibility with older clients.
 	return c.Status(statusCode).JSON(fiber.Map{"error": err.Error()})
 }
 

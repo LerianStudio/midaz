@@ -63,8 +63,6 @@ func TestSafePayloadAttributes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -78,6 +76,23 @@ func TestSafePayloadSummary_RedactsValues(t *testing.T) {
 	t.Parallel()
 
 	alias := "@customer-sensitive"
+	payload := &mmodel.CreateAccountInput{
+		Alias:    &alias,
+		Metadata: map[string]any{"taxId": "sensitive"},
+	}
+
+	summary := safePayloadSummary(payload)
+
+	assert.Contains(t, summary, "type=CreateAccountInput")
+	assert.Contains(t, summary, "hasMetadata=true")
+	assert.Contains(t, summary, "hasAlias=true")
+	assert.NotContains(t, summary, alias)
+	assert.NotContains(t, summary, "sensitive")
+}
+
+func TestSafePayloadSummary_RedactsLegalDocumentValues(t *testing.T) {
+	t.Parallel()
+
 	legalDocument := "12345678901234"
 	payload := &mmodel.CreateOrganizationInput{
 		LegalDocument: legalDocument,
@@ -90,7 +105,6 @@ func TestSafePayloadSummary_RedactsValues(t *testing.T) {
 	assert.Contains(t, summary, "hasMetadata=true")
 	assert.Contains(t, summary, "hasLegalDocument=true")
 	assert.NotContains(t, summary, legalDocument)
-	assert.NotContains(t, summary, alias)
 	assert.NotContains(t, summary, "sensitive")
 }
 

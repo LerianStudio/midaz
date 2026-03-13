@@ -11,24 +11,23 @@ import (
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-
-	// ListAccountsByAlias get Accounts from the repository by given alias.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// ListAccountsByAlias gets accounts from the repository by alias.
 func (uc *UseCase) ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.ListAccountsByAlias")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving account for alias: %s", aliases))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving accounts by aliases (count=%d)", len(aliases)))
 
 	accounts, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, aliases)
 	if err != nil {
@@ -37,7 +36,7 @@ func (uc *UseCase) ListAccountsByAlias(ctx context.Context, organizationID, ledg
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrFailedToRetrieveAccountsByAliases, reflect.TypeOf(mmodel.Account{}).Name())
 
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("No accounts found for alias: %s", aliases))
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("No accounts found for provided aliases (count=%d)", len(aliases)))
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Accounts by aliases", err)
 

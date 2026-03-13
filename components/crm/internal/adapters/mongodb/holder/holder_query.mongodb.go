@@ -43,16 +43,20 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	limit := int64(query.Limit)
 	skip := int64(query.Page*query.Limit - query.Limit)
-	opts := options.FindOptions{Limit: &limit, Skip: &skip}
+	opts := options.Find().SetLimit(limit).SetSkip(skip).SetSort(bson.D{{Key: "_id", Value: 1}})
 
 	ctx, spanFind := tracer.Start(ctx, "mongodb.find_all_holders.find")
 
 	spanFind.SetAttributes(attributes...)
 
-	err = libOpenTelemetry.SetSpanAttributesFromValue(spanFind, "app.request.repository_filter", query, nil)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanFind, "Failed to convert query to JSON string", err)
-	}
+	spanFind.SetAttributes(
+		attribute.Int("app.request.query.limit", query.Limit),
+		attribute.Int("app.request.query.page", query.Page),
+		attribute.String("app.request.query.sort_order", query.SortOrder),
+		attribute.Bool("app.request.query.has_metadata", query.Metadata != nil),
+		attribute.Bool("app.request.query.has_external_id", query.ExternalID != nil),
+		attribute.Bool("app.request.query.has_document", query.Document != nil),
+	)
 
 	filter, err := hm.buildHolderFilter(query, includeDeleted)
 	if err != nil {
@@ -60,12 +64,17 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 		return nil, err
 	}
 
-	cursor, err := coll.Find(ctx, filter, &opts)
+	cursor, err := coll.Find(ctx, filter, opts)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(spanFind, "Failed to find holder", err)
 
 		return nil, err
 	}
+	defer func() {
+		if closeErr := cursor.Close(ctx); closeErr != nil {
+			libOpenTelemetry.HandleSpanError(span, "Failed to close cursor", closeErr)
+		}
+	}()
 
 	spanFind.End()
 
@@ -84,12 +93,6 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	if err := cursor.Err(); err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to iterate holders", err)
-
-		return nil, err
-	}
-
-	if err := cursor.Close(ctx); err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to close cursor", err)
 
 		return nil, err
 	}
@@ -130,7 +133,12 @@ func (hm *MongoDBRepository) buildHolderFilter(query http.QueryHeader, includeDe
 				return nil, err
 			}
 
-			filter = append(filter, bson.E{Key: k, Value: safeValue})
+			key := k
+			if !strings.HasPrefix(key, "metadata.") {
+				key = "metadata." + key
+			}
+
+			filter = append(filter, bson.E{Key: key, Value: safeValue})
 		}
 	}
 

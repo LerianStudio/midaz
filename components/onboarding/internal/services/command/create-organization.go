@@ -11,23 +11,22 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
-
-	// CreateOrganization creates a new organization persists data in the repository.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// CreateOrganization creates a new organization and persists it in the repository.
 func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_organization")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create organization: %v", coi))
+	logger.Log(ctx, libLog.LevelInfo, "Trying to create organization")
 
 	var status mmodel.Status
 	if coi.Status.IsEmpty() || libCommons.IsNilOrEmpty(&coi.Status.Code) {

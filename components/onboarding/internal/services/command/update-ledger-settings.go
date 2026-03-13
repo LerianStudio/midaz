@@ -9,21 +9,20 @@ import (
 	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
-
-	// UpdateLedgerSettings updates the settings for a specific ledger using schema-aware deep merge.
-	// 1. Validates input settings against the LedgerSettings schema (rejects unknown fields, enforces types)
-	// 2. Atomically fetches existing settings, deep merges, and writes back using SELECT FOR UPDATE
-	// 3. Invalidates the cache after successful write
-	// Returns the merged settings after the update.
-	// Returns an error if the ledger does not exist or if validation fails.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// UpdateLedgerSettings updates the settings for a specific ledger using schema-aware deep merge.
+// 1. Validates input settings against the LedgerSettings schema (rejects unknown fields, enforces types)
+// 2. Atomically fetches existing settings, deep merges, and writes back using SELECT FOR UPDATE
+// 3. Invalidates the cache after successful write
+// Returns the merged settings after the update.
+// Returns an error if the ledger does not exist or if validation fails.
 func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 

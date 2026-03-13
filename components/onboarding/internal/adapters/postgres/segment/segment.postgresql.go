@@ -89,6 +89,10 @@ func (p *SegmentPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB,
 		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
+	if p.connection == nil {
+		return nil, fmt.Errorf("postgres connection not configured")
+	}
+
 	return p.connection.Resolver(ctx)
 }
 
@@ -276,7 +280,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
-		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
+		return nil, err
 	}
 	defer rows.Close()
 

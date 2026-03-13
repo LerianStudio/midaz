@@ -215,7 +215,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 	spanQuery.End()
 
 	if rows.Next() {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Asset name or code duplicate found: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Asset name or code duplicate found")
 		err := pkg.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, reflect.TypeOf(mmodel.Asset{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Asset name or code already exists", err)

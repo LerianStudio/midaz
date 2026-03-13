@@ -133,10 +133,12 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	spanInsert.SetAttributes(attributes...)
 
-	err = libOpenTelemetry.SetSpanAttributesFromValue(spanInsert, "app.request.repository_input", record, nil)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanInsert, "Failed to set span attributes", err)
-	}
+	spanInsert.SetAttributes(
+		attribute.Bool("app.request.repository_input.has_metadata", len(record.Metadata) > 0),
+		attribute.Bool("app.request.repository_input.has_banking_details", record.BankingDetails != nil),
+		attribute.Bool("app.request.repository_input.has_regulatory_fields", record.RegulatoryFields != nil),
+		attribute.Int("app.request.repository_input.related_parties_count", len(record.RelatedParties)),
+	)
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {

@@ -1020,7 +1020,7 @@ func validateInvalidStrings(fl validator.FieldLevel) bool {
 // of the fields whose value is nil.
 // The prefix parameter is used to build the complete path (e.g., "object.field").
 func findNilFields(data map[string]any, prefix string) []string {
-	var nilFields []string
+	nilFields := []string{}
 
 	for key, value := range data {
 		var fullPath string

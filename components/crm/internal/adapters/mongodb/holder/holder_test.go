@@ -449,6 +449,8 @@ func TestMapRepresentativeToEntity_InvalidEncryptedEmailReturnsError(t *testing.
 func TestMongoDBModel_FromEntity_ContactEncryptFailureReturnsError(t *testing.T) {
 	t.Parallel()
 
+	// A zero-value Crypto lacks the required encryption keys,
+	// so Contact encryption is expected to fail in FromEntity.
 	crypto := &libCrypto.Crypto{}
 	holderID := uuid.New()
 	now := time.Now().UTC().Truncate(time.Second)

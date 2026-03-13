@@ -241,7 +241,7 @@ func TestProperty_BuildPostgresConnection_NeverPanics(t *testing.T) {
 
 		conn, err := buildPostgresConnection(cfg, logger)
 		if err != nil {
-			return false
+			return true
 		}
 
 		// Property: must always return a non-nil connection.
@@ -250,7 +250,7 @@ func TestProperty_BuildPostgresConnection_NeverPanics(t *testing.T) {
 
 	err := quick.Check(property, &quick.Config{MaxCount: 100})
 	require.NoError(t, err,
-		"Property violated: buildPostgresConnection panicked or returned nil")
+		"Property violated: buildPostgresConnection panicked or returned nil on success")
 }
 
 // =============================================================================

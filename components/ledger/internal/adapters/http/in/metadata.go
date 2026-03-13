@@ -78,11 +78,15 @@ func (handler *MetadataIndexHandler) getMongoManager(entityName string) *tmmongo
 
 func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entityName string) (context.Context, error) {
 	tenantID := tmcore.GetTenantID(ctx)
+	mongoManager := handler.getMongoManager(entityName)
 	if tenantID == "" {
+		if mongoManager != nil {
+			return nil, fmt.Errorf("tenant id is required for entity %s", entityName)
+		}
+
 		return ctx, nil
 	}
 
-	mongoManager := handler.getMongoManager(entityName)
 	if mongoManager == nil {
 		return nil, fmt.Errorf("multi-tenant mongo manager not configured for entity %s", entityName)
 	}
@@ -97,16 +101,20 @@ func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entit
 
 func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, onboardingRepo bool) (context.Context, error) {
 	tenantID := tmcore.GetTenantID(ctx)
-	if tenantID == "" {
-		return ctx, nil
-	}
-
 	mongoManager := handler.TransactionMongoManager
 	groupName := "transaction"
 
 	if onboardingRepo {
 		mongoManager = handler.OnboardingMongoManager
 		groupName = "onboarding"
+	}
+
+	if tenantID == "" {
+		if mongoManager != nil {
+			return nil, fmt.Errorf("tenant id is required for %s metadata indexes", groupName)
+		}
+
+		return ctx, nil
 	}
 
 	if mongoManager == nil {
@@ -209,6 +217,13 @@ func (handler *MetadataIndexHandler) CreateMetadataIndex(p any, c *fiber.Ctx) er
 	logger.Log(ctx, libLog.LevelInfo, "Request to create metadata index", libLog.String("entity_name", entityName), libLog.String("metadata_key", payload.MetadataKey))
 
 	repo, collection := handler.getRepoAndCollection(entityName)
+	if repo == nil {
+		err := fmt.Errorf("metadata index repository not configured for entity %s", entityName)
+		libOpentelemetry.HandleSpanError(span, "Metadata repository not configured", err)
+		logger.Log(ctx, libLog.LevelError, "Metadata repository not configured, Error: %s", libLog.Err(err))
+
+		return http.WithError(c, err)
+	}
 
 	repoCtx, err := handler.contextForEntity(ctx, entityName)
 	if err != nil {
@@ -291,6 +306,13 @@ func (handler *MetadataIndexHandler) GetAllMetadataIndexes(c *fiber.Ctx) error {
 
 		// Return indexes for specific entity
 		repo, collection := handler.getRepoAndCollection(*headerParams.EntityName)
+		if repo == nil {
+			err := fmt.Errorf("metadata index repository not configured for entity %s", *headerParams.EntityName)
+			libOpentelemetry.HandleSpanError(span, "Metadata repository not configured", err)
+			logger.Log(ctx, libLog.LevelError, "Metadata repository not configured, Error: %s", libLog.Err(err))
+
+			return http.WithError(c, err)
+		}
 
 		repoCtx, err := handler.contextForEntity(ctx, *headerParams.EntityName)
 		if err != nil {
@@ -439,6 +461,13 @@ func (handler *MetadataIndexHandler) DeleteMetadataIndex(c *fiber.Ctx) error {
 	logger.Log(ctx, libLog.LevelInfo, "Request to delete metadata index", libLog.String("entity_name", entityName), libLog.String("index_key", indexKey), libLog.String("index_name", indexName))
 
 	repo, collection := handler.getRepoAndCollection(entityName)
+	if repo == nil {
+		err := fmt.Errorf("metadata index repository not configured for entity %s", entityName)
+		libOpentelemetry.HandleSpanError(span, "Metadata repository not configured", err)
+		logger.Log(ctx, libLog.LevelError, "Metadata repository not configured, Error: %s", libLog.Err(err))
+
+		return http.WithError(c, err)
+	}
 
 	repoCtx, err := handler.contextForEntity(ctx, entityName)
 	if err != nil {

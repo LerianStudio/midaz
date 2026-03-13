@@ -107,8 +107,6 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
-
 		return nil, err
 	}
 

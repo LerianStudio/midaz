@@ -350,10 +350,7 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 		)
 	}
 
-	err = libOpenTelemetry.SetSpanAttributesFromValue(span, "app.request.query_params", headerParams, nil)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(span, "Failed to convert query_params to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	aliases, err := handler.Service.GetAllAliases(ctx, organizationID, holderID, *headerParams, includeDeleted)
 	if err != nil {

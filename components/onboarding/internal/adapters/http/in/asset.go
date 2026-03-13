@@ -71,7 +71,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create Asset on command", err)
 
-		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Error to created Asset: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to created Asset: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}

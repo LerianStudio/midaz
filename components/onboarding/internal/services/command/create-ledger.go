@@ -11,21 +11,20 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-
-	// CreateLedger creates a new ledger persists data in the repository.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// CreateLedger creates a new ledger and persists it in the repository.
 func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_ledger")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create ledger: %v", cli))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create ledger organizationID=%s name=%s", organizationID.String(), cli.Name))
 
 	var status mmodel.Status
 	if cli.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cli.Status.Code) {

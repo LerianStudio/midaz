@@ -451,6 +451,7 @@ clear-envs:
 up-backend:
 	$(call print_title,Starting backend services for system chaos tests)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_env_files)
 	@echo "Starting infrastructure services..."
 	@cd $(INFRA_DIR) && $(MAKE) up
 	@echo "Starting onboarding service..."

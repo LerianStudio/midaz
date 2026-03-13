@@ -109,7 +109,7 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	coll := db.Collection(strings.ToLower("holders_" + organizationID))
 
-	err = createIndexes(coll)
+	err = createIndexes(ctx, coll)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to create indexes", err)
 
@@ -128,10 +128,14 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	spanInsert.SetAttributes(attributes...)
 
-	err = libOpenTelemetry.SetSpanAttributesFromValue(spanInsert, "app.request.repository_input", record, nil)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(spanInsert, "Failed to convert record to JSON string", err)
-	}
+	spanInsert.SetAttributes(
+		attribute.Bool("app.request.repository_input.has_metadata", len(record.Metadata) > 0),
+		attribute.Bool("app.request.repository_input.has_external_id", record.ExternalID != nil),
+		attribute.Bool("app.request.repository_input.has_contact", record.Contact != nil),
+		attribute.Bool("app.request.repository_input.has_addresses", record.Addresses != nil),
+		attribute.Bool("app.request.repository_input.has_natural_person", record.NaturalPerson != nil),
+		attribute.Bool("app.request.repository_input.has_legal_person", record.LegalPerson != nil),
+	)
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
