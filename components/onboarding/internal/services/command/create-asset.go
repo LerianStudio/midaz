@@ -132,8 +132,16 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if len(account) == 0 {
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Creating external account for asset: %s", cii.Code))
 
+		externalAccountID, err := libCommons.GenerateUUIDv7()
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate external account ID", err)
+			logger.Log(ctx, libLog.LevelError, "Error generating asset external account ID")
+
+			return nil, err
+		}
+
 		eAccount := &mmodel.Account{
-			ID:              uuid.Must(libCommons.GenerateUUIDv7()).String(),
+			ID:              externalAccountID.String(),
 			AssetCode:       cii.Code,
 			Alias:           &aAlias,
 			Name:            "External " + cii.Code,
@@ -207,7 +215,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.validate_asset_code")
+	ctx, span := tracer.Start(ctx, "command.validate_asset_code")
 	defer span.End()
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Validating asset code: %s", code))

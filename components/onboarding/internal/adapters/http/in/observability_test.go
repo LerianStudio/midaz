@@ -142,6 +142,19 @@ func TestSafeQueryAttributes(t *testing.T) {
 	assert.NotContains(t, attrs, "app.request.query.document")
 }
 
+func TestSafeQueryAttributes_DefaultAndNilCases(t *testing.T) {
+	t.Parallel()
+
+	nilAttrs := attributeMap(safeQueryAttributes(nil))
+	require.Equal(t, false, nilAttrs["app.request.query.present"])
+
+	defaultAttrs := attributeMap(safeQueryAttributes(&libHTTP.QueryHeader{}))
+	require.Equal(t, true, defaultAttrs["app.request.query.present"])
+	assert.Equal(t, "", defaultAttrs["app.request.query.sort_order"])
+	assert.Equal(t, false, defaultAttrs["app.request.query.has_cursor"])
+	assert.Equal(t, int64(0), defaultAttrs["app.request.query.to_asset_codes_count"])
+}
+
 func attributeMap(attrs []attribute.KeyValue) map[string]any {
 	result := make(map[string]any, len(attrs))
 

@@ -6,7 +6,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -34,7 +33,7 @@ func (uc *UseCase) GetAllHolders(ctx context.Context, organizationID string, fil
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to get holders", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get holders: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get holders", libLog.Err(err))
 
 		return nil, err
 	}

@@ -37,8 +37,6 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 
 	accountTypeUpdated, err := uc.AccountTypeRepo.Update(ctx, organizationID, ledgerID, id, accountType)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating account type on repo by id: %v", err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
@@ -48,6 +46,8 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 
 			return nil, err
 		}
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating account type on repo by id: %v", err))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account type on repo by id", err)
 

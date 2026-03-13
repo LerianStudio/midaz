@@ -64,7 +64,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully created organization: %v", organization))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully created organization with ID: %s", organization.ID))
 
 	return http.Created(c, organization)
 }

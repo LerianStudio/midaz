@@ -317,6 +317,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 	db, err := p.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -387,6 +388,7 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	db, err := p.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -446,6 +448,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 	db, err := p.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}

@@ -46,10 +46,22 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		return pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
+	if accFound == nil {
+		return pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+	}
+
 	// Inject authorization token into context metadata for downstream gRPC calls
 	ctx = metadata.AppendToOutgoingContext(ctx, libConstant.MetadataAuthorization, token)
 
-	err = uc.BalancePort.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, uuid.MustParse(accFound.ID), requestID)
+	accountID, err := uuid.Parse(accFound.ID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to parse account id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to parse account id from repository data")
+
+		return err
+	}
+
+	err = uc.BalancePort.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete all balances by account id", err)
 

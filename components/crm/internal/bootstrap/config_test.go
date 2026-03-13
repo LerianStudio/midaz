@@ -420,6 +420,7 @@ func TestRedactedTenantManagerURL(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, "https://user:xxxxx@example.com", redactedTenantManagerURL("https://user:secret@example.com"))
+	assert.Equal(t, "https://user:xxxxx@example.com/path", redactedTenantManagerURL("https://user:secret@example.com/path?token=secret#frag"))
 	assert.Equal(t, "invalid-url", redactedTenantManagerURL("://bad-url"))
 }
 

@@ -36,7 +36,7 @@ func (uc *UseCase) GetAliasByID(ctx context.Context, organizationID string, hold
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to get alias by id", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get alias by id %v", id))
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get alias by id %v", id), libLog.Err(err))
 
 		return nil, err
 	}

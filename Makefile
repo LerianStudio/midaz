@@ -74,6 +74,18 @@ define check_env_files
 	fi
 endef
 
+define check_env_files_backend
+	@missing=false; \
+	if [ ! -f "$(INFRA_DIR)/.env" ]; then missing=true; fi; \
+	if [ ! -f "$(CRM_DIR)/.env" ]; then missing=true; fi; \
+	if [ ! -f "$(ONBOARDING_DIR)/.env" ]; then missing=true; fi; \
+	if [ ! -f "$(TRANSACTION_DIR)/.env" ]; then missing=true; fi; \
+	if [ "$$missing" = "true" ]; then \
+		echo "Environment files are missing. Running set-env command first..."; \
+		$(MAKE) UNIFIED=false set-env; \
+	fi
+endef
+
 # Choose docker compose command depending on installed version
 DOCKER_CMD := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
 export DOCKER_CMD
@@ -451,7 +463,7 @@ clear-envs:
 up-backend:
 	$(call print_title,Starting backend services for system chaos tests)
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	$(call check_env_files)
+	$(call check_env_files_backend)
 	@echo "Starting infrastructure services..."
 	@cd $(INFRA_DIR) && $(MAKE) up
 	@echo "Starting onboarding service..."

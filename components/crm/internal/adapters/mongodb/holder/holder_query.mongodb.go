@@ -46,6 +46,7 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	opts := options.Find().SetLimit(limit).SetSkip(skip).SetSort(bson.D{{Key: "_id", Value: 1}})
 
 	ctx, spanFind := tracer.Start(ctx, "mongodb.find_all_holders.find")
+	defer spanFind.End()
 
 	spanFind.SetAttributes(attributes...)
 
@@ -75,8 +76,6 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 			libOpenTelemetry.HandleSpanError(span, "Failed to close cursor", closeErr)
 		}
 	}()
-
-	spanFind.End()
 
 	var holders []*MongoDBModel
 

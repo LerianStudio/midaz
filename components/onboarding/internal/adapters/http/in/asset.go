@@ -57,8 +57,8 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of Asset with organization ID: %s", organizationID.String()))
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of Asset with ledger ID: %s", ledgerID.String()))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Assets with organization ID: %s", organizationID.String()))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Assets with ledger ID: %s", ledgerID.String()))
 
 	payload := a.(*mmodel.CreateAssetInput)
 	logSafePayload(ctx, logger, "Request to create an asset", payload)

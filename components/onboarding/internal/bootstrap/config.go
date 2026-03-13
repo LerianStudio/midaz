@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -242,8 +243,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	redisAuth := libRedis.Auth{}
 	if cfg.RedisUseGCPIAM {
+		credentialsBase64 := strings.TrimSpace(cfg.GoogleApplicationCredentials)
+		if credentialsBase64 == "" {
+			return nil, fmt.Errorf("GoogleApplicationCredentials must be base64-encoded service account JSON")
+		}
+
+		if _, err := base64.StdEncoding.DecodeString(credentialsBase64); err != nil {
+			return nil, fmt.Errorf("GoogleApplicationCredentials must be base64-encoded service account JSON, not a file path: %w", err)
+		}
+
 		redisAuth.GCPIAM = &libRedis.GCPIAMAuth{
-			CredentialsBase64: cfg.GoogleApplicationCredentials,
+			CredentialsBase64: credentialsBase64,
 			ServiceAccount:    cfg.RedisServiceAccount,
 			TokenLifetime:     time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
 			RefreshEvery:      time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
