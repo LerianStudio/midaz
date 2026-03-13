@@ -359,7 +359,7 @@ func normalizeLegacyCursor(cursor string) (string, error) {
 
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
 func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
-	ikey := c.Get(libConstants.IdempotencyKey)
+	ikey := strings.Clone(c.Get(libConstants.IdempotencyKey))
 	iTTL := c.Get(libConstants.IdempotencyTTL)
 
 	// Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
