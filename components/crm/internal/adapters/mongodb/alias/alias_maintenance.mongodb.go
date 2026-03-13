@@ -81,13 +81,13 @@ func (am *MongoDBRepository) DeleteRelatedParty(ctx context.Context, organizatio
 		return pkg.ValidateBusinessError(cn.ErrRelatedPartyNotFound, reflect.TypeOf(mmodel.RelatedParty{}).Name())
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintln("Deleted related party with id: ", relatedPartyID.String(), " from alias: ", aliasID.String()))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Deleted related party with id %s from alias %s", relatedPartyID.String(), aliasID.String()))
 
 	return nil
 }
 
-// createIndexes creates indexes for specific fields, if it not exists
-func createIndexes(collection *mongo.Collection) error {
+// createIndexes creates indexes for specific fields, if it not exists.
+func createIndexes(ctx context.Context, collection *mongo.Collection) error {
 	indexModels := []mongo.IndexModel{
 		{
 			Keys: bson.D{
@@ -157,7 +157,7 @@ func createIndexes(collection *mongo.Collection) error {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	_, err := collection.Indexes().CreateMany(ctx, indexModels)

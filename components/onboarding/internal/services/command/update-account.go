@@ -31,9 +31,9 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error finding account by alias: %v", err))
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error finding account by id: %v", err))
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find account by alias", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find account by id", err)
 
 		return nil, err
 	}

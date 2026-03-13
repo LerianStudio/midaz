@@ -154,6 +154,9 @@ func TestMetadataIndexHandler_MultiTenantContextResolutionErrors(t *testing.T) {
 
 			resp, err := app.Test(req)
 			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = resp.Body.Close()
+			})
 			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
 			assertJSONErrorResponse(t, resp)
 		})

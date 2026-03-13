@@ -197,7 +197,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 		return http.OK(c, pagination)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Ledgers ")
+	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Ledgers")
 
 	headerParams.Metadata = &bson.M{}
 
@@ -303,14 +303,14 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Ledeger with ID: %s", id.String()))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Ledger with ID: %s", id.String()))
 
 	if os.Getenv("ENV_NAME") == "production" {
 		err := pkg.ValidateBusinessError(constant.ErrActionNotPermitted, reflect.TypeOf(mmodel.Ledger{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove ledger on command", err)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove Ledger with ID: %s in ", id.String()))
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove Ledger with ID: %s in production", id.String()))
 
 		return http.WithError(c, err)
 	}

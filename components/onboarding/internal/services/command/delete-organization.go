@@ -40,7 +40,7 @@ func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) err
 			return err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete organization on repo by id", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to delete organization on repo by id", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error deleting organization: %v", err))
 

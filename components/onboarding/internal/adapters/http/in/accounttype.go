@@ -170,7 +170,7 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated account type with ID: %s", id))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated account type with ID: %s", id.String()))
 
 	return http.OK(c, accountType)
 }

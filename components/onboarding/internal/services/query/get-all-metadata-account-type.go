@@ -40,7 +40,7 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	if metadata == nil || len(metadata) == 0 {
+	if len(metadata) == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No account type metadata found", err)

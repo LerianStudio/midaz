@@ -32,7 +32,7 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Account{}).Name(), filter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo", err)
-		logger.Log(ctx, libLog.LevelError, "Error getting metadata on repo")
+		logger.Log(ctx, libLog.LevelError, "Error getting metadata on repo", libLog.Err(err))
 
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 			return nil, err
 		}
 
-		logger.Log(ctx, libLog.LevelError, "Error getting accounts on repo")
+		logger.Log(ctx, libLog.LevelError, "Error getting accounts on repo", libLog.Err(err))
 
 		libOpentelemetry.HandleSpanError(span, "Failed to get accounts on repo", err)
 

@@ -207,13 +207,13 @@ func initMongoConnection(cfg *Config, logger libLog.Logger) (*libMongo.Client, e
 func resolveMongoURI(cfg *Config, mongoPort, mongoParameters string) (string, error) {
 	rawURI := strings.TrimSpace(cfg.MongoURI)
 
-	query, err := url.ParseQuery(mongoParameters)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse mongodb parameters: %w", err)
-	}
-
 	switch {
 	case rawURI == "", rawURI == "mongodb", rawURI == "mongodb+srv":
+		query, err := url.ParseQuery(mongoParameters)
+		if err != nil {
+			return "", fmt.Errorf("failed to parse mongodb parameters: %w", err)
+		}
+
 		scheme := rawURI
 		if scheme == "" {
 			scheme = "mongodb"

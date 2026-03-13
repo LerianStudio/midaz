@@ -108,7 +108,7 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
-	err = createIndexes(coll)
+	err = createIndexes(ctx, coll)
 	if err != nil {
 		libOpenTelemetry.HandleSpanError(span, "Failed to create indexes", err)
 

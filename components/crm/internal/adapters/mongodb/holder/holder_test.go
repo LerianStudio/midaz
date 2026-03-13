@@ -467,9 +467,9 @@ func TestMongoDBModel_FromEntity_ContactEncryptFailureReturnsError(t *testing.T)
 		UpdatedAt: now,
 	}
 
-	var model MongoDBModel
-	err := model.FromEntity(holder, crypto)
+	_, err := mapContactFromEntity(crypto, holder.Contact)
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cipher not initialized")
 }
 
 func TestMapAddressFromEntity(t *testing.T) {

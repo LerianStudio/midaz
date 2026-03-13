@@ -31,8 +31,6 @@ func (uc *UseCase) DeleteAccountTypeByID(ctx context.Context, organizationID, le
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating deletion of Account Type with Account Type ID: %s", id.String()))
 
 	if err := uc.AccountTypeRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete Account Type with Account Type ID: %s, Error: %s", id.String(), err.Error()))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, reflect.TypeOf(mmodel.AccountType{}).Name())
 
@@ -42,6 +40,8 @@ func (uc *UseCase) DeleteAccountTypeByID(ctx context.Context, organizationID, le
 
 			return err
 		}
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete Account Type with Account Type ID: %s, Error: %s", id.String(), err.Error()))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete Account Type on repo", err)
 
