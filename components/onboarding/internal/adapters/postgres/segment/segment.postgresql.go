@@ -81,12 +81,13 @@ func NewSegmentPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...boo
 // In multi-tenant mode, the middleware injects a tenant-specific dbresolver.DB into context.
 // In single-tenant mode (or when no tenant context exists), falls back to the static connection.
 func (p *SegmentPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
-	if db, err := tmcore.GetModulePostgresForTenant(ctx, "onboarding"); err == nil {
-		return db, nil
+	tenantDB, tenantErr := tmcore.GetModulePostgresForTenant(ctx, "onboarding")
+	if tenantErr == nil {
+		return tenantDB, nil
 	}
 
 	if p.requireTenant {
-		return nil, fmt.Errorf("tenant postgres connection missing from context")
+		return nil, fmt.Errorf("tenant postgres connection missing from context: %w", tenantErr)
 	}
 
 	if p.connection == nil {
@@ -133,16 +134,16 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Segment{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute create query", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute create query: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute create query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute create query: %v", err))
 
 		return nil, err
 	}

@@ -176,6 +176,8 @@ func initMongoConnection(cfg *Config, logger libLog.Logger) (*libMongo.Client, e
 	hasStaticMongo := strings.TrimSpace(cfg.MongoURI) != "" || strings.TrimSpace(cfg.MongoDBHost) != ""
 	if !hasStaticMongo {
 		if cfg.MultiTenantEnabled {
+			logger.Log(context.Background(), libLog.LevelInfo, "No static MongoDB configuration; multi-tenant mode will use tenant-specific connections")
+
 			return nil, nil
 		}
 
@@ -188,6 +190,7 @@ func initMongoConnection(cfg *Config, logger libLog.Logger) (*libMongo.Client, e
 	}
 
 	if cfg.MaxPoolSize <= 0 {
+		logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("MaxPoolSize invalid (%d); defaulting to 100", cfg.MaxPoolSize))
 		cfg.MaxPoolSize = 100
 	}
 

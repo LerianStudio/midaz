@@ -33,7 +33,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error finding account by id: %v", err))
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find account by id", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to find account by id", err)
 
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account on repo by id", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to update account on repo by id", err)
 
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating metadata: %v", err))
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to update metadata", err)
 
 		return nil, err
 	}

@@ -6,7 +6,7 @@ package in
 
 import (
 	"testing"
-	time "time"
+	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	libHTTP "github.com/LerianStudio/midaz/v3/pkg/net/http"

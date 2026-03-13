@@ -77,7 +77,6 @@ endef
 define check_env_files_backend
 	@missing=false; \
 	if [ ! -f "$(INFRA_DIR)/.env" ]; then missing=true; fi; \
-	if [ ! -f "$(CRM_DIR)/.env" ]; then missing=true; fi; \
 	if [ ! -f "$(ONBOARDING_DIR)/.env" ]; then missing=true; fi; \
 	if [ ! -f "$(TRANSACTION_DIR)/.env" ]; then missing=true; fi; \
 	if [ "$$missing" = "true" ]; then \
