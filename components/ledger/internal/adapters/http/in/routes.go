@@ -31,8 +31,6 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
-	f.Use(http.BridgeLibAuthHTTPContext())
-
 	// Register metadata index routes
 	RegisterRoutesToApp(f, auth, mdi, nil)
 

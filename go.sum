@@ -17,12 +17,10 @@ github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7Oputl
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/KyleBanks/depth v1.2.1 h1:5h8fQADFrWtarTdtDudMmGsC7GPbOAu6RVB3ffsVFHc=
 github.com/KyleBanks/depth v1.2.1/go.mod h1:jzSb9d0L43HxTQfT+oSA1EEp2q+ne2uh6XgeJcm8brE=
-github.com/LerianStudio/lib-auth/v2 v2.5.0-beta.6 h1:g9Q0MxF/4FsZX8gOpCj65vjN8JgO4/3aoLCetD/69FQ=
-github.com/LerianStudio/lib-auth/v2 v2.5.0-beta.6/go.mod h1:pQdVJGZZv+iQKnIwjGpUkZkcIZltpe3OwnhfG68EVtQ=
-github.com/LerianStudio/lib-commons/v3 v3.0.0-beta.8 h1:zH/tQ+I1rUrPUB6wIUY3rJohFrp4CH7rXprMs6+RoPg=
-github.com/LerianStudio/lib-commons/v3 v3.0.0-beta.8/go.mod h1:eegTRzYBTMBmXew279htSmBWX0n4syWT9iTDr2ZCwNo=
-github.com/LerianStudio/lib-commons/v4 v4.0.0-beta.2 h1:gYSFRtesOWgI2iHTp0VRuAzGUlYhU5NqmgNdhBtFA38=
-github.com/LerianStudio/lib-commons/v4 v4.0.0-beta.2/go.mod h1:WMQ17ouiJ13uUVhH/eY+p++4xb/NOtR44yIMGZ0r8Ow=
+github.com/LerianStudio/lib-auth/v2 v2.5.0-beta.7 h1:nNPZlDfzZrYJlIR7lAN6jKhpzNMS2maE/aYQbQsFOF4=
+github.com/LerianStudio/lib-auth/v2 v2.5.0-beta.7/go.mod h1:xdXYO1Ncgf++1WAHKZYPCs7YPrcvVt3/zso/X+qUuaI=
+github.com/LerianStudio/lib-commons/v4 v4.0.0 h1:OEdpRKnbLoOhZoUZyI5FgIe7ZbwJzu/syfgpkDzyi3o=
+github.com/LerianStudio/lib-commons/v4 v4.0.0/go.mod h1:WMQ17ouiJ13uUVhH/eY+p++4xb/NOtR44yIMGZ0r8Ow=
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=

@@ -33,8 +33,6 @@ func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middlewar
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
-	f.Use(http.BridgeLibAuthHTTPContext())
-
 	// Public endpoints: registered BEFORE tenant middleware so they remain
 	// accessible to Kubernetes probes, load balancer health checks, and
 	// Swagger documentation without requiring a JWT or tenant context.
