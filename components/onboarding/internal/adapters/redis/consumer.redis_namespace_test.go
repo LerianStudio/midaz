@@ -9,8 +9,7 @@ import (
 	"testing"
 	"time"
 
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,6 +29,14 @@ type recordedSetCall struct {
 	Key   string
 	Value any
 	TTL   time.Duration
+}
+
+type recordingConnection struct {
+	client redis.UniversalClient
+}
+
+func (r *recordingConnection) GetClient(ctx context.Context) (redis.UniversalClient, error) {
+	return r.client, nil
 }
 
 func (r *recordingRedisClient) Set(ctx context.Context, key string, value any, expiration time.Duration) *redis.StatusCmd {
@@ -59,15 +66,12 @@ func (r *recordingRedisClient) Del(ctx context.Context, keys ...string) *redis.I
 	return cmd
 }
 
-func newRecordingConnection(t *testing.T) (*libRedis.RedisConnection, *recordingRedisClient) {
+func newRecordingConnection(t *testing.T) (redisClientProvider, *recordingRedisClient) {
 	t.Helper()
 
 	client := &recordingRedisClient{t: t}
 
-	return &libRedis.RedisConnection{
-		Client:    client,
-		Connected: true,
-	}, client
+	return &recordingConnection{client: client}, client
 }
 
 // =============================================================================

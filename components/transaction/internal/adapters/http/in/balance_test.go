@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
@@ -56,9 +56,9 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) {
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
 
-				// Validate items is nil/empty (use case returns nil for empty, pagination sets it)
-				items := result["items"]
-				assert.Nil(t, items, "items should be nil for empty result")
+				items, ok := result["items"].([]any)
+				require.True(t, ok, "items should be an array")
+				assert.Empty(t, items, "items should be an empty array for empty result")
 
 				// Validate limit is present
 				limit, ok := result["limit"].(float64)
@@ -1849,7 +1849,9 @@ func TestBalanceHandler_GetAccountBalancesAtTimestamp(t *testing.T) {
 				// Verify both balances are present
 				assetCodes := make([]string, 0, 2)
 				for _, balance := range result {
-					assetCodes = append(assetCodes, balance["assetCode"].(string))
+					assetCode, ok := balance["assetCode"].(string)
+					require.True(t, ok, "assetCode should be a string")
+					assetCodes = append(assetCodes, assetCode)
 				}
 				assert.Contains(t, assetCodes, "USD", "should contain USD balance")
 				assert.Contains(t, assetCodes, "BRL", "should contain BRL balance")

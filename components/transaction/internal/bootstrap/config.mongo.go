@@ -7,11 +7,12 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
-	tmmongo "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/mongo"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
+	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -22,7 +23,7 @@ import (
 
 // mongoComponents holds MongoDB-related components initialized during bootstrap.
 type mongoComponents struct {
-	connection   *libMongo.MongoConnection // nil in multi-tenant mode
+	connection   *libMongo.Client // nil in multi-tenant mode
 	metadataRepo mongodb.Repository
 	mongoManager *tmmongo.Manager // nil in single-tenant mode; exposed for PR 5 middleware
 }
@@ -39,7 +40,7 @@ func initMongo(opts *Options, cfg *Config, logger libLog.Logger) (*mongoComponen
 
 // initMultiTenantMongo initializes MongoDB in multi-tenant mode.
 func initMultiTenantMongo(opts *Options, logger libLog.Logger) (*mongoComponents, error) {
-	logger.Info("Initializing multi-tenant MongoDB for transaction")
+	logger.Log(context.Background(), libLog.LevelInfo, "Initializing multi-tenant MongoDB for transaction")
 
 	if opts.TenantClient == nil {
 		return nil, fmt.Errorf("TenantClient is required for multi-tenant MongoDB initialization")
@@ -52,12 +53,8 @@ func initMultiTenantMongo(opts *Options, logger libLog.Logger) (*mongoComponents
 		tmmongo.WithLogger(logger),
 	)
 
-	placeholderConn := &libMongo.MongoConnection{
-		Logger: logger,
-	}
-
 	return &mongoComponents{
-		metadataRepo: mongodb.NewMetadataMongoDBRepository(placeholderConn),
+		metadataRepo: mongodb.NewMetadataMongoDBRepository(nil, true),
 		mongoManager: mongoMgr,
 	}, nil
 }
@@ -75,19 +72,37 @@ func initSingleTenantMongo(cfg *Config, logger libLog.Logger) (*mongoComponents,
 
 	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
 
-	mongoSource := libMongo.BuildConnectionString(
-		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort, mongoParameters, logger)
+	mongoQuery, err := url.ParseQuery(mongoParameters)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse MongoDB query parameters: %w", err)
+	}
+
+	mongoSource, err := libMongo.BuildURI(libMongo.URIConfig{
+		Scheme:   mongoURI,
+		Username: mongoUser,
+		Password: mongoPassword,
+		Host:     mongoHost,
+		Port:     mongoPort,
+		Database: mongoName,
+		Query:    mongoQuery,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build MongoDB URI: %w", err)
+	}
 
 	var mongoMaxPoolSize uint64 = 100
 	if mongoPoolSize > 0 {
 		mongoMaxPoolSize = uint64(mongoPoolSize)
 	}
 
-	mongoConnection := &libMongo.MongoConnection{
-		ConnectionStringSource: mongoSource,
-		Database:               mongoName,
-		Logger:                 logger,
-		MaxPoolSize:            mongoMaxPoolSize,
+	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{
+		URI:         mongoSource,
+		Database:    mongoName,
+		Logger:      logger,
+		MaxPoolSize: mongoMaxPoolSize,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create MongoDB client: %w", err)
 	}
 
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConnection)
@@ -102,7 +117,7 @@ func initSingleTenantMongo(cfg *Config, logger libLog.Logger) (*mongoComponents,
 
 // ensureMongoIndexes creates the entity_id index on known collections.
 // Only called in single-tenant mode (multi-tenant indexes are managed per-tenant).
-func ensureMongoIndexes(conn *libMongo.MongoConnection, logger libLog.Logger) {
+func ensureMongoIndexes(conn *libMongo.Client, logger libLog.Logger) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
@@ -115,7 +130,7 @@ func ensureMongoIndexes(conn *libMongo.MongoConnection, logger libLog.Logger) {
 	collections := []string{"operation", "transaction", "operation_route", "transaction_route"}
 	for _, collection := range collections {
 		if err := conn.EnsureIndexes(ctx, collection, indexModel); err != nil {
-			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to ensure indexes for collection %s: %v", collection, err))
 		}
 	}
 }

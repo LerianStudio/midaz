@@ -7,9 +7,9 @@ package in
 import (
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -57,29 +57,26 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID.String())
-	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating creation of Asset with organization ID: %s", organizationID.String()))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating creation of Asset with ledger ID: %s", ledgerID.String()))
 
 	payload := a.(*mmodel.CreateAssetInput)
-	logger.Infof("Request to create a Asset with details: %#v", payload)
+	logSafePayload(ctx, logger, "Request to create an asset", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
 	token := c.Get("Authorization")
 
 	asset, err := handler.Command.CreateAsset(ctx, organizationID, ledgerID, payload, token)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Asset on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create Asset on command", err)
 
-		logger.Infof("Error to created Asset: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error to created Asset: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully created Asset")
+	logger.Log(ctx, libLog.LevelInfo, "Successfully created Asset")
 
 	return http.Created(c, asset)
 }
@@ -100,7 +97,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 //	@Param			start_date		query		string															false	"Filter assets created on or after this date (format: YYYY-MM-DD)"
 //	@Param			end_date		query		string															false	"Filter assets created on or before this date (format: YYYY-MM-DD)"
 //	@Param			sort_order		query		string															false	"Sort direction for results based on creation date"	Enums(asc,desc)
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Asset,page=int,limit=int}	"Successfully retrieved assets list"
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Asset,page=int,limit=int}	"Successfully retrieved assets list"
 //	@Failure		400				{object}	mmodel.Error													"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error													"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error													"Forbidden access"
@@ -118,24 +115,21 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID.String())
-	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Assets with organization ID: %s", organizationID.String()))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Assets with ledger ID: %s", ledgerID.String()))
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert query params to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
-	pagination := libPostgres.Pagination{
+	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
 		Page:      headerParams.Page,
 		SortOrder: headerParams.SortOrder,
@@ -144,38 +138,38 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Infof("Initiating retrieval of all Assets by metadata")
+		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Assets by metadata")
 
 		assets, err := handler.Query.GetAllMetadataAssets(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Assets on query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Assets on query", err)
 
-			logger.Errorf("Failed to retrieve all Assets, Error: %s", err.Error())
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Assets, Error: %s", err.Error()))
 
 			return http.WithError(c, err)
 		}
 
-		logger.Infof("Successfully retrieved all Assets by metadata")
+		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Assets by metadata")
 
 		pagination.SetItems(assets)
 
 		return http.OK(c, pagination)
 	}
 
-	logger.Infof("Initiating retrieval of all Assets ")
+	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Assets")
 
 	headerParams.Metadata = &bson.M{}
 
 	assets, err := handler.Query.GetAllAssets(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Assets on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Assets on query", err)
 
-		logger.Errorf("Failed to retrieve all Assets, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Assets, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved all Assets")
+	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Assets")
 
 	pagination.SetItems(assets)
 
@@ -211,18 +205,18 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating retrieval of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String()))
 
 	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Asset on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Asset on query", err)
 
-		logger.Errorf("Failed to retrieve Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String()))
 
 	return http.OK(c, asset)
 }
@@ -260,35 +254,31 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating update of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String()))
 
 	payload := a.(*mmodel.UpdateAssetInput)
-	logger.Infof("Request to update an Asset with details: %#v", payload)
+	logSafePayload(ctx, logger, fmt.Sprintf("Request to update asset with ID: %s", id.String()), payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
-	_, err = handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Asset on command", err)
+	if _, err := handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Asset on command", err)
 
-		logger.Errorf("Failed to update Asset with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Asset with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
 	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get update Asset on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get update Asset on query", err)
 
-		logger.Errorf("Failed to get update Asset with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get update Asset with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully updated Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String()))
 
 	return http.OK(c, asset)
 }
@@ -322,17 +312,17 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating removal of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String()))
 
 	if err := handler.Command.DeleteAssetByID(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove Asset on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove Asset on command", err)
 
-		logger.Errorf("Failed to remove Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully removed Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String()))
 
 	return http.NoContent(c)
 }
@@ -363,18 +353,18 @@ func (handler *AssetHandler) CountAssets(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	logger.Infof("Initiating count of all assets for organization: %s, ledger: %s", organizationID, ledgerID)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating count of all assets for organization: %s, ledger: %s", organizationID, ledgerID))
 
 	count, err := handler.Query.CountAssets(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count assets", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count assets", err)
 
-		logger.Errorf("Failed to count assets, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to count assets, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully counted assets for organization %s, ledger %s: %d", organizationID, ledgerID, count)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully counted assets for organization %s, ledger %s: %d", organizationID, ledgerID, count))
 
 	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")

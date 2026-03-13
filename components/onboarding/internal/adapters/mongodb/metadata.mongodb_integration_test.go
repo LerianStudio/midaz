@@ -14,10 +14,8 @@ import (
 	"testing"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
@@ -794,7 +792,7 @@ type chaosTestInfra struct {
 type networkChaosTestInfra struct {
 	chaosInfra  *chaos.Infrastructure
 	mongoResult *mongotestutil.ContainerResult
-	conn        *libMongo.MongoConnection
+	conn        *libMongo.Client
 	repo        *MetadataMongoDBRepository
 	proxy       *chaos.Proxy
 	collection  string
@@ -846,14 +844,9 @@ func setupNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	require.NotEmpty(t, containerInfo.ProxyListen, "proxy address should be set")
 
 	// Create lib-commons MongoDB connection through proxy
-	logger := libZap.InitializeLogger()
 	proxyURI := "mongodb://" + containerInfo.ProxyListen
 
-	conn := &libMongo.MongoConnection{
-		ConnectionStringSource: proxyURI,
-		Database:               mongoResult.DBName,
-		Logger:                 logger,
-	}
+	conn := mongotestutil.CreateConnection(t, proxyURI, mongoResult.DBName)
 
 	// Create repository (uses constructor to validate connection via GetDB())
 	repo := NewMetadataMongoDBRepository(conn)
@@ -1199,10 +1192,7 @@ func setupTenantIsolation(t *testing.T) *tenantIsolationInfra {
 
 	// Build a placeholder connection — in multi-tenant mode the static
 	// connection is never used because every request carries its own DB.
-	placeholderConn := &libMongo.MongoConnection{
-		Database: "placeholder_db",
-		Logger:   &libLog.NoneLogger{},
-	}
+	placeholderConn := &libMongo.Client{}
 	repo := NewMetadataMongoDBRepository(placeholderConn)
 
 	ctxA := tmcore.ContextWithTenantMongo(context.Background(), tenantADatabase)

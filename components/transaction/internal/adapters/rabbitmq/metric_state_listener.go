@@ -8,8 +8,8 @@ import (
 	"context"
 	"errors"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
-	"github.com/LerianStudio/lib-commons/v3/commons/opentelemetry/metrics"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -36,12 +36,19 @@ func NewMetricStateListener(factory *metrics.MetricsFactory) (*MetricStateListen
 
 // OnStateChange updates the circuit_breaker_state gauge metric when state transitions.
 // Values: 0=closed, 1=open, 2=half-open
-func (m *MetricStateListener) OnStateChange(serviceName string, from, to libCircuitBreaker.State) {
+func (m *MetricStateListener) OnStateChange(_ context.Context, serviceName string, from, to libCircuitBreaker.State) {
 	value := stateToMetricValue(to)
 
-	m.factory.Gauge(utils.CircuitBreakerState).
+	gauge, err := m.factory.Gauge(utils.CircuitBreakerState)
+	if err != nil {
+		return
+	}
+
+	if err := gauge.
 		WithAttributes(attribute.String("service", serviceName)).
-		Set(context.Background(), value)
+		Set(context.Background(), value); err != nil {
+		return
+	}
 }
 
 // stateToMetricValue converts circuit breaker state to metric value.

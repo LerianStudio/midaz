@@ -9,8 +9,8 @@ import (
 	"errors"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
 var (
@@ -88,7 +88,7 @@ func (p *CircuitBreakerProducer) ProducerDefault(ctx context.Context, exchange, 
 		state := p.cbManager.GetState(CircuitBreakerServiceName)
 		if state == libCircuitBreaker.StateOpen {
 			// Log detailed info internally, return generic error to caller
-			p.logger.Warnf("Circuit breaker open for RabbitMQ - returning error immediately: %v", err)
+			p.logger.Log(ctx, libLog.LevelWarn, "Circuit breaker open for RabbitMQ - returning error immediately", libLog.Err(err))
 			return nil, ErrServiceUnavailable
 		}
 
@@ -102,7 +102,7 @@ func (p *CircuitBreakerProducer) ProducerDefault(ctx context.Context, exchange, 
 	str, ok := result.(*string)
 	if !ok {
 		// Log detailed type info internally, return generic error to caller
-		p.logger.Errorf("Unexpected result type from producer: %T", result)
+		p.logger.Log(ctx, libLog.LevelError, "Unexpected result type from producer", libLog.String("type", "*string expected"), libLog.Any("result", result))
 		return nil, ErrInternalProducerError
 	}
 
@@ -129,7 +129,7 @@ func (p *CircuitBreakerProducer) ProducerDefaultWithContext(ctx context.Context,
 		state := p.cbManager.GetState(CircuitBreakerServiceName)
 		if state == libCircuitBreaker.StateOpen {
 			// Log detailed info internally, return generic error to caller
-			p.logger.Warnf("Circuit breaker open for RabbitMQ - returning error immediately: %v", err)
+			p.logger.Log(ctx, libLog.LevelWarn, "Circuit breaker open for RabbitMQ - returning error immediately", libLog.Err(err))
 			return nil, ErrServiceUnavailable
 		}
 
@@ -143,7 +143,7 @@ func (p *CircuitBreakerProducer) ProducerDefaultWithContext(ctx context.Context,
 	str, ok := result.(*string)
 	if !ok {
 		// Log detailed type info internally, return generic error to caller
-		p.logger.Errorf("Unexpected result type from producer: %T", result)
+		p.logger.Log(ctx, libLog.LevelError, "Unexpected result type from producer", libLog.String("type", "*string expected"), libLog.Any("result", result))
 		return nil, ErrInternalProducerError
 	}
 

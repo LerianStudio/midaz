@@ -37,7 +37,6 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult) *M
 
 	return &MongoDBRepository{
 		connection:   conn,
-		Database:     container.DBName,
 		DataSecurity: crypto,
 	}
 }

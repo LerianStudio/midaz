@@ -11,10 +11,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -30,19 +28,11 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *OrganizationPostgreSQLRepository {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           container.Config.DBName,
-		ReplicaDBName:           container.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
 	return NewOrganizationPostgreSQLRepository(conn)
 }
@@ -104,7 +94,7 @@ func TestIntegration_OrganizationRepository_Find_NotFound(t *testing.T) {
 	repo := createRepository(t, container)
 	ctx := context.Background()
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	found, err := repo.Find(ctx, nonExistentID)
 
@@ -170,7 +160,7 @@ func TestIntegration_OrganizationRepository_Update_NotFound(t *testing.T) {
 	repo := createRepository(t, container)
 	ctx := context.Background()
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	updated, err := repo.Update(ctx, nonExistentID, &mmodel.Organization{
 		LegalName: "Does Not Matter",
@@ -226,7 +216,7 @@ func TestIntegration_OrganizationRepository_Delete_NotFound(t *testing.T) {
 	repo := createRepository(t, container)
 	ctx := context.Background()
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	err := repo.Delete(ctx, nonExistentID)
 
@@ -415,13 +405,13 @@ func TestIntegration_OrganizationRepository_ListByIDs_EdgeCases(t *testing.T) {
 		},
 		{
 			name:        "non-matching ID returns empty",
-			inputIDs:    []uuid.UUID{libCommons.GenerateUUIDv7()},
+			inputIDs:    []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())},
 			expectedLen: 0,
 			expectedIDs: nil,
 		},
 		{
 			name:        "partial match returns only existing",
-			inputIDs:    []uuid.UUID{existingID, libCommons.GenerateUUIDv7()},
+			inputIDs:    []uuid.UUID{existingID, uuid.Must(libCommons.GenerateUUIDv7())},
 			expectedLen: 1,
 			expectedIDs: []uuid.UUID{existingID},
 		},
@@ -965,22 +955,14 @@ func setupTenantContainer(t *testing.T) (*pgtestutil.ContainerResult, dbresolver
 	// PostgresConnection and letting NewOrganizationPostgreSQLRepository
 	// trigger migration. Instead, we can just open the DB through
 	// lib-commons the same way createRepository does.
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(tenantContainer.Host, tenantContainer.Port, tenantContainer.Config)
 
 	// Create a temporary connection to apply migrations (the constructor runs them).
-	tempConn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           tenantContainer.Config.DBName,
-		ReplicaDBName:           tenantContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	tempConn := pgtestutil.CreatePostgresClient(t, connStr, connStr, tenantContainer.Config.DBName, migrationsPath)
 
 	// Trigger migration by calling GetDB (same as constructor does).
-	db, err := tempConn.GetDB()
+	db, err := tempConn.Resolver(context.Background())
 	require.NoError(t, err, "failed to initialize tenant container database with migrations")
 
 	// Close the temporary connection pool so it does not leak.

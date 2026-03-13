@@ -5,17 +5,16 @@
 package bootstrap
 
 import (
+	"context"
 	"errors"
 	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
-
-	"go.uber.org/mock/gomock"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 
@@ -29,7 +28,7 @@ type testStateListener struct {
 	calls atomic.Int32
 }
 
-func (t *testStateListener) OnStateChange(serviceName string, from, to libCircuitBreaker.State) {
+func (t *testStateListener) OnStateChange(_ context.Context, _ string, _, _ libCircuitBreaker.State) {
 	t.calls.Add(1)
 }
 
@@ -61,12 +60,7 @@ func testRabbitMQConnection() *libRabbitmq.RabbitMQConnection {
 }
 
 func TestNewCircuitBreakerManager_CreatesManagerSuccessfully(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger := libLog.NewNop()
 
 	conn := testRabbitMQConnection()
 	cbConfig := testCircuitBreakerConfig()
@@ -90,10 +84,7 @@ func TestNewCircuitBreakerManager_ReturnsErrorOnNilLogger(t *testing.T) {
 }
 
 func TestNewCircuitBreakerManager_ReturnsErrorOnNilRabbitConn(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
+	logger := libLog.NewNop()
 	cbConfig := testCircuitBreakerConfig()
 
 	cbm, err := NewCircuitBreakerManager(logger, nil, cbConfig, nil)
@@ -103,12 +94,7 @@ func TestNewCircuitBreakerManager_ReturnsErrorOnNilRabbitConn(t *testing.T) {
 }
 
 func TestNewCircuitBreakerManager_RegistersStateListener(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger := libLog.NewNop()
 
 	conn := testRabbitMQConnection()
 	listener := &testStateListener{}
@@ -126,17 +112,7 @@ func TestNewCircuitBreakerManager_RegistersStateListener(t *testing.T) {
 }
 
 func TestNewCircuitBreakerManager_CircuitTripsAfterConsecutiveFailures(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Info(gomock.Any()).AnyTimes()
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debug(gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Warnf(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Errorf(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Error(gomock.Any(), gomock.Any()).AnyTimes()
+	logger := libLog.NewNop()
 
 	// Connection with logger to prevent panic during health checks
 	conn := &libRabbitmq.RabbitMQConnection{
@@ -190,14 +166,7 @@ func TestNewCircuitBreakerManager_CircuitTripsAfterConsecutiveFailures(t *testin
 }
 
 func TestCircuitBreakerManager_StartStop_DoesNotPanic(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
-	// Allow any Info() calls (lib-commons health checker also logs)
-	logger.EXPECT().Info(gomock.Any()).AnyTimes()
+	logger := libLog.NewNop()
 
 	conn := testRabbitMQConnection()
 	cbConfig := testCircuitBreakerConfig()
@@ -215,14 +184,7 @@ func TestCircuitBreakerManager_StartStop_DoesNotPanic(t *testing.T) {
 }
 
 func TestCircuitBreakerManager_Stop_WithoutStart(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
-	// Allow any Info() calls (lib-commons health checker also logs)
-	logger.EXPECT().Info(gomock.Any()).AnyTimes()
+	logger := libLog.NewNop()
 
 	conn := testRabbitMQConnection()
 	cbConfig := testCircuitBreakerConfig()
@@ -239,12 +201,7 @@ func TestCircuitBreakerManager_Stop_WithoutStart(t *testing.T) {
 }
 
 func TestCircuitBreakerManager_CircuitBreakerServiceNameIsRegistered(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger := libLog.NewNop()
 
 	conn := testRabbitMQConnection()
 	cbConfig := testCircuitBreakerConfig()
@@ -258,12 +215,7 @@ func TestCircuitBreakerManager_CircuitBreakerServiceNameIsRegistered(t *testing.
 }
 
 func TestNewCircuitBreakerManager_UsesDefaultHealthCheckInterval(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger := libLog.NewNop()
 
 	conn := testRabbitMQConnection()
 	cbConfig := rabbitmq.CircuitBreakerConfig{
@@ -285,12 +237,7 @@ func TestNewCircuitBreakerManager_UsesDefaultHealthCheckInterval(t *testing.T) {
 }
 
 func TestNewCircuitBreakerManager_UsesDefaultHealthCheckTimeout(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger := libLog.NewNop()
 
 	conn := testRabbitMQConnection()
 	cbConfig := rabbitmq.CircuitBreakerConfig{
@@ -312,10 +259,7 @@ func TestNewCircuitBreakerManager_UsesDefaultHealthCheckTimeout(t *testing.T) {
 }
 
 func TestNewCircuitBreakerManager_ReturnsErrorOnInvalidFailureRatio(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
+	logger := libLog.NewNop()
 	conn := testRabbitMQConnection()
 
 	tests := []struct {
@@ -347,10 +291,7 @@ func TestNewCircuitBreakerManager_ReturnsErrorOnInvalidFailureRatio(t *testing.T
 }
 
 func TestNewCircuitBreakerManager_ReturnsErrorOnZeroConsecutiveFailures(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
+	logger := libLog.NewNop()
 	conn := testRabbitMQConnection()
 	cbConfig := rabbitmq.CircuitBreakerConfig{
 		ConsecutiveFailures: 0, // Invalid: must be > 0
@@ -368,10 +309,7 @@ func TestNewCircuitBreakerManager_ReturnsErrorOnZeroConsecutiveFailures(t *testi
 }
 
 func TestNewCircuitBreakerManager_ReturnsErrorOnInvalidTimeout(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
+	logger := libLog.NewNop()
 	conn := testRabbitMQConnection()
 
 	tests := []struct {
@@ -402,10 +340,7 @@ func TestNewCircuitBreakerManager_ReturnsErrorOnInvalidTimeout(t *testing.T) {
 }
 
 func TestNewCircuitBreakerManager_ReturnsErrorOnInvalidInterval(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
+	logger := libLog.NewNop()
 	conn := testRabbitMQConnection()
 
 	tests := []struct {
@@ -436,12 +371,7 @@ func TestNewCircuitBreakerManager_ReturnsErrorOnInvalidInterval(t *testing.T) {
 }
 
 func TestNewCircuitBreakerManager_AcceptsValidBoundaryValues(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger := libLog.NewNop()
 
 	conn := testRabbitMQConnection()
 
@@ -495,10 +425,7 @@ func TestNewCircuitBreakerManager_AcceptsValidBoundaryValues(t *testing.T) {
 }
 
 func TestNewCircuitBreakerManager_ReturnsErrorOnZeroMaxRequests(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
+	logger := libLog.NewNop()
 	conn := testRabbitMQConnection()
 	cbConfig := rabbitmq.CircuitBreakerConfig{
 		ConsecutiveFailures: 15,
@@ -516,10 +443,7 @@ func TestNewCircuitBreakerManager_ReturnsErrorOnZeroMaxRequests(t *testing.T) {
 }
 
 func TestNewCircuitBreakerManager_ReturnsErrorOnZeroMinRequestsWithFailureRatio(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
+	logger := libLog.NewNop()
 	conn := testRabbitMQConnection()
 	cbConfig := rabbitmq.CircuitBreakerConfig{
 		ConsecutiveFailures: 15,
@@ -537,12 +461,7 @@ func TestNewCircuitBreakerManager_ReturnsErrorOnZeroMinRequestsWithFailureRatio(
 }
 
 func TestNewCircuitBreakerManager_AcceptsZeroMinRequestsWithZeroFailureRatio(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger := libLog.NewNop()
 
 	conn := testRabbitMQConnection()
 	cbConfig := rabbitmq.CircuitBreakerConfig{
@@ -568,12 +487,7 @@ func TestNewCircuitBreakerRunnable_CreatesWrapper(t *testing.T) {
 }
 
 func TestNewCircuitBreakerRunnable_WithManager(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger := libLog.NewNop()
 
 	conn := testRabbitMQConnection()
 	cbConfig := testCircuitBreakerConfig()
@@ -589,13 +503,7 @@ func TestNewCircuitBreakerRunnable_WithManager(t *testing.T) {
 }
 
 func TestCircuitBreakerRunnable_Run_WithValidManager(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Info(gomock.Any()).AnyTimes()
+	logger := libLog.NewNop()
 
 	conn := testRabbitMQConnection()
 	cbConfig := testCircuitBreakerConfig()

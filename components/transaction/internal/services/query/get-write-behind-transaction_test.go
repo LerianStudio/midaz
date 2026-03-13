@@ -9,11 +9,12 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/vmihailenco/msgpack/v5"
 	"go.uber.org/mock/gomock"
@@ -23,9 +24,9 @@ func TestGetWriteBehindTransaction_Hit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	uc := &UseCase{
@@ -69,9 +70,9 @@ func TestGetWriteBehindTransaction_Miss(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	uc := &UseCase{
@@ -95,9 +96,9 @@ func TestGetWriteBehindTransaction_CorruptedData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	uc := &UseCase{

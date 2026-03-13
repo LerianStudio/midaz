@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -772,7 +772,7 @@ func TestGetAllBalances(t *testing.T) {
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
 		assert.NoError(t, err)
-		assert.Nil(t, res)
+		assert.Empty(t, res)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
 }

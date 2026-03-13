@@ -11,8 +11,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -53,17 +52,15 @@ func (f *failOnCallRedisClient) ScriptLoad(ctx context.Context, script string) *
 	return nil
 }
 
-func newFailOnCallConnection(t *testing.T) *libRedis.RedisConnection {
+func newFailOnCallConnection(t *testing.T) *staticRedisProvider {
 	t.Helper()
-	return &libRedis.RedisConnection{
-		Client:    &failOnCallRedisClient{t: t},
-		Connected: true,
-	}
+
+	return &staticRedisProvider{client: &failOnCallRedisClient{t: t}}
 }
 
 func createBalanceOperation(organizationID, ledgerID uuid.UUID, alias, assetCode, operation string, amount, available decimal.Decimal) mmodel.BalanceOperation {
-	balanceID := libCommons.GenerateUUIDv7().String()
-	accountID := libCommons.GenerateUUIDv7().String()
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	balanceKey := "default"
 
 	return mmodel.BalanceOperation{
@@ -108,11 +105,8 @@ func (m *mockZAddNXClient) ZAddNX(ctx context.Context, key string, members ...re
 	return redis.NewIntCmd(ctx)
 }
 
-func newMockZAddNXConnection(client *mockZAddNXClient) *libRedis.RedisConnection {
-	return &libRedis.RedisConnection{
-		Client:    client,
-		Connected: true,
-	}
+func newMockZAddNXConnection(client *mockZAddNXClient) *staticRedisProvider {
+	return &staticRedisProvider{client: client}
 }
 
 // mockEvalClient is a mock Redis client for testing RemoveBalanceSyncKeysBatch.
@@ -129,11 +123,8 @@ func (m *mockEvalClient) Eval(ctx context.Context, script string, keys []string,
 	return redis.NewCmd(ctx)
 }
 
-func newMockEvalConnection(client *mockEvalClient) *libRedis.RedisConnection {
-	return &libRedis.RedisConnection{
-		Client:    client,
-		Connected: true,
-	}
+func newMockEvalConnection(client *mockEvalClient) *staticRedisProvider {
+	return &staticRedisProvider{client: client}
 }
 
 // TestProcessBalanceAtomicOperation_NotedStatus verifies that NOTED status triggers early return
@@ -167,9 +158,9 @@ func TestProcessBalanceAtomicOperation_NotedStatus(t *testing.T) {
 				balanceSyncEnabled: true,
 			}
 
-			organizationID := libCommons.GenerateUUIDv7()
-			ledgerID := libCommons.GenerateUUIDv7()
-			transactionID := libCommons.GenerateUUIDv7()
+			organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			// Build balance operations
 			balanceOps := make([]mmodel.BalanceOperation, len(tc.balanceAliases))

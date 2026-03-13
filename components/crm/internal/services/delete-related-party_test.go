@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
@@ -29,10 +29,10 @@ func TestDeleteRelatedPartyByID(t *testing.T) {
 		AliasRepo: mockAliasRepo,
 	}
 
-	organizationID := libCommons.GenerateUUIDv7().String()
-	holderID := libCommons.GenerateUUIDv7()
-	aliasID := libCommons.GenerateUUIDv7()
-	relatedPartyID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	aliasID := uuid.Must(libCommons.GenerateUUIDv7())
+	relatedPartyID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	errRepoGeneric := errors.New("connection refused")
 

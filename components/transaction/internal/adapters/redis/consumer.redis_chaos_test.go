@@ -21,9 +21,8 @@ import (
 	"testing"
 	"time"
 
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 	"github.com/google/uuid"
@@ -43,7 +42,7 @@ type chaosNetworkTestInfra struct {
 	redisContainer *redistestutil.ContainerResult
 	chaosInfra     *chaos.Infrastructure
 	proxyRepo      *RedisConsumerRepository
-	proxyConn      *libRedis.RedisConnection
+	proxyConn      *libRedis.Client
 	proxy          *chaos.Proxy
 }
 
@@ -83,11 +82,7 @@ func setupRedisChaosNetworkInfra(t *testing.T) *chaosNetworkTestInfra {
 	proxyAddr := containerInfo.ProxyListen
 
 	// 6. Build a RedisConsumerRepository pointing at the proxy address.
-	logger := libZap.InitializeLogger()
-	proxyConn := &libRedis.RedisConnection{
-		Address: []string{proxyAddr},
-		Logger:  logger,
-	}
+	proxyConn := redistestutil.CreateConnection(t, proxyAddr)
 
 	proxyRepo := &RedisConsumerRepository{
 		conn:               proxyConn,

@@ -10,9 +10,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -165,15 +164,12 @@ func (r *recordingRedisClient) HGetAll(ctx context.Context, key string) *redis.M
 	return cmd
 }
 
-func newRecordingConnection(t *testing.T) (*libRedis.RedisConnection, *recordingRedisClient) {
+func newRecordingConnection(t *testing.T) (*staticRedisProvider, *recordingRedisClient) {
 	t.Helper()
 
 	client := &recordingRedisClient{t: t}
 
-	return &libRedis.RedisConnection{
-		Client:    client,
-		Connected: true,
-	}, client
+	return &staticRedisProvider{client: client}, client
 }
 
 // scriptCapturingRedisClient extends recordingRedisClient with the ability to capture
@@ -268,16 +264,13 @@ func (s *scriptCapturingRedisClient) capturedScriptArgs() []any {
 	return s.evalCalls[0].Args
 }
 
-func newScriptCapturingConnection(t *testing.T) (*libRedis.RedisConnection, *scriptCapturingRedisClient) {
+func newScriptCapturingConnection(t *testing.T) (*staticRedisProvider, *scriptCapturingRedisClient) {
 	t.Helper()
 
 	client := &scriptCapturingRedisClient{}
 	client.recordingRedisClient.t = t
 
-	return &libRedis.RedisConnection{
-		Client:    client,
-		Connected: true,
-	}, client
+	return &staticRedisProvider{client: client}, client
 }
 
 // =============================================================================
@@ -645,10 +638,10 @@ func TestKeyNamespacing_ProcessBalanceAtomicOperation(t *testing.T) {
 
 			balanceOp := mmodel.BalanceOperation{
 				Balance: &mmodel.Balance{
-					ID:             libCommons.GenerateUUIDv7().String(),
+					ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 					OrganizationID: organizationID.String(),
 					LedgerID:       ledgerID.String(),
-					AccountID:      libCommons.GenerateUUIDv7().String(),
+					AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 					Alias:          "@sender",
 					Key:            balanceKeyStr,
 					AssetCode:      "USD",
@@ -886,4 +879,90 @@ func TestKeyNamespacing_BackwardsCompatible_NoTenantInContext(t *testing.T) {
 		assert.Equal(t, msgKey, recorder.hsetCalls[0].Values[0],
 			"AddMessageToQueue: message field key must be unchanged without tenant")
 	})
+}
+
+func TestKeyNamespacing_MalformedTenantID_FailsClosedSimpleMethods(t *testing.T) {
+	t.Parallel()
+
+	conn, recorder := newRecordingConnection(t)
+	repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+	ctx := tmcore.SetTenantIDInContext(context.Background(), "tenant:invalid")
+
+	err := repo.Set(ctx, "my:key", "value", 1)
+	require.Error(t, err)
+	assert.Empty(t, recorder.setCalls, "Set must fail closed before touching Redis")
+
+	_, err = repo.Get(ctx, "my:key")
+	require.Error(t, err)
+	assert.Empty(t, recorder.getCalls, "Get must fail closed before touching Redis")
+
+	_, err = repo.MGet(ctx, []string{"a", "b"})
+	require.Error(t, err)
+	assert.Empty(t, recorder.mgetCalls, "MGet must fail closed before touching Redis")
+
+	value := repo.Incr(ctx, "counter")
+	assert.Zero(t, value, "Incr must fail closed when namespacing fails")
+	assert.Empty(t, recorder.incrCalls, "Incr must not hit Redis when namespacing fails")
+}
+
+func TestKeyNamespacing_MalformedTenantID_FailsClosedQueueOperations(t *testing.T) {
+	t.Parallel()
+
+	conn, recorder := newRecordingConnection(t)
+	repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+	ctx := tmcore.SetTenantIDInContext(context.Background(), "tenant:invalid")
+
+	err := repo.AddMessageToQueue(ctx, "tx:abc", []byte("payload"))
+	require.Error(t, err)
+	assert.Empty(t, recorder.hsetCalls, "AddMessageToQueue must fail closed before touching Redis")
+
+	err = repo.RemoveMessageFromQueue(ctx, "tx:abc")
+	require.Error(t, err)
+	assert.Empty(t, recorder.hdelCalls, "RemoveMessageFromQueue must fail closed before touching Redis")
+
+	_, err = repo.ReadAllMessagesFromQueue(ctx)
+	require.Error(t, err)
+	assert.Empty(t, recorder.hgetAllCalls, "ReadAllMessagesFromQueue must fail closed before touching Redis")
+}
+
+func TestKeyNamespacing_MalformedTenantID_FailsClosedAtomicOperation(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("00000000-0000-0000-0000-000000000031")
+	ledgerID := uuid.MustParse("00000000-0000-0000-0000-000000000032")
+	transactionID := uuid.MustParse("00000000-0000-0000-0000-000000000033")
+	rawInternalKey := utils.BalanceInternalKey(organizationID, ledgerID, "default")
+
+	conn, scripter := newScriptCapturingConnection(t)
+	repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+	ctx := tmcore.SetTenantIDInContext(context.Background(), "tenant:invalid")
+
+	_, err := repo.ProcessBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID, constant.APPROVED, false, []mmodel.BalanceOperation{{
+		Balance: &mmodel.Balance{
+			ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
+			Alias:          "@sender",
+			Key:            "default",
+			AssetCode:      "USD",
+			Available:      decimal.NewFromInt(1000),
+			OnHold:         decimal.Zero,
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+		},
+		Alias: "@sender",
+		Amount: pkgTransaction.Amount{
+			Asset:     "USD",
+			Value:     decimal.NewFromInt(100),
+			Operation: constant.DEBIT,
+		},
+		InternalKey: rawInternalKey,
+	}})
+
+	require.Error(t, err)
+	assert.Empty(t, scripter.evalShaCalls, "ProcessBalanceAtomicOperation must fail closed before EVALSHA")
+	assert.Empty(t, scripter.evalCalls, "ProcessBalanceAtomicOperation must fail closed before EVAL")
 }

@@ -5,11 +5,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap"
 )
 
@@ -30,22 +31,14 @@ import (
 func main() {
 	libCommons.InitLocalEnvConfig()
 
-	logger, err := libZap.InitializeLoggerWithError()
+	service, err := bootstrap.InitServersWithOptions(nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+		fmt.Fprintf(os.Stderr, "failed to initialize onboarding service: %v\n", err)
 
 		os.Exit(1)
 	}
 
-	service, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
-		Logger: logger,
-	})
-	if err != nil {
-		logger.Errorf("Failed to initialize onboarding service: %v", err)
-		_ = logger.Sync()
-
-		os.Exit(1)
-	}
+	service.Logger.Log(context.Background(), libLog.LevelInfo, "Onboarding service initialized successfully")
 
 	service.Run()
 }

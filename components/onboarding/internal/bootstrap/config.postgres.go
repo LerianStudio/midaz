@@ -5,11 +5,13 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
+	"time"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	tmpostgres "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
@@ -21,7 +23,7 @@ import (
 
 // postgresComponents holds PostgreSQL-related components initialized during bootstrap.
 type postgresComponents struct {
-	connection       *libPostgres.PostgresConnection
+	connection       *libPostgres.Client
 	pgManager        *tmpostgres.Manager // nil in single-tenant mode; reserved for MultiPoolMiddleware wiring
 	organizationRepo *organization.OrganizationPostgreSQLRepository
 	ledgerRepo       *ledger.LedgerPostgreSQLRepository
@@ -44,7 +46,7 @@ func initPostgres(opts *Options, cfg *Config, logger libLog.Logger) (*postgresCo
 
 // initMultiTenantPostgres initializes PostgreSQL in multi-tenant mode.
 func initMultiTenantPostgres(opts *Options, cfg *Config, logger libLog.Logger) (*postgresComponents, error) {
-	logger.Info("Initializing multi-tenant PostgreSQL for onboarding")
+	logger.Log(context.Background(), libLog.LevelInfo, "Initializing multi-tenant PostgreSQL for onboarding")
 
 	if opts.TenantClient == nil {
 		return nil, fmt.Errorf("TenantClient is required for multi-tenant PostgreSQL initialization")
@@ -67,13 +69,13 @@ func initMultiTenantPostgres(opts *Options, cfg *Config, logger libLog.Logger) (
 	return &postgresComponents{
 		connection:       conn,
 		pgManager:        pgMgr,
-		organizationRepo: organization.NewOrganizationPostgreSQLRepository(conn),
-		ledgerRepo:       ledger.NewLedgerPostgreSQLRepository(conn),
-		accountRepo:      account.NewAccountPostgreSQLRepository(conn),
-		assetRepo:        asset.NewAssetPostgreSQLRepository(conn),
-		portfolioRepo:    portfolio.NewPortfolioPostgreSQLRepository(conn),
-		segmentRepo:      segment.NewSegmentPostgreSQLRepository(conn),
-		accountTypeRepo:  accounttype.NewAccountTypePostgreSQLRepository(conn),
+		organizationRepo: organization.NewOrganizationPostgreSQLRepository(conn, true),
+		ledgerRepo:       ledger.NewLedgerPostgreSQLRepository(conn, true),
+		accountRepo:      account.NewAccountPostgreSQLRepository(conn, true),
+		assetRepo:        asset.NewAssetPostgreSQLRepository(conn, true),
+		portfolioRepo:    portfolio.NewPortfolioPostgreSQLRepository(conn, true),
+		segmentRepo:      segment.NewSegmentPostgreSQLRepository(conn, true),
+		accountTypeRepo:  accounttype.NewAccountTypePostgreSQLRepository(conn, true),
 	}, nil
 }
 
@@ -101,10 +103,16 @@ func initSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*postgresCompo
 var postgresConnector = defaultPostgresConnector
 
 // defaultPostgresConnector builds a PostgresConnection from Config and establishes the connection.
-func defaultPostgresConnector(cfg *Config, logger libLog.Logger) (*libPostgres.PostgresConnection, error) {
-	conn := buildPostgresConnection(cfg, logger)
+func defaultPostgresConnector(cfg *Config, logger libLog.Logger) (*libPostgres.Client, error) {
+	conn, err := buildPostgresConnection(cfg, logger)
+	if err != nil {
+		return nil, err
+	}
 
-	if err := conn.Connect(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := conn.Connect(ctx); err != nil {
 		return nil, err
 	}
 
@@ -112,7 +120,7 @@ func defaultPostgresConnector(cfg *Config, logger libLog.Logger) (*libPostgres.P
 }
 
 // buildPostgresConnection creates a PostgresConnection from Config using prefixed env var fallback.
-func buildPostgresConnection(cfg *Config, logger libLog.Logger) *libPostgres.PostgresConnection {
+func buildPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Client, error) {
 	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
 	dbUser := envFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
 	dbPassword := envFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
@@ -136,14 +144,16 @@ func buildPostgresConnection(cfg *Config, logger libLog.Logger) *libPostgres.Pos
 	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		dbReplicaHost, dbReplicaUser, dbReplicaPassword, dbReplicaName, dbReplicaPort, dbReplicaSSLMode)
 
-	return &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: postgreSourcePrimary,
-		ConnectionStringReplica: postgreSourceReplica,
-		PrimaryDBName:           dbName,
-		ReplicaDBName:           dbReplicaName,
-		Component:               ApplicationName,
-		Logger:                  logger,
-		MaxOpenConnections:      maxOpenConns,
-		MaxIdleConnections:      maxIdleConns,
+	conn, err := libPostgres.New(libPostgres.Config{
+		PrimaryDSN:         postgreSourcePrimary,
+		ReplicaDSN:         postgreSourceReplica,
+		Logger:             logger,
+		MaxOpenConnections: maxOpenConns,
+		MaxIdleConnections: maxIdleConns,
+	})
+	if err != nil {
+		return nil, err
 	}
+
+	return conn, nil
 }

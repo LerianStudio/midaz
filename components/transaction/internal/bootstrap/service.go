@@ -6,14 +6,15 @@ package bootstrap
 
 import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	"github.com/LerianStudio/lib-commons/v3/commons/opentelemetry/metrics"
-	tmconsumer "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/consumer"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
+	tmconsumer "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/consumer"
 	httpin "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -165,10 +166,10 @@ func (app *Service) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
 
 // GetRouteRegistrar returns a function that registers transaction routes to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
-func (app *Service) GetRouteRegistrar() func(*fiber.App) {
-	return func(fiberApp *fiber.App) {
+func (app *Service) GetRouteRegistrar(routeOptions *midazhttp.ProtectedRouteOptions) func(fiber.Router) {
+	return func(fiberRouter fiber.Router) {
 		httpin.RegisterRoutesToApp(
-			fiberApp,
+			fiberRouter,
 			app.auth,
 			app.transactionHandler,
 			app.operationHandler,
@@ -176,6 +177,7 @@ func (app *Service) GetRouteRegistrar() func(*fiber.App) {
 			app.balanceHandler,
 			app.operationRouteHandler,
 			app.transactionRouteHandler,
+			routeOptions,
 		)
 	}
 }

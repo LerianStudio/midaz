@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
@@ -1019,6 +1018,3 @@ func TestHandler_CountSegments(t *testing.T) {
 		})
 	}
 }
-
-// Ensure libPostgres.Pagination is used (referenced in handler)
-var _ = libPostgres.Pagination{}

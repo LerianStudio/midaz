@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
 )
@@ -58,17 +59,17 @@ func TestSendTransactionEvents(t *testing.T) {
 
 	assetCode := "BRL"
 
-	parentTransactionID := libCommons.GenerateUUIDv7().String()
+	parentTransactionID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	amount := decimal.NewFromInt(100)
 
 	chartOfAccountsGroupName := "ChartOfAccountsGroupName"
 
 	tran := &transaction.Transaction{
-		ID:                       libCommons.GenerateUUIDv7().String(),
+		ID:                       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		ParentTransactionID:      &parentTransactionID,
-		OrganizationID:           libCommons.GenerateUUIDv7().String(),
-		LedgerID:                 libCommons.GenerateUUIDv7().String(),
+		OrganizationID:           uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		LedgerID:                 uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Description:              description,
 		Status:                   status,
 		Amount:                   &amount,

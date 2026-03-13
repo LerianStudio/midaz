@@ -8,9 +8,10 @@ import (
 	"database/sql"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -312,7 +313,7 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 
 // FromEntity converts an entity Operation to OperationPostgreSQLModel
 func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
-	ID := libCommons.GenerateUUIDv7().String()
+	ID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	if operation.ID != "" {
 		ID = operation.ID
 	}

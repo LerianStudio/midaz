@@ -11,9 +11,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -27,19 +25,11 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *AccountTypePostgreSQLRepository {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           container.Config.DBName,
-		ReplicaDBName:           container.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
 	return NewAccountTypePostgreSQLRepository(conn)
 }
@@ -88,7 +78,7 @@ func TestIntegration_AccountTypeRepository_FindByID_ReturnsErrNotFound(t *testin
 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -220,7 +210,7 @@ func TestIntegration_AccountTypeRepository_Create(t *testing.T) {
 	now := time.Now().Truncate(time.Microsecond)
 
 	accountType := &mmodel.AccountType{
-		ID:             libCommons.GenerateUUIDv7(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		Name:           "Created Type",
@@ -266,7 +256,7 @@ func TestIntegration_AccountTypeRepository_Create_DuplicateKeyValueFails(t *test
 
 	// Try to create second with same key_value
 	accountType := &mmodel.AccountType{
-		ID:             libCommons.GenerateUUIDv7(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		Name:           "Duplicate Type",
@@ -341,7 +331,7 @@ func TestIntegration_AccountTypeRepository_Update_ReturnsErrNotFound(t *testing.
 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -400,7 +390,7 @@ func TestIntegration_AccountTypeRepository_FindAll_EmptyForNonExistentLedger(t *
 	repo := createRepository(t, container)
 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-	nonExistentLedgerID := libCommons.GenerateUUIDv7()
+	nonExistentLedgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -561,7 +551,7 @@ func TestIntegration_AccountTypeRepository_ListByIDs_EmptyForNonExistentIDs(t *t
 	ctx := context.Background()
 
 	// Act
-	nonExistentIDs := []uuid.UUID{libCommons.GenerateUUIDv7(), libCommons.GenerateUUIDv7()}
+	nonExistentIDs := []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7()), uuid.Must(libCommons.GenerateUUIDv7())}
 	accountTypes, err := repo.ListByIDs(ctx, orgID, ledgerID, nonExistentIDs)
 
 	// Assert
@@ -652,7 +642,7 @@ func TestIntegration_AccountTypeRepository_Delete_ReturnsErrNotFound(t *testing.
 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -688,7 +678,7 @@ func TestIntegration_AccountTypeRepository_Delete_AllowsReusingSameKeyValue(t *t
 	// Create new account type with same key_value
 	now := time.Now().Truncate(time.Microsecond)
 	newAccountType := &mmodel.AccountType{
-		ID:             libCommons.GenerateUUIDv7(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		Name:           "New Type",

@@ -14,9 +14,8 @@ import (
 	"testing"
 	"time"
 
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
@@ -64,7 +63,7 @@ type networkChaosTestInfra struct {
 	redisContainer *redistestutil.ContainerResult
 	chaosInfra     *chaos.Infrastructure
 	proxyRepo      *RedisConsumerRepository
-	proxyConn      *libRedis.RedisConnection
+	proxyConn      *libRedis.Client
 	proxy          *chaos.Proxy
 }
 
@@ -144,11 +143,7 @@ func setupRedisNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	proxyAddr := containerInfo.ProxyListen
 
 	// 6. Create Redis connection through proxy
-	logger := libZap.InitializeLogger()
-	proxyConn := &libRedis.RedisConnection{
-		Address: []string{proxyAddr},
-		Logger:  logger,
-	}
+	proxyConn := redistestutil.CreateConnection(t, proxyAddr)
 
 	proxyRepo := &RedisConsumerRepository{
 		conn:               proxyConn,
@@ -269,8 +264,8 @@ func TestIntegration_Redis_BalanceConsistency(t *testing.T) {
 		require.NoError(t, err, "operation %d should succeed", i)
 
 		// Verify balance after each operation is non-negative
-		if len(balances) > 0 {
-			assert.GreaterOrEqual(t, balances[0].Available.IntPart(), int64(0),
+		if len(balances.After) > 0 {
+			assert.GreaterOrEqual(t, balances.After[0].Available.IntPart(), int64(0),
 				"balance for @consistency-test should not be negative")
 		}
 	}
@@ -431,7 +426,7 @@ func TestIntegration_Chaos_Redis_RestartRecovery(t *testing.T) {
 	balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
 	require.NoError(t, err, "initial balance operation should succeed")
 	require.NotNil(t, balances, "should return balances")
-	t.Logf("Initial balance operation successful: %d balances updated", len(balances))
+	t.Logf("Initial balance operation successful: %d balances updated", len(balances.After))
 
 	// 2. INJECT CHAOS: Restart container
 	containerID := infra.redisContainer.Container.GetContainerID()
@@ -708,8 +703,6 @@ func TestIntegration_Chaos_Redis_ConcurrentBalanceOperations(t *testing.T) {
 		t.Skip("skipping chaos test in short mode")
 	}
 
-	t.Skip("skipping: lib-commons RedisConnection.GetClient() fix")
-
 	infra := setupRedisChaosInfra(t)
 	defer infra.cleanup()
 
@@ -720,7 +713,7 @@ func TestIntegration_Chaos_Redis_ConcurrentBalanceOperations(t *testing.T) {
 
 	type result struct {
 		workerID int
-		balances []*mmodel.Balance
+		balances *mmodel.BalanceAtomicResult
 		err      error
 	}
 	results := make(chan result, numWorkers)
@@ -779,8 +772,6 @@ func TestIntegration_Chaos_Redis_InsufficientFundsUnderLoad(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
 	}
-
-	t.Skip("skipping: lib-commons RedisConnection.GetClient() fix")
 
 	infra := setupRedisChaosInfra(t)
 	defer infra.cleanup()
@@ -1095,8 +1086,8 @@ func TestIntegration_Redis_PendingDestinationNoVersionIncrement(t *testing.T) {
 		require.NoError(t, err, "PENDING source ON_HOLD should succeed")
 
 		// KEY ASSERTION: Source balance SHOULD be in returnBalances because change occurred
-		require.Len(t, balances, 1, "should return 1 balance (source changed)")
-		assert.Equal(t, "@source-pending", balances[0].Alias, "returned balance should have correct alias")
+		require.Len(t, balances.After, 1, "should return 1 balance (source changed)")
+		assert.Equal(t, "@source-pending", balances.After[0].Alias, "returned balance should have correct alias")
 
 		t.Log("PENDING source ON_HOLD: balance included in returnBalances as expected")
 	})
@@ -1128,7 +1119,7 @@ func TestIntegration_Redis_PendingDestinationNoVersionIncrement(t *testing.T) {
 		require.NoError(t, err, "PENDING destination CREDIT should succeed")
 
 		// KEY ASSERTION: Balance should NOT be in returnBalances because no change occurred
-		assert.Len(t, balances, 0,
+		assert.Len(t, balances.After, 0,
 			"destination balance should NOT be in returnBalances (no change occurred)")
 
 		t.Log("PENDING destination CREDIT: balance correctly excluded from returnBalances")
@@ -1160,8 +1151,8 @@ func TestIntegration_Redis_PendingDestinationNoVersionIncrement(t *testing.T) {
 		require.NoError(t, err, "APPROVED source DEBIT should succeed")
 
 		// KEY ASSERTION: Source balance SHOULD be in returnBalances because OnHold changed
-		require.Len(t, balances, 1, "should return 1 balance (source changed)")
-		assert.Equal(t, "@source-approved", balances[0].Alias, "returned balance should have correct alias")
+		require.Len(t, balances.After, 1, "should return 1 balance (source changed)")
+		assert.Equal(t, "@source-approved", balances.After[0].Alias, "returned balance should have correct alias")
 
 		t.Log("APPROVED source DEBIT: balance included in returnBalances as expected")
 	})
@@ -1191,8 +1182,8 @@ func TestIntegration_Redis_PendingDestinationNoVersionIncrement(t *testing.T) {
 		require.NoError(t, err, "APPROVED destination CREDIT should succeed")
 
 		// KEY ASSERTION: Destination balance SHOULD be in returnBalances because Available changed
-		require.Len(t, balances, 1, "should return 1 balance (destination changed)")
-		assert.Equal(t, "@dest-approved", balances[0].Alias, "returned balance should have correct alias")
+		require.Len(t, balances.After, 1, "should return 1 balance (destination changed)")
+		assert.Equal(t, "@dest-approved", balances.After[0].Alias, "returned balance should have correct alias")
 
 		t.Log("APPROVED destination CREDIT: balance included in returnBalances as expected")
 	})
@@ -1221,8 +1212,8 @@ func TestIntegration_Redis_PendingDestinationNoVersionIncrement(t *testing.T) {
 		require.NoError(t, err, "normal CREDIT should succeed")
 
 		// KEY ASSERTION: Balance SHOULD be in returnBalances because Available changed
-		require.Len(t, balances, 1, "should return 1 balance")
-		assert.Equal(t, "@normal-credit", balances[0].Alias, "returned balance should have correct alias")
+		require.Len(t, balances.After, 1, "should return 1 balance")
+		assert.Equal(t, "@normal-credit", balances.After[0].Alias, "returned balance should have correct alias")
 
 		t.Log("non-PENDING CREDIT: balance included in returnBalances as expected")
 	})
@@ -1269,8 +1260,8 @@ func TestIntegration_Redis_VersionContinuity(t *testing.T) {
 			[]mmodel.BalanceOperation{sourceOp},
 		)
 		require.NoError(t, err, "PENDING source should succeed")
-		require.Len(t, sourceBalances, 1, "source should be in returnBalances")
-		sourceVersions = append(sourceVersions, sourceBalances[0].Version)
+		require.Len(t, sourceBalances.After, 1, "source should be in returnBalances")
+		sourceVersions = append(sourceVersions, sourceBalances.After[0].Version)
 
 		// Destination: CREDIT during PENDING (no effect, no version change)
 		destOp := redistestutil.CreateBalanceOperationWithAvailable(
@@ -1287,7 +1278,7 @@ func TestIntegration_Redis_VersionContinuity(t *testing.T) {
 		)
 		require.NoError(t, err, "PENDING destination should succeed")
 		// KEY: Destination should NOT be in returnBalances (no change)
-		assert.Len(t, destBalances, 0, "destination should NOT be in returnBalances during PENDING")
+		assert.Len(t, destBalances.After, 0, "destination should NOT be in returnBalances during PENDING")
 
 		// Phase 2: APPROVED - both source and destination should have version change
 		t.Log("Phase 2: Approving PENDING transaction")
@@ -1308,8 +1299,8 @@ func TestIntegration_Redis_VersionContinuity(t *testing.T) {
 			[]mmodel.BalanceOperation{sourceOpApproved},
 		)
 		require.NoError(t, err, "APPROVED source should succeed")
-		require.Len(t, sourceBalancesApproved, 1, "source should be in returnBalances")
-		sourceVersions = append(sourceVersions, sourceBalancesApproved[0].Version)
+		require.Len(t, sourceBalancesApproved.After, 1, "source should be in returnBalances")
+		sourceVersions = append(sourceVersions, sourceBalancesApproved.After[0].Version)
 
 		// Destination: CREDIT on APPROVED (Available: 500 -> 600)
 		destOpApproved := redistestutil.CreateBalanceOperationWithAvailable(
@@ -1325,8 +1316,8 @@ func TestIntegration_Redis_VersionContinuity(t *testing.T) {
 			[]mmodel.BalanceOperation{destOpApproved},
 		)
 		require.NoError(t, err, "APPROVED destination should succeed")
-		require.Len(t, destBalancesApproved, 1, "destination should be in returnBalances on APPROVED")
-		destVersions = append(destVersions, destBalancesApproved[0].Version)
+		require.Len(t, destBalancesApproved.After, 1, "destination should be in returnBalances on APPROVED")
+		destVersions = append(destVersions, destBalancesApproved.After[0].Version)
 
 		// Verify the key behavior: source appears twice, destination appears once
 		t.Logf("Source returnBalances count: %d, versions: %v", len(sourceVersions), sourceVersions)
@@ -1410,8 +1401,8 @@ func TestIntegration_Redis_CanceledTransactionRelease(t *testing.T) {
 		require.NoError(t, err, "CANCELED RELEASE should succeed")
 
 		// KEY ASSERTION: Balance SHOULD be in returnBalances because both Available and OnHold changed
-		require.Len(t, balances, 1, "should return 1 balance (source changed)")
-		assert.Equal(t, "@canceled-source", balances[0].Alias, "returned balance should have correct alias")
+		require.Len(t, balances.After, 1, "should return 1 balance (source changed)")
+		assert.Equal(t, "@canceled-source", balances.After[0].Alias, "returned balance should have correct alias")
 
 		t.Log("CANCELED RELEASE: balance included in returnBalances as expected")
 	})
@@ -1443,7 +1434,7 @@ func TestIntegration_Redis_CanceledTransactionRelease(t *testing.T) {
 
 		// KEY ASSERTION: Destination should NOT be in returnBalances (no change)
 		// CREDIT + CANCELED has no matching branch in Lua, so result == balance.Available
-		assert.Len(t, balances, 0,
+		assert.Len(t, balances.After, 0,
 			"destination should NOT be in returnBalances (CREDIT + CANCELED has no effect)")
 
 		t.Log("CANCELED destination CREDIT: balance correctly excluded from returnBalances")

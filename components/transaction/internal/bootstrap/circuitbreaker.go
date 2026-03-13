@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 )
 
@@ -61,62 +61,29 @@ func NewCircuitBreakerManager(
 	cbConfig rabbitmq.CircuitBreakerConfig,
 	stateListener libCircuitBreaker.StateChangeListener,
 ) (*CircuitBreakerManager, error) {
-	// Validate required parameters
-	if logger == nil {
-		return nil, ErrNilLogger
+	if err := validateCircuitBreakerManagerInputs(logger, rabbitConn, cbConfig); err != nil {
+		return nil, err
 	}
 
-	if rabbitConn == nil {
-		return nil, ErrNilRabbitConn
-	}
-
-	// Validate circuit breaker configuration bounds
-	if cbConfig.FailureRatio < 0 || cbConfig.FailureRatio > 1.0 {
-		return nil, ErrInvalidFailureRatio
-	}
-
-	if cbConfig.ConsecutiveFailures == 0 {
-		return nil, ErrInvalidConsecutiveFailures
-	}
-
-	if cbConfig.MaxRequests == 0 {
-		return nil, ErrInvalidMaxRequests
-	}
-
-	if cbConfig.Timeout <= 0 {
-		return nil, ErrInvalidTimeout
-	}
-
-	if cbConfig.Interval <= 0 {
-		return nil, ErrInvalidInterval
-	}
-
-	// MinRequests must be > 0 when FailureRatio is configured to ensure meaningful ratio calculation
-	if cbConfig.FailureRatio > 0 && cbConfig.MinRequests == 0 {
-		return nil, ErrInvalidMinRequests
-	}
+	cbConfig = normalizeCircuitBreakerConfig(cbConfig)
 
 	// Create circuit breaker manager
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager, err := libCircuitBreaker.NewManager(logger)
+	if err != nil {
+		return nil, err
+	}
 
 	// Initialize circuit breaker for RabbitMQ with provided config
-	cbManager.GetOrCreate(rabbitmq.CircuitBreakerServiceName, rabbitmq.RabbitMQCircuitBreakerConfig(cbConfig))
+	if _, err = cbManager.GetOrCreate(rabbitmq.CircuitBreakerServiceName, rabbitmq.RabbitMQCircuitBreakerConfig(cbConfig)); err != nil {
+		return nil, err
+	}
 
 	// Register state change listener if provided
 	if stateListener != nil {
 		cbManager.RegisterStateChangeListener(stateListener)
 	}
 
-	// Determine health check interval and timeout (use config values or defaults)
-	healthCheckInterval := cbConfig.HealthCheckInterval
-	if healthCheckInterval == 0 {
-		healthCheckInterval = DefaultHealthCheckInterval
-	}
-
-	healthCheckTimeout := cbConfig.HealthCheckTimeout
-	if healthCheckTimeout == 0 {
-		healthCheckTimeout = DefaultHealthCheckTimeout
-	}
+	healthCheckInterval, healthCheckTimeout := resolveHealthCheckSettings(cbConfig)
 
 	// Create underlying health checker
 	underlyingHealthChecker, err := libCircuitBreaker.NewHealthCheckerWithValidation(
@@ -151,15 +118,77 @@ func NewCircuitBreakerManager(
 	}, nil
 }
 
+func validateCircuitBreakerManagerInputs(
+	logger libLog.Logger,
+	rabbitConn *libRabbitmq.RabbitMQConnection,
+	cbConfig rabbitmq.CircuitBreakerConfig,
+) error {
+	if logger == nil {
+		return ErrNilLogger
+	}
+
+	if rabbitConn == nil {
+		return ErrNilRabbitConn
+	}
+
+	if cbConfig.FailureRatio < 0 || cbConfig.FailureRatio > 1.0 {
+		return ErrInvalidFailureRatio
+	}
+
+	if cbConfig.ConsecutiveFailures == 0 {
+		return ErrInvalidConsecutiveFailures
+	}
+
+	if cbConfig.MaxRequests == 0 {
+		return ErrInvalidMaxRequests
+	}
+
+	if cbConfig.Timeout <= 0 {
+		return ErrInvalidTimeout
+	}
+
+	if cbConfig.Interval <= 0 {
+		return ErrInvalidInterval
+	}
+
+	if cbConfig.FailureRatio > 0 && cbConfig.MinRequests == 0 {
+		return ErrInvalidMinRequests
+	}
+
+	return nil
+}
+
+func normalizeCircuitBreakerConfig(cbConfig rabbitmq.CircuitBreakerConfig) rabbitmq.CircuitBreakerConfig {
+	if cbConfig.FailureRatio == 0 {
+		cbConfig.MinRequests = 0
+	}
+
+	return cbConfig
+}
+
+func resolveHealthCheckSettings(cbConfig rabbitmq.CircuitBreakerConfig) (time.Duration, time.Duration) {
+	interval := cbConfig.HealthCheckInterval
+	if interval == 0 {
+		interval = DefaultHealthCheckInterval
+	}
+
+	timeout := cbConfig.HealthCheckTimeout
+	if timeout == 0 {
+		timeout = DefaultHealthCheckTimeout
+	}
+
+	return interval, timeout
+}
+
 // Start begins the health checker background process.
 func (cbm *CircuitBreakerManager) Start() {
-	cbm.logger.Info("Starting circuit breaker manager")
+	cbm.logger.Log(context.Background(), libLog.LevelInfo, "Starting circuit breaker manager")
 	cbm.HealthChecker.Start()
 }
 
 // Stop gracefully stops the health checker.
 func (cbm *CircuitBreakerManager) Stop() {
-	cbm.logger.Info("Stopping circuit breaker manager")
+	cbm.logger.Log(context.Background(), libLog.LevelInfo, "Stopping circuit breaker manager")
 	cbm.HealthChecker.Stop()
 }
 

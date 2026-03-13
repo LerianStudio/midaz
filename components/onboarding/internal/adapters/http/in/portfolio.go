@@ -7,9 +7,9 @@ package in
 import (
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -57,25 +57,21 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	logger.Infof("Initiating create of Portfolio with ledger ID: %s", ledgerID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of Portfolio with ledger ID: %s", ledgerID.String()))
 
 	payload := i.(*mmodel.CreatePortfolioInput)
 
-	logger.Infof("Request to create a Portfolio with details: %#v", payload)
-
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
+	logSafePayload(ctx, logger, "Request to create a portfolio", payload)
+	recordSafePayloadAttributes(span, payload)
 
 	portfolio, err := handler.Command.CreatePortfolio(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create Portfolio on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create Portfolio on command", err)
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully created Portfolio")
+	logger.Log(ctx, libLog.LevelInfo, "Successfully created Portfolio")
 
 	return http.Created(c, portfolio)
 }
@@ -96,7 +92,7 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 //	@Param			start_date		query		string																false	"Filter portfolios created on or after this date (format: YYYY-MM-DD)"
 //	@Param			end_date		query		string																false	"Filter portfolios created on or before this date (format: YYYY-MM-DD)"
 //	@Param			sort_order		query		string																false	"Sort direction for results based on creation date"	Enums(asc,desc)
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Portfolio,page=int,limit=int}	"Successfully retrieved portfolios list"
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Portfolio,page=int,limit=int}	"Successfully retrieved portfolios list"
 //	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error														"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error														"Forbidden access"
@@ -114,23 +110,20 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	logger.Infof("Get Portfolios with Organization: %s and Ledger ID: %s", organizationID.String(), ledgerID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Get Portfolios with Organization: %s and Ledger ID: %s", organizationID.String(), ledgerID.String()))
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert query params to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
-	pagination := libPostgres.Pagination{
+	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
 		Page:      headerParams.Page,
 		SortOrder: headerParams.SortOrder,
@@ -139,38 +132,38 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Infof("Initiating retrieval of all Portfolios by metadata")
+		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Portfolios by metadata")
 
 		portfolios, err := handler.Query.GetAllMetadataPortfolios(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Portfolios on query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Portfolios on query", err)
 
-			logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Portfolios, Error: %s", err.Error()))
 
 			return http.WithError(c, err)
 		}
 
-		logger.Infof("Successfully retrieved all Portfolios by metadata")
+		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Portfolios by metadata")
 
 		pagination.SetItems(portfolios)
 
 		return http.OK(c, pagination)
 	}
 
-	logger.Infof("Initiating retrieval of all Portfolios")
+	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Portfolios")
 
 	headerParams.Metadata = &bson.M{}
 
 	portfolios, err := handler.Query.GetAllPortfolio(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Portfolios on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Portfolios on query", err)
 
-		logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Portfolios, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved all Portfolios")
+	logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Portfolios")
 
 	pagination.SetItems(portfolios)
 
@@ -206,18 +199,18 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating retrieval of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String()))
 
 	portfolio, err := handler.Query.GetPortfolioByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Portfolio on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Portfolio on query", err)
 
-		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Portfolio with Ledger ID: %s and Portfolio ID: %s", ledgerID.String(), id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Portfolio with Ledger ID: %s and Portfolio ID: %s", ledgerID.String(), id.String()))
 
 	return http.OK(c, portfolio)
 }
@@ -255,35 +248,31 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating update of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String()))
 
 	payload := i.(*mmodel.UpdatePortfolioInput)
-	logger.Infof("Request to update an Portfolio with details: %#v", payload)
+	logSafePayload(ctx, logger, fmt.Sprintf("Request to update portfolio with ID: %s", id.String()), payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
-	_, err = handler.Command.UpdatePortfolioByID(ctx, organizationID, ledgerID, id, payload)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update Portfolio on command", err)
+	if _, err := handler.Command.UpdatePortfolioByID(ctx, organizationID, ledgerID, id, payload); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update Portfolio on command", err)
 
-		logger.Errorf("Failed to update Portfolio with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Portfolio with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
 	portfolio, err := handler.Query.GetPortfolioByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Portfolio on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Portfolio on query", err)
 
-		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully updated Portfolio with Ledger ID: %s and Portfolio ID: %s", ledgerID.String(), id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Portfolio with Ledger ID: %s and Portfolio ID: %s", ledgerID.String(), id.String()))
 
 	return http.OK(c, portfolio)
 }
@@ -317,17 +306,17 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating removal of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String()))
 
 	if err := handler.Command.DeletePortfolioByID(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to remove Portfolio on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to remove Portfolio on command", err)
 
-		logger.Errorf("Failed to remove Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to remove Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully removed Portfolio with Ledger ID: %s and Portfolio ID: %s", ledgerID.String(), id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully removed Portfolio with Ledger ID: %s and Portfolio ID: %s", ledgerID.String(), id.String()))
 
 	return http.NoContent(c)
 }
@@ -361,13 +350,13 @@ func (handler *PortfolioHandler) CountPortfolios(c *fiber.Ctx) error {
 
 	count, err := handler.Query.CountPortfolios(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count portfolios", err)
-		logger.Errorf("Failed to count portfolios, Error: %s", err.Error())
+		libOpentelemetry.HandleSpanError(span, "Failed to count portfolios", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to count portfolios, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully counted portfolios for organization %s and ledger %s: %d", organizationID, ledgerID, count)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully counted portfolios for organization %s and ledger %s: %d", organizationID, ledgerID, count))
 
 	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
 	c.Set(constant.ContentLength, "0")

@@ -8,8 +8,9 @@ import (
 	"database/sql"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 )
 
 // PortfolioPostgreSQLModel represents the entity Portfolio into SQL context in Database
@@ -57,7 +58,7 @@ func (t *PortfolioPostgreSQLModel) ToEntity() *mmodel.Portfolio {
 // FromEntity converts an entity.Portfolio to PortfolioPostgreSQLModel
 func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *mmodel.Portfolio) {
 	*t = PortfolioPostgreSQLModel{
-		ID:                libCommons.GenerateUUIDv7().String(),
+		ID:                uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Name:              portfolio.Name,
 		EntityID:          portfolio.EntityID,
 		LedgerID:          portfolio.LedgerID,

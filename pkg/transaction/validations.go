@@ -9,9 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LerianStudio/lib-commons/v3/commons"
-	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
-	"github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"github.com/LerianStudio/lib-commons/v4/commons"
+	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/shopspring/decimal"
 )
 
@@ -25,24 +26,24 @@ func ValidateBalancesRules(ctx context.Context, transaction Transaction, validat
 	if len(balances) != (len(validate.From) + len(validate.To)) {
 		err := commons.ValidateBusinessError(constant.ErrAccountIneligibility, "ValidateAccounts")
 
-		opentelemetry.HandleSpanBusinessErrorEvent(&spanValidateBalances, "validations.validate_balances_rules", err)
+		opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "validations.validate_balances_rules", err)
 
 		return err
 	}
 
 	for _, balance := range balances {
 		if err := validateFromBalances(balance, validate.From, validate.Asset, validate.Pending); err != nil {
-			opentelemetry.HandleSpanBusinessErrorEvent(&spanValidateBalances, "validations.validate_from_balances_", err)
+			opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "validations.validate_from_balances_", err)
 
-			logger.Errorf("validations.validate_from_balances_err: %s", err)
+			logger.Log(ctx, libLog.LevelError, "validations.validate_from_balances_err", libLog.Err(err))
 
 			return err
 		}
 
 		if err := validateToBalances(balance, validate.To, validate.Asset); err != nil {
-			opentelemetry.HandleSpanBusinessErrorEvent(&spanValidateBalances, "validations.validate_to_balances_", err)
+			opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "validations.validate_to_balances_", err)
 
-			logger.Errorf("validations.validate_to_balances_err: %s", err)
+			logger.Log(ctx, libLog.LevelError, "validations.validate_to_balances_err", libLog.Err(err))
 
 			return err
 		}
@@ -350,7 +351,7 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 
 	for i, source := range response.Sources {
 		if _, ok := response.To[ConcatAlias(i, source)]; ok {
-			logger.Errorf("ValidateSendSourceAndDistribute: Ambiguous transaction source and destination")
+			logger.Log(ctx, libLog.LevelError, "ValidateSendSourceAndDistribute: Ambiguous transaction source and destination")
 
 			return nil, commons.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
 		}
@@ -358,14 +359,14 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 
 	for i, destination := range response.Destinations {
 		if _, ok := response.From[ConcatAlias(i, destination)]; ok {
-			logger.Errorf("ValidateSendSourceAndDistribute: Ambiguous transaction source and destination")
+			logger.Log(ctx, libLog.LevelError, "ValidateSendSourceAndDistribute: Ambiguous transaction source and destination")
 
 			return nil, commons.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
 		}
 	}
 
 	if !sourcesTotal.Equal(destinationsTotal) || !destinationsTotal.Equal(response.Total) {
-		logger.Errorf("ValidateSendSourceAndDistribute: Transaction value mismatch")
+		logger.Log(ctx, libLog.LevelError, "ValidateSendSourceAndDistribute: Transaction value mismatch")
 
 		return nil, commons.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
 	}

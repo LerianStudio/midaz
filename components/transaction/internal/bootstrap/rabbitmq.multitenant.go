@@ -10,9 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	"github.com/LerianStudio/lib-commons/v3/commons/opentelemetry/metrics"
-	tmconsumer "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/consumer"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
+	tmconsumer "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/consumer"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
@@ -45,7 +45,9 @@ func (r *multiTenantConsumerRunnable) Run(_ *libCommons.Launcher) error {
 
 	// Emit tenant_consumers_active gauge: 1 = consumer running
 	if r.metricsFactory != nil {
-		r.metricsFactory.Gauge(utils.TenantConsumersActive).Set(ctx, 1)
+		if gauge, err := r.metricsFactory.Gauge(utils.TenantConsumersActive); err == nil {
+			_ = gauge.Set(ctx, 1)
+		}
 	}
 
 	<-ctx.Done()
@@ -53,7 +55,9 @@ func (r *multiTenantConsumerRunnable) Run(_ *libCommons.Launcher) error {
 
 	// Emit tenant_consumers_active gauge: 0 = consumer stopping
 	if r.metricsFactory != nil {
-		r.metricsFactory.Gauge(utils.TenantConsumersActive).Set(context.Background(), 0)
+		if gauge, err := r.metricsFactory.Gauge(utils.TenantConsumersActive); err == nil {
+			_ = gauge.Set(context.Background(), 0)
+		}
 	}
 
 	return r.consumer.Close()

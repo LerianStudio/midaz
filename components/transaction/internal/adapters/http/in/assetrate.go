@@ -5,19 +5,21 @@
 package in
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+
+	// AssetRateHandler struct contains a cqrs use case for managing asset rate.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// AssetRateHandler struct contains a cqrs use case for managing asset rate.
 type AssetRateHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
@@ -50,30 +52,34 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 	ctx, span := tracer.Start(ctx, "handler.create_asset_rate")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
-	logger.Infof("Initiating create of AssetRate with organization ID: %s", organizationID.String())
-	logger.Infof("Initiating create of AssetRate with ledger ID: %s", ledgerID.String())
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of AssetRate with organization ID: %s", organizationID.String()))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating create of AssetRate with ledger ID: %s", ledgerID.String()))
 
 	payload := p.(*assetrate.CreateAssetRateInput)
-	logger.Infof("Request to create an AssetRate with details: %#v", payload)
+	logSafePayload(ctx, logger, "Request to create an AssetRate", payload)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
 
 	assetRate, err := handler.Command.CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create AssetRate on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create AssetRate on command", err)
 
-		logger.Infof("Error to created Asset: %s", err.Error())
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Error to created Asset: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully created AssetRate")
+	logger.Log(ctx, libLog.LevelInfo, "Successfully created AssetRate")
 
 	return http.Created(c, assetRate)
 }
@@ -103,23 +109,34 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_external_id")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	externalID := c.Locals("external_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
 
-	logger.Infof("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and external ID: '%s'",
-		organizationID.String(), ledgerID.String(), externalID.String())
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	externalID, err := http.GetUUIDFromLocals(c, "external_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and external ID: '%s'",
+		organizationID.String(), ledgerID.String(), externalID.String()))
 
 	assetRate, err := handler.Query.GetAssetRateByExternalID(ctx, organizationID, ledgerID, externalID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get AssetRate on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get AssetRate on query", err)
 
-		logger.Infof("Error to get AssetRate: %s", err.Error())
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Error to get AssetRate: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully get AssetRate")
+	logger.Log(ctx, libLog.LevelInfo, "Successfully get AssetRate")
 
 	return http.OK(c, assetRate)
 }
@@ -142,7 +159,7 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 //	@Param			end_date		query		string		false	"End Date"			example	"2021-01-01"
 //	@Param			sort_order		query		string		false	"Sort Order"		Enums(asc,desc)
 //	@Param			cursor			query		string		false	"Cursor"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]assetrate.AssetRate,next_cursor=string,prev_cursor=string,limit=int}
+//	@Success		200				{object}	http.Pagination{items=[]assetrate.AssetRate,next_cursor=string,prev_cursor=string,limit=int}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -157,46 +174,51 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_asset_code")
 	defer span.End()
 
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
 	assetCode := c.Params("asset_code")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert query parameters to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
-	pagination := libPostgres.Pagination{
+	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
 		SortOrder: headerParams.SortOrder,
 		StartDate: headerParams.StartDate,
 		EndDate:   headerParams.EndDate,
 	}
 
-	logger.Infof("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and asset_code: '%s'",
-		organizationID.String(), ledgerID.String(), assetCode)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and asset_code: '%s'",
+		organizationID.String(), ledgerID.String(), assetCode))
 
 	headerParams.Metadata = &bson.M{}
 
 	assetRates, cur, err := handler.Query.GetAllAssetRatesByAssetCode(ctx, organizationID, ledgerID, assetCode, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get AssetRate on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get AssetRate on query", err)
 
-		logger.Infof("Error to get AssetRate: %s", err.Error())
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Error to get AssetRate: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully get AssetRate")
+	logger.Log(ctx, libLog.LevelInfo, "Successfully get AssetRate")
 
 	pagination.SetItems(assetRates)
 	pagination.SetCursor(cur.Next, cur.Prev)

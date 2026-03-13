@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
 	redisAdapter "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
@@ -1047,9 +1046,6 @@ func TestHandler_CreateLedger_Validation(t *testing.T) {
 		})
 	}
 }
-
-// Ensure libPostgres.Pagination is used (referenced in handler)
-var _ = libPostgres.Pagination{}
 
 func TestHandler_GetLedgerSettings(t *testing.T) {
 	tests := []struct {

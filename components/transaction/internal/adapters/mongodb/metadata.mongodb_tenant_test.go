@@ -8,9 +8,8 @@ import (
 	"context"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libMongo "github.com/LerianStudio/lib-commons/v3/commons/mongo"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -34,15 +33,12 @@ func newDisconnectedDatabase(t *testing.T, dbName string) *mongo.Database {
 	return client.Database(dbName)
 }
 
-// newPlaceholderConnection creates a *libMongo.MongoConnection with only a Logger
-// set (no ConnectionStringSource). This simulates the multi-tenant bootstrap mode
+// newPlaceholderConnection creates a minimal *libMongo.Client placeholder.
+// This simulates the multi-tenant bootstrap mode
 // where the static connection is a placeholder and the real database comes from
 // the per-request tenant context.
-func newPlaceholderConnection(dbName string) *libMongo.MongoConnection {
-	return &libMongo.MongoConnection{
-		Database: dbName,
-		Logger:   &libLog.NoneLogger{},
-	}
+func newPlaceholderConnection() *libMongo.Client {
+	return &libMongo.Client{}
 }
 
 // =============================================================================
@@ -54,22 +50,15 @@ func TestNewMetadataMongoDBRepository_NoPanic(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		connection *libMongo.MongoConnection
-		wantDB     string
+		connection *libMongo.Client
 	}{
 		{
 			name:       "placeholder_connection_for_multi_tenant_mode",
-			connection: newPlaceholderConnection("tenant-placeholder"),
-			wantDB:     "tenant-placeholder",
+			connection: newPlaceholderConnection(),
 		},
 		{
-			name: "connection_with_source_but_no_active_client",
-			connection: &libMongo.MongoConnection{
-				ConnectionStringSource: "mongodb://localhost:27017",
-				Database:               "mydb",
-				Logger:                 &libLog.NoneLogger{},
-			},
-			wantDB: "mydb",
+			name:       "connection_without_active_client",
+			connection: &libMongo.Client{},
 		},
 	}
 
@@ -83,7 +72,6 @@ func TestNewMetadataMongoDBRepository_NoPanic(t *testing.T) {
 
 				// Assert — struct fields are set correctly
 				require.NotNil(t, repo, "returned repository must not be nil")
-				assert.Equal(t, tt.wantDB, repo.Database, "Database field should match connection.Database")
 				assert.Same(t, tt.connection, repo.connection, "connection reference should be stored as-is")
 			})
 		})
@@ -122,10 +110,9 @@ func TestGetDatabase_ReturnsTenantDB_WhenContextHasTenantMongo(t *testing.T) {
 
 			// Arrange
 			repo := &MetadataMongoDBRepository{
-				connection: newPlaceholderConnection("static-db"),
-				Database:   "static-db",
+				connection: newPlaceholderConnection(),
 			}
-			ctx := tmcore.ContextWithModuleMongo(context.Background(), "transaction", tt.tenantDB)
+			ctx := tmcore.ContextWithTenantMongo(context.Background(), tt.tenantDB)
 
 			// Act
 			db, err := repo.getDatabase(ctx)
@@ -142,27 +129,12 @@ func TestGetDatabase_ReturnsTenantDB_WhenContextHasTenantMongo(t *testing.T) {
 func TestGetDatabase_TenantDB_TakesPrecedence_OverStaticConnection(t *testing.T) {
 	t.Parallel()
 
-	// Arrange — create a static connection that has a real client set
-	// (simulating a working single-tenant connection).
-	staticClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://localhost:27017"))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = staticClient.Disconnect(context.Background()) })
-
-	staticConn := &libMongo.MongoConnection{
-		ConnectionStringSource: "mongodb://localhost:27017",
-		Database:               "static-db",
-		Logger:                 &libLog.NoneLogger{},
-		DB:                     staticClient,
-		Connected:              true,
-	}
-
 	repo := &MetadataMongoDBRepository{
-		connection: staticConn,
-		Database:   "static-db",
+		connection: newPlaceholderConnection(),
 	}
 
 	tenantDB := newDisconnectedDatabase(t, "tenant-priority")
-	ctx := tmcore.ContextWithModuleMongo(context.Background(), "transaction", tenantDB)
+	ctx := tmcore.ContextWithTenantMongo(context.Background(), tenantDB)
 
 	// Act
 	db, dbErr := repo.getDatabase(ctx)
@@ -205,8 +177,7 @@ func TestGetDatabase_FallsBackToStaticConnection_WhenNoTenantContext(t *testing.
 			// Arrange — placeholder connection without a live MongoDB client.
 			// GetDB will attempt to connect and fail since there is no real server.
 			repo := &MetadataMongoDBRepository{
-				connection: newPlaceholderConnection("fallback-db"),
-				Database:   "fallback-db",
+				connection: newPlaceholderConnection(),
 			}
 
 			// Act
@@ -225,14 +196,13 @@ func TestGetDatabase_FallsBackToStaticConnection_WhenNoTenantContext(t *testing.
 func TestGetDatabase_FallsBack_WhenTenantDBIsNilInContext(t *testing.T) {
 	t.Parallel()
 
-	// Arrange — inject a nil *mongo.Database into context via ContextWithModuleMongo.
-	// ResolveModuleMongo checks db != nil, so it should return ErrTenantContextRequired,
+	// Arrange — inject a nil *mongo.Database into context via ContextWithTenantMongo.
+	// GetMongoFromContext checks db != nil, so it should return nil,
 	// which causes getDatabase to fall through to the static connection path.
-	ctx := tmcore.ContextWithModuleMongo(context.Background(), "transaction", nil)
+	ctx := tmcore.ContextWithTenantMongo(context.Background(), nil)
 
 	repo := &MetadataMongoDBRepository{
-		connection: newPlaceholderConnection("fallback-nil-db"),
-		Database:   "fallback-nil-db",
+		connection: newPlaceholderConnection(),
 	}
 
 	// Act
@@ -243,33 +213,29 @@ func TestGetDatabase_FallsBack_WhenTenantDBIsNilInContext(t *testing.T) {
 	assert.Nil(t, db, "database should be nil when both tenant context is nil and static connection fails")
 }
 
-func TestGetDatabase_StaticConnection_ReturnsDatabaseWithLowercaseName(t *testing.T) {
+func TestGetDatabase_StaticConnection_ReturnsErrorWithPlaceholder(t *testing.T) {
 	t.Parallel()
 
-	// Arrange — create a static connection with an already-connected client.
-	// This tests the happy path of the single-tenant fallback: static connection works.
-	staticClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://localhost:27017"))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = staticClient.Disconnect(context.Background()) })
-
-	staticConn := &libMongo.MongoConnection{
-		ConnectionStringSource: "mongodb://localhost:27017",
-		Database:               "MyDatabase",
-		Logger:                 &libLog.NoneLogger{},
-		DB:                     staticClient,
-		Connected:              true,
-	}
-
 	repo := &MetadataMongoDBRepository{
-		connection: staticConn,
-		Database:   "MyDatabase",
+		connection: newPlaceholderConnection(),
 	}
 
 	// Act — no tenant context, so falls back to static connection
 	db, dbErr := repo.getDatabase(context.Background())
 
-	// Assert — static path should succeed and lowercase the database name
-	require.NoError(t, dbErr, "getDatabase should not return error when static connection has a client")
-	require.NotNil(t, db, "returned database must not be nil")
-	assert.Equal(t, "mydatabase", db.Name(), "database name should be lowercased by strings.ToLower")
+	// Assert — placeholder static connection is not connected and should fail
+	require.Error(t, dbErr, "getDatabase should return error when static connection has no active client")
+	assert.Nil(t, db, "database should be nil when static connection is not connected")
+}
+
+func TestGetDatabase_RequireTenantWithoutContext_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMetadataMongoDBRepository(newPlaceholderConnection(), true)
+
+	db, err := repo.getDatabase(context.Background())
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "tenant mongo database missing from context")
+	assert.Nil(t, db, "database should be nil when fail-closed tenant mode has no tenant context")
 }

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -37,7 +37,7 @@ func TestGetAccountBalancesAtTimestamp(t *testing.T) {
 			name:            "Success_returns_balances_at_timestamp",
 			timestampOffset: -time.Hour,
 			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID, timestamp time.Time) []*mmodel.Balance {
-				balanceID := libCommons.GenerateUUIDv7()
+				balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 				balanceCreatedAt := time.Now().Add(-24 * time.Hour)
 				updatedAt := timestamp.Add(-30 * time.Minute)
 
@@ -126,8 +126,8 @@ func TestGetAccountBalancesAtTimestamp(t *testing.T) {
 			name:            "Multiple_balances_with_different_values",
 			timestampOffset: -time.Hour,
 			setupMocks: func(balanceRepo *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID, timestamp time.Time) []*mmodel.Balance {
-				balanceID1 := libCommons.GenerateUUIDv7()
-				balanceID2 := libCommons.GenerateUUIDv7()
+				balanceID1 := uuid.Must(libCommons.GenerateUUIDv7())
+				balanceID2 := uuid.Must(libCommons.GenerateUUIDv7())
 				balance1CreatedAt := time.Now().Add(-48 * time.Hour)
 				balance2CreatedAt := time.Now().Add(-24 * time.Hour)
 
@@ -201,9 +201,9 @@ func TestGetAccountBalancesAtTimestamp(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			t.Cleanup(ctrl.Finish)
 
-			orgID := libCommons.GenerateUUIDv7()
-			ledgerID := libCommons.GenerateUUIDv7()
-			accountID := libCommons.GenerateUUIDv7()
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			accountID := uuid.Must(libCommons.GenerateUUIDv7())
 			timestamp := time.Now().Add(tt.timestampOffset)
 
 			balanceRepo := balance.NewMockRepository(ctrl)
