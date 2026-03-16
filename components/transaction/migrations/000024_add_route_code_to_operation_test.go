@@ -25,11 +25,11 @@ func TestMigration000024_FilesExist(t *testing.T) {
 	}{
 		{
 			name:     "up migration file exists",
-			filename: "000024_add_accounting_entries_to_operation_route.up.sql",
+			filename: "000024_add_route_code_to_operation.up.sql",
 		},
 		{
 			name:     "down migration file exists",
-			filename: "000024_add_accounting_entries_to_operation_route.down.sql",
+			filename: "000024_add_route_code_to_operation.down.sql",
 		},
 	}
 
@@ -48,26 +48,26 @@ func TestMigration000024_FilesExist(t *testing.T) {
 	}
 }
 
-func TestMigration000024_UpSQL_AddAccountingEntriesColumn(t *testing.T) {
+func TestMigration000024_UpSQL_AddRouteCodeColumn(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
-	path := filepath.Join(dir, "000024_add_accounting_entries_to_operation_route.up.sql")
+	path := filepath.Join(dir, "000024_add_route_code_to_operation.up.sql")
 
 	content, err := os.ReadFile(path)
 	require.NoError(t, err, "up migration file must be readable")
 
 	sql := strings.ToLower(string(content))
 
-	// Must alter the operation_route table
-	assert.Contains(t, sql, "operation_route", "must target operation_route table")
+	// Must alter the operation table
+	assert.Contains(t, sql, "operation", "must target operation table")
 
-	// Must add the accounting_entries column
+	// Must add the route_code column
 	assert.Contains(t, sql, "add column", "must ADD COLUMN")
-	assert.Contains(t, sql, "accounting_entries", "must add accounting_entries column")
+	assert.Contains(t, sql, "route_code", "must add route_code column")
 
-	// Must use JSONB type
-	assert.Contains(t, sql, "jsonb", "column must be JSONB type")
+	// Must use TEXT type
+	assert.Contains(t, sql, "text", "column must be TEXT type")
 
 	// Must be idempotent with IF NOT EXISTS
 	assert.Contains(t, sql, "if not exists", "must use IF NOT EXISTS for idempotency")
@@ -79,23 +79,23 @@ func TestMigration000024_UpSQL_AddAccountingEntriesColumn(t *testing.T) {
 	assert.NotContains(t, sql, "default", "must NOT have a DEFAULT value")
 }
 
-func TestMigration000024_DownSQL_DropAccountingEntriesColumn(t *testing.T) {
+func TestMigration000024_DownSQL_DropRouteCodeColumn(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
-	path := filepath.Join(dir, "000024_add_accounting_entries_to_operation_route.down.sql")
+	path := filepath.Join(dir, "000024_add_route_code_to_operation.down.sql")
 
 	content, err := os.ReadFile(path)
 	require.NoError(t, err, "down migration file must be readable")
 
 	sql := strings.ToLower(string(content))
 
-	// Must target operation_route table
-	assert.Contains(t, sql, "operation_route", "must target operation_route table")
+	// Must target operation table
+	assert.Contains(t, sql, "operation", "must target operation table")
 
-	// Must drop the accounting_entries column
+	// Must drop the route_code column
 	assert.Contains(t, sql, "drop column", "must DROP COLUMN")
-	assert.Contains(t, sql, "accounting_entries", "must drop accounting_entries column")
+	assert.Contains(t, sql, "route_code", "must drop route_code column")
 
 	// Must be idempotent with IF EXISTS
 	assert.Contains(t, sql, "if exists", "must use IF EXISTS for idempotency")
@@ -105,7 +105,7 @@ func TestMigration000024_UpSQL_IdempotentRerun(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
-	path := filepath.Join(dir, "000024_add_accounting_entries_to_operation_route.up.sql")
+	path := filepath.Join(dir, "000024_add_route_code_to_operation.up.sql")
 
 	// Reading the file twice simulates verifying the SQL is safe to re-run.
 	// The actual idempotency guarantee comes from IF NOT EXISTS in the SQL.
@@ -123,7 +123,7 @@ func TestMigration000024_UpSQL_ExistingRowsUnaffected(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
-	path := filepath.Join(dir, "000024_add_accounting_entries_to_operation_route.up.sql")
+	path := filepath.Join(dir, "000024_add_route_code_to_operation.up.sql")
 
 	content, err := os.ReadFile(path)
 	require.NoError(t, err, "up migration file must be readable")
