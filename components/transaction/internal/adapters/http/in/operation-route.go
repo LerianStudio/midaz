@@ -76,6 +76,10 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 		return http.WithError(c, err)
 	}
 
+	if err := handler.validateAccountingEntries(ctx, payload.AccountingEntries); err != nil {
+		return http.WithError(c, err)
+	}
+
 	operationRoute, err := handler.Command.CreateOperationRoute(ctx, organizationID, ledgerID, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route", err)
@@ -199,6 +203,10 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 	logSafePayload(ctx, logger, "Request to update an operation route", payload)
 
 	if err := handler.validateAccountRule(ctx, payload.Account); err != nil {
+		return http.WithError(c, err)
+	}
+
+	if err := handler.validateAccountingEntries(ctx, payload.AccountingEntries); err != nil {
 		return http.WithError(c, err)
 	}
 
@@ -462,6 +470,115 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid account rule type, Error: %s", err.Error()))
 
 			return err
+		}
+	}
+
+	return nil
+}
+
+// validateAccountingEntries validates accounting entries configuration for operation routes.
+// It ensures each action entry has both debit and credit rubrics with non-empty code and description.
+func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Context, entries *mmodel.AccountingEntries) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_accounting_entries")
+	defer span.End()
+
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.accountingEntries", entries)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert accounting entries to JSON string", err)
+	}
+
+	if entries == nil {
+		return nil
+	}
+
+	entityName := reflect.TypeOf(mmodel.OperationRoute{}).Name()
+
+	actions := []struct {
+		name  string
+		entry *mmodel.AccountingEntry
+	}{
+		{"direct", entries.Direct},
+		{"hold", entries.Hold},
+		{"commit", entries.Commit},
+		{"cancel", entries.Cancel},
+		{"revert", entries.Revert},
+	}
+
+	for _, action := range actions {
+		if action.entry == nil {
+			continue
+		}
+
+		if action.entry.Debit == nil && action.entry.Credit == nil {
+			fieldPath := "accountingEntries." + action.name + ".debit, accountingEntries." + action.name + ".credit"
+
+			err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting entry missing both debit and credit", err)
+
+			logger.Warnf("Accounting entry %s missing both debit and credit, Error: %s", action.name, err.Error())
+
+			return err
+		}
+
+		if action.entry.Debit == nil {
+			fieldPath := "accountingEntries." + action.name + ".debit"
+
+			err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting entry missing debit", err)
+
+			logger.Warnf("Accounting entry %s missing debit, Error: %s", action.name, err.Error())
+
+			return err
+		}
+
+		if action.entry.Credit == nil {
+			fieldPath := "accountingEntries." + action.name + ".credit"
+
+			err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting entry missing credit", err)
+
+			logger.Warnf("Accounting entry %s missing credit, Error: %s", action.name, err.Error())
+
+			return err
+		}
+
+		rubrics := []struct {
+			side   string
+			rubric *mmodel.AccountingRubric
+		}{
+			{"debit", action.entry.Debit},
+			{"credit", action.entry.Credit},
+		}
+
+		for _, r := range rubrics {
+			if strings.TrimSpace(r.rubric.Code) == "" {
+				fieldPath := "accountingEntries." + action.name + "." + r.side + ".code"
+
+				err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
+
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting rubric code is empty", err)
+
+				logger.Warnf("Accounting entry %s %s code is empty, Error: %s", action.name, r.side, err.Error())
+
+				return err
+			}
+
+			if strings.TrimSpace(r.rubric.Description) == "" {
+				fieldPath := "accountingEntries." + action.name + "." + r.side + ".description"
+
+				err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
+
+				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting rubric description is empty", err)
+
+				logger.Warnf("Accounting entry %s %s description is empty, Error: %s", action.name, r.side, err.Error())
+
+				return err
+			}
 		}
 	}
 
