@@ -42,5 +42,6 @@ type OperationRedis struct {
 	BalanceAffected       bool            `json:"balanceAffected"`
 	Direction             string          `json:"direction,omitempty"`
 	RouteID               *string         `json:"routeId,omitempty"`
+	RouteCode             *string         `json:"routeCode,omitempty"`
 	Metadata              map[string]any  `json:"metadata,omitempty"`
 }

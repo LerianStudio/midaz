@@ -95,17 +95,28 @@ type randomTransactionRoute struct {
 func (randomTransactionRoute) Generate(r *rand.Rand, size int) reflect.Value {
 	operationTypes := []string{"source", "destination", "bidirectional"}
 
+	// Maps action name to AccountingEntries with the corresponding field set.
+	actionToEntries := map[string]*AccountingEntries{
+		"direct": {Direct: &AccountingEntry{}},
+		"hold":   {Hold: &AccountingEntry{}},
+		"commit": {Commit: &AccountingEntry{}},
+		"cancel": {Cancel: &AccountingEntry{}},
+		"revert": {Revert: &AccountingEntry{}},
+	}
+
 	numRoutes := r.Intn(size + 1)
 	routes := make([]OperationRoute, numRoutes)
 
 	for i := range routes {
 		actionIdx := r.Intn(len(constant.ValidActions))
 		opTypeIdx := r.Intn(len(operationTypes))
+		action := constant.ValidActions[actionIdx]
 
 		route := OperationRoute{
-			ID:            uuid.New(),
-			OperationType: operationTypes[opTypeIdx],
-			Action:        constant.ValidActions[actionIdx],
+			ID:                uuid.New(),
+			OperationType:     operationTypes[opTypeIdx],
+			Action:            action,
+			AccountingEntries: actionToEntries[action],
 		}
 
 		if r.Intn(2) == 0 {

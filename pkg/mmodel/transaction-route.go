@@ -38,13 +38,11 @@ type TransactionRoute struct {
 	DeletedAt *time.Time `json:"deletedAt" example:"2025-01-01T00:00:00Z"`
 } // @name TransactionRoute
 
-// OperationRouteActionInput represents an operation route with its associated action.
+// OperationRouteActionInput represents an operation route association in a transaction route.
 //
 // swagger:model OperationRouteActionInput
-// @Description OperationRouteActionInput payload for associating an operation route with an action in a transaction route.
+// @Description OperationRouteActionInput payload for associating an operation route with a transaction route.
 type OperationRouteActionInput struct {
-	// The action for this operation route association.
-	Action string `json:"action" validate:"required,oneof=direct hold commit cancel revert" example:"direct"`
 	// The unique identifier of the Operation Route.
 	OperationRouteID uuid.UUID `json:"operationRouteId" validate:"required" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
 } // @name OperationRouteActionInput
@@ -118,18 +116,21 @@ type TransactionRouteCache struct {
 
 // OperationRouteCache represents the cached data for a single operation route
 type OperationRouteCache struct {
-	Account       *AccountCache `json:"account,omitempty"`
-	OperationType string        `json:"operationType,omitempty"`
+	Account           *AccountCache      `json:"account,omitempty" msgpack:"account"`
+	OperationType     string             `json:"operationType,omitempty" msgpack:"operationType"`
+	Code              string             `json:"code,omitempty" msgpack:"code"`
+	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty" msgpack:"accountingEntries"`
 }
 
 // AccountCache represents the cached account rule data
 type AccountCache struct {
-	RuleType string `json:"ruleType"`
-	ValidIf  any    `json:"validIf"`
+	RuleType string `json:"ruleType" msgpack:"ruleType"`
+	ValidIf  any    `json:"validIf" msgpack:"validIf"`
 }
 
 // ToCache converts the transaction route into a cache structure for Redis storage.
-// Returns a TransactionRouteCache struct with routes grouped by action and categorized by operation type.
+// Actions are derived from each operation route's AccountingEntries: a route with
+// non-nil Direct and Hold entries appears in both Actions["direct"] and Actions["hold"].
 func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 	cacheData := TransactionRouteCache{
 		Actions: make(map[string]ActionRouteCache),
@@ -137,7 +138,9 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 
 	for _, operationRoute := range tr.OperationRoutes {
 		routeData := OperationRouteCache{
-			OperationType: operationRoute.OperationType,
+			OperationType:     operationRoute.OperationType,
+			Code:              operationRoute.Code,
+			AccountingEntries: operationRoute.AccountingEntries,
 		}
 
 		if operationRoute.Account != nil {
@@ -148,29 +151,31 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 		}
 
 		routeID := operationRoute.ID.String()
-		action := operationRoute.Action
+		actions := operationRoute.AccountingEntries.Actions()
 
-		switch operationRoute.OperationType {
-		case "source", "destination", "bidirectional":
-			actionCache, exists := cacheData.Actions[action]
-			if !exists {
-				actionCache = ActionRouteCache{
-					Source:        make(map[string]OperationRouteCache),
-					Destination:   make(map[string]OperationRouteCache),
-					Bidirectional: make(map[string]OperationRouteCache),
-				}
-			}
-
+		for _, action := range actions {
 			switch operationRoute.OperationType {
-			case "source":
-				actionCache.Source[routeID] = routeData
-			case "destination":
-				actionCache.Destination[routeID] = routeData
-			case "bidirectional":
-				actionCache.Bidirectional[routeID] = routeData
-			}
+			case "source", "destination", "bidirectional":
+				actionCache, exists := cacheData.Actions[action]
+				if !exists {
+					actionCache = ActionRouteCache{
+						Source:        make(map[string]OperationRouteCache),
+						Destination:   make(map[string]OperationRouteCache),
+						Bidirectional: make(map[string]OperationRouteCache),
+					}
+				}
 
-			cacheData.Actions[action] = actionCache
+				switch operationRoute.OperationType {
+				case "source":
+					actionCache.Source[routeID] = routeData
+				case "destination":
+					actionCache.Destination[routeID] = routeData
+				case "bidirectional":
+					actionCache.Bidirectional[routeID] = routeData
+				}
+
+				cacheData.Actions[action] = actionCache
+			}
 		}
 	}
 

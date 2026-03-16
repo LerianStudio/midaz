@@ -10,6 +10,73 @@ import (
 	"github.com/google/uuid"
 )
 
+// AccountingRubric represents an accounting rubric with a code and description.
+//
+// @Description AccountingRubric object containing the code and description for a debit or credit entry.
+type AccountingRubric struct {
+	// The accounting rubric code.
+	Code string `json:"code" validate:"required,max=50" msgpack:"code" example:"1001"`
+	// The accounting rubric description.
+	Description string `json:"description" validate:"required,max=250" msgpack:"description" example:"Cash"`
+} // @name AccountingRubric
+
+// AccountingEntry represents a single accounting entry with debit and credit rubrics.
+//
+// @Description AccountingEntry object containing debit and credit rubrics for a specific action.
+type AccountingEntry struct {
+	// The debit rubric for this entry.
+	Debit *AccountingRubric `json:"debit,omitempty" msgpack:"debit"`
+	// The credit rubric for this entry.
+	Credit *AccountingRubric `json:"credit,omitempty" msgpack:"credit"`
+} // @name AccountingEntry
+
+// AccountingEntries groups accounting entries by transaction action type.
+//
+// @Description AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert).
+type AccountingEntries struct {
+	// The accounting entry for the direct action.
+	Direct *AccountingEntry `json:"direct,omitempty" msgpack:"direct"`
+	// The accounting entry for the hold action.
+	Hold *AccountingEntry `json:"hold,omitempty" msgpack:"hold"`
+	// The accounting entry for the commit action.
+	Commit *AccountingEntry `json:"commit,omitempty" msgpack:"commit"`
+	// The accounting entry for the cancel action.
+	Cancel *AccountingEntry `json:"cancel,omitempty" msgpack:"cancel"`
+	// The accounting entry for the revert action.
+	Revert *AccountingEntry `json:"revert,omitempty" msgpack:"revert"`
+} // @name AccountingEntries
+
+// Actions returns the action names for which this AccountingEntries has non-nil entries.
+func (ae *AccountingEntries) Actions() []string {
+	if ae == nil {
+		return nil
+	}
+
+	var actions []string
+
+	if ae.Direct != nil {
+		actions = append(actions, "direct")
+	}
+
+	if ae.Hold != nil {
+		actions = append(actions, "hold")
+	}
+
+	if ae.Commit != nil {
+		actions = append(actions, "commit")
+	}
+
+	if ae.Cancel != nil {
+		actions = append(actions, "cancel")
+	}
+
+	if ae.Revert != nil {
+		actions = append(actions, "revert")
+	}
+
+	return actions
+}
+
 // OperationRoute is a struct designed to store Operation Route object data.
 //
 // swagger:model OperationRoute
@@ -31,6 +98,8 @@ type OperationRoute struct {
 	OperationType string `json:"operationType,omitempty" example:"source" enum:"source,destination,bidirectional"`
 	// The action associated with this operation route in the context of a transaction route.
 	Action string `json:"action,omitempty" example:"direct" enum:"direct,hold,commit,cancel,revert"`
+	// Optional accounting entries for each action type associated with this operation route.
+	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
@@ -55,6 +124,8 @@ type CreateOperationRouteInput struct {
 	Code string `json:"code,omitempty" validate:"max=100" example:"EXT-001"`
 	// The type of the operation route.
 	OperationType string `json:"operationType,omitempty" validate:"required" example:"source" enum:"source,destination,bidirectional"`
+	// Optional accounting entries for each action type associated with this operation route.
+	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
@@ -72,6 +143,8 @@ type UpdateOperationRouteInput struct {
 	Description string `json:"description,omitempty" validate:"max=250" example:"This operation route handles cash-in transactions from service charge collections"`
 	// External reference of the operation route.
 	Code string `json:"code,omitempty" validate:"max=100" example:"EXT-001"`
+	// Optional accounting entries for each action type associated with this operation route.
+	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.

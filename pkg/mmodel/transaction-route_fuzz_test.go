@@ -37,6 +37,16 @@ func FuzzToCache(f *testing.F) {
 	operationTypes := []string{"source", "destination", "bidirectional", "unknown"}
 	actions := []string{"direct", "hold", "commit", "cancel", "revert", ""}
 
+	// Maps action name to the AccountingEntries that causes that action to appear in ToCache.
+	actionToEntries := map[string]*AccountingEntries{
+		"direct": {Direct: &AccountingEntry{}},
+		"hold":   {Hold: &AccountingEntry{}},
+		"commit": {Commit: &AccountingEntry{}},
+		"cancel": {Cancel: &AccountingEntry{}},
+		"revert": {Revert: &AccountingEntry{}},
+		"":       nil, // empty action => no AccountingEntries => excluded from all buckets
+	}
+
 	f.Fuzz(func(t *testing.T, numRoutes int, opTypeIdx int, actionIdx int, hasAccount bool) {
 		// Clamp inputs
 		if numRoutes < 0 {
@@ -61,9 +71,10 @@ func FuzzToCache(f *testing.F) {
 		routes := make([]OperationRoute, numRoutes)
 		for i := range routes {
 			route := OperationRoute{
-				ID:            uuid.New(),
-				OperationType: opType,
-				Action:        action,
+				ID:                uuid.New(),
+				OperationType:     opType,
+				Action:            action,
+				AccountingEntries: actionToEntries[action],
 			}
 
 			if hasAccount {
@@ -93,8 +104,8 @@ func FuzzToCache(f *testing.F) {
 		}
 
 		// Verify route count preservation: sum of all routes across all actions == input count
-		// (only for known operation types)
-		if opType == "source" || opType == "destination" || opType == "bidirectional" {
+		// (only for known operation types with non-empty action)
+		if (opType == "source" || opType == "destination" || opType == "bidirectional") && action != "" {
 			totalInActions := 0
 			for _, ac := range cache.Actions {
 				totalInActions += len(ac.Source) + len(ac.Destination) + len(ac.Bidirectional)
@@ -207,6 +218,13 @@ func FuzzToCacheMsgpackRoundTrip(f *testing.F) {
 	f.Add(2, 4, true)
 
 	actions := []string{"direct", "hold", "commit", "cancel", "revert"}
+	roundtripActionToEntries := map[string]*AccountingEntries{
+		"direct": {Direct: &AccountingEntry{}},
+		"hold":   {Hold: &AccountingEntry{}},
+		"commit": {Commit: &AccountingEntry{}},
+		"cancel": {Cancel: &AccountingEntry{}},
+		"revert": {Revert: &AccountingEntry{}},
+	}
 
 	f.Fuzz(func(t *testing.T, numRoutes int, actionIdx int, hasAccount bool) {
 		if numRoutes < 0 {
@@ -226,9 +244,10 @@ func FuzzToCacheMsgpackRoundTrip(f *testing.F) {
 		routes := make([]OperationRoute, numRoutes)
 		for i := range routes {
 			route := OperationRoute{
-				ID:            uuid.New(),
-				OperationType: "source",
-				Action:        action,
+				ID:                uuid.New(),
+				OperationType:     "source",
+				Action:            action,
+				AccountingEntries: roundtripActionToEntries[action],
 			}
 
 			if hasAccount {

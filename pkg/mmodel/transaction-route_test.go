@@ -6,12 +6,9 @@ package mmodel
 
 import (
 	"reflect"
-	"sort"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -193,9 +190,10 @@ func TestTransactionRoute_ToCache(t *testing.T) {
 				Title:          "Unknown Type",
 				OperationRoutes: []OperationRoute{
 					{
-						ID:            uuid.New(),
-						OperationType: "unknown",
-						Action:        "direct",
+						ID:                uuid.New(),
+						OperationType:     "unknown",
+						Action:            "direct",
+						AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}},
 						Account: &AccountRule{
 							RuleType: "alias",
 							ValidIf:  "@unknown",
@@ -218,10 +216,9 @@ func TestTransactionRoute_ToCache(t *testing.T) {
 
 			assert.NotNil(t, cache.Actions)
 
-			// These tests use routes without an explicit Action, so they group under ""
-			defaultAction := cache.Actions[""]
-			assert.Len(t, defaultAction.Source, tt.wantSourceCount)
-			assert.Len(t, defaultAction.Destination, tt.wantDestCount)
+			// Routes without AccountingEntries are excluded from all action buckets,
+			// so the Actions map should be empty for all these cases.
+			assert.Len(t, cache.Actions, 0)
 		})
 	}
 }
@@ -239,8 +236,9 @@ func TestTransactionRoute_ToCache_AccountRuleMapping(t *testing.T) {
 		Title:          "Account Rule Test",
 		OperationRoutes: []OperationRoute{
 			{
-				ID:            routeID,
-				OperationType: "source",
+				ID:                routeID,
+				OperationType:     "source",
+				AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@test_alias",
@@ -254,8 +252,8 @@ func TestTransactionRoute_ToCache_AccountRuleMapping(t *testing.T) {
 	cache := transactionRoute.ToCache()
 
 	routeIDStr := routeID.String()
-	defaultAction := cache.Actions[""]
-	sourceRoute, exists := defaultAction.Source[routeIDStr]
+	directAction := cache.Actions["direct"]
+	sourceRoute, exists := directAction.Source[routeIDStr]
 	require.True(t, exists, "Source route should exist in cache")
 
 	require.NotNil(t, sourceRoute.Account)
@@ -494,50 +492,21 @@ func TestOperationRouteActionInput_Fields(t *testing.T) {
 	tests := []struct {
 		name            string
 		input           OperationRouteActionInput
-		expectedAction  string
 		expectedRouteID uuid.UUID
 	}{
 		{
-			name: "valid direct action",
+			name: "valid route ID",
 			input: OperationRouteActionInput{
-				Action:           "direct",
 				OperationRouteID: uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0a"),
 			},
-			expectedAction:  "direct",
 			expectedRouteID: uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0a"),
 		},
 		{
-			name: "valid hold action",
+			name: "another valid route ID",
 			input: OperationRouteActionInput{
-				Action:           "hold",
 				OperationRouteID: uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0b"),
 			},
-			expectedAction:  "hold",
 			expectedRouteID: uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0b"),
-		},
-		{
-			name: "valid commit action",
-			input: OperationRouteActionInput{
-				Action:           "commit",
-				OperationRouteID: uuid.New(),
-			},
-			expectedAction: "commit",
-		},
-		{
-			name: "valid cancel action",
-			input: OperationRouteActionInput{
-				Action:           "cancel",
-				OperationRouteID: uuid.New(),
-			},
-			expectedAction: "cancel",
-		},
-		{
-			name: "valid revert action",
-			input: OperationRouteActionInput{
-				Action:           "revert",
-				OperationRouteID: uuid.New(),
-			},
-			expectedAction: "revert",
 		},
 	}
 
@@ -545,11 +514,7 @@ func TestOperationRouteActionInput_Fields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.expectedAction, tt.input.Action)
-
-			if tt.expectedRouteID != uuid.Nil {
-				assert.Equal(t, tt.expectedRouteID, tt.input.OperationRouteID)
-			}
+			assert.Equal(t, tt.expectedRouteID, tt.input.OperationRouteID)
 		})
 	}
 }
@@ -570,27 +535,30 @@ func TestTransactionRoute_ToCache_WithActions(t *testing.T) {
 		Title:          "Multi-Action Route",
 		OperationRoutes: []OperationRoute{
 			{
-				ID:            sourceRouteID,
-				OperationType: "source",
-				Action:        "direct",
+				ID:                sourceRouteID,
+				OperationType:     "source",
+				Action:            "direct",
+				AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@source_direct",
 				},
 			},
 			{
-				ID:            destRouteID,
-				OperationType: "destination",
-				Action:        "direct",
+				ID:                destRouteID,
+				OperationType:     "destination",
+				Action:            "direct",
+				AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@dest_direct",
 				},
 			},
 			{
-				ID:            bidiRouteID,
-				OperationType: "bidirectional",
-				Action:        "hold",
+				ID:                bidiRouteID,
+				OperationType:     "bidirectional",
+				Action:            "hold",
+				AccountingEntries: &AccountingEntries{Hold: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@bidi_hold",
@@ -643,9 +611,10 @@ func TestTransactionRoute_ToCache_SingleAction(t *testing.T) {
 		Title:          "Single Action Route",
 		OperationRoutes: []OperationRoute{
 			{
-				ID:            routeID,
-				OperationType: "source",
-				Action:        "commit",
+				ID:                routeID,
+				OperationType:     "source",
+				Action:            "commit",
+				AccountingEntries: &AccountingEntries{Commit: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@commit_source",
@@ -691,11 +660,9 @@ func TestTransactionRoute_ToCache_EmptyAction(t *testing.T) {
 
 	cache := transactionRoute.ToCache()
 
-	// Empty action routes should still be grouped under empty string key
+	// Routes with empty Action and no AccountingEntries are excluded from all action buckets
 	require.NotNil(t, cache.Actions)
-	emptyActions, exists := cache.Actions[""]
-	require.True(t, exists)
-	assert.Len(t, emptyActions.Source, 1)
+	assert.Len(t, cache.Actions, 0, "route with empty Action and no AccountingEntries should not appear in any action bucket")
 }
 
 func TestTransactionRouteCache_Actions_RoundTrip(t *testing.T) {
@@ -755,33 +722,29 @@ func TestTransactionRouteCache_Actions_RoundTrip(t *testing.T) {
 func TestCreateTransactionRouteInput_OperationRoutesType(t *testing.T) {
 	t.Parallel()
 
+	id1 := uuid.New()
+	id2 := uuid.New()
+
 	input := CreateTransactionRouteInput{
 		Title: "Test Route",
 		OperationRoutes: []OperationRouteActionInput{
-			{
-				Action:           "direct",
-				OperationRouteID: uuid.New(),
-			},
-			{
-				Action:           "hold",
-				OperationRouteID: uuid.New(),
-			},
+			{OperationRouteID: id1},
+			{OperationRouteID: id2},
 		},
 	}
 
 	assert.Len(t, input.OperationRoutes, 2)
-	assert.Equal(t, "direct", input.OperationRoutes[0].Action)
-	assert.Equal(t, "hold", input.OperationRoutes[1].Action)
+	assert.Equal(t, id1, input.OperationRoutes[0].OperationRouteID)
+	assert.Equal(t, id2, input.OperationRoutes[1].OperationRouteID)
 }
 
 func TestUpdateTransactionRouteInput_OperationRoutesType(t *testing.T) {
 	t.Parallel()
 
+	id1 := uuid.New()
+
 	routes := []OperationRouteActionInput{
-		{
-			Action:           "commit",
-			OperationRouteID: uuid.New(),
-		},
+		{OperationRouteID: id1},
 	}
 
 	input := UpdateTransactionRouteInput{
@@ -791,7 +754,7 @@ func TestUpdateTransactionRouteInput_OperationRoutesType(t *testing.T) {
 
 	require.NotNil(t, input.OperationRoutes)
 	assert.Len(t, *input.OperationRoutes, 1)
-	assert.Equal(t, "commit", (*input.OperationRoutes)[0].Action)
+	assert.Equal(t, id1, (*input.OperationRoutes)[0].OperationRouteID)
 }
 
 func TestCreateTransactionRouteInput_OperationRouteIDs(t *testing.T) {
@@ -811,9 +774,9 @@ func TestCreateTransactionRouteInput_OperationRouteIDs(t *testing.T) {
 			input: CreateTransactionRouteInput{
 				Title: "Test",
 				OperationRoutes: []OperationRouteActionInput{
-					{Action: "direct", OperationRouteID: id1},
-					{Action: "hold", OperationRouteID: id2},
-					{Action: "commit", OperationRouteID: id3},
+					{OperationRouteID: id1},
+					{OperationRouteID: id2},
+					{OperationRouteID: id3},
 				},
 			},
 			expected: []uuid.UUID{id1, id2, id3},
@@ -823,7 +786,7 @@ func TestCreateTransactionRouteInput_OperationRouteIDs(t *testing.T) {
 			input: CreateTransactionRouteInput{
 				Title: "Single",
 				OperationRoutes: []OperationRouteActionInput{
-					{Action: "direct", OperationRouteID: id1},
+					{OperationRouteID: id1},
 				},
 			},
 			expected: []uuid.UUID{id1},
@@ -856,8 +819,8 @@ func TestUpdateTransactionRouteInput_OperationRouteIDs(t *testing.T) {
 	id2 := uuid.New()
 
 	routesWithTwo := []OperationRouteActionInput{
-		{Action: "direct", OperationRouteID: id1},
-		{Action: "hold", OperationRouteID: id2},
+		{OperationRouteID: id1},
+		{OperationRouteID: id2},
 	}
 	emptyRoutes := []OperationRouteActionInput{}
 
@@ -923,9 +886,9 @@ func TestTransactionRoute_ToCache_MultipleRoutesPerAction(t *testing.T) {
 		LedgerID:       uuid.New(),
 		Title:          "Multiple per action",
 		OperationRoutes: []OperationRoute{
-			{ID: src1, OperationType: "source", Action: "direct"},
-			{ID: src2, OperationType: "source", Action: "direct"},
-			{ID: dst1, OperationType: "destination", Action: "direct"},
+			{ID: src1, OperationType: "source", Action: "direct", AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}}},
+			{ID: src2, OperationType: "source", Action: "direct", AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}}},
+			{ID: dst1, OperationType: "destination", Action: "direct", AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}}},
 		},
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -945,12 +908,21 @@ func TestTransactionRoute_ToCache_AllActionTypes(t *testing.T) {
 	now := time.Now().UTC()
 	actions := []string{"direct", "hold", "commit", "cancel", "revert"}
 
+	actionToEntries := map[string]*AccountingEntries{
+		"direct": {Direct: &AccountingEntry{}},
+		"hold":   {Hold: &AccountingEntry{}},
+		"commit": {Commit: &AccountingEntry{}},
+		"cancel": {Cancel: &AccountingEntry{}},
+		"revert": {Revert: &AccountingEntry{}},
+	}
+
 	var routes []OperationRoute
 	for _, action := range actions {
 		routes = append(routes, OperationRoute{
-			ID:            uuid.New(),
-			OperationType: "source",
-			Action:        action,
+			ID:                uuid.New(),
+			OperationType:     "source",
+			Action:            action,
+			AccountingEntries: actionToEntries[action],
 		})
 	}
 
@@ -1007,9 +979,10 @@ func TestTransactionRoute_ToCache_BidirectionalWithAction(t *testing.T) {
 		Title:          "Bidirectional Route",
 		OperationRoutes: []OperationRoute{
 			{
-				ID:            bidiID,
-				OperationType: "bidirectional",
-				Action:        "hold",
+				ID:                bidiID,
+				OperationType:     "bidirectional",
+				Action:            "hold",
+				AccountingEntries: &AccountingEntries{Hold: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@bidi_account",
@@ -1040,9 +1013,10 @@ func TestTransactionRoute_ToCache_UnknownOperationType_NoPhantomAction(t *testin
 		Title:          "Unknown Type No Phantom",
 		OperationRoutes: []OperationRoute{
 			{
-				ID:            uuid.New(),
-				OperationType: "unknown",
-				Action:        "direct",
+				ID:                uuid.New(),
+				OperationType:     "unknown",
+				Action:            "direct",
+				AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@unknown",
@@ -1058,40 +1032,16 @@ func TestTransactionRoute_ToCache_UnknownOperationType_NoPhantomAction(t *testin
 	assert.Len(t, cache.Actions, 0, "unknown operation type must not create a phantom action entry")
 }
 
-func TestOperationRouteActionInput_OneofMatchesValidActions(t *testing.T) {
+func TestOperationRouteActionInput_RequiredRouteID(t *testing.T) {
 	t.Parallel()
 
 	typ := reflect.TypeOf(OperationRouteActionInput{})
-	field, ok := typ.FieldByName("Action")
-	require.True(t, ok, "OperationRouteActionInput must have an Action field")
+	field, ok := typ.FieldByName("OperationRouteID")
+	require.True(t, ok, "OperationRouteActionInput must have an OperationRouteID field")
 
 	tag := field.Tag.Get("validate")
-	require.NotEmpty(t, tag, "Action field must have a validate tag")
-
-	// Extract oneof values from the validate tag (e.g. "required,oneof=direct hold commit cancel revert")
-	var oneofValues []string
-
-	for _, part := range strings.Split(tag, ",") {
-		if strings.HasPrefix(part, "oneof=") {
-			oneofValues = strings.Fields(strings.TrimPrefix(part, "oneof="))
-
-			break
-		}
-	}
-
-	require.NotEmpty(t, oneofValues, "validate tag must contain a oneof constraint")
-
-	// Sort both slices for comparison
-	sortedOneof := make([]string, len(oneofValues))
-	copy(sortedOneof, oneofValues)
-	sort.Strings(sortedOneof)
-
-	sortedValid := make([]string, len(constant.ValidActions))
-	copy(sortedValid, constant.ValidActions)
-	sort.Strings(sortedValid)
-
-	assert.Equal(t, sortedValid, sortedOneof,
-		"oneof values in OperationRouteActionInput.Action validate tag must match constant.ValidActions")
+	require.NotEmpty(t, tag, "OperationRouteID field must have a validate tag")
+	assert.Contains(t, tag, "required", "OperationRouteID must be required")
 }
 
 func TestAccountCache(t *testing.T) {
