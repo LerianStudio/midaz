@@ -171,7 +171,7 @@ func FuzzKeyNamespacing_MGet(f *testing.F) {
 
 		// Use a fresh recording client — no panic must occur.
 		conn, recorder := newRecordingConnection(t)
-		repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+		repo := &RedisConsumerRepository{conn: conn}
 
 		if keyCount == 0 {
 			// Empty slice path — MGet returns early with an empty map.
@@ -311,7 +311,7 @@ func FuzzKeyNamespacing_QueueKey(f *testing.F) {
 		}
 
 		conn, recorder := newRecordingConnection(t)
-		repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+		repo := &RedisConsumerRepository{conn: conn}
 
 		// Exercise AddMessageToQueue — must not panic.
 		err := repo.AddMessageToQueue(ctx, msgKey, []byte("fuzz-payload"))

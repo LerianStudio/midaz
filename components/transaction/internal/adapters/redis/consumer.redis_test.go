@@ -163,8 +163,7 @@ func TestProcessBalanceAtomicOperation_NotedStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange - fail-on-call connection ensures Redis is never used for NOTED status
 			repo := &RedisConsumerRepository{
-				conn:               newFailOnCallConnection(t),
-				balanceSyncEnabled: true,
+				conn: newFailOnCallConnection(t),
 			}
 
 			organizationID := libCommons.GenerateUUIDv7()
@@ -220,8 +219,7 @@ func TestProcessBalanceAtomicOperation_NotedStatus(t *testing.T) {
 func TestScheduleBalanceSyncBatch_EmptyInput(t *testing.T) {
 	// Create a repository with nil connection to test early return
 	repo := &RedisConsumerRepository{
-		conn:               nil,
-		balanceSyncEnabled: true,
+		conn: nil,
 	}
 
 	// Empty input should return nil without any Redis call
@@ -241,39 +239,12 @@ func TestScheduleBalanceSyncBatch_EmptyInput_NoRedisCall(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockZAddNXConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockZAddNXConnection(mockClient),
 	}
 
 	err := repo.ScheduleBalanceSyncBatch(context.Background(), []redis.Z{})
 
 	assert.NoError(t, err, "Empty batch should return nil without error")
-}
-
-func TestScheduleBalanceSyncBatch_BalanceSyncDisabled_NoRedisCall(t *testing.T) {
-	// Create mock that fails if ZAddNX is called - regression test for feature toggle
-	mockClient := &mockZAddNXClient{
-		zAddNXFunc: func(_ context.Context, _ string, _ ...redis.Z) *redis.IntCmd {
-			t.Fatal("ZAddNX should not be called when balanceSyncEnabled is false")
-
-			return nil
-		},
-	}
-
-	repo := &RedisConsumerRepository{
-		conn:               newMockZAddNXConnection(mockClient),
-		balanceSyncEnabled: false, // Feature toggle disabled
-	}
-
-	// Non-empty members - should still skip Redis call due to disabled feature
-	members := []redis.Z{
-		{Score: float64(time.Now().Unix()), Member: "balance:key1"},
-		{Score: float64(time.Now().Unix()), Member: "balance:key2"},
-	}
-
-	err := repo.ScheduleBalanceSyncBatch(context.Background(), members)
-
-	assert.NoError(t, err, "Disabled feature should return nil without error")
 }
 
 func TestScheduleBalanceSyncBatch_SingleMember(t *testing.T) {
@@ -294,8 +265,7 @@ func TestScheduleBalanceSyncBatch_SingleMember(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockZAddNXConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockZAddNXConnection(mockClient),
 	}
 
 	members := []redis.Z{
@@ -325,8 +295,7 @@ func TestScheduleBalanceSyncBatch_MultipleMembers(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockZAddNXConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockZAddNXConnection(mockClient),
 	}
 
 	now := time.Now().Unix()
@@ -355,8 +324,7 @@ func TestScheduleBalanceSyncBatch_RedisError(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockZAddNXConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockZAddNXConnection(mockClient),
 	}
 
 	members := []redis.Z{
@@ -382,8 +350,7 @@ func TestScheduleBalanceSyncBatch_PartialAdd(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockZAddNXConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockZAddNXConnection(mockClient),
 	}
 
 	members := []redis.Z{
@@ -413,8 +380,7 @@ func TestScheduleBalanceSyncBatch_DeduplicatesWithMinScore(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockZAddNXConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockZAddNXConnection(mockClient),
 	}
 
 	// Input has duplicate members with different scores
@@ -453,8 +419,7 @@ func TestScheduleBalanceSyncBatch_DeduplicatesWithMinScore(t *testing.T) {
 func TestRemoveBalanceSyncKeysBatch_EmptyInput(t *testing.T) {
 	// Create a repository with nil connection to test early return
 	repo := &RedisConsumerRepository{
-		conn:               nil,
-		balanceSyncEnabled: true,
+		conn: nil,
 	}
 
 	// Empty input should return 0 without any Redis call
@@ -475,8 +440,7 @@ func TestRemoveBalanceSyncKeysBatch_EmptyInput_NoRedisCall(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockEvalConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockEvalConnection(mockClient),
 	}
 
 	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{})
@@ -506,8 +470,7 @@ func TestRemoveBalanceSyncKeysBatch_SingleKey(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockEvalConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockEvalConnection(mockClient),
 	}
 
 	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"balance:key1"})
@@ -534,8 +497,7 @@ func TestRemoveBalanceSyncKeysBatch_MultipleKeys(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockEvalConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockEvalConnection(mockClient),
 	}
 
 	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"key1", "key2", "key3"})
@@ -559,8 +521,7 @@ func TestRemoveBalanceSyncKeysBatch_PartialRemoval(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockEvalConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockEvalConnection(mockClient),
 	}
 
 	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"key1", "key2", "key3"})
@@ -582,8 +543,7 @@ func TestRemoveBalanceSyncKeysBatch_RedisError(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockEvalConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockEvalConnection(mockClient),
 	}
 
 	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"balance:key1"})
@@ -605,8 +565,7 @@ func TestRemoveBalanceSyncKeysBatch_UnexpectedResultType(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockEvalConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockEvalConnection(mockClient),
 	}
 
 	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"balance:key1"})
@@ -649,8 +608,7 @@ func TestRemoveBalanceSyncKeysBatch_ScriptUsesCorrectPattern(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockEvalConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockEvalConnection(mockClient),
 	}
 
 	_, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"balance:key1"})
@@ -674,8 +632,7 @@ func TestRemoveBalanceSyncKeysBatch_ZeroKeysRemoved(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockEvalConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockEvalConnection(mockClient),
 	}
 
 	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"nonexistent:key1", "nonexistent:key2"})

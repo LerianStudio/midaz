@@ -87,17 +87,14 @@ type RedisRepository interface {
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
 type RedisConsumerRepository struct {
-	conn               *libRedis.RedisConnection
-	balanceSyncEnabled bool
+	conn *libRedis.RedisConnection
 }
 
 // NewConsumerRedis returns a new instance of RedisRepository using the given Redis connection.
-// The balanceSyncEnabled parameter controls whether balance keys are scheduled for sync.
-// When false, the ZADD to the balance sync schedule is skipped in the Lua script.
-func NewConsumerRedis(rc *libRedis.RedisConnection, balanceSyncEnabled bool) (*RedisConsumerRepository, error) {
+// Balance sync is always enabled - balances are scheduled for sync to PostgreSQL.
+func NewConsumerRedis(rc *libRedis.RedisConnection) (*RedisConsumerRepository, error) {
 	r := &RedisConsumerRepository{
-		conn:               rc,
-		balanceSyncEnabled: balanceSyncEnabled,
+		conn: rc,
 	}
 	if _, err := r.conn.GetClient(context.Background()); err != nil {
 		return nil, fmt.Errorf("failed to connect on redis: %w", err)
@@ -359,7 +356,7 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 // ProcessBalanceAtomicOperation executes the balance_atomic_operation.lua script.
 //
 // BALANCE SCHEDULING FLOW:
-//  1. This method calls the Lua script with scheduleSync=1 (when balanceSyncEnabled is true)
+//  1. This method calls the Lua script with scheduleSync=1 (balance sync is always enabled)
 //  2. Lua script updates hot balance in Redis atomically
 //  3. Lua script calculates dueAt = now + ttl - 600 (10 min before expiry)
 //  4. Lua script calls ZADD to schedule:{transactions}:balance-sync with score=dueAt
@@ -435,11 +432,8 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
-	// Prepend balanceSyncEnabled flag (1 = enabled, 0 = disabled) to args
-	scheduleSync := 0
-	if rr.balanceSyncEnabled {
-		scheduleSync = 1
-	}
+	// Balance sync is always enabled - prepend flag (1 = enabled) to args
+	scheduleSync := 1
 
 	finalArgs := append([]any{scheduleSync}, args...)
 
@@ -791,7 +785,7 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, mem
 // This preserves the earliest scheduled sync time for each balance key.
 // Large inputs are processed in chunks of maxRedisBatchSize to prevent oversized payloads.
 func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error {
-	if len(members) == 0 || !rr.balanceSyncEnabled {
+	if len(members) == 0 {
 		return nil
 	}
 

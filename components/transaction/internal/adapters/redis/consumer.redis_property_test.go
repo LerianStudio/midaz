@@ -164,7 +164,7 @@ func TestProperty_MGet_OutputKeysMatchOriginal(t *testing.T) {
 		originalKeys := []string{keyA, keyB}
 
 		conn, _ := newRecordingConnection(t)
-		repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+		repo := &RedisConsumerRepository{conn: conn}
 
 		ctx := context.Background()
 		if tenantID != "" {

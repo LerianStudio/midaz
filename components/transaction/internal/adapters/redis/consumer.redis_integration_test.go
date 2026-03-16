@@ -80,8 +80,7 @@ func setupRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
 
 	// Create repository with balance sync enabled
 	repo := &RedisConsumerRepository{
-		conn:               conn,
-		balanceSyncEnabled: true,
+		conn: conn,
 	}
 
 	return &integrationTestInfra{
@@ -102,8 +101,7 @@ func setupRedisChaosInfra(t *testing.T) *chaosTestInfra {
 
 	// Create repository with balance sync enabled
 	repo := &RedisConsumerRepository{
-		conn:               conn,
-		balanceSyncEnabled: true,
+		conn: conn,
 	}
 
 	// Create chaos orchestrator
@@ -151,8 +149,7 @@ func setupRedisNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	}
 
 	proxyRepo := &RedisConsumerRepository{
-		conn:               proxyConn,
-		balanceSyncEnabled: true,
+		conn: proxyConn,
 	}
 
 	return &networkChaosTestInfra{

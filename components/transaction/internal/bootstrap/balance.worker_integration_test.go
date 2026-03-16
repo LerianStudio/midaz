@@ -40,7 +40,7 @@ func TestIntegration_BalanceSyncSchedule_FullFlow(t *testing.T) {
 	container := redistestutil.SetupContainer(t)
 	conn := redistestutil.CreateConnection(t, container.Addr)
 
-	repo, err := redis.NewConsumerRedis(conn, true)
+	repo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "should create Redis repository")
 
 	ctx := context.Background()
@@ -158,7 +158,7 @@ func TestIntegration_BalanceSyncSchedule_FutureKeys(t *testing.T) {
 	container := redistestutil.SetupContainer(t)
 	conn := redistestutil.CreateConnection(t, container.Addr)
 
-	repo, err := redis.NewConsumerRedis(conn, true)
+	repo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "should create Redis repository")
 
 	ctx := context.Background()
