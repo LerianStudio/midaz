@@ -2936,6 +2936,69 @@ components:
             type (e.g. "@cash_account"), array for account_type.
           type: object
       type: object
+    AccountingEntries:
+      description: AccountingEntries object containing optional accounting entries
+        for each action type (direct, hold, commit, cancel, revert).
+      properties:
+        cancel:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntry'
+          description: The accounting entry for the cancel action.
+          type: object
+        commit:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntry'
+          description: The accounting entry for the commit action.
+          type: object
+        direct:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntry'
+          description: The accounting entry for the direct action.
+          type: object
+        hold:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntry'
+          description: The accounting entry for the hold action.
+          type: object
+        revert:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntry'
+          description: The accounting entry for the revert action.
+          type: object
+      type: object
+    AccountingEntry:
+      description: AccountingEntry object containing debit and credit rubrics for
+        a specific action.
+      properties:
+        credit:
+          allOf:
+          - $ref: '#/components/schemas/AccountingRubric'
+          description: The credit rubric for this entry.
+          type: object
+        debit:
+          allOf:
+          - $ref: '#/components/schemas/AccountingRubric'
+          description: The debit rubric for this entry.
+          type: object
+      type: object
+    AccountingRubric:
+      description: AccountingRubric object containing the code and description for
+        a debit or credit entry.
+      properties:
+        code:
+          description: The accounting rubric code.
+          example: "1001"
+          maxLength: 50
+          type: string
+        description:
+          description: The accounting rubric description.
+          example: Cash
+          maxLength: 250
+          type: string
+      required:
+      - code
+      - description
+      type: object
     Amount:
       description: Amount is the struct designed to represent the amount of an operation.
         Contains the value and scale (decimal places) of an operation amount.
@@ -3359,6 +3422,7 @@ components:
         metadata:
           key: '{}'
         code: EXT-001
+        accountingEntries: '{}'
         description: This operation route handles cash-in transactions from service
           charge collections
         operationType: source
@@ -3369,6 +3433,12 @@ components:
           allOf:
           - $ref: '#/components/schemas/AccountRule'
           description: The account selection rule configuration.
+          type: object
+        accountingEntries:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntries'
+          description: Optional accounting entries for each action type associated
+            with this operation route.
           type: object
         code:
           description: External reference of the operation route.
@@ -3549,10 +3619,8 @@ components:
         metadata:
           key: '{}'
         operationRoutes:
-        - action: direct
-          operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        - action: direct
-          operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         description: Settlement route for service charges
         title: Charge Settlement
       properties:
@@ -3634,30 +3702,31 @@ components:
         as amount, balance before and after, transaction association, and metadata.
       example:
         accountAlias: '@person1'
-        amount: '{}'
         metadata:
           key: '{}'
-        assetCode: BRL
-        chartOfAccounts: "1000"
         description: Credit card operation
         type: DEBIT
         balanceAffected: true
-        transactionId: 00000000-0000-0000-0000-000000000000
-        ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
-        accountId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
-        deletedAt: 2021-01-01T00:00:00Z
-        route: 00000000-0000-0000-0000-000000000000
         routeId: 00000000-0000-0000-0000-000000000000
         balance: '{}'
         balanceAfter: '{}'
         id: 00000000-0000-0000-0000-000000000000
+        direction: debit
+        updatedAt: 2021-01-01T00:00:00Z
+        routeCode: ROUTE-001
+        amount: '{}'
+        assetCode: BRL
+        chartOfAccounts: "1000"
+        transactionId: 00000000-0000-0000-0000-000000000000
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        accountId: 00000000-0000-0000-0000-000000000000
+        deletedAt: 2021-01-01T00:00:00Z
+        route: 00000000-0000-0000-0000-000000000000
         balanceKey: asset-freeze
         balanceId: 00000000-0000-0000-0000-000000000000
-        direction: debit
         status: '{}'
-        updatedAt: 2021-01-01T00:00:00Z
       properties:
         accountAlias:
           description: |-
@@ -3802,6 +3871,14 @@ components:
           example: 00000000-0000-0000-0000-000000000000
           format: string
           type: string
+        routeCode:
+          description: |-
+            Operation route code for accounting traceability
+            example: ROUTE-001
+            maxLength: 100
+          example: ROUTE-001
+          maxLength: 100
+          type: string
         routeId:
           description: |-
             Route ID referencing the operation route that generated this operation
@@ -3846,6 +3923,7 @@ components:
         metadata:
           key: '{}'
         code: EXT-001
+        accountingEntries: '{}'
         description: This operation route handles cash-in transactions from service
           charge collections
         title: Cashin from service charge
@@ -3863,6 +3941,12 @@ components:
           allOf:
           - $ref: '#/components/schemas/AccountRule'
           description: The account selection rule configuration.
+          type: object
+        accountingEntries:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntries'
+          description: Optional accounting entries for each action type associated
+            with this operation route.
           type: object
         action:
           description: The action associated with this operation route in the context
@@ -3922,27 +4006,15 @@ components:
       type: object
     OperationRouteActionInput:
       description: OperationRouteActionInput payload for associating an operation
-        route with an action in a transaction route.
+        route with a transaction route.
       example:
-        action: direct
         operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
       properties:
-        action:
-          description: The action for this operation route association.
-          enum:
-          - direct
-          - hold
-          - commit
-          - cancel
-          - revert
-          example: direct
-          type: string
         operationRouteId:
           description: The unique identifier of the Operation Route.
           example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           type: string
       required:
-      - action
       - operationRouteId
       type: object
     Pagination:
@@ -4016,55 +4088,57 @@ components:
         deletedAt: 2021-01-01T00:00:00Z
         operations:
         - accountAlias: '@person1'
-          amount: '{}'
           metadata:
             key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
           description: Credit card operation
           type: DEBIT
           balanceAffected: true
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
           routeId: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
+          direction: debit
+          updatedAt: 2021-01-01T00:00:00Z
+          routeCode: ROUTE-001
+          amount: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          deletedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
-          direction: debit
           status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
         - accountAlias: '@person1'
-          amount: '{}'
           metadata:
             key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
           description: Credit card operation
           type: DEBIT
           balanceAffected: true
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
           routeId: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
+          direction: debit
+          updatedAt: 2021-01-01T00:00:00Z
+          routeCode: ROUTE-001
+          amount: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          deletedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
-          direction: debit
           status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
         route: 00000000-0000-0000-0000-000000000000
         id: 00000000-0000-0000-0000-000000000000
         status: '{}'
@@ -4217,6 +4291,7 @@ components:
         - metadata:
             key: '{}'
           code: EXT-001
+          accountingEntries: '{}'
           description: This operation route handles cash-in transactions from service
             charge collections
           title: Cashin from service charge
@@ -4232,6 +4307,7 @@ components:
         - metadata:
             key: '{}'
           code: EXT-001
+          accountingEntries: '{}'
           description: This operation route handles cash-in transactions from service
             charge collections
           title: Cashin from service charge
@@ -4347,6 +4423,7 @@ components:
         metadata:
           key: '{}'
         code: EXT-001
+        accountingEntries: '{}'
         description: This operation route handles cash-in transactions from service
           charge collections
         title: Cashin from service charge
@@ -4356,6 +4433,12 @@ components:
           allOf:
           - $ref: '#/components/schemas/AccountRule'
           description: The account selection rule configuration.
+          type: object
+        accountingEntries:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntries'
+          description: Optional accounting entries for each action type associated
+            with this operation route.
           type: object
         code:
           description: External reference of the operation route.
@@ -4410,10 +4493,8 @@ components:
         metadata:
           key: '{}'
         operationRoutes:
-        - action: direct
-          operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        - action: direct
-          operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         description: Settlement route for service charges
         title: Charge Settlement
       properties:
@@ -4721,55 +4802,57 @@ components:
         limit: 0
         items:
         - accountAlias: '@person1'
-          amount: '{}'
           metadata:
             key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
           description: Credit card operation
           type: DEBIT
           balanceAffected: true
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
           routeId: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
+          direction: debit
+          updatedAt: 2021-01-01T00:00:00Z
+          routeCode: ROUTE-001
+          amount: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          deletedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
-          direction: debit
           status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
         - accountAlias: '@person1'
-          amount: '{}'
           metadata:
             key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
           description: Credit card operation
           type: DEBIT
           balanceAffected: true
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
           routeId: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
+          direction: debit
+          updatedAt: 2021-01-01T00:00:00Z
+          routeCode: ROUTE-001
+          amount: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          deletedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
-          direction: debit
           status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
       properties:
         Pagination:
           $ref: '#/components/schemas/Pagination'
@@ -4854,6 +4937,7 @@ components:
         - metadata:
             key: '{}'
           code: EXT-001
+          accountingEntries: '{}'
           description: This operation route handles cash-in transactions from service
             charge collections
           title: Cashin from service charge
@@ -4869,6 +4953,7 @@ components:
         - metadata:
             key: '{}'
           code: EXT-001
+          accountingEntries: '{}'
           description: This operation route handles cash-in transactions from service
             charge collections
           title: Cashin from service charge
@@ -4921,6 +5006,7 @@ components:
           - metadata:
               key: '{}'
             code: EXT-001
+            accountingEntries: '{}'
             description: This operation route handles cash-in transactions from service
               charge collections
             title: Cashin from service charge
@@ -4936,6 +5022,7 @@ components:
           - metadata:
               key: '{}'
             code: EXT-001
+            accountingEntries: '{}'
             description: This operation route handles cash-in transactions from service
               charge collections
             title: Cashin from service charge
@@ -4962,6 +5049,7 @@ components:
           - metadata:
               key: '{}'
             code: EXT-001
+            accountingEntries: '{}'
             description: This operation route handles cash-in transactions from service
               charge collections
             title: Cashin from service charge
@@ -4977,6 +5065,7 @@ components:
           - metadata:
               key: '{}'
             code: EXT-001
+            accountingEntries: '{}'
             description: This operation route handles cash-in transactions from service
               charge collections
             title: Cashin from service charge
@@ -5040,55 +5129,57 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           operations:
           - accountAlias: '@person1'
-            amount: '{}'
             metadata:
               key: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
             description: Credit card operation
             type: DEBIT
             balanceAffected: true
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
             routeId: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
+            direction: debit
+            updatedAt: 2021-01-01T00:00:00Z
+            routeCode: ROUTE-001
+            amount: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
-            direction: debit
             status: '{}'
-            updatedAt: 2021-01-01T00:00:00Z
           - accountAlias: '@person1'
-            amount: '{}'
             metadata:
               key: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
             description: Credit card operation
             type: DEBIT
             balanceAffected: true
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
             routeId: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
+            direction: debit
+            updatedAt: 2021-01-01T00:00:00Z
+            routeCode: ROUTE-001
+            amount: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
-            direction: debit
             status: '{}'
-            updatedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
           id: 00000000-0000-0000-0000-000000000000
           status: '{}'
@@ -5110,55 +5201,57 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           operations:
           - accountAlias: '@person1'
-            amount: '{}'
             metadata:
               key: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
             description: Credit card operation
             type: DEBIT
             balanceAffected: true
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
             routeId: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
+            direction: debit
+            updatedAt: 2021-01-01T00:00:00Z
+            routeCode: ROUTE-001
+            amount: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
-            direction: debit
             status: '{}'
-            updatedAt: 2021-01-01T00:00:00Z
           - accountAlias: '@person1'
-            amount: '{}'
             metadata:
               key: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
             description: Credit card operation
             type: DEBIT
             balanceAffected: true
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
             routeId: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
+            direction: debit
+            updatedAt: 2021-01-01T00:00:00Z
+            routeCode: ROUTE-001
+            amount: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
-            direction: debit
             status: '{}'
-            updatedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
           id: 00000000-0000-0000-0000-000000000000
           status: '{}'

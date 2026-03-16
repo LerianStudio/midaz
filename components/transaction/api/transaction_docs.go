@@ -3740,6 +3740,96 @@ const docTemplatetransaction = `{
                 }
             }
         },
+        "AccountingEntries": {
+            "description": "AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert).",
+            "type": "object",
+            "properties": {
+                "cancel": {
+                    "description": "The accounting entry for the cancel action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
+                "commit": {
+                    "description": "The accounting entry for the commit action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
+                "direct": {
+                    "description": "The accounting entry for the direct action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
+                "hold": {
+                    "description": "The accounting entry for the hold action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
+                "revert": {
+                    "description": "The accounting entry for the revert action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                }
+            }
+        },
+        "AccountingEntry": {
+            "description": "AccountingEntry object containing debit and credit rubrics for a specific action.",
+            "type": "object",
+            "properties": {
+                "credit": {
+                    "description": "The credit rubric for this entry.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingRubric"
+                        }
+                    ]
+                },
+                "debit": {
+                    "description": "The debit rubric for this entry.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingRubric"
+                        }
+                    ]
+                }
+            }
+        },
+        "AccountingRubric": {
+            "description": "AccountingRubric object containing the code and description for a debit or credit entry.",
+            "type": "object",
+            "required": [
+                "code",
+                "description"
+            ],
+            "properties": {
+                "code": {
+                    "description": "The accounting rubric code.",
+                    "type": "string",
+                    "maxLength": 50,
+                    "example": "1001"
+                },
+                "description": {
+                    "description": "The accounting rubric description.",
+                    "type": "string",
+                    "maxLength": 250,
+                    "example": "Cash"
+                }
+            }
+        },
         "Amount": {
             "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
             "type": "object",
@@ -4042,6 +4132,14 @@ const docTemplatetransaction = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/AccountRule"
+                        }
+                    ]
+                },
+                "accountingEntries": {
+                    "description": "Optional accounting entries for each action type associated with this operation route.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntries"
                         }
                     ]
                 },
@@ -4450,6 +4548,12 @@ const docTemplatetransaction = `{
                     "format": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
+                "routeCode": {
+                    "description": "Operation route code for accounting traceability\nexample: ROUTE-001\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "ROUTE-001"
+                },
                 "routeId": {
                     "description": "Route ID referencing the operation route that generated this operation\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
@@ -4493,6 +4597,14 @@ const docTemplatetransaction = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/AccountRule"
+                        }
+                    ]
+                },
+                "accountingEntries": {
+                    "description": "Optional accounting entries for each action type associated with this operation route.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntries"
                         }
                     ]
                 },
@@ -4562,25 +4674,12 @@ const docTemplatetransaction = `{
             }
         },
         "OperationRouteActionInput": {
-            "description": "OperationRouteActionInput payload for associating an operation route with an action in a transaction route.",
+            "description": "OperationRouteActionInput payload for associating an operation route with a transaction route.",
             "type": "object",
             "required": [
-                "action",
                 "operationRouteId"
             ],
             "properties": {
-                "action": {
-                    "description": "The action for this operation route association.",
-                    "type": "string",
-                    "enum": [
-                        "direct",
-                        "hold",
-                        "commit",
-                        "cancel",
-                        "revert"
-                    ],
-                    "example": "direct"
-                },
                 "operationRouteId": {
                     "description": "The unique identifier of the Operation Route.",
                     "type": "string",
@@ -4850,6 +4949,14 @@ const docTemplatetransaction = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/AccountRule"
+                        }
+                    ]
+                },
+                "accountingEntries": {
+                    "description": "Optional accounting entries for each action type associated with this operation route.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntries"
                         }
                     ]
                 },

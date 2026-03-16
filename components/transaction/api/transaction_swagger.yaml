@@ -12,6 +12,62 @@ definitions:
         description: The rule condition for account selection. String for alias type
           (e.g. "@cash_account"), array for account_type.
     type: object
+  AccountingEntries:
+    description: AccountingEntries object containing optional accounting entries for
+      each action type (direct, hold, commit, cancel, revert).
+    properties:
+      cancel:
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+        description: The accounting entry for the cancel action.
+      commit:
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+        description: The accounting entry for the commit action.
+      direct:
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+        description: The accounting entry for the direct action.
+      hold:
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+        description: The accounting entry for the hold action.
+      revert:
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+        description: The accounting entry for the revert action.
+    type: object
+  AccountingEntry:
+    description: AccountingEntry object containing debit and credit rubrics for a
+      specific action.
+    properties:
+      credit:
+        allOf:
+        - $ref: '#/definitions/AccountingRubric'
+        description: The credit rubric for this entry.
+      debit:
+        allOf:
+        - $ref: '#/definitions/AccountingRubric'
+        description: The debit rubric for this entry.
+    type: object
+  AccountingRubric:
+    description: AccountingRubric object containing the code and description for a
+      debit or credit entry.
+    properties:
+      code:
+        description: The accounting rubric code.
+        example: "1001"
+        maxLength: 50
+        type: string
+      description:
+        description: The accounting rubric description.
+        example: Cash
+        maxLength: 250
+        type: string
+    required:
+    - code
+    - description
+    type: object
   Amount:
     description: Amount is the struct designed to represent the amount of an operation.
       Contains the value and scale (decimal places) of an operation amount.
@@ -391,6 +447,11 @@ definitions:
         allOf:
         - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
+      accountingEntries:
+        allOf:
+        - $ref: '#/definitions/AccountingEntries'
+        description: Optional accounting entries for each action type associated with
+          this operation route.
       code:
         description: External reference of the operation route.
         example: EXT-001
@@ -862,6 +923,14 @@ definitions:
         example: 00000000-0000-0000-0000-000000000000
         format: string
         type: string
+      routeCode:
+        description: |-
+          Operation route code for accounting traceability
+          example: ROUTE-001
+          maxLength: 100
+        example: ROUTE-001
+        maxLength: 100
+        type: string
       routeId:
         description: |-
           Route ID referencing the operation route that generated this operation
@@ -906,6 +975,11 @@ definitions:
         allOf:
         - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
+      accountingEntries:
+        allOf:
+        - $ref: '#/definitions/AccountingEntries'
+        description: Optional accounting entries for each action type associated with
+          this operation route.
       action:
         description: The action associated with this operation route in the context
           of a transaction route.
@@ -963,24 +1037,13 @@ definitions:
     type: object
   OperationRouteActionInput:
     description: OperationRouteActionInput payload for associating an operation route
-      with an action in a transaction route.
+      with a transaction route.
     properties:
-      action:
-        description: The action for this operation route association.
-        enum:
-        - direct
-        - hold
-        - commit
-        - cancel
-        - revert
-        example: direct
-        type: string
       operationRouteId:
         description: The unique identifier of the Operation Route.
         example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         type: string
     required:
-    - action
     - operationRouteId
     type: object
   Pagination:
@@ -1255,6 +1318,11 @@ definitions:
         allOf:
         - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
+      accountingEntries:
+        allOf:
+        - $ref: '#/definitions/AccountingEntries'
+        description: Optional accounting entries for each action type associated with
+          this operation route.
       code:
         description: External reference of the operation route.
         example: EXT-001
