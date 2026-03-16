@@ -119,18 +119,20 @@ func makeTestRoute() *mmodel.TransactionRoute {
 		Description:    "Route for chaos testing cache writes",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            sourceID,
-				OperationType: "source",
-				Action:        "direct",
+				ID:                sourceID,
+				OperationType:     "source",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@chaos_source",
 				},
 			},
 			{
-				ID:            destID,
-				OperationType: "destination",
-				Action:        "direct",
+				ID:                destID,
+				OperationType:     "destination",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@chaos_dest",

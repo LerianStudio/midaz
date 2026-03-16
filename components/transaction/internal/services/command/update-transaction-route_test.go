@@ -222,8 +222,8 @@ func TestUpdateTransactionRouteWithOperationRoutes(t *testing.T) {
 		Title:       "Updated Route",
 		Description: "Updated Description",
 		OperationRoutes: &[]mmodel.OperationRouteActionInput{
-			{Action: "direct", OperationRouteID: opRouteID1},
-			{Action: "direct", OperationRouteID: opRouteID2},
+			{OperationRouteID: opRouteID1},
+			{OperationRouteID: opRouteID2},
 		},
 		Metadata: map[string]any{"key": "value"},
 	}
@@ -234,8 +234,8 @@ func TestUpdateTransactionRouteWithOperationRoutes(t *testing.T) {
 	currentTransactionRoute := &mmodel.TransactionRoute{
 		ID: transactionRouteID,
 		OperationRoutes: []mmodel.OperationRoute{
-			{ID: existingOpRouteID1, OperationType: "source", Action: "direct"},
-			{ID: existingOpRouteID2, OperationType: "destination", Action: "direct"},
+			{ID: existingOpRouteID1, OperationType: "source", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+			{ID: existingOpRouteID2, OperationType: "destination", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
 		},
 	}
 
@@ -280,21 +280,21 @@ func TestUpdateTransactionRouteWithOperationRoutes(t *testing.T) {
 			assert.Len(t, toAdd, 2)
 			assert.Len(t, toRemove, 2)
 
-			addIDs := make(map[uuid.UUID]string)
+			addIDs := make(map[uuid.UUID]bool)
 			for _, entry := range toAdd {
-				addIDs[entry.OperationRouteID] = entry.Action
+				addIDs[entry.OperationRouteID] = true
 			}
 
-			assert.Equal(t, "direct", addIDs[opRouteID1])
-			assert.Equal(t, "direct", addIDs[opRouteID2])
+			assert.True(t, addIDs[opRouteID1])
+			assert.True(t, addIDs[opRouteID2])
 
-			removeIDs := make(map[uuid.UUID]string)
+			removeIDs := make(map[uuid.UUID]bool)
 			for _, entry := range toRemove {
-				removeIDs[entry.OperationRouteID] = entry.Action
+				removeIDs[entry.OperationRouteID] = true
 			}
 
-			assert.Equal(t, "direct", removeIDs[existingOpRouteID1])
-			assert.Equal(t, "direct", removeIDs[existingOpRouteID2])
+			assert.True(t, removeIDs[existingOpRouteID1])
+			assert.True(t, removeIDs[existingOpRouteID2])
 
 			return transactionRoute, nil
 		}).
@@ -329,7 +329,7 @@ func TestUpdateTransactionRouteInvalidOperationRouteCount(t *testing.T) {
 
 	// Only 1 operation route instead of required minimum 2
 	invalidOperationRouteInputs := []mmodel.OperationRouteActionInput{
-		{Action: "direct", OperationRouteID: uuid.New()},
+		{OperationRouteID: uuid.New()},
 	}
 
 	input := &mmodel.UpdateTransactionRouteInput{
@@ -420,8 +420,8 @@ func TestUpdateTransactionRouteInvalidOperationRouteTypes(t *testing.T) {
 	opRouteID2 := uuid.New()
 
 	operationRouteInputs := []mmodel.OperationRouteActionInput{
-		{Action: "direct", OperationRouteID: opRouteID1},
-		{Action: "direct", OperationRouteID: opRouteID2},
+		{OperationRouteID: opRouteID1},
+		{OperationRouteID: opRouteID2},
 	}
 
 	input := &mmodel.UpdateTransactionRouteInput{
@@ -462,7 +462,7 @@ func TestUpdateTransactionRouteInvalidOperationRouteTypes(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "direct")
+	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "")
 	assert.Equal(t, expectedBusinessError, err)
 }
 
@@ -478,10 +478,10 @@ func TestUpdateTransactionRouteWithMultipleOperationRoutes(t *testing.T) {
 	opID4 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	operationRouteInputs := []mmodel.OperationRouteActionInput{
-		{Action: "direct", OperationRouteID: opID1},
-		{Action: "direct", OperationRouteID: opID2},
-		{Action: "direct", OperationRouteID: opID3},
-		{Action: "direct", OperationRouteID: opID4},
+		{OperationRouteID: opID1},
+		{OperationRouteID: opID2},
+		{OperationRouteID: opID3},
+		{OperationRouteID: opID4},
 	}
 
 	input := &mmodel.UpdateTransactionRouteInput{
@@ -564,10 +564,9 @@ func TestUpdateTransactionRouteWithMultipleOperationRoutes(t *testing.T) {
 	assert.Len(t, result.OperationRoutes, 4)
 }
 
-// TestHandleOperationRouteUpdatesDiffsByActionTuples tests that the diff logic considers
-// (routeID, action) composite keys rather than just routeID. The same operation route with different
-// actions must be treated as distinct entries.
-func TestHandleOperationRouteUpdatesDiffsByActionTuples(t *testing.T) {
+// TestHandleOperationRouteUpdatesDiffsByRouteID tests that the diff logic uses
+// operation route IDs to determine which relationships to add and remove.
+func TestHandleOperationRouteUpdatesDiffsByRouteID(t *testing.T) {
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	transactionRouteID := libCommons.GenerateUUIDv7()
@@ -575,7 +574,7 @@ func TestHandleOperationRouteUpdatesDiffsByActionTuples(t *testing.T) {
 	opRouteSource := libCommons.GenerateUUIDv7()
 	opRouteDest := libCommons.GenerateUUIDv7()
 
-	// Currently the transaction route has opRouteSource/direct, opRouteDest/direct
+	// Currently the transaction route has these operation routes
 	currentTransactionRoute := &mmodel.TransactionRoute{
 		ID: transactionRouteID,
 		OperationRoutes: []mmodel.OperationRoute{
@@ -584,11 +583,10 @@ func TestHandleOperationRouteUpdatesDiffsByActionTuples(t *testing.T) {
 		},
 	}
 
-	// New desired state: change action from "direct" to "hold" for both routes
-	// This keeps per-action validation valid (hold has source + destination)
+	// New desired state: same routes, no diff expected
 	newInputs := []mmodel.OperationRouteActionInput{
-		{Action: "hold", OperationRouteID: opRouteSource},
-		{Action: "hold", OperationRouteID: opRouteDest},
+		{OperationRouteID: opRouteSource},
+		{OperationRouteID: opRouteDest},
 	}
 
 	operationRoutes := []*mmodel.OperationRoute{
@@ -621,26 +619,9 @@ func TestHandleOperationRouteUpdatesDiffsByActionTuples(t *testing.T) {
 		EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, transactionRouteID, gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, orgID, lID, id uuid.UUID, tr *mmodel.TransactionRoute, toAdd, toRemove []mmodel.OperationRouteActionInput) (*mmodel.TransactionRoute, error) {
-			// The composite key diff detects that (opRouteSource, "direct") and (opRouteDest, "direct")
-			// should be removed and (opRouteSource, "hold") and (opRouteDest, "hold") should be added.
-			assert.Len(t, toAdd, 2, "expected 2 entries to add (both routes with hold action)")
-			assert.Len(t, toRemove, 2, "expected 2 entries to remove (both routes with direct action)")
-
-			addActions := make(map[uuid.UUID]string)
-			for _, entry := range toAdd {
-				addActions[entry.OperationRouteID] = entry.Action
-			}
-
-			assert.Equal(t, "hold", addActions[opRouteSource])
-			assert.Equal(t, "hold", addActions[opRouteDest])
-
-			removeActions := make(map[uuid.UUID]string)
-			for _, entry := range toRemove {
-				removeActions[entry.OperationRouteID] = entry.Action
-			}
-
-			assert.Equal(t, "direct", removeActions[opRouteSource])
-			assert.Equal(t, "direct", removeActions[opRouteDest])
+			// Same route IDs in both existing and new: no changes
+			assert.Empty(t, toAdd, "expected no additions when route IDs match")
+			assert.Empty(t, toRemove, "expected no removals when route IDs match")
 
 			return &mmodel.TransactionRoute{
 				ID:          transactionRouteID,
@@ -675,9 +656,9 @@ func TestHandleOperationRouteUpdatesDiffsByActionTuples(t *testing.T) {
 	assert.NotNil(t, result)
 }
 
-// TestHandleOperationRouteUpdatesSameRouteMultipleActions tests that the same operation route ID
-// can appear with different actions and all are preserved as distinct (routeID, action) tuples.
-func TestHandleOperationRouteUpdatesSameRouteMultipleActions(t *testing.T) {
+// TestHandleOperationRouteUpdatesDuplicateInputsDeduplication tests that duplicate route IDs
+// in the input are deduplicated before computing the diff.
+func TestHandleOperationRouteUpdatesDuplicateInputsDeduplication(t *testing.T) {
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
 	transactionRouteID := libCommons.GenerateUUIDv7()
@@ -691,12 +672,12 @@ func TestHandleOperationRouteUpdatesSameRouteMultipleActions(t *testing.T) {
 		OperationRoutes: []mmodel.OperationRoute{},
 	}
 
-	// New desired state: opRouteSource with "direct" AND "hold", opRouteDest with "direct" AND "hold"
+	// New desired state: duplicate inputs should be deduplicated to 2 unique routes
 	newInputs := []mmodel.OperationRouteActionInput{
-		{Action: "direct", OperationRouteID: opRouteSource},
-		{Action: "hold", OperationRouteID: opRouteSource},
-		{Action: "direct", OperationRouteID: opRouteDest},
-		{Action: "hold", OperationRouteID: opRouteDest},
+		{OperationRouteID: opRouteSource},
+		{OperationRouteID: opRouteSource}, // duplicate
+		{OperationRouteID: opRouteDest},
+		{OperationRouteID: opRouteDest}, // duplicate
 	}
 
 	operationRoutes := []*mmodel.OperationRoute{
@@ -729,14 +710,14 @@ func TestHandleOperationRouteUpdatesSameRouteMultipleActions(t *testing.T) {
 		EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, transactionRouteID, gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, orgID, lID, id uuid.UUID, tr *mmodel.TransactionRoute, toAdd, toRemove []mmodel.OperationRouteActionInput) (*mmodel.TransactionRoute, error) {
-			// All 4 composite (routeID, action) tuples should be added (none existed before).
-			assert.Len(t, toAdd, 4, "expected 4 entries to add (2 routes x 2 actions each)")
+			// Duplicates should be deduplicated: only 2 unique routes to add
+			assert.Len(t, toAdd, 2, "expected 2 entries to add (duplicates deduplicated)")
 			assert.Empty(t, toRemove)
 
 			return &mmodel.TransactionRoute{
 				ID:          transactionRouteID,
-				Title:       "Multi-Action Route",
-				Description: "Route with multiple actions",
+				Title:       "Dedup Route",
+				Description: "Route with deduplicated inputs",
 			}, nil
 		}).
 		Times(1)
@@ -754,8 +735,8 @@ func TestHandleOperationRouteUpdatesSameRouteMultipleActions(t *testing.T) {
 		Times(1)
 
 	input := &mmodel.UpdateTransactionRouteInput{
-		Title:           "Multi-Action Route",
-		Description:     "Route with multiple actions",
+		Title:           "Dedup Route",
+		Description:     "Route with deduplicated inputs",
 		OperationRoutes: &newInputs,
 		Metadata:        map[string]any{"key": "value"},
 	}
@@ -807,8 +788,8 @@ func TestHandleOperationRouteUpdates_ErrorPaths(t *testing.T) {
 	opRouteID2 := libCommons.GenerateUUIDv7()
 
 	validInputs := []mmodel.OperationRouteActionInput{
-		{Action: "direct", OperationRouteID: opRouteID1},
-		{Action: "direct", OperationRouteID: opRouteID2},
+		{OperationRouteID: opRouteID1},
+		{OperationRouteID: opRouteID2},
 	}
 
 	tests := []struct {
@@ -896,7 +877,7 @@ func TestHandleOperationRouteUpdates_ErrorPaths(t *testing.T) {
 	}
 }
 
-// TestHandleOperationRouteUpdates_DiffScenarios tests edge cases in the composite key
+// TestHandleOperationRouteUpdates_DiffScenarios tests edge cases in the route ID
 // diff logic using table-driven tests for various add/remove scenarios.
 func TestHandleOperationRouteUpdates_DiffScenarios(t *testing.T) {
 	t.Parallel()
@@ -907,6 +888,8 @@ func TestHandleOperationRouteUpdates_DiffScenarios(t *testing.T) {
 
 	opRouteSource := libCommons.GenerateUUIDv7()
 	opRouteDest := libCommons.GenerateUUIDv7()
+	newSource := libCommons.GenerateUUIDv7()
+	newDest := libCommons.GenerateUUIDv7()
 
 	tests := []struct {
 		name              string
@@ -919,12 +902,12 @@ func TestHandleOperationRouteUpdates_DiffScenarios(t *testing.T) {
 		{
 			name: "no_changes_when_existing_and_new_match_exactly",
 			existingRoutes: []mmodel.OperationRoute{
-				{ID: opRouteSource, OperationType: "source", Action: "direct"},
-				{ID: opRouteDest, OperationType: "destination", Action: "direct"},
+				{ID: opRouteSource, OperationType: "source", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+				{ID: opRouteDest, OperationType: "destination", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
 			},
 			newInputs: []mmodel.OperationRouteActionInput{
-				{Action: "direct", OperationRouteID: opRouteSource},
-				{Action: "direct", OperationRouteID: opRouteDest},
+				{OperationRouteID: opRouteSource},
+				{OperationRouteID: opRouteDest},
 			},
 			fetchedOpRoutes: []*mmodel.OperationRoute{
 				{ID: opRouteSource, OperationType: "source"},
@@ -936,37 +919,37 @@ func TestHandleOperationRouteUpdates_DiffScenarios(t *testing.T) {
 		{
 			name: "remove_all_existing_and_add_all_new",
 			existingRoutes: []mmodel.OperationRoute{
-				{ID: opRouteSource, OperationType: "source", Action: "hold"},
-				{ID: opRouteDest, OperationType: "destination", Action: "hold"},
+				{ID: opRouteSource, OperationType: "source", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+				{ID: opRouteDest, OperationType: "destination", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
 			},
 			newInputs: []mmodel.OperationRouteActionInput{
-				{Action: "direct", OperationRouteID: opRouteSource},
-				{Action: "direct", OperationRouteID: opRouteDest},
+				{OperationRouteID: newSource},
+				{OperationRouteID: newDest},
 			},
 			fetchedOpRoutes: []*mmodel.OperationRoute{
-				{ID: opRouteSource, OperationType: "source"},
-				{ID: opRouteDest, OperationType: "destination"},
+				{ID: newSource, OperationType: "source"},
+				{ID: newDest, OperationType: "destination"},
 			},
 			expectedAddLen:    2,
 			expectedRemoveLen: 2,
 		},
 		{
-			name: "add_new_action_for_existing_route_without_removing_existing",
+			name: "duplicate_inputs_are_deduplicated",
 			existingRoutes: []mmodel.OperationRoute{
-				{ID: opRouteSource, OperationType: "source", Action: "direct"},
-				{ID: opRouteDest, OperationType: "destination", Action: "direct"},
+				{ID: opRouteSource, OperationType: "source", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+				{ID: opRouteDest, OperationType: "destination", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
 			},
 			newInputs: []mmodel.OperationRouteActionInput{
-				{Action: "direct", OperationRouteID: opRouteSource},
-				{Action: "hold", OperationRouteID: opRouteSource},
-				{Action: "direct", OperationRouteID: opRouteDest},
-				{Action: "hold", OperationRouteID: opRouteDest},
+				{OperationRouteID: opRouteSource},
+				{OperationRouteID: opRouteSource}, // duplicate
+				{OperationRouteID: opRouteDest},
+				{OperationRouteID: opRouteDest}, // duplicate
 			},
 			fetchedOpRoutes: []*mmodel.OperationRoute{
 				{ID: opRouteSource, OperationType: "source"},
 				{ID: opRouteDest, OperationType: "destination"},
 			},
-			expectedAddLen:    2,
+			expectedAddLen:    0,
 			expectedRemoveLen: 0,
 		},
 	}
@@ -1037,8 +1020,8 @@ func TestHandleOperationRouteUpdates_SoftDeletePreserved(t *testing.T) {
 		Return(&mmodel.TransactionRoute{
 			ID: transactionRouteID,
 			OperationRoutes: []mmodel.OperationRoute{
-				{ID: opRouteToKeep, OperationType: "source", Action: "direct"},
-				{ID: opRouteToRemove, OperationType: "destination", Action: "direct"},
+				{ID: opRouteToKeep, OperationType: "source", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+				{ID: opRouteToRemove, OperationType: "destination", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
 			},
 		}, nil).
 		Times(1)
@@ -1047,8 +1030,8 @@ func TestHandleOperationRouteUpdates_SoftDeletePreserved(t *testing.T) {
 	newDestID := libCommons.GenerateUUIDv7()
 
 	newInputs := []mmodel.OperationRouteActionInput{
-		{Action: "direct", OperationRouteID: opRouteToKeep},
-		{Action: "direct", OperationRouteID: newDestID},
+		{OperationRouteID: opRouteToKeep},
+		{OperationRouteID: newDestID},
 	}
 
 	mockOR.EXPECT().
@@ -1071,13 +1054,11 @@ func TestHandleOperationRouteUpdates_SoftDeletePreserved(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	// opRouteToRemove should be in toRemove with action "direct" (will be soft-deleted by repo)
+	// opRouteToRemove should be in toRemove (will be soft-deleted by repo)
 	assert.Len(t, toRemove, 1)
 	assert.Equal(t, opRouteToRemove, toRemove[0].OperationRouteID, "removed route should be in toRemove for soft-delete")
-	assert.Equal(t, "direct", toRemove[0].Action, "removed route should carry its action")
 
-	// new destination should be in toAdd with action "direct"
+	// new destination should be in toAdd
 	assert.Len(t, toAdd, 1)
 	assert.Equal(t, newDestID, toAdd[0].OperationRouteID, "new route should be in toAdd")
-	assert.Equal(t, "direct", toAdd[0].Action, "new route should carry its action")
 }

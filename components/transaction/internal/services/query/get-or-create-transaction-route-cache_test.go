@@ -97,8 +97,9 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_Success(t *testing.T) {
 		Title:          "Test Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            operationRouteID,
-				OperationType: "source",
+				ID:                operationRouteID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",
@@ -486,8 +487,9 @@ func TestGetOrCreateTransactionRouteCache_CacheHit_CorruptedData_FallsBackToDB(t
 		Title:          "Test Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            operationRouteID,
-				OperationType: "source",
+				ID:                operationRouteID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",
@@ -589,8 +591,9 @@ func TestGetOrCreateTransactionRouteCache_ToCacheDataError(t *testing.T) {
 		Title:          "Test Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            uuid.UUID{},
-				OperationType: "source",
+				ID:                uuid.UUID{},
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  make(chan int), // This will cause msgpack encoding error

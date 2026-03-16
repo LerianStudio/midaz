@@ -116,9 +116,10 @@ func FuzzGetOrCreateTransactionRouteCacheBytes(f *testing.F) {
 			Title:          "Fuzz Fallback Route",
 			OperationRoutes: []mmodel.OperationRoute{
 				{
-					ID:            uuid.New(),
-					OperationType: "source",
-					Action:        "direct",
+					ID:                uuid.New(),
+					OperationType:     "source",
+					Action:            "direct",
+					AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 					Account: &mmodel.AccountRule{
 						RuleType: "alias",
 						ValidIf:  "@fuzz_account",

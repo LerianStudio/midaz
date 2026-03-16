@@ -86,7 +86,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 }
 
 // handleOperationRouteUpdates processes operation route relationship updates by comparing
-// existing vs new operation routes using (routeID, action) composite keys.
+// existing vs new operation routes using operation route IDs.
 // It returns arrays of OperationRouteActionInput entries to add and remove, or an error if validation fails.
 func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteInputs []mmodel.OperationRouteActionInput) (toAdd, toRemove []mmodel.OperationRouteActionInput, err error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -108,36 +108,24 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 		return nil, nil, err
 	}
 
-	// Deduplicate input by (routeID, action) composite key
-	type routeActionKey struct {
-		RouteID uuid.UUID
-		Action  string
-	}
-
-	seen := make(map[routeActionKey]bool)
+	// Deduplicate input by operation route ID
+	seen := make(map[uuid.UUID]bool)
 
 	var deduplicatedInputs []mmodel.OperationRouteActionInput
 
 	for _, input := range newOperationRouteInputs {
-		key := routeActionKey{RouteID: input.OperationRouteID, Action: input.Action}
-		if !seen[key] {
-			seen[key] = true
+		if !seen[input.OperationRouteID] {
+			seen[input.OperationRouteID] = true
 
 			deduplicatedInputs = append(deduplicatedInputs, input)
 		}
 	}
 
-	// Extract unique UUIDs from the deduplicated action inputs for FindByIDs
-	uniqueIDSet := make(map[uuid.UUID]bool)
+	// Extract unique UUIDs from the deduplicated inputs for FindByIDs
+	uniqueIDs := make([]uuid.UUID, 0, len(deduplicatedInputs))
 
 	for _, input := range deduplicatedInputs {
-		uniqueIDSet[input.OperationRouteID] = true
-	}
-
-	uniqueIDs := make([]uuid.UUID, 0, len(uniqueIDSet))
-
-	for id := range uniqueIDSet {
-		uniqueIDs = append(uniqueIDs, id)
+		uniqueIDs = append(uniqueIDs, input.OperationRouteID)
 	}
 
 	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, uniqueIDs)
@@ -146,39 +134,37 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 		return nil, nil, err
 	}
 
-	// Validate per-action operation route types
-	err = validateOperationRouteTypes(deduplicatedInputs, operationRoutes)
+	// Validate operation route types
+	err = validateOperationRouteTypes(operationRoutes)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Compare existing vs new operation routes using (routeID, action) composite keys
-	existingKeys := make(map[routeActionKey]bool)
+	// Compare existing vs new operation routes by ID
+	existingIDs := make(map[uuid.UUID]bool)
 	for _, existingRoute := range currentTransactionRoute.OperationRoutes {
-		existingKeys[routeActionKey{RouteID: existingRoute.ID, Action: existingRoute.Action}] = true
+		existingIDs[existingRoute.ID] = true
 	}
 
-	newKeys := make(map[routeActionKey]bool)
+	newIDs := make(map[uuid.UUID]bool)
 	for _, input := range deduplicatedInputs {
-		newKeys[routeActionKey{RouteID: input.OperationRouteID, Action: input.Action}] = true
+		newIDs[input.OperationRouteID] = true
 	}
 
 	// Find relationships to remove (exist currently but not in new list)
-	for key := range existingKeys {
-		if !newKeys[key] {
+	for id := range existingIDs {
+		if !newIDs[id] {
 			toRemove = append(toRemove, mmodel.OperationRouteActionInput{
-				OperationRouteID: key.RouteID,
-				Action:           key.Action,
+				OperationRouteID: id,
 			})
 		}
 	}
 
 	// Find relationships to add (in new list but don't exist currently)
-	for key := range newKeys {
-		if !existingKeys[key] {
+	for id := range newIDs {
+		if !existingIDs[id] {
 			toAdd = append(toAdd, mmodel.OperationRouteActionInput{
-				OperationRouteID: key.RouteID,
-				Action:           key.Action,
+				OperationRouteID: id,
 			})
 		}
 	}

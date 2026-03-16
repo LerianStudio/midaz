@@ -38,18 +38,20 @@ func TestCreateAccountingRouteCache_StoresActionAwareCache(t *testing.T) {
 		Title:          "Action-Aware Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            sourceRouteID,
-				OperationType: "source",
-				Action:        "direct",
+				ID:                sourceRouteID,
+				OperationType:     "source",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",
 				},
 			},
 			{
-				ID:            destRouteID,
-				OperationType: "destination",
-				Action:        "direct",
+				ID:                destRouteID,
+				OperationType:     "destination",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@merchant_account",
@@ -111,24 +113,28 @@ func TestCreateAccountingRouteCache_MultipleActions(t *testing.T) {
 		Title:          "Multi-Action Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            libCommons.GenerateUUIDv7(),
-				OperationType: "source",
-				Action:        "direct",
+				ID:                libCommons.GenerateUUIDv7(),
+				OperationType:     "source",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 			{
-				ID:            libCommons.GenerateUUIDv7(),
-				OperationType: "destination",
-				Action:        "direct",
+				ID:                libCommons.GenerateUUIDv7(),
+				OperationType:     "destination",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 			{
-				ID:            libCommons.GenerateUUIDv7(),
-				OperationType: "source",
-				Action:        "hold",
+				ID:                libCommons.GenerateUUIDv7(),
+				OperationType:     "source",
+				Action:            "hold",
+				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 			{
-				ID:            libCommons.GenerateUUIDv7(),
-				OperationType: "bidirectional",
-				Action:        "hold",
+				ID:                libCommons.GenerateUUIDv7(),
+				OperationType:     "bidirectional",
+				Action:            "hold",
+				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 		},
 	}
@@ -182,9 +188,10 @@ func TestCreateAccountingRouteCache_ActionsPopulated(t *testing.T) {
 		Title:          "Actions Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            libCommons.GenerateUUIDv7(),
-				OperationType: "source",
-				Action:        "direct",
+				ID:                libCommons.GenerateUUIDv7(),
+				OperationType:     "source",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 		},
 	}

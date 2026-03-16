@@ -245,7 +245,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			TransactionRoute: transactionRouteID.String(),
 		}
 
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
+		_, err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
 		assert.NoError(t, err)
 	})
@@ -269,7 +269,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			TransactionRoute: transactionRouteID.String(),
 		}
 
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
+		_, err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
 		assert.NoError(t, err)
 	})
@@ -302,7 +302,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			TransactionRoute: "",
 		}
 
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
+		_, err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "0114")
@@ -336,7 +336,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			TransactionRoute: "invalid-uuid-format",
 		}
 
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
+		_, err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "0115")
@@ -366,7 +366,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 			TransactionRoute: transactionRouteID.String(),
 		}
 
-		err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
+		_, err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 
 		assert.NoError(t, err, "must return nil when settings fetch fails (graceful degradation)")
 	})
@@ -387,11 +387,15 @@ func TestValidateAccountRules(t *testing.T) {
 		errorCode             string
 	}{
 		{
-			name: "Account type validation disabled returns nil",
+			name: "Account type validation disabled skips account rules but validates route existence",
 			transactionRouteCache: mmodel.TransactionRouteCache{
 				Actions: map[string]mmodel.ActionRouteCache{
 					"direct": {
-						Source:        map[string]mmodel.OperationRouteCache{},
+						Source: map[string]mmodel.OperationRouteCache{
+							routeID: {
+								OperationType: "source",
+							},
+						},
 						Destination:   map[string]mmodel.OperationRouteCache{},
 						Bidirectional: map[string]mmodel.OperationRouteCache{},
 					},

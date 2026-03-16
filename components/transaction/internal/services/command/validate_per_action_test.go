@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestValidatePerActionRouteTypes uses table-driven tests to validate per-action
-// operation route type checking. Each distinct action must have at least one source
-// and one destination route. Bidirectional routes count as both.
-func TestValidatePerActionRouteTypes(t *testing.T) {
+// TestValidateOperationRouteTypes_SourceDestinationCoverage uses table-driven tests
+// to validate that operation routes have at least one source and one destination.
+// Bidirectional routes count as both source and destination.
+func TestValidateOperationRouteTypes_SourceDestinationCoverage(t *testing.T) {
 	t.Parallel()
 
 	sourceRouteID := uuid.New()
@@ -27,132 +27,93 @@ func TestValidatePerActionRouteTypes(t *testing.T) {
 	extraSourceID := uuid.New()
 	extraDestID := uuid.New()
 
-	operationRoutes := []*mmodel.OperationRoute{
-		{ID: sourceRouteID, OperationType: "source"},
-		{ID: destRouteID, OperationType: "destination"},
-		{ID: bidiRouteID, OperationType: "bidirectional"},
-		{ID: extraSourceID, OperationType: "source"},
-		{ID: extraDestID, OperationType: "destination"},
-	}
-
-	routeByID := make(map[uuid.UUID]*mmodel.OperationRoute, len(operationRoutes))
-	for _, r := range operationRoutes {
-		routeByID[r.ID] = r
-	}
-
 	entityType := reflect.TypeOf(mmodel.TransactionRoute{}).Name()
 
 	tests := []struct {
 		name          string
-		actionInputs  []mmodel.OperationRouteActionInput
 		opRoutes      []*mmodel.OperationRoute
 		expectedError error
 	}{
 		{
-			name: "valid_multi_action_hold_and_commit_with_source_and_destination_each",
-			actionInputs: []mmodel.OperationRouteActionInput{
-				{Action: "hold", OperationRouteID: sourceRouteID},
-				{Action: "hold", OperationRouteID: destRouteID},
-				{Action: "commit", OperationRouteID: extraSourceID},
-				{Action: "commit", OperationRouteID: extraDestID},
+			name: "valid_source_and_destination",
+			opRoutes: []*mmodel.OperationRoute{
+				{ID: sourceRouteID, OperationType: "source"},
+				{ID: destRouteID, OperationType: "destination"},
 			},
-			opRoutes:      operationRoutes,
 			expectedError: nil,
 		},
 		{
-			name: "valid_single_action_direct_with_source_and_destination",
-			actionInputs: []mmodel.OperationRouteActionInput{
-				{Action: "direct", OperationRouteID: sourceRouteID},
-				{Action: "direct", OperationRouteID: destRouteID},
+			name: "valid_multiple_sources_and_destinations",
+			opRoutes: []*mmodel.OperationRoute{
+				{ID: sourceRouteID, OperationType: "source"},
+				{ID: extraSourceID, OperationType: "source"},
+				{ID: destRouteID, OperationType: "destination"},
+				{ID: extraDestID, OperationType: "destination"},
 			},
-			opRoutes:      operationRoutes,
 			expectedError: nil,
 		},
 		{
-			name: "valid_single_action_with_bidirectional_route_covers_both",
-			actionInputs: []mmodel.OperationRouteActionInput{
-				{Action: "direct", OperationRouteID: bidiRouteID},
+			name: "valid_bidirectional_covers_both",
+			opRoutes: []*mmodel.OperationRoute{
+				{ID: bidiRouteID, OperationType: "bidirectional"},
 			},
-			opRoutes:      operationRoutes,
 			expectedError: nil,
 		},
 		{
-			name: "valid_incomplete_action_set_only_hold_and_commit",
-			actionInputs: []mmodel.OperationRouteActionInput{
-				{Action: "hold", OperationRouteID: sourceRouteID},
-				{Action: "hold", OperationRouteID: destRouteID},
-				{Action: "commit", OperationRouteID: extraSourceID},
-				{Action: "commit", OperationRouteID: extraDestID},
+			name: "valid_bidirectional_with_source",
+			opRoutes: []*mmodel.OperationRoute{
+				{ID: sourceRouteID, OperationType: "source"},
+				{ID: bidiRouteID, OperationType: "bidirectional"},
 			},
-			opRoutes:      operationRoutes,
 			expectedError: nil,
 		},
 		{
-			name: "error_missing_source_for_hold_action",
-			actionInputs: []mmodel.OperationRouteActionInput{
-				{Action: "hold", OperationRouteID: destRouteID},
-				{Action: "direct", OperationRouteID: sourceRouteID},
-				{Action: "direct", OperationRouteID: destRouteID},
+			name: "valid_bidirectional_with_destination",
+			opRoutes: []*mmodel.OperationRoute{
+				{ID: destRouteID, OperationType: "destination"},
+				{ID: bidiRouteID, OperationType: "bidirectional"},
 			},
-			opRoutes:      operationRoutes,
-			expectedError: pkg.ValidateBusinessError(constant.ErrNoSourceForAction, entityType, "hold"),
-		},
-		{
-			name: "error_missing_destination_for_commit_action",
-			actionInputs: []mmodel.OperationRouteActionInput{
-				{Action: "commit", OperationRouteID: sourceRouteID},
-				{Action: "direct", OperationRouteID: sourceRouteID},
-				{Action: "direct", OperationRouteID: destRouteID},
-			},
-			opRoutes:      operationRoutes,
-			expectedError: pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, entityType, "commit"),
-		},
-		{
-			name: "error_invalid_action_value",
-			actionInputs: []mmodel.OperationRouteActionInput{
-				{Action: "invalid_action", OperationRouteID: sourceRouteID},
-				{Action: "direct", OperationRouteID: destRouteID},
-			},
-			opRoutes:      operationRoutes,
-			expectedError: pkg.ValidateBusinessError(constant.ErrInvalidRouteAction, entityType, "invalid_action"),
-		},
-		{
-			name: "error_duplicate_action_route_pair",
-			actionInputs: []mmodel.OperationRouteActionInput{
-				{Action: "direct", OperationRouteID: sourceRouteID},
-				{Action: "direct", OperationRouteID: sourceRouteID},
-				{Action: "direct", OperationRouteID: destRouteID},
-			},
-			opRoutes:      operationRoutes,
-			expectedError: pkg.ValidateBusinessError(constant.ErrDuplicateActionRoute, entityType, sourceRouteID.String(), "direct"),
-		},
-		{
-			name: "valid_same_route_different_actions_is_not_duplicate",
-			actionInputs: []mmodel.OperationRouteActionInput{
-				{Action: "direct", OperationRouteID: bidiRouteID},
-				{Action: "hold", OperationRouteID: bidiRouteID},
-			},
-			opRoutes:      operationRoutes,
 			expectedError: nil,
 		},
 		{
-			name: "error_missing_source_and_destination_for_cancel_action",
-			actionInputs: []mmodel.OperationRouteActionInput{
-				{Action: "cancel", OperationRouteID: destRouteID},
-				{Action: "direct", OperationRouteID: sourceRouteID},
-				{Action: "direct", OperationRouteID: destRouteID},
-			},
-			opRoutes:      operationRoutes,
-			expectedError: pkg.ValidateBusinessError(constant.ErrNoSourceForAction, entityType, "cancel"),
+			name:          "valid_empty_routes",
+			opRoutes:      []*mmodel.OperationRoute{},
+			expectedError: nil,
 		},
 		{
-			name: "valid_bidirectional_satisfies_source_and_dest_for_multiple_actions",
-			actionInputs: []mmodel.OperationRouteActionInput{
-				{Action: "hold", OperationRouteID: bidiRouteID},
-				{Action: "commit", OperationRouteID: bidiRouteID},
-			},
-			opRoutes:      operationRoutes,
+			name:          "valid_nil_routes",
+			opRoutes:      nil,
 			expectedError: nil,
+		},
+		{
+			name: "error_only_sources_no_destination",
+			opRoutes: []*mmodel.OperationRoute{
+				{ID: sourceRouteID, OperationType: "source"},
+				{ID: extraSourceID, OperationType: "source"},
+			},
+			expectedError: pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, entityType, ""),
+		},
+		{
+			name: "error_only_destinations_no_source",
+			opRoutes: []*mmodel.OperationRoute{
+				{ID: destRouteID, OperationType: "destination"},
+				{ID: extraDestID, OperationType: "destination"},
+			},
+			expectedError: pkg.ValidateBusinessError(constant.ErrNoSourceForAction, entityType, ""),
+		},
+		{
+			name: "error_single_source_no_destination",
+			opRoutes: []*mmodel.OperationRoute{
+				{ID: sourceRouteID, OperationType: "source"},
+			},
+			expectedError: pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, entityType, ""),
+		},
+		{
+			name: "error_single_destination_no_source",
+			opRoutes: []*mmodel.OperationRoute{
+				{ID: destRouteID, OperationType: "destination"},
+			},
+			expectedError: pkg.ValidateBusinessError(constant.ErrNoSourceForAction, entityType, ""),
 		},
 	}
 
@@ -161,7 +122,7 @@ func TestValidatePerActionRouteTypes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validateOperationRouteTypes(tt.actionInputs, tt.opRoutes)
+			err := validateOperationRouteTypes(tt.opRoutes)
 
 			if tt.expectedError == nil {
 				assert.NoError(t, err)

@@ -29,16 +29,17 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 	now := time.Now()
 
 	operationRoute := &mmodel.OperationRoute{
-		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		Title:          payload.Title,
-		Description:    payload.Description,
-		Code:           payload.Code,
-		OperationType:  payload.OperationType,
-		Account:        payload.Account,
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		ID:                uuid.Must(libCommons.GenerateUUIDv7()),
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		Title:             payload.Title,
+		Description:       payload.Description,
+		Code:              payload.Code,
+		OperationType:     payload.OperationType,
+		Account:           payload.Account,
+		AccountingEntries: payload.AccountingEntries,
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	}
 
 	createdOperationRoute, err := uc.OperationRouteRepo.Create(ctx, organizationID, ledgerID, operationRoute)

@@ -55,18 +55,20 @@ func TestReloadOperationRouteCache_RebuildWithActionGrouping(t *testing.T) {
 		Title:          "Action-Aware Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            sourceOpRouteID,
-				OperationType: "source",
-				Action:        "direct",
+				ID:                sourceOpRouteID,
+				OperationType:     "source",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@source_account",
 				},
 			},
 			{
-				ID:            destOpRouteID,
-				OperationType: "destination",
-				Action:        "direct",
+				ID:                destOpRouteID,
+				OperationType:     "destination",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@dest_account",
@@ -143,9 +145,10 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 		Title:          "Route 1 - Direct",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            libCommons.GenerateUUIDv7(),
-				OperationType: "source",
-				Action:        "direct",
+				ID:                libCommons.GenerateUUIDv7(),
+				OperationType:     "source",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 		},
 	}
@@ -157,14 +160,16 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 		Title:          "Route 2 - Hold",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            libCommons.GenerateUUIDv7(),
-				OperationType: "source",
-				Action:        "hold",
+				ID:                libCommons.GenerateUUIDv7(),
+				OperationType:     "source",
+				Action:            "hold",
+				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 			{
-				ID:            libCommons.GenerateUUIDv7(),
-				OperationType: "destination",
-				Action:        "hold",
+				ID:                libCommons.GenerateUUIDv7(),
+				OperationType:     "destination",
+				Action:            "hold",
+				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 		},
 	}

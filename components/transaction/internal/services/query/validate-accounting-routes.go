@@ -29,7 +29,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *pkgTransaction.Responses, action string) error {
+func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *pkgTransaction.Responses, action string) (*mmodel.TransactionRouteCache, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
@@ -42,7 +42,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	if !ledgerSettings.Accounting.ValidateRoutes {
 		logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Route validation disabled for ledger %s, skipping accounting rules validation", ledgerID.String()))
 
-		return nil
+		return nil, nil
 	}
 
 	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Route validation enabled for ledger %s, validating accounting rules", ledgerID.String()))
@@ -53,7 +53,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 		logger.Log(ctx, libLog.LevelWarn, "Transaction route is empty")
 
-		return err
+		return nil, err
 	}
 
 	transactionRouteID, err := uuid.Parse(validate.TransactionRoute)
@@ -64,7 +64,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid transaction route ID format: %v", err))
 
-		return validationErr
+		return nil, validationErr
 	}
 
 	transactionRouteCache, err := uc.GetOrCreateTransactionRouteCache(ctx, organizationID, ledgerID, transactionRouteID)
@@ -73,7 +73,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to load transaction route cache: %v", err))
 
-		return err
+		return nil, err
 	}
 
 	actionCache, found := transactionRouteCache.Actions[action]
@@ -83,12 +83,37 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 		logger.Warnf("No routes found for action '%s' in transaction route cache", action)
 
-		return err
+		return nil, err
 	}
 
 	sourceRoutes := actionCache.Source
 	destinationRoutes := actionCache.Destination
 	bidirectionalRoutes := actionCache.Bidirectional
+
+	// Reject operations missing a per-operation route ID.
+	// When validateRoutes is active, each operation must explicitly specify
+	// which operation route it belongs to.
+	for alias, routeID := range validate.OperationRoutesFrom {
+		if routeID == "" {
+			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), routeID, alias)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing operation route ID", err)
+
+			logger.Warnf("Operation '%s' (source) has no route ID — each operation must specify its operation route when route validation is enabled", alias)
+
+			return nil, err
+		}
+	}
+
+	for alias, routeID := range validate.OperationRoutesTo {
+		if routeID == "" {
+			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), routeID, alias)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing operation route ID", err)
+
+			logger.Warnf("Operation '%s' (destination) has no route ID — each operation must specify its operation route when route validation is enabled", alias)
+
+			return nil, err
+		}
+	}
 
 	uniqueFromCount := uniqueValues(validate.OperationRoutesFrom)
 	uniqueToCount := uniqueValues(validate.OperationRoutesTo)
@@ -126,7 +151,7 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 		logger.Warnf("Route count mismatch: from=%d to=%d, cache has source=%d destination=%d bidirectional=%d shared=%d", uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount, len(sharedBidirectionalRoutes))
 
-		return err
+		return nil, err
 	}
 
 	mergedRouteMap := make(map[string]string)
@@ -149,29 +174,27 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 			logger.Warnf("Route counterpart validation failed: %v", err)
 
-			return err
+			return nil, err
 		}
 	}
 
 	// Pass ledgerSettings and action-filtered routes to validateAccountRules for account type validation control
-	return validateAccountRules(ctx, sourceRoutes, destinationRoutes, bidirectionalRoutes, validate, operations, ledgerSettings)
+	err = validateAccountRules(ctx, sourceRoutes, destinationRoutes, bidirectionalRoutes, validate, operations, ledgerSettings)
+	if err != nil {
+		return nil, err
+	}
+
+	return &transactionRouteCache, nil
 }
 
 // validateAccountRules validates each operation against its corresponding route rule.
-// If ledgerSettings.Accounting.ValidateAccountType is false, all per-operation rule validation is skipped
-// (including route-existence and account-type checks).
+// Route existence and direction matching are always enforced when validateRoutes is active.
+// Account type checks (alias/account_type rules) are only enforced when validateAccountType is also active.
 func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, bidirectionalRoutes map[string]mmodel.OperationRouteCache, validate *pkgTransaction.Responses, operations []mmodel.BalanceOperation, ledgerSettings mmodel.LedgerSettings) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "usecase.validate_account_rules")
 	defer span.End()
-
-	// If account type validation is disabled, skip individual operation validation
-	if !ledgerSettings.Accounting.ValidateAccountType {
-		logger.Log(ctx, libLog.LevelDebug, "Account type validation disabled, skipping operation rule validation")
-
-		return nil
-	}
 
 	for _, operation := range operations {
 		// Get route ID and determine if operation is source or destination
@@ -220,7 +243,8 @@ func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, 
 			return err
 		}
 
-		if cacheRule.Account != nil {
+		// Account type rules only apply when validateAccountType is enabled
+		if ledgerSettings.Accounting.ValidateAccountType && cacheRule.Account != nil {
 			if err := validateSingleOperationRule(operation, cacheRule.Account); err != nil {
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation failed validation against route rules", err)
 

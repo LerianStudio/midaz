@@ -276,7 +276,7 @@ func TestValidateAccountingRules_ActionParam(t *testing.T) {
 			// This call must include the action parameter.
 			// Current signature: ValidateAccountingRules(ctx, orgID, ledgerID, operations, validate)
 			// Expected signature: ValidateAccountingRules(ctx, orgID, ledgerID, operations, validate, action)
-			err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, tt.operations, tt.validate, tt.action)
+			_, err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, tt.operations, tt.validate, tt.action)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -374,7 +374,7 @@ func TestValidateAccountingRules_ActionFilteredRouteCount(t *testing.T) {
 	}
 
 	// Should pass: 2 operations match 2 direct-action routes (1 source + 1 destination)
-	err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
+	_, err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 	assert.NoError(t, err)
 }
 
@@ -466,7 +466,7 @@ func TestValidateAccountingRules_ActionFilteredAccountRules(t *testing.T) {
 	}
 
 	// action=direct: asset account should pass against direct route (requires asset)
-	err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
+	_, err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 	assert.NoError(t, err)
 }
 
@@ -545,7 +545,7 @@ func TestValidateAccountingRules_ActionAccountTypeMismatch(t *testing.T) {
 	}
 
 	// action=direct with asset account against route requiring liability → should fail
-	err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
+	_, err = uc.ValidateAccountingRules(ctx, organizationID, ledgerID, operations, validate, constant.ActionDirect)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "0119")
 }

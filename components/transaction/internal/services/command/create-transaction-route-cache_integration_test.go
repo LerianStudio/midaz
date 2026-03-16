@@ -73,18 +73,20 @@ func TestIntegration_CreateAccountingRouteCache_ActionAwareCacheStored(t *testin
 		Description:    "Route with action-aware cache",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            sourceRouteID,
-				OperationType: "source",
-				Action:        "direct",
+				ID:                sourceRouteID,
+				OperationType:     "source",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_source",
 				},
 			},
 			{
-				ID:            destRouteID,
-				OperationType: "destination",
-				Action:        "direct",
+				ID:                destRouteID,
+				OperationType:     "destination",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_destination",
@@ -144,24 +146,28 @@ func TestIntegration_CreateAccountingRouteCache_MultipleActions(t *testing.T) {
 		Title:          "Multi-Action Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            directSourceID,
-				OperationType: "source",
-				Action:        "direct",
+				ID:                directSourceID,
+				OperationType:     "source",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 			{
-				ID:            directDestID,
-				OperationType: "destination",
-				Action:        "direct",
+				ID:                directDestID,
+				OperationType:     "destination",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 			{
-				ID:            holdSourceID,
-				OperationType: "source",
-				Action:        "hold",
+				ID:                holdSourceID,
+				OperationType:     "source",
+				Action:            "hold",
+				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 			{
-				ID:            holdDestID,
-				OperationType: "destination",
-				Action:        "hold",
+				ID:                holdDestID,
+				OperationType:     "destination",
+				Action:            "hold",
+				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 		},
 		CreatedAt: time.Now(),
@@ -211,9 +217,10 @@ func TestIntegration_CreateAccountingRouteCache_BidirectionalRoute(t *testing.T)
 		Title:          "Bidirectional Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            bidiRouteID,
-				OperationType: "bidirectional",
-				Action:        "direct",
+				ID:                bidiRouteID,
+				OperationType:     "bidirectional",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 		},
 		CreatedAt: time.Now(),
@@ -294,9 +301,10 @@ func TestIntegration_CreateAccountingRouteCache_OverwritesExistingKey(t *testing
 		Title:          "Route v1",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            libCommons.GenerateUUIDv7(),
-				OperationType: "source",
-				Action:        "direct",
+				ID:                libCommons.GenerateUUIDv7(),
+				OperationType:     "source",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 		},
 		CreatedAt: time.Now(),
@@ -318,14 +326,16 @@ func TestIntegration_CreateAccountingRouteCache_OverwritesExistingKey(t *testing
 		Title:          "Route v2",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            newSourceID,
-				OperationType: "source",
-				Action:        "hold",
+				ID:                newSourceID,
+				OperationType:     "source",
+				Action:            "hold",
+				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 			{
-				ID:            newDestID,
-				OperationType: "destination",
-				Action:        "hold",
+				ID:                newDestID,
+				OperationType:     "destination",
+				Action:            "hold",
+				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 		},
 		CreatedAt: time.Now(),
@@ -366,9 +376,10 @@ func TestIntegration_CreateAccountingRouteCache_AccountRulePreserved(t *testing.
 		Title:          "Route With Account Rules",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:            sourceID,
-				OperationType: "source",
-				Action:        "direct",
+				ID:                sourceID,
+				OperationType:     "source",
+				Action:            "direct",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@treasury",
@@ -418,7 +429,7 @@ func TestIntegration_CreateAccountingRouteCache_DifferentOrgsSameRouteID(t *test
 		LedgerID:       ledgerID,
 		Title:          "Org1 Route",
 		OperationRoutes: []mmodel.OperationRoute{
-			{ID: sourceID1, OperationType: "source", Action: "direct"},
+			{ID: sourceID1, OperationType: "source", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
 		},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -430,7 +441,7 @@ func TestIntegration_CreateAccountingRouteCache_DifferentOrgsSameRouteID(t *test
 		LedgerID:       ledgerID,
 		Title:          "Org2 Route",
 		OperationRoutes: []mmodel.OperationRoute{
-			{ID: sourceID2, OperationType: "source", Action: "hold"},
+			{ID: sourceID2, OperationType: "source", Action: "hold", AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}}},
 		},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),

@@ -48,14 +48,8 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 
 	operationRoutesToRemove := make([]mmodel.OperationRouteActionInput, 0, len(transactionRoute.OperationRoutes))
 	for _, operationRoute := range transactionRoute.OperationRoutes {
-		action := operationRoute.Action
-		if action == "" {
-			action = constant.ActionDirect
-		}
-
 		operationRoutesToRemove = append(operationRoutesToRemove, mmodel.OperationRouteActionInput{
 			OperationRouteID: operationRoute.ID,
-			Action:           action,
 		})
 	}
 
