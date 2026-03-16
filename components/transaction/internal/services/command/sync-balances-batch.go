@@ -62,17 +62,22 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	}
 
 	aggregatedBalances := make([]*redisBalance.AggregatedBalance, 0, len(keys))
+	orphanedKeys := make([]string, 0)
 
 	for _, key := range keys {
 		balance := balanceMap[key]
 		if balance == nil {
-			logger.Debugf("Balance key %s has no data (expired), skipping", key)
+			logger.Debugf("Balance key %s has no data (expired), marking as orphaned", key)
+			orphanedKeys = append(orphanedKeys, key)
+
 			continue
 		}
 
 		compositeKey, parseErr := redisBalance.BalanceCompositeKeyFromRedisKey(key)
 		if parseErr != nil {
 			logger.Warnf("Failed to parse composite key from %s: %v", key, parseErr)
+			orphanedKeys = append(orphanedKeys, key)
+
 			continue
 		}
 
@@ -89,13 +94,34 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	deduplicated := aggregator.Aggregate(ctx, aggregatedBalances)
 	result.BalancesAggregated = len(deduplicated)
 
+	// Handle case where all keys are orphaned (no valid balances to sync)
 	if len(deduplicated) == 0 {
-		logger.Info("No balances to sync after aggregation")
+		if len(orphanedKeys) > 0 {
+			logger.Infof("No valid balances to sync, cleaning up %d orphaned keys", len(orphanedKeys))
+
+			removed, cleanupErr := uc.RedisRepo.RemoveBalanceSyncKeysBatch(ctx, orphanedKeys)
+			if cleanupErr != nil {
+				logger.Warnf("Failed to remove orphaned keys from schedule: %v", cleanupErr)
+
+				metricFactory.Counter(utils.BalanceSyncCleanupFailures).WithLabels(map[string]string{
+					"organization_id": organizationID.String(),
+					"ledger_id":       ledgerID.String(),
+				}).AddOne(ctx)
+			}
+
+			result.KeysRemoved = removed
+		} else {
+			logger.Info("No balances to sync after aggregation")
+		}
+
 		return result, nil
 	}
 
 	balancesToSync := make([]mmodel.BalanceRedis, 0, len(deduplicated))
-	keysToRemove := make([]string, 0, len(deduplicated))
+	keysToRemove := make([]string, 0, len(deduplicated)+len(orphanedKeys))
+
+	// Add orphaned keys first (they need cleanup regardless of DB sync outcome)
+	keysToRemove = append(keysToRemove, orphanedKeys...)
 
 	for _, ab := range deduplicated {
 		balancesToSync = append(balancesToSync, *ab.Balance)

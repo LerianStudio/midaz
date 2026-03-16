@@ -78,7 +78,7 @@ func setupRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
 	// Create lib-commons Redis connection
 	conn := redistestutil.CreateConnection(t, redisContainer.Addr)
 
-	// Create repository with balance sync enabled
+	// Create repository
 	repo := &RedisConsumerRepository{
 		conn: conn,
 	}
@@ -99,7 +99,7 @@ func setupRedisChaosInfra(t *testing.T) *chaosTestInfra {
 	// Create lib-commons Redis connection
 	conn := redistestutil.CreateConnection(t, redisContainer.Addr)
 
-	// Create repository with balance sync enabled
+	// Create repository
 	repo := &RedisConsumerRepository{
 		conn: conn,
 	}
