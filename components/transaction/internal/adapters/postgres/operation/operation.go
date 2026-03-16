@@ -47,6 +47,7 @@ type OperationPostgreSQLModel struct {
 	BalanceAffected       bool             // BalanceAffected default true
 	Direction             string           // Direction of the operation (debit, credit)
 	RouteID               *string          // Route ID referencing operation_route table
+	RouteCode             *string          // Route code for accounting traceability
 	Metadata              map[string]any   // Additional custom attributes
 }
 
@@ -245,6 +246,11 @@ type Operation struct {
 	// format: uuid
 	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
+	// Operation route code for accounting traceability
+	// example: ROUTE-001
+	// maxLength: 100
+	RouteCode *string `json:"routeCode,omitempty" example:"ROUTE-001" maxLength:"100"`
+
 	// Timestamp when the operation was created
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -321,6 +327,10 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 		Operation.RouteID = t.RouteID
 	}
 
+	if t.RouteCode != nil {
+		Operation.RouteCode = t.RouteCode
+	}
+
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
 		Operation.DeletedAt = &deletedAtCopy
@@ -378,6 +388,10 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		t.RouteID = operation.RouteID
 	}
 
+	if operation.RouteCode != nil {
+		t.RouteCode = operation.RouteCode
+	}
+
 	if operation.DeletedAt != nil {
 		deletedAtCopy := *operation.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
@@ -405,6 +419,7 @@ func (op *Operation) ToRedis() mmodel.OperationRedis {
 		BalanceAffected: op.BalanceAffected,
 		Direction:       op.Direction,
 		RouteID:         op.RouteID,
+		RouteCode:       op.RouteCode,
 		Metadata:        op.Metadata,
 	}
 
@@ -486,6 +501,7 @@ func OperationFromRedis(r mmodel.OperationRedis) *Operation {
 		BalanceAffected: r.BalanceAffected,
 		Direction:       r.Direction,
 		RouteID:         r.RouteID,
+		RouteCode:       r.RouteCode,
 		Metadata:        r.Metadata,
 	}
 }

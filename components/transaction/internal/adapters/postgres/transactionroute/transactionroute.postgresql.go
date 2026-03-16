@@ -172,16 +172,10 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 		for _, operationRoute := range transactionRoute.OperationRoutes {
 			relationID := libCommons.GenerateUUIDv7()
 
-			action := operationRoute.Action
-			if action == "" {
-				action = constant.ActionDirect
-			}
-
-			_, err := tx.ExecContext(ctx, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, action, created_at) VALUES ($1, $2, $3, $4, $5)`,
+			_, err := tx.ExecContext(ctx, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at) VALUES ($1, $2, $3, $4)`,
 				relationID,
 				operationRoute.ID,
 				record.ID,
-				action,
 				record.CreatedAt,
 			)
 			if err != nil {
@@ -245,9 +239,9 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 
 	mainQuery := squirrel.Select(
 		"tr.id", "tr.organization_id", "tr.ledger_id", "tr.title", "tr.description", "tr.created_at", "tr.updated_at", "tr.deleted_at",
-		"otr.id", "otr.operation_route_id", "otr.transaction_route_id", "otr.action", "otr.created_at", "otr.deleted_at",
+		"otr.id", "otr.operation_route_id", "otr.transaction_route_id", "otr.created_at", "otr.deleted_at",
 		"or_data.id", "or_data.organization_id", "or_data.ledger_id", "or_data.title", "or_data.description", "or_data.operation_type",
-		"or_data.account_rule_type", "or_data.account_rule_valid_if", "or_data.created_at", "or_data.updated_at", "or_data.deleted_at", "or_data.code",
+		"or_data.account_rule_type", "or_data.account_rule_valid_if", "or_data.accounting_entries", "or_data.created_at", "or_data.updated_at", "or_data.deleted_at", "or_data.code",
 	).
 		FromSelect(subQuery, "tr").
 		LeftJoin("operation_transaction_route otr ON tr.id = otr.transaction_route_id AND otr.deleted_at IS NULL").
@@ -279,13 +273,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 
 	var transactionRoute *mmodel.TransactionRoute
 
-	// Use composite key (routeID, action) to avoid duplicate operation routes
-	type routeActionKey struct {
-		RouteID uuid.UUID
-		Action  string
-	}
-
-	operationRoutesMap := make(map[routeActionKey]bool)
+	operationRoutesMap := make(map[uuid.UUID]bool)
 
 	for rows.Next() {
 		var tr TransactionRoutePostgreSQLModel
@@ -294,7 +282,6 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			ID                 uuid.UUID
 			OperationRouteID   uuid.UUID
 			TransactionRouteID uuid.UUID
-			Action             string
 			CreatedAt          time.Time
 			DeletedAt          *time.Time
 		}
@@ -315,7 +302,6 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			&otr.ID,
 			&otr.OperationRouteID,
 			&otr.TransactionRouteID,
-			&otr.Action,
 			&otr.CreatedAt,
 			&otr.DeletedAt,
 			// Operation route fields
@@ -327,6 +313,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			&opRoute.OperationType,
 			&opRoute.AccountRuleType,
 			&opRoute.AccountRuleValidIf,
+			&opRoute.AccountingEntries,
 			&opRoute.CreatedAt,
 			&opRoute.UpdatedAt,
 			&opRoute.DeletedAt,
@@ -357,13 +344,11 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 		}
 
 		nilUUID := uuid.UUID{}
-		key := routeActionKey{RouteID: opRoute.ID, Action: otr.Action}
 
-		if opRoute.ID != nilUUID && !operationRoutesMap[key] {
+		if opRoute.ID != nilUUID && !operationRoutesMap[opRoute.ID] {
 			operationRoute := opRoute.ToEntity()
-			operationRoute.Action = otr.Action
 			transactionRoute.OperationRoutes = append(transactionRoute.OperationRoutes, *operationRoute)
-			operationRoutesMap[key] = true
+			operationRoutesMap[opRoute.ID] = true
 		}
 	}
 
@@ -717,7 +702,7 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 	ctxSpan, span := tracer.Start(ctx, "postgres.update_operation_route_relationships")
 	defer span.End()
 
-	// Soft delete relationships that should be removed, filtering by both operation_route_id and action
+	// Soft delete relationships that should be removed
 	if len(toRemove) > 0 {
 		ctxDelete, spanDelete := tracer.Start(ctxSpan, "postgres.soft_delete_relationships")
 		defer spanDelete.End()
@@ -727,10 +712,9 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 							SET deleted_at = NOW()
 							WHERE transaction_route_id = $1
 							AND operation_route_id = $2
-							AND action = $3
 							AND deleted_at IS NULL`
 
-			_, err := tx.ExecContext(ctxDelete, deleteQuery, transactionRouteID, entry.OperationRouteID, entry.Action)
+			_, err := tx.ExecContext(ctxDelete, deleteQuery, transactionRouteID, entry.OperationRouteID)
 			if err != nil {
 				libOpentelemetry.HandleSpanError(&spanDelete, "Failed to soft delete operation route relationship", err)
 
@@ -741,7 +725,7 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 		}
 	}
 
-	// Create new relationships with action column
+	// Create new relationships
 	if len(toAdd) > 0 {
 		ctxCreate, spanCreate := tracer.Start(ctxSpan, "postgres.create_relationships")
 		defer spanCreate.End()
@@ -750,16 +734,10 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 			relationID := libCommons.GenerateUUIDv7()
 			now := time.Now()
 
-			action := entry.Action
-			if action == "" {
-				action = constant.ActionDirect
-			}
-
-			_, err := tx.ExecContext(ctxCreate, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, action, created_at) VALUES ($1, $2, $3, $4, $5)`,
+			_, err := tx.ExecContext(ctxCreate, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at) VALUES ($1, $2, $3, $4)`,
 				relationID,
 				entry.OperationRouteID,
 				transactionRouteID,
-				action,
 				now,
 			)
 			if err != nil {

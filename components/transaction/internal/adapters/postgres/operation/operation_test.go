@@ -819,3 +819,133 @@ func TestOperationFromRedis(t *testing.T) {
 		assert.Equal(t, original.Metadata, restored.Metadata)
 	})
 }
+
+func TestOperationPostgreSQLModel_RouteCode_ToEntity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("with_route_code_populated", func(t *testing.T) {
+		t.Parallel()
+
+		routeCode := "ROUTE-001"
+
+		model := &OperationPostgreSQLModel{
+			ID:              "op-rc-1",
+			TransactionID:   "tx-rc-1",
+			Type:            "DEBIT",
+			AssetCode:       "BRL",
+			Status:          "ACTIVE",
+			AccountID:       "acc-rc-1",
+			BalanceID:       "bal-rc-1",
+			OrganizationID:  "org-rc-1",
+			LedgerID:        "ledger-rc-1",
+			BalanceAffected: true,
+			RouteCode:       &routeCode,
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+		}
+
+		entity := model.ToEntity()
+
+		require.NotNil(t, entity)
+		require.NotNil(t, entity.RouteCode, "RouteCode must be populated on entity when model has it")
+		assert.Equal(t, routeCode, *entity.RouteCode)
+	})
+
+	t.Run("with_route_code_nil", func(t *testing.T) {
+		t.Parallel()
+
+		model := &OperationPostgreSQLModel{
+			ID:              "op-rc-2",
+			TransactionID:   "tx-rc-2",
+			Type:            "CREDIT",
+			AssetCode:       "USD",
+			Status:          "PENDING",
+			AccountID:       "acc-rc-2",
+			BalanceID:       "bal-rc-2",
+			OrganizationID:  "org-rc-2",
+			LedgerID:        "ledger-rc-2",
+			BalanceAffected: false,
+			RouteCode:       nil,
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+		}
+
+		entity := model.ToEntity()
+
+		require.NotNil(t, entity)
+		assert.Nil(t, entity.RouteCode, "RouteCode must be nil on entity when model has nil")
+	})
+}
+
+func TestOperationPostgreSQLModel_RouteCode_FromEntity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("with_route_code_populated", func(t *testing.T) {
+		t.Parallel()
+
+		routeCode := "ROUTE-002"
+
+		entity := &Operation{
+			ID:              "op-rc-from-1",
+			TransactionID:   "tx-rc-from-1",
+			Type:            "DEBIT",
+			AssetCode:       "BRL",
+			Status:          Status{Code: "ACTIVE"},
+			AccountID:       "acc-rc-from-1",
+			BalanceID:       "bal-rc-from-1",
+			OrganizationID:  "org-rc-from-1",
+			LedgerID:        "ledger-rc-from-1",
+			BalanceAffected: true,
+			RouteCode:       &routeCode,
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+		}
+
+		var model OperationPostgreSQLModel
+		model.FromEntity(entity)
+
+		require.NotNil(t, model.RouteCode, "RouteCode must be populated on model when entity has it")
+		assert.Equal(t, routeCode, *model.RouteCode)
+	})
+
+	t.Run("with_route_code_nil", func(t *testing.T) {
+		t.Parallel()
+
+		entity := &Operation{
+			ID:              "op-rc-from-2",
+			TransactionID:   "tx-rc-from-2",
+			Type:            "CREDIT",
+			AssetCode:       "USD",
+			Status:          Status{Code: "PENDING"},
+			AccountID:       "acc-rc-from-2",
+			BalanceID:       "bal-rc-from-2",
+			OrganizationID:  "org-rc-from-2",
+			LedgerID:        "ledger-rc-from-2",
+			BalanceAffected: false,
+			RouteCode:       nil,
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+		}
+
+		var model OperationPostgreSQLModel
+		model.FromEntity(entity)
+
+		assert.Nil(t, model.RouteCode, "RouteCode must be nil on model when entity has nil")
+	})
+}
+
+func TestOperationColumnList_ContainsRouteCode(t *testing.T) {
+	t.Parallel()
+
+	found := false
+
+	for _, col := range operationColumnList {
+		if col == "route_code" {
+			found = true
+
+			break
+		}
+	}
+
+	assert.True(t, found, "operationColumnList must contain 'route_code'")
+}

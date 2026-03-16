@@ -92,6 +92,7 @@ var operationColumnList = []string{
 	"balance_version_after",
 	"direction",
 	"route_id",
+	"route_code",
 }
 
 // operationColumns is derived from operationColumnList for use with squirrel.Select.
@@ -194,6 +195,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 			record.VersionBalanceAfter,
 			record.Direction,
 			record.RouteID,
+			record.RouteCode,
 		).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -349,6 +351,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.VersionBalanceAfter,
 			&operation.Direction,
 			&operation.RouteID,
+			&operation.RouteCode,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -469,6 +472,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.VersionBalanceAfter,
 			&operation.Direction,
 			&operation.RouteID,
+			&operation.RouteCode,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -562,6 +566,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.VersionBalanceAfter,
 		&operation.Direction,
 		&operation.RouteID,
+		&operation.RouteCode,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
@@ -654,6 +659,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.VersionBalanceAfter,
 		&operation.Direction,
 		&operation.RouteID,
+		&operation.RouteCode,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
@@ -932,6 +938,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 			&operation.VersionBalanceAfter,
 			&operation.Direction,
 			&operation.RouteID,
+			&operation.RouteCode,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
