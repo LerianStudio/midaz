@@ -80,7 +80,7 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedBalanceSyncScripts(t *testi
 		t.Parallel()
 
 		conn, scripter := newScriptCapturingConnection(t)
-		repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+		repo := &RedisConsumerRepository{conn: conn}
 
 		_, err := repo.GetBalanceSyncKeys(ctx, 10)
 		require.Error(t, err)
@@ -92,7 +92,7 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedBalanceSyncScripts(t *testi
 		t.Parallel()
 
 		conn, scripter := newScriptCapturingConnection(t)
-		repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+		repo := &RedisConsumerRepository{conn: conn}
 
 		err := repo.RemoveBalanceSyncKey(ctx, "balance:key")
 		require.Error(t, err)
@@ -113,8 +113,7 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedGetBalancesByKeys(t *testin
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockMGetConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockMGetConnection(mockClient),
 	}
 
 	_, err := repo.GetBalancesByKeys(tmcore.SetTenantIDInContext(context.Background(), "tenant:invalid"), []string{"key1", "key2"})
@@ -138,8 +137,7 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedBatchScheduleAndRemove(t *t
 		}
 
 		repo := &RedisConsumerRepository{
-			conn:               newMockZAddNXConnection(mockClient),
-			balanceSyncEnabled: true,
+			conn: newMockZAddNXConnection(mockClient),
 		}
 
 		err := repo.ScheduleBalanceSyncBatch(ctx, []redis.Z{{Score: float64(time.Now().Unix()), Member: "balance:key"}})
@@ -158,8 +156,7 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedBatchScheduleAndRemove(t *t
 		}
 
 		repo := &RedisConsumerRepository{
-			conn:               newMockEvalConnection(mockClient),
-			balanceSyncEnabled: true,
+			conn: newMockEvalConnection(mockClient),
 		}
 
 		_, err := repo.RemoveBalanceSyncKeysBatch(ctx, []string{"balance:key"})

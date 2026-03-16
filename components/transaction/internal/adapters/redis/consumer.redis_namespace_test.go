@@ -885,7 +885,7 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedSimpleMethods(t *testing.T)
 	t.Parallel()
 
 	conn, recorder := newRecordingConnection(t)
-	repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+	repo := &RedisConsumerRepository{conn: conn}
 	ctx := tmcore.SetTenantIDInContext(context.Background(), "tenant:invalid")
 
 	err := repo.Set(ctx, "my:key", "value", 1)
@@ -909,7 +909,7 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedQueueOperations(t *testing.
 	t.Parallel()
 
 	conn, recorder := newRecordingConnection(t)
-	repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+	repo := &RedisConsumerRepository{conn: conn}
 	ctx := tmcore.SetTenantIDInContext(context.Background(), "tenant:invalid")
 
 	err := repo.AddMessageToQueue(ctx, "tx:abc", []byte("payload"))
@@ -934,7 +934,7 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedAtomicOperation(t *testing.
 	rawInternalKey := utils.BalanceInternalKey(organizationID, ledgerID, "default")
 
 	conn, scripter := newScriptCapturingConnection(t)
-	repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+	repo := &RedisConsumerRepository{conn: conn}
 	ctx := tmcore.SetTenantIDInContext(context.Background(), "tenant:invalid")
 
 	_, err := repo.ProcessBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID, constant.APPROVED, false, []mmodel.BalanceOperation{{

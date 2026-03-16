@@ -29,11 +29,15 @@ func testPostgresConnector(t *testing.T) func(*Config, libLog.Logger) (*libPostg
 func withTestConnector(t *testing.T) {
 	t.Helper()
 
-	original := postgresConnector
+	originalConnector := postgresConnector
 	postgresConnector = testPostgresConnector(t)
 
+	originalMigrator := postgresMigrator
+	postgresMigrator = func(_ *Config, _ libLog.Logger) error { return nil }
+
 	t.Cleanup(func() {
-		postgresConnector = original
+		postgresConnector = originalConnector
+		postgresMigrator = originalMigrator
 	})
 }
 

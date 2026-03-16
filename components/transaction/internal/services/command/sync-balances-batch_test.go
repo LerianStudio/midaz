@@ -639,9 +639,9 @@ func TestSyncBalancesBatch_OrphanedKeysCleanedUp(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Mix of valid keys and orphaned keys (nil balance - expired TTL)
 	validKey := "balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@valid-account#default"

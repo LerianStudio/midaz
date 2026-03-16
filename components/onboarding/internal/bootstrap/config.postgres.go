@@ -86,6 +86,11 @@ func initSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*postgresCompo
 		return nil, fmt.Errorf("failed to connect to PostgreSQL (single-tenant): %w", err)
 	}
 
+	// Run migrations on startup (single-tenant only; multi-tenant handles migrations via tenant-manager).
+	if err := postgresMigrator(cfg, logger); err != nil {
+		return nil, fmt.Errorf("failed to run PostgreSQL migrations: %w", err)
+	}
+
 	return &postgresComponents{
 		connection:       conn,
 		organizationRepo: organization.NewOrganizationPostgreSQLRepository(conn),
@@ -156,4 +161,36 @@ func buildPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Cl
 	}
 
 	return conn, nil
+}
+
+// postgresMigrator runs database migrations. Package-level variable to allow
+// test injection without requiring a live database.
+var postgresMigrator = defaultPostgresMigrator
+
+// defaultPostgresMigrator executes database migrations using the v4 explicit Migrator API.
+func defaultPostgresMigrator(cfg *Config, logger libLog.Logger) error {
+	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
+	dbUser := envFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
+	dbPassword := envFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
+	dbName := envFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
+	dbPort := envFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
+	dbSSLMode := envFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
+
+	primaryDSN := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
+
+	migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
+		PrimaryDSN:   primaryDSN,
+		DatabaseName: dbName,
+		Component:    ApplicationName,
+		Logger:       logger,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create migrator: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	return migrator.Up(ctx)
 }
