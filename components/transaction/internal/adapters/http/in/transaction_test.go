@@ -3664,7 +3664,7 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				tt.transactionInput,
 				transactionDate,
 				tt.isAnnotation,
-				nil,
+				nil, nil,
 			)
 			require.NoError(t, err)
 
@@ -4164,7 +4164,7 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				tt.transactionInput,
 				transactionDate,
 				tt.isAnnotation,
-				nil,
+				nil, nil,
 			)
 
 			require.Len(t, ops, tt.expectedOpCount, "should generate exactly %d operations", tt.expectedOpCount)
@@ -4472,7 +4472,7 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 				tt.routeValidationEnabled,
 				tt.processedDoubleEntry,
 				tt.fromToIndex,
-				nil,
+				nil, nil,
 			)
 
 			assert.Equal(t, tt.expectedHandled, handled, "handled flag mismatch")

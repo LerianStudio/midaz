@@ -64,17 +64,20 @@ func TestBuildStandardOp_RouteCode(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		routeCode         *string
+		debitCode         *string
+		creditCode        *string
 		expectedRouteCode *string
 	}{
 		{
-			name:              "non-nil routeCode is set on operation",
-			routeCode:         strPtr("EXT-001"),
+			name:              "non-nil codes are set on operation",
+			debitCode:         strPtr("EXT-001"),
+			creditCode:        strPtr("EXT-002"),
 			expectedRouteCode: strPtr("EXT-001"),
 		},
 		{
-			name:              "nil routeCode leaves RouteCode nil",
-			routeCode:         nil,
+			name:              "nil codes leaves RouteCode nil",
+			debitCode:         nil,
+			creditCode:        nil,
 			expectedRouteCode: nil,
 		},
 	}
@@ -82,7 +85,7 @@ func TestBuildStandardOp_RouteCode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			op := handler.buildStandardOp(
-				blc, ft, amt, bat, tran, transactionInput, now, false, tt.routeCode,
+				blc, ft, amt, bat, tran, transactionInput, now, false, tt.debitCode, tt.creditCode,
 			)
 
 			require.NotNil(t, op)
@@ -140,37 +143,44 @@ func TestBuildDoubleEntryPendingOps_RouteCode(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string
-		routeCode         *string
-		expectedRouteCode *string
+		name       string
+		debitCode  *string
+		creditCode *string
 	}{
 		{
-			name:              "non-nil routeCode is set on both ops",
-			routeCode:         strPtr("ROUTE-001"),
-			expectedRouteCode: strPtr("ROUTE-001"),
+			name:       "non-nil codes are set per direction",
+			debitCode:  strPtr("ROUTE-001"),
+			creditCode: strPtr("ROUTE-002"),
 		},
 		{
-			name:              "nil routeCode leaves RouteCode nil on both ops",
-			routeCode:         nil,
-			expectedRouteCode: nil,
+			name:       "nil codes leaves RouteCode nil on both ops",
+			debitCode:  nil,
+			creditCode: nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ops := handler.buildDoubleEntryPendingOps(
-				ctx, blc, ft, amt, bat, tran, transactionInput, now, false, tt.routeCode,
+				ctx, blc, ft, amt, bat, tran, transactionInput, now, false, tt.debitCode, tt.creditCode,
 			)
 
 			require.Len(t, ops, 2, "should return exactly 2 operations")
 
-			for i, op := range ops {
-				if tt.expectedRouteCode == nil {
-					assert.Nil(t, op.RouteCode, "op[%d] RouteCode should be nil", i)
-				} else {
-					require.NotNil(t, op.RouteCode, "op[%d] RouteCode should not be nil", i)
-					assert.Equal(t, *tt.expectedRouteCode, *op.RouteCode, "op[%d] RouteCode mismatch", i)
-				}
+			// op[0] is DEBIT → uses debitCode
+			if tt.debitCode == nil {
+				assert.Nil(t, ops[0].RouteCode, "DEBIT RouteCode should be nil")
+			} else {
+				require.NotNil(t, ops[0].RouteCode, "DEBIT RouteCode should not be nil")
+				assert.Equal(t, *tt.debitCode, *ops[0].RouteCode, "DEBIT RouteCode mismatch")
+			}
+
+			// op[1] is ON_HOLD (credit) → uses creditCode
+			if tt.creditCode == nil {
+				assert.Nil(t, ops[1].RouteCode, "ON_HOLD RouteCode should be nil")
+			} else {
+				require.NotNil(t, ops[1].RouteCode, "ON_HOLD RouteCode should not be nil")
+				assert.Equal(t, *tt.creditCode, *ops[1].RouteCode, "ON_HOLD RouteCode mismatch")
 			}
 		})
 	}
@@ -219,37 +229,44 @@ func TestBuildDoubleEntryCanceledOps_RouteCode(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string
-		routeCode         *string
-		expectedRouteCode *string
+		name       string
+		debitCode  *string
+		creditCode *string
 	}{
 		{
-			name:              "non-nil routeCode is set on both ops",
-			routeCode:         strPtr("CANCEL-001"),
-			expectedRouteCode: strPtr("CANCEL-001"),
+			name:       "non-nil codes are set per direction",
+			debitCode:  strPtr("CANCEL-001"),
+			creditCode: strPtr("CANCEL-002"),
 		},
 		{
-			name:              "nil routeCode leaves RouteCode nil on both ops",
-			routeCode:         nil,
-			expectedRouteCode: nil,
+			name:       "nil codes leaves RouteCode nil on both ops",
+			debitCode:  nil,
+			creditCode: nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ops := handler.buildDoubleEntryCanceledOps(
-				ctx, blc, ft, amt, bat, tran, transactionInput, now, false, tt.routeCode,
+				ctx, blc, ft, amt, bat, tran, transactionInput, now, false, tt.debitCode, tt.creditCode,
 			)
 
 			require.Len(t, ops, 2, "should return exactly 2 operations")
 
-			for i, op := range ops {
-				if tt.expectedRouteCode == nil {
-					assert.Nil(t, op.RouteCode, "op[%d] RouteCode should be nil", i)
-				} else {
-					require.NotNil(t, op.RouteCode, "op[%d] RouteCode should not be nil", i)
-					assert.Equal(t, *tt.expectedRouteCode, *op.RouteCode, "op[%d] RouteCode mismatch", i)
-				}
+			// op[0] is RELEASE (debit) → uses debitCode
+			if tt.debitCode == nil {
+				assert.Nil(t, ops[0].RouteCode, "RELEASE RouteCode should be nil")
+			} else {
+				require.NotNil(t, ops[0].RouteCode, "RELEASE RouteCode should not be nil")
+				assert.Equal(t, *tt.debitCode, *ops[0].RouteCode, "RELEASE RouteCode mismatch")
+			}
+
+			// op[1] is CREDIT → uses creditCode
+			if tt.creditCode == nil {
+				assert.Nil(t, ops[1].RouteCode, "CREDIT RouteCode should be nil")
+			} else {
+				require.NotNil(t, ops[1].RouteCode, "CREDIT RouteCode should not be nil")
+				assert.Equal(t, *tt.creditCode, *ops[1].RouteCode, "CREDIT RouteCode mismatch")
 			}
 		})
 	}

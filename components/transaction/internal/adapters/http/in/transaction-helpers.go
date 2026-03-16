@@ -59,25 +59,17 @@ func resolveAccountingEntry(action string, accountingEntries *mmodel.AccountingE
 	}
 }
 
-// resolveRouteCode looks up the operation route by ID in the cache and returns
-// its Code. Returns empty string if the route is not found or has no code.
-func resolveRouteCode(routeID string, routeCache map[string]mmodel.OperationRouteCache) string {
-	route, found := routeCache[routeID]
-	if !found {
-		return ""
-	}
-
-	return route.Code
-}
-
-// resolveOperationRouteCode determines the route ID and route code for a given
-// operation by looking up the alias in the validate response's
-// OperationRoutesFrom/To maps to find the routeID, then resolving the code
-// from the flat route cache.
-// Returns (nil, nil) if no route mapping exists or the route has no code.
-func resolveOperationRouteCode(ft pkgTransaction.FromTo, validate *pkgTransaction.Responses, flatRouteCache map[string]mmodel.OperationRouteCache) (*string, *string) {
+// resolveOperationRouteCode determines the route ID, debit rubric code, and
+// credit rubric code for a given operation by:
+//  1. Looking up the alias in validate.OperationRoutesFrom/To to find the routeID
+//  2. Finding the route in the flat cache
+//  3. Resolving the AccountingEntry for the current action (direct/hold/commit/cancel/revert)
+//  4. Extracting the debit and credit rubric codes from that entry
+//
+// Returns (nil, nil, nil) if no route mapping exists.
+func resolveOperationRouteCode(ft pkgTransaction.FromTo, validate *pkgTransaction.Responses, flatRouteCache map[string]mmodel.OperationRouteCache, action string) (*string, *string, *string) {
 	if validate == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	var routeID string
@@ -103,13 +95,28 @@ func resolveOperationRouteCode(ft pkgTransaction.FromTo, validate *pkgTransactio
 	}
 
 	if routeID == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 
-	code := resolveRouteCode(routeID, flatRouteCache)
-	if code == "" {
-		return &routeID, nil
+	route, found := flatRouteCache[routeID]
+	if !found {
+		return &routeID, nil, nil
 	}
 
-	return &routeID, &code
+	entry := resolveAccountingEntry(action, route.AccountingEntries)
+	if entry == nil {
+		return &routeID, nil, nil
+	}
+
+	var debitCode, creditCode *string
+
+	if entry.Debit != nil && entry.Debit.Code != "" {
+		debitCode = &entry.Debit.Code
+	}
+
+	if entry.Credit != nil && entry.Credit.Code != "" {
+		creditCode = &entry.Credit.Code
+	}
+
+	return &routeID, debitCode, creditCode
 }
