@@ -315,7 +315,7 @@ func TestKeyNamespacing_SimpleKeyMethods(t *testing.T) {
 			t.Parallel()
 
 			conn, recorder := newRecordingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -410,7 +410,7 @@ func TestKeyNamespacing_MGet(t *testing.T) {
 			t.Parallel()
 
 			conn, recorder := newRecordingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -477,7 +477,7 @@ func TestKeyNamespacing_QueueOperations(t *testing.T) {
 			t.Parallel()
 
 			conn, recorder := newRecordingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -571,7 +571,7 @@ func TestKeyNamespacing_ListBalanceByKey(t *testing.T) {
 			// Configure the Get stub to return valid BalanceRedis JSON.
 			recorder.getReturnVal = string(balanceRedisJSON)
 
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -636,7 +636,7 @@ func TestKeyNamespacing_ProcessBalanceAtomicOperation(t *testing.T) {
 			t.Parallel()
 
 			conn, scripter := newScriptCapturingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -736,7 +736,7 @@ func TestKeyNamespacing_GetBalanceSyncKeys(t *testing.T) {
 			t.Parallel()
 
 			conn, scripter := newScriptCapturingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -794,7 +794,7 @@ func TestKeyNamespacing_RemoveBalanceSyncKey(t *testing.T) {
 			t.Parallel()
 
 			conn, scripter := newScriptCapturingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -835,7 +835,7 @@ func TestKeyNamespacing_BackwardsCompatible_NoTenantInContext(t *testing.T) {
 		t.Parallel()
 
 		conn, recorder := newRecordingConnection(t)
-		repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+		repo := &RedisConsumerRepository{conn: conn}
 
 		originalKey := "my:original:key"
 
@@ -861,7 +861,7 @@ func TestKeyNamespacing_BackwardsCompatible_NoTenantInContext(t *testing.T) {
 		t.Parallel()
 
 		conn, recorder := newRecordingConnection(t)
-		repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+		repo := &RedisConsumerRepository{conn: conn}
 
 		originalKeys := []string{"key:a", "key:b"}
 		_, _ = repo.MGet(ctx, originalKeys)
@@ -875,7 +875,7 @@ func TestKeyNamespacing_BackwardsCompatible_NoTenantInContext(t *testing.T) {
 		t.Parallel()
 
 		conn, recorder := newRecordingConnection(t)
-		repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+		repo := &RedisConsumerRepository{conn: conn}
 
 		msgKey := "tx:orig-key"
 		_ = repo.AddMessageToQueue(ctx, msgKey, []byte("data"))

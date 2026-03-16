@@ -34,7 +34,7 @@ func TestIntegration_FilterStaleBalances_CacheNewerVersion_FiltersBalance(t *tes
 	ctx := context.Background()
 
 	conn := redistestutil.CreateConnection(t, container.Addr)
-	redisRepo, err := redis.NewConsumerRedis(conn, false)
+	redisRepo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	uc := &UseCase{
@@ -91,7 +91,7 @@ func TestIntegration_FilterStaleBalances_CacheOlderVersion_IncludesBalance(t *te
 	ctx := context.Background()
 
 	conn := redistestutil.CreateConnection(t, container.Addr)
-	redisRepo, err := redis.NewConsumerRedis(conn, false)
+	redisRepo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	uc := &UseCase{
@@ -150,7 +150,7 @@ func TestIntegration_FilterStaleBalances_CacheMiss_IncludesBalance(t *testing.T)
 	ctx := context.Background()
 
 	conn := redistestutil.CreateConnection(t, container.Addr)
-	redisRepo, err := redis.NewConsumerRedis(conn, false)
+	redisRepo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	uc := &UseCase{
@@ -189,7 +189,7 @@ func TestIntegration_FilterStaleBalances_MultipleBalances_FiltersOnlyStale(t *te
 	ctx := context.Background()
 
 	conn := redistestutil.CreateConnection(t, container.Addr)
-	redisRepo, err := redis.NewConsumerRedis(conn, false)
+	redisRepo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	uc := &UseCase{

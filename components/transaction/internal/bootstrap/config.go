@@ -230,7 +230,7 @@ type handlers struct {
 }
 
 // initRedis creates the Redis connection and consumer repository.
-func initRedis(cfg *Config, logger libLog.Logger, balanceSyncWorkerEnabled bool) (*redis.RedisConsumerRepository, *libRedis.RedisConnection, error) {
+func initRedis(cfg *Config, logger libLog.Logger) (*redis.RedisConsumerRepository, *libRedis.RedisConnection, error) {
 	redisConnection := &libRedis.RedisConnection{
 		Address:                      strings.Split(cfg.RedisHost, ","),
 		Password:                     cfg.RedisPassword,
@@ -256,7 +256,7 @@ func initRedis(cfg *Config, logger libLog.Logger, balanceSyncWorkerEnabled bool)
 		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
 	}
 
-	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection, balanceSyncWorkerEnabled)
+	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize redis: %w", err)
 	}
@@ -305,11 +305,6 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 		logger.Infof("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers)
 	}
 
-	if !cfg.BalanceSyncWorkerEnabled {
-		logger.Info("BalanceSyncWorker disabled.")
-		return nil
-	}
-
 	var balanceSyncWorker *BalanceSyncWorker
 
 	if opts != nil && opts.MultiTenantEnabled {
@@ -336,9 +331,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
-	// BalanceSyncWorkerEnabled defaults to true via struct tag
-	balanceSyncWorkerEnabled := cfg.BalanceSyncWorkerEnabled
-	logger.Infof("BalanceSyncWorker: BALANCE_SYNC_WORKER_ENABLED=%v", balanceSyncWorkerEnabled)
+	// BALANCE_SYNC_WORKER_ENABLED is deprecated - balance sync is always enabled
+	logger.Info("BalanceSyncWorker: always enabled (BALANCE_SYNC_WORKER_ENABLED env var is deprecated)")
 
 	telemetry, err := libOpentelemetry.InitializeTelemetryWithError(&libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
@@ -365,7 +359,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize MongoDB: %w", err)
 	}
 
-	redisConsumerRepository, redisConnection, err := initRedis(cfg, logger, balanceSyncWorkerEnabled)
+	redisConsumerRepository, redisConnection, err := initRedis(cfg, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -454,7 +448,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MultiTenantConsumer:      rmq.multiTenantConsumer,
 		RedisQueueConsumer:       redisConsumer,
 		BalanceSyncWorker:        balanceSyncWorker,
-		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
+		BalanceSyncWorkerEnabled: true, // Always enabled (env var is deprecated)
 		CircuitBreakerManager:    rmq.circuitBreakerManager,
 		Logger:                   logger,
 		Ports: Ports{

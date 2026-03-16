@@ -41,8 +41,7 @@ func newMockMGetConnection(client *mockMGetClient) *libRedis.RedisConnection {
 func TestGetBalancesByKeys_EmptyInput(t *testing.T) {
 	// Create a repository with nil connection to test early return
 	repo := &RedisConsumerRepository{
-		conn:               nil,
-		balanceSyncEnabled: true,
+		conn: nil,
 	}
 
 	// Empty input should return empty map without any Redis call
@@ -64,8 +63,7 @@ func TestGetBalancesByKeys_EmptyInput_NoRedisCall(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockMGetConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockMGetConnection(mockClient),
 	}
 
 	result, err := repo.GetBalancesByKeys(context.Background(), []string{})
@@ -87,8 +85,7 @@ func TestGetBalancesByKeys_SingleKey_Found(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockMGetConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockMGetConnection(mockClient),
 	}
 
 	result, err := repo.GetBalancesByKeys(context.Background(), []string{"balance:key1"})
@@ -113,8 +110,7 @@ func TestGetBalancesByKeys_SingleKey_NotFound(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockMGetConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockMGetConnection(mockClient),
 	}
 
 	result, err := repo.GetBalancesByKeys(context.Background(), []string{"balance:key1"})
@@ -139,8 +135,7 @@ func TestGetBalancesByKeys_MultipleKeys_MixedResults(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockMGetConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockMGetConnection(mockClient),
 	}
 
 	result, err := repo.GetBalancesByKeys(context.Background(), []string{"key1", "key2", "key3"})
@@ -175,8 +170,7 @@ func TestGetBalancesByKeys_MalformedJSON(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockMGetConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockMGetConnection(mockClient),
 	}
 
 	result, err := repo.GetBalancesByKeys(context.Background(), []string{"key1", "key2", "key3"})
@@ -209,8 +203,7 @@ func TestGetBalancesByKeys_ByteSliceValue(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockMGetConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockMGetConnection(mockClient),
 	}
 
 	result, err := repo.GetBalancesByKeys(context.Background(), []string{"balance:key1"})
@@ -234,8 +227,7 @@ func TestGetBalancesByKeys_UnexpectedValueType(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockMGetConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockMGetConnection(mockClient),
 	}
 
 	result, err := repo.GetBalancesByKeys(context.Background(), []string{"balance:key1"})
@@ -259,8 +251,7 @@ func TestGetBalancesByKeys_RedisError(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockMGetConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockMGetConnection(mockClient),
 	}
 
 	result, err := repo.GetBalancesByKeys(context.Background(), []string{"balance:key1"})
@@ -281,8 +272,7 @@ func TestGetBalancesByKeys_AllKeysNotFound(t *testing.T) {
 	}
 
 	repo := &RedisConsumerRepository{
-		conn:               newMockMGetConnection(mockClient),
-		balanceSyncEnabled: true,
+		conn: newMockMGetConnection(mockClient),
 	}
 
 	result, err := repo.GetBalancesByKeys(context.Background(), []string{"key1", "key2", "key3"})

@@ -90,8 +90,7 @@ func setupRedisChaosNetworkInfra(t *testing.T) *chaosNetworkTestInfra {
 	}
 
 	proxyRepo := &RedisConsumerRepository{
-		conn:               proxyConn,
-		balanceSyncEnabled: false,
+		conn: proxyConn,
 	}
 
 	return &chaosNetworkTestInfra{

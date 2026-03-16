@@ -38,7 +38,7 @@ func TestSyncBalancesBatch_EmptyKeys(t *testing.T) {
 }
 
 // TestSyncBalancesBatch_AllKeysExpired verifies that when all keys have expired
-// (nil balance data), the use case returns zero synced without error.
+// (nil balance data), the orphaned keys are cleaned up from the schedule.
 func TestSyncBalancesBatch_AllKeysExpired(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -60,6 +60,15 @@ func TestSyncBalancesBatch_AllKeysExpired(t *testing.T) {
 		}, nil).
 		Times(1)
 
+	// With the fix: orphaned keys are cleaned up even when no valid balances exist
+	mockRedis.EXPECT().
+		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, keysToRemove []string) (int64, error) {
+			assert.Len(t, keysToRemove, 2, "Both expired keys should be removed")
+			return 2, nil
+		}).
+		Times(1)
+
 	uc := UseCase{
 		RedisRepo: mockRedis,
 	}
@@ -71,6 +80,7 @@ func TestSyncBalancesBatch_AllKeysExpired(t *testing.T) {
 	assert.Equal(t, 2, result.KeysProcessed)
 	assert.Equal(t, 0, result.BalancesAggregated)
 	assert.Equal(t, int64(0), result.BalancesSynced)
+	assert.Equal(t, int64(2), result.KeysRemoved, "Orphaned keys should be removed")
 }
 
 // TestSyncBalancesBatch_SuccessWithAggregation verifies the full flow:
@@ -146,7 +156,7 @@ func TestSyncBalancesBatch_SuccessWithAggregation(t *testing.T) {
 }
 
 // TestSyncBalancesBatch_PartialData verifies that when some keys have data
-// and others are nil (expired), only valid balances are processed.
+// and others are nil (expired), only valid balances are synced but all keys are removed.
 func TestSyncBalancesBatch_PartialData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -168,7 +178,7 @@ func TestSyncBalancesBatch_PartialData(t *testing.T) {
 			Version:   5,
 			Available: decimal.NewFromInt(1000),
 		},
-		keys[1]: nil, // expired
+		keys[1]: nil, // expired - orphaned key
 	}
 
 	mockRedis := redis.NewMockRedisRepository(ctrl)
@@ -187,9 +197,10 @@ func TestSyncBalancesBatch_PartialData(t *testing.T) {
 		}).
 		Times(1)
 
+	// Both keys removed: 1 valid + 1 orphaned
 	mockRedis.EXPECT().
 		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
-		Return(int64(1), nil).
+		Return(int64(2), nil).
 		Times(1)
 
 	uc := UseCase{
@@ -421,7 +432,7 @@ func TestSyncBalancesBatch_AggregationKeepsHighestVersion(t *testing.T) {
 }
 
 // TestSyncBalancesBatch_InvalidKeyFormat verifies that malformed Redis keys
-// are gracefully skipped without failing the entire batch operation.
+// are gracefully skipped for processing but still removed from the schedule.
 func TestSyncBalancesBatch_InvalidKeyFormat(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -484,12 +495,16 @@ func TestSyncBalancesBatch_InvalidKeyFormat(t *testing.T) {
 		}).
 		Times(1)
 
+	// All 4 keys removed: 1 valid + 3 invalid (orphaned due to parse errors)
 	mockRedis.EXPECT().
 		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, keysToRemove []string) (int64, error) {
-			assert.Len(t, keysToRemove, 1, "Only valid key should be in removal list")
-			assert.Equal(t, validKey, keysToRemove[0])
-			return 1, nil
+			assert.Len(t, keysToRemove, 4, "All keys should be removed (valid + invalid)")
+			assert.Contains(t, keysToRemove, validKey, "valid key should be removed")
+			assert.Contains(t, keysToRemove, invalidKey1, "invalid key 1 should be removed")
+			assert.Contains(t, keysToRemove, invalidKey2, "invalid key 2 should be removed")
+			assert.Contains(t, keysToRemove, invalidKey3, "invalid key 3 should be removed")
+			return 4, nil
 		}).
 		Times(1)
 
@@ -505,11 +520,11 @@ func TestSyncBalancesBatch_InvalidKeyFormat(t *testing.T) {
 	assert.Equal(t, 4, result.KeysProcessed, "All keys were attempted")
 	assert.Equal(t, 1, result.BalancesAggregated, "Only valid key produced a balance")
 	assert.Equal(t, int64(1), result.BalancesSynced)
-	assert.Equal(t, int64(1), result.KeysRemoved)
+	assert.Equal(t, int64(4), result.KeysRemoved, "All 4 keys removed")
 }
 
-// TestSyncBalancesBatch_ExactKeysRemoved verifies that exactly the synced keys
-// are passed to RemoveBalanceSyncKeysBatch (not more, not less).
+// TestSyncBalancesBatch_ExactKeysRemoved verifies that all processed keys
+// (both valid and orphaned) are removed from the schedule.
 func TestSyncBalancesBatch_ExactKeysRemoved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -532,7 +547,7 @@ func TestSyncBalancesBatch_ExactKeysRemoved(t *testing.T) {
 			AssetCode: "USD",
 			Version:   5,
 		},
-		key2: nil, // Expired - should not be in removal list
+		key2: nil, // Expired - orphaned key, MUST be removed to prevent infinite loop
 		key3: {
 			ID:        balanceID2.String(),
 			Alias:     "@acc3",
@@ -554,15 +569,15 @@ func TestSyncBalancesBatch_ExactKeysRemoved(t *testing.T) {
 		Return(int64(2), nil).
 		Times(1)
 
-	// Verify EXACT keys are removed: only key1 and key3 (not key2 which was nil)
+	// Verify ALL keys are removed: key1, key2 (orphaned), and key3
 	mockRedis.EXPECT().
 		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, keysToRemove []string) (int64, error) {
-			assert.Len(t, keysToRemove, 2, "Expected exactly 2 keys to be removed")
+			assert.Len(t, keysToRemove, 3, "Expected all 3 keys to be removed")
 			assert.Contains(t, keysToRemove, key1, "key1 should be in removal list")
+			assert.Contains(t, keysToRemove, key2, "key2 (orphaned) MUST be in removal list")
 			assert.Contains(t, keysToRemove, key3, "key3 should be in removal list")
-			assert.NotContains(t, keysToRemove, key2, "key2 (expired) should NOT be in removal list")
-			return 2, nil
+			return 3, nil
 		}).
 		Times(1)
 
@@ -578,7 +593,7 @@ func TestSyncBalancesBatch_ExactKeysRemoved(t *testing.T) {
 	assert.Equal(t, 3, result.KeysProcessed)
 	assert.Equal(t, 2, result.BalancesAggregated)
 	assert.Equal(t, int64(2), result.BalancesSynced)
-	assert.Equal(t, int64(2), result.KeysRemoved)
+	assert.Equal(t, int64(3), result.KeysRemoved, "All 3 keys removed (2 valid + 1 orphaned)")
 }
 
 // TestSyncBalancesBatch_ContextCancellation verifies that the operation respects
@@ -615,4 +630,79 @@ func TestSyncBalancesBatch_ContextCancellation(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, context.Canceled)
+}
+
+// TestSyncBalancesBatch_OrphanedKeysCleanedUp verifies that keys with nil balance values
+// (expired TTL) are removed from the schedule to prevent infinite reprocessing loops.
+// Bug fix: Previously these keys were skipped but never added to keysToRemove.
+func TestSyncBalancesBatch_OrphanedKeysCleanedUp(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	balanceID := libCommons.GenerateUUIDv7()
+
+	// Mix of valid keys and orphaned keys (nil balance - expired TTL)
+	validKey := "balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@valid-account#default"
+	orphanedKey1 := "balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@orphaned-1#default"
+	orphanedKey2 := "balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@orphaned-2#default"
+
+	keys := []string{validKey, orphanedKey1, orphanedKey2}
+
+	balanceData := map[string]*mmodel.BalanceRedis{
+		validKey: {
+			ID:        balanceID.String(),
+			Alias:     "@valid-account",
+			AssetCode: "USD",
+			Version:   5,
+			Available: decimal.NewFromInt(1000),
+		},
+		orphanedKey1: nil, // Expired - orphaned key
+		orphanedKey2: nil, // Expired - orphaned key
+	}
+
+	mockRedis := redis.NewMockRedisRepository(ctrl)
+	mockBalance := balance.NewMockRepository(ctrl)
+
+	mockRedis.EXPECT().
+		GetBalancesByKeys(gomock.Any(), keys).
+		Return(balanceData, nil).
+		Times(1)
+
+	// Only valid balance is synced to DB
+	mockBalance.EXPECT().
+		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
+			assert.Len(t, balances, 1, "Only valid key should produce a balance")
+			return 1, nil
+		}).
+		Times(1)
+
+	// KEY ASSERTION: ALL 3 keys should be removed (1 valid + 2 orphaned)
+	// This is the bug fix: orphaned keys MUST be in removal list
+	mockRedis.EXPECT().
+		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, keysToRemove []string) (int64, error) {
+			assert.Len(t, keysToRemove, 3, "Expected 3 keys to be removed (1 valid + 2 orphaned)")
+			assert.Contains(t, keysToRemove, validKey, "valid key should be in removal list")
+			assert.Contains(t, keysToRemove, orphanedKey1, "orphaned key 1 should be in removal list")
+			assert.Contains(t, keysToRemove, orphanedKey2, "orphaned key 2 should be in removal list")
+			return 3, nil
+		}).
+		Times(1)
+
+	uc := UseCase{
+		RedisRepo:   mockRedis,
+		BalanceRepo: mockBalance,
+	}
+
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 3, result.KeysProcessed, "All 3 keys were processed")
+	assert.Equal(t, 1, result.BalancesAggregated, "Only 1 valid balance aggregated")
+	assert.Equal(t, int64(1), result.BalancesSynced)
+	assert.Equal(t, int64(3), result.KeysRemoved, "All 3 keys removed (including orphaned)")
 }
