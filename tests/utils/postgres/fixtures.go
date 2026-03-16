@@ -793,22 +793,6 @@ func CreateTestOperationTransactionRouteLink(t *testing.T, db *sql.DB, operation
 	return id
 }
 
-// CreateTestOperationTransactionRouteLinkWithAction inserts a link between operation route and transaction route with a specific action.
-func CreateTestOperationTransactionRouteLinkWithAction(t *testing.T, db *sql.DB, operationRouteID, transactionRouteID uuid.UUID, action string) uuid.UUID {
-	t.Helper()
-
-	id := libCommons.GenerateUUIDv7()
-	now := time.Now().Truncate(time.Microsecond)
-
-	_, err := db.Exec(`
-		INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, action, created_at, deleted_at)
-		VALUES ($1, $2, $3, $4, $5, NULL)
-	`, id, operationRouteID, transactionRouteID, action, now)
-	require.NoError(t, err, "failed to create test operation transaction route link with action")
-
-	return id
-}
-
 // SoftDeleteOperationTransactionRouteLink soft-deletes a link by ID.
 func SoftDeleteOperationTransactionRouteLink(t *testing.T, db *sql.DB, linkID uuid.UUID) {
 	t.Helper()
