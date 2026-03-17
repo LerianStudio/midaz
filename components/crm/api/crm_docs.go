@@ -152,12 +152,6 @@ const docTemplatecrm = `{
                                             "items": {
                                                 "$ref": "#/definitions/AliasResponse"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "page": {
-                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -274,12 +268,6 @@ const docTemplatecrm = `{
                                             "items": {
                                                 "$ref": "#/definitions/HolderResponse"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "page": {
-                                            "type": "integer"
                                         }
                                     }
                                 }

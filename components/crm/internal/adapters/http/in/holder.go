@@ -258,7 +258,7 @@ func (handler *HolderHandler) DeleteHolderByID(c *fiber.Ctx) error {
 //	@Param			include_deleted		query		string	false	"Return includes logically deleted holders."
 //	@Param			external_id			query		string	false	"Filter holders by externalID"
 //	@Param			document			query		string	false	"Filter holders by document"
-//	@Success		200					{object}	http.Pagination{items=[]mmodel.Holder,page=int,limit=int}
+//	@Success		200					{object}	http.Pagination{items=[]mmodel.Holder}
 //	@Failure		400					{object}	pkg.HTTPError
 //	@Failure		404					{object}	pkg.HTTPError
 //	@Failure		500					{object}	pkg.HTTPError

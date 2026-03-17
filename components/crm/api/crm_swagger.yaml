@@ -629,10 +629,6 @@ paths:
                   items:
                     $ref: '#/definitions/AliasResponse'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Bad Request
@@ -713,10 +709,6 @@ paths:
                   items:
                     $ref: '#/definitions/HolderResponse'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Bad Request

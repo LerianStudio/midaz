@@ -295,7 +295,7 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 //	@Param			regulatory_fields_participant_document	query		string	false	"Filter alias by regulatory fields participant document"
 //	@Param			related_party_document					query		string	false	"Filter alias by related party document"
 //	@Param			related_party_role						query		string	false	"Filter alias by related party role"
-//	@Success		200										{object}	http.Pagination{items=[]mmodel.Alias,page=int,limit=int}
+//	@Success		200										{object}	http.Pagination{items=[]mmodel.Alias}
 //	@Failure		400						{object}	pkg.HTTPError
 //	@Failure		404						{object}	pkg.HTTPError
 //	@Failure		500						{object}	pkg.HTTPError

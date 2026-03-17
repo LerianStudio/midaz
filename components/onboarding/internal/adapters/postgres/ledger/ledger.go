@@ -35,6 +35,7 @@ func (t *LedgerPostgreSQLModel) ToEntity() *mmodel.Ledger {
 	}
 
 	var settings *mmodel.LedgerSettings
+
 	if len(t.Settings) > 0 {
 		parsed := mmodel.ParseLedgerSettings(t.Settings)
 		settings = &parsed

@@ -4188,8 +4188,7 @@ components:
       example:
         organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
-        settings:
-          key: '{}'
+        settings: '{}'
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
           key: '{}'
@@ -4246,8 +4245,8 @@ components:
           format: uuid
           type: string
         settings:
-          additionalProperties:
-            type: object
+          allOf:
+          - $ref: '#/components/schemas/mmodel.LedgerSettings'
           description: |-
             Dynamic configuration settings for this ledger
             example: {"accounting": {"validateAccountType": true}}
@@ -4894,8 +4893,7 @@ components:
         items:
         - organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
-          settings:
-            key: '{}'
+          settings: '{}'
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
             key: '{}'
@@ -4905,8 +4903,7 @@ components:
           updatedAt: 2021-01-01T00:00:00Z
         - organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
-          settings:
-            key: '{}'
+          settings: '{}'
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
             key: '{}'

@@ -146,12 +146,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/AliasResponse"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "page": {
-                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -268,12 +262,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/HolderResponse"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "page": {
-                                            "type": "integer"
                                         }
                                     }
                                 }

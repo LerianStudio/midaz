@@ -1541,8 +1541,6 @@ components:
       type: object
     inline_response_200:
       example:
-        limit: 1
-        page: 5
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -1627,15 +1625,9 @@ components:
           items:
             $ref: '#/components/schemas/AliasResponse'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_1:
       example:
-        limit: 0
-        page: 6
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -1766,10 +1758,6 @@ components:
           items:
             $ref: '#/components/schemas/HolderResponse'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
   securitySchemes:
     BearerAuth:
