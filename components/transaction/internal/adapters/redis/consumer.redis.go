@@ -429,6 +429,11 @@ func (l *balanceRedisList) UnmarshalJSON(data []byte) error {
 			}
 		}
 	case map[string]any:
+		// Empty map {} is cjson's encoding of an empty array — skip it.
+		if len(value) == 0 {
+			break
+		}
+
 		if decodedBalance, ok := decodeBalance(value); ok {
 			result = append(result, decodedBalance)
 		} else {
