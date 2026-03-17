@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
@@ -28,12 +28,12 @@ func TestReloadOperationRouteCache_RebuildWithActionGrouping(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
-	sourceOpRouteID := libCommons.GenerateUUIDv7()
-	destOpRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	sourceOpRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	destOpRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -122,11 +122,11 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
-	txRouteID1 := libCommons.GenerateUUIDv7()
-	txRouteID2 := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	txRouteID1 := uuid.Must(libCommons.GenerateUUIDv7())
+	txRouteID2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -145,7 +145,7 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 		Title:          "Route 1 - Direct",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:                libCommons.GenerateUUIDv7(),
+				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "source",
 				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
@@ -160,13 +160,13 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 		Title:          "Route 2 - Hold",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:                libCommons.GenerateUUIDv7(),
+				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "source",
 				Action:            "hold",
 				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 			{
-				ID:                libCommons.GenerateUUIDv7(),
+				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "destination",
 				Action:            "hold",
 				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},

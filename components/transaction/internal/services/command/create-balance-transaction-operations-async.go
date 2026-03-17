@@ -107,7 +107,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	for _, oper := range tran.Operations {
 		if oper.Direction == "" {
-			logger.Warnf("Operation %s has empty direction, may be from pre-migration message", oper.ID)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Operation %s has empty direction, may be from pre-migration message", oper.ID))
 		}
 
 		_, err = uc.OperationRepo.Create(ctxProcessOperation, oper)

@@ -769,7 +769,12 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, scope.OrganizationID, scope.LedgerID, transactionID, &transactionInput, validate, transactionStatus)
+	action := constant.ActionDirect
+	if transactionStatus == constant.PENDING {
+		action = constant.ActionHold
+	}
+
+	balancesBefore, balancesAfter, _, err := handler.Query.GetBalances(ctx, scope.OrganizationID, scope.LedgerID, transactionID, &transactionInput, validate, transactionStatus, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
 

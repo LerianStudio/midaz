@@ -17,9 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestBuildStandardOp_RouteCode verifies that buildStandardOp correctly sets
-// the RouteCode field on the returned operation.
-func TestBuildStandardOp_RouteCode(t *testing.T) {
+// TestBuildStandardOp_ReturnsOperation verifies that buildStandardOp returns a valid operation.
+func TestBuildStandardOp_ReturnsOperation(t *testing.T) {
 	handler := &TransactionHandler{}
 	now := time.Now()
 
@@ -62,47 +61,19 @@ func TestBuildStandardOp_RouteCode(t *testing.T) {
 		Send:        pkgTransaction.Send{Asset: "BRL"},
 	}
 
-	tests := []struct {
-		name              string
-		debitCode         *string
-		creditCode        *string
-		expectedRouteCode *string
-	}{
-		{
-			name:              "non-nil codes are set on operation",
-			debitCode:         strPtr("EXT-001"),
-			creditCode:        strPtr("EXT-002"),
-			expectedRouteCode: strPtr("EXT-001"),
-		},
-		{
-			name:              "nil codes leaves RouteCode nil",
-			debitCode:         nil,
-			creditCode:        nil,
-			expectedRouteCode: nil,
-		},
-	}
+	op, err := handler.buildStandardOp(
+		blc, ft, amt, bat, tran, transactionInput, now, false,
+	)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			op := handler.buildStandardOp(
-				blc, ft, amt, bat, tran, transactionInput, now, false, tt.debitCode, tt.creditCode,
-			)
-
-			require.NotNil(t, op)
-
-			if tt.expectedRouteCode == nil {
-				assert.Nil(t, op.RouteCode, "RouteCode should be nil")
-			} else {
-				require.NotNil(t, op.RouteCode, "RouteCode should not be nil")
-				assert.Equal(t, *tt.expectedRouteCode, *op.RouteCode)
-			}
-		})
-	}
+	require.NoError(t, err)
+	require.NotNil(t, op)
+	assert.Equal(t, "txn-1", op.TransactionID)
+	assert.Equal(t, "balance-1", op.BalanceID)
 }
 
-// TestBuildDoubleEntryPendingOps_RouteCode verifies that buildDoubleEntryPendingOps
-// sets RouteCode on BOTH returned operations.
-func TestBuildDoubleEntryPendingOps_RouteCode(t *testing.T) {
+// TestBuildDoubleEntryPendingOps_ReturnsTwoOperations verifies that buildDoubleEntryPendingOps
+// returns exactly 2 operations.
+func TestBuildDoubleEntryPendingOps_ReturnsTwoOperations(t *testing.T) {
 	handler := &TransactionHandler{}
 	ctx := context.Background()
 	now := time.Now()
@@ -142,53 +113,19 @@ func TestBuildDoubleEntryPendingOps_RouteCode(t *testing.T) {
 		Send:        pkgTransaction.Send{Asset: "BRL"},
 	}
 
-	tests := []struct {
-		name       string
-		debitCode  *string
-		creditCode *string
-	}{
-		{
-			name:       "non-nil codes are set per direction",
-			debitCode:  strPtr("ROUTE-001"),
-			creditCode: strPtr("ROUTE-002"),
-		},
-		{
-			name:       "nil codes leaves RouteCode nil on both ops",
-			debitCode:  nil,
-			creditCode: nil,
-		},
-	}
+	ops, err := handler.buildDoubleEntryPendingOps(
+		ctx, blc, ft, amt, bat, tran, transactionInput, now, false,
+	)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ops := handler.buildDoubleEntryPendingOps(
-				ctx, blc, ft, amt, bat, tran, transactionInput, now, false, tt.debitCode, tt.creditCode,
-			)
-
-			require.Len(t, ops, 2, "should return exactly 2 operations")
-
-			// op[0] is DEBIT → uses debitCode
-			if tt.debitCode == nil {
-				assert.Nil(t, ops[0].RouteCode, "DEBIT RouteCode should be nil")
-			} else {
-				require.NotNil(t, ops[0].RouteCode, "DEBIT RouteCode should not be nil")
-				assert.Equal(t, *tt.debitCode, *ops[0].RouteCode, "DEBIT RouteCode mismatch")
-			}
-
-			// op[1] is ON_HOLD (credit) → uses creditCode
-			if tt.creditCode == nil {
-				assert.Nil(t, ops[1].RouteCode, "ON_HOLD RouteCode should be nil")
-			} else {
-				require.NotNil(t, ops[1].RouteCode, "ON_HOLD RouteCode should not be nil")
-				assert.Equal(t, *tt.creditCode, *ops[1].RouteCode, "ON_HOLD RouteCode mismatch")
-			}
-		})
-	}
+	require.NoError(t, err)
+	require.Len(t, ops, 2, "should return exactly 2 operations")
+	assert.Equal(t, "txn-1", ops[0].TransactionID)
+	assert.Equal(t, "txn-1", ops[1].TransactionID)
 }
 
-// TestBuildDoubleEntryCanceledOps_RouteCode verifies that buildDoubleEntryCanceledOps
-// sets RouteCode on BOTH returned operations.
-func TestBuildDoubleEntryCanceledOps_RouteCode(t *testing.T) {
+// TestBuildDoubleEntryCanceledOps_ReturnsTwoOperations verifies that buildDoubleEntryCanceledOps
+// returns exactly 2 operations.
+func TestBuildDoubleEntryCanceledOps_ReturnsTwoOperations(t *testing.T) {
 	handler := &TransactionHandler{}
 	ctx := context.Background()
 	now := time.Now()
@@ -228,48 +165,14 @@ func TestBuildDoubleEntryCanceledOps_RouteCode(t *testing.T) {
 		Send:        pkgTransaction.Send{Asset: "BRL"},
 	}
 
-	tests := []struct {
-		name       string
-		debitCode  *string
-		creditCode *string
-	}{
-		{
-			name:       "non-nil codes are set per direction",
-			debitCode:  strPtr("CANCEL-001"),
-			creditCode: strPtr("CANCEL-002"),
-		},
-		{
-			name:       "nil codes leaves RouteCode nil on both ops",
-			debitCode:  nil,
-			creditCode: nil,
-		},
-	}
+	ops, err := handler.buildDoubleEntryCanceledOps(
+		ctx, blc, ft, amt, bat, tran, transactionInput, now, false,
+	)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ops := handler.buildDoubleEntryCanceledOps(
-				ctx, blc, ft, amt, bat, tran, transactionInput, now, false, tt.debitCode, tt.creditCode,
-			)
-
-			require.Len(t, ops, 2, "should return exactly 2 operations")
-
-			// op[0] is RELEASE (debit) → uses debitCode
-			if tt.debitCode == nil {
-				assert.Nil(t, ops[0].RouteCode, "RELEASE RouteCode should be nil")
-			} else {
-				require.NotNil(t, ops[0].RouteCode, "RELEASE RouteCode should not be nil")
-				assert.Equal(t, *tt.debitCode, *ops[0].RouteCode, "RELEASE RouteCode mismatch")
-			}
-
-			// op[1] is CREDIT → uses creditCode
-			if tt.creditCode == nil {
-				assert.Nil(t, ops[1].RouteCode, "CREDIT RouteCode should be nil")
-			} else {
-				require.NotNil(t, ops[1].RouteCode, "CREDIT RouteCode should not be nil")
-				assert.Equal(t, *tt.creditCode, *ops[1].RouteCode, "CREDIT RouteCode mismatch")
-			}
-		})
-	}
+	require.NoError(t, err)
+	require.Len(t, ops, 2, "should return exactly 2 operations")
+	assert.Equal(t, "txn-1", ops[0].TransactionID)
+	assert.Equal(t, "txn-1", ops[1].TransactionID)
 }
 
 // strPtr returns a pointer to the given string.

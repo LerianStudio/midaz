@@ -567,12 +567,12 @@ func TestUpdateTransactionRouteWithMultipleOperationRoutes(t *testing.T) {
 // TestHandleOperationRouteUpdatesDiffsByRouteID tests that the diff logic uses
 // operation route IDs to determine which relationships to add and remove.
 func TestHandleOperationRouteUpdatesDiffsByRouteID(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	opRouteSource := libCommons.GenerateUUIDv7()
-	opRouteDest := libCommons.GenerateUUIDv7()
+	opRouteSource := uuid.Must(libCommons.GenerateUUIDv7())
+	opRouteDest := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Currently the transaction route has these operation routes
 	currentTransactionRoute := &mmodel.TransactionRoute{
@@ -659,12 +659,12 @@ func TestHandleOperationRouteUpdatesDiffsByRouteID(t *testing.T) {
 // TestHandleOperationRouteUpdatesDuplicateInputsDeduplication tests that duplicate route IDs
 // in the input are deduplicated before computing the diff.
 func TestHandleOperationRouteUpdatesDuplicateInputsDeduplication(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	opRouteSource := libCommons.GenerateUUIDv7()
-	opRouteDest := libCommons.GenerateUUIDv7()
+	opRouteSource := uuid.Must(libCommons.GenerateUUIDv7())
+	opRouteDest := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Current state: no operation routes
 	currentTransactionRoute := &mmodel.TransactionRoute{
@@ -780,12 +780,12 @@ func TestUpdateTransactionRouteEmptyOperationRoutes(t *testing.T) {
 func TestHandleOperationRouteUpdates_ErrorPaths(t *testing.T) {
 	t.Parallel()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	opRouteID1 := libCommons.GenerateUUIDv7()
-	opRouteID2 := libCommons.GenerateUUIDv7()
+	opRouteID1 := uuid.Must(libCommons.GenerateUUIDv7())
+	opRouteID2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	validInputs := []mmodel.OperationRouteActionInput{
 		{OperationRouteID: opRouteID1},
@@ -882,14 +882,14 @@ func TestHandleOperationRouteUpdates_ErrorPaths(t *testing.T) {
 func TestHandleOperationRouteUpdates_DiffScenarios(t *testing.T) {
 	t.Parallel()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	opRouteSource := libCommons.GenerateUUIDv7()
-	opRouteDest := libCommons.GenerateUUIDv7()
-	newSource := libCommons.GenerateUUIDv7()
-	newDest := libCommons.GenerateUUIDv7()
+	opRouteSource := uuid.Must(libCommons.GenerateUUIDv7())
+	opRouteDest := uuid.Must(libCommons.GenerateUUIDv7())
+	newSource := uuid.Must(libCommons.GenerateUUIDv7())
+	newDest := uuid.Must(libCommons.GenerateUUIDv7())
 
 	tests := []struct {
 		name              string
@@ -1001,12 +1001,12 @@ func TestHandleOperationRouteUpdates_DiffScenarios(t *testing.T) {
 func TestHandleOperationRouteUpdates_SoftDeletePreserved(t *testing.T) {
 	t.Parallel()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	opRouteToKeep := libCommons.GenerateUUIDv7()
-	opRouteToRemove := libCommons.GenerateUUIDv7()
+	opRouteToKeep := uuid.Must(libCommons.GenerateUUIDv7())
+	opRouteToRemove := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1027,7 +1027,7 @@ func TestHandleOperationRouteUpdates_SoftDeletePreserved(t *testing.T) {
 		Times(1)
 
 	// New desired state: only keep the source route, replace destination
-	newDestID := libCommons.GenerateUUIDv7()
+	newDestID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	newInputs := []mmodel.OperationRouteActionInput{
 		{OperationRouteID: opRouteToKeep},

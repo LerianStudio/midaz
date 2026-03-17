@@ -79,9 +79,9 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	actionCache, found := transactionRouteCache.Actions[action]
 	if !found {
 		err := pkg.ValidateBusinessError(constant.ErrNoRoutesForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), action)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "No routes found for action", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No routes found for action", err)
 
-		logger.Warnf("No routes found for action '%s' in transaction route cache", action)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("No routes found for action '%s' in transaction route cache", action))
 
 		return nil, err
 	}
@@ -96,9 +96,9 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	for alias, routeID := range validate.OperationRoutesFrom {
 		if routeID == "" {
 			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), routeID, alias)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing operation route ID", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing operation route ID", err)
 
-			logger.Warnf("Operation '%s' (source) has no route ID — each operation must specify its operation route when route validation is enabled", alias)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Operation '%s' (source) has no route ID — each operation must specify its operation route when route validation is enabled", alias))
 
 			return nil, err
 		}
@@ -107,9 +107,9 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	for alias, routeID := range validate.OperationRoutesTo {
 		if routeID == "" {
 			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), routeID, alias)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing operation route ID", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing operation route ID", err)
 
-			logger.Warnf("Operation '%s' (destination) has no route ID — each operation must specify its operation route when route validation is enabled", alias)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Operation '%s' (destination) has no route ID — each operation must specify its operation route when route validation is enabled", alias))
 
 			return nil, err
 		}
@@ -147,9 +147,9 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 	if totalUsedRoutes != totalCacheRoutes || uniqueFromCount < sourceRoutesCount || uniqueToCount < destinationRoutesCount {
 		err := pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting route count mismatch", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting route count mismatch", err)
 
-		logger.Warnf("Route count mismatch: from=%d to=%d, cache has source=%d destination=%d bidirectional=%d shared=%d", uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount, len(sharedBidirectionalRoutes))
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Route count mismatch: from=%d to=%d, cache has source=%d destination=%d bidirectional=%d shared=%d", uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount, len(sharedBidirectionalRoutes)))
 
 		return nil, err
 	}
@@ -170,9 +170,9 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 	if len(mergedRouteMap) > 0 {
 		if err := validateCounterparts(operations, mergedRouteMap); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Route missing counterpart", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Route missing counterpart", err)
 
-			logger.Warnf("Route counterpart validation failed: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Route counterpart validation failed: %v", err))
 
 			return nil, err
 		}
@@ -236,9 +236,9 @@ func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, 
 		}
 
 		if err := validateDirectionRouteMatch(operation, cacheRule); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Direction does not match route operation type", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Direction does not match route operation type", err)
 
-			logger.Warnf("Operation '%s' direction '%s' does not match route operation type '%s'", operation.Alias, operation.Amount.Direction, cacheRule.OperationType)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Operation '%s' direction '%s' does not match route operation type '%s'", operation.Alias, operation.Amount.Direction, cacheRule.OperationType))
 
 			return err
 		}

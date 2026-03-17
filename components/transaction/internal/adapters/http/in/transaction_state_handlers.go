@@ -441,7 +441,12 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus)
+	action := constant.ActionCommit
+	if transactionStatus == constant.CANCELED {
+		action = constant.ActionCancel
+	}
+
+	balancesBefore, balancesAfter, _, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
 

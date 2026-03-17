@@ -11,12 +11,13 @@ import (
 	"testing"
 	"testing/quick"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -32,9 +33,9 @@ func TestProperty_SentinelDetection_OnlyExactMatch(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		organizationID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
-		transactionRouteID := libCommons.GenerateUUIDv7()
+		organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+		transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 		mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -139,9 +140,9 @@ func TestProperty_ReturnContract_NeverBothDataAndError(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		organizationID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
-		transactionRouteID := libCommons.GenerateUUIDv7()
+		organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+		transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 		mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
@@ -203,9 +204,9 @@ func TestProperty_SentinelPath_NeverCallsDB(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		organizationID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
-		transactionRouteID := libCommons.GenerateUUIDv7()
+		organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+		transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 

@@ -8,12 +8,13 @@ import (
 	"context"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -28,11 +29,11 @@ func TestValidateAccountingRules_ActionParam(t *testing.T) {
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	sourceRouteID := libCommons.GenerateUUIDv7().String()
+	sourceRouteID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	ctx := context.Background()
 
@@ -298,13 +299,13 @@ func TestValidateAccountingRules_ActionFilteredRouteCount(t *testing.T) {
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	directSourceRouteID := libCommons.GenerateUUIDv7().String()
-	directDestRouteID := libCommons.GenerateUUIDv7().String()
-	holdSourceRouteID := libCommons.GenerateUUIDv7().String()
+	directSourceRouteID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	directDestRouteID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holdSourceRouteID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	ctx := context.Background()
 
@@ -386,11 +387,11 @@ func TestValidateAccountingRules_ActionFilteredAccountRules(t *testing.T) {
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	sourceRouteID := libCommons.GenerateUUIDv7().String()
+	sourceRouteID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	ctx := context.Background()
 
@@ -479,11 +480,11 @@ func TestValidateAccountingRules_ActionAccountTypeMismatch(t *testing.T) {
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	sourceRouteID := libCommons.GenerateUUIDv7().String()
+	sourceRouteID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	ctx := context.Background()
 

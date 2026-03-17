@@ -390,7 +390,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 		var buildErr error
 
 		operations, _, buildErr = r.TransactionHandler.BuildOperations(
-			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, nil, "",
+			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
 		)
 		if buildErr != nil {
 			libOpentelemetry.HandleSpanError(msgSpan, "Failed to validate balances", buildErr)

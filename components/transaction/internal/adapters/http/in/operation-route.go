@@ -484,10 +484,7 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 	_, span := tracer.Start(ctx, "handler.validate_accounting_entries")
 	defer span.End()
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.accountingEntries", entries)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert accounting entries to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, entries)
 
 	if entries == nil {
 		return nil
@@ -516,9 +513,9 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 
 			err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting entry missing both debit and credit", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting entry missing both debit and credit", err)
 
-			logger.Warnf("Accounting entry %s missing both debit and credit, Error: %s", action.name, err.Error())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s missing both debit and credit, Error: %s", action.name, err.Error()))
 
 			return err
 		}
@@ -528,9 +525,9 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 
 			err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting entry missing debit", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting entry missing debit", err)
 
-			logger.Warnf("Accounting entry %s missing debit, Error: %s", action.name, err.Error())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s missing debit, Error: %s", action.name, err.Error()))
 
 			return err
 		}
@@ -540,9 +537,9 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 
 			err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting entry missing credit", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting entry missing credit", err)
 
-			logger.Warnf("Accounting entry %s missing credit, Error: %s", action.name, err.Error())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s missing credit, Error: %s", action.name, err.Error()))
 
 			return err
 		}
@@ -561,9 +558,9 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 
 				err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
 
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting rubric code is empty", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric code is empty", err)
 
-				logger.Warnf("Accounting entry %s %s code is empty, Error: %s", action.name, r.side, err.Error())
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s %s code is empty, Error: %s", action.name, r.side, err.Error()))
 
 				return err
 			}
@@ -573,9 +570,9 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 
 				err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
 
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting rubric description is empty", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric description is empty", err)
 
-				logger.Warnf("Accounting entry %s %s description is empty, Error: %s", action.name, r.side, err.Error())
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s %s description is empty, Error: %s", action.name, r.side, err.Error()))
 
 				return err
 			}

@@ -3664,7 +3664,6 @@ func TestBuildDoubleEntryPendingOps(t *testing.T) {
 				tt.transactionInput,
 				transactionDate,
 				tt.isAnnotation,
-				nil, nil,
 			)
 			require.NoError(t, err)
 
@@ -3822,7 +3821,7 @@ func TestPropagateRouteValidation_Canceled(t *testing.T) {
 			expectedToFlags: map[string]bool{},
 		},
 		{
-			name:              "APPROVED transaction does NOT set RouteValidationEnabled",
+			name:              "APPROVED transaction sets RouteValidationEnabled and swaps DEBIT to ONHOLD",
 			isPending:         false,
 			transactionStatus: cn.APPROVED,
 			from: map[string]pkgTransaction.Amount{
@@ -3838,7 +3837,7 @@ func TestPropagateRouteValidation_Canceled(t *testing.T) {
 				},
 			},
 			expectedFromFlags: map[string]bool{
-				"@source1": false,
+				"@source1": true,
 			},
 			expectedToFlags: map[string]bool{
 				"@dest1": false,
@@ -4154,7 +4153,7 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 			handler := &TransactionHandler{}
 			transactionDate := time.Now()
 
-			ops := handler.buildDoubleEntryCanceledOps(
+			ops, err := handler.buildDoubleEntryCanceledOps(
 				ctx,
 				tt.balance,
 				tt.fromTo,
@@ -4164,8 +4163,8 @@ func TestBuildDoubleEntryCanceledOps(t *testing.T) {
 				tt.transactionInput,
 				transactionDate,
 				tt.isAnnotation,
-				nil, nil,
 			)
+			require.NoError(t, err)
 
 			require.Len(t, ops, tt.expectedOpCount, "should generate exactly %d operations", tt.expectedOpCount)
 
@@ -4459,7 +4458,7 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 			handler := &TransactionHandler{}
 			transactionDate := time.Now()
 
-			ops, handled := handler.tryBuildDoubleEntryOps(
+			ops, handled, err := handler.tryBuildDoubleEntryOps(
 				ctx,
 				baseBalance,
 				tt.ft,
@@ -4472,8 +4471,8 @@ func TestTryBuildDoubleEntryOps(t *testing.T) {
 				tt.routeValidationEnabled,
 				tt.processedDoubleEntry,
 				tt.fromToIndex,
-				nil, nil,
 			)
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.expectedHandled, handled, "handled flag mismatch")
 

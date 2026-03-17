@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -25,11 +26,11 @@ func TestCreateAccountingRouteCache_StoresActionAwareCache(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	sourceRouteID := libCommons.GenerateUUIDv7()
-	destRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	sourceRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	destRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -102,9 +103,9 @@ func TestCreateAccountingRouteCache_MultipleActions(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -113,25 +114,25 @@ func TestCreateAccountingRouteCache_MultipleActions(t *testing.T) {
 		Title:          "Multi-Action Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:                libCommons.GenerateUUIDv7(),
+				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "source",
 				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 			{
-				ID:                libCommons.GenerateUUIDv7(),
+				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "destination",
 				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 			{
-				ID:                libCommons.GenerateUUIDv7(),
+				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "source",
 				Action:            "hold",
 				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 			{
-				ID:                libCommons.GenerateUUIDv7(),
+				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "bidirectional",
 				Action:            "hold",
 				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
@@ -182,13 +183,13 @@ func TestCreateAccountingRouteCache_ActionsPopulated(t *testing.T) {
 	defer ctrl.Finish()
 
 	route := &mmodel.TransactionRoute{
-		ID:             libCommons.GenerateUUIDv7(),
-		OrganizationID: libCommons.GenerateUUIDv7(),
-		LedgerID:       libCommons.GenerateUUIDv7(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
+		OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()),
+		LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()),
 		Title:          "Actions Route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:                libCommons.GenerateUUIDv7(),
+				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "source",
 				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},

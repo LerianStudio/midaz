@@ -375,7 +375,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 func TestValidateAccountRules(t *testing.T) {
 	ctx := context.Background()
 
-	routeID := libCommons.GenerateUUIDv7().String()
+	routeID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	tests := []struct {
 		name                  string

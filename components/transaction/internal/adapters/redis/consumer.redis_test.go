@@ -13,7 +13,6 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -206,15 +205,21 @@ func (r *recordingRedisClient) HGetAll(ctx context.Context, key string) *redis.M
 	return cmd
 }
 
-func newRecordingConnection(t *testing.T) (*libRedis.RedisConnection, *recordingRedisClient) {
+// testClientProvider wraps a redis.UniversalClient to implement redisClientProvider.
+type testClientProvider struct {
+	client redis.UniversalClient
+}
+
+func (p *testClientProvider) GetClient(_ context.Context) (redis.UniversalClient, error) {
+	return p.client, nil
+}
+
+func newRecordingConnection(t *testing.T) (*testClientProvider, *recordingRedisClient) {
 	t.Helper()
 
 	client := &recordingRedisClient{t: t}
 
-	return &libRedis.RedisConnection{
-		Client:    client,
-		Connected: true,
-	}, client
+	return &testClientProvider{client: client}, client
 }
 
 // scriptCapturingRedisClient extends recordingRedisClient with the ability to capture
@@ -309,16 +314,13 @@ func (s *scriptCapturingRedisClient) capturedScriptArgs() []any {
 	return s.evalCalls[0].Args
 }
 
-func newScriptCapturingConnection(t *testing.T) (*libRedis.RedisConnection, *scriptCapturingRedisClient) {
+func newScriptCapturingConnection(t *testing.T) (*testClientProvider, *scriptCapturingRedisClient) {
 	t.Helper()
 
 	client := &scriptCapturingRedisClient{}
 	client.recordingRedisClient.t = t
 
-	return &libRedis.RedisConnection{
-		Client:    client,
-		Connected: true,
-	}, client
+	return &testClientProvider{client: client}, client
 }
 
 // =============================================================================
@@ -946,7 +948,7 @@ func TestKeyNamespacing_SimpleKeyMethods(t *testing.T) {
 			t.Parallel()
 
 			conn, recorder := newRecordingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -1041,7 +1043,7 @@ func TestKeyNamespacing_MGet(t *testing.T) {
 			t.Parallel()
 
 			conn, recorder := newRecordingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -1108,7 +1110,7 @@ func TestKeyNamespacing_QueueOperations(t *testing.T) {
 			t.Parallel()
 
 			conn, recorder := newRecordingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -1202,7 +1204,7 @@ func TestKeyNamespacing_ListBalanceByKey(t *testing.T) {
 			// Configure the Get stub to return valid BalanceRedis JSON.
 			recorder.getReturnVal = string(balanceRedisJSON)
 
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -1267,7 +1269,7 @@ func TestKeyNamespacing_ProcessBalanceAtomicOperation(t *testing.T) {
 			t.Parallel()
 
 			conn, scripter := newScriptCapturingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -1276,10 +1278,10 @@ func TestKeyNamespacing_ProcessBalanceAtomicOperation(t *testing.T) {
 
 			balanceOp := mmodel.BalanceOperation{
 				Balance: &mmodel.Balance{
-					ID:             libCommons.GenerateUUIDv7().String(),
+					ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 					OrganizationID: organizationID.String(),
 					LedgerID:       ledgerID.String(),
-					AccountID:      libCommons.GenerateUUIDv7().String(),
+					AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 					Alias:          "@sender",
 					Key:            balanceKeyStr,
 					AssetCode:      "USD",
@@ -1367,7 +1369,7 @@ func TestKeyNamespacing_GetBalanceSyncKeys(t *testing.T) {
 			t.Parallel()
 
 			conn, scripter := newScriptCapturingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -1425,7 +1427,7 @@ func TestKeyNamespacing_RemoveBalanceSyncKey(t *testing.T) {
 			t.Parallel()
 
 			conn, scripter := newScriptCapturingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: true}
+			repo := &RedisConsumerRepository{conn: conn}
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
@@ -1466,7 +1468,7 @@ func TestKeyNamespacing_BackwardsCompatible_NoTenantInContext(t *testing.T) {
 		t.Parallel()
 
 		conn, recorder := newRecordingConnection(t)
-		repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+		repo := &RedisConsumerRepository{conn: conn}
 
 		originalKey := "my:original:key"
 
@@ -1492,7 +1494,7 @@ func TestKeyNamespacing_BackwardsCompatible_NoTenantInContext(t *testing.T) {
 		t.Parallel()
 
 		conn, recorder := newRecordingConnection(t)
-		repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+		repo := &RedisConsumerRepository{conn: conn}
 
 		originalKeys := []string{"key:a", "key:b"}
 		_, _ = repo.MGet(ctx, originalKeys)
@@ -1506,7 +1508,7 @@ func TestKeyNamespacing_BackwardsCompatible_NoTenantInContext(t *testing.T) {
 		t.Parallel()
 
 		conn, recorder := newRecordingConnection(t)
-		repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+		repo := &RedisConsumerRepository{conn: conn}
 
 		msgKey := "tx:orig-key"
 		_ = repo.AddMessageToQueue(ctx, msgKey, []byte("data"))

@@ -249,14 +249,14 @@ func SplitDoubleEntryOps(amt Amount) (Amount, Amount) {
 	switch amt.TransactionType {
 	case constant.PENDING:
 		op1.Operation = constant.DEBIT
-		op1.Direction = constant.DirectionDebit
+		op1.Direction = pkgConstant.DirectionDebit
 		op2.Operation = constant.ONHOLD
-		op2.Direction = constant.DirectionCredit
+		op2.Direction = pkgConstant.DirectionCredit
 	case constant.CANCELED:
 		op1.Operation = constant.RELEASE
-		op1.Direction = constant.DirectionDebit
+		op1.Direction = pkgConstant.DirectionDebit
 		op2.Operation = constant.CREDIT
-		op2.Direction = constant.DirectionCredit
+		op2.Direction = pkgConstant.DirectionCredit
 	}
 
 	return op1, op2

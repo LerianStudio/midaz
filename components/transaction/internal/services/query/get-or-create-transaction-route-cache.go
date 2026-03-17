@@ -50,9 +50,9 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 	if err == nil && len(cachedValue) > 0 {
 		if bytes.Equal(cachedValue, cacheNotFoundSentinel) {
-			logger.Infof("Cache hit: not-found sentinel for transaction route %s", transactionRouteID)
+			logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Cache hit: not-found sentinel for transaction route %s", transactionRouteID))
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction route not found (sentinel cache hit)", services.ErrDatabaseItemNotFound)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route not found (sentinel cache hit)", services.ErrDatabaseItemNotFound)
 
 			return mmodel.TransactionRouteCache{}, services.ErrDatabaseItemNotFound
 		}
@@ -81,9 +81,9 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 			logger.Log(ctx, libLog.LevelWarn, msg)
 
 			if setErr := uc.RedisRepo.SetBytes(ctx, internalKey, cacheNotFoundSentinel, sentinelTTL); setErr != nil {
-				logger.Warnf("Failed to store not-found sentinel in cache: %v", setErr)
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to store not-found sentinel in cache: %v", setErr))
 			} else {
-				logger.Infof("Stored not-found sentinel for transaction route %s with TTL %ds", transactionRouteID, sentinelTTL)
+				logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Stored not-found sentinel for transaction route %s with TTL %ds", transactionRouteID, sentinelTTL))
 			}
 
 			return mmodel.TransactionRouteCache{}, services.ErrDatabaseItemNotFound
