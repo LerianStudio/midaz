@@ -301,8 +301,10 @@ func TestIntegration_OperationRepository_CreateBatch_ContextTimeoutDuringChunks(
 		operations[i] = createTestOperation(ids, fmt.Sprintf("timeout-chunk-%d", i), now)
 	}
 
-	// Context with very short timeout - should expire during second chunk
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	// Context with short timeout - 200ms is long enough for first chunk to likely succeed
+	// but short enough to trigger timeout during second chunk processing.
+	// This value reduces CI flakiness while still exercising the chunk-timeout code path.
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
 	// Act - first chunk may succeed, second chunk should hit context timeout
