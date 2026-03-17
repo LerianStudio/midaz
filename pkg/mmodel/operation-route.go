@@ -95,9 +95,9 @@ type OperationRoute struct {
 	// External reference of the operation route.
 	Code string `json:"code,omitempty" example:"EXT-001"`
 	// The type of the operation route.
-	OperationType string `json:"operationType,omitempty" example:"source" enum:"source,destination,bidirectional"`
+	OperationType string `json:"operationType,omitempty" example:"source" enums:"source,destination,bidirectional"`
 	// The action associated with this operation route in the context of a transaction route.
-	Action string `json:"action,omitempty" example:"direct" enum:"direct,hold,commit,cancel,revert"`
+	Action string `json:"action,omitempty" example:"direct" enums:"direct,hold,commit,cancel,revert"`
 	// Optional accounting entries for each action type associated with this operation route.
 	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty"`
 	// Additional metadata stored as JSON
