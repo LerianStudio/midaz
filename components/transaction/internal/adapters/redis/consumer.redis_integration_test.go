@@ -1637,9 +1637,9 @@ func TestIntegration_Redis_DoubleEntryPending_SourceAndDestination(t *testing.T)
 }
 
 // TestIntegration_Redis_DoubleEntryPending_VersionChainConsistency
-// verifies that after a double-entry PENDING operation (version+2), a subsequent
+// verifies that after a PENDING operation (version+1), a subsequent
 // APPROVED operation can correctly chain from the new version.
-// This tests the full lifecycle: PENDING (v1->v3) then APPROVED (v3->v4).
+// This tests the full lifecycle: PENDING (v1->v2) then APPROVED (v2->v3).
 func TestIntegration_Redis_DoubleEntryPending_VersionChainConsistency(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -1655,7 +1655,7 @@ func TestIntegration_Redis_DoubleEntryPending_VersionChainConsistency(t *testing
 	initialVersion := int64(1)
 	amount := decimal.NewFromInt(300)
 
-	// Phase 1: PENDING with routeValidationEnabled (v1 -> v3)
+	// Phase 1: PENDING with routeValidationEnabled (v1 -> v2)
 	pendingTxID := uuid.New()
 	pendingOp := redistestutil.CreatePendingBalanceOperation(
 		orgID, ledgerID, "@chain-source", "USD",
