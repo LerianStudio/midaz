@@ -875,6 +875,29 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 	}
 }
 
+func TestTransactionRevert_NilAmount(t *testing.T) {
+	t.Parallel()
+
+	txn := Transaction{
+		Description: "Transaction with nil amount",
+		AssetCode:   "BRL",
+		Amount:      nil,
+		Operations: []*operation.Operation{
+			{
+				Type:         constant.CREDIT,
+				AccountAlias: "@receiver",
+				AssetCode:    "BRL",
+			},
+		},
+	}
+
+	result := txn.TransactionRevert()
+
+	assert.Empty(t, result.Send.Asset, "should return empty transaction when Amount is nil")
+	assert.Empty(t, result.Send.Source.From, "should return empty froms when Amount is nil")
+	assert.Empty(t, result.Send.Distribute.To, "should return empty tos when Amount is nil")
+}
+
 func TestTransactionRevert_DirectionNotSet(t *testing.T) {
 	t.Parallel()
 
@@ -990,6 +1013,75 @@ func TestTransactionRevert_RoutePreservation(t *testing.T) {
 				require.Len(t, result.Send.Source.From, 1)
 				assert.Empty(t, result.Send.Source.From[0].Route,
 					"Route should be empty when not set on original operation")
+			},
+		},
+		{
+			name: "RouteID from CREDIT operation preserved in reversed FromTo",
+			transaction: Transaction{
+				Description: "Transaction with RouteID on credit",
+				AssetCode:   "USD",
+				Amount:      &amount100,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.CREDIT,
+						AccountAlias: "@receiver",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+						RouteID:      &routeID,
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Source.From, 1)
+				require.NotNil(t, result.Send.Source.From[0].RouteID,
+					"RouteID should not be nil")
+				assert.Equal(t, routeID, *result.Send.Source.From[0].RouteID,
+					"RouteID should be preserved in reversed FromTo")
+			},
+		},
+		{
+			name: "RouteID from DEBIT operation preserved in reversed FromTo",
+			transaction: Transaction{
+				Description: "Transaction with RouteID on debit",
+				AssetCode:   "USD",
+				Amount:      &amount100,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.DEBIT,
+						AccountAlias: "@sender",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+						RouteID:      &routeID,
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Distribute.To, 1)
+				require.NotNil(t, result.Send.Distribute.To[0].RouteID,
+					"RouteID should not be nil")
+				assert.Equal(t, routeID, *result.Send.Distribute.To[0].RouteID,
+					"RouteID should be preserved in reversed FromTo")
+			},
+		},
+		{
+			name: "operations without RouteID have nil RouteID in result",
+			transaction: Transaction{
+				Description: "Transaction without RouteID",
+				AssetCode:   "USD",
+				Amount:      &amount100,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.CREDIT,
+						AccountAlias: "@receiver",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Source.From, 1)
+				assert.Nil(t, result.Send.Source.From[0].RouteID,
+					"RouteID should be nil when not set on original operation")
 			},
 		},
 	}
