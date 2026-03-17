@@ -511,21 +511,10 @@ func (cti *CreateTransactionInput) BuildTransaction() *pkgTransaction.Transactio
 	return dsl
 }
 
-// directionFromOperationType derives a direction string from the operation type.
-// Only DEBIT and CREDIT are handled because TransactionRevert (the sole caller)
-// only processes APPROVED transactions, which contain only these two types.
-func directionFromOperationType(opType string) string {
-	switch opType {
-	case constant.DEBIT:
-		return cn.DirectionDebit
-	case constant.CREDIT:
-		return cn.DirectionCredit
-	default:
-		return ""
-	}
-}
-
-// TransactionRevert is a func that revert transaction
+// TransactionRevert builds a reversed transaction by swapping from/to sides.
+// Original CREDIT operations become sources (from) and original DEBIT operations
+// become destinations (to). Direction is intentionally omitted because
+// CalculateTotal re-derives it via DetermineOperation based on IsFrom.
 func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 	if t.Amount == nil {
 		return pkgTransaction.Transaction{}
@@ -544,39 +533,27 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 		// only status eligible for revert (guarded upstream).  ONHOLD and
 		// RELEASE are excluded because they belong to PENDING flows.
 		case constant.CREDIT:
-			from := pkgTransaction.FromTo{
-				IsFrom:       true,
-				AccountAlias: op.AccountAlias,
-				Amount: &pkgTransaction.Amount{
-					Asset:     op.AssetCode,
-					Value:     *op.Amount.Value,
-					Direction: directionFromOperationType(op.Type),
-				},
+			froms = append(froms, pkgTransaction.FromTo{
+				IsFrom:          true,
+				AccountAlias:    op.AccountAlias,
+				Amount:          &pkgTransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
 				Route:           op.Route,
 				RouteID:         op.RouteID,
-			}
-
-			froms = append(froms, from)
+			})
 		case constant.DEBIT:
-			to := pkgTransaction.FromTo{
-				IsFrom:       false,
-				AccountAlias: op.AccountAlias,
-				Amount: &pkgTransaction.Amount{
-					Asset:     op.AssetCode,
-					Value:     *op.Amount.Value,
-					Direction: directionFromOperationType(op.Type),
-				},
+			tos = append(tos, pkgTransaction.FromTo{
+				IsFrom:          false,
+				AccountAlias:    op.AccountAlias,
+				Amount:          &pkgTransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
 				Route:           op.Route,
 				RouteID:         op.RouteID,
-			}
-
-			tos = append(tos, to)
+			})
 		}
 	}
 
