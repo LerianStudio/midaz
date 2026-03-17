@@ -632,6 +632,11 @@ type OperationLog struct {
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Human-readable code of the operation route for accounting traceability
+	// example: ROUTE-001
+	// maxLength: 100
+	RouteCode *string `json:"routeCode,omitempty" example:"ROUTE-001" maxLength:"100"`
 }
 
 // ToLog converts an Operation excluding the fields that are not immutable
@@ -655,5 +660,6 @@ func (o *Operation) ToLog() *OperationLog {
 		BalanceAffected: o.BalanceAffected,
 		Direction:       o.Direction,
 		RouteID:         o.RouteID,
+		RouteCode:       o.RouteCode,
 	}
 }
