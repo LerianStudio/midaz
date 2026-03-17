@@ -1763,7 +1763,7 @@ func TestIntegration_Redis_DoubleEntryPending_InsufficientFunds_Rollback(t *test
 // TestIntegration_Redis_DoubleEntryPending_MultipleSourcesSameTransaction
 // verifies that multiple source balances in a single PENDING transaction
 // each get their version incremented by 2 when routeValidationEnabled=true.
-// This tests the scenario where a transaction has multiple "from" entries.
+// Each source submits the full double-entry sequence (DEBIT + ONHOLD).
 func TestIntegration_Redis_DoubleEntryPending_MultipleSourcesSameTransaction(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -1775,15 +1775,30 @@ func TestIntegration_Redis_DoubleEntryPending_MultipleSourcesSameTransaction(t *
 	ledgerID := uuid.New()
 	transactionID := uuid.New()
 
-	// Two sources, each with routeValidationEnabled
-	source1Op := redistestutil.CreatePendingBalanceOperation(
+	// Source 1: DEBIT (Available--) + ONHOLD (OnHold++)
+	source1Debit := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@multi-source-1", "USD",
+		constant.DEBIT, decimal.NewFromInt(100),
+		decimal.NewFromInt(500), decimal.Zero, int64(1),
+		"deposit", true,
+	)
+
+	source1OnHold := redistestutil.CreatePendingBalanceOperation(
 		orgID, ledgerID, "@multi-source-1", "USD",
 		constant.ONHOLD, decimal.NewFromInt(100),
 		decimal.NewFromInt(500), decimal.Zero, int64(1),
 		"deposit", true,
 	)
 
-	source2Op := redistestutil.CreatePendingBalanceOperation(
+	// Source 2: DEBIT (Available--) + ONHOLD (OnHold++)
+	source2Debit := redistestutil.CreatePendingBalanceOperation(
+		orgID, ledgerID, "@multi-source-2", "USD",
+		constant.DEBIT, decimal.NewFromInt(200),
+		decimal.NewFromInt(800), decimal.Zero, int64(1),
+		"deposit", true,
+	)
+
+	source2OnHold := redistestutil.CreatePendingBalanceOperation(
 		orgID, ledgerID, "@multi-source-2", "USD",
 		constant.ONHOLD, decimal.NewFromInt(200),
 		decimal.NewFromInt(800), decimal.Zero, int64(1),
@@ -1793,20 +1808,22 @@ func TestIntegration_Redis_DoubleEntryPending_MultipleSourcesSameTransaction(t *
 	result, err := infra.repo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, transactionID,
 		constant.PENDING, true,
-		[]mmodel.BalanceOperation{source1Op, source2Op},
+		[]mmodel.BalanceOperation{source1Debit, source1OnHold, source2Debit, source2OnHold},
 	)
 
-	require.NoError(t, err, "multiple sources PENDING should succeed")
+	require.NoError(t, err, "multiple sources PENDING with double-entry should succeed")
 	require.NotNil(t, result)
-	require.Len(t, result.After, 2, "both sources should appear in after results")
+	// 4 ops total: 2 per source (DEBIT + ONHOLD)
+	require.Len(t, result.After, 4, "should have 4 after balances (2 ops per source)")
 
-	// Each source has a single ON_HOLD operation, so version increments by 1
-	for i, after := range result.After {
-		assert.Equal(t, int64(2), after.Version,
-			"source %d version should be 2 (1 + 1), got %d", i, after.Version)
-	}
+	// Each source's second op (ONHOLD) should show version 3 (initial 1 + 2 increments)
+	// result.After[1] is source1's ONHOLD, result.After[3] is source2's ONHOLD
+	assert.Equal(t, int64(3), result.After[1].Version,
+		"source 1 final version should be 3 (1 + 2), got %d", result.After[1].Version)
+	assert.Equal(t, int64(3), result.After[3].Version,
+		"source 2 final version should be 3 (1 + 2), got %d", result.After[3].Version)
 
-	t.Log("Multiple sources: both versions incremented by 1 with single ON_HOLD op each")
+	t.Log("Multiple sources: both versions incremented by 2 with DEBIT+ONHOLD each")
 }
 
 // =============================================================================
