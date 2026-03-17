@@ -49,7 +49,13 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	oper, cur, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination())
+	opFilter := operation.OperationFilter{
+		OperationType: &filter.OperationType,
+		Direction:     filter.Direction,
+		RouteID:       filter.RouteID,
+	}
+
+	oper, cur, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, opFilter, filter.ToCursorPagination())
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting operations on repo: %v", err))
 

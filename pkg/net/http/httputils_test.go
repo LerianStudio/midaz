@@ -909,3 +909,64 @@ func TestValidateParameters_SearchFieldsNilByDefault(t *testing.T) {
 	assert.Nil(t, result.LegalName)
 	assert.Nil(t, result.DoingBusinessAs)
 }
+
+func TestValidateParameters_WithDirectionDebit(t *testing.T) {
+	params := map[string]string{"direction": "debit"}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	require.NotNil(t, result.Direction)
+	assert.Equal(t, "debit", *result.Direction)
+}
+
+func TestValidateParameters_WithDirectionCredit(t *testing.T) {
+	params := map[string]string{"direction": "CREDIT"}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	require.NotNil(t, result.Direction)
+	assert.Equal(t, "credit", *result.Direction)
+}
+
+func TestValidateParameters_WithInvalidDirection(t *testing.T) {
+	params := map[string]string{"direction": "invalid"}
+
+	result, err := ValidateParameters(params)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "direction")
+	assert.Nil(t, result)
+}
+
+func TestValidateParameters_WithRouteID(t *testing.T) {
+	routeID := uuid.New().String()
+	params := map[string]string{"route_id": routeID}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	require.NotNil(t, result.RouteID)
+	assert.Equal(t, routeID, *result.RouteID)
+}
+
+func TestValidateParameters_WithInvalidRouteID(t *testing.T) {
+	params := map[string]string{"route_id": "not-a-uuid"}
+
+	result, err := ValidateParameters(params)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "route_id")
+	assert.Nil(t, result)
+}
+
+func TestValidateParameters_DirectionAndRouteIDNilByDefault(t *testing.T) {
+	params := make(map[string]string)
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.Nil(t, result.Direction)
+	assert.Nil(t, result.RouteID)
+}

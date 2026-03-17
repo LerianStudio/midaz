@@ -40,9 +40,9 @@ type BalanceHandler struct {
 //	@Param			limit			query		int		false	"Limit"			default(10)
 //	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
 //	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	enum(asc,desc)
+//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance,next_cursor=string,prev_cursor=string,limit=int}
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -119,9 +119,9 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 //	@Param			limit			query		int		false	"Limit"			default(10)
 //	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
 //	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	enum(asc,desc)
+//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance,next_cursor=string,prev_cursor=string,limit=int}
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -378,7 +378,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			alias			path		string	true	"Alias (e.g. @person1)"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance,next_cursor=string,prev_cursor=string,limit=int}
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"
@@ -438,7 +438,7 @@ func (handler *BalanceHandler) GetBalancesByAlias(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			code			path		string	true	"Code (e.g. BRL)"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance,next_cursor=string,prev_cursor=string,limit=int}
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Balance}
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
 //	@Failure		404				{object}	mmodel.Error	"Balance not found"

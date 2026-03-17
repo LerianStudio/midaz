@@ -92,7 +92,7 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 //	@Param			start_date		query		string																false	"Filter segments created on or after this date (format: YYYY-MM-DD)"
 //	@Param			end_date		query		string																false	"Filter segments created on or before this date (format: YYYY-MM-DD)"
 //	@Param			sort_order		query		string																false	"Sort direction for results based on creation date"	Enums(asc,desc)
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Segment,page=int,limit=int}	"Successfully retrieved segments list"
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Segment}	"Successfully retrieved segments list"
 //	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error														"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error														"Forbidden access"

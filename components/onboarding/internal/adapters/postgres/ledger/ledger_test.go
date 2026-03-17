@@ -48,8 +48,8 @@ func TestLedgerPostgreSQLModel_ToEntity(t *testing.T) {
 		assert.Equal(t, model.UpdatedAt, entity.UpdatedAt)
 		require.NotNil(t, entity.DeletedAt)
 		assert.Equal(t, deletedAt, *entity.DeletedAt)
-		assert.NotNil(t, entity.Settings)
-		assert.Equal(t, settings, entity.Settings)
+		require.NotNil(t, entity.Settings)
+		assert.True(t, entity.Settings.Accounting.ValidateAccountType)
 	})
 
 	t.Run("with_optional_fields_nil", func(t *testing.T) {
@@ -97,9 +97,9 @@ func TestLedgerPostgreSQLModel_FromEntity(t *testing.T) {
 	t.Run("with_all_fields_populated", func(t *testing.T) {
 		statusDesc := "Active and operational"
 		deletedAt := time.Now().Add(-24 * time.Hour)
-		settings := map[string]any{
-			"accounting": map[string]any{
-				"validateAccountType": true,
+		settings := &mmodel.LedgerSettings{
+			Accounting: mmodel.AccountingValidation{
+				ValidateAccountType: true,
 			},
 		}
 
@@ -131,7 +131,7 @@ func TestLedgerPostgreSQLModel_FromEntity(t *testing.T) {
 		assert.True(t, model.DeletedAt.Valid, "DeletedAt should be valid")
 		assert.Equal(t, deletedAt, model.DeletedAt.Time)
 		assert.Nil(t, model.Metadata, "Metadata is not mapped by FromEntity")
-		assert.Equal(t, settings, model.Settings)
+		assert.Equal(t, true, model.Settings["accounting"].(map[string]any)["validateAccountType"])
 	})
 
 	t.Run("with_optional_fields_nil", func(t *testing.T) {

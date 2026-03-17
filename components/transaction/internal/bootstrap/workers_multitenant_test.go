@@ -29,7 +29,7 @@ func TestBalanceSyncWorker_MultiTenantFields(t *testing.T) {
 	logger := newTestLogger()
 	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -129,7 +129,7 @@ func TestRedisQueueConsumer_MultiTenantFields(t *testing.T) {
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -216,7 +216,7 @@ func TestNewBalanceSyncWorkerMultiTenant(t *testing.T) {
 	logger := newTestLogger()
 	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
@@ -240,7 +240,7 @@ func TestNewRedisQueueConsumerMultiTenant(t *testing.T) {
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
@@ -263,7 +263,7 @@ func TestRabbitMQConsumerHandlerReceivesPGManager(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
@@ -286,7 +286,7 @@ func TestBalanceSyncWorker_IsMultiTenantReady(t *testing.T) {
 	logger := newTestLogger()
 	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
-	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
 
@@ -370,7 +370,7 @@ func TestRedisQueueConsumer_IsMultiTenantReady(t *testing.T) {
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
-	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
 
@@ -454,7 +454,7 @@ func TestNewBalanceSyncWorkerMultiTenant_EdgeCases(t *testing.T) {
 	logger := newTestLogger()
 	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
@@ -522,7 +522,7 @@ func TestNewRedisQueueConsumerMultiTenant_EdgeCases(t *testing.T) {
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
@@ -663,7 +663,7 @@ func TestRabbitMQComponents_PGManagerField(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
@@ -715,7 +715,7 @@ func TestBalanceSyncWorker_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 	logger := newTestLogger()
 	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
-	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
 
@@ -772,7 +772,7 @@ func TestRedisQueueConsumer_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
-	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
 
@@ -877,7 +877,7 @@ func TestBalanceSyncWorker_MultiTenantConstructorPreservesRunBehavior(t *testing
 	logger := newTestLogger()
 	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 

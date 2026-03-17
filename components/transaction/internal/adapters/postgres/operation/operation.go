@@ -45,6 +45,9 @@ type OperationPostgreSQLModel struct {
 	DeletedAt             sql.NullTime     // Deletion timestamp (if soft-deleted)
 	Route                 *string          // Route
 	BalanceAffected       bool             // BalanceAffected default true
+	Direction             string           // Direction of the operation (debit, credit)
+	RouteID               *string          // Route ID referencing operation_route table
+	RouteCode             *string          // Route code for accounting traceability
 	Metadata              map[string]any   // Additional custom attributes
 }
 
@@ -224,14 +227,30 @@ type Operation struct {
 	// format: uuid
 	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// Route
+	// Deprecated: legacy route identifier, use routeId instead. Contains the same operation route UUID as routeId but stored as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
-	// format: string
-	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
 
 	// BalanceAffected default true
 	// format: boolean
 	BalanceAffected bool `json:"balanceAffected" example:"true" format:"boolean"`
+
+	// Direction of the operation (debit, credit)
+	// example: debit
+	// maxLength: 50
+	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50" enums:"debit,credit"`
+
+	// UUID of the operation route that generated this operation. Prefer this over the legacy route field.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Human-readable code of the operation route for accounting traceability
+	// example: ROUTE-001
+	// maxLength: 100
+	RouteCode *string `json:"routeCode,omitempty" example:"ROUTE-001" maxLength:"100"`
 
 	// Timestamp when the operation was created
 	// example: 2021-01-01T00:00:00Z
@@ -303,6 +322,16 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 		Operation.Route = *t.Route
 	}
 
+	Operation.Direction = t.Direction
+
+	if t.RouteID != nil {
+		Operation.RouteID = t.RouteID
+	}
+
+	if t.RouteCode != nil {
+		Operation.RouteCode = t.RouteCode
+	}
+
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
 		Operation.DeletedAt = &deletedAtCopy
@@ -354,6 +383,16 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		t.Route = &operation.Route
 	}
 
+	t.Direction = operation.Direction
+
+	if operation.RouteID != nil {
+		t.RouteID = operation.RouteID
+	}
+
+	if operation.RouteCode != nil {
+		t.RouteCode = operation.RouteCode
+	}
+
 	if operation.DeletedAt != nil {
 		deletedAtCopy := *operation.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
@@ -379,6 +418,9 @@ func (op *Operation) ToRedis() mmodel.OperationRedis {
 		UpdatedAt:       op.UpdatedAt,
 		Route:           op.Route,
 		BalanceAffected: op.BalanceAffected,
+		Direction:       op.Direction,
+		RouteID:         op.RouteID,
+		RouteCode:       op.RouteCode,
 		Metadata:        op.Metadata,
 	}
 
@@ -458,6 +500,9 @@ func OperationFromRedis(r mmodel.OperationRedis) *Operation {
 			Description: r.StatusDescription,
 		},
 		BalanceAffected: r.BalanceAffected,
+		Direction:       r.Direction,
+		RouteID:         r.RouteID,
+		RouteCode:       r.RouteCode,
 		Metadata:        r.Metadata,
 	}
 }
@@ -568,14 +613,30 @@ type OperationLog struct {
 	// format: date-time
 	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Route for the operation
+	// Deprecated: legacy route identifier, use routeId instead. Contains the same operation route UUID as routeId but stored as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
-	// format: string
-	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
 
 	// BalanceAffected default true
 	// format: boolean
 	BalanceAffected bool `json:"balanceAffected" example:"true" format:"boolean"`
+
+	// Direction of the operation (debit, credit)
+	// example: debit
+	// maxLength: 50
+	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50" enums:"debit,credit"`
+
+	// UUID of the operation route that generated this operation. Prefer this over the legacy route field.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Human-readable code of the operation route for accounting traceability
+	// example: ROUTE-001
+	// maxLength: 100
+	RouteCode *string `json:"routeCode,omitempty" example:"ROUTE-001" maxLength:"100"`
 }
 
 // ToLog converts an Operation excluding the fields that are not immutable
@@ -597,5 +658,8 @@ func (o *Operation) ToLog() *OperationLog {
 		Route:           o.Route,
 		CreatedAt:       o.CreatedAt,
 		BalanceAffected: o.BalanceAffected,
+		Direction:       o.Direction,
+		RouteID:         o.RouteID,
+		RouteCode:       o.RouteCode,
 	}
 }

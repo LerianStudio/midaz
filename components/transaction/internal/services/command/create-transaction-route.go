@@ -41,7 +41,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		UpdatedAt:      now,
 	}
 
-	operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, payload.OperationRoutes)
+	operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, payload.OperationRouteIDs())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find operation routes", err)
 
@@ -59,10 +59,10 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		return nil, err
 	}
 
-	// Convert to slice for assignment
+	// Convert fetched operation routes to slice for assignment
 	operationRoutes := make([]mmodel.OperationRoute, 0, len(operationRouteList))
-	for _, operationRoute := range operationRouteList {
-		operationRoutes = append(operationRoutes, *operationRoute)
+	for _, fetched := range operationRouteList {
+		operationRoutes = append(operationRoutes, *fetched)
 	}
 
 	transactionRoute.OperationRoutes = operationRoutes
@@ -103,25 +103,34 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 	return createdTransactionRoute, nil
 }
 
-// validateOperationRouteTypes validates that operation routes contain both source and destination types.
-// Returns an error if either source or destination type is missing.
-func validateOperationRouteTypes(operationRoutes []*mmodel.OperationRoute) error {
+// validateOperationRouteTypes validates operation route types for a transaction route.
+// It ensures that the set of operation routes has at least one source and one destination
+// (bidirectional counts as both).
+func validateOperationRouteTypes(opRoutes []*mmodel.OperationRoute) error {
+	entityType := reflect.TypeOf(mmodel.TransactionRoute{}).Name()
+
 	hasSource := false
 	hasDestination := false
 
-	for _, operationRoute := range operationRoutes {
-		if operationRoute.OperationType == "source" {
+	for _, route := range opRoutes {
+		switch route.OperationType {
+		case "source":
 			hasSource = true
-		}
-
-		if operationRoute.OperationType == "destination" {
+		case "destination":
 			hasDestination = true
-		}
-
-		if hasSource && hasDestination {
-			return nil
+		case "bidirectional":
+			hasSource = true
+			hasDestination = true
 		}
 	}
 
-	return pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	if !hasSource {
+		return pkg.ValidateBusinessError(constant.ErrNoSourceForAction, entityType, "")
+	}
+
+	if !hasDestination {
+		return pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, entityType, "")
+	}
+
+	return nil
 }

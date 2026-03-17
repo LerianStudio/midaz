@@ -23,6 +23,10 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
+// maxOperationRouteInputs defines the upper bound for the number of operation route
+// inputs allowed in a single update request.
+const maxOperationRouteInputs = 100
+
 func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, input *mmodel.UpdateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -37,7 +41,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 	}
 
 	// Handle operation route updates if provided
-	var toAdd, toRemove []uuid.UUID
+	var toAdd, toRemove []mmodel.OperationRouteActionInput
 
 	if input.OperationRoutes != nil {
 		var err error
@@ -81,16 +85,21 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 	return transactionRouteUpdated, nil
 }
 
-// handleOperationRouteUpdates processes operation route relationship updates by comparing existing vs new operation routes.
-// It returns arrays of operation route IDs to add and remove, or an error if validation fails.
-func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteIDs []uuid.UUID) (toAdd, toRemove []uuid.UUID, err error) {
+// handleOperationRouteUpdates processes operation route relationship updates by comparing
+// existing vs new operation routes using operation route IDs.
+// It returns arrays of OperationRouteActionInput entries to add and remove, or an error if validation fails.
+func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteInputs []mmodel.OperationRouteActionInput) (toAdd, toRemove []mmodel.OperationRouteActionInput, err error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.handle_operation_route_updates")
 	defer span.End()
 
-	if len(newOperationRouteIDs) < 2 {
+	if len(newOperationRouteInputs) < 2 {
 		return nil, nil, pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	}
+
+	if len(newOperationRouteInputs) > maxOperationRouteInputs {
+		return nil, nil, pkg.ValidateBusinessError(constant.ErrTooManyOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 	}
 
 	currentTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
@@ -99,44 +108,64 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 		return nil, nil, err
 	}
 
-	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, newOperationRouteIDs)
+	// Deduplicate input by operation route ID
+	seen := make(map[uuid.UUID]bool)
+
+	var deduplicatedInputs []mmodel.OperationRouteActionInput
+
+	uniqueIDs := make([]uuid.UUID, 0, len(newOperationRouteInputs))
+
+	for _, input := range newOperationRouteInputs {
+		if !seen[input.OperationRouteID] {
+			seen[input.OperationRouteID] = true
+
+			deduplicatedInputs = append(deduplicatedInputs, input)
+			uniqueIDs = append(uniqueIDs, input.OperationRouteID)
+		}
+	}
+
+	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, uniqueIDs)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error fetching operation routes: %v", err))
 		return nil, nil, err
 	}
 
-	// Validate that we have at least 1 debit and 1 credit operation route
+	// Validate operation route types
 	err = validateOperationRouteTypes(operationRoutes)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Compare existing vs new operation routes to determine what to add/remove
+	// Compare existing vs new operation routes by ID
 	existingIDs := make(map[uuid.UUID]bool)
 	for _, existingRoute := range currentTransactionRoute.OperationRoutes {
 		existingIDs[existingRoute.ID] = true
 	}
 
 	newIDs := make(map[uuid.UUID]bool)
-	for _, newID := range newOperationRouteIDs {
-		newIDs[newID] = true
+	for _, input := range deduplicatedInputs {
+		newIDs[input.OperationRouteID] = true
 	}
 
 	// Find relationships to remove (exist currently but not in new list)
-	for existingID := range existingIDs {
-		if !newIDs[existingID] {
-			toRemove = append(toRemove, existingID)
+	for id := range existingIDs {
+		if !newIDs[id] {
+			toRemove = append(toRemove, mmodel.OperationRouteActionInput{
+				OperationRouteID: id,
+			})
 		}
 	}
 
 	// Find relationships to add (in new list but don't exist currently)
-	for newID := range newIDs {
-		if !existingIDs[newID] {
-			toAdd = append(toAdd, newID)
+	for id := range newIDs {
+		if !existingIDs[id] {
+			toAdd = append(toAdd, mmodel.OperationRouteActionInput{
+				OperationRouteID: id,
+			})
 		}
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Operation route updates calculated. ToAdd: %v, ToRemove: %v", toAdd, toRemove))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Operation route updates calculated. ToAdd: %d, ToRemove: %d", len(toAdd), len(toRemove)))
 
 	return toAdd, toRemove, nil
 }

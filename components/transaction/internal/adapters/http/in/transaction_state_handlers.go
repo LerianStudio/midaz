@@ -36,7 +36,7 @@ import (
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		201				{object}	transaction.Transaction
+//	@Success		201				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -94,7 +94,7 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		201				{object}	transaction.Transaction
+//	@Success		201				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -152,7 +152,7 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		200				{object}	transaction.Transaction
+//	@Success		200				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -243,6 +243,39 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
+	// Validate bidirectional routes: operations with a route_id require
+	// the referenced OperationRoute to have OperationType "bidirectional".
+	for _, op := range tran.Operations {
+		if op.Route == "" {
+			continue
+		}
+
+		routeUUID, parseErr := uuid.Parse(op.Route)
+		if parseErr != nil {
+			continue
+		}
+
+		operationRoute, routeErr := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, routeUUID)
+		if routeErr != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to retrieve operation route for revert validation", routeErr)
+
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve operation route %s for revert validation: %v", op.Route, routeErr))
+
+			return http.WithError(c, routeErr)
+		}
+
+		if operationRoute != nil && operationRoute.OperationType != "bidirectional" {
+			err = pkg.ValidateBusinessError(constant.ErrRouteNotBidirectional, "RevertTransaction")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route is not bidirectional", err)
+
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Operation route %s is not bidirectional (type: %s), cannot revert transaction %s",
+				op.Route, operationRoute.OperationType, transactionID.String()))
+
+			return http.WithError(c, err)
+		}
+	}
+
 	response := handler.createTransaction(c, transactionReverted, constant.CREATED)
 
 	return response
@@ -261,7 +294,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string					true	"Ledger ID"
 //	@Param			transaction_id	path		string					true	"Transaction ID"
 //	@Param			transaction		body		transaction.UpdateTransactionInput	true	"Transaction Input"
-//	@Success		200				{object}	transaction.Transaction
+//	@Success		200				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -401,9 +434,19 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
+	ledgerSettings := handler.Query.GetLedgerSettings(ctx, organizationID, ledgerID)
+	if ledgerSettings.Accounting.ValidateRoutes {
+		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
+	}
+
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	balancesBefore, balancesAfter, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus)
+	action := constant.ActionCommit
+	if transactionStatus == constant.CANCELED {
+		action = constant.ActionCancel
+	}
+
+	balancesBefore, balancesAfter, _, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, tran.IDtoUUID(), nil, validate, transactionStatus, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
 
@@ -428,7 +471,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		Description: &transactionStatus,
 	}
 
-	operations, preBalances, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, time.Now(), false)
+	operations, preBalances, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, time.Now(), false, ledgerSettings.Accounting.ValidateRoutes)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 

@@ -867,9 +867,7 @@ paths:
           content:
             application/json:
               schema:
-                additionalProperties:
-                  type: object
-                type: object
+                $ref: '#/components/schemas/mmodel.LedgerSettings'
           description: Successfully retrieved ledger settings
         "401":
           content:
@@ -905,9 +903,8 @@ paths:
         - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested
         objects (like ''accounting'') are deep-merged, preserving existing properties
         not specified in the update. Example: updating only ''accounting.validateRoutes''
-        preserves the existing ''accounting.validateAccountType'' value. Setting a
-        key to null stores a JSON null value. Allowed fields: accounting.validateAccountType
-        (boolean), accounting.validateRoutes (boolean).'
+        preserves the existing ''accounting.validateAccountType'' value. Allowed fields:
+        accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).'
       parameters:
       - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
@@ -946,9 +943,7 @@ paths:
           content:
             application/json:
               schema:
-                additionalProperties:
-                  type: object
-                type: object
+                $ref: '#/components/schemas/mmodel.LedgerSettings'
           description: Successfully updated ledger settings
         "400":
           content:
@@ -4192,9 +4187,7 @@ components:
       example:
         organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
-        settings:
-          accounting:
-            validateAccountType: true
+        settings: '{}'
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
           key: '{}'
@@ -4251,8 +4244,8 @@ components:
           format: uuid
           type: string
         settings:
-          additionalProperties:
-            type: object
+          allOf:
+          - $ref: '#/components/schemas/mmodel.LedgerSettings'
           description: |-
             Dynamic configuration settings for this ledger
             example: {"accounting": {"validateAccountType": true}}
@@ -4370,33 +4363,6 @@ components:
           example: 2021-01-01T00:00:00Z
           format: date-time
           type: string
-      type: object
-    Pagination:
-      description: Pagination is the struct designed to store the pagination data
-        of an entity list.
-      example:
-        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        limit: 10
-        page: 1
-        items: '{}'
-      properties:
-        items:
-          type: object
-        limit:
-          example: 10
-          type: integer
-        next_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
-        page:
-          example: 1
-          type: integer
-        prev_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
       type: object
     Portfolio:
       description: Portfolio represents a collection of accounts grouped for specific
@@ -4822,6 +4788,25 @@ components:
           description: Updated status of the segment (active, inactive, pending)
           type: object
       type: object
+    http.Pagination:
+      example:
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        page: 6
+        items: '{}'
+      properties:
+        items:
+          type: object
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        page:
+          type: integer
+        prev_cursor:
+          type: string
+      type: object
     mmodel.AccountingValidation:
       properties:
         validateAccountType:
@@ -4838,6 +4823,8 @@ components:
           type: boolean
       type: object
     mmodel.LedgerSettings:
+      example:
+        accounting: '{}'
       properties:
         accounting:
           allOf:
@@ -4847,14 +4834,12 @@ components:
       type: object
     inline_response_200:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - legalName: Lerian Financial Services Ltd.
           createdAt: 2021-01-01T00:00:00Z
@@ -4881,33 +4866,25 @@ components:
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Organization'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_1:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
-          settings:
-            accounting:
-              validateAccountType: true
+          settings: '{}'
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
             key: '{}'
@@ -4917,9 +4894,7 @@ components:
           updatedAt: 2021-01-01T00:00:00Z
         - organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
-          settings:
-            accounting:
-              validateAccountType: true
+          settings: '{}'
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
             key: '{}'
@@ -4928,29 +4903,21 @@ components:
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Ledger'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_2:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
         items:
         - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -4977,31 +4944,21 @@ components:
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/AccountType'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        page:
-          type: integer
-        prev_cursor:
-          type: string
       type: object
     inline_response_200_3:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - metadata:
             key: '{}'
@@ -5040,27 +4997,21 @@ components:
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Account'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_4:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -5087,27 +5038,21 @@ components:
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Asset'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_5:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -5132,27 +5077,21 @@ components:
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Portfolio'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_6:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -5175,16 +5114,12 @@ components:
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Segment'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
   securitySchemes:
     BearerAuth:

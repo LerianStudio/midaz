@@ -230,7 +230,7 @@ end
 local function main()
     local ttl = 3600 -- 1 hour
 
-    local groupSize = 16
+    local groupSize = 17
     local returnBalances = {}
     local returnBalancesAfter = {}
     local rollbackBalances = {}
@@ -259,6 +259,8 @@ local function main()
 
         local alias = ARGV[i + 5]
 
+        local routeValidationEnabled = tonumber(ARGV[i + 6])
+
         -- Balance object stored in Redis cache.
         --
         -- FIELD USAGE:
@@ -281,17 +283,17 @@ local function main()
         -- See: get-balances.go ValidateIfBalanceExistsOnRedis()
         local balance = {
             -- Fields used by Lua
-            ID = ARGV[i + 6],
-            Available = ARGV[i + 7],
-            OnHold = ARGV[i + 8],
-            Version = tonumber(ARGV[i + 9]),
-            AccountType = ARGV[i + 10],
-            AccountID = ARGV[i + 11],
+            ID = ARGV[i + 7],
+            Available = ARGV[i + 8],
+            OnHold = ARGV[i + 9],
+            Version = tonumber(ARGV[i + 10]),
+            AccountType = ARGV[i + 11],
+            AccountID = ARGV[i + 12],
             -- Fields for cache only (used by Go pre-validation, not by Lua)
-            AssetCode = ARGV[i + 12],
-            AllowSending = tonumber(ARGV[i + 13]),
-            AllowReceiving = tonumber(ARGV[i + 14]),
-            Key = ARGV[i + 15],
+            AssetCode = ARGV[i + 13],
+            AllowSending = tonumber(ARGV[i + 14]),
+            AllowReceiving = tonumber(ARGV[i + 15]),
+            Key = ARGV[i + 16],
         }
 
         local redisBalance = cjson.encode(balance)
@@ -312,12 +314,31 @@ local function main()
         local resultOnHold = balance.OnHold
 
         if isPending == 1 then
-            if operation == "ON_HOLD" and transactionStatus == "PENDING" then
+            if operation == "DEBIT" and transactionStatus == "PENDING" and routeValidationEnabled == 1 then
+                -- Double-entry: DEBIT only decrements Available.
+                -- The OnHold++ will be a separate ON_HOLD operation.
+                result = sub_decimal(balance.Available, amount)
+            elseif operation == "ON_HOLD" and transactionStatus == "PENDING" and routeValidationEnabled == 1 then
+                -- Double-entry: ON_HOLD only increments OnHold.
+                -- The Available-- was already done by the separate DEBIT operation.
+                resultOnHold = add_decimal(balance.OnHold, amount)
+            elseif operation == "ON_HOLD" and transactionStatus == "PENDING" then
                 result = sub_decimal(balance.Available, amount)
                 resultOnHold = add_decimal(balance.OnHold, amount)
+            elseif operation == "RELEASE" and transactionStatus == "CANCELED" and routeValidationEnabled == 1 then
+                -- Double-entry: RELEASE only decrements OnHold.
+                -- The Available++ will be a separate CREDIT operation.
+                resultOnHold = sub_decimal(balance.OnHold, amount)
             elseif operation == "RELEASE" and transactionStatus == "CANCELED" then
                 resultOnHold = sub_decimal(balance.OnHold, amount)
                 result = add_decimal(balance.Available, amount)
+            elseif operation == "CREDIT" and transactionStatus == "CANCELED" and routeValidationEnabled == 1 then
+                -- Double-entry: CREDIT adds to Available only.
+                result = add_decimal(balance.Available, amount)
+            elseif operation == "ON_HOLD" and transactionStatus == "APPROVED" and routeValidationEnabled == 1 then
+                -- Double-entry: ON_HOLD in APPROVED only decrements OnHold.
+                -- The Available++ will be a separate CREDIT operation.
+                resultOnHold = sub_decimal(balance.OnHold, amount)
             elseif transactionStatus == "APPROVED" then
                 if operation == "DEBIT" then
                     resultOnHold = sub_decimal(balance.OnHold, amount)

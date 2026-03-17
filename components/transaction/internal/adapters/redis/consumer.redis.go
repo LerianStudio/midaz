@@ -370,6 +370,9 @@ func boolToInt(b bool) int {
 
 // balanceAtomicResponse is the JSON structure returned by the Lua atomic balance script.
 // It contains both BEFORE (pre-mutation) and AFTER (post-mutation) balance snapshots.
+//
+// Note: cjson in Redis/Valkey may encode empty arrays as {} (object) instead of [] (array).
+// The custom UnmarshalJSON handles this edge case by treating empty objects as empty slices.
 type balanceAtomicResponse struct {
 	Before balanceRedisList `json:"before"`
 	After  balanceRedisList `json:"after"`
@@ -426,6 +429,11 @@ func (l *balanceRedisList) UnmarshalJSON(data []byte) error {
 			}
 		}
 	case map[string]any:
+		// Empty map {} is cjson's encoding of an empty array — skip it.
+		if len(value) == 0 {
+			break
+		}
+
 		if decodedBalance, ok := decodeBalance(value); ok {
 			result = append(result, decodedBalance)
 		} else {
@@ -442,6 +450,55 @@ func (l *balanceRedisList) UnmarshalJSON(data []byte) error {
 	}
 
 	*l = result
+
+	return nil
+}
+
+// UnmarshalJSON handles cjson's empty-array-as-object encoding quirk.
+// When no balance changes occurred, cjson may return {"before":{},"after":{}} instead
+// of {"before":[],"after":[]}. This method normalizes both forms.
+func (r *balanceAtomicResponse) UnmarshalJSON(data []byte) error {
+	// Try standard unmarshal first (works when cjson returns proper arrays)
+	type Alias balanceAtomicResponse
+
+	var alias Alias
+	if err := json.Unmarshal(data, &alias); err == nil {
+		*r = balanceAtomicResponse(alias)
+		return nil
+	}
+
+	// Fallback: handle cjson empty-object-as-array quirk
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	unmarshalField := func(field json.RawMessage) ([]mmodel.BalanceRedis, error) {
+		trimmed := string(field)
+		if trimmed == "{}" {
+			return []mmodel.BalanceRedis{}, nil
+		}
+
+		var result []mmodel.BalanceRedis
+		if err := json.Unmarshal(field, &result); err != nil {
+			return nil, err
+		}
+
+		return result, nil
+	}
+
+	var err error
+	if beforeData, ok := raw["before"]; ok {
+		if r.Before, err = unmarshalField(beforeData); err != nil {
+			return fmt.Errorf("unmarshal before: %w", err)
+		}
+	}
+
+	if afterData, ok := raw["after"]; ok {
+		if r.After, err = unmarshalField(afterData); err != nil {
+			return fmt.Errorf("unmarshal after: %w", err)
+		}
+	}
 
 	return nil
 }
@@ -495,7 +552,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(
 	}
 
 	plan := &balanceAtomicOperationPlan{
-		args:          make([]any, 0, len(balancesOperation)*16),
+		args:          make([]any, 0, len(balancesOperation)*17),
 		mapBalances:   make(map[string]*mmodel.Balance, len(balancesOperation)),
 		notedBalances: make([]*mmodel.Balance, 0, len(balancesOperation)),
 	}
@@ -516,6 +573,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(
 			blcs.Amount.Operation,
 			blcs.Amount.Value.String(),
 			blcs.Alias,
+			boolToInt(blcs.Amount.RouteValidationEnabled),
 			blcs.Balance.ID,
 			blcs.Balance.Available.String(),
 			blcs.Balance.OnHold.String(),

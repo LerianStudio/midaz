@@ -134,7 +134,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 //	@Param			end_date		query		string																false	"Filter ledgers created on or before this date (format: YYYY-MM-DD)"
 //	@Param			sort_order		query		string																false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Param			name			query		string																false	"Filter ledgers by name (case-insensitive, prefix match)"	maxLength(256)
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.Ledger,page=int,limit=int}	"Successfully retrieved ledgers list"
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.Ledger}	"Successfully retrieved ledgers list"
 //	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error														"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error														"Forbidden access"
@@ -381,11 +381,11 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
 //	@Param			id				path		string	true	"Ledger ID in UUID format"
-//	@Success		200				{object}	map[string]any	"Successfully retrieved ledger settings"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Ledger not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Success		200				{object}	mmodel.LedgerSettings	"Successfully retrieved ledger settings"
+//	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error			"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error			"Ledger not found"
+//	@Failure		500				{object}	mmodel.Error			"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{id}/settings [get]
 func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -429,7 +429,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 // UpdateLedgerSettings updates the settings for a specific ledger using schema-aware deep merge.
 //
 //	@Summary		Update ledger settings
-//	@Description	Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Setting a key to null stores a JSON null value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).
+//	@Description	Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
@@ -437,8 +437,8 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			id				path		string			true	"Ledger ID in UUID format"
-//	@Param			settings		body		map[string]any	true	"Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)"
-//	@Success		200				{object}	map[string]any	"Successfully updated ledger settings"
+//	@Param			settings		body		object	true	"Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)"
+//	@Success		200				{object}	mmodel.LedgerSettings	"Successfully updated ledger settings"
 //	@Failure		400				{object}	mmodel.Error	"Invalid request body, unknown field (0147), or invalid field type (0148)"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

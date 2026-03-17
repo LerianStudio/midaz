@@ -36,10 +36,11 @@ func TestCreateAccountingRouteCache_Success(t *testing.T) {
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:             operationRouteID,
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "source",
+				ID:                operationRouteID,
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",
@@ -81,11 +82,12 @@ func TestCreateAccountingRouteCache_SuccessWithoutAccountRule(t *testing.T) {
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:             operationRouteID,
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "source",
-				Account:        nil, // No account rule
+				ID:                operationRouteID,
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
+				Account:           nil, // No account rule
 			},
 		},
 	}
@@ -157,20 +159,22 @@ func TestCreateAccountingRouteCache_SuccessWithMultipleOperationRoutes(t *testin
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:             operationRouteID1,
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "source",
+				ID:                operationRouteID1,
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",
 				},
 			},
 			{
-				ID:             operationRouteID2,
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "destination",
+				ID:                operationRouteID2,
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "destination",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "account_type",
 					ValidIf:  []string{"liability", "asset"},
@@ -211,10 +215,11 @@ func TestCreateAccountingRouteCache_ToMsgpackError(t *testing.T) {
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:             uuid.UUID{}, // Invalid UUID
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "source",
+				ID:                uuid.UUID{}, // Invalid UUID
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  make(chan int), // Invalid data type that will cause msgpack encode error
@@ -251,10 +256,11 @@ func TestCreateAccountingRouteCache_RedisSetError(t *testing.T) {
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:             operationRouteID,
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "source",
+				ID:                operationRouteID,
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",
@@ -298,10 +304,11 @@ func TestCreateAccountingRouteCache_ContextCancelled(t *testing.T) {
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:             operationRouteID,
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "source",
+				ID:                operationRouteID,
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",

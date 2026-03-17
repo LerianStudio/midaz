@@ -13,6 +13,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -25,7 +26,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string) (before []*mmodel.Balance, after []*mmodel.Balance, err error) {
+func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string, action string) (before []*mmodel.Balance, after []*mmodel.Balance, transactionRouteCache *mmodel.TransactionRouteCache, err error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.get_balances")
@@ -45,22 +46,22 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID, tr
 
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get account by alias on balance database: %v", err))
 
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		balances = append(balances, balancesByAliases...)
 	}
 
-	result, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, transactionInput, validate, balances, transactionStatus)
+	result, routeCache, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, transactionID, transactionInput, validate, balances, transactionStatus, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances and update on redis", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances and update on redis: %v", err))
 
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return result.Before, result.After, nil
+	return result.Before, result.After, routeCache, nil
 }
 
 // ValidateIfBalanceExistsOnRedis func that validate if balance exists on redis before to get on database.
@@ -92,13 +93,19 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 			}
 
 			aliasAndKey := strings.Split(alias, "#")
+
+			balanceKey := constant.DefaultBalanceKey
+			if len(aliasAndKey) > 1 && strings.TrimSpace(aliasAndKey[1]) != "" {
+				balanceKey = aliasAndKey[1]
+			}
+
 			newBalances = append(newBalances, &mmodel.Balance{
 				ID:             b.ID,
 				AccountID:      b.AccountID,
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          aliasAndKey[0],
-				Key:            aliasAndKey[1],
+				Key:            balanceKey,
 				Available:      b.Available,
 				OnHold:         b.OnHold,
 				Version:        b.Version,
@@ -116,7 +123,7 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 }
 
 // GetAccountAndLock func responsible to integrate core business logic to redis.
-func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, balances []*mmodel.Balance, transactionStatus string) (*mmodel.BalanceAtomicResult, error) {
+func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput *pkgTransaction.Transaction, validate *pkgTransaction.Responses, balances []*mmodel.Balance, transactionStatus string, action string) (*mmodel.BalanceAtomicResult, *mmodel.TransactionRouteCache, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.get_account_and_lock")
@@ -130,12 +137,30 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 		for k, v := range validate.From {
 			if pkgTransaction.SplitAliasWithKey(k) == aliasKey {
-				balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
-					Balance:     balance,
-					Alias:       k,
-					Amount:      v,
-					InternalKey: internalKey,
-				})
+				if pkgTransaction.IsDoubleEntrySource(v) {
+					op1, op2 := pkgTransaction.SplitDoubleEntryOps(v)
+
+					balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
+						Balance:     balance,
+						Alias:       k,
+						Amount:      op1,
+						InternalKey: internalKey,
+					})
+
+					balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
+						Balance:     balance,
+						Alias:       k,
+						Amount:      op2,
+						InternalKey: internalKey,
+					})
+				} else {
+					balanceOperations = append(balanceOperations, mmodel.BalanceOperation{
+						Balance:     balance,
+						Alias:       k,
+						Amount:      v,
+						InternalKey: internalKey,
+					})
+				}
 			}
 		}
 
@@ -155,18 +180,26 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		return balanceOperations[i].InternalKey < balanceOperations[j].InternalKey
 	})
 
-	err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, balanceOperations, validate)
+	transactionRouteCache, err := uc.ValidateAccountingRules(ctx, organizationID, ledgerID, balanceOperations, validate, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate accounting rules", err)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate accounting rules: %v", err))
 
-		return nil, err
+		return nil, nil, err
 	}
 
 	if transactionInput != nil {
+		seen := make(map[string]bool)
 		txBalances := make([]*pkgTransaction.Balance, 0, len(balanceOperations))
+
 		for _, bo := range balanceOperations {
+			if seen[bo.Alias] {
+				continue
+			}
+
+			seen[bo.Alias] = true
+
 			txBalances = append(txBalances, bo.Balance.ToTransactionBalance())
 		}
 
@@ -180,7 +213,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate balances: %v", err.Error()))
 
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -190,8 +223,8 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to lock balance: %v", err))
 
-		return nil, err
+		return nil, nil, err
 	}
 
-	return result, nil
+	return result, transactionRouteCache, nil
 }

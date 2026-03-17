@@ -69,7 +69,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -79,15 +79,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/mmodel.Balance"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -173,7 +164,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -183,15 +174,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/mmodel.Balance"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -290,6 +272,10 @@
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
                         "type": "string",
                         "description": "Sort Order",
                         "name": "sort_order",
@@ -308,7 +294,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -318,15 +304,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/mmodel.Balance"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -623,6 +600,10 @@
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
                         "type": "string",
                         "description": "Sort Order",
                         "name": "sort_order",
@@ -639,6 +620,23 @@
                         "description": "DEBIT, CREDIT",
                         "name": "type",
                         "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "debit",
+                            "credit"
+                        ],
+                        "type": "string",
+                        "description": "Filter by direction",
+                        "name": "direction",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by operation route ID",
+                        "name": "route_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -647,7 +645,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -657,15 +655,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/Operation"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -980,7 +969,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -990,15 +979,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/AssetRate"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -1176,6 +1156,10 @@
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
                         "type": "string",
                         "description": "Sort Order",
                         "name": "sort_order",
@@ -1194,7 +1178,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1204,15 +1188,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/mmodel.Balance"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -1676,7 +1651,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1686,18 +1661,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/OperationRoute"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "page": {
-                                            "type": "object"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -2138,7 +2101,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -2148,18 +2111,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/TransactionRoute"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "page": {
-                                            "type": "object"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -2619,7 +2570,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -2629,18 +2580,6 @@
                                             "items": {
                                                 "$ref": "#/definitions/Transaction"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "page": {
-                                            "type": "object"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -3721,15 +3660,127 @@
                 }
             }
         },
-        "Amount": {
-            "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
+        "AccountingEntries": {
+            "description": "AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert).",
             "type": "object",
             "properties": {
+                "cancel": {
+                    "description": "The accounting entry for the cancel action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
+                "commit": {
+                    "description": "The accounting entry for the commit action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
+                "direct": {
+                    "description": "The accounting entry for the direct action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
+                "hold": {
+                    "description": "The accounting entry for the hold action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
+                "revert": {
+                    "description": "The accounting entry for the revert action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                }
+            }
+        },
+        "AccountingEntry": {
+            "description": "AccountingEntry object containing debit and credit rubrics for a specific action.",
+            "type": "object",
+            "required": [
+                "credit",
+                "debit"
+            ],
+            "properties": {
+                "credit": {
+                    "description": "The credit rubric for this entry.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingRubric"
+                        }
+                    ]
+                },
+                "debit": {
+                    "description": "The debit rubric for this entry.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingRubric"
+                        }
+                    ]
+                }
+            }
+        },
+        "AccountingRubric": {
+            "description": "AccountingRubric object containing the code and description for a debit or credit entry.",
+            "type": "object",
+            "required": [
+                "code",
+                "description"
+            ],
+            "properties": {
+                "code": {
+                    "description": "The accounting rubric code.",
+                    "type": "string",
+                    "maxLength": 50,
+                    "example": "1001"
+                },
+                "description": {
+                    "description": "The accounting rubric description.",
+                    "type": "string",
+                    "maxLength": 250,
+                    "example": "Cash"
+                }
+            }
+        },
+        "Amount": {
+            "description": "Amount is the struct designed to represent the amount of an operation.",
+            "type": "object",
+            "required": [
+                "asset",
+                "value"
+            ],
+            "properties": {
+                "asset": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "direction": {
+                    "type": "string"
+                },
+                "operation": {
+                    "type": "string"
+                },
+                "routeValidationEnabled": {
+                    "type": "boolean"
+                },
+                "transactionType": {
+                    "type": "string"
+                },
                 "value": {
-                    "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
                     "type": "number",
-                    "minimum": 0,
-                    "example": 1500
+                    "example": 1000
                 }
             }
         },
@@ -4026,6 +4077,14 @@
                         }
                     ]
                 },
+                "accountingEntries": {
+                    "description": "Optional accounting entries for each action type associated with this operation route.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntries"
+                        }
+                    ]
+                },
                 "code": {
                     "description": "External reference of the operation route.",
                     "type": "string",
@@ -4259,7 +4318,7 @@
                     "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/OperationRouteActionInput"
                     }
                 },
                 "title": {
@@ -4267,6 +4326,24 @@
                     "type": "string",
                     "maxLength": 50,
                     "example": "Charge Settlement"
+                }
+            }
+        },
+        "Distribute": {
+            "description": "Distribute is the struct designed to represent the distribution fields of an operation.",
+            "type": "object",
+            "required": [
+                "to"
+            ],
+            "properties": {
+                "remaining": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/FromTo"
+                    }
                 }
             }
         },
@@ -4304,6 +4381,60 @@
                     "type": "string",
                     "maxLength": 100,
                     "example": "Bad Request"
+                }
+            }
+        },
+        "FromTo": {
+            "description": "FromTo is the struct designed to represent the from/to fields of an operation.",
+            "type": "object",
+            "properties": {
+                "accountAlias": {
+                    "type": "string",
+                    "example": "@person1"
+                },
+                "amount": {
+                    "$ref": "#/definitions/Amount"
+                },
+                "balanceKey": {
+                    "type": "string",
+                    "example": "asset-freeze"
+                },
+                "chartOfAccounts": {
+                    "type": "string",
+                    "example": "1000"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "description"
+                },
+                "isFrom": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "rate": {
+                    "$ref": "#/definitions/Rate"
+                },
+                "remaining": {
+                    "type": "string",
+                    "example": "remaining"
+                },
+                "route": {
+                    "description": "Deprecated: legacy route identifier, use routeId instead. Contains the same value as routeId but as a free-form string.",
+                    "type": "string",
+                    "maxLength": 250,
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "routeId": {
+                    "description": "UUID of the operation route. Prefer this over the legacy route field.",
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "share": {
+                    "$ref": "#/definitions/Share"
                 }
             }
         },
@@ -4396,6 +4527,16 @@
                     "maxLength": 256,
                     "example": "Credit card operation"
                 },
+                "direction": {
+                    "description": "Direction of the operation (debit, credit)\nexample: debit\nmaxLength: 50",
+                    "type": "string",
+                    "maxLength": 50,
+                    "enum": [
+                        "debit",
+                        "credit"
+                    ],
+                    "example": "debit"
+                },
                 "id": {
                     "description": "Unique identifier for the operation\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
@@ -4420,9 +4561,21 @@
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "route": {
-                    "description": "Route\nexample: 00000000-0000-0000-0000-000000000000\nformat: string",
+                    "description": "Deprecated: legacy route identifier, use routeId instead. Contains the same operation route UUID as routeId but stored as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
                     "type": "string",
-                    "format": "string",
+                    "maxLength": 250,
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "routeCode": {
+                    "description": "Human-readable code of the operation route for accounting traceability\nexample: ROUTE-001\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "ROUTE-001"
+                },
+                "routeId": {
+                    "description": "UUID of the operation route that generated this operation. Prefer this over the legacy route field.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
@@ -4465,6 +4618,26 @@
                         }
                     ]
                 },
+                "accountingEntries": {
+                    "description": "Optional accounting entries for each action type associated with this operation route.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntries"
+                        }
+                    ]
+                },
+                "action": {
+                    "description": "The action associated with this operation route in the context of a transaction route.",
+                    "type": "string",
+                    "enum": [
+                        "direct",
+                        "hold",
+                        "commit",
+                        "cancel",
+                        "revert"
+                    ],
+                    "example": "direct"
+                },
                 "code": {
                     "description": "External reference of the operation route.",
                     "type": "string",
@@ -4505,6 +4678,11 @@
                 "operationType": {
                     "description": "The type of the operation route.",
                     "type": "string",
+                    "enum": [
+                        "source",
+                        "destination",
+                        "bidirectional"
+                    ],
                     "example": "source"
                 },
                 "organizationId": {
@@ -4525,28 +4703,106 @@
                 }
             }
         },
-        "Pagination": {
-            "description": "Pagination is the struct designed to store the pagination data of an entity list.",
+        "OperationRouteActionInput": {
+            "description": "OperationRouteActionInput payload for associating an operation route with a transaction route.",
             "type": "object",
+            "required": [
+                "operationRouteId"
+            ],
             "properties": {
-                "items": {},
-                "limit": {
-                    "type": "integer",
-                    "example": 10
-                },
-                "next_cursor": {
+                "operationRouteId": {
+                    "description": "The unique identifier of the Operation Route.",
                     "type": "string",
-                    "x-omitempty": true,
-                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
-                },
-                "page": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "prev_cursor": {
+                    "format": "uuid",
+                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                }
+            }
+        },
+        "Rate": {
+            "description": "Rate is the struct designed to represent the rate fields of an operation.",
+            "type": "object",
+            "required": [
+                "externalId",
+                "from",
+                "to",
+                "value"
+            ],
+            "properties": {
+                "externalId": {
                     "type": "string",
-                    "x-omitempty": true,
-                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "from": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "to": {
+                    "type": "string",
+                    "example": "USDe"
+                },
+                "value": {
+                    "type": "number",
+                    "example": 1000
+                }
+            }
+        },
+        "Send": {
+            "description": "Send is the struct designed to represent the sending fields of an operation.",
+            "type": "object",
+            "required": [
+                "asset",
+                "distribute",
+                "source",
+                "value"
+            ],
+            "properties": {
+                "asset": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "distribute": {
+                    "$ref": "#/definitions/Distribute"
+                },
+                "source": {
+                    "$ref": "#/definitions/Source"
+                },
+                "value": {
+                    "type": "number",
+                    "example": 1000
+                }
+            }
+        },
+        "Share": {
+            "description": "Share is the struct designed to represent the sharing fields of an operation.",
+            "type": "object",
+            "required": [
+                "percentage"
+            ],
+            "properties": {
+                "percentage": {
+                    "type": "integer"
+                },
+                "percentageOfPercentage": {
+                    "type": "integer"
+                }
+            }
+        },
+        "Source": {
+            "description": "Source is the struct designed to represent the source fields of an operation.",
+            "type": "object",
+            "required": [
+                "from"
+            ],
+            "properties": {
+                "from": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/FromTo"
+                    }
+                },
+                "remaining": {
+                    "type": "string",
+                    "example": "remaining"
                 }
             }
         },
@@ -4656,9 +4912,9 @@
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "route": {
-                    "description": "Route\nexample: 00000000-0000-0000-0000-000000000000\nformat: string",
+                    "description": "Deprecated: legacy route identifier, use routeId on individual operations instead. Contains the operation route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
                     "type": "string",
-                    "format": "string",
+                    "maxLength": 250,
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "source": {
@@ -4790,6 +5046,14 @@
                         }
                     ]
                 },
+                "accountingEntries": {
+                    "description": "Optional accounting entries for each action type associated with this operation route.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntries"
+                        }
+                    ]
+                },
                 "code": {
                     "description": "External reference of the operation route.",
                     "type": "string",
@@ -4851,7 +5115,7 @@
                     "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/OperationRouteActionInput"
                     }
                 },
                 "title": {
@@ -4859,6 +5123,24 @@
                     "type": "string",
                     "maxLength": 50,
                     "example": "Charge Settlement"
+                }
+            }
+        },
+        "http.Pagination": {
+            "type": "object",
+            "properties": {
+                "items": {},
+                "limit": {
+                    "type": "integer"
+                },
+                "next_cursor": {
+                    "type": "string"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "prev_cursor": {
+                    "type": "string"
                 }
             }
         },

@@ -123,7 +123,7 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 		Return(metadataList, nil)
 
 	mockOperationRepo.EXPECT().
-		FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination()).
+		FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, gomock.Any(), filter.ToCursorPagination()).
 		Return(operations, libHTTP.CursorPagination{}, nil)
 
 	uc := &UseCase{
@@ -217,7 +217,7 @@ func TestGetAllMetadataOperationsOperationNotFound(t *testing.T) {
 		Return(metadataList, nil)
 
 	mockOperationRepo.EXPECT().
-		FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination()).
+		FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, gomock.Any(), filter.ToCursorPagination()).
 		Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound)
 
 	uc := &UseCase{
@@ -265,7 +265,7 @@ func TestGetAllMetadataOperationsOperationRepoError(t *testing.T) {
 		Return(metadataList, nil)
 
 	mockOperationRepo.EXPECT().
-		FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, &filter.OperationType, filter.ToCursorPagination()).
+		FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, gomock.Any(), filter.ToCursorPagination()).
 		Return(nil, libHTTP.CursorPagination{}, repoError)
 
 	uc := &UseCase{

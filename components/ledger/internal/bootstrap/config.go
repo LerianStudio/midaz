@@ -62,6 +62,7 @@ type Config struct {
 	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"`
 	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
 	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
+	TenantManagerAPIKey                 string `env:"TENANT_MANAGER_API_KEY"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -376,6 +377,11 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 		return nil, "", fmt.Errorf("APPLICATION_NAME is required when MULTI_TENANT_ENABLED=true")
 	}
 
+	tenantManagerAPIKey := strings.TrimSpace(cfg.TenantManagerAPIKey)
+	if tenantManagerAPIKey == "" {
+		return nil, "", fmt.Errorf("TENANT_MANAGER_API_KEY is required when MULTI_TENANT_ENABLED=true")
+	}
+
 	// Apply safe defaults for circuit breaker when not configured
 	cbThreshold := cfg.MultiTenantCircuitBreakerThreshold
 	if cbThreshold <= 0 {
@@ -390,6 +396,7 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 	tenantClient, err := tmclient.NewClient(
 		tenantManagerURL,
 		logger,
+		tmclient.WithServiceAPIKey(tenantManagerAPIKey),
 		tmclient.WithCircuitBreaker(cbThreshold, time.Duration(cbTimeoutSec)*time.Second),
 	)
 	if err != nil {

@@ -5,7 +5,7 @@
 package bootstrap
 
 // =============================================================================
-// PROPERTY-BASED TESTS -- Multi-tenant worker/consumer domain invariants (T-007)
+// PROPERTY-BASED TESTS -- Multi-tenant worker/consumer domain invariants
 //
 // These tests verify that the domain invariants of the multi-tenant constructors
 // and predicates hold across hundreds of automatically-generated inputs using
@@ -55,7 +55,7 @@ func TestProperty_BalanceSyncWorker_PredicateEqualsEnabledAndPGManagerNonNil(t *
 	logger := newTestLogger()
 	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
-	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
 
@@ -102,7 +102,7 @@ func TestProperty_RedisQueueConsumer_PredicateEqualsEnabledAndPGManagerNonNil(t 
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
-	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
 
@@ -156,7 +156,7 @@ func TestProperty_NewBalanceSyncWorkerMultiTenant_PreservesBaseFields(t *testing
 	logger := newTestLogger()
 	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
@@ -250,7 +250,7 @@ func TestProperty_NewRedisQueueConsumerMultiTenant_PreservesBaseFields(t *testin
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
@@ -315,7 +315,7 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	handler := in.TransactionHandler{}
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 

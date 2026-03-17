@@ -38,7 +38,9 @@ func CreateBalanceOperationWithAvailable(organizationID, ledgerID uuid.UUID, ali
 func CreateBalanceOperationWithOnHold(organizationID, ledgerID uuid.UUID, alias, assetCode, operation string, amount, available, onHold decimal.Decimal, accountType string) mmodel.BalanceOperation {
 	balanceID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
-	balanceKey := "default"
+	// Use alias as part of the balance key so different aliases map to different Redis keys.
+	// This matches production behavior where each account has a unique cache key.
+	balanceKey := alias + "#default"
 
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balanceKey)
 
@@ -68,6 +70,24 @@ func CreateBalanceOperationWithOnHold(organizationID, ledgerID uuid.UUID, alias,
 		},
 		InternalKey: internalKey,
 	}
+}
+
+// CreatePendingBalanceOperation creates a BalanceOperation for PENDING transaction testing.
+// It delegates to CreateBalanceOperationWithOnHold and overrides the version and
+// RouteValidationEnabled flag needed for double-entry PENDING integration tests.
+func CreatePendingBalanceOperation(
+	organizationID, ledgerID uuid.UUID,
+	alias, assetCode, operation string,
+	amount, available, onHold decimal.Decimal,
+	version int64,
+	accountType string,
+	routeValidationEnabled bool,
+) mmodel.BalanceOperation {
+	op := CreateBalanceOperationWithOnHold(organizationID, ledgerID, alias, assetCode, operation, amount, available, onHold, accountType)
+	op.Balance.Version = version
+	op.Amount.RouteValidationEnabled = routeValidationEnabled
+
+	return op
 }
 
 // AssertInsufficientFundsError verifies the error is an UnprocessableOperationError with code "0018".

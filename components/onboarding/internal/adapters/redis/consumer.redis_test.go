@@ -75,7 +75,7 @@ func newRecordingConnection(t *testing.T) (redisClientProvider, *recordingRedisC
 }
 
 // =============================================================================
-// UNIT TESTS — Redis Key Namespacing (T-002)
+// UNIT TESTS — Redis Key Namespacing
 // =============================================================================
 
 // TestKeyNamespacing_SimpleKeyMethods verifies that Set, Get, and Del namespace

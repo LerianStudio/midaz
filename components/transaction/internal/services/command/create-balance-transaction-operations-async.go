@@ -54,6 +54,28 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
+	if t.Transaction.Status.Code != constant.NOTED {
+		ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
+		defer spanUpdateBalances.End()
+
+		logger.Log(ctx, libLog.LevelInfo, "Trying to update balances")
+
+		if t.Validate == nil {
+			logger.Log(ctx, libLog.LevelError, "Transaction payload has nil Validate field, skipping balance update")
+
+			return fmt.Errorf("transaction payload has nil Validate field")
+		}
+
+		err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances, t.BalancesAfter)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdateBalances, "Failed to update balances", err)
+
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances: %v", err.Error()))
+
+			return err
+		}
+	}
+
 	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanUpdateTransaction.End()
 
@@ -84,6 +106,10 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	logger.Log(ctx, libLog.LevelInfo, "Trying to create new operations")
 
 	for _, oper := range tran.Operations {
+		if oper.Direction == "" {
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Operation %s has empty direction, may be from pre-migration message", oper.ID))
+		}
+
 		_, err = uc.OperationRepo.Create(ctxProcessOperation, oper)
 		if err != nil {
 			var pgErr *pgconn.PgError
@@ -152,7 +178,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-			if t.Validate.Pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
+			if t.Validate != nil && t.Validate.Pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
 				_, err = uc.UpdateTransactionStatus(ctx, tran)
 				if err != nil {
 					libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateTransaction, "Failed to update transaction", err)

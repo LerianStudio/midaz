@@ -194,6 +194,48 @@ func TestIntegration_TransactionRouteRepository_FindByID(t *testing.T) {
 	assert.Equal(t, opRouteID, found.OperationRoutes[0].ID, "linked operation route ID should match")
 }
 
+func TestIntegration_TransactionRouteRepository_FindByID_WithMultipleOperationRoutes(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// Create operation routes
+	opRouteSource := pgtestutil.CreateTestOperationRouteSimple(t, container.DB, orgID, ledgerID, "Source Route", "source")
+	opRouteDest := pgtestutil.CreateTestOperationRouteSimple(t, container.DB, orgID, ledgerID, "Dest Route", "destination")
+
+	// Create transaction route via fixture
+	params := pgtestutil.TransactionRouteParams{
+		Title:       "Route With Multiple Links",
+		Description: "Route testing multiple operation route links",
+	}
+	transactionRouteID := pgtestutil.CreateTestTransactionRoute(t, container.DB, orgID, ledgerID, params)
+
+	// Create links
+	pgtestutil.CreateTestOperationTransactionRouteLink(t, container.DB, opRouteSource, transactionRouteID)
+	pgtestutil.CreateTestOperationTransactionRouteLink(t, container.DB, opRouteDest, transactionRouteID)
+
+	ctx := context.Background()
+
+	// Act
+	found, err := repo.FindByID(ctx, orgID, ledgerID, transactionRouteID)
+
+	// Assert
+	require.NoError(t, err, "FindByID should not return error")
+	require.NotNil(t, found, "found transaction route should not be nil")
+	require.Len(t, found.OperationRoutes, 2, "should have 2 operation routes linked")
+
+	// Build a set of linked operation route IDs for order-independent assertion
+	linkedIDs := make(map[uuid.UUID]bool)
+	for _, opRoute := range found.OperationRoutes {
+		linkedIDs[opRoute.ID] = true
+	}
+
+	assert.True(t, linkedIDs[opRouteSource], "source operation route should be linked")
+	assert.True(t, linkedIDs[opRouteDest], "destination operation route should be linked")
+}
+
 func TestIntegration_TransactionRouteRepository_FindByID_WithoutOperationRoutes(t *testing.T) {
 	// This scenario is worth covering because the repository now uses sql.Null* scan targets
 	// for LEFT JOIN output and should tolerate routes with zero linked operation routes.
@@ -379,7 +421,10 @@ func TestIntegration_TransactionRouteRepository_Update_AddOperationRoutes(t *tes
 	}
 
 	// Act - add operation routes
-	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, []uuid.UUID{opRouteID1, opRouteID2}, nil)
+	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, []mmodel.OperationRouteActionInput{
+		{OperationRouteID: opRouteID1},
+		{OperationRouteID: opRouteID2},
+	}, nil)
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
@@ -415,7 +460,9 @@ func TestIntegration_TransactionRouteRepository_Update_RemoveOperationRoutes(t *
 	}
 
 	// Act - remove one operation route
-	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, nil, []uuid.UUID{opRouteID2})
+	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, nil, []mmodel.OperationRouteActionInput{
+		{OperationRouteID: opRouteID2},
+	})
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
@@ -526,7 +573,10 @@ func TestIntegration_TransactionRouteRepository_Delete_WithOperationRoutes(t *te
 	ctx := context.Background()
 
 	// Act - delete with operation route removals
-	err := repo.Delete(ctx, orgID, ledgerID, transactionRouteID, []uuid.UUID{opRouteID1, opRouteID2})
+	err := repo.Delete(ctx, orgID, ledgerID, transactionRouteID, []mmodel.OperationRouteActionInput{
+		{OperationRouteID: opRouteID1},
+		{OperationRouteID: opRouteID2},
+	})
 
 	// Assert
 	require.NoError(t, err, "Delete should not return error")

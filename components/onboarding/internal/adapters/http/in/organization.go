@@ -180,7 +180,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Param			sort_order			query		string																	false	"Sort direction for results based on creation date"	Enums(asc,desc)
 //	@Param			legal_name			query		string																	false	"Filter organizations by legal name (case-insensitive, prefix match)"	maxLength(256)
 //	@Param			doing_business_as	query		string																	false	"Filter organizations by doing business as name (case-insensitive, prefix match)"	maxLength(256)
-//	@Success		200					{object}	http.Pagination{items=[]mmodel.Organization,page=int,limit=int}	"Successfully retrieved organizations list"
+//	@Success		200					{object}	http.Pagination{items=[]mmodel.Organization}	"Successfully retrieved organizations list"
 //	@Failure		400					{object}	mmodel.Error															"Invalid query parameters"
 //	@Failure		401					{object}	mmodel.Error															"Unauthorized access"
 //	@Failure		403					{object}	mmodel.Error															"Forbidden access"

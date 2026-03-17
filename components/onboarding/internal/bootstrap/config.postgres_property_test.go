@@ -73,7 +73,7 @@ func TestProperty_InitPostgres_MultiTenantAlwaysHasPGManager(t *testing.T) {
 			serviceName = "onboarding"
 		}
 
-		client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+		client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 		if err != nil {
 			return false
 		}
@@ -120,7 +120,7 @@ func TestProperty_InitPostgres_SingleTenantNeverHasPGManager(t *testing.T) {
 
 		// Single-tenant: MultiTenantEnabled=false, but vary other options
 		// to prove they don't accidentally trigger multi-tenant mode.
-		client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+		client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 		if err != nil {
 			return false
 		}
@@ -171,7 +171,7 @@ func TestProperty_InitPostgres_AllReposAlwaysNonNil(t *testing.T) {
 
 		var opts *Options
 		if multiTenant {
-			client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+			client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 			if err != nil {
 				return false
 			}

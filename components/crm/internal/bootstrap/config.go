@@ -55,6 +55,7 @@ type Config struct {
 	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`            // max concurrent tenant pools
 	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`   // failures before circuit opens
 	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"` // seconds before circuit resets
+	TenantManagerAPIKey                 string `env:"TENANT_MANAGER_API_KEY"`
 }
 
 // Options contains optional dependencies that can be injected by callers.

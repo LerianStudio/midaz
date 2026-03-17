@@ -114,7 +114,7 @@ func (infra *chaosNetworkTestInfra) createTestOrganization(t *testing.T, name st
 }
 
 // =============================================================================
-// CS-1: CONNECTION LOSS
+// CONNECTION LOSS
 // =============================================================================
 
 // TestIntegration_Chaos_Organization_ConnectionLoss verifies that getDB and
@@ -247,11 +247,11 @@ func TestIntegration_Chaos_Organization_ConnectionLoss(t *testing.T) {
 	assert.Equal(t, org.ID, recovered.ID, "Phase 5: organization ID must be unchanged after recovery")
 	assert.Equal(t, org.LegalName, recovered.LegalName, "Phase 5: data integrity must be preserved")
 
-	t.Log("CS-1 PASS: getDB returns error (not panic) when connection is lost, recovers correctly")
+	t.Log("PASS: getDB returns error (not panic) when connection is lost, recovers correctly")
 }
 
 // =============================================================================
-// CS-2: HIGH LATENCY
+// HIGH LATENCY
 // =============================================================================
 
 // TestIntegration_Chaos_Organization_HighLatency verifies that getDB and
@@ -364,11 +364,11 @@ func TestIntegration_Chaos_Organization_HighLatency(t *testing.T) {
 	assert.Equal(t, org.ID, recovered.ID, "Phase 5: data integrity must be preserved")
 	t.Logf("Phase 5: recovery Find completed in %v (baseline was %v)", recoveryLatency, baselineLatency)
 
-	t.Log("CS-2 PASS: getDB handles high latency correctly via context timeout propagation")
+	t.Log("PASS: getDB handles high latency correctly via context timeout propagation")
 }
 
 // =============================================================================
-// CS-3: NETWORK PARTITION (tenant path fails, static path fallback)
+// NETWORK PARTITION (tenant path fails, static path fallback)
 // =============================================================================
 
 // TestIntegration_Chaos_Organization_NetworkPartition verifies that getDB
@@ -526,7 +526,7 @@ func TestIntegration_Chaos_Organization_NetworkPartition(t *testing.T) {
 		t.Log("Phase 5: delete succeeded during partition; org may be soft-deleted")
 	}
 
-	t.Log("CS-3 PASS: getDB falls back gracefully during network partition, both paths recover")
+	t.Log("PASS: getDB falls back gracefully during network partition, both paths recover")
 }
 
 // =============================================================================
