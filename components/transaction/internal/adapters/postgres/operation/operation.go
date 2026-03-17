@@ -239,7 +239,7 @@ type Operation struct {
 	// Direction of the operation (debit, credit)
 	// example: debit
 	// maxLength: 50
-	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50"`
+	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50" enums:"debit,credit"`
 
 	// Route ID referencing the operation route that generated this operation
 	// example: 00000000-0000-0000-0000-000000000000
@@ -624,7 +624,7 @@ type OperationLog struct {
 	// Direction of the operation (debit, credit)
 	// example: debit
 	// maxLength: 50
-	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50"`
+	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50" enums:"debit,credit"`
 
 	// Route ID referencing the operation route that generated this operation
 	// example: 00000000-0000-0000-0000-000000000000

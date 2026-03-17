@@ -39,10 +39,10 @@ type OperationHandler struct {
 //	@Param			limit			query		int		false	"Limit"			default(10)
 //	@Param			start_date		query		string	false	"Start Date"	example	"2021-01-01"
 //	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	enum(asc,desc)
+//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Param			type			query		string	false	"DEBIT, CREDIT"
-//	@Param			direction		query		string	false	"Filter by direction"	enum(debit,credit)
+//	@Param			direction		query		string	false	"Filter by direction"	Enums(debit,credit)
 //	@Param			route_id		query		string	false	"Filter by operation route ID"	format(uuid)
 //	@Success		200				{object}	http.Pagination{items=[]operation.Operation,next_cursor=string,prev_cursor=string,limit=int}
 //	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"

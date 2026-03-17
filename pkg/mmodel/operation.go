@@ -40,7 +40,7 @@ type OperationRedis struct {
 	UpdatedAt             time.Time       `json:"updatedAt"`
 	Route                 string          `json:"route"`
 	BalanceAffected       bool            `json:"balanceAffected"`
-	Direction             string          `json:"direction,omitempty"`
+	Direction             string          `json:"direction,omitempty" enums:"debit,credit"`
 	RouteID               *string         `json:"routeId,omitempty"`
 	RouteCode             *string         `json:"routeCode,omitempty"`
 	Metadata              map[string]any  `json:"metadata,omitempty"`
