@@ -8,11 +8,11 @@ import (
 	"database/sql"
 	"time"
 
-	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -453,7 +453,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 
 // FromEntity converts an entity Transaction to TransactionPostgreSQLModel
 func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
-	ID := libCommons.GenerateUUIDv7().String()
+	ID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	if transaction.ID != "" {
 		ID = transaction.ID
 	}

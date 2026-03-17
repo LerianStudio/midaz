@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -97,7 +97,7 @@ func FuzzGetDB_ContextModuleName(f *testing.F) {
 		// PostgreSQL server), this path returns an error.
 		if moduleName != "onboarding" {
 			// The fallback path was taken. With a placeholder connection,
-			// r.connection.GetDB() returns an error because no DB pools exist.
+			// r.connection.Resolver(context.Background()) returns an error because no DB pools exist.
 			require.Error(t, err,
 				"getDB must fall back to static connection for module %q", moduleName)
 			assert.Nil(t, db,

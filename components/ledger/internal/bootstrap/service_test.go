@@ -10,14 +10,16 @@ import (
 	"net/http"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/middleware"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,8 +49,8 @@ func (s *StubService) GetRunnables() []mbootstrap.RunnableConfig {
 	return s.runnables
 }
 
-func (s *StubService) GetRouteRegistrar() func(*fiber.App) {
-	return func(app *fiber.App) {}
+func (s *StubService) GetRouteRegistrar(_ *midazhttp.ProtectedRouteOptions) func(fiber.Router) {
+	return func(router fiber.Router) {}
 }
 
 func (s *StubService) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
@@ -95,8 +97,8 @@ func (s *StubTransactionService) GetMetadataIndexPort() mbootstrap.MetadataIndex
 	return s.metadataIndexRepo
 }
 
-func (s *StubTransactionService) GetRouteRegistrar() func(*fiber.App) {
-	return func(app *fiber.App) {}
+func (s *StubTransactionService) GetRouteRegistrar(_ *midazhttp.ProtectedRouteOptions) func(fiber.Router) {
+	return func(router fiber.Router) {}
 }
 
 func (s *StubTransactionService) SetSettingsPort(port mbootstrap.SettingsPort) {
@@ -118,12 +120,21 @@ func (s *StubTransactionService) GetMultiTenantConsumer() interface{} {
 // Ensure StubTransactionService implements transaction.TransactionService
 var _ transaction.TransactionService = (*StubTransactionService)(nil)
 
+func newTestLogger(t *testing.T) libLog.Logger {
+	t.Helper()
+
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "ledger-test"})
+	require.NoError(t, err, "logger init must not fail")
+
+	return logger
+}
+
 // TestService_GetRunnables_ReturnsAllComponents verifies that Service.Run()
 // correctly collects runnables from both onboarding and transaction services.
 // This is a unit test that uses stubs to verify the composition logic.
 func TestService_GetRunnables_ReturnsAllComponents(t *testing.T) {
 	// Arrange
-	logger := libZap.InitializeLogger()
+	logger := newTestLogger(t)
 
 	// Create stub runnables for onboarding
 	onboardingRunnable := &StubRunnable{name: "onboarding-server"}
@@ -151,21 +162,16 @@ func TestService_GetRunnables_ReturnsAllComponents(t *testing.T) {
 		Telemetry:          &libOpentelemetry.Telemetry{},
 	}
 
-	// Act - collect runnables from both services (simulating what Run() does)
-	onboardingResult := service.OnboardingService.GetRunnables()
-	transactionResult := service.TransactionService.GetRunnables()
-	totalRunnables := len(onboardingResult) + len(transactionResult)
+	service.UnifiedServer = &UnifiedServer{}
+
+	// Act
+	runnables := service.GetRunnables()
 
 	// Assert
-	assert.Equal(t, 1, len(onboardingResult), "Onboarding should have 1 runnable")
-	assert.Equal(t, 3, len(transactionResult), "Transaction should have 3 runnables (no gRPC in unified mode)")
-	assert.Equal(t, 4, totalRunnables, "Total runnables should be 4")
-
-	// Verify specific runnable names
-	assert.Equal(t, "Onboarding Server", onboardingResult[0].Name)
-	assert.Equal(t, "Transaction Fiber Server", transactionResult[0].Name)
-	assert.Equal(t, "Transaction RabbitMQ Consumer", transactionResult[1].Name)
-	assert.Equal(t, "Transaction Redis Consumer", transactionResult[2].Name)
+	require.Len(t, runnables, 3)
+	assert.Equal(t, "Unified HTTP Server", runnables[0].Name)
+	assert.Equal(t, "Transaction RabbitMQ Consumer", runnables[1].Name)
+	assert.Equal(t, "Transaction Redis Consumer", runnables[2].Name)
 }
 
 // TestInitServers_UnifiedMode_BalancePortWiring verifies that in unified mode,
@@ -286,7 +292,7 @@ func TestService_CompositionContract(t *testing.T) {
 		service := &Service{
 			OnboardingService:  &StubService{},
 			TransactionService: &StubTransactionService{},
-			Logger:             libZap.InitializeLogger(),
+			Logger:             newTestLogger(t),
 			Telemetry:          &libOpentelemetry.Telemetry{},
 		}
 
@@ -425,42 +431,42 @@ func TestMidazErrorMapper(t *testing.T) {
 	}
 }
 
-// TestNewUnifiedServer_AcceptsMultiPoolMiddleware verifies that NewUnifiedServer
-// accepts a *tmmiddleware.MultiPoolMiddleware parameter and creates a valid server.
-func TestNewUnifiedServer_AcceptsMultiPoolMiddleware(t *testing.T) {
+// TestNewUnifiedServer_CreatesServer verifies that NewUnifiedServer creates a
+// valid server without requiring global tenant middleware wiring.
+func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 	t.Parallel()
 
-	logger := libZap.InitializeLogger()
+	logger := newTestLogger(t)
 	telemetry := &libOpentelemetry.Telemetry{}
 
-	t.Run("nil_middleware_creates_server_without_tenant_db", func(t *testing.T) {
+	t.Run("creates_server_without_route_registrars", func(t *testing.T) {
 		t.Parallel()
 
 		server := NewUnifiedServer(
 			":0",
 			logger,
 			telemetry,
-			nil, // multiPoolMiddleware is nil
 		)
 
-		require.NotNil(t, server, "NewUnifiedServer should return non-nil server when middleware is nil")
+		require.NotNil(t, server, "NewUnifiedServer should return non-nil server")
 		assert.Equal(t, ":0", server.ServerAddress())
 	})
 
-	t.Run("non_nil_middleware_accepted_by_server", func(t *testing.T) {
+	t.Run("creates_server_with_route_registrar", func(t *testing.T) {
 		t.Parallel()
-
-		// Create a middleware with no routes (enabled=false) to avoid needing real managers
-		middleware := tmmiddleware.NewMultiPoolMiddleware()
 
 		server := NewUnifiedServer(
 			":0",
 			logger,
 			telemetry,
-			middleware,
+			func(router fiber.Router) {
+				router.Get("/test", func(c *fiber.Ctx) error {
+					return c.SendStatus(fiber.StatusNoContent)
+				})
+			},
 		)
 
-		require.NotNil(t, server, "NewUnifiedServer should return non-nil server when middleware is provided")
+		require.NotNil(t, server, "NewUnifiedServer should return non-nil server when a registrar is provided")
 		assert.Equal(t, ":0", server.ServerAddress())
 	})
 }

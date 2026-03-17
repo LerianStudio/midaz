@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
@@ -1001,9 +1000,6 @@ func TestHandler_GetOrganizationByID_InvalidUUID(t *testing.T) {
 		})
 	}
 }
-
-// Ensure libPostgres.Pagination is used (referenced in handler)
-var _ = libPostgres.Pagination{}
 
 // TestProperty_Organization_FieldLengths tests that various field lengths don't cause 5xx errors.
 // This is a property-based test with randomized field lengths.

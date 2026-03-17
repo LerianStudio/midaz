@@ -25,7 +25,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	tmvalkey "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/valkey"
+	tmvalkey "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/valkey"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,14 +48,21 @@ func sanitizeQuickStringOnboarding(s string, maxLen int) string {
 // (or no-tenant) deployments — backwards-compatibility invariant for Set, Get,
 // and Del in the onboarding Redis consumer.
 func TestProperty_KeyNamespacing_Identity(t *testing.T) {
+	var propErr error
+
 	property := func(key string) bool {
 		key = sanitizeQuickStringOnboarding(key, 512)
-		result := tmvalkey.GetKey("", key)
+		result, err := tmvalkey.GetKey("", key)
+		if err != nil {
+			propErr = err
+			return false
+		}
 
 		return result == key
 	}
 
 	err := quick.Check(property, &quick.Config{MaxCount: 100})
+	require.NoError(t, propErr, "GetKey returned unexpected error during property evaluation")
 	require.NoError(t, err, "Identity property violated: GetKey(\"\", key) must equal key for all inputs")
 }
 
@@ -68,6 +75,8 @@ func TestProperty_KeyNamespacing_Identity(t *testing.T) {
 // This guarantees that the namespaced key used by Set, Get, and Del is
 // deterministically constructed and that the original key is always recoverable.
 func TestProperty_KeyNamespacing_PrefixStructure(t *testing.T) {
+	var propErr error
+
 	property := func(tenantID, key string) bool {
 		tenantID = sanitizeQuickStringOnboarding(tenantID, 256)
 		key = sanitizeQuickStringOnboarding(key, 512)
@@ -77,7 +86,11 @@ func TestProperty_KeyNamespacing_PrefixStructure(t *testing.T) {
 			return true
 		}
 
-		result := tmvalkey.GetKey(tenantID, key)
+		result, err := tmvalkey.GetKey(tenantID, key)
+		if err != nil {
+			propErr = err
+			return false
+		}
 		expectedPrefix := "tenant:" + tenantID + ":"
 
 		startsCorrectly := strings.HasPrefix(result, expectedPrefix)
@@ -87,6 +100,7 @@ func TestProperty_KeyNamespacing_PrefixStructure(t *testing.T) {
 	}
 
 	err := quick.Check(property, &quick.Config{MaxCount: 100})
+	require.NoError(t, propErr, "GetKey returned unexpected error during property evaluation")
 	require.NoError(t, err,
 		"PrefixStructure property violated: GetKey(tenantID, key) must start with 'tenant:{tenantID}:' and end with key when tenantID is non-empty")
 }
@@ -100,17 +114,29 @@ func TestProperty_KeyNamespacing_PrefixStructure(t *testing.T) {
 // to recover the original key — critical for audit tracing and cache-miss
 // detection in the onboarding consumer.
 func TestProperty_KeyNamespacing_Reversibility(t *testing.T) {
+	var propErr error
+
 	property := func(tenantID, key string) bool {
 		tenantID = sanitizeQuickStringOnboarding(tenantID, 256)
 		key = sanitizeQuickStringOnboarding(key, 512)
 
-		namespaced := tmvalkey.GetKey(tenantID, key)
-		recovered := tmvalkey.StripTenantPrefix(tenantID, namespaced)
+		namespaced, err := tmvalkey.GetKey(tenantID, key)
+		if err != nil {
+			propErr = err
+			return false
+		}
+
+		recovered, err := tmvalkey.StripTenantPrefix(tenantID, namespaced)
+		if err != nil {
+			propErr = err
+			return false
+		}
 
 		return recovered == key
 	}
 
 	err := quick.Check(property, &quick.Config{MaxCount: 100})
+	require.NoError(t, propErr, "Tenant key helper returned unexpected error during property evaluation")
 	require.NoError(t, err,
 		"Reversibility property violated: StripTenantPrefix(tenantID, GetKey(tenantID, key)) must equal key for all inputs")
 }

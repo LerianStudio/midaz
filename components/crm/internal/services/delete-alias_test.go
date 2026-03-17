@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -26,8 +26,8 @@ func TestDeleteAliasByID(t *testing.T) {
 		AliasRepo: mockAliasRepo,
 	}
 
-	id := libCommons.GenerateUUIDv7()
-	holderID := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	testCases := []struct {
 		name          string
@@ -65,7 +65,7 @@ func TestDeleteAliasByID(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			err := uc.DeleteAliasByID(ctx, libCommons.GenerateUUIDv7().String(), testCase.holderID, testCase.id, false)
+			err := uc.DeleteAliasByID(ctx, uuid.Must(libCommons.GenerateUUIDv7()).String(), testCase.holderID, testCase.id, false)
 
 			if testCase.expectedError != nil {
 				assert.Error(t, err)

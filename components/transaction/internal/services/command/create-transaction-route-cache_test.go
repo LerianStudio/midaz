@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -23,10 +23,10 @@ func TestCreateAccountingRouteCache_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -68,10 +68,10 @@ func TestCreateAccountingRouteCache_SuccessWithoutAccountRule(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -110,9 +110,9 @@ func TestCreateAccountingRouteCache_SuccessWithEmptyOperationRoutes(t *testing.T
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:              routeID,
@@ -143,11 +143,11 @@ func TestCreateAccountingRouteCache_SuccessWithMultipleOperationRoutes(t *testin
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID1 := libCommons.GenerateUUIDv7()
-	operationRouteID2 := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID1 := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -199,9 +199,9 @@ func TestCreateAccountingRouteCache_ToMsgpackError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -238,10 +238,10 @@ func TestCreateAccountingRouteCache_RedisSetError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -285,10 +285,10 @@ func TestCreateAccountingRouteCache_ContextCancelled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,

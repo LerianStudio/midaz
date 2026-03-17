@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
@@ -28,9 +28,9 @@ func TestUpdateTransactionRouteSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	transactionRouteID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	input := &mmodel.UpdateTransactionRouteInput{
 		Title:       "Updated Title",
@@ -92,9 +92,9 @@ func TestUpdateTransactionRouteNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	transactionRouteID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	input := &mmodel.UpdateTransactionRouteInput{
 		Title:       "Updated Title",
@@ -128,9 +128,9 @@ func TestUpdateTransactionRouteRepositoryError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	transactionRouteID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	input := &mmodel.UpdateTransactionRouteInput{
 		Title:       "Updated Title",
@@ -164,9 +164,9 @@ func TestUpdateTransactionRouteMetadataError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	transactionRouteID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	input := &mmodel.UpdateTransactionRouteInput{
 		Title:       "Updated Title",
@@ -211,9 +211,9 @@ func TestUpdateTransactionRouteMetadataError(t *testing.T) {
 
 // TestUpdateTransactionRouteWithOperationRoutes tests updating operation route relationships
 func TestUpdateTransactionRouteWithOperationRoutes(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	input := &mmodel.UpdateTransactionRouteInput{
 		Title:       "Updated Route",
@@ -228,8 +228,8 @@ func TestUpdateTransactionRouteWithOperationRoutes(t *testing.T) {
 	currentTransactionRoute := &mmodel.TransactionRoute{
 		ID: transactionRouteID,
 		OperationRoutes: []mmodel.OperationRoute{
-			{ID: libCommons.GenerateUUIDv7(), OperationType: "source"},
-			{ID: libCommons.GenerateUUIDv7(), OperationType: "destination"},
+			{ID: uuid.Must(libCommons.GenerateUUIDv7()), OperationType: "source"},
+			{ID: uuid.Must(libCommons.GenerateUUIDv7()), OperationType: "destination"},
 		},
 	}
 
@@ -338,9 +338,9 @@ func TestUpdateTransactionRouteWithoutOperationRoutes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	transactionRouteID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	input := &mmodel.UpdateTransactionRouteInput{
 		Title:           "Updated Title",
@@ -394,9 +394,9 @@ func TestUpdateTransactionRouteWithoutOperationRoutes(t *testing.T) {
 
 // TestUpdateTransactionRouteInvalidOperationRouteTypes tests validation error for operation routes missing debit or credit
 func TestUpdateTransactionRouteInvalidOperationRouteTypes(t *testing.T) {
-	transactionRouteID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	operationRouteIDs := []uuid.UUID{uuid.New(), uuid.New()}
 
@@ -444,11 +444,11 @@ func TestUpdateTransactionRouteInvalidOperationRouteTypes(t *testing.T) {
 
 // TestUpdateTransactionRouteWithMultipleOperationRoutes tests updating with more than 2 operation routes
 func TestUpdateTransactionRouteWithMultipleOperationRoutes(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	operationRouteIDs := []uuid.UUID{libCommons.GenerateUUIDv7(), libCommons.GenerateUUIDv7(), libCommons.GenerateUUIDv7(), libCommons.GenerateUUIDv7()}
+	operationRouteIDs := []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7()), uuid.Must(libCommons.GenerateUUIDv7()), uuid.Must(libCommons.GenerateUUIDv7()), uuid.Must(libCommons.GenerateUUIDv7())}
 
 	input := &mmodel.UpdateTransactionRouteInput{
 		Title:           "Updated Route",

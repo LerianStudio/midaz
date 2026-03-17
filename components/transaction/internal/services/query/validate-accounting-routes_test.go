@@ -9,11 +9,12 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -186,9 +187,9 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 

@@ -5,21 +5,23 @@
 package bootstrap
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v3/commons/server"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/middleware"
+	"context"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v4/commons/server"
 	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-// RouteRegistrar is a function that registers routes to an existing Fiber app.
+// RouteRegistrar is a function that registers routes to an existing Fiber router.
 // Each module (onboarding, transaction) implements this to register its routes.
-type RouteRegistrar func(app *fiber.App)
+type RouteRegistrar func(router fiber.Router)
 
 // UnifiedServer consolidates all HTTP APIs (onboarding + transaction) in a single Fiber server.
 // This enables the unified ledger mode where all routes are accessible on a single port.
@@ -31,21 +33,18 @@ type UnifiedServer struct {
 }
 
 // NewUnifiedServer creates a server that exposes all APIs on a single port.
-// It accepts an optional MultiPoolMiddleware for per-tenant database routing
-// and route registration functions from each module to compose all routes
-// in one Fiber app. When multiPoolMiddleware is nil, no tenant routing is applied.
+// Route registrars are responsible for attaching any module-specific middleware.
 func NewUnifiedServer(
 	serverAddress string,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
-	multiPoolMiddleware *tmmiddleware.MultiPoolMiddleware,
 	routeRegistrars ...RouteRegistrar,
 ) *UnifiedServer {
 	app := fiber.New(fiber.Config{
 		AppName:               "Midaz Unified Ledger API",
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.HandleFiberError(ctx, err)
+			return libHTTP.FiberErrorHandler(ctx, err)
 		},
 	})
 
@@ -54,14 +53,6 @@ func NewUnifiedServer(
 	app.Use(tlMid.WithTelemetry(telemetry))
 	app.Use(cors.New())
 	app.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(logger)))
-
-	// Multi-tenant middleware: inserted after logging, before route registration.
-	// Nil-safe: only applied when multi-tenant mode is enabled.
-	if multiPoolMiddleware != nil {
-		app.Use(multiPoolMiddleware.WithTenantDB)
-		logger.Info("Multi-tenant MultiPoolMiddleware enabled")
-	}
-
 	// Health check for the unified server
 	app.Get("/health", libHTTP.Ping)
 
@@ -94,7 +85,7 @@ func NewUnifiedServer(
 // Run implements mbootstrap.Runnable interface.
 // Starts the unified HTTP server with graceful shutdown support.
 func (s *UnifiedServer) Run(l *libCommons.Launcher) error {
-	s.logger.Infof("Starting Unified HTTP Server on %s", s.serverAddress)
+	s.logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Starting Unified HTTP Server on %s", s.serverAddress))
 
 	libCommonsServer.NewServerManager(nil, s.telemetry, s.logger).
 		WithHTTPServer(s.app, s.serverAddress).

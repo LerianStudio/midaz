@@ -6,18 +6,21 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+
+	// DeleteHolderByID delete a holder by its ID
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// DeleteHolderByID delete a holder by its ID
 func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, id uuid.UUID, hardDelete bool) error {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -30,12 +33,12 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 		attribute.String("app.request.holder_id", id.String()),
 	)
 
-	logger.Infof("Delete holder by id %v", id)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Delete holder by id %v", id))
 
 	count, err := uc.AliasRepo.Count(ctx, organizationID, id)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to check linked aliases for holder: %v", err)
-		logger.Errorf("Failed to check linked aliases for holder: %v", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to check linked aliases for holder: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to check linked aliases for holder: %v", err))
 
 		return err
 	}
@@ -46,8 +49,8 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 
 	err = uc.HolderRepo.Delete(ctx, organizationID, id, hardDelete)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to delete holder by id: %v", err)
-		logger.Errorf("Failed to delete holder by id: %v", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to delete holder by id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete holder by id: %v", err))
 
 		return err
 	}

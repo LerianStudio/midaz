@@ -6,34 +6,37 @@ package command
 
 import (
 	"context"
+	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
+
+	// DeleteTransactionRouteCache deletes the cache for a transaction route.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// DeleteTransactionRouteCache deletes the cache for a transaction route.
 func (uc *UseCase) DeleteTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_transaction_route_cache")
 	defer span.End()
 
-	logger.Infof("Deleting transaction route cache for transaction route with id: %s", transactionRouteID)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Deleting transaction route cache for transaction route with id: %s", transactionRouteID))
 
 	internalKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
 
 	err := uc.RedisRepo.Del(ctx, internalKey)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete transaction route cache", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to delete transaction route cache", err)
 
-		logger.Errorf("Failed to delete transaction route cache: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete transaction route cache: %v", err))
 
 		return err
 	}
 
-	logger.Infof("Successfully deleted transaction route cache for transaction route with id: %s", transactionRouteID)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully deleted transaction route cache for transaction route with id: %s", transactionRouteID))
 
 	return nil
 }

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"testing"
 
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
@@ -31,11 +30,8 @@ func (m *mockMGetClient) MGet(ctx context.Context, keys ...string) *redis.SliceC
 	return redis.NewSliceCmd(ctx)
 }
 
-func newMockMGetConnection(client *mockMGetClient) *libRedis.RedisConnection {
-	return &libRedis.RedisConnection{
-		Client:    client,
-		Connected: true,
-	}
+func newMockMGetConnection(client *mockMGetClient) *staticRedisProvider {
+	return &staticRedisProvider{client: client}
 }
 
 func TestGetBalancesByKeys_EmptyInput(t *testing.T) {

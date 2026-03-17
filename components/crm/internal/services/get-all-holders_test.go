@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -24,15 +24,15 @@ func TestGetAllHolders(t *testing.T) {
 
 	mockRepo := holder.NewMockRepository(ctrl)
 
-	holderID1 := libCommons.GenerateUUIDv7()
+	holderID1 := uuid.Must(libCommons.GenerateUUIDv7())
 	name1 := "John Smith"
 	document1 := "90217469051"
 
-	holderID2 := libCommons.GenerateUUIDv7()
+	holderID2 := uuid.Must(libCommons.GenerateUUIDv7())
 	name2 := "Alice Johnson"
 	document2 := "12345678901"
 
-	holderID3 := libCommons.GenerateUUIDv7()
+	holderID3 := uuid.Must(libCommons.GenerateUUIDv7())
 	name3 := "Bob Martin"
 	document3 := "98765432109"
 	externalID3 := "G4K7N8M"

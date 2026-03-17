@@ -6,23 +6,26 @@ package query
 
 import (
 	"context"
+	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+
+	// GetAllMetadataIndexes returns all metadata indexes, optionally filtered by entity name
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// GetAllMetadataIndexes returns all metadata indexes, optionally filtered by entity name
 func (uc *UseCase) GetAllMetadataIndexes(ctx context.Context, filter http.QueryHeader) ([]*mmodel.MetadataIndex, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_indexes")
 	defer span.End()
 
-	logger.Infof("Initializing the get all metadata indexes operation: %v", filter)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initializing the get all metadata indexes operation: %v", filter))
 
 	metadataIndexesResponse := make([]*mmodel.MetadataIndex, 0)
 
@@ -39,9 +42,9 @@ func (uc *UseCase) GetAllMetadataIndexes(ctx context.Context, filter http.QueryH
 	for _, entityName := range entitiesToQuery {
 		metadataIndexes, err := uc.MetadataRepo.FindAllIndexes(ctx, entityName)
 		if err != nil {
-			logger.Errorf("Error getting metadata indexes for entity %s: %v", entityName, err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting metadata indexes for entity %s: %v", entityName, err))
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata indexes on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata indexes on repo", err)
 
 			return nil, err
 		}

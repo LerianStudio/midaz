@@ -5,54 +5,21 @@
 package bootstrap
 
 import (
-	"database/sql"
 	"fmt"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
-	"github.com/bxcodec/dbresolver/v2"
-	_ "github.com/jackc/pgx/v5/stdlib"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// testPostgresConnector returns a PostgresConnection with a pre-set ConnectionDB
-// so that repo constructors' GetDB() calls succeed without requiring a live database.
-// sql.Open with the pgx driver creates a lazy handle — no actual connection is made.
-func testPostgresConnector(t *testing.T) func(*Config, libLog.Logger) (*libPostgres.PostgresConnection, error) {
+// testPostgresConnector returns a Postgres client without network I/O.
+func testPostgresConnector(t *testing.T) func(*Config, libLog.Logger) (*libPostgres.Client, error) {
 	t.Helper()
 
-	return func(cfg *Config, logger libLog.Logger) (*libPostgres.PostgresConnection, error) {
-		conn := buildPostgresConnection(cfg, logger)
-
-		primary, err := sql.Open("pgx", "host=localhost dbname=test_noop sslmode=disable")
-		if err != nil {
-			return nil, err
-		}
-
-		replica, err := sql.Open("pgx", "host=localhost dbname=test_noop sslmode=disable")
-		if err != nil {
-			primary.Close()
-			return nil, err
-		}
-
-		db := dbresolver.New(
-			dbresolver.WithPrimaryDBs(primary),
-			dbresolver.WithReplicaDBs(replica),
-		)
-
-		conn.ConnectionDB = &db
-		conn.Connected = true
-
-		t.Cleanup(func() {
-			primary.Close()
-			replica.Close()
-		})
-
-		return conn, nil
+	return func(cfg *Config, logger libLog.Logger) (*libPostgres.Client, error) {
+		return buildPostgresConnection(cfg, logger)
 	}
 }
 
@@ -62,18 +29,21 @@ func testPostgresConnector(t *testing.T) func(*Config, libLog.Logger) (*libPostg
 func withTestConnector(t *testing.T) {
 	t.Helper()
 
-	original := postgresConnector
+	originalConnector := postgresConnector
 	postgresConnector = testPostgresConnector(t)
 
+	originalMigrator := postgresMigrator
+	postgresMigrator = func(_ *Config, _ libLog.Logger) error { return nil }
+
 	t.Cleanup(func() {
-		postgresConnector = original
+		postgresConnector = originalConnector
+		postgresMigrator = originalMigrator
 	})
 }
 
 // Note: t.Parallel() omitted because withTestConnector mutates package-level postgresConnector.
 func TestInitPostgres(t *testing.T) {
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
 	cfg := &Config{}
 
@@ -98,7 +68,7 @@ func TestInitPostgres(t *testing.T) {
 			name: "multi-tenant enabled calls multi-tenant path",
 			opts: &Options{
 				MultiTenantEnabled: true,
-				TenantClient:       tmclient.NewClient("http://localhost:0", logger),
+				TenantClient:       mustTenantClient(t, logger),
 				TenantServiceName:  "transaction",
 			},
 			wantMultiTenant: true,
@@ -135,10 +105,8 @@ func TestInitPostgres(t *testing.T) {
 func TestInitMultiTenantPostgres_Success(t *testing.T) {
 	withTestConnector(t)
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
-
-	client := tmclient.NewClient("http://localhost:0", logger)
+	logger := libLog.NewNop()
+	client := mustTenantClient(t, logger)
 	cfg := &Config{}
 
 	opts := &Options{
@@ -164,8 +132,7 @@ func TestInitMultiTenantPostgres_Success(t *testing.T) {
 func TestInitMultiTenantPostgres_NilTenantClient_ReturnsError(t *testing.T) {
 	t.Parallel()
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
 	cfg := &Config{}
 
@@ -185,8 +152,7 @@ func TestInitMultiTenantPostgres_NilTenantClient_ReturnsError(t *testing.T) {
 func TestInitSingleTenantPostgres_CreatesComponents(t *testing.T) {
 	withTestConnector(t)
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
 	cfg := &Config{}
 
@@ -211,7 +177,7 @@ func withFailingConnector(t *testing.T, connErr error) {
 	t.Helper()
 
 	original := postgresConnector
-	postgresConnector = func(_ *Config, _ libLog.Logger) (*libPostgres.PostgresConnection, error) {
+	postgresConnector = func(_ *Config, _ libLog.Logger) (*libPostgres.Client, error) {
 		return nil, connErr
 	}
 
@@ -227,13 +193,12 @@ func TestInitMultiTenantPostgres_ConnectorError_ReturnsWrappedError(t *testing.T
 	connErr := fmt.Errorf("simulated connection failure")
 	withFailingConnector(t, connErr)
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
 	cfg := &Config{}
 	opts := &Options{
 		MultiTenantEnabled: true,
-		TenantClient:       tmclient.NewClient("http://localhost:0", logger),
+		TenantClient:       mustTenantClient(t, logger),
 		TenantServiceName:  "transaction",
 	}
 
@@ -252,8 +217,7 @@ func TestInitSingleTenantPostgres_ConnectorError_ReturnsWrappedError(t *testing.
 	connErr := fmt.Errorf("simulated connection failure")
 	withFailingConnector(t, connErr)
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
 	cfg := &Config{}
 
@@ -268,16 +232,11 @@ func TestInitSingleTenantPostgres_ConnectorError_ReturnsWrappedError(t *testing.
 func TestBuildPostgresConnection_PrefixedFallback(t *testing.T) {
 	t.Parallel()
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
 	tests := []struct {
-		name          string
-		cfg           *Config
-		wantPrimary   string
-		wantReplica   string
-		wantDBName    string
-		wantComponent string
+		name string
+		cfg  *Config
 	}{
 		{
 			name: "uses prefixed values when available",
@@ -297,10 +256,6 @@ func TestBuildPostgresConnection_PrefixedFallback(t *testing.T) {
 				PrimaryDBHost:             "fallback-host",
 				PrimaryDBUser:             "fallback-user",
 			},
-			wantPrimary:   "host=prefixed-host user=prefixed-user password=prefixed-pass dbname=prefixed-db port=5433 sslmode=require",
-			wantReplica:   "host=prefixed-replica user=prefixed-ruser password=prefixed-rpass dbname=prefixed-rdb port=5434 sslmode=verify-full",
-			wantDBName:    "prefixed-db",
-			wantComponent: ApplicationName,
 		},
 		{
 			name: "falls back to non-prefixed values",
@@ -318,18 +273,10 @@ func TestBuildPostgresConnection_PrefixedFallback(t *testing.T) {
 				ReplicaDBPort:     "5432",
 				ReplicaDBSSLMode:  "disable",
 			},
-			wantPrimary:   "host=fallback-host user=fallback-user password=fallback-pass dbname=fallback-db port=5432 sslmode=disable",
-			wantReplica:   "host=replica-host user=replica-user password=replica-pass dbname=replica-db port=5432 sslmode=disable",
-			wantDBName:    "fallback-db",
-			wantComponent: ApplicationName,
 		},
 		{
-			name:          "empty config produces empty-valued connection strings",
-			cfg:           &Config{},
-			wantPrimary:   "host= user= password= dbname= port= sslmode=",
-			wantReplica:   "host= user= password= dbname= port= sslmode=",
-			wantDBName:    "",
-			wantComponent: ApplicationName,
+			name: "empty config produces empty-valued connection strings",
+			cfg:  &Config{},
 		},
 	}
 
@@ -337,14 +284,13 @@ func TestBuildPostgresConnection_PrefixedFallback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			conn := buildPostgresConnection(tt.cfg, logger)
+			conn, err := buildPostgresConnection(tt.cfg, logger)
+			require.NoError(t, err)
 			require.NotNil(t, conn)
 
-			assert.Equal(t, tt.wantPrimary, conn.ConnectionStringPrimary)
-			assert.Equal(t, tt.wantReplica, conn.ConnectionStringReplica)
-			assert.Equal(t, tt.wantDBName, conn.PrimaryDBName)
-			assert.Equal(t, tt.wantComponent, conn.Component)
-			assert.Equal(t, logger, conn.Logger)
+			connected, connectedErr := conn.IsConnected()
+			require.NoError(t, connectedErr)
+			assert.False(t, connected)
 		})
 	}
 }

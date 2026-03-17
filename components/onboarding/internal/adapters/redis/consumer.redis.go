@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
-	tmvalkey "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/valkey"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmvalkey "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/valkey"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -33,13 +33,17 @@ type RedisRepository interface {
 	Del(ctx context.Context, key string) error
 }
 
+type redisClientProvider interface {
+	GetClient(ctx context.Context) (redis.UniversalClient, error)
+}
+
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
 type RedisConsumerRepository struct {
-	conn *libRedis.RedisConnection
+	conn redisClientProvider
 }
 
 // NewConsumerRedis returns a new instance of RedisRepository using the given Redis connection.
-func NewConsumerRedis(rc *libRedis.RedisConnection) (*RedisConsumerRepository, error) {
+func NewConsumerRedis(rc redisClientProvider) (*RedisConsumerRepository, error) {
 	r := &RedisConsumerRepository{
 		conn: rc,
 	}
@@ -56,24 +60,29 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	ctx, span := tracer.Start(ctx, "redis.set")
 	defer span.End()
 
-	key = tmvalkey.GetKeyFromContext(ctx, key)
+	key, err := tmvalkey.GetKeyFromContext(ctx, key)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build tenant key", err)
+
+		return err
+	}
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
 
 		return err
 	}
 
 	if ttl <= 0 {
-		ttl = time.Duration(libRedis.TTL)
+		ttl = 300 * time.Second
 	}
 
-	logger.Infof("value of ttl: %v", ttl)
+	logger.Log(ctx, libLog.LevelInfo, "value of ttl", libLog.Any("ttl", ttl))
 
 	statusCMD := rds.Set(ctx, key, value, ttl)
 	if statusCMD.Err() != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to set on redis", statusCMD.Err())
+		libOpentelemetry.HandleSpanError(span, "Failed to set on redis", statusCMD.Err())
 
 		return statusCMD.Err()
 	}
@@ -87,22 +96,27 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	ctx, span := tracer.Start(ctx, "redis.get")
 	defer span.End()
 
-	key = tmvalkey.GetKeyFromContext(ctx, key)
+	key, err := tmvalkey.GetKeyFromContext(ctx, key)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build tenant key", err)
+
+		return "", err
+	}
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to connect on redis", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
 
-		logger.Errorf("Failed to connect on redis: %v", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to connect on redis", libLog.Err(err))
 
 		return "", err
 	}
 
 	val, err := rds.Get(ctx, key).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get on redis", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get on redis", err)
 
-		logger.Errorf("Failed to get on redis: %v", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get on redis", libLog.Err(err))
 
 		return "", err
 	}
@@ -116,27 +130,32 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	ctx, span := tracer.Start(ctx, "redis.del")
 	defer span.End()
 
-	key = tmvalkey.GetKeyFromContext(ctx, key)
+	key, err := tmvalkey.GetKeyFromContext(ctx, key)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build tenant key", err)
+
+		return err
+	}
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to connect on redis", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
 
-		logger.Errorf("Failed to connect on redis: %v", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to connect on redis", libLog.Err(err))
 
 		return err
 	}
 
 	val, err := rds.Del(ctx, key).Result()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to del on redis", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to del on redis", err)
 
-		logger.Errorf("Failed to del on redis: %v", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to del on redis", libLog.Err(err))
 
 		return err
 	}
 
-	logger.Infof("deleted keys count: %v", val)
+	logger.Log(ctx, libLog.LevelInfo, "deleted keys count", libLog.Any("count", val))
 
 	return nil
 }

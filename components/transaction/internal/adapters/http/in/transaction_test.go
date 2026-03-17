@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
@@ -2546,9 +2546,9 @@ func TestGetTransaction_WriteBehindHit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	queryUC := &query.UseCase{RedisRepo: mockRedisRepo}
@@ -2591,9 +2591,9 @@ func TestCancelTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
@@ -2638,9 +2638,9 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
@@ -2703,9 +2703,9 @@ func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	queryUC := &query.UseCase{RedisRepo: mockRedisRepo}
@@ -2754,9 +2754,9 @@ func TestCommitTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
@@ -2801,9 +2801,9 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
@@ -2866,9 +2866,9 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	queryUC := &query.UseCase{RedisRepo: mockRedisRepo}

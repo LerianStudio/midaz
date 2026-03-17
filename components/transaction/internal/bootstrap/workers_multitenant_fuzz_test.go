@@ -29,9 +29,9 @@ import (
 	"math"
 	"testing"
 
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	tmpostgres "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 )
@@ -62,9 +62,12 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 	f.Add(-1000000, false)
 
 	logger := newTestLogger()
-	conn := &libRedis.RedisConnection{}
+	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
-	tenantClient := tmclient.NewClient("http://localhost:0", logger)
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	if err != nil {
+		f.Fatalf("failed to create tenant client: %v", err)
+	}
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
 	f.Fuzz(func(t *testing.T, maxWorkers int, multiTenantEnabled bool) {
@@ -125,7 +128,10 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
-	tenantClient := tmclient.NewClient("http://localhost:0", logger)
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	if err != nil {
+		f.Fatalf("failed to create tenant client: %v", err)
+	}
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
 	f.Fuzz(func(t *testing.T, multiTenantEnabled bool, hasPGManager bool) {
@@ -182,10 +188,13 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 	f.Add(false, true, true, true)
 
 	logger := newTestLogger()
-	conn := &libRedis.RedisConnection{}
+	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	handler := in.TransactionHandler{}
-	tenantClient := tmclient.NewClient("http://localhost:0", logger)
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	if err != nil {
+		f.Fatalf("failed to create tenant client: %v", err)
+	}
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
 	f.Fuzz(func(t *testing.T, workerEnabled bool, workerHasPGMgr bool, consumerEnabled bool, consumerHasPGMgr bool) {

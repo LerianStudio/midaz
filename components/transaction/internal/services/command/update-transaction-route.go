@@ -7,26 +7,29 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+
+	// UpdateTransactionRoute updates a transaction route by its ID.
+	// It returns the updated transaction route and an error if the operation fails.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// UpdateTransactionRoute updates a transaction route by its ID.
-// It returns the updated transaction route and an error if the operation fails.
 func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, ledgerID, id uuid.UUID, input *mmodel.UpdateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_route")
 	defer span.End()
 
-	logger.Infof("Trying to update transaction route: %v", input)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update transaction route: %v", input))
 
 	transactionRoute := &mmodel.TransactionRoute{
 		Title:       input.Title,
@@ -47,28 +50,28 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 
 	transactionRouteUpdated, err := uc.TransactionRouteRepo.Update(ctx, organizationID, ledgerID, id, transactionRoute, toAdd, toRemove)
 	if err != nil {
-		logger.Errorf("Error updating transaction route on repo by id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating transaction route on repo by id: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction route on repo by id", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction route on repo by id", err)
 
-			logger.Warnf("Error updating transaction route on repo by id: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error updating transaction route on repo by id: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction route on repo by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction route on repo by id", err)
 
 		return nil, err
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), id.String(), input.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
 
-		logger.Errorf("Error updating metadata on repo by id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating metadata on repo by id: %v", err))
 
 		return nil, err
 	}
@@ -92,13 +95,13 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 
 	currentTransactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
-		logger.Errorf("Error fetching current transaction route: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error fetching current transaction route: %v", err))
 		return nil, nil, err
 	}
 
 	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, newOperationRouteIDs)
 	if err != nil {
-		logger.Errorf("Error fetching operation routes: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error fetching operation routes: %v", err))
 		return nil, nil, err
 	}
 
@@ -133,7 +136,7 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 		}
 	}
 
-	logger.Infof("Operation route updates calculated. ToAdd: %v, ToRemove: %v", toAdd, toRemove)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Operation route updates calculated. ToAdd: %v, ToRemove: %v", toAdd, toRemove))
 
 	return toAdd, toRemove, nil
 }

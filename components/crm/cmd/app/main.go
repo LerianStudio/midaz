@@ -5,11 +5,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/bootstrap"
 )
 
@@ -26,7 +28,11 @@ import (
 func main() {
 	libCommons.InitLocalEnvConfig()
 
-	logger, err := libZap.InitializeLoggerWithError()
+	logger, err := libZap.New(libZap.Config{
+		Environment:     resolveLoggerEnvironment(os.Getenv("ENV_NAME")),
+		Level:           "info",
+		OTelLibraryName: "midaz-crm",
+	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 
@@ -37,11 +43,28 @@ func main() {
 		Logger: logger,
 	})
 	if err != nil {
-		logger.Errorf("Failed to initialize CRM service: %v", err)
-		_ = logger.Sync()
+		logger.Log(context.Background(), libLog.LevelError, fmt.Sprintf("Failed to initialize CRM service: %v", err))
+		_ = logger.Sync(context.Background())
 
 		os.Exit(1)
 	}
 
 	service.Run()
+
+	_ = logger.Sync(context.Background())
+}
+
+func resolveLoggerEnvironment(env string) libZap.Environment {
+	switch env {
+	case string(libZap.EnvironmentProduction):
+		return libZap.EnvironmentProduction
+	case string(libZap.EnvironmentStaging):
+		return libZap.EnvironmentStaging
+	case string(libZap.EnvironmentUAT):
+		return libZap.EnvironmentUAT
+	case string(libZap.EnvironmentLocal):
+		return libZap.EnvironmentLocal
+	default:
+		return libZap.EnvironmentDevelopment
+	}
 }

@@ -8,8 +8,9 @@ import (
 	"context"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -29,7 +30,7 @@ func MapAuthGRPCError(ctx context.Context, err error, code, title, operation str
 
 	switch grpcstatus.Code(err) {
 	case codes.Unauthenticated:
-		logger.Errorf("gRPC %s unauthorized: %v", operation, err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("gRPC %s unauthorized", operation), libLog.Err(err))
 
 		mapped := pkg.UnauthorizedError{
 			Code:    code,
@@ -38,11 +39,11 @@ func MapAuthGRPCError(ctx context.Context, err error, code, title, operation str
 			Err:     err,
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "grpc unauthorized", mapped)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "grpc unauthorized", mapped)
 
 		return mapped
 	case codes.PermissionDenied:
-		logger.Errorf("gRPC %s forbidden: %v", operation, err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("gRPC %s forbidden", operation), libLog.Err(err))
 
 		mapped := pkg.ForbiddenError{
 			Code:    code,
@@ -51,11 +52,11 @@ func MapAuthGRPCError(ctx context.Context, err error, code, title, operation str
 			Err:     err,
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "grpc forbidden", mapped)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "grpc forbidden", mapped)
 
 		return mapped
 	default:
-		logger.Errorf("gRPC %s error: %v", operation, err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("gRPC %s error", operation), libLog.Err(err))
 		return err
 	}
 }

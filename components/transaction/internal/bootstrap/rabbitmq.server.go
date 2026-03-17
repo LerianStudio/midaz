@@ -6,17 +6,20 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"os"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/vmihailenco/msgpack/v5"
+
+	// MultiQueueConsumer represents a multi-queue consumer.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// MultiQueueConsumer represents a multi-queue consumer.
 type MultiQueueConsumer struct {
 	consumerRoutes *rabbitmq.ConsumerRoutes
 	UseCase        *command.UseCase
@@ -55,26 +58,26 @@ func handlerBTO(ctx context.Context, body []byte, useCase *command.UseCase) erro
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update")
 	defer span.End()
 
-	logger.Info("Processing message from balance_retry_queue_fifo")
+	logger.Log(ctx, libLog.LevelInfo, "Processing message from balance_retry_queue_fifo")
 
 	var message mmodel.Queue
 
 	err := msgpack.Unmarshal(body, &message)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Error unmarshalling message JSON", err)
+		libOpentelemetry.HandleSpanError(span, "Error unmarshalling message JSON", err)
 
-		logger.Errorf("Error unmarshalling balance message JSON: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error unmarshalling balance message JSON: %v", err))
 
 		return err
 	}
 
-	logger.Infof("Transaction message consumed: %s", message.QueueData[0].ID)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction message consumed: %s", message.QueueData[0].ID))
 
 	err = useCase.CreateBalanceTransactionOperationsAsync(ctx, message)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Error creating transaction", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Error creating transaction", err)
 
-		logger.Errorf("Error creating transaction: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating transaction: %v", err))
 
 		return err
 	}

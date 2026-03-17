@@ -7,7 +7,7 @@ package alias
 import (
 	"time"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v3/commons/crypto"
+	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
@@ -62,14 +62,30 @@ type RelatedPartyMongoDBModel struct {
 	EndDate   *time.Time `bson:"end_date,omitempty"`
 }
 
+func encryptOptional(ds *libCrypto.Crypto, value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+
+	return ds.Encrypt(value)
+}
+
+func decryptOptional(ds *libCrypto.Crypto, value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+
+	return ds.Decrypt(value)
+}
+
 // mapBankingDetailsFromEntity encrypts and maps banking details to MongoDB model.
 func mapBankingDetailsFromEntity(bd *mmodel.BankingDetails, ds *libCrypto.Crypto) (*BankingMongoDBModel, *string, *string, error) {
-	account, err := ds.Encrypt(bd.Account)
+	account, err := encryptOptional(ds, bd.Account)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	iban, err := ds.Encrypt(bd.IBAN)
+	iban, err := encryptOptional(ds, bd.IBAN)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -105,7 +121,7 @@ func mapBankingDetailsFromEntity(bd *mmodel.BankingDetails, ds *libCrypto.Crypto
 
 // mapRegulatoryFieldsFromEntity encrypts and maps regulatory fields to MongoDB model.
 func mapRegulatoryFieldsFromEntity(rf *mmodel.RegulatoryFields, ds *libCrypto.Crypto) (*RegulatoryFieldsMongoDBModel, *string, error) {
-	participantDocument, err := ds.Encrypt(rf.ParticipantDocument)
+	participantDocument, err := encryptOptional(ds, rf.ParticipantDocument)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -158,7 +174,7 @@ func mapRelatedPartiesFromEntity(parties []*mmodel.RelatedParty, ds *libCrypto.C
 
 // FromEntity maps an account entity to a MongoDB Alias model
 func (amm *MongoDBModel) FromEntity(a *mmodel.Alias, ds *libCrypto.Crypto) error {
-	document, err := ds.Encrypt(a.Document)
+	document, err := encryptOptional(ds, a.Document)
 	if err != nil {
 		return err
 	}
@@ -243,12 +259,12 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	}
 
 	if amm.BankingDetails != nil {
-		accountNumber, err := ds.Decrypt(amm.BankingDetails.Account)
+		accountNumber, err := decryptOptional(ds, amm.BankingDetails.Account)
 		if err != nil {
 			return nil, err
 		}
 
-		iban, err := ds.Decrypt(amm.BankingDetails.IBAN)
+		iban, err := decryptOptional(ds, amm.BankingDetails.IBAN)
 		if err != nil {
 			return nil, err
 		}
@@ -269,7 +285,7 @@ func (amm *MongoDBModel) ToEntity(ds *libCrypto.Crypto) (*mmodel.Alias, error) {
 	}
 
 	if amm.RegulatoryFields != nil {
-		participantDocument, err := ds.Decrypt(amm.RegulatoryFields.ParticipantDocument)
+		participantDocument, err := decryptOptional(ds, amm.RegulatoryFields.ParticipantDocument)
 		if err != nil {
 			return nil, err
 		}

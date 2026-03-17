@@ -12,9 +12,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -30,19 +28,11 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *TransactionRoutePostgreSQLRepository {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           container.Config.DBName,
-		ReplicaDBName:           container.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
 	return NewTransactionRoutePostgreSQLRepository(conn)
 }
@@ -55,14 +45,14 @@ func TestIntegration_TransactionRouteRepository_Create(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create operation routes to link
 	opRouteID := pgtestutil.CreateTestOperationRouteSimple(t, container.DB, orgID, ledgerID, "Source Route", "source")
 
 	transactionRoute := &mmodel.TransactionRoute{
-		ID:             libCommons.GenerateUUIDv7(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		Title:          "Settlement Route",
@@ -94,11 +84,11 @@ func TestIntegration_TransactionRouteRepository_Create_WithoutOperationRoutes(t 
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	transactionRoute := &mmodel.TransactionRoute{
-		ID:              libCommons.GenerateUUIDv7(),
+		ID:              uuid.Must(libCommons.GenerateUUIDv7()),
 		OrganizationID:  orgID,
 		LedgerID:        ledgerID,
 		Title:           "Minimal Route",
@@ -124,15 +114,15 @@ func TestIntegration_TransactionRouteRepository_Create_MultipleOperationRoutes(t
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create multiple operation routes
 	opRouteID1 := pgtestutil.CreateTestOperationRouteSimple(t, container.DB, orgID, ledgerID, "Source Route", "source")
 	opRouteID2 := pgtestutil.CreateTestOperationRouteSimple(t, container.DB, orgID, ledgerID, "Destination Route", "destination")
 
 	transactionRoute := &mmodel.TransactionRoute{
-		ID:             libCommons.GenerateUUIDv7(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		Title:          "Multi-Route Settlement",
@@ -170,8 +160,8 @@ func TestIntegration_TransactionRouteRepository_FindByID(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create operation route and link it
 	opRouteID := pgtestutil.CreateTestOperationRouteSimple(t, container.DB, orgID, ledgerID, "Linked Route", "source")
@@ -205,21 +195,20 @@ func TestIntegration_TransactionRouteRepository_FindByID(t *testing.T) {
 }
 
 func TestIntegration_TransactionRouteRepository_FindByID_WithoutOperationRoutes(t *testing.T) {
-	// SKIP: This test covers a scenario that cannot occur through normal business flows:
-	// - Create: OperationRoutes field has validate:"required" (pkg/mmodel/transaction-route.go:49)
-	// - Update: Requires len(operationRoutes) >= 2 (services/command/update-transaction-route.go:85-86)
+	// This scenario is worth covering because the repository now uses sql.Null* scan targets
+	// for LEFT JOIN output and should tolerate routes with zero linked operation routes.
 	//
-	// The repository crashes on NULL values from LEFT JOIN when no operation routes exist.
-	// This is acceptable since business rules prevent this state.
-	//
-	// Future fix (defense-in-depth): Make otr struct fields nullable in FindByID (lines 268-274).
-	t.Skip("Skipped: business rules prevent zero operation routes")
+	// It remains skipped because the transaction component integration harness currently
+	// cannot apply migration 000017 in the ephemeral database used by this test package
+	// (`CREATE INDEX CONCURRENTLY` inside a transactional migrator).
+	// That blocker is unrelated to the transaction-route null-scan logic under test.
+	t.Skip("blocked by transaction migration harness for 000017; null-scan path still needs dedicated integration validation")
 
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create transaction route without any links
 	transactionRouteID := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerID, "Unlinked Route")
@@ -242,9 +231,9 @@ func TestIntegration_TransactionRouteRepository_FindByID_NotFound(t *testing.T) 
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistentID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -264,9 +253,9 @@ func TestIntegration_TransactionRouteRepository_FindByID_WrongOrganization(t *te
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	otherOrgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	otherOrgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert test transaction route in orgID
 	transactionRouteID := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerID, "Org Route")
@@ -285,8 +274,8 @@ func TestIntegration_TransactionRouteRepository_FindByID_SoftDeleted(t *testing.
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert soft-deleted transaction route
 	deletedAt := time.Now().Add(-1 * time.Hour)
@@ -313,8 +302,8 @@ func TestIntegration_TransactionRouteRepository_Update(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert initial transaction route
 	transactionRouteID := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerID, "Original Title")
@@ -342,8 +331,8 @@ func TestIntegration_TransactionRouteRepository_Update_PartialFields(t *testing.
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert initial transaction route with description
 	params := pgtestutil.TransactionRouteParams{
@@ -373,8 +362,8 @@ func TestIntegration_TransactionRouteRepository_Update_AddOperationRoutes(t *tes
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create transaction route
 	transactionRouteID := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerID, "Route To Add Links")
@@ -406,8 +395,8 @@ func TestIntegration_TransactionRouteRepository_Update_RemoveOperationRoutes(t *
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create transaction route
 	transactionRouteID := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerID, "Route To Remove Links")
@@ -443,9 +432,9 @@ func TestIntegration_TransactionRouteRepository_Update_NotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistentID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -466,8 +455,8 @@ func TestIntegration_TransactionRouteRepository_Update_SoftDeleted(t *testing.T)
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert soft-deleted transaction route
 	deletedAt := time.Now().Add(-1 * time.Hour)
@@ -498,8 +487,8 @@ func TestIntegration_TransactionRouteRepository_Delete(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert transaction route
 	transactionRouteID := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerID, "To Delete")
@@ -522,8 +511,8 @@ func TestIntegration_TransactionRouteRepository_Delete_WithOperationRoutes(t *te
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create transaction route with operation routes
 	transactionRouteID := pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerID, "Route With Links")
@@ -552,8 +541,8 @@ func TestIntegration_TransactionRouteRepository_Delete_AlreadyDeleted(t *testing
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert already soft-deleted transaction route
 	deletedAt := time.Now().Add(-1 * time.Hour)
@@ -581,8 +570,8 @@ func TestIntegration_TransactionRouteRepository_FindAll(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert multiple transaction routes
 	pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerID, "Route 1")
@@ -616,8 +605,8 @@ func TestIntegration_TransactionRouteRepository_FindAll_Empty(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -642,8 +631,8 @@ func TestIntegration_TransactionRouteRepository_FindAll_Pagination(t *testing.T)
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert more routes than page size
 	for i := 0; i < 5; i++ {
@@ -676,8 +665,8 @@ func TestIntegration_TransactionRouteRepository_FindAll_ExcludesSoftDeleted(t *t
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert active route
 	pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID, ledgerID, "Active Route")
@@ -713,9 +702,9 @@ func TestIntegration_TransactionRouteRepository_FindAll_IsolatedByOrganization(t
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID1 := libCommons.GenerateUUIDv7()
-	orgID2 := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID1 := uuid.Must(libCommons.GenerateUUIDv7())
+	orgID2 := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert routes in both organizations
 	pgtestutil.CreateTestTransactionRouteSimple(t, container.DB, orgID1, ledgerID, "Org1 Route")

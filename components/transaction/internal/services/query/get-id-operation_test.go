@@ -10,9 +10,10 @@ import (
 	"reflect"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -22,10 +23,10 @@ func TestGetOperationByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	operationID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
+	operationID := uuid.Must(libCommons.GenerateUUIDv7())
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	expectedOperation := &operation.Operation{
 		ID:             operationID.String(),
@@ -72,10 +73,10 @@ func TestGetOperationByID_WithoutMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	operationID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
+	operationID := uuid.Must(libCommons.GenerateUUIDv7())
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	expectedOperation := &operation.Operation{
 		ID:             operationID.String(),
@@ -115,10 +116,10 @@ func TestGetOperationByID_ErrorOperationRepo(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	operationID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
+	operationID := uuid.Must(libCommons.GenerateUUIDv7())
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 	expectedError := errors.New("database error")
 
 	mockOperationRepo := operation.NewMockRepository(ctrl)
@@ -146,10 +147,10 @@ func TestGetOperationByID_ErrorMetadataRepo(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	operationID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
+	operationID := uuid.Must(libCommons.GenerateUUIDv7())
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 	metadataError := errors.New("metadata database error")
 
 	expectedOperation := &operation.Operation{
@@ -189,10 +190,10 @@ func TestGetOperationByID_NilOperation(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	operationID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
+	operationID := uuid.Must(libCommons.GenerateUUIDv7())
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockOperationRepo := operation.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)

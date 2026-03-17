@@ -7,11 +7,12 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
@@ -19,32 +20,34 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
+
+	// GetAllTransactions fetch all Transactions from the repository
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// GetAllTransactions fetch all Transactions from the repository
 func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions")
 	defer span.End()
 
-	logger.Infof("Retrieving transactions")
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving transactions")
 
 	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination())
 	if err != nil {
-		logger.Errorf("Error getting transactions on repo: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting transactions on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
 
-			logger.Warnf("Error getting transactions on repo: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting transactions on repo: %v", err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -62,9 +65,9 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 	if err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on mongodb transaction", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb transaction", err)
 
-		logger.Warnf("Error getting metadata on mongodb transaction: %v", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting metadata on mongodb transaction: %v", err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -117,9 +120,9 @@ func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations 
 
 	operationMetadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDs)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation metadata", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation metadata", err)
 
-		logger.Warnf("Error getting operation metadata: %v", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting operation metadata: %v", err))
 
 		return err
 	}
@@ -144,13 +147,13 @@ func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions_get_operations")
 	defer span.End()
 
-	logger.Infof("Retrieving Operations")
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving Operations")
 
 	operations, _, err := uc.GetAllOperations(ctx, organizationID, ledgerID, tran.IDtoUUID(), filter)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Operations", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Operations", err)
 
-		logger.Errorf("Failed to retrieve Operations with ID: %s, Error: %s", tran.IDtoUUID(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Operations with ID: %s, Error: %s", tran.IDtoUUID(), err.Error()))
 
 		return nil, err
 	}

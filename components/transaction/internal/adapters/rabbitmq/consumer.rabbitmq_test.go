@@ -9,10 +9,11 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v3/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,15 @@ import (
 var testLogger libLog.Logger
 
 func init() {
-	testLogger = libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{
+		Environment:     libZap.EnvironmentLocal,
+		OTelLibraryName: "midaz-tests",
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	testLogger = logger
 }
 
 // =============================================================================
@@ -361,7 +370,8 @@ func TestStartWorker_HeaderIDExtraction(t *testing.T) {
 			}
 
 			if !found {
-				midazID = libCommons.GenerateUUIDv7().String()
+				uid := uuid.Must(libCommons.GenerateUUIDv7())
+				midazID = uid.String()
 			}
 
 			// Verify result

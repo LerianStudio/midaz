@@ -6,10 +6,12 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -27,7 +29,7 @@ func (uc *UseCase) UpdateHolderByID(ctx context.Context, organizationID string, 
 		attribute.String("app.request.holder_id", id.String()),
 	)
 
-	logger.Infof("Trying to update holder: %v", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update holder: %v", id.String()))
 
 	holder := &mmodel.Holder{
 		ExternalID:    uhi.ExternalID,
@@ -42,9 +44,9 @@ func (uc *UseCase) UpdateHolderByID(ctx context.Context, organizationID string, 
 
 	updatedHolder, err := uc.HolderRepo.Update(ctx, organizationID, id, holder, fieldsToRemove)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to update holder", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to update holder", err)
 
-		logger.Errorf("Failed to update holder: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update holder: %v", err))
 
 		return nil, err
 	}

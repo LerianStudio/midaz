@@ -7,38 +7,41 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+
+	// DeleteTransactionRouteByID delete a transaction route from the repository by ids.
+	// It will also delete the relationships between the transaction route and the operation routes.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// DeleteTransactionRouteByID delete a transaction route from the repository by ids.
-// It will also delete the relationships between the transaction route and the operation routes.
 func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_transaction_route_by_id")
 	defer span.End()
 
-	logger.Infof("Deleting transaction route with ID: %s", transactionRouteID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Deleting transaction route with ID: %s", transactionRouteID.String()))
 
 	transactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			logger.Warnf("Transaction Route ID not found: %s", transactionRouteID.String())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Transaction Route ID not found: %s", transactionRouteID.String()))
 
 			return pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 		}
 
-		logger.Errorf("Error finding transaction route: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error finding transaction route: %v", err))
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to find transaction route", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to find transaction route", err)
 
 		return err
 	}
@@ -50,9 +53,9 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 
 	err = uc.TransactionRouteRepo.Delete(ctx, organizationID, ledgerID, transactionRouteID, operationRoutesToRemove)
 	if err != nil {
-		logger.Errorf("Error deleting transaction route: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error deleting transaction route: %v", err))
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete transaction route", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to delete transaction route", err)
 
 		return err
 	}

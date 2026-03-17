@@ -9,8 +9,9 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -19,22 +20,29 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataPortfolios fetch all Portfolios from the repository
+// GetAllMetadataPortfolios fetches all portfolios from the repository.
 func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_portfolios")
 	defer span.End()
 
-	logger.Infof("Retrieving portfolios")
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving portfolios")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), filter)
-	if err != nil || metadata == nil {
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo", err)
+		logger.Log(ctx, libLog.LevelError, "Error getting metadata on repo")
+
+		return nil, err
+	}
+
+	if metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No metadata found", err)
 
-		logger.Warn("No metadata found")
+		logger.Log(ctx, libLog.LevelWarn, "No metadata found")
 
 		return nil, err
 	}
@@ -49,19 +57,19 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 
 	portfolios, err := uc.PortfolioRepo.ListByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
-		logger.Errorf("Error getting portfolios on repo by query params: %v", err)
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get portfolios on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get portfolios on repo", err)
 
-			logger.Warn("No portfolios found")
+			logger.Log(ctx, libLog.LevelWarn, "No portfolios found")
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get portfolios on repo", err)
+		logger.Log(ctx, libLog.LevelError, "Error getting portfolios on repo")
+
+		libOpentelemetry.HandleSpanError(span, "Failed to get portfolios on repo", err)
 
 		return nil, err
 	}
