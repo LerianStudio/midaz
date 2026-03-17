@@ -92,7 +92,7 @@ type CreateTransactionInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Route
+	// Deprecated: legacy route identifier, use routeId on FromTo entries instead. Contains the operation route UUID as a free-form string for backwards compatibility.
 	// example: "00000000-0000-0000-0000-000000000000"
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
@@ -381,10 +381,11 @@ type Transaction struct {
 	// Transaction body containing detailed operation data (not exposed in JSON)
 	Body pkgTransaction.Transaction `json:"-"`
 
-	// Route
+	// Deprecated: legacy route identifier, use routeId on individual operations instead. Contains the operation route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
-	// format: string
-	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
 
 	// Timestamp when the transaction was created
 	// example: 2021-01-01T00:00:00Z
@@ -679,7 +680,7 @@ type CreateTransactionInflowInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Transaction route
+	// Deprecated: legacy route identifier, use routeId on FromTo entries instead. Contains the operation route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
@@ -885,7 +886,7 @@ type CreateTransactionOutflowInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Transaction route
+	// Deprecated: legacy route identifier, use routeId on FromTo entries instead. Contains the operation route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`

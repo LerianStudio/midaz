@@ -132,8 +132,10 @@ type FromTo struct {
 	ChartOfAccounts string         `json:"chartOfAccounts" example:"1000"`
 	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 	IsFrom          bool           `json:"isFrom,omitempty" example:"true"`
-	Route           string         `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
-	RouteID         *string        `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	// Deprecated: legacy route identifier, use routeId instead. Contains the same value as routeId but as a free-form string.
+	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
+	// UUID of the operation route. Prefer this over the legacy route field.
+	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 } // @name FromTo
 
 // SplitAlias function to split alias with index.
@@ -173,14 +175,15 @@ type Distribute struct {
 // swagger:model Transaction
 // @Description Transaction is a struct designed to store transaction data.
 type Transaction struct {
-	ChartOfAccountsGroupName string           `json:"chartOfAccountsGroupName,omitempty" example:"1000"`
-	Description              string           `json:"description,omitempty" example:"Description"`
-	Code                     string           `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	Pending                  bool             `json:"pending,omitempty" example:"false"`
-	Metadata                 map[string]any   `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-	Route                    string           `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
-	TransactionDate          *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
-	Send                     Send             `json:"send" validate:"required"`
+	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"1000"`
+	Description              string         `json:"description,omitempty" example:"Description"`
+	Code                     string         `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	Pending                  bool           `json:"pending,omitempty" example:"false"`
+	Metadata                 map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	// Deprecated: legacy route identifier, duplicates the operation route UUID. Prefer routeId on FromTo entries instead.
+	Route           string           `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
+	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
+	Send            Send             `json:"send" validate:"required"`
 } // @name Transaction
 
 // IsEmpty is a func that validate if transaction is Empty.

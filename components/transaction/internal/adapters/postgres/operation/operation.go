@@ -227,10 +227,11 @@ type Operation struct {
 	// format: uuid
 	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// Route
+	// Deprecated: legacy route identifier, use routeId instead. Contains the same operation route UUID as routeId but stored as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
-	// format: string
-	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
 
 	// BalanceAffected default true
 	// format: boolean
@@ -241,12 +242,12 @@ type Operation struct {
 	// maxLength: 50
 	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50" enums:"debit,credit"`
 
-	// Route ID referencing the operation route that generated this operation
+	// UUID of the operation route that generated this operation. Prefer this over the legacy route field.
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// Operation route code for accounting traceability
+	// Human-readable code of the operation route for accounting traceability
 	// example: ROUTE-001
 	// maxLength: 100
 	RouteCode *string `json:"routeCode,omitempty" example:"ROUTE-001" maxLength:"100"`
@@ -612,10 +613,11 @@ type OperationLog struct {
 	// format: date-time
 	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Route for the operation
+	// Deprecated: legacy route identifier, use routeId instead. Contains the same operation route UUID as routeId but stored as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
-	// format: string
-	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
 
 	// BalanceAffected default true
 	// format: boolean
@@ -626,7 +628,7 @@ type OperationLog struct {
 	// maxLength: 50
 	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50" enums:"debit,credit"`
 
-	// Route ID referencing the operation route that generated this operation
+	// UUID of the operation route that generated this operation. Prefer this over the legacy route field.
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
