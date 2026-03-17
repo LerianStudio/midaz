@@ -4183,6 +4183,7 @@ components:
         operationRouteId:
           description: The unique identifier of the Operation Route.
           example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          format: uuid
           type: string
       required:
       - operationRouteId

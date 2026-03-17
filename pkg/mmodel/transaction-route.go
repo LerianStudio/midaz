@@ -44,7 +44,7 @@ type TransactionRoute struct {
 // @Description OperationRouteActionInput payload for associating an operation route with a transaction route.
 type OperationRouteActionInput struct {
 	// The unique identifier of the Operation Route.
-	OperationRouteID uuid.UUID `json:"operationRouteId" validate:"required" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	OperationRouteID uuid.UUID `json:"operationRouteId" validate:"required" format:"uuid" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
 } // @name OperationRouteActionInput
 
 // CreateTransactionRouteInput is a struct designed to store CreateRouteInput data.

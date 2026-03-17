@@ -4788,6 +4788,7 @@ const docTemplatetransaction = `{
                 "operationRouteId": {
                     "description": "The unique identifier of the Operation Route.",
                     "type": "string",
+                    "format": "uuid",
                     "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
                 }
             }
