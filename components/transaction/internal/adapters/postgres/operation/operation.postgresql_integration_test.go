@@ -293,24 +293,21 @@ func TestIntegration_OperationRepository_CreateBatch_ContextTimeoutDuringChunks(
 
 	now := time.Now().Truncate(time.Microsecond)
 
-	// Create >1000 operations to force multiple chunks
-	// Use a very short timeout that will expire during chunk processing
-	const numOperations = 1500
+	// Create >2000 operations to force 3 chunks (increases chance of timeout between chunks)
+	const numOperations = 2500
 	operations := make([]*Operation, numOperations)
 	for i := 0; i < numOperations; i++ {
 		operations[i] = createTestOperation(ids, fmt.Sprintf("timeout-chunk-%d", i), now)
 	}
 
-	// Context with short timeout - 200ms is long enough for first chunk to likely succeed
-	// but short enough to trigger timeout during second chunk processing.
-	// This value reduces CI flakiness while still exercising the chunk-timeout code path.
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	// Context with very short timeout - should expire during or between chunk processing
+	// 100ms is aggressive but gives better coverage of the chunk-loop context check
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	// Act - first chunk may succeed, second chunk should hit context timeout
+	// Act - should hit context timeout during chunk processing
 	inserted, err := repo.CreateBatch(ctx, operations)
-	// Assert - we expect either success (if fast enough) or context deadline exceeded
-	// The key is that this exercises the chunk loop context check
+	// Assert - we expect either success (if very fast) or context deadline exceeded
 	if err != nil {
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 		assert.True(t, inserted >= 0 && inserted < int64(numOperations),
