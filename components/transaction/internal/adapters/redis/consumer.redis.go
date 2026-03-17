@@ -552,7 +552,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(
 	}
 
 	plan := &balanceAtomicOperationPlan{
-		args:          make([]any, 0, len(balancesOperation)*16),
+		args:          make([]any, 0, len(balancesOperation)*17),
 		mapBalances:   make(map[string]*mmodel.Balance, len(balancesOperation)),
 		notedBalances: make([]*mmodel.Balance, 0, len(balancesOperation)),
 	}
