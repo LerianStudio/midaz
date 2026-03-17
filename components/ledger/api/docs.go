@@ -9326,6 +9326,10 @@ const docTemplate = `
     "AccountingEntry": {
       "description": "AccountingEntry object containing debit and credit rubrics for a specific action.",
       "type": "object",
+      "required": [
+        "credit",
+        "debit"
+      ],
       "properties": {
         "credit": {
           "description": "The credit rubric for this entry.",
@@ -10368,120 +10372,42 @@ const docTemplate = `
       }
     },
     "Transaction": {
-      "description": "Transaction is a struct designed to store transaction data. Represents a financial transaction that consists of multiple operations affecting account balances, including details about the transaction's status, amounts, and related operations.",
+      "description": "Transaction is a struct designed to store transaction data.",
       "type": "object",
+      "required": [
+        "send"
+      ],
       "properties": {
-        "amount": {
-          "description": "Transaction amount value in the smallest unit of the asset\nexample: 1500\nminimum: 0",
-          "type": "number",
-          "minimum": 0,
-          "example": 1500
-        },
-        "assetCode": {
-          "description": "Asset code for the transaction\nexample: BRL\nminLength: 2\nmaxLength: 10",
-          "type": "string",
-          "maxLength": 10,
-          "minLength": 2,
-          "example": "BRL"
-        },
         "chartOfAccountsGroupName": {
-          "description": "Chart of accounts group name for accounting purposes\nexample: Chart of accounts group name\nmaxLength: 256",
           "type": "string",
-          "maxLength": 256,
-          "example": "Chart of accounts group name"
+          "example": "1000"
         },
-        "createdAt": {
-          "description": "Timestamp when the transaction was created\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+        "code": {
           "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        },
-        "deletedAt": {
-          "description": "Timestamp when the transaction was deleted (if soft-deleted)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
+          "example": "00000000-0000-0000-0000-000000000000"
         },
         "description": {
-          "description": "Human-readable description of the transaction\nexample: Transaction description\nmaxLength: 256",
           "type": "string",
-          "maxLength": 256,
-          "example": "Transaction description"
-        },
-        "destination": {
-          "description": "List of destination account aliases or identifiers\nexample: [\"@person2\"]",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "example": [
-            "@person2"
-          ]
-        },
-        "id": {
-          "description": "Unique identifier for the transaction\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "ledgerId": {
-          "description": "Ledger identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
+          "example": "Description"
         },
         "metadata": {
-          "description": "Additional custom attributes\nexample: {\"purpose\": \"Monthly payment\", \"category\": \"Utility\"}",
           "type": "object",
           "additionalProperties": {}
         },
-        "operations": {
-          "description": "List of operations associated with this transaction",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/Operation"
-          }
-        },
-        "organizationId": {
-          "description": "Organization identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "parentTransactionId": {
-          "description": "Parent transaction identifier (for reversals or child transactions)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
+        "pending": {
+          "type": "boolean",
+          "example": false
         },
         "route": {
-          "description": "Route\nexample: 00000000-0000-0000-0000-000000000000\nformat: string",
           "type": "string",
-          "format": "string",
+          "maxLength": 250,
           "example": "00000000-0000-0000-0000-000000000000"
         },
-        "source": {
-          "description": "List of source account aliases or identifiers\nexample: [\"@person1\"]",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "example": [
-            "@person1"
-          ]
+        "send": {
+          "$ref": "#/definitions/Send"
         },
-        "status": {
-          "description": "Transaction status information",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Status"
-            }
-          ]
-        },
-        "updatedAt": {
-          "description": "Timestamp when the transaction was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+        "transactionDate": {
           "type": "string",
-          "format": "date-time",
           "example": "2021-01-01T00:00:00Z"
         }
       }

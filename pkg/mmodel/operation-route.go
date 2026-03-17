@@ -25,9 +25,9 @@ type AccountingRubric struct {
 // @Description AccountingEntry object containing debit and credit rubrics for a specific action.
 type AccountingEntry struct {
 	// The debit rubric for this entry.
-	Debit *AccountingRubric `json:"debit,omitempty" msgpack:"debit"`
+	Debit *AccountingRubric `json:"debit" validate:"required" msgpack:"debit"`
 	// The credit rubric for this entry.
-	Credit *AccountingRubric `json:"credit,omitempty" msgpack:"credit"`
+	Credit *AccountingRubric `json:"credit" validate:"required" msgpack:"credit"`
 } // @name AccountingEntry
 
 // AccountingEntries groups accounting entries by transaction action type.
