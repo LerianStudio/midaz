@@ -100,7 +100,7 @@ Lerian Midaz implements true double-entry accounting with sophisticated transact
 
 ## Getting Started
 
-To start using Lerian Midaz, please follow our [Getting Started Guide](https://docs.lerian.studio/docs/getting-started). For comprehensive documentation on Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.lerian.studio).
+To start using Lerian Midaz, please follow our [Getting Started Guide](https://docs.lerian.studio/en/getting-started). For comprehensive documentation on Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.lerian.studio).
 
 ## Community & Support
 
