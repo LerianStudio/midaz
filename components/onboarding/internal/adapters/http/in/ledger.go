@@ -429,7 +429,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 // UpdateLedgerSettings updates the settings for a specific ledger using schema-aware deep merge.
 //
 //	@Summary		Update ledger settings
-//	@Description	Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Setting a key to null stores a JSON null value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).
+//	@Description	Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
