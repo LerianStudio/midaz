@@ -2275,8 +2275,9 @@ func TestIntegration_Redis_DoubleEntryCanceled_FullSourceLifecycle(t *testing.T)
 	initialVersion := int64(1)
 	amount := decimal.NewFromInt(300)
 
-	// Phase 1: PENDING with routeValidation (v1 -> v3)
-	// Two operations: DEBIT(Available--) + ON_HOLD(OnHold++)
+	// Phase 1: PENDING with routeValidation (v1 -> v2)
+	// Single operation: ON_HOLD(OnHold++) only — routeValidationEnabled skips the Available DEBIT.
+	// The DEBIT occurs at APPROVED time instead.
 	pendingTxID := uuid.New()
 	pendingOp := redistestutil.CreatePendingBalanceOperation(
 		orgID, ledgerID, "@lifecycle-cancel-src", "USD",
