@@ -303,7 +303,7 @@ func (handler *TransactionRouteHandler) DeleteTransactionRouteByID(c *fiber.Ctx)
 //	@Param			end_date		query		string	false	"End Date"		example	"2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	http.Pagination{items=[]mmodel.TransactionRoute,next_cursor=string,prev_cursor=string,limit=int,page=nil}
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.TransactionRoute,next_cursor=string,prev_cursor=string,limit=int}
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
