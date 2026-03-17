@@ -903,9 +903,8 @@ paths:
         - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested
         objects (like ''accounting'') are deep-merged, preserving existing properties
         not specified in the update. Example: updating only ''accounting.validateRoutes''
-        preserves the existing ''accounting.validateAccountType'' value. Setting a
-        key to null stores a JSON null value. Allowed fields: accounting.validateAccountType
-        (boolean), accounting.validateRoutes (boolean).'
+        preserves the existing ''accounting.validateAccountType'' value. Allowed fields:
+        accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).'
       parameters:
       - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
@@ -4835,8 +4834,6 @@ components:
       type: object
     inline_response_200:
       example:
-        limit: 1
-        page: 5
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -4875,15 +4872,9 @@ components:
           items:
             $ref: '#/components/schemas/Organization'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_1:
       example:
-        limit: 0
-        page: 6
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -4918,17 +4909,9 @@ components:
           items:
             $ref: '#/components/schemas/Ledger'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_2:
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: 6
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -4967,19 +4950,9 @@ components:
           items:
             $ref: '#/components/schemas/AccountType'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        page:
-          type: integer
-        prev_cursor:
-          type: string
       type: object
     inline_response_200_3:
       example:
-        limit: 0
-        page: 6
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -5030,15 +5003,9 @@ components:
           items:
             $ref: '#/components/schemas/Account'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_4:
       example:
-        limit: 0
-        page: 6
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -5077,15 +5044,9 @@ components:
           items:
             $ref: '#/components/schemas/Asset'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_5:
       example:
-        limit: 0
-        page: 6
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -5122,15 +5083,9 @@ components:
           items:
             $ref: '#/components/schemas/Portfolio'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_6:
       example:
-        limit: 0
-        page: 6
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -5165,10 +5120,6 @@ components:
           items:
             $ref: '#/components/schemas/Segment'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
   securitySchemes:
     BearerAuth:

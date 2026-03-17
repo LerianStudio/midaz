@@ -123,12 +123,6 @@ const docTemplateonboarding = `{
                                             "items": {
                                                 "$ref": "#/definitions/Organization"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "page": {
-                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -596,12 +590,6 @@ const docTemplateonboarding = `{
                                             "items": {
                                                 "$ref": "#/definitions/Ledger"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "page": {
-                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -1089,7 +1077,7 @@ const docTemplateonboarding = `{
                 }
             },
             "patch": {
-                "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Setting a key to null stores a JSON null value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).",
+                "description": "Updates the configuration settings for a specific ledger using schema-aware deep merge. Only known settings fields are allowed - unknown fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested objects (like 'accounting') are deep-merged, preserving existing properties not specified in the update. Example: updating only 'accounting.validateRoutes' preserves the existing 'accounting.validateAccountType' value. Allowed fields: accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).",
                 "consumes": [
                     "application/json"
                 ],
@@ -1275,18 +1263,6 @@ const docTemplateonboarding = `{
                                             "items": {
                                                 "$ref": "#/definitions/AccountType"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "page": {
-                                            "type": "integer"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -1760,12 +1736,6 @@ const docTemplateonboarding = `{
                                             "items": {
                                                 "$ref": "#/definitions/Account"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "page": {
-                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -2487,12 +2457,6 @@ const docTemplateonboarding = `{
                                             "items": {
                                                 "$ref": "#/definitions/Asset"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "page": {
-                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -3054,12 +3018,6 @@ const docTemplateonboarding = `{
                                             "items": {
                                                 "$ref": "#/definitions/Portfolio"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "page": {
-                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -3627,12 +3585,6 @@ const docTemplateonboarding = `{
                                             "items": {
                                                 "$ref": "#/definitions/Segment"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "page": {
-                                            "type": "integer"
                                         }
                                     }
                                 }

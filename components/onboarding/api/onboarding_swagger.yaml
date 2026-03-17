@@ -1268,10 +1268,6 @@ paths:
                   items:
                     $ref: '#/definitions/Organization'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Invalid query parameters
@@ -1554,10 +1550,6 @@ paths:
                   items:
                     $ref: '#/definitions/Ledger'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Invalid query parameters
@@ -1857,9 +1849,8 @@ paths:
         - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested
         objects (like ''accounting'') are deep-merged, preserving existing properties
         not specified in the update. Example: updating only ''accounting.validateRoutes''
-        preserves the existing ''accounting.validateAccountType'' value. Setting a
-        key to null stores a JSON null value. Allowed fields: accounting.validateAccountType
-        (boolean), accounting.validateRoutes (boolean).'
+        preserves the existing ''accounting.validateAccountType'' value. Allowed fields:
+        accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).'
       parameters:
       - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
@@ -1984,14 +1975,6 @@ paths:
                   items:
                     $ref: '#/definitions/AccountType'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                page:
-                  type: integer
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -2313,10 +2296,6 @@ paths:
                   items:
                     $ref: '#/definitions/Account'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Invalid query parameters
@@ -2816,10 +2795,6 @@ paths:
                   items:
                     $ref: '#/definitions/Asset'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Invalid query parameters
@@ -3206,10 +3181,6 @@ paths:
                   items:
                     $ref: '#/definitions/Portfolio'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Invalid query parameters
@@ -3601,10 +3572,6 @@ paths:
                   items:
                     $ref: '#/definitions/Segment'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Invalid query parameters
