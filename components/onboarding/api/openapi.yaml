@@ -867,9 +867,7 @@ paths:
           content:
             application/json:
               schema:
-                additionalProperties:
-                  type: object
-                type: object
+                $ref: '#/components/schemas/mmodel.LedgerSettings'
           description: Successfully retrieved ledger settings
         "401":
           content:
@@ -936,7 +934,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/mmodel.LedgerSettings'
         description: 'Settings to merge with existing settings. Only known fields
           allowed: accounting.validateAccountType (bool), accounting.validateRoutes
           (bool)'
@@ -946,9 +944,7 @@ paths:
           content:
             application/json:
               schema:
-                additionalProperties:
-                  type: object
-                type: object
+                $ref: '#/components/schemas/mmodel.LedgerSettings'
           description: Successfully updated ledger settings
         "400":
           content:
@@ -4829,6 +4825,8 @@ components:
           type: boolean
       type: object
     mmodel.LedgerSettings:
+      example:
+        accounting: '{}'
       properties:
         accounting:
           allOf:

@@ -1077,8 +1077,7 @@ const docTemplate = `
           "200": {
             "description": "Successfully retrieved ledger settings",
             "schema": {
-              "type": "object",
-              "additionalProperties": true
+              "$ref": "#/definitions/mmodel.LedgerSettings"
             }
           },
           "401": {
@@ -1153,8 +1152,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "additionalProperties": true
+              "$ref": "#/definitions/mmodel.LedgerSettings"
             }
           }
         ],
@@ -1162,8 +1160,7 @@ const docTemplate = `
           "200": {
             "description": "Successfully updated ledger settings",
             "schema": {
-              "type": "object",
-              "additionalProperties": true
+              "$ref": "#/definitions/mmodel.LedgerSettings"
             }
           },
           "400": {
@@ -9352,14 +9349,32 @@ const docTemplate = `
       }
     },
     "Amount": {
-      "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
+      "description": "Amount is the struct designed to represent the amount of an operation.",
       "type": "object",
+      "required": [
+        "asset",
+        "value"
+      ],
       "properties": {
+        "asset": {
+          "type": "string",
+          "example": "BRL"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "routeValidationEnabled": {
+          "type": "boolean"
+        },
+        "transactionType": {
+          "type": "string"
+        },
         "value": {
-          "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
           "type": "number",
-          "minimum": 0,
-          "example": 1500
+          "example": 1000
         }
       }
     },
@@ -9908,6 +9923,76 @@ const docTemplate = `
         }
       }
     },
+    "Distribute": {
+      "description": "Distribute is the struct designed to represent the distribution fields of an operation.",
+      "type": "object",
+      "required": [
+        "to"
+      ],
+      "properties": {
+        "remaining": {
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FromTo"
+          }
+        }
+      }
+    },
+    "FromTo": {
+      "description": "FromTo is the struct designed to represent the from/to fields of an operation.",
+      "type": "object",
+      "properties": {
+        "accountAlias": {
+          "type": "string",
+          "example": "@person1"
+        },
+        "amount": {
+          "$ref": "#/definitions/Amount"
+        },
+        "balanceKey": {
+          "type": "string",
+          "example": "asset-freeze"
+        },
+        "chartOfAccounts": {
+          "type": "string",
+          "example": "1000"
+        },
+        "description": {
+          "type": "string",
+          "example": "description"
+        },
+        "isFrom": {
+          "type": "boolean",
+          "example": true
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "rate": {
+          "$ref": "#/definitions/Rate"
+        },
+        "remaining": {
+          "type": "string",
+          "example": "remaining"
+        },
+        "route": {
+          "type": "string",
+          "maxLength": 250,
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "routeId": {
+          "type": "string",
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "share": {
+          "$ref": "#/definitions/Share"
+        }
+      }
+    },
     "Operation": {
       "description": "Operation is a struct designed to store operation data. Represents a financial operation that affects account balances, including details such as amount, balance before and after, transaction association, and metadata.",
       "type": "object",
@@ -10171,121 +10256,131 @@ const docTemplate = `
         }
       }
     },
-    "Transaction": {
-      "description": "Transaction is a struct designed to store transaction data. Represents a financial transaction that consists of multiple operations affecting account balances, including details about the transaction's status, amounts, and related operations.",
+    "Rate": {
+      "description": "Rate is the struct designed to represent the rate fields of an operation.",
       "type": "object",
+      "required": [
+        "externalId",
+        "from",
+        "to",
+        "value"
+      ],
       "properties": {
-        "amount": {
-          "description": "Transaction amount value in the smallest unit of the asset\nexample: 1500\nminimum: 0",
-          "type": "number",
-          "minimum": 0,
-          "example": 1500
-        },
-        "assetCode": {
-          "description": "Asset code for the transaction\nexample: BRL\nminLength: 2\nmaxLength: 10",
+        "externalId": {
           "type": "string",
-          "maxLength": 10,
-          "minLength": 2,
+          "example": "00000000-0000-0000-0000-000000000000"
+        },
+        "from": {
+          "type": "string",
           "example": "BRL"
         },
-        "chartOfAccountsGroupName": {
-          "description": "Chart of accounts group name for accounting purposes\nexample: Chart of accounts group name\nmaxLength: 256",
+        "to": {
           "type": "string",
-          "maxLength": 256,
-          "example": "Chart of accounts group name"
+          "example": "USDe"
         },
-        "createdAt": {
-          "description": "Timestamp when the transaction was created\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+        "value": {
+          "type": "number",
+          "example": 1000
+        }
+      }
+    },
+    "Send": {
+      "description": "Send is the struct designed to represent the sending fields of an operation.",
+      "type": "object",
+      "required": [
+        "asset",
+        "distribute",
+        "source",
+        "value"
+      ],
+      "properties": {
+        "asset": {
           "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
+          "example": "BRL"
         },
-        "deletedAt": {
-          "description": "Timestamp when the transaction was deleted (if soft-deleted)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
+        "distribute": {
+          "$ref": "#/definitions/Distribute"
         },
-        "description": {
-          "description": "Human-readable description of the transaction\nexample: Transaction description\nmaxLength: 256",
-          "type": "string",
-          "maxLength": 256,
-          "example": "Transaction description"
+        "source": {
+          "$ref": "#/definitions/Source"
         },
-        "destination": {
-          "description": "List of destination account aliases or identifiers\nexample: [\"@person2\"]",
+        "value": {
+          "type": "number",
+          "example": 1000
+        }
+      }
+    },
+    "Share": {
+      "description": "Share is the struct designed to represent the sharing fields of an operation.",
+      "type": "object",
+      "required": [
+        "percentage"
+      ],
+      "properties": {
+        "percentage": {
+          "type": "integer"
+        },
+        "percentageOfPercentage": {
+          "type": "integer"
+        }
+      }
+    },
+    "Source": {
+      "description": "Source is the struct designed to represent the source fields of an operation.",
+      "type": "object",
+      "required": [
+        "from"
+      ],
+      "properties": {
+        "from": {
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "example": [
-            "@person2"
-          ]
+            "$ref": "#/definitions/FromTo"
+          }
         },
-        "id": {
-          "description": "Unique identifier for the transaction\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+        "remaining": {
           "type": "string",
-          "format": "uuid",
+          "example": "remaining"
+        }
+      }
+    },
+    "Transaction": {
+      "description": "Transaction is a struct designed to store transaction data.",
+      "type": "object",
+      "required": [
+        "send"
+      ],
+      "properties": {
+        "chartOfAccountsGroupName": {
+          "type": "string",
+          "example": "1000"
+        },
+        "code": {
+          "type": "string",
           "example": "00000000-0000-0000-0000-000000000000"
         },
-        "ledgerId": {
-          "description": "Ledger identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+        "description": {
           "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
+          "example": "Description"
         },
         "metadata": {
-          "description": "Additional custom attributes\nexample: {\"purpose\": \"Monthly payment\", \"category\": \"Utility\"}",
           "type": "object",
           "additionalProperties": {}
         },
-        "operations": {
-          "description": "List of operations associated with this transaction",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/Operation"
-          }
-        },
-        "organizationId": {
-          "description": "Organization identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "parentTransactionId": {
-          "description": "Parent transaction identifier (for reversals or child transactions)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
+        "pending": {
+          "type": "boolean",
+          "example": false
         },
         "route": {
-          "description": "Route\nexample: 00000000-0000-0000-0000-000000000000\nformat: string",
           "type": "string",
-          "format": "string",
+          "maxLength": 250,
           "example": "00000000-0000-0000-0000-000000000000"
         },
-        "source": {
-          "description": "List of source account aliases or identifiers\nexample: [\"@person1\"]",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "example": [
-            "@person1"
-          ]
+        "send": {
+          "$ref": "#/definitions/Send"
         },
-        "status": {
-          "description": "Transaction status information",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Status"
-            }
-          ]
-        },
-        "updatedAt": {
-          "description": "Timestamp when the transaction was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+        "transactionDate": {
           "type": "string",
-          "format": "date-time",
           "example": "2021-01-01T00:00:00Z"
         }
       }

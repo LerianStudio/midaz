@@ -1059,8 +1059,7 @@ const docTemplateonboarding = `{
                     "200": {
                         "description": "Successfully retrieved ledger settings",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/mmodel.LedgerSettings"
                         }
                     },
                     "401": {
@@ -1135,8 +1134,7 @@ const docTemplateonboarding = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/mmodel.LedgerSettings"
                         }
                     }
                 ],
@@ -1144,8 +1142,7 @@ const docTemplateonboarding = `{
                     "200": {
                         "description": "Successfully updated ledger settings",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/mmodel.LedgerSettings"
                         }
                     },
                     "400": {

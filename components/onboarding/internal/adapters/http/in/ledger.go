@@ -381,11 +381,11 @@ func (handler *LedgerHandler) CountLedgers(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
 //	@Param			organization_id	path		string	true	"Organization ID in UUID format"
 //	@Param			id				path		string	true	"Ledger ID in UUID format"
-//	@Success		200				{object}	map[string]any	"Successfully retrieved ledger settings"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Ledger not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
+//	@Success		200				{object}	mmodel.LedgerSettings	"Successfully retrieved ledger settings"
+//	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error			"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error			"Ledger not found"
+//	@Failure		500				{object}	mmodel.Error			"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{id}/settings [get]
 func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -437,8 +437,8 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			id				path		string			true	"Ledger ID in UUID format"
-//	@Param			settings		body		map[string]any	true	"Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)"
-//	@Success		200				{object}	map[string]any	"Successfully updated ledger settings"
+//	@Param			settings		body		mmodel.LedgerSettings	true	"Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)"
+//	@Success		200				{object}	mmodel.LedgerSettings	"Successfully updated ledger settings"
 //	@Failure		400				{object}	mmodel.Error	"Invalid request body, unknown field (0147), or invalid field type (0148)"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

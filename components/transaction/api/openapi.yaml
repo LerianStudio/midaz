@@ -3001,16 +3001,31 @@ components:
       type: object
     Amount:
       description: Amount is the struct designed to represent the amount of an operation.
-        Contains the value and scale (decimal places) of an operation amount.
+      example:
+        transactionType: transactionType
+        routeValidationEnabled: true
+        asset: BRL
+        operation: operation
+        value: 1000.0
+        direction: direction
       properties:
+        asset:
+          example: BRL
+          type: string
+        direction:
+          type: string
+        operation:
+          type: string
+        routeValidationEnabled:
+          type: boolean
+        transactionType:
+          type: string
         value:
-          description: |-
-            The amount value in the smallest unit of the asset (e.g., cents)
-            example: 1500
-            minimum: 0
-          example: 1500.0
-          minimum: 0
+          example: 1000.0
           type: number
+      required:
+      - asset
+      - value
       type: object
     AssetRate:
       description: AssetRate is a struct designed to store asset rate data. Represents
@@ -3650,6 +3665,72 @@ components:
       - operationRoutes
       - title
       type: object
+    Distribute:
+      description: Distribute is the struct designed to represent the distribution
+        fields of an operation.
+      example:
+        to:
+        - accountAlias: '@person1'
+          amount:
+            transactionType: transactionType
+            routeValidationEnabled: true
+            asset: BRL
+            operation: operation
+            value: 1000.0
+            direction: direction
+          metadata:
+            key: '{}'
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            from: BRL
+            to: USDe
+            value: 1000.0
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          balanceKey: asset-freeze
+          remaining: remaining
+        - accountAlias: '@person1'
+          amount:
+            transactionType: transactionType
+            routeValidationEnabled: true
+            asset: BRL
+            operation: operation
+            value: 1000.0
+            direction: direction
+          metadata:
+            key: '{}'
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            from: BRL
+            to: USDe
+            value: 1000.0
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          balanceKey: asset-freeze
+          remaining: remaining
+        remaining: remaining
+      properties:
+        remaining:
+          type: string
+        to:
+          items:
+            $ref: '#/components/schemas/FromTo'
+          type: array
+      required:
+      - to
+      type: object
     Error:
       description: Standardized error response format used across all API endpoints
         for error situations. Provides structured information about errors including
@@ -3695,6 +3776,72 @@ components:
           example: Bad Request
           maxLength: 100
           type: string
+      type: object
+    FromTo:
+      description: FromTo is the struct designed to represent the from/to fields of
+        an operation.
+      example:
+        accountAlias: '@person1'
+        amount:
+          transactionType: transactionType
+          routeValidationEnabled: true
+          asset: BRL
+          operation: operation
+          value: 1000.0
+          direction: direction
+        metadata:
+          key: '{}'
+        route: 00000000-0000-0000-0000-000000000000
+        routeId: 00000000-0000-0000-0000-000000000000
+        rate:
+          externalId: 00000000-0000-0000-0000-000000000000
+          from: BRL
+          to: USDe
+          value: 1000.0
+        isFrom: true
+        chartOfAccounts: "1000"
+        description: description
+        share:
+          percentage: 0
+          percentageOfPercentage: 6
+        balanceKey: asset-freeze
+        remaining: remaining
+      properties:
+        accountAlias:
+          example: '@person1'
+          type: string
+        amount:
+          $ref: '#/components/schemas/Amount'
+        balanceKey:
+          example: asset-freeze
+          type: string
+        chartOfAccounts:
+          example: "1000"
+          type: string
+        description:
+          example: description
+          type: string
+        isFrom:
+          example: true
+          type: boolean
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        rate:
+          $ref: '#/components/schemas/Rate'
+        remaining:
+          example: remaining
+          type: string
+        route:
+          example: 00000000-0000-0000-0000-000000000000
+          maxLength: 250
+          type: string
+        routeId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        share:
+          $ref: '#/components/schemas/Share'
       type: object
     Operation:
       description: Operation is a struct designed to store operation data. Represents
@@ -4017,6 +4164,243 @@ components:
       required:
       - operationRouteId
       type: object
+    Rate:
+      description: Rate is the struct designed to represent the rate fields of an
+        operation.
+      example:
+        externalId: 00000000-0000-0000-0000-000000000000
+        from: BRL
+        to: USDe
+        value: 1000.0
+      properties:
+        externalId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        from:
+          example: BRL
+          type: string
+        to:
+          example: USDe
+          type: string
+        value:
+          example: 1000.0
+          type: number
+      required:
+      - externalId
+      - from
+      - to
+      - value
+      type: object
+    Send:
+      description: Send is the struct designed to represent the sending fields of
+        an operation.
+      example:
+        distribute:
+          to:
+          - accountAlias: '@person1'
+            amount:
+              transactionType: transactionType
+              routeValidationEnabled: true
+              asset: BRL
+              operation: operation
+              value: 1000.0
+              direction: direction
+            metadata:
+              key: '{}'
+            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              from: BRL
+              to: USDe
+              value: 1000.0
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            balanceKey: asset-freeze
+            remaining: remaining
+          - accountAlias: '@person1'
+            amount:
+              transactionType: transactionType
+              routeValidationEnabled: true
+              asset: BRL
+              operation: operation
+              value: 1000.0
+              direction: direction
+            metadata:
+              key: '{}'
+            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              from: BRL
+              to: USDe
+              value: 1000.0
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            balanceKey: asset-freeze
+            remaining: remaining
+          remaining: remaining
+        source:
+          from:
+          - accountAlias: '@person1'
+            amount:
+              transactionType: transactionType
+              routeValidationEnabled: true
+              asset: BRL
+              operation: operation
+              value: 1000.0
+              direction: direction
+            metadata:
+              key: '{}'
+            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              from: BRL
+              to: USDe
+              value: 1000.0
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            balanceKey: asset-freeze
+            remaining: remaining
+          - accountAlias: '@person1'
+            amount:
+              transactionType: transactionType
+              routeValidationEnabled: true
+              asset: BRL
+              operation: operation
+              value: 1000.0
+              direction: direction
+            metadata:
+              key: '{}'
+            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              from: BRL
+              to: USDe
+              value: 1000.0
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            balanceKey: asset-freeze
+            remaining: remaining
+          remaining: remaining
+        asset: BRL
+        value: 1000.0
+      properties:
+        asset:
+          example: BRL
+          type: string
+        distribute:
+          $ref: '#/components/schemas/Distribute'
+        source:
+          $ref: '#/components/schemas/Source'
+        value:
+          example: 1000.0
+          type: number
+      required:
+      - asset
+      - distribute
+      - source
+      - value
+      type: object
+    Share:
+      description: Share is the struct designed to represent the sharing fields of
+        an operation.
+      example:
+        percentage: 0
+        percentageOfPercentage: 6
+      properties:
+        percentage:
+          type: integer
+        percentageOfPercentage:
+          type: integer
+      required:
+      - percentage
+      type: object
+    Source:
+      description: Source is the struct designed to represent the source fields of
+        an operation.
+      example:
+        from:
+        - accountAlias: '@person1'
+          amount:
+            transactionType: transactionType
+            routeValidationEnabled: true
+            asset: BRL
+            operation: operation
+            value: 1000.0
+            direction: direction
+          metadata:
+            key: '{}'
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            from: BRL
+            to: USDe
+            value: 1000.0
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          balanceKey: asset-freeze
+          remaining: remaining
+        - accountAlias: '@person1'
+          amount:
+            transactionType: transactionType
+            routeValidationEnabled: true
+            asset: BRL
+            operation: operation
+            value: 1000.0
+            direction: direction
+          metadata:
+            key: '{}'
+          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            from: BRL
+            to: USDe
+            value: 1000.0
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          balanceKey: asset-freeze
+          remaining: remaining
+        remaining: remaining
+      properties:
+        from:
+          items:
+            $ref: '#/components/schemas/FromTo'
+          type: array
+        remaining:
+          example: remaining
+          type: string
+      required:
+      - from
+      type: object
     Status:
       description: Status is the struct designed to represent the status of a transaction.
         Contains code and optional description for transaction states.
@@ -4039,217 +4423,153 @@ components:
           type: string
       type: object
     Transaction:
-      description: Transaction is a struct designed to store transaction data. Represents
-        a financial transaction that consists of multiple operations affecting account
-        balances, including details about the transaction's status, amounts, and related
-        operations.
+      description: Transaction is a struct designed to store transaction data.
       example:
-        amount: 1500.0
         metadata:
           key: '{}'
-        assetCode: BRL
-        destination:
-        - '@person2'
-        description: Transaction description
-        source:
-        - '@person1'
-        chartOfAccountsGroupName: Chart of accounts group name
-        parentTransactionId: 00000000-0000-0000-0000-000000000000
-        ledgerId: 00000000-0000-0000-0000-000000000000
-        organizationId: 00000000-0000-0000-0000-000000000000
-        createdAt: 2021-01-01T00:00:00Z
-        deletedAt: 2021-01-01T00:00:00Z
-        operations:
-        - accountAlias: '@person1'
-          metadata:
-            key: '{}'
-          description: Credit card operation
-          type: DEBIT
-          balanceAffected: true
-          organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          routeId: 00000000-0000-0000-0000-000000000000
-          balance: '{}'
-          balanceAfter: '{}'
-          id: 00000000-0000-0000-0000-000000000000
-          direction: debit
-          updatedAt: 2021-01-01T00:00:00Z
-          routeCode: ROUTE-001
-          amount: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
-          balanceKey: asset-freeze
-          balanceId: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-        - accountAlias: '@person1'
-          metadata:
-            key: '{}'
-          description: Credit card operation
-          type: DEBIT
-          balanceAffected: true
-          organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          routeId: 00000000-0000-0000-0000-000000000000
-          balance: '{}'
-          balanceAfter: '{}'
-          id: 00000000-0000-0000-0000-000000000000
-          direction: debit
-          updatedAt: 2021-01-01T00:00:00Z
-          routeCode: ROUTE-001
-          amount: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
-          balanceKey: asset-freeze
-          balanceId: 00000000-0000-0000-0000-000000000000
-          status: '{}'
+        code: 00000000-0000-0000-0000-000000000000
         route: 00000000-0000-0000-0000-000000000000
-        id: 00000000-0000-0000-0000-000000000000
-        status: '{}'
-        updatedAt: 2021-01-01T00:00:00Z
+        pending: false
+        description: Description
+        transactionDate: 2021-01-01T00:00:00Z
+        chartOfAccountsGroupName: "1000"
+        send:
+          distribute:
+            to:
+            - accountAlias: '@person1'
+              amount:
+                transactionType: transactionType
+                routeValidationEnabled: true
+                asset: BRL
+                operation: operation
+                value: 1000.0
+                direction: direction
+              metadata:
+                key: '{}'
+              route: 00000000-0000-0000-0000-000000000000
+              routeId: 00000000-0000-0000-0000-000000000000
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                from: BRL
+                to: USDe
+                value: 1000.0
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              balanceKey: asset-freeze
+              remaining: remaining
+            - accountAlias: '@person1'
+              amount:
+                transactionType: transactionType
+                routeValidationEnabled: true
+                asset: BRL
+                operation: operation
+                value: 1000.0
+                direction: direction
+              metadata:
+                key: '{}'
+              route: 00000000-0000-0000-0000-000000000000
+              routeId: 00000000-0000-0000-0000-000000000000
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                from: BRL
+                to: USDe
+                value: 1000.0
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              balanceKey: asset-freeze
+              remaining: remaining
+            remaining: remaining
+          source:
+            from:
+            - accountAlias: '@person1'
+              amount:
+                transactionType: transactionType
+                routeValidationEnabled: true
+                asset: BRL
+                operation: operation
+                value: 1000.0
+                direction: direction
+              metadata:
+                key: '{}'
+              route: 00000000-0000-0000-0000-000000000000
+              routeId: 00000000-0000-0000-0000-000000000000
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                from: BRL
+                to: USDe
+                value: 1000.0
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              balanceKey: asset-freeze
+              remaining: remaining
+            - accountAlias: '@person1'
+              amount:
+                transactionType: transactionType
+                routeValidationEnabled: true
+                asset: BRL
+                operation: operation
+                value: 1000.0
+                direction: direction
+              metadata:
+                key: '{}'
+              route: 00000000-0000-0000-0000-000000000000
+              routeId: 00000000-0000-0000-0000-000000000000
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                from: BRL
+                to: USDe
+                value: 1000.0
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              balanceKey: asset-freeze
+              remaining: remaining
+            remaining: remaining
+          asset: BRL
+          value: 1000.0
       properties:
-        amount:
-          description: |-
-            Transaction amount value in the smallest unit of the asset
-            example: 1500
-            minimum: 0
-          example: 1500.0
-          minimum: 0
-          type: number
-        assetCode:
-          description: |-
-            Asset code for the transaction
-            example: BRL
-            minLength: 2
-            maxLength: 10
-          example: BRL
-          maxLength: 10
-          minLength: 2
-          type: string
         chartOfAccountsGroupName:
-          description: |-
-            Chart of accounts group name for accounting purposes
-            example: Chart of accounts group name
-            maxLength: 256
-          example: Chart of accounts group name
-          maxLength: 256
+          example: "1000"
           type: string
-        createdAt:
-          description: |-
-            Timestamp when the transaction was created
-            example: 2021-01-01T00:00:00Z
-            format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
-          type: string
-        deletedAt:
-          description: |-
-            Timestamp when the transaction was deleted (if soft-deleted)
-            example: 2021-01-01T00:00:00Z
-            format: date-time
-          example: 2021-01-01T00:00:00Z
-          format: date-time
+        code:
+          example: 00000000-0000-0000-0000-000000000000
           type: string
         description:
-          description: |-
-            Human-readable description of the transaction
-            example: Transaction description
-            maxLength: 256
-          example: Transaction description
-          maxLength: 256
-          type: string
-        destination:
-          description: |-
-            List of destination account aliases or identifiers
-            example: ["@person2"]
-          example:
-          - '@person2'
-          items:
-            type: string
-          type: array
-        id:
-          description: |-
-            Unique identifier for the transaction
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-        ledgerId:
-          description: |-
-            Ledger identifier
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
+          example: Description
           type: string
         metadata:
           additionalProperties:
             type: object
-          description: |-
-            Additional custom attributes
-            example: {"purpose": "Monthly payment", "category": "Utility"}
           type: object
-        operations:
-          description: List of operations associated with this transaction
-          items:
-            $ref: '#/components/schemas/Operation'
-          type: array
-        organizationId:
-          description: |-
-            Organization identifier
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
-        parentTransactionId:
-          description: |-
-            Parent transaction identifier (for reversals or child transactions)
-            example: 00000000-0000-0000-0000-000000000000
-            format: uuid
-          example: 00000000-0000-0000-0000-000000000000
-          format: uuid
-          type: string
+        pending:
+          example: false
+          type: boolean
         route:
-          description: |-
-            Route
-            example: 00000000-0000-0000-0000-000000000000
-            format: string
           example: 00000000-0000-0000-0000-000000000000
-          format: string
+          maxLength: 250
           type: string
-        source:
-          description: |-
-            List of source account aliases or identifiers
-            example: ["@person1"]
-          example:
-          - '@person1'
-          items:
-            type: string
-          type: array
-        status:
-          allOf:
-          - $ref: '#/components/schemas/Status'
-          description: Transaction status information
-          type: object
-        updatedAt:
-          description: |-
-            Timestamp when the transaction was last updated
-            example: 2021-01-01T00:00:00Z
-            format: date-time
+        send:
+          $ref: '#/components/schemas/Send'
+        transactionDate:
           example: 2021-01-01T00:00:00Z
-          format: date-time
           type: string
+      required:
+      - send
       type: object
     TransactionRoute:
       description: TransactionRoute object
@@ -5095,7 +5415,7 @@ components:
       example:
         prev_cursor: prev_cursor
         next_cursor: next_cursor
-        limit: 0
+        limit: 1
         page: '{}'
         http.Pagination:
           prev_cursor: prev_cursor
@@ -5104,150 +5424,240 @@ components:
           page: 6
           items: '{}'
         items:
-        - amount: 1500.0
-          metadata:
+        - metadata:
             key: '{}'
-          assetCode: BRL
-          destination:
-          - '@person2'
-          description: Transaction description
-          source:
-          - '@person1'
-          chartOfAccountsGroupName: Chart of accounts group name
-          parentTransactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          operations:
-          - accountAlias: '@person1'
-            metadata:
-              key: '{}'
-            description: Credit card operation
-            type: DEBIT
-            balanceAffected: true
-            organizationId: 00000000-0000-0000-0000-000000000000
-            createdAt: 2021-01-01T00:00:00Z
-            routeId: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
-            id: 00000000-0000-0000-0000-000000000000
-            direction: debit
-            updatedAt: 2021-01-01T00:00:00Z
-            routeCode: ROUTE-001
-            amount: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
-            balanceKey: asset-freeze
-            balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
-          - accountAlias: '@person1'
-            metadata:
-              key: '{}'
-            description: Credit card operation
-            type: DEBIT
-            balanceAffected: true
-            organizationId: 00000000-0000-0000-0000-000000000000
-            createdAt: 2021-01-01T00:00:00Z
-            routeId: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
-            id: 00000000-0000-0000-0000-000000000000
-            direction: debit
-            updatedAt: 2021-01-01T00:00:00Z
-            routeCode: ROUTE-001
-            amount: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
-            balanceKey: asset-freeze
-            balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
+          code: 00000000-0000-0000-0000-000000000000
           route: 00000000-0000-0000-0000-000000000000
-          id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-        - amount: 1500.0
-          metadata:
+          pending: false
+          description: Description
+          transactionDate: 2021-01-01T00:00:00Z
+          chartOfAccountsGroupName: "1000"
+          send:
+            distribute:
+              to:
+              - accountAlias: '@person1'
+                amount:
+                  transactionType: transactionType
+                  routeValidationEnabled: true
+                  asset: BRL
+                  operation: operation
+                  value: 1000.0
+                  direction: direction
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              - accountAlias: '@person1'
+                amount:
+                  transactionType: transactionType
+                  routeValidationEnabled: true
+                  asset: BRL
+                  operation: operation
+                  value: 1000.0
+                  direction: direction
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              remaining: remaining
+            source:
+              from:
+              - accountAlias: '@person1'
+                amount:
+                  transactionType: transactionType
+                  routeValidationEnabled: true
+                  asset: BRL
+                  operation: operation
+                  value: 1000.0
+                  direction: direction
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              - accountAlias: '@person1'
+                amount:
+                  transactionType: transactionType
+                  routeValidationEnabled: true
+                  asset: BRL
+                  operation: operation
+                  value: 1000.0
+                  direction: direction
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              remaining: remaining
+            asset: BRL
+            value: 1000.0
+        - metadata:
             key: '{}'
-          assetCode: BRL
-          destination:
-          - '@person2'
-          description: Transaction description
-          source:
-          - '@person1'
-          chartOfAccountsGroupName: Chart of accounts group name
-          parentTransactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          operations:
-          - accountAlias: '@person1'
-            metadata:
-              key: '{}'
-            description: Credit card operation
-            type: DEBIT
-            balanceAffected: true
-            organizationId: 00000000-0000-0000-0000-000000000000
-            createdAt: 2021-01-01T00:00:00Z
-            routeId: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
-            id: 00000000-0000-0000-0000-000000000000
-            direction: debit
-            updatedAt: 2021-01-01T00:00:00Z
-            routeCode: ROUTE-001
-            amount: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
-            balanceKey: asset-freeze
-            balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
-          - accountAlias: '@person1'
-            metadata:
-              key: '{}'
-            description: Credit card operation
-            type: DEBIT
-            balanceAffected: true
-            organizationId: 00000000-0000-0000-0000-000000000000
-            createdAt: 2021-01-01T00:00:00Z
-            routeId: 00000000-0000-0000-0000-000000000000
-            balance: '{}'
-            balanceAfter: '{}'
-            id: 00000000-0000-0000-0000-000000000000
-            direction: debit
-            updatedAt: 2021-01-01T00:00:00Z
-            routeCode: ROUTE-001
-            amount: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
-            balanceKey: asset-freeze
-            balanceId: 00000000-0000-0000-0000-000000000000
-            status: '{}'
+          code: 00000000-0000-0000-0000-000000000000
           route: 00000000-0000-0000-0000-000000000000
-          id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
+          pending: false
+          description: Description
+          transactionDate: 2021-01-01T00:00:00Z
+          chartOfAccountsGroupName: "1000"
+          send:
+            distribute:
+              to:
+              - accountAlias: '@person1'
+                amount:
+                  transactionType: transactionType
+                  routeValidationEnabled: true
+                  asset: BRL
+                  operation: operation
+                  value: 1000.0
+                  direction: direction
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              - accountAlias: '@person1'
+                amount:
+                  transactionType: transactionType
+                  routeValidationEnabled: true
+                  asset: BRL
+                  operation: operation
+                  value: 1000.0
+                  direction: direction
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              remaining: remaining
+            source:
+              from:
+              - accountAlias: '@person1'
+                amount:
+                  transactionType: transactionType
+                  routeValidationEnabled: true
+                  asset: BRL
+                  operation: operation
+                  value: 1000.0
+                  direction: direction
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              - accountAlias: '@person1'
+                amount:
+                  transactionType: transactionType
+                  routeValidationEnabled: true
+                  asset: BRL
+                  operation: operation
+                  value: 1000.0
+                  direction: direction
+                metadata:
+                  key: '{}'
+                route: 00000000-0000-0000-0000-000000000000
+                routeId: 00000000-0000-0000-0000-000000000000
+                rate:
+                  externalId: 00000000-0000-0000-0000-000000000000
+                  from: BRL
+                  to: USDe
+                  value: 1000.0
+                isFrom: true
+                chartOfAccounts: "1000"
+                description: description
+                share:
+                  percentage: 0
+                  percentageOfPercentage: 6
+                balanceKey: asset-freeze
+                remaining: remaining
+              remaining: remaining
+            asset: BRL
+            value: 1000.0
       properties:
         http.Pagination:
           $ref: '#/components/schemas/http.Pagination'
