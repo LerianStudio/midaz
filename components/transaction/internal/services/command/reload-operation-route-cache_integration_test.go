@@ -10,9 +10,9 @@ import (
 	"context"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"

@@ -62,6 +62,7 @@ type Config struct {
 	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"`
 	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
 	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
+	TenantManagerAPIKey                 string `env:"TENANT_MANAGER_API_KEY"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -390,6 +391,7 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 	tenantClient, err := tmclient.NewClient(
 		tenantManagerURL,
 		logger,
+		tmclient.WithServiceAPIKey(cfg.TenantManagerAPIKey),
 		tmclient.WithCircuitBreaker(cbThreshold, time.Duration(cbTimeoutSec)*time.Second),
 	)
 	if err != nil {

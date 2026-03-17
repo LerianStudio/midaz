@@ -137,7 +137,7 @@ func TestIntegration_InitPostgres_MultiTenantProducesWorkingRepos(t *testing.T) 
 
 	// Use a mock TenantClient pointing at a non-routable address (it will not
 	// be called during init, only stored for later middleware resolution).
-	mockClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	mockClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 
 	opts := &Options{
@@ -254,7 +254,7 @@ func TestIntegration_InitPostgres_DispatcherRoutesCorrectly(t *testing.T) {
 		postgresConnector = defaultPostgresConnector
 		t.Cleanup(func() { postgresConnector = prev })
 
-		mockClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+		mockClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 		require.NoError(t, err)
 		opts := &Options{
 			MultiTenantEnabled: true,
@@ -396,7 +396,7 @@ func TestIntegration_InitPostgres_MultiTenantInvalidConfigReturnsError(t *testin
 		ReplicaDBSSLMode:  "disable",
 	}
 
-	mockClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	mockClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	opts := &Options{
 		MultiTenantEnabled: true,

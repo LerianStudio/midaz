@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"

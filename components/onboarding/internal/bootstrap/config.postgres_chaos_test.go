@@ -263,7 +263,7 @@ func TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss(t *testing.T) 
 		w.WriteHeader(stdhttp.StatusOK)
 	}))
 	t.Cleanup(tenantSrv.Close)
-	mockClient, err := tmclient.NewClient(tenantSrv.URL, logger, tmclient.WithAllowInsecureHTTP())
+	mockClient, err := tmclient.NewClient(tenantSrv.URL, logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	opts := &Options{
 		MultiTenantEnabled: true,

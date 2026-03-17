@@ -48,7 +48,7 @@ func sanitizePropertyString(s string, maxLen int) string {
 }
 
 func mustTenantClientFromLogger(logger libLog.Logger) *tmclient.Client {
-	client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	if err != nil {
 		return nil
 	}

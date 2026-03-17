@@ -64,7 +64,7 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 	logger := newTestLogger()
 	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	if err != nil {
 		f.Fatalf("failed to create tenant client: %v", err)
 	}
@@ -128,7 +128,7 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	if err != nil {
 		f.Fatalf("failed to create tenant client: %v", err)
 	}
@@ -191,7 +191,7 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	handler := in.TransactionHandler{}
-	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	if err != nil {
 		f.Fatalf("failed to create tenant client: %v", err)
 	}

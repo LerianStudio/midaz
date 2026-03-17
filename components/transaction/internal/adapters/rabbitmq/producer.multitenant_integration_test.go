@@ -116,7 +116,7 @@ func setupMultiTenantInfra(t *testing.T, tenantIDs []string) *multiTenantTestInf
 	// Create tmclient pointing to mock server
 	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
 	require.NoError(t, err)
-	client, err := tmclient.NewClient(mockServer.URL, logger, tmclient.WithAllowInsecureHTTP())
+	client, err := tmclient.NewClient(mockServer.URL, logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err, "failed to create tenant-manager client")
 	t.Cleanup(func() {
 		_ = client.Close()

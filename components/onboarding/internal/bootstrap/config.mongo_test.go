@@ -16,7 +16,7 @@ import (
 func mustTenantClient(t *testing.T, logger libLog.Logger) *tmclient.Client {
 	t.Helper()
 
-	client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP())
+	client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 
 	return client

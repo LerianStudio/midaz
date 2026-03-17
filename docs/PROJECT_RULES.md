@@ -207,8 +207,8 @@ import (
     "github.com/shopspring/decimal"
 
     // 3. Internal: lib-commons (with lib prefix)
-    libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-    libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+    libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+    libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 
     // 4. Internal: midaz project packages
     "github.com/LerianStudio/midaz/v3/pkg"
@@ -1104,7 +1104,7 @@ type TenantConfig struct {
 
 ### Dependency
 
-Multi-tenancy is provided by `lib-commons/v3`:
+Multi-tenancy is provided by `lib-commons/v4`:
 - `tmclient.Client` - HTTP client to tenant manager service
 - `tmpostgres.Manager` / `tmmongo.Manager` / `tmrabbitmq.Manager` - Per-tenant connection pool managers
 - `tmmiddleware.TenantMiddleware` - Fiber middleware to extract tenant and inject DB
