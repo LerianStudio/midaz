@@ -76,6 +76,308 @@ func createTestDependencies(t *testing.T, container *pgtestutil.ContainerResult)
 }
 
 // ============================================================================
+// CreateBatch Tests
+// ============================================================================
+
+func TestIntegration_OperationRepository_CreateBatch_EmptySlice(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+
+	ctx := context.Background()
+
+	// Act
+	inserted, err := repo.CreateBatch(ctx, []*Operation{})
+
+	// Assert
+	require.NoError(t, err, "CreateBatch with empty slice should not error")
+	assert.Equal(t, int64(0), inserted, "should insert 0 operations")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_SingleOperation(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	operation := createTestOperation(ids, "single-batch-op", now)
+
+	// Act
+	inserted, err := repo.CreateBatch(ctx, []*Operation{operation})
+
+	// Assert
+	require.NoError(t, err, "CreateBatch with single operation should not error")
+	assert.Equal(t, int64(1), inserted, "should insert 1 operation")
+
+	// Verify operation was persisted
+	found, err := repo.Find(ctx, ids.OrgID, ids.LedgerID, ids.TransactionID, uuid.MustParse(operation.ID))
+	require.NoError(t, err)
+	assert.Equal(t, operation.ID, found.ID)
+}
+
+func TestIntegration_OperationRepository_CreateBatch_MultipleOperations(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Create 10 operations
+	operations := make([]*Operation, 10)
+	for i := 0; i < 10; i++ {
+		operations[i] = createTestOperation(ids, fmt.Sprintf("batch-op-%d", i), now)
+	}
+
+	// Act
+	inserted, err := repo.CreateBatch(ctx, operations)
+
+	// Assert
+	require.NoError(t, err, "CreateBatch with multiple operations should not error")
+	assert.Equal(t, int64(10), inserted, "should insert 10 operations")
+
+	// Verify all operations were persisted
+	for _, op := range operations {
+		found, err := repo.Find(ctx, ids.OrgID, ids.LedgerID, ids.TransactionID, uuid.MustParse(op.ID))
+		require.NoError(t, err, "operation %s should be found", op.ID)
+		assert.Equal(t, op.ID, found.ID)
+	}
+}
+
+func TestIntegration_OperationRepository_CreateBatch_DuplicateHandling(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Create and insert an operation first
+	existingOp := createTestOperation(ids, "duplicate-test", now)
+	_, err := repo.CreateBatch(ctx, []*Operation{existingOp})
+	require.NoError(t, err)
+
+	// Create batch with the same operation (duplicate) plus new ones
+	newOp1 := createTestOperation(ids, "new-op-1", now)
+	newOp2 := createTestOperation(ids, "new-op-2", now)
+
+	batchWithDuplicate := []*Operation{existingOp, newOp1, newOp2}
+
+	// Act
+	inserted, err := repo.CreateBatch(ctx, batchWithDuplicate)
+
+	// Assert
+	require.NoError(t, err, "CreateBatch should handle duplicates gracefully")
+	assert.Equal(t, int64(2), inserted, "should insert only 2 new operations, skipping duplicate")
+
+	// Verify all operations exist
+	for _, op := range batchWithDuplicate {
+		found, err := repo.Find(ctx, ids.OrgID, ids.LedgerID, ids.TransactionID, uuid.MustParse(op.ID))
+		require.NoError(t, err, "operation %s should be found", op.ID)
+		assert.NotNil(t, found)
+	}
+}
+
+func TestIntegration_OperationRepository_CreateBatch_AllDuplicates(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Create and insert operations first
+	operations := make([]*Operation, 3)
+	for i := 0; i < 3; i++ {
+		operations[i] = createTestOperation(ids, fmt.Sprintf("all-dup-%d", i), now)
+	}
+	_, err := repo.CreateBatch(ctx, operations)
+	require.NoError(t, err)
+
+	// Act - try to insert the same operations again
+	inserted, err := repo.CreateBatch(ctx, operations)
+
+	// Assert
+	require.NoError(t, err, "CreateBatch with all duplicates should not error")
+	assert.Equal(t, int64(0), inserted, "should insert 0 operations when all are duplicates")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_SortsByID(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Create operations with IDs in reverse order (Z-A)
+	operations := make([]*Operation, 5)
+	for i := 0; i < 5; i++ {
+		operations[i] = createTestOperation(ids, fmt.Sprintf("sort-test-%d", i), now)
+	}
+
+	// Reverse the slice to simulate out-of-order input
+	for i, j := 0, len(operations)-1; i < j; i, j = i+1, j-1 {
+		operations[i], operations[j] = operations[j], operations[i]
+	}
+
+	// Act - this should sort by ID internally before insert
+	inserted, err := repo.CreateBatch(ctx, operations)
+
+	// Assert
+	require.NoError(t, err, "CreateBatch should handle out-of-order operations")
+	assert.Equal(t, int64(5), inserted, "should insert all 5 operations")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_LargeBatch(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping large batch test in short mode")
+	}
+
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Create 100 operations (moderate size for CI)
+	operations := make([]*Operation, 100)
+	for i := 0; i < 100; i++ {
+		operations[i] = createTestOperation(ids, fmt.Sprintf("large-batch-%d", i), now)
+	}
+
+	// Act
+	inserted, err := repo.CreateBatch(ctx, operations)
+
+	// Assert
+	require.NoError(t, err, "CreateBatch with 100 operations should not error")
+	assert.Equal(t, int64(100), inserted, "should insert all 100 operations")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_ContextCancellation(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Create a cancelled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	operations := make([]*Operation, 10)
+	for i := 0; i < 10; i++ {
+		operations[i] = createTestOperation(ids, fmt.Sprintf("cancelled-%d", i), now)
+	}
+
+	// Act
+	inserted, err := repo.CreateBatch(ctx, operations)
+
+	// Assert - should return context error
+	require.Error(t, err, "CreateBatch with cancelled context should error")
+	assert.Equal(t, context.Canceled, err)
+	assert.Equal(t, int64(0), inserted, "should not insert any operations")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_NilElement(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Create a slice with a nil element
+	operations := []*Operation{
+		createTestOperation(ids, "valid-op-1", now),
+		nil, // nil element at index 1
+		createTestOperation(ids, "valid-op-2", now),
+	}
+
+	// Act
+	inserted, err := repo.CreateBatch(ctx, operations)
+
+	// Assert - should return error about nil element
+	require.Error(t, err, "CreateBatch with nil element should error")
+	assert.Contains(t, err.Error(), "index 1", "error should indicate the nil element index")
+	assert.Contains(t, err.Error(), "nil", "error should mention nil")
+	assert.Equal(t, int64(0), inserted, "should not insert any operations")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_ChunkingBoundary(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping chunking boundary test in short mode")
+	}
+
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Create 1001 operations to test chunking (1000 + 1)
+	// This exercises the boundary where operations > defaultBatchSize
+	const numOperations = 1001
+	operations := make([]*Operation, numOperations)
+	for i := 0; i < numOperations; i++ {
+		operations[i] = createTestOperation(ids, fmt.Sprintf("chunk-boundary-%d", i), now)
+	}
+
+	// Act
+	inserted, err := repo.CreateBatch(ctx, operations)
+
+	// Assert
+	require.NoError(t, err, "CreateBatch with 1001 operations should not error")
+	assert.Equal(t, int64(numOperations), inserted, "should insert all 1001 operations")
+}
+
+// createTestOperation is a helper to create test Operation entities
+func createTestOperation(ids testIDs, description string, now time.Time) *Operation {
+	amount := decimal.NewFromInt(100)
+	availableBefore := decimal.NewFromInt(1000)
+	onHoldBefore := decimal.Zero
+	availableAfter := decimal.NewFromInt(900)
+	onHoldAfter := decimal.Zero
+	versionBefore := int64(1)
+	versionAfter := int64(2)
+
+	return &Operation{
+		ID:              uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		TransactionID:   ids.TransactionID.String(),
+		Description:     description,
+		Type:            "DEBIT",
+		AssetCode:       "USD",
+		ChartOfAccounts: "1000",
+		Amount:          Amount{Value: &amount},
+		Balance: Balance{
+			Available: &availableBefore,
+			OnHold:    &onHoldBefore,
+			Version:   &versionBefore,
+		},
+		BalanceAfter: Balance{
+			Available: &availableAfter,
+			OnHold:    &onHoldAfter,
+			Version:   &versionAfter,
+		},
+		Status: Status{
+			Code: "APPROVED",
+		},
+		AccountID:       ids.AccountID.String(),
+		AccountAlias:    "@test-account",
+		BalanceKey:      "default",
+		BalanceID:       ids.BalanceID.String(),
+		OrganizationID:  ids.OrgID.String(),
+		LedgerID:        ids.LedgerID.String(),
+		BalanceAffected: true,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+}
+
+// ============================================================================
 // Create Tests
 // ============================================================================
 

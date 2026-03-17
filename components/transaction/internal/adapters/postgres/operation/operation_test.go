@@ -6,6 +6,7 @@ package operation
 
 import (
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
@@ -683,6 +684,197 @@ func TestOperation_ToRedis(t *testing.T) {
 		assert.Empty(t, r.StatusCode)
 		assert.Nil(t, r.StatusDescription)
 		assert.False(t, r.BalanceAffected)
+	})
+}
+
+func TestSortOperationsByID(t *testing.T) {
+	t.Run("sorts_operations_by_id_ascending", func(t *testing.T) {
+		ops := []*Operation{
+			{ID: "ccc"},
+			{ID: "aaa"},
+			{ID: "bbb"},
+		}
+
+		sortOperationsByID(ops)
+
+		assert.Equal(t, "aaa", ops[0].ID)
+		assert.Equal(t, "bbb", ops[1].ID)
+		assert.Equal(t, "ccc", ops[2].ID)
+	})
+
+	t.Run("handles_empty_slice", func(t *testing.T) {
+		ops := []*Operation{}
+
+		// Should not panic
+		sortOperationsByID(ops)
+
+		assert.Empty(t, ops)
+	})
+
+	t.Run("handles_single_element", func(t *testing.T) {
+		ops := []*Operation{{ID: "only"}}
+
+		sortOperationsByID(ops)
+
+		assert.Len(t, ops, 1)
+		assert.Equal(t, "only", ops[0].ID)
+	})
+
+	t.Run("handles_already_sorted", func(t *testing.T) {
+		ops := []*Operation{
+			{ID: "aaa"},
+			{ID: "bbb"},
+			{ID: "ccc"},
+		}
+
+		sortOperationsByID(ops)
+
+		assert.Equal(t, "aaa", ops[0].ID)
+		assert.Equal(t, "bbb", ops[1].ID)
+		assert.Equal(t, "ccc", ops[2].ID)
+	})
+
+	t.Run("sorts_uuid_strings_correctly", func(t *testing.T) {
+		// UUIDs should sort lexicographically
+		ops := []*Operation{
+			{ID: "ffffffff-ffff-ffff-ffff-ffffffffffff"},
+			{ID: "00000000-0000-0000-0000-000000000000"},
+			{ID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"},
+		}
+
+		sortOperationsByID(ops)
+
+		assert.Equal(t, "00000000-0000-0000-0000-000000000000", ops[0].ID)
+		assert.Equal(t, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", ops[1].ID)
+		assert.Equal(t, "ffffffff-ffff-ffff-ffff-ffffffffffff", ops[2].ID)
+	})
+}
+
+func TestChunkOperations(t *testing.T) {
+	t.Run("returns_empty_for_empty_input", func(t *testing.T) {
+		result := chunkOperations([]*Operation{}, 10)
+
+		assert.Empty(t, result)
+	})
+
+	t.Run("returns_single_chunk_when_under_limit", func(t *testing.T) {
+		ops := make([]*Operation, 5)
+		for i := 0; i < 5; i++ {
+			ops[i] = &Operation{ID: "op-" + string(rune('a'+i))}
+		}
+
+		result := chunkOperations(ops, 10)
+
+		require.Len(t, result, 1)
+		assert.Len(t, result[0], 5)
+	})
+
+	t.Run("returns_single_chunk_when_equal_to_limit", func(t *testing.T) {
+		ops := make([]*Operation, 10)
+		for i := 0; i < 10; i++ {
+			ops[i] = &Operation{ID: "op-" + string(rune('a'+i))}
+		}
+
+		result := chunkOperations(ops, 10)
+
+		require.Len(t, result, 1)
+		assert.Len(t, result[0], 10)
+	})
+
+	t.Run("returns_multiple_chunks_when_over_limit", func(t *testing.T) {
+		ops := make([]*Operation, 25)
+		for i := 0; i < 25; i++ {
+			ops[i] = &Operation{ID: "op-" + string(rune('a'+i))}
+		}
+
+		result := chunkOperations(ops, 10)
+
+		require.Len(t, result, 3)
+		assert.Len(t, result[0], 10)
+		assert.Len(t, result[1], 10)
+		assert.Len(t, result[2], 5)
+	})
+
+	t.Run("handles_chunk_size_one", func(t *testing.T) {
+		ops := []*Operation{
+			{ID: "a"},
+			{ID: "b"},
+			{ID: "c"},
+		}
+
+		result := chunkOperations(ops, 1)
+
+		require.Len(t, result, 3)
+		assert.Len(t, result[0], 1)
+		assert.Len(t, result[1], 1)
+		assert.Len(t, result[2], 1)
+	})
+
+	t.Run("falls_back_to_default_on_invalid_chunk_size", func(t *testing.T) {
+		ops := make([]*Operation, 5)
+		for i := 0; i < 5; i++ {
+			ops[i] = &Operation{ID: "op-" + string(rune('a'+i))}
+		}
+
+		// Zero chunk size should use default
+		result := chunkOperations(ops, 0)
+
+		require.Len(t, result, 1)
+		assert.Len(t, result[0], 5)
+	})
+
+	t.Run("preserves_operation_order_within_chunks", func(t *testing.T) {
+		ops := []*Operation{
+			{ID: "first"},
+			{ID: "second"},
+			{ID: "third"},
+			{ID: "fourth"},
+		}
+
+		result := chunkOperations(ops, 2)
+
+		require.Len(t, result, 2)
+		assert.Equal(t, "first", result[0][0].ID)
+		assert.Equal(t, "second", result[0][1].ID)
+		assert.Equal(t, "third", result[1][0].ID)
+		assert.Equal(t, "fourth", result[1][1].ID)
+	})
+
+	t.Run("boundary_999_operations", func(t *testing.T) {
+		ops := make([]*Operation, 999)
+		for i := range ops {
+			ops[i] = &Operation{ID: fmt.Sprintf("op-%04d", i)}
+		}
+
+		result := chunkOperations(ops, 1000)
+
+		require.Len(t, result, 1)
+		assert.Len(t, result[0], 999)
+	})
+
+	t.Run("boundary_1000_operations", func(t *testing.T) {
+		ops := make([]*Operation, 1000)
+		for i := range ops {
+			ops[i] = &Operation{ID: fmt.Sprintf("op-%04d", i)}
+		}
+
+		result := chunkOperations(ops, 1000)
+
+		require.Len(t, result, 1)
+		assert.Len(t, result[0], 1000)
+	})
+
+	t.Run("boundary_1001_operations", func(t *testing.T) {
+		ops := make([]*Operation, 1001)
+		for i := range ops {
+			ops[i] = &Operation{ID: fmt.Sprintf("op-%04d", i)}
+		}
+
+		result := chunkOperations(ops, 1000)
+
+		require.Len(t, result, 2)
+		assert.Len(t, result[0], 1000)
+		assert.Len(t, result[1], 1)
 	})
 }
 

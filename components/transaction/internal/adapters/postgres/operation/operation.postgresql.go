@@ -10,10 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
@@ -27,16 +29,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
-
-	// Repository provides an interface for operations related to operation template entities.
-	// It defines methods for creating, retrieving, updating, and deleting operation templates.
-	//
-	//go:generate mockgen --destination=operation.postgresql_mock.go --package=operation . Repository
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Repository interface {
 	Create(ctx context.Context, operation *Operation) (*Operation, error)
+	CreateBatch(ctx context.Context, operations []*Operation) (int64, error)
 	FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
 	FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, operationType *string, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*Operation, error)
@@ -55,6 +53,11 @@ type OperationPostgreSQLRepository struct {
 	tableName     string
 	requireTenant bool
 }
+
+// defaultBatchSize defines the maximum number of operations per multi-row INSERT.
+// With 26 columns per operation, 1000 operations uses 26,000 parameters,
+// well under PostgreSQL's ~65,535 parameter limit.
+const defaultBatchSize = 1000
 
 var operationColumnList = []string{
 	"id",
@@ -233,6 +236,254 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 	}
 
 	return record.ToEntity(), nil
+}
+
+// CreateBatch inserts multiple operations in a single database call using multi-row INSERT.
+// Operations are sorted by ID before insert to prevent deadlocks in concurrent scenarios.
+// Batches larger than defaultBatchSize are automatically chunked.
+// On batch failure, falls back to individual inserts to preserve valid operations.
+// Returns the count of successfully inserted rows.
+func (r *OperationPostgreSQLRepository) CreateBatch(ctx context.Context, operations []*Operation) (int64, error) {
+	if len(operations) == 0 {
+		return 0, nil
+	}
+
+	// Validate no nil elements exist in the slice
+	for i, op := range operations {
+		if op == nil {
+			return 0, fmt.Errorf("operation at index %d is nil", i)
+		}
+	}
+
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.create_batch_operations")
+	defer span.End()
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+
+		return 0, err
+	}
+
+	// Sort operations by ID to prevent deadlocks in concurrent inserts
+	sortedOps := make([]*Operation, len(operations))
+	copy(sortedOps, operations)
+	sortOperationsByID(sortedOps)
+
+	// Chunk operations if needed
+	chunks := chunkOperations(sortedOps, defaultBatchSize)
+
+	var totalInserted int64
+
+	for i, chunk := range chunks {
+		// Check for context cancellation between chunks
+		if ctx.Err() != nil {
+			libOpentelemetry.HandleSpanError(span, "Context cancelled during batch insert", ctx.Err())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("CreateBatch cancelled after %d chunks: %v", i, ctx.Err()))
+
+			return totalInserted, ctx.Err()
+		}
+
+		inserted, chunkErr := r.insertBatchChunk(ctx, db, chunk, logger, tracer)
+		if chunkErr != nil {
+			// Fallback to individual inserts for this chunk
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Batch insert failed for chunk %d, falling back to individual inserts: %v", i, chunkErr))
+
+			fallbackInserted := r.fallbackToIndividualInserts(ctx, db, chunk, logger, tracer)
+			totalInserted += fallbackInserted
+		} else {
+			totalInserted += inserted
+		}
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("CreateBatch completed: inserted %d of %d operations", totalInserted, len(operations)))
+
+	return totalInserted, nil
+}
+
+// insertBatchChunk performs a multi-row INSERT for a chunk of operations.
+func (r *OperationPostgreSQLRepository) insertBatchChunk(ctx context.Context, db dbresolver.DB, operations []*Operation, logger libLog.Logger, tracer trace.Tracer) (int64, error) {
+	ctx, spanExec := tracer.Start(ctx, "postgres.create_batch.chunk_exec")
+	defer spanExec.End()
+
+	insert := squirrel.
+		Insert(r.tableName).
+		Columns(operationColumnList...).
+		PlaceholderFormat(squirrel.Dollar).
+		Suffix("ON CONFLICT (id) DO NOTHING")
+
+	for _, op := range operations {
+		record := &OperationPostgreSQLModel{}
+		record.FromEntity(op)
+
+		insert = insert.Values(
+			record.ID,
+			record.TransactionID,
+			record.Description,
+			record.Type,
+			record.AssetCode,
+			record.Amount,
+			record.AvailableBalance,
+			record.OnHoldBalance,
+			record.AvailableBalanceAfter,
+			record.OnHoldBalanceAfter,
+			record.Status,
+			record.StatusDescription,
+			record.AccountID,
+			record.AccountAlias,
+			record.BalanceID,
+			record.ChartOfAccounts,
+			record.OrganizationID,
+			record.LedgerID,
+			record.CreatedAt,
+			record.UpdatedAt,
+			record.DeletedAt,
+			record.Route,
+			record.BalanceAffected,
+			record.BalanceKey,
+			record.VersionBalance,
+			record.VersionBalanceAfter,
+		)
+	}
+
+	query, args, err := insert.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to build batch insert query", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build batch insert query: %v", err))
+
+		return 0, err
+	}
+
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute batch insert", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute batch insert: %v", err))
+
+		return 0, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to get rows affected", err)
+
+		return 0, err
+	}
+
+	return rowsAffected, nil
+}
+
+// fallbackToIndividualInserts attempts to insert operations one by one when batch insert fails.
+// Returns the count of successfully inserted operations.
+func (r *OperationPostgreSQLRepository) fallbackToIndividualInserts(ctx context.Context, db dbresolver.DB, operations []*Operation, logger libLog.Logger, tracer trace.Tracer) int64 {
+	ctx, spanFallback := tracer.Start(ctx, "postgres.create_batch.fallback")
+	defer spanFallback.End()
+
+	var successCount int64
+
+	for _, op := range operations {
+		// Check for context cancellation
+		if ctx.Err() != nil {
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Fallback cancelled: %v", ctx.Err()))
+
+			break
+		}
+
+		record := &OperationPostgreSQLModel{}
+		record.FromEntity(op)
+
+		insert := squirrel.
+			Insert(r.tableName).
+			Columns(operationColumnList...).
+			Values(
+				record.ID,
+				record.TransactionID,
+				record.Description,
+				record.Type,
+				record.AssetCode,
+				record.Amount,
+				record.AvailableBalance,
+				record.OnHoldBalance,
+				record.AvailableBalanceAfter,
+				record.OnHoldBalanceAfter,
+				record.Status,
+				record.StatusDescription,
+				record.AccountID,
+				record.AccountAlias,
+				record.BalanceID,
+				record.ChartOfAccounts,
+				record.OrganizationID,
+				record.LedgerID,
+				record.CreatedAt,
+				record.UpdatedAt,
+				record.DeletedAt,
+				record.Route,
+				record.BalanceAffected,
+				record.BalanceKey,
+				record.VersionBalance,
+				record.VersionBalanceAfter,
+			).
+			Suffix("ON CONFLICT (id) DO NOTHING").
+			PlaceholderFormat(squirrel.Dollar)
+
+		query, args, err := insert.ToSql()
+		if err != nil {
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build individual insert query for operation %s: %v", op.ID, err))
+
+			continue
+		}
+
+		result, err := db.ExecContext(ctx, query, args...)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
+				// Duplicate, skip silently (idempotent behavior)
+				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Skipping duplicate operation %s during fallback", op.ID))
+
+				continue
+			}
+
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to insert operation %s during fallback: %v", op.ID, err))
+
+			continue
+		}
+
+		rowsAffected, _ := result.RowsAffected()
+		successCount += rowsAffected
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Fallback completed: inserted %d of %d operations", successCount, len(operations)))
+
+	return successCount
+}
+
+// sortOperationsByID sorts operations by ID to prevent deadlocks.
+func sortOperationsByID(operations []*Operation) {
+	sort.Slice(operations, func(i, j int) bool {
+		return operations[i].ID < operations[j].ID
+	})
+}
+
+// chunkOperations splits operations into chunks of the specified size.
+func chunkOperations(operations []*Operation, chunkSize int) [][]*Operation {
+	if chunkSize <= 0 {
+		chunkSize = defaultBatchSize
+	}
+
+	var chunks [][]*Operation
+
+	for i := 0; i < len(operations); i += chunkSize {
+		end := i + chunkSize
+		if end > len(operations) {
+			end = len(operations)
+		}
+
+		chunks = append(chunks, operations[i:end])
+	}
+
+	return chunks
 }
 
 // FindAll retrieves Operations entities from the database.
