@@ -261,10 +261,9 @@ func TestIntegration_Redis_BalanceConsistency(t *testing.T) {
 		require.NoError(t, err, "operation %d should succeed", i)
 
 		// Verify balance after each operation is non-negative
-		if len(result.After) > 0 {
-			assert.GreaterOrEqual(t, result.After[0].Available.IntPart(), int64(0),
-				"balance for @consistency-test should not be negative")
-		}
+		require.NotEmpty(t, result.After, "operation %d: ProcessBalanceAtomicOperation must return at least one balance", i)
+		assert.GreaterOrEqual(t, result.After[0].Available.IntPart(), int64(0),
+			"balance for @consistency-test should not be negative")
 	}
 
 	// Final balance should be 850
