@@ -9,7 +9,6 @@ package command
 import (
 	"context"
 	"testing"
-	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
 	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
@@ -206,7 +205,6 @@ func TestIntegration_ReloadOperationRouteCache_ActionGroupingVerified(t *testing
 	}
 	sourceRouteID := pgtestutil.CreateTestOperationRoute(t, infra.pgContainer.DB, orgID, ledgerID, sourceParams)
 
-	emptyStr := ""
 	destRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgContainer.DB, orgID, ledgerID, "Dest Route", "destination")
 
 	// Create transaction route with links
@@ -232,10 +230,6 @@ func TestIntegration_ReloadOperationRouteCache_ActionGroupingVerified(t *testing
 
 	// Verify action grouping
 	assert.NotNil(t, cacheData.Actions, "Actions should be populated")
-
-	// Suppress unused variable warning
-	_ = emptyStr
-	_ = time.Now
 }
 
 func TestIntegration_ReloadOperationRouteCache_ReplacesExistingCache(t *testing.T) {

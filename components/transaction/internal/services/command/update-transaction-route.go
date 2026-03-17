@@ -113,19 +113,15 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 
 	var deduplicatedInputs []mmodel.OperationRouteActionInput
 
+	uniqueIDs := make([]uuid.UUID, 0, len(newOperationRouteInputs))
+
 	for _, input := range newOperationRouteInputs {
 		if !seen[input.OperationRouteID] {
 			seen[input.OperationRouteID] = true
 
 			deduplicatedInputs = append(deduplicatedInputs, input)
+			uniqueIDs = append(uniqueIDs, input.OperationRouteID)
 		}
-	}
-
-	// Extract unique UUIDs from the deduplicated inputs for FindByIDs
-	uniqueIDs := make([]uuid.UUID, 0, len(deduplicatedInputs))
-
-	for _, input := range deduplicatedInputs {
-		uniqueIDs = append(uniqueIDs, input.OperationRouteID)
 	}
 
 	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, uniqueIDs)

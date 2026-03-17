@@ -526,6 +526,10 @@ func directionFromOperationType(opType string) string {
 
 // TransactionRevert is a func that revert transaction
 func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
+	if t.Amount == nil {
+		return pkgTransaction.Transaction{}
+	}
+
 	froms := make([]pkgTransaction.FromTo, 0)
 	tos := make([]pkgTransaction.FromTo, 0)
 
@@ -573,10 +577,6 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 
 			tos = append(tos, to)
 		}
-	}
-
-	if t.Amount == nil {
-		return pkgTransaction.Transaction{}
 	}
 
 	send := pkgTransaction.Send{

@@ -174,8 +174,3 @@ func TestBuildDoubleEntryCanceledOps_ReturnsTwoOperations(t *testing.T) {
 	assert.Equal(t, "txn-1", ops[0].TransactionID)
 	assert.Equal(t, "txn-1", ops[1].TransactionID)
 }
-
-// strPtr returns a pointer to the given string.
-func strPtr(s string) *string {
-	return &s
-}

@@ -15,9 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// validOperationTypes lists all valid operation type values for generated routes.
-var validOperationTypes = []string{"source", "destination", "bidirectional"}
-
 // --- Generator types for property-based tests ---
 
 // bidirectionalInput generates N bidirectional routes.

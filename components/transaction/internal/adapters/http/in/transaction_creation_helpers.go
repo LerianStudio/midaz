@@ -205,14 +205,16 @@ func (handler *TransactionHandler) BuildOperations(
 				); err != nil {
 					return nil, nil, err
 				} else if handled {
-					operations = append(operations, ops...)
+					if len(ops) > 0 {
+						operations = append(operations, ops...)
 
-					if err := metricFactory.RecordTransactionProcessed(
-						ctx,
-						attribute.String("organization_id", tran.OrganizationID),
-						attribute.String("ledger_id", tran.LedgerID),
-					); err != nil {
-						libOpentelemetry.HandleSpanError(span, "Failed to record transaction processed metric", err)
+						if err := metricFactory.RecordTransactionProcessed(
+							ctx,
+							attribute.String("organization_id", tran.OrganizationID),
+							attribute.String("ledger_id", tran.LedgerID),
+						); err != nil {
+							libOpentelemetry.HandleSpanError(span, "Failed to record transaction processed metric", err)
+						}
 					}
 
 					continue
@@ -246,13 +248,15 @@ func (handler *TransactionHandler) BuildOperations(
 // we record the operation shape but do not reflect real balance values.
 // Each call allocates fresh values so that callers never share pointers.
 func zeroAnnotationBalances(balance, balanceAfter *operation.Balance) {
-	a := decimal.NewFromInt(0)
-	balance.Available = &a
-	balanceAfter.Available = &a
+	aBefore := decimal.NewFromInt(0)
+	balance.Available = &aBefore
+	aAfter := decimal.NewFromInt(0)
+	balanceAfter.Available = &aAfter
 
-	o := decimal.NewFromInt(0)
-	balance.OnHold = &o
-	balanceAfter.OnHold = &o
+	oBefore := decimal.NewFromInt(0)
+	balance.OnHold = &oBefore
+	oAfter := decimal.NewFromInt(0)
+	balanceAfter.OnHold = &oAfter
 
 	vBefore := int64(0)
 	balance.Version = &vBefore

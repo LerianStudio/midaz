@@ -271,7 +271,6 @@ func TestIntegration_Chaos_Redis_ConnectionLoss_GetOrCreateTransactionRouteCache
 
 	cacheData, err := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, txRouteID)
 	require.NoError(t, err, "Phase 1: GetOrCreateTransactionRouteCache should succeed through proxy")
-	assert.NotNil(t, cacheData.Actions, "Phase 1: cache should have Actions populated")
 	assert.NotNil(t, cacheData.Actions, "Phase 1: cache Actions should not be nil")
 
 	// --- Phase 2: Inject ---

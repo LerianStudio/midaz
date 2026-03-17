@@ -16,7 +16,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -476,6 +475,3 @@ func TestIntegration_CreateAccountingRouteCache_DifferentOrgsSameRouteID(t *test
 	assert.Contains(t, cache2.Actions, "hold", "org2 should have 'hold' action")
 	assert.NotContains(t, cache2.Actions, "direct", "org2 should not have 'direct' action")
 }
-
-// Unused variable prevention for uuid import
-var _ = uuid.Nil

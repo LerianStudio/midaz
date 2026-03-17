@@ -95,7 +95,7 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 			aliasAndKey := strings.Split(alias, "#")
 
 			balanceKey := constant.DefaultBalanceKey
-			if len(aliasAndKey) > 1 {
+			if len(aliasAndKey) > 1 && strings.TrimSpace(aliasAndKey[1]) != "" {
 				balanceKey = aliasAndKey[1]
 			}
 

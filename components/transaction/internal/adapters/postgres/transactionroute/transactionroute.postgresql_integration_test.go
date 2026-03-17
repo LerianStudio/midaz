@@ -198,8 +198,8 @@ func TestIntegration_TransactionRouteRepository_FindByID_WithMultipleOperationRo
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create operation routes
 	opRouteSource := pgtestutil.CreateTestOperationRouteSimple(t, container.DB, orgID, ledgerID, "Source Route", "source")

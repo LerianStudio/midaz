@@ -3821,7 +3821,7 @@ func TestPropagateRouteValidation_Canceled(t *testing.T) {
 			expectedToFlags: map[string]bool{},
 		},
 		{
-			name:              "APPROVED transaction sets RouteValidationEnabled and swaps DEBIT to ONHOLD",
+			name:              "APPROVED transaction sets RouteValidationEnabled on From entries",
 			isPending:         false,
 			transactionStatus: cn.APPROVED,
 			from: map[string]pkgTransaction.Amount{

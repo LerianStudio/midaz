@@ -869,11 +869,11 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		findAll = findAll.Where(squirrel.Expr("type = ?", *opFilter.OperationType))
 	}
 
-	if opFilter.Direction != nil {
+	if !libCommons.IsNilOrEmpty(opFilter.Direction) {
 		findAll = findAll.Where(squirrel.Expr("direction = ?", *opFilter.Direction))
 	}
 
-	if opFilter.RouteID != nil {
+	if !libCommons.IsNilOrEmpty(opFilter.RouteID) {
 		findAll = findAll.Where(squirrel.Expr("route_id = ?", *opFilter.RouteID))
 	}
 

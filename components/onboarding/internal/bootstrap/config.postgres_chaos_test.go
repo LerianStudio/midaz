@@ -223,7 +223,7 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 	assert.True(t, recoveredResult.connection.Connected,
 		"Phase 5: connection must be connected after recovery")
 
-	t.Log("CS-1 PASS: initSingleTenantPostgres returns error (not panic) on connection loss, recovers correctly")
+	t.Log("PASS: initSingleTenantPostgres returns error (not panic) on connection loss, recovers correctly")
 }
 
 // =============================================================================
