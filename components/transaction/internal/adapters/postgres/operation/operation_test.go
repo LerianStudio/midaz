@@ -760,7 +760,7 @@ func TestChunkOperations(t *testing.T) {
 	t.Run("returns_single_chunk_when_under_limit", func(t *testing.T) {
 		ops := make([]*Operation, 5)
 		for i := 0; i < 5; i++ {
-			ops[i] = &Operation{ID: "op-" + string(rune('a'+i))}
+			ops[i] = &Operation{ID: fmt.Sprintf("op-%d", i)}
 		}
 
 		result := chunkOperations(ops, 10)

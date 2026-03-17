@@ -248,6 +248,11 @@ func (r *OperationPostgreSQLRepository) CreateBatch(ctx context.Context, operati
 		return 0, nil
 	}
 
+	// Early context cancellation check to avoid unnecessary work
+	if ctx.Err() != nil {
+		return 0, ctx.Err()
+	}
+
 	// Validate no nil elements exist in the slice
 	for i, op := range operations {
 		if op == nil {
