@@ -95,7 +95,7 @@ type Ledger struct {
 
 	// Dynamic configuration settings for this ledger
 	// example: {"accounting": {"validateAccountType": true}}
-	Settings map[string]any `json:"settings,omitempty"`
+	Settings *LedgerSettings `json:"settings,omitempty"`
 } // @name Ledger
 
 // Ledgers struct designed to return a paginated list of ledgers.

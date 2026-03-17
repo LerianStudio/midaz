@@ -707,11 +707,11 @@ definitions:
         format: uuid
         type: string
       settings:
-        additionalProperties: {}
+        allOf:
+        - $ref: '#/definitions/mmodel.LedgerSettings'
         description: |-
           Dynamic configuration settings for this ledger
           example: {"accounting": {"validateAccountType": true}}
-        type: object
       status:
         allOf:
         - $ref: '#/definitions/Status'

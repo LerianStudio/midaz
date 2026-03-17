@@ -8759,8 +8759,11 @@ const docTemplate = `
         },
         "settings": {
           "description": "Dynamic configuration settings for this ledger\nexample: {\"accounting\": {\"validateAccountType\": true}}",
-          "type": "object",
-          "additionalProperties": {}
+          "allOf": [
+            {
+              "$ref": "#/definitions/mmodel.LedgerSettings"
+            }
+          ]
         },
         "status": {
           "description": "Current operating status of the ledger",

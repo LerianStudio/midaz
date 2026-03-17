@@ -47,7 +47,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	}
 
 	// Validate settings early when provided, same as UpdateLedgerSettings (fail before creating the ledger).
-	var settingsToPersist map[string]any
+	var settingsToPersist *mmodel.LedgerSettings
 
 	if !mmodel.LedgerSettingsIsDefault(cli.Settings) {
 		settingsMap := mmodel.LedgerSettingsToMap(*cli.Settings)
@@ -60,7 +60,9 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 			return nil, err
 		}
 
-		settingsToPersist = mmodel.MergeSettingsWithDefaults(settingsMap)
+		merged := mmodel.MergeSettingsWithDefaults(settingsMap)
+		parsed := mmodel.ParseLedgerSettings(merged)
+		settingsToPersist = &parsed
 	}
 
 	ledger := &mmodel.Ledger{
