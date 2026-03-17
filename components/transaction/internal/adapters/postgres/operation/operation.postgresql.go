@@ -442,14 +442,7 @@ func (r *OperationPostgreSQLRepository) fallbackToIndividualInserts(ctx context.
 
 		result, err := db.ExecContext(ctx, query, args...)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-				// Duplicate, skip silently (idempotent behavior)
-				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Skipping duplicate operation %s during fallback", op.ID))
-
-				continue
-			}
-
+			// ON CONFLICT (id) DO NOTHING handles duplicates, so errors here are unexpected
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to insert operation %s during fallback: %v", op.ID, err))
 
 			continue

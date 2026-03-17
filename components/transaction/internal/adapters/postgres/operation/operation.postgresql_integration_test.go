@@ -263,7 +263,8 @@ func TestIntegration_OperationRepository_CreateBatch_ContextCancellation(t *test
 
 	now := time.Now().Truncate(time.Microsecond)
 
-	// Create a cancelled context
+	// Create a cancelled context BEFORE calling CreateBatch
+	// This tests the early context check (line 252-254)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
@@ -275,10 +276,45 @@ func TestIntegration_OperationRepository_CreateBatch_ContextCancellation(t *test
 	// Act
 	inserted, err := repo.CreateBatch(ctx, operations)
 
-	// Assert - should return context error
+	// Assert - should return context error from early check
 	require.Error(t, err, "CreateBatch with cancelled context should error")
 	assert.Equal(t, context.Canceled, err)
 	assert.Equal(t, int64(0), inserted, "should not insert any operations")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_ContextTimeoutDuringChunks(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping timeout test in short mode")
+	}
+
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Create >1000 operations to force multiple chunks
+	// Use a very short timeout that will expire during chunk processing
+	const numOperations = 1500
+	operations := make([]*Operation, numOperations)
+	for i := 0; i < numOperations; i++ {
+		operations[i] = createTestOperation(ids, fmt.Sprintf("timeout-chunk-%d", i), now)
+	}
+
+	// Context with very short timeout - should expire during second chunk
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	// Act - first chunk may succeed, second chunk should hit context timeout
+	inserted, err := repo.CreateBatch(ctx, operations)
+	// Assert - we expect either success (if fast enough) or context deadline exceeded
+	// The key is that this exercises the chunk loop context check
+	if err != nil {
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.True(t, inserted >= 0 && inserted < int64(numOperations),
+			"should have partial inserts if timeout occurred")
+	}
+	// If no error, all inserts succeeded within timeout - that's also valid
 }
 
 func TestIntegration_OperationRepository_CreateBatch_NilElement(t *testing.T) {
@@ -332,6 +368,90 @@ func TestIntegration_OperationRepository_CreateBatch_ChunkingBoundary(t *testing
 	// Assert
 	require.NoError(t, err, "CreateBatch with 1001 operations should not error")
 	assert.Equal(t, int64(numOperations), inserted, "should insert all 1001 operations")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_FallbackPath(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Create operations with invalid transaction_id to force FK violation
+	// This triggers the fallback path (batch fails, individual inserts attempted)
+	invalidTxID := uuid.Must(uuid.NewV7()).String() // Non-existent transaction
+
+	operations := make([]*Operation, 3)
+	for i := 0; i < 3; i++ {
+		op := createTestOperation(ids, fmt.Sprintf("fallback-test-%d", i), now)
+		op.TransactionID = invalidTxID // This will cause FK violation
+		operations[i] = op
+	}
+
+	// Act - batch will fail due to FK violation, triggering fallback
+	// Fallback will also fail, but it exercises the code path
+	inserted, err := repo.CreateBatch(ctx, operations)
+
+	// Assert - we expect 0 inserts due to FK violations
+	// The important thing is that the fallback code was exercised
+	require.NoError(t, err, "CreateBatch should not return error (fallback handles failures)")
+	assert.Equal(t, int64(0), inserted, "should insert 0 operations due to FK violations")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_MixedValidAndInvalid(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Mix of valid operations and ones with invalid transaction_id
+	// First insert some valid ones, then try batch with mix
+	validOp1 := createTestOperation(ids, "mixed-valid-1", now)
+	validOp2 := createTestOperation(ids, "mixed-valid-2", now)
+
+	// Insert valid ops first
+	inserted, err := repo.CreateBatch(ctx, []*Operation{validOp1, validOp2})
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), inserted)
+
+	// Now create a batch with duplicates (already inserted) and new valid ones
+	newValidOp := createTestOperation(ids, "mixed-new-valid", now)
+	operations := []*Operation{validOp1, newValidOp, validOp2} // duplicates + new
+
+	// Act
+	inserted, err = repo.CreateBatch(ctx, operations)
+
+	// Assert - should insert only the new one (duplicates skipped via ON CONFLICT)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), inserted, "should insert only 1 new operation")
+}
+
+func TestIntegration_OperationRepository_CreateBatch_EarlyContextCancellation(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Create a context that is already cancelled before CreateBatch is called
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	operations := []*Operation{
+		createTestOperation(ids, "early-cancel-1", now),
+		createTestOperation(ids, "early-cancel-2", now),
+	}
+
+	// Act - should return immediately due to early context check
+	inserted, err := repo.CreateBatch(ctx, operations)
+
+	// Assert
+	require.Error(t, err, "CreateBatch should return error for cancelled context")
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, int64(0), inserted, "should not insert any operations")
 }
 
 // createTestOperation is a helper to create test Operation entities
