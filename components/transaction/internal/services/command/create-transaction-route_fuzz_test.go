@@ -84,9 +84,9 @@ func FuzzValidateOperationRouteTypes_EmptyInputs(f *testing.F) {
 		// Must not panic
 		result := validateOperationRouteTypes(opRoutes)
 
-		// Empty inputs should always succeed
+		// Empty inputs should return an error (no source/destination)
 		if !hasRoutes {
-			assert.NoError(t, result, "empty operation routes should return nil")
+			assert.Error(t, result, "empty operation routes should return error")
 		}
 	})
 }

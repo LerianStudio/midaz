@@ -124,11 +124,11 @@ func validateOperationRouteTypes(opRoutes []*mmodel.OperationRoute) error {
 		}
 	}
 
-	if len(opRoutes) > 0 && !hasSource {
+	if !hasSource {
 		return pkg.ValidateBusinessError(constant.ErrNoSourceForAction, entityType, "")
 	}
 
-	if len(opRoutes) > 0 && !hasDestination {
+	if !hasDestination {
 		return pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, entityType, "")
 	}
 

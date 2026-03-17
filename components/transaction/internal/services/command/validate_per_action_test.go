@@ -76,14 +76,14 @@ func TestValidateOperationRouteTypes_SourceDestinationCoverage(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name:          "valid_empty_routes",
+			name:          "empty_routes_returns_error",
 			opRoutes:      []*mmodel.OperationRoute{},
-			expectedError: nil,
+			expectedError: pkg.ValidateBusinessError(constant.ErrNoSourceForAction, entityType, ""),
 		},
 		{
-			name:          "valid_nil_routes",
+			name:          "nil_routes_returns_error",
 			opRoutes:      nil,
-			expectedError: nil,
+			expectedError: pkg.ValidateBusinessError(constant.ErrNoSourceForAction, entityType, ""),
 		},
 		{
 			name: "error_only_sources_no_destination",

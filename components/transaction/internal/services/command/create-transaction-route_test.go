@@ -472,5 +472,5 @@ func TestValidateOperationRouteTypesEmpty(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{}
 
 	err := validateOperationRouteTypes(operationRoutes)
-	assert.NoError(t, err)
+	assert.Error(t, err, "empty routes should fail — no source or destination")
 }
