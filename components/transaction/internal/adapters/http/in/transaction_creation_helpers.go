@@ -413,7 +413,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		ID:              op2ID.String(),
 		TransactionID:   tran.ID,
 		Description:     description,
-		Type:            libConstants.ONHOLD,
+		Type:            constant.ONHOLD,
 		AssetCode:       transactionInput.Send.Asset,
 		ChartOfAccounts: ft.ChartOfAccounts,
 		Amount:          operation.Amount{Value: &amt.Value},
