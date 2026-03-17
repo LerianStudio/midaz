@@ -612,12 +612,14 @@ func (handler *TransactionHandler) tryBuildDoubleEntryOps(
 		ops, err := handler.buildDoubleEntryPendingOps(
 			ctx, blc, ft, amt, bat, tran, transactionInput, transactionDate, isAnnotation,
 		)
+
 		return ops, true, err
 	}
 
 	ops, err := handler.buildDoubleEntryCanceledOps(
 		ctx, blc, ft, amt, bat, tran, transactionInput, transactionDate, isAnnotation,
 	)
+
 	return ops, true, err
 }
 
