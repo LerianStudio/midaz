@@ -933,7 +933,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/mmodel.LedgerSettings'
+              type: object
         description: 'Settings to merge with existing settings. Only known fields
           allowed: accounting.validateAccountType (bool), accounting.validateRoutes
           (bool)'

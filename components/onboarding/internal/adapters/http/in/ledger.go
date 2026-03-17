@@ -437,7 +437,7 @@ func (handler *LedgerHandler) GetLedgerSettings(c *fiber.Ctx) error {
 //	@Param			X-Request-Id	header		string			false	"Request ID for tracing"
 //	@Param			organization_id	path		string			true	"Organization ID in UUID format"
 //	@Param			id				path		string			true	"Ledger ID in UUID format"
-//	@Param			settings		body		mmodel.LedgerSettings	true	"Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)"
+//	@Param			settings		body		object	true	"Settings to merge with existing settings. Only known fields allowed: accounting.validateAccountType (bool), accounting.validateRoutes (bool)"
 //	@Success		200				{object}	mmodel.LedgerSettings	"Successfully updated ledger settings"
 //	@Failure		400				{object}	mmodel.Error	"Invalid request body, unknown field (0147), or invalid field type (0148)"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"

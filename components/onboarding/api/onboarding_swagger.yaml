@@ -1878,7 +1878,7 @@ paths:
         name: settings
         required: true
         schema:
-          $ref: '#/definitions/mmodel.LedgerSettings'
+          type: object
       produces:
       - application/json
       responses:

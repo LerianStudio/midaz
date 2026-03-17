@@ -1140,7 +1140,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/mmodel.LedgerSettings"
+              "type": "object"
             }
           }
         ],
