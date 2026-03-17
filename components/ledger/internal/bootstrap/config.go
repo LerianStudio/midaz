@@ -377,6 +377,11 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 		return nil, "", fmt.Errorf("APPLICATION_NAME is required when MULTI_TENANT_ENABLED=true")
 	}
 
+	tenantManagerAPIKey := strings.TrimSpace(cfg.TenantManagerAPIKey)
+	if tenantManagerAPIKey == "" {
+		return nil, "", fmt.Errorf("TENANT_MANAGER_API_KEY is required when MULTI_TENANT_ENABLED=true")
+	}
+
 	// Apply safe defaults for circuit breaker when not configured
 	cbThreshold := cfg.MultiTenantCircuitBreakerThreshold
 	if cbThreshold <= 0 {
@@ -391,7 +396,7 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 	tenantClient, err := tmclient.NewClient(
 		tenantManagerURL,
 		logger,
-		tmclient.WithServiceAPIKey(cfg.TenantManagerAPIKey),
+		tmclient.WithServiceAPIKey(tenantManagerAPIKey),
 		tmclient.WithCircuitBreaker(cbThreshold, time.Duration(cbTimeoutSec)*time.Second),
 	)
 	if err != nil {
