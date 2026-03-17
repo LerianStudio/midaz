@@ -108,10 +108,26 @@ func TestReloadOperationRouteCache_RebuildWithActionGrouping(t *testing.T) {
 	require.NotNil(t, storedCache.Actions,
 		"AC-2: rebuilt cache must contain non-nil Actions map")
 
+	assert.Len(t, storedCache.Actions, 1, "should have exactly 1 action group")
+
 	directAction, exists := storedCache.Actions["direct"]
 	require.True(t, exists, "AC-2: rebuilt cache Actions must contain 'direct' key")
 	assert.Len(t, directAction.Source, 1, "direct action should have 1 source route")
 	assert.Len(t, directAction.Destination, 1, "direct action should have 1 destination route")
+
+	// Verify account rule properties are preserved in the cached source route
+	sourceRoute, sourceExists := directAction.Source[sourceOpRouteID.String()]
+	require.True(t, sourceExists, "source route should be keyed by its UUID")
+	require.NotNil(t, sourceRoute.Account, "source route should have cached account rule")
+	assert.Equal(t, "alias", sourceRoute.Account.RuleType, "source route should preserve RuleType")
+	assert.Equal(t, "@source_account", sourceRoute.Account.ValidIf, "source route should preserve ValidIf")
+
+	// Verify account rule properties are preserved in the cached destination route
+	destRoute, destExists := directAction.Destination[destOpRouteID.String()]
+	require.True(t, destExists, "destination route should be keyed by its UUID")
+	require.NotNil(t, destRoute.Account, "destination route should have cached account rule")
+	assert.Equal(t, "alias", destRoute.Account.RuleType, "destination route should preserve RuleType")
+	assert.Equal(t, "@dest_account", destRoute.Account.ValidIf, "destination route should preserve ValidIf")
 }
 
 // TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions verifies AC-2: when an operation
@@ -206,12 +222,33 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 
 	assert.Len(t, capturedBytesMap, 2, "should have stored 2 cache entries")
 
-	// Verify both stored caches have non-nil Actions
-	for i, bytes := range capturedBytesMap {
+	// Decode both caches and build a map of action keys for verification
+	decodedCaches := make([]mmodel.TransactionRouteCache, 0, 2)
+	for i := 0; i < len(capturedBytesMap); i++ {
 		var cache mmodel.TransactionRouteCache
-		err := cache.FromMsgpack(bytes)
+		err := cache.FromMsgpack(capturedBytesMap[i])
 		require.NoError(t, err, "cache %d must decode successfully", i)
-		require.NotNil(t, cache.Actions,
-			"AC-2: cache entry %d must have non-nil Actions", i)
+		require.NotNil(t, cache.Actions, "AC-2: cache entry %d must have non-nil Actions", i)
+		decodedCaches = append(decodedCaches, cache)
 	}
+
+	// One cache should have "direct" (1 source), the other "hold" (1 source + 1 destination)
+	foundDirect := false
+	foundHold := false
+
+	for _, cache := range decodedCaches {
+		if directAction, exists := cache.Actions["direct"]; exists {
+			foundDirect = true
+			assert.Len(t, directAction.Source, 1, "direct action should have 1 source route")
+		}
+
+		if holdAction, exists := cache.Actions["hold"]; exists {
+			foundHold = true
+			assert.Len(t, holdAction.Source, 1, "hold action should have 1 source route")
+			assert.Len(t, holdAction.Destination, 1, "hold action should have 1 destination route")
+		}
+	}
+
+	assert.True(t, foundDirect, "one cache should contain 'direct' action")
+	assert.True(t, foundHold, "one cache should contain 'hold' action")
 }
