@@ -107,7 +107,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -580,7 +580,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1053,7 +1053,8 @@
                     "200": {
                         "description": "Successfully retrieved ledger settings",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.LedgerSettings"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "401": {
@@ -1128,7 +1129,8 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/mmodel.LedgerSettings"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 ],
@@ -1136,7 +1138,8 @@
                     "200": {
                         "description": "Successfully updated ledger settings",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.LedgerSettings"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -1259,7 +1262,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1744,7 +1747,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -2471,7 +2474,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -3038,7 +3041,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -3611,7 +3614,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -4750,12 +4753,9 @@
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "settings": {
-                    "description": "Dynamic configuration settings for this ledger. May be null if no settings are configured.\nexample: {\"accounting\": {\"validateAccountType\": true}}",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/mmodel.LedgerSettings"
-                        }
-                    ]
+                    "description": "Dynamic configuration settings for this ledger\nexample: {\"accounting\": {\"validateAccountType\": true}}",
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "status": {
                     "description": "Current operating status of the ledger",
@@ -4844,31 +4844,6 @@
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
-                }
-            }
-        },
-        "Pagination": {
-            "description": "Pagination is the struct designed to store the pagination data of an entity list.",
-            "type": "object",
-            "properties": {
-                "items": {},
-                "limit": {
-                    "type": "integer",
-                    "example": 10
-                },
-                "next_cursor": {
-                    "type": "string",
-                    "x-omitempty": true,
-                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
-                },
-                "page": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "prev_cursor": {
-                    "type": "string",
-                    "x-omitempty": true,
-                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
                 }
             }
         },
@@ -5233,6 +5208,24 @@
                             "$ref": "#/definitions/Status"
                         }
                     ]
+                }
+            }
+        },
+        "http.Pagination": {
+            "type": "object",
+            "properties": {
+                "items": {},
+                "limit": {
+                    "type": "integer"
+                },
+                "next_cursor": {
+                    "type": "string"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "prev_cursor": {
+                    "type": "string"
                 }
             }
         },

@@ -131,7 +131,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -604,7 +604,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -1036,7 +1036,7 @@ const docTemplate = `
     },
     "/v1/organizations/{organization_id}/ledgers/{id}/settings": {
       "get": {
-        "description": "Returns the current configuration settings for a specific ledger. Returns an empty object {} if no settings have been defined.",
+        "description": "Returns the current configuration settings for a specific ledger. If no settings have been persisted, returns the default settings object.",
         "produces": [
           "application/json"
         ],
@@ -1286,7 +1286,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -1771,7 +1771,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -2498,7 +2498,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -3065,7 +3065,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -3638,7 +3638,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -4167,7 +4167,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -4271,7 +4271,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -4406,7 +4406,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -4758,7 +4758,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -5091,7 +5091,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -5305,7 +5305,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -5787,7 +5787,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -6249,7 +6249,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -6730,7 +6730,7 @@ const docTemplate = `
             "schema": {
               "allOf": [
                 {
-                  "$ref": "#/definitions/Pagination"
+                  "$ref": "#/definitions/http.Pagination"
                 },
                 {
                   "type": "object",
@@ -8839,31 +8839,6 @@ const docTemplate = `
         }
       }
     },
-    "Pagination": {
-      "description": "Pagination is the struct designed to store the pagination data of an entity list.",
-      "type": "object",
-      "properties": {
-        "items": {},
-        "limit": {
-          "type": "integer",
-          "example": 10
-        },
-        "next_cursor": {
-          "type": "string",
-          "x-omitempty": true,
-          "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
-        },
-        "page": {
-          "type": "integer",
-          "example": 1
-        },
-        "prev_cursor": {
-          "type": "string",
-          "x-omitempty": true,
-          "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
-        }
-      }
-    },
     "Portfolio": {
       "description": "Portfolio represents a collection of accounts grouped for specific purposes such as business units, departments, or client portfolios.",
       "type": "object",
@@ -9225,6 +9200,24 @@ const docTemplate = `
               "$ref": "#/definitions/Status"
             }
           ]
+        }
+      }
+    },
+    "http.Pagination": {
+      "type": "object",
+      "properties": {
+        "items": {},
+        "limit": {
+          "type": "integer"
+        },
+        "next_cursor": {
+          "type": "string"
+        },
+        "page": {
+          "type": "integer"
+        },
+        "prev_cursor": {
+          "type": "string"
         }
       }
     },

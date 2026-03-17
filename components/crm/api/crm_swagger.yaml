@@ -376,26 +376,6 @@ definitions:
         example: Active
         type: string
     type: object
-  Pagination:
-    description: Pagination is the struct designed to store the pagination data of
-      an entity list.
-    properties:
-      items: {}
-      limit:
-        example: 10
-        type: integer
-      next_cursor:
-        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        type: string
-        x-omitempty: true
-      page:
-        example: 1
-        type: integer
-      prev_cursor:
-        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        type: string
-        x-omitempty: true
-    type: object
   RegulatoryFields:
     description: RegulatoryFields object
     properties:
@@ -521,6 +501,18 @@ definitions:
         - $ref: '#/definitions/NaturalPerson'
         description: Object with natural person information.
     type: object
+  http.Pagination:
+    properties:
+      items: {}
+      limit:
+        type: integer
+      next_cursor:
+        type: string
+      page:
+        type: integer
+      prev_cursor:
+        type: string
+    type: object
   pkg.HTTPError:
     properties:
       code:
@@ -631,7 +623,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
@@ -715,7 +707,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:

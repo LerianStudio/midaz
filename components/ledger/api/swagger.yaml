@@ -86,7 +86,7 @@ paths:
           description: Successfully retrieved organizations list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -408,7 +408,7 @@ paths:
           description: Successfully retrieved ledgers list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -699,7 +699,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{id}/settings:
     get:
       description: Returns the current configuration settings for a specific ledger.
-        Returns an empty object {} if no settings have been defined.
+        If no settings have been persisted, returns the default settings object.
       produces:
       - application/json
       tags:
@@ -882,7 +882,7 @@ paths:
           description: Successfully retrieved account types
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -1211,7 +1211,7 @@ paths:
           description: Successfully retrieved accounts list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -1714,7 +1714,7 @@ paths:
           description: Successfully retrieved assets list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -2104,7 +2104,7 @@ paths:
           description: Successfully retrieved portfolios list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -2499,7 +2499,7 @@ paths:
           description: Successfully retrieved segments list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -2860,7 +2860,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -2927,7 +2927,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -3015,7 +3015,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -3252,7 +3252,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -3474,7 +3474,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -3615,7 +3615,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -3941,7 +3941,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -4253,7 +4253,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -4575,7 +4575,7 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - type: object
               properties:
                 items:
@@ -6385,26 +6385,6 @@ definitions:
         type: string
         format: date-time
         example: '2021-01-01T00:00:00Z'
-  Pagination:
-    description: Pagination is the struct designed to store the pagination data of
-      an entity list.
-    type: object
-    properties:
-      items: {}
-      limit:
-        type: integer
-        example: 10
-      next_cursor:
-        type: string
-        x-omitempty: true
-        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-      page:
-        type: integer
-        example: 1
-      prev_cursor:
-        type: string
-        x-omitempty: true
-        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
   Portfolio:
     description: Portfolio represents a collection of accounts grouped for specific
       purposes such as business units, departments, or client portfolios.
@@ -6771,6 +6751,18 @@ definitions:
         description: Updated status of the segment (active, inactive, pending)
         allOf:
         - $ref: '#/definitions/Status'
+  http.Pagination:
+    type: object
+    properties:
+      items: {}
+      limit:
+        type: integer
+      next_cursor:
+        type: string
+      page:
+        type: integer
+      prev_cursor:
+        type: string
   mmodel.AccountingValidation:
     type: object
     properties:

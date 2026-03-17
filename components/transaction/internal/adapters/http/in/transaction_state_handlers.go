@@ -36,7 +36,7 @@ import (
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		201				{object}	transaction.Transaction
+//	@Success		201				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -94,7 +94,7 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		201				{object}	transaction.Transaction
+//	@Success		201				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -152,7 +152,7 @@ func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		200				{object}	transaction.Transaction
+//	@Success		200				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"
@@ -294,7 +294,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string					true	"Ledger ID"
 //	@Param			transaction_id	path		string					true	"Transaction ID"
 //	@Param			transaction		body		transaction.UpdateTransactionInput	true	"Transaction Input"
-//	@Success		200				{object}	transaction.Transaction
+//	@Success		200				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error	"Forbidden access"

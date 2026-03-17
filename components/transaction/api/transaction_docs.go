@@ -75,7 +75,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -179,7 +179,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -314,7 +314,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -666,7 +666,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -999,7 +999,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1213,7 +1213,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1695,7 +1695,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -2157,7 +2157,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -2638,7 +2638,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -4687,31 +4687,6 @@ const docTemplatetransaction = `{
                 }
             }
         },
-        "Pagination": {
-            "description": "Pagination is the struct designed to store the pagination data of an entity list.",
-            "type": "object",
-            "properties": {
-                "items": {},
-                "limit": {
-                    "type": "integer",
-                    "example": 10
-                },
-                "next_cursor": {
-                    "type": "string",
-                    "x-omitempty": true,
-                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
-                },
-                "page": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "prev_cursor": {
-                    "type": "string",
-                    "x-omitempty": true,
-                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
-                }
-            }
-        },
         "Status": {
             "description": "Status is the struct designed to represent the status of a transaction. Contains code and optional description for transaction states.",
             "type": "object",
@@ -5029,6 +5004,24 @@ const docTemplatetransaction = `{
                     "type": "string",
                     "maxLength": 50,
                     "example": "Charge Settlement"
+                }
+            }
+        },
+        "http.Pagination": {
+            "type": "object",
+            "properties": {
+                "items": {},
+                "limit": {
+                    "type": "integer"
+                },
+                "next_cursor": {
+                    "type": "string"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "prev_cursor": {
+                    "type": "string"
                 }
             }
         },

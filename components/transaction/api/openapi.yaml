@@ -4017,33 +4017,6 @@ components:
       required:
       - operationRouteId
       type: object
-    Pagination:
-      description: Pagination is the struct designed to store the pagination data
-        of an entity list.
-      example:
-        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        limit: 10
-        page: 1
-        items: '{}'
-      properties:
-        items:
-          type: object
-        limit:
-          example: 10
-          type: integer
-        next_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
-        page:
-          example: 1
-          type: integer
-        prev_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
-      type: object
     Status:
       description: Status is the struct designed to represent the status of a transaction.
         Contains code and optional description for transaction states.
@@ -4521,6 +4494,25 @@ components:
           maxLength: 50
           type: string
       type: object
+    http.Pagination:
+      example:
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        page: 6
+        items: '{}'
+      properties:
+        items:
+          type: object
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        page:
+          type: integer
+        prev_cursor:
+          type: string
+      type: object
     mmodel.Balance:
       description: Complete balance entity containing all fields including system-generated
         fields like ID, creation timestamps, and metadata. This is the response format
@@ -4729,15 +4721,15 @@ components:
       type: object
     inline_response_200:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
         prev_cursor: prev_cursor
         next_cursor: next_cursor
-        limit: 0
+        limit: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
         items:
         - metadata:
             key: '{}'
@@ -4776,8 +4768,8 @@ components:
           key: asset-freeze
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/mmodel.Balance'
@@ -4791,15 +4783,15 @@ components:
       type: object
     inline_response_200_1:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
         prev_cursor: prev_cursor
         next_cursor: next_cursor
         limit: 0
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
         items:
         - accountAlias: '@person1'
           metadata:
@@ -4854,8 +4846,8 @@ components:
           balanceId: 00000000-0000-0000-0000-000000000000
           status: '{}'
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Operation'
@@ -4869,15 +4861,15 @@ components:
       type: object
     inline_response_200_2:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
         prev_cursor: prev_cursor
         next_cursor: next_cursor
         limit: 0
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
         items:
         - metadata:
             key: '{}'
@@ -4908,8 +4900,8 @@ components:
           to: BRL
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/AssetRate'
@@ -4923,16 +4915,16 @@ components:
       type: object
     inline_response_200_3:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
         prev_cursor: prev_cursor
         next_cursor: next_cursor
         limit: 0
         page: '{}'
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
         items:
         - metadata:
             key: '{}'
@@ -4967,8 +4959,8 @@ components:
           account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/OperationRoute'
@@ -4985,16 +4977,16 @@ components:
       type: object
     inline_response_200_4:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
         prev_cursor: prev_cursor
         next_cursor: next_cursor
         limit: 0
         page: '{}'
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
         items:
         - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -5083,8 +5075,8 @@ components:
           title: Charge Settlement
           updatedAt: 2025-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/TransactionRoute'
@@ -5101,16 +5093,16 @@ components:
       type: object
     inline_response_200_5:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
         prev_cursor: prev_cursor
         next_cursor: next_cursor
         limit: 0
         page: '{}'
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
         items:
         - amount: 1500.0
           metadata:
@@ -5257,8 +5249,8 @@ components:
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Transaction'

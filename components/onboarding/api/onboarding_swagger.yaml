@@ -707,11 +707,11 @@ definitions:
         format: uuid
         type: string
       settings:
-        allOf:
-        - $ref: '#/definitions/mmodel.LedgerSettings'
+        additionalProperties: {}
         description: |-
-          Dynamic configuration settings for this ledger. May be null if no settings are configured.
+          Dynamic configuration settings for this ledger
           example: {"accounting": {"validateAccountType": true}}
+        type: object
       status:
         allOf:
         - $ref: '#/definitions/Status'
@@ -808,26 +808,6 @@ definitions:
         example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
-    type: object
-  Pagination:
-    description: Pagination is the struct designed to store the pagination data of
-      an entity list.
-    properties:
-      items: {}
-      limit:
-        example: 10
-        type: integer
-      next_cursor:
-        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        type: string
-        x-omitempty: true
-      page:
-        example: 1
-        type: integer
-      prev_cursor:
-        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        type: string
-        x-omitempty: true
     type: object
   Portfolio:
     description: Portfolio represents a collection of accounts grouped for specific
@@ -1168,6 +1148,18 @@ definitions:
         - $ref: '#/definitions/Status'
         description: Updated status of the segment (active, inactive, pending)
     type: object
+  http.Pagination:
+    properties:
+      items: {}
+      limit:
+        type: integer
+      next_cursor:
+        type: string
+      page:
+        type: integer
+      prev_cursor:
+        type: string
+    type: object
   mmodel.AccountingValidation:
     properties:
       validateAccountType:
@@ -1270,7 +1262,7 @@ paths:
           description: Successfully retrieved organizations list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
@@ -1556,7 +1548,7 @@ paths:
           description: Successfully retrieved ledgers list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
@@ -1836,7 +1828,8 @@ paths:
         "200":
           description: Successfully retrieved ledger settings
           schema:
-            $ref: '#/definitions/mmodel.LedgerSettings'
+            additionalProperties: true
+            type: object
         "401":
           description: Unauthorized access
           schema:
@@ -1895,14 +1888,16 @@ paths:
         name: settings
         required: true
         schema:
-          $ref: '#/definitions/mmodel.LedgerSettings'
+          additionalProperties: true
+          type: object
       produces:
       - application/json
       responses:
         "200":
           description: Successfully updated ledger settings
           schema:
-            $ref: '#/definitions/mmodel.LedgerSettings'
+            additionalProperties: true
+            type: object
         "400":
           description: Invalid request body, unknown field (0147), or invalid field
             type (0148)
@@ -1986,7 +1981,7 @@ paths:
           description: Successfully retrieved account types
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
@@ -2315,7 +2310,7 @@ paths:
           description: Successfully retrieved accounts list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
@@ -2818,7 +2813,7 @@ paths:
           description: Successfully retrieved assets list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
@@ -3208,7 +3203,7 @@ paths:
           description: Successfully retrieved portfolios list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
@@ -3603,7 +3598,7 @@ paths:
           description: Successfully retrieved segments list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
