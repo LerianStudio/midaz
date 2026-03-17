@@ -4126,15 +4126,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/mmodel.Balance"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
                     }
                   }
                 }
@@ -4230,15 +4221,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/mmodel.Balance"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
                     }
                   }
                 }
@@ -4369,15 +4351,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/mmodel.Balance"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
                     }
                   }
                 }
@@ -4729,15 +4702,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/Operation"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
                     }
                   }
                 }
@@ -5062,15 +5026,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/AssetRate"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
                     }
                   }
                 }
@@ -5280,15 +5235,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/mmodel.Balance"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
                     }
                   }
                 }
@@ -5762,15 +5708,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/OperationRoute"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
                     }
                   }
                 }
@@ -6221,15 +6158,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/TransactionRoute"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
                     }
                   }
                 }
@@ -6699,15 +6627,6 @@ const docTemplate = `
                       "items": {
                         "$ref": "#/definitions/Transaction"
                       }
-                    },
-                    "limit": {
-                      "type": "integer"
-                    },
-                    "next_cursor": {
-                      "type": "string"
-                    },
-                    "prev_cursor": {
-                      "type": "string"
                     }
                   }
                 }
@@ -8927,11 +8846,11 @@ const docTemplate = `
       }
     },
     "Status": {
-      "description": "Status is the struct designed to represent the status of a transaction. Contains code and optional description for transaction states.",
+      "description": "Status is the struct designed to represent the status of an operation. Contains code and optional description for operation states.",
       "type": "object",
       "properties": {
         "code": {
-          "description": "Status code identifying the state of the transaction\nexample: ACTIVE\nmaxLength: 100",
+          "description": "Status code identifying the state of the operation\nexample: ACTIVE\nmaxLength: 100",
           "type": "string",
           "maxLength": 100,
           "example": "ACTIVE"

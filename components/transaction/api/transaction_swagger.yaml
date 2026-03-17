@@ -1185,12 +1185,12 @@ definitions:
     - from
     type: object
   Status:
-    description: Status is the struct designed to represent the status of a transaction.
-      Contains code and optional description for transaction states.
+    description: Status is the struct designed to represent the status of an operation.
+      Contains code and optional description for operation states.
     properties:
       code:
         description: |-
-          Status code identifying the state of the transaction
+          Status code identifying the state of the operation
           example: ACTIVE
           maxLength: 100
         example: ACTIVE
@@ -1800,12 +1800,6 @@ paths:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -2043,12 +2037,6 @@ paths:
                   items:
                     $ref: '#/definitions/Operation'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -2173,12 +2161,6 @@ paths:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "401":
           description: Unauthorized access
@@ -2240,12 +2222,6 @@ paths:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "401":
           description: Unauthorized access
@@ -2453,12 +2429,6 @@ paths:
                   items:
                     $ref: '#/definitions/AssetRate'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -2543,12 +2513,6 @@ paths:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -2869,12 +2833,6 @@ paths:
                   items:
                     $ref: '#/definitions/OperationRoute'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid input, validation errors
@@ -3179,12 +3137,6 @@ paths:
                   items:
                     $ref: '#/definitions/TransactionRoute'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid input, validation errors
@@ -3499,12 +3451,6 @@ paths:
                   items:
                     $ref: '#/definitions/Transaction'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid query parameters

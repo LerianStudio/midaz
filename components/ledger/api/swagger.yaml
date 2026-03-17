@@ -2831,12 +2831,6 @@ paths:
                   type: array
                   items:
                     $ref: '#/definitions/mmodel.Balance'
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
         '401':
           description: Unauthorized access
           schema:
@@ -2898,12 +2892,6 @@ paths:
                   type: array
                   items:
                     $ref: '#/definitions/mmodel.Balance'
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
         '401':
           description: Unauthorized access
           schema:
@@ -2989,12 +2977,6 @@ paths:
                   type: array
                   items:
                     $ref: '#/definitions/mmodel.Balance'
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
         '400':
           description: Invalid query parameters
           schema:
@@ -3232,12 +3214,6 @@ paths:
                   type: array
                   items:
                     $ref: '#/definitions/Operation'
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
         '400':
           description: Invalid query parameters
           schema:
@@ -3454,12 +3430,6 @@ paths:
                   type: array
                   items:
                     $ref: '#/definitions/AssetRate'
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
         '400':
           description: Invalid query parameters
           schema:
@@ -3598,12 +3568,6 @@ paths:
                   type: array
                   items:
                     $ref: '#/definitions/mmodel.Balance'
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
         '400':
           description: Invalid query parameters
           schema:
@@ -3924,12 +3888,6 @@ paths:
                   type: array
                   items:
                     $ref: '#/definitions/OperationRoute'
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
         '400':
           description: Invalid input, validation errors
           schema:
@@ -4234,12 +4192,6 @@ paths:
                   type: array
                   items:
                     $ref: '#/definitions/TransactionRoute'
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
         '400':
           description: Invalid input, validation errors
           schema:
@@ -4554,12 +4506,6 @@ paths:
                   type: array
                   items:
                     $ref: '#/definitions/Transaction'
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
         '400':
           description: Invalid query parameters
           schema:
@@ -6457,12 +6403,12 @@ definitions:
         format: date-time
         example: '2021-01-01T00:00:00Z'
   Status:
-    description: Status is the struct designed to represent the status of a transaction.
-      Contains code and optional description for transaction states.
+    description: Status is the struct designed to represent the status of an operation.
+      Contains code and optional description for operation states.
     type: object
     properties:
       code:
-        description: 'Status code identifying the state of the transaction
+        description: 'Status code identifying the state of the operation
 
           example: ACTIVE
 

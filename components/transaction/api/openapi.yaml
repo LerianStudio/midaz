@@ -4426,12 +4426,12 @@ components:
       - from
       type: object
     Status:
-      description: Status is the struct designed to represent the status of a transaction.
-        Contains code and optional description for transaction states.
+      description: Status is the struct designed to represent the status of an operation.
+        Contains code and optional description for operation states.
       properties:
         code:
           description: |-
-            Status code identifying the state of the transaction
+            Status code identifying the state of the operation
             example: ACTIVE
             maxLength: 100
           example: ACTIVE
@@ -5067,9 +5067,6 @@ components:
       type: object
     inline_response_200:
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 1
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -5120,18 +5117,9 @@ components:
           items:
             $ref: '#/components/schemas/mmodel.Balance'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        prev_cursor:
-          type: string
       type: object
     inline_response_200_1:
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -5198,18 +5186,9 @@ components:
           items:
             $ref: '#/components/schemas/Operation'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        prev_cursor:
-          type: string
       type: object
     inline_response_200_2:
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -5252,18 +5231,9 @@ components:
           items:
             $ref: '#/components/schemas/AssetRate'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        prev_cursor:
-          type: string
       type: object
     inline_response_200_3:
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -5310,18 +5280,9 @@ components:
           items:
             $ref: '#/components/schemas/OperationRoute'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        prev_cursor:
-          type: string
       type: object
     inline_response_200_4:
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -5422,18 +5383,9 @@ components:
           items:
             $ref: '#/components/schemas/TransactionRoute'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        prev_cursor:
-          type: string
       type: object
     inline_response_200_5:
       example:
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 1
         http.Pagination:
           prev_cursor: prev_cursor
           next_cursor: next_cursor
@@ -5682,12 +5634,6 @@ components:
           items:
             $ref: '#/components/schemas/Transaction'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        prev_cursor:
-          type: string
       type: object
     CreateTransactionInflowSwaggerModel_send_distribute_amount:
       description: |-
