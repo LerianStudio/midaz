@@ -387,10 +387,12 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 			fromTo = append(fromTo, to...)
 		}
 
+		ledgerSettings := r.TransactionHandler.Query.GetLedgerSettings(msgCtxWithSpan, m.OrganizationID, m.LedgerID)
+
 		var buildErr error
 
 		operations, _, buildErr = r.TransactionHandler.BuildOperations(
-			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED,
+			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes,
 		)
 		if buildErr != nil {
 			libOpentelemetry.HandleSpanError(msgSpan, "Failed to validate balances", buildErr)

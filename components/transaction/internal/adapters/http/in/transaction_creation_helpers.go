@@ -154,6 +154,7 @@ func (handler *TransactionHandler) BuildOperations(
 	validate *pkgTransaction.Responses,
 	transactionDate time.Time,
 	isAnnotation bool,
+	routeValidationEnabled bool,
 ) ([]*operation.Operation, []*mmodel.Balance, error) {
 	var operations []*operation.Operation
 
@@ -163,15 +164,6 @@ func (handler *TransactionHandler) BuildOperations(
 
 	_, span := tracer.Start(ctx, "handler.create_transaction_operations")
 	defer span.End()
-
-	orgID, _ := uuid.Parse(tran.OrganizationID)
-	ledID, _ := uuid.Parse(tran.LedgerID)
-
-	ledgerSettings := handler.Query.GetLedgerSettings(ctx, orgID, ledID)
-
-	// Callers (createTransaction, commitOrCancelTransaction) must call propagateRouteValidation
-	// before invoking BuildOperations so that Amount entries already carry the flag.
-	routeValidationEnabled := ledgerSettings.Accounting.ValidateRoutes
 
 	if routeValidationEnabled {
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Route validation enabled for ledger %s, applying double-entry operations", tran.LedgerID))
@@ -822,7 +814,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		},
 	}
 
-	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED)
+	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
