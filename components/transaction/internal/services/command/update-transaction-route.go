@@ -111,20 +111,17 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 	// Deduplicate input by operation route ID
 	seen := make(map[uuid.UUID]bool)
 
-	var deduplicatedInputs []uuid.UUID
-
-	uniqueIDs := make([]uuid.UUID, 0, len(newOperationRouteInputs))
+	deduplicatedInputs := make([]uuid.UUID, 0, len(newOperationRouteInputs))
 
 	for _, operationRouteID := range newOperationRouteInputs {
 		if !seen[operationRouteID] {
 			seen[operationRouteID] = true
 
 			deduplicatedInputs = append(deduplicatedInputs, operationRouteID)
-			uniqueIDs = append(uniqueIDs, operationRouteID)
 		}
 	}
 
-	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, uniqueIDs)
+	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, deduplicatedInputs)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error fetching operation routes: %v", err))
 		return nil, nil, err
