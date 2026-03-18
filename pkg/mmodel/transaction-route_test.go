@@ -994,6 +994,7 @@ func TestUpdateTransactionRouteInput_OperationRoutes_ValidateTag(t *testing.T) {
 
 	tag := field.Tag.Get("validate")
 	require.NotEmpty(t, tag, "OperationRoutes field must have a validate tag")
+	assert.Contains(t, tag, "omitempty", "OperationRoutes must be optional for PATCH semantics")
 	assert.Contains(t, tag, "dive", "OperationRoutes must validate each item")
 }
 
