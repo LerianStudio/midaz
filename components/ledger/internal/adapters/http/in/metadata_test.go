@@ -624,6 +624,80 @@ func TestMetadataIndexHandler_DeleteMetadataIndex(t *testing.T) {
 	}
 }
 
+func TestMetadataIndexHandler_CreateMetadataIndex_NilRepo(t *testing.T) {
+	t.Parallel()
+
+	// Handler with nil repos - getRepoAndCollection returns nil for valid entity.
+	handler := &MetadataIndexHandler{}
+
+	payload := &mmodel.CreateMetadataIndexInput{
+		MetadataKey: "tier",
+	}
+
+	app := newMetadataHandlerTestApp(func(app *fiber.App) {
+		app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+			return handler.CreateMetadataIndex(payload, c)
+		})
+	})
+
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/v1/settings/metadata-indexes/entities/transaction", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+	assertJSONErrorResponse(t, resp)
+}
+
+func TestMetadataIndexHandler_GetAllMetadataIndexes_NilRepoForFilteredEntity(t *testing.T) {
+	t.Parallel()
+
+	// Handler with nil repos - getRepoAndCollection returns nil when filtering by entity.
+	handler := &MetadataIndexHandler{}
+
+	app := newMetadataHandlerTestApp(func(app *fiber.App) {
+		app.Get("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+			return handler.GetAllMetadataIndexes(c)
+		})
+	})
+
+	req := httptest.NewRequest("GET", "/v1/settings/metadata-indexes?entity_name=transaction", nil)
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+	assertJSONErrorResponse(t, resp)
+}
+
+func TestMetadataIndexHandler_DeleteMetadataIndex_NilRepo(t *testing.T) {
+	t.Parallel()
+
+	// Handler with nil repos - valid entity but no repo configured.
+	handler := &MetadataIndexHandler{}
+
+	app := newMetadataHandlerTestApp(func(app *fiber.App) {
+		app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c *fiber.Ctx) error {
+			c.SetUserContext(context.Background())
+			return handler.DeleteMetadataIndex(c)
+		})
+	})
+
+	req := httptest.NewRequest("DELETE", "/v1/settings/metadata-indexes/entities/transaction/key/tier", nil)
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+	assertJSONErrorResponse(t, resp)
+}
+
 func TestMetadataIndexHandler_DeleteMetadataIndex_EmptyEntityName(t *testing.T) {
 	t.Parallel()
 

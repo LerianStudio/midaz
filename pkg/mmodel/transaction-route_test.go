@@ -486,39 +486,6 @@ func TestOperationRouteCache(t *testing.T) {
 	}
 }
 
-func TestOperationRouteActionInput_Fields(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name            string
-		input           OperationRouteActionInput
-		expectedRouteID uuid.UUID
-	}{
-		{
-			name: "valid route ID",
-			input: OperationRouteActionInput{
-				OperationRouteID: uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0a"),
-			},
-			expectedRouteID: uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0a"),
-		},
-		{
-			name: "another valid route ID",
-			input: OperationRouteActionInput{
-				OperationRouteID: uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0b"),
-			},
-			expectedRouteID: uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0b"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			assert.Equal(t, tt.expectedRouteID, tt.input.OperationRouteID)
-		})
-	}
-}
-
 func TestTransactionRoute_ToCache_WithActions(t *testing.T) {
 	t.Parallel()
 
@@ -726,16 +693,13 @@ func TestCreateTransactionRouteInput_OperationRoutesType(t *testing.T) {
 	id2 := uuid.New()
 
 	input := CreateTransactionRouteInput{
-		Title: "Test Route",
-		OperationRoutes: []OperationRouteActionInput{
-			{OperationRouteID: id1},
-			{OperationRouteID: id2},
-		},
+		Title:           "Test Route",
+		OperationRoutes: []uuid.UUID{id1, id2},
 	}
 
 	assert.Len(t, input.OperationRoutes, 2)
-	assert.Equal(t, id1, input.OperationRoutes[0].OperationRouteID)
-	assert.Equal(t, id2, input.OperationRoutes[1].OperationRouteID)
+	assert.Equal(t, id1, input.OperationRoutes[0])
+	assert.Equal(t, id2, input.OperationRoutes[1])
 }
 
 func TestUpdateTransactionRouteInput_OperationRoutesType(t *testing.T) {
@@ -743,9 +707,7 @@ func TestUpdateTransactionRouteInput_OperationRoutesType(t *testing.T) {
 
 	id1 := uuid.New()
 
-	routes := []OperationRouteActionInput{
-		{OperationRouteID: id1},
-	}
+	routes := []uuid.UUID{id1}
 
 	input := UpdateTransactionRouteInput{
 		Title:           "Updated Route",
@@ -754,7 +716,7 @@ func TestUpdateTransactionRouteInput_OperationRoutesType(t *testing.T) {
 
 	require.NotNil(t, input.OperationRoutes)
 	assert.Len(t, *input.OperationRoutes, 1)
-	assert.Equal(t, id1, (*input.OperationRoutes)[0].OperationRouteID)
+	assert.Equal(t, id1, (*input.OperationRoutes)[0])
 }
 
 func TestCreateTransactionRouteInput_OperationRouteIDs(t *testing.T) {
@@ -772,22 +734,16 @@ func TestCreateTransactionRouteInput_OperationRouteIDs(t *testing.T) {
 		{
 			name: "multiple routes",
 			input: CreateTransactionRouteInput{
-				Title: "Test",
-				OperationRoutes: []OperationRouteActionInput{
-					{OperationRouteID: id1},
-					{OperationRouteID: id2},
-					{OperationRouteID: id3},
-				},
+				Title:           "Test",
+				OperationRoutes: []uuid.UUID{id1, id2, id3},
 			},
 			expected: []uuid.UUID{id1, id2, id3},
 		},
 		{
 			name: "single route",
 			input: CreateTransactionRouteInput{
-				Title: "Single",
-				OperationRoutes: []OperationRouteActionInput{
-					{OperationRouteID: id1},
-				},
+				Title:           "Single",
+				OperationRoutes: []uuid.UUID{id1},
 			},
 			expected: []uuid.UUID{id1},
 		},
@@ -795,7 +751,7 @@ func TestCreateTransactionRouteInput_OperationRouteIDs(t *testing.T) {
 			name: "empty routes",
 			input: CreateTransactionRouteInput{
 				Title:           "Empty",
-				OperationRoutes: []OperationRouteActionInput{},
+				OperationRoutes: []uuid.UUID{},
 			},
 			expected: []uuid.UUID{},
 		},
@@ -818,11 +774,8 @@ func TestUpdateTransactionRouteInput_OperationRouteIDs(t *testing.T) {
 	id1 := uuid.New()
 	id2 := uuid.New()
 
-	routesWithTwo := []OperationRouteActionInput{
-		{OperationRouteID: id1},
-		{OperationRouteID: id2},
-	}
-	emptyRoutes := []OperationRouteActionInput{}
+	routesWithTwo := []uuid.UUID{id1, id2}
+	emptyRoutes := []uuid.UUID{}
 
 	tests := []struct {
 		name     string
@@ -1032,16 +985,17 @@ func TestTransactionRoute_ToCache_UnknownOperationType_NoPhantomAction(t *testin
 	assert.Len(t, cache.Actions, 0, "unknown operation type must not create a phantom action entry")
 }
 
-func TestOperationRouteActionInput_RequiredRouteID(t *testing.T) {
+func TestUpdateTransactionRouteInput_OperationRoutes_ValidateTag(t *testing.T) {
 	t.Parallel()
 
-	typ := reflect.TypeOf(OperationRouteActionInput{})
-	field, ok := typ.FieldByName("OperationRouteID")
-	require.True(t, ok, "OperationRouteActionInput must have an OperationRouteID field")
+	typ := reflect.TypeOf(UpdateTransactionRouteInput{})
+	field, ok := typ.FieldByName("OperationRoutes")
+	require.True(t, ok, "UpdateTransactionRouteInput must have an OperationRoutes field")
 
 	tag := field.Tag.Get("validate")
-	require.NotEmpty(t, tag, "OperationRouteID field must have a validate tag")
-	assert.Contains(t, tag, "required", "OperationRouteID must be required")
+	require.NotEmpty(t, tag, "OperationRoutes field must have a validate tag")
+	assert.Contains(t, tag, "omitempty", "OperationRoutes must be optional for PATCH semantics")
+	assert.NotContains(t, tag, "dive", "dive without element-level tag panics in validator.v9 on uuid.UUID")
 }
 
 func TestAccountCache(t *testing.T) {

@@ -7,17 +7,16 @@ package command
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 // computeRouteIDDiff replicates the diff logic from handleOperationRouteUpdates
-// so it can be fuzz-tested in isolation. It returns OperationRouteActionInput entries to add and remove.
+// so it can be fuzz-tested in isolation. It returns route IDs to add and remove.
 func computeRouteIDDiff(
 	existingRouteIDs []uuid.UUID,
 	newRouteIDs []uuid.UUID,
-) (toAdd, toRemove []mmodel.OperationRouteActionInput) {
+) (toAdd, toRemove []uuid.UUID) {
 	existingSet := make(map[uuid.UUID]bool)
 	for _, id := range existingRouteIDs {
 		existingSet[id] = true
@@ -31,18 +30,14 @@ func computeRouteIDDiff(
 	// Find relationships to remove (exist currently but not in new list)
 	for id := range existingSet {
 		if !newSet[id] {
-			toRemove = append(toRemove, mmodel.OperationRouteActionInput{
-				OperationRouteID: id,
-			})
+			toRemove = append(toRemove, id)
 		}
 	}
 
 	// Find relationships to add (in new list but don't exist currently)
 	for id := range newSet {
 		if !existingSet[id] {
-			toAdd = append(toAdd, mmodel.OperationRouteActionInput{
-				OperationRouteID: id,
-			})
+			toAdd = append(toAdd, id)
 		}
 	}
 

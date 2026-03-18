@@ -88,14 +88,14 @@ func TestProperty_RouteIDDiff_DiffSymmetry(t *testing.T) {
 
 		// Every toAdd entry must come from a key in new but NOT in existing
 		for _, entry := range toAdd {
-			if !newSet[entry.OperationRouteID] || existingSet[entry.OperationRouteID] {
+			if !newSet[entry] || existingSet[entry] {
 				return false
 			}
 		}
 
 		// Every toRemove entry must come from a key in existing but NOT in new
 		for _, entry := range toRemove {
-			if !existingSet[entry.OperationRouteID] || newSet[entry.OperationRouteID] {
+			if !existingSet[entry] || newSet[entry] {
 				return false
 			}
 		}
@@ -117,11 +117,11 @@ func TestProperty_RouteIDDiff_NoOverlap(t *testing.T) {
 
 		addIDs := make(map[uuid.UUID]bool)
 		for _, entry := range toAdd {
-			addIDs[entry.OperationRouteID] = true
+			addIDs[entry] = true
 		}
 
 		for _, entry := range toRemove {
-			if addIDs[entry.OperationRouteID] {
+			if addIDs[entry] {
 				return false
 			}
 		}
@@ -180,6 +180,6 @@ func TestProperty_RouteIDDiff_AllPairsExplicit(t *testing.T) {
 
 	assert.Len(t, toAdd, 1, "expected 1 addition")
 	assert.Len(t, toRemove, 1, "expected 1 removal")
-	assert.Equal(t, otherID, toAdd[0].OperationRouteID, "toAdd should contain the new ID")
-	assert.Equal(t, routeID, toRemove[0].OperationRouteID, "toRemove should contain the old ID")
+	assert.Equal(t, otherID, toAdd[0], "toAdd should contain the new ID")
+	assert.Equal(t, routeID, toRemove[0], "toRemove should contain the old ID")
 }
