@@ -651,6 +651,7 @@ func TestMetadataIndexHandler_CreateMetadataIndex_NilRepo(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+	assertJSONErrorResponse(t, resp)
 }
 
 func TestMetadataIndexHandler_GetAllMetadataIndexes_NilRepoForFilteredEntity(t *testing.T) {
@@ -672,6 +673,7 @@ func TestMetadataIndexHandler_GetAllMetadataIndexes_NilRepoForFilteredEntity(t *
 	require.NoError(t, err)
 
 	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+	assertJSONErrorResponse(t, resp)
 }
 
 func TestMetadataIndexHandler_DeleteMetadataIndex_NilRepo(t *testing.T) {
@@ -693,6 +695,7 @@ func TestMetadataIndexHandler_DeleteMetadataIndex_NilRepo(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+	assertJSONErrorResponse(t, resp)
 }
 
 func TestMetadataIndexHandler_DeleteMetadataIndex_EmptyEntityName(t *testing.T) {
