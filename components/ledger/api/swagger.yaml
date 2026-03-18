@@ -7508,7 +7508,7 @@ definitions:
         additionalProperties: {}
       operationRoutes:
         description: A list of Operation Route IDs associated with the Transaction
-          Route (minimum 2 required).
+          Route.
         type: array
         items:
           type: string
@@ -8129,7 +8129,7 @@ definitions:
       operationRoutes:
         description: A list of Operation Route IDs associated with the Transaction
           Route. Omit to leave existing associations unchanged. When provided, replaces
-          all current associations with the supplied UUIDs (minimum 2 required).
+          all current associations with the supplied UUIDs.
         type: array
         items:
           type: string

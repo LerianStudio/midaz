@@ -9780,7 +9780,7 @@ const docTemplate = `
           "additionalProperties": {}
         },
         "operationRoutes": {
-          "description": "A list of Operation Route IDs associated with the Transaction Route (minimum 2 required).",
+          "description": "A list of Operation Route IDs associated with the Transaction Route.",
           "type": "array",
           "items": {
             "type": "string",
@@ -10348,7 +10348,7 @@ const docTemplate = `
           "additionalProperties": {}
         },
         "operationRoutes": {
-          "description": "A list of Operation Route IDs associated with the Transaction Route. Omit to leave existing associations unchanged. When provided, replaces all current associations with the supplied UUIDs (minimum 2 required).",
+          "description": "A list of Operation Route IDs associated with the Transaction Route. Omit to leave existing associations unchanged. When provided, replaces all current associations with the supplied UUIDs.",
           "type": "array",
           "items": {
             "type": "string",

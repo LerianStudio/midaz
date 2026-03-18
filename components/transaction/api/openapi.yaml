@@ -3655,7 +3655,7 @@ components:
           type: object
         operationRoutes:
           description: A list of Operation Route IDs associated with the Transaction
-            Route (minimum 2 required).
+            Route.
           items:
             format: uuid
             type: string
@@ -4506,7 +4506,7 @@ components:
         operationRoutes:
           description: A list of Operation Route IDs associated with the Transaction
             Route. Omit to leave existing associations unchanged. When provided, replaces
-            all current associations with the supplied UUIDs (minimum 2 required).
+            all current associations with the supplied UUIDs.
           items:
             format: uuid
             type: string
