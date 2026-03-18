@@ -706,3 +706,136 @@ func TestSyncBalancesBatch_OrphanedKeysCleanedUp(t *testing.T) {
 	assert.Equal(t, int64(1), result.BalancesSynced)
 	assert.Equal(t, int64(3), result.KeysRemoved, "All 3 keys removed (including orphaned)")
 }
+
+// TestSyncBalancesBatch_MalformedKeyWithTrailingHash verifies that keys with trailing #
+// (empty partition key) are handled correctly by falling back to BalanceRedis.Key.
+// This tests the bug fix for the infinite sync loop caused by malformed cache keys.
+func TestSyncBalancesBatch_MalformedKeyWithTrailingHash(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// Malformed key with trailing # (empty partition key)
+	malformedKey := "balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#"
+
+	keys := []string{malformedKey}
+
+	balanceData := map[string]*mmodel.BalanceRedis{
+		malformedKey: {
+			ID:        balanceID.String(),
+			Alias:     "@acc1",
+			Key:       "asset-freeze", // The actual key from BalanceRedis should be used
+			AssetCode: "USD",
+			Version:   5,
+			Available: decimal.NewFromInt(1000),
+		},
+	}
+
+	mockRedis := redis.NewMockRedisRepository(ctrl)
+	mockBalance := balance.NewMockRepository(ctrl)
+
+	mockRedis.EXPECT().
+		GetBalancesByKeys(gomock.Any(), keys).
+		Return(balanceData, nil).
+		Times(1)
+
+	// Verify the balance is synced with the correct key from BalanceRedis
+	mockBalance.EXPECT().
+		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
+			assert.Len(t, balances, 1)
+			assert.Equal(t, "asset-freeze", balances[0].Key, "Should use BalanceRedis.Key, not parsed empty key")
+			return 1, nil
+		}).
+		Times(1)
+
+	// KEY ASSERTION: Verify malformed key is removed from schedule to break the infinite loop.
+	// Before this fix, the key would remain in the schedule and be reprocessed indefinitely.
+	mockRedis.EXPECT().
+		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, keysToRemove []string) (int64, error) {
+			assert.Contains(t, keysToRemove, malformedKey, "Malformed key MUST be removed from schedule to prevent infinite loop")
+			return int64(len(keysToRemove)), nil
+		}).
+		Times(1)
+
+	uc := UseCase{
+		RedisRepo:   mockRedis,
+		BalanceRepo: mockBalance,
+	}
+
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 1, result.KeysProcessed)
+	assert.Equal(t, 1, result.BalancesAggregated)
+	assert.Equal(t, int64(1), result.BalancesSynced)
+	assert.Equal(t, int64(1), result.KeysRemoved, "Malformed key must be removed to break sync loop")
+}
+
+// TestSyncBalancesBatch_MalformedKeyFallbackToDefault verifies that when parsed partition
+// is empty/default AND BalanceRedis.Key is also default, no unnecessary override happens.
+func TestSyncBalancesBatch_MalformedKeyFallbackToDefault(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// Malformed key with trailing # (empty partition key)
+	malformedKey := "balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#"
+
+	keys := []string{malformedKey}
+
+	balanceData := map[string]*mmodel.BalanceRedis{
+		malformedKey: {
+			ID:        balanceID.String(),
+			Alias:     "@acc1",
+			Key:       "default", // BalanceRedis.Key is also "default"
+			AssetCode: "USD",
+			Version:   5,
+			Available: decimal.NewFromInt(1000),
+		},
+	}
+
+	mockRedis := redis.NewMockRedisRepository(ctrl)
+	mockBalance := balance.NewMockRepository(ctrl)
+
+	mockRedis.EXPECT().
+		GetBalancesByKeys(gomock.Any(), keys).
+		Return(balanceData, nil).
+		Times(1)
+
+	// Verify the balance is synced with "default" key
+	mockBalance.EXPECT().
+		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
+			assert.Len(t, balances, 1)
+			assert.Equal(t, "default", balances[0].Key, "Should keep default when both parsed and BalanceRedis.Key are default")
+			return 1, nil
+		}).
+		Times(1)
+
+	mockRedis.EXPECT().
+		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
+		Return(int64(1), nil).
+		Times(1)
+
+	uc := UseCase{
+		RedisRepo:   mockRedis,
+		BalanceRepo: mockBalance,
+	}
+
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 1, result.KeysProcessed)
+	assert.Equal(t, 1, result.BalancesAggregated)
+	assert.Equal(t, int64(1), result.BalancesSynced)
+}

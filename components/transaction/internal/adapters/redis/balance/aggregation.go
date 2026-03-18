@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -62,9 +63,9 @@ func BalanceCompositeKeyFromRedisKey(redisKey string) (BalanceCompositeKey, erro
 	aliasParts := strings.Split(aliasAndKey, "#")
 
 	alias := aliasParts[0]
-	partitionKey := "default"
+	partitionKey := constant.DefaultBalanceKey
 
-	if len(aliasParts) > 1 {
+	if len(aliasParts) > 1 && strings.TrimSpace(aliasParts[1]) != "" {
 		partitionKey = aliasParts[1]
 	}
 
