@@ -155,6 +155,7 @@ func (handler *TransactionHandler) BuildOperations(
 	transactionDate time.Time,
 	isAnnotation bool,
 	routeValidationEnabled bool,
+	transactionRouteCache *mmodel.TransactionRouteCache,
 ) ([]*operation.Operation, []*mmodel.Balance, error) {
 	var operations []*operation.Operation
 
@@ -232,7 +233,50 @@ func (handler *TransactionHandler) BuildOperations(
 		}
 	}
 
+	resolveRouteCodesFromCache(operations, transactionRouteCache)
+
 	return operations, preBalances, nil
+}
+
+// resolveRouteCodesFromCache populates the RouteCode field on each operation by
+// looking up the operation's RouteID in the transaction route cache. The cache
+// is keyed by routeID within each action's Source, Destination, and Bidirectional
+// maps, and each entry carries the human-readable Code of the operation route.
+func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache) {
+	if cache == nil {
+		return
+	}
+
+	for _, op := range operations {
+		if op.RouteID == nil || *op.RouteID == "" {
+			continue
+		}
+
+		routeID := *op.RouteID
+
+		for _, actionCache := range cache.Actions {
+			if rc, ok := actionCache.Source[routeID]; ok && rc.Code != "" {
+				code := rc.Code
+				op.RouteCode = &code
+
+				break
+			}
+
+			if rc, ok := actionCache.Destination[routeID]; ok && rc.Code != "" {
+				code := rc.Code
+				op.RouteCode = &code
+
+				break
+			}
+
+			if rc, ok := actionCache.Bidirectional[routeID]; ok && rc.Code != "" {
+				code := rc.Code
+				op.RouteCode = &code
+
+				break
+			}
+		}
+	}
 }
 
 // zeroAnnotationBalances zeroes out the Available, OnHold, and Version fields of the
@@ -777,7 +821,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		action = constant.ActionHold
 	}
 
-	balancesBefore, balancesAfter, _, err := handler.Query.GetBalances(ctx, scope.OrganizationID, scope.LedgerID, transactionID, &transactionInput, validate, transactionStatus, action)
+	balancesBefore, balancesAfter, routeCache, err := handler.Query.GetBalances(ctx, scope.OrganizationID, scope.LedgerID, transactionID, &transactionInput, validate, transactionStatus, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
 
@@ -819,7 +863,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		},
 	}
 
-	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes)
+	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
