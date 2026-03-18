@@ -9794,10 +9794,11 @@ const docTemplate = `
           "additionalProperties": {}
         },
         "operationRoutes": {
-          "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
+          "description": "A list of Operation Route IDs associated with the Transaction Route.",
           "type": "array",
           "items": {
-            "$ref": "#/definitions/OperationRouteActionInput"
+            "type": "string",
+            "format": "uuid"
           }
         },
         "title": {

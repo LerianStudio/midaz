@@ -729,10 +729,11 @@ definitions:
         description: Additional metadata stored as JSON
         type: object
       operationRoutes:
-        description: An object containing accounting data of Operation Routes from
-          the Transaction Route.
+        description: A list of Operation Route IDs associated with the Transaction
+          Route.
         items:
-          $ref: '#/definitions/OperationRouteActionInput'
+          format: uuid
+          type: string
         type: array
       title:
         description: Short text summarizing the purpose of the transaction. Used as

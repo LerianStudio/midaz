@@ -3642,8 +3642,8 @@ components:
         metadata:
           key: '{}'
         operationRoutes:
-        - operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        - operationRouteId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         description: Settlement route for service charges
         title: Charge Settlement
       properties:
@@ -3658,10 +3658,11 @@ components:
           description: Additional metadata stored as JSON
           type: object
         operationRoutes:
-          description: An object containing accounting data of Operation Routes from
-            the Transaction Route.
+          description: A list of Operation Route IDs associated with the Transaction
+            Route.
           items:
-            $ref: '#/components/schemas/OperationRouteActionInput'
+            format: uuid
+            type: string
           type: array
         title:
           description: Short text summarizing the purpose of the transaction. Used

@@ -726,16 +726,13 @@ func TestCreateTransactionRouteInput_OperationRoutesType(t *testing.T) {
 	id2 := uuid.New()
 
 	input := CreateTransactionRouteInput{
-		Title: "Test Route",
-		OperationRoutes: []OperationRouteActionInput{
-			{OperationRouteID: id1},
-			{OperationRouteID: id2},
-		},
+		Title:           "Test Route",
+		OperationRoutes: []uuid.UUID{id1, id2},
 	}
 
 	assert.Len(t, input.OperationRoutes, 2)
-	assert.Equal(t, id1, input.OperationRoutes[0].OperationRouteID)
-	assert.Equal(t, id2, input.OperationRoutes[1].OperationRouteID)
+	assert.Equal(t, id1, input.OperationRoutes[0])
+	assert.Equal(t, id2, input.OperationRoutes[1])
 }
 
 func TestUpdateTransactionRouteInput_OperationRoutesType(t *testing.T) {
@@ -772,22 +769,16 @@ func TestCreateTransactionRouteInput_OperationRouteIDs(t *testing.T) {
 		{
 			name: "multiple routes",
 			input: CreateTransactionRouteInput{
-				Title: "Test",
-				OperationRoutes: []OperationRouteActionInput{
-					{OperationRouteID: id1},
-					{OperationRouteID: id2},
-					{OperationRouteID: id3},
-				},
+				Title:           "Test",
+				OperationRoutes: []uuid.UUID{id1, id2, id3},
 			},
 			expected: []uuid.UUID{id1, id2, id3},
 		},
 		{
 			name: "single route",
 			input: CreateTransactionRouteInput{
-				Title: "Single",
-				OperationRoutes: []OperationRouteActionInput{
-					{OperationRouteID: id1},
-				},
+				Title:           "Single",
+				OperationRoutes: []uuid.UUID{id1},
 			},
 			expected: []uuid.UUID{id1},
 		},
@@ -795,7 +786,7 @@ func TestCreateTransactionRouteInput_OperationRouteIDs(t *testing.T) {
 			name: "empty routes",
 			input: CreateTransactionRouteInput{
 				Title:           "Empty",
-				OperationRoutes: []OperationRouteActionInput{},
+				OperationRoutes: []uuid.UUID{},
 			},
 			expected: []uuid.UUID{},
 		},

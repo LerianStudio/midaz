@@ -21,18 +21,27 @@ LEDGER_SWAGGER="$LEDGER_DIR/api/ledger_swagger.json"
 OUTPUT_DIR="$LEDGER_DIR/api"
 OUTPUT_FILE="$OUTPUT_DIR/swagger.json"
 ENV_FILE="$LEDGER_DIR/.env"
+ENV_EXAMPLE_FILE="$LEDGER_DIR/.env.example"
 
-# Read VERSION from .env file
+# Read VERSION from .env (preferred), then .env.example, then VERSION env var, then fallback.
+VERSION=""
 if [ -f "$ENV_FILE" ]; then
     VERSION=$(grep -E '^VERSION=' "$ENV_FILE" | cut -d'=' -f2)
-    if [ -z "$VERSION" ]; then
-        echo "Error: VERSION not found in $ENV_FILE"
-        exit 1
+    if [ -n "$VERSION" ]; then
+        echo "Using VERSION=$VERSION from .env"
     fi
-    echo "Using VERSION=$VERSION from .env"
-else
-    echo "Error: .env file not found at $ENV_FILE"
-    exit 1
+fi
+
+if [ -z "$VERSION" ] && [ -f "$ENV_EXAMPLE_FILE" ]; then
+    VERSION=$(grep -E '^VERSION=' "$ENV_EXAMPLE_FILE" | cut -d'=' -f2)
+    if [ -n "$VERSION" ]; then
+        echo "Using VERSION=$VERSION from .env.example"
+    fi
+fi
+
+if [ -z "$VERSION" ]; then
+    VERSION="v0.0.0"
+    echo "Warning: VERSION not found in .env/.env.example. Falling back to $VERSION"
 fi
 
 # Check if source files exist

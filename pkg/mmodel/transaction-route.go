@@ -58,16 +58,14 @@ type CreateTransactionRouteInput struct {
 	Description string `json:"description,omitempty" validate:"max=250" example:"Settlement route for service charges"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-	// An object containing accounting data of Operation Routes from the Transaction Route.
-	OperationRoutes []OperationRouteActionInput `json:"operationRoutes,omitempty" validate:"required,dive"`
+	// A list of Operation Route IDs associated with the Transaction Route.
+	OperationRoutes []uuid.UUID `json:"operationRoutes,omitempty" validate:"required,dive,required" format:"uuid"`
 } // @name CreateTransactionRouteInput
 
 // OperationRouteIDs extracts the operation route UUIDs from the input.
 func (c *CreateTransactionRouteInput) OperationRouteIDs() []uuid.UUID {
 	ids := make([]uuid.UUID, len(c.OperationRoutes))
-	for i, route := range c.OperationRoutes {
-		ids[i] = route.OperationRouteID
-	}
+	copy(ids, c.OperationRoutes)
 
 	return ids
 }
