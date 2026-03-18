@@ -46,7 +46,7 @@ type Period struct {
 	// format: date-time
 	From time.Time `json:"from" format:"date-time"`
 
-	// End of the period (exclusive)
+	// End of the period (inclusive)
 	// example: 2026-02-01T00:00:00Z
 	// format: date-time
 	To time.Time `json:"to" format:"date-time"`

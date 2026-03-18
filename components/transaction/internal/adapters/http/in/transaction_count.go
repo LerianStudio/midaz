@@ -97,7 +97,7 @@ func (handler *TransactionHandler) CountTransactionsByRoute(c *fiber.Ctx) error 
 
 	// Validate route is a valid UUID
 	if _, err := uuid.Parse(route); err != nil {
-		validationErr := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "Transaction", "route must be a valid UUID")
+		validationErr := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "route")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid route UUID", validationErr)
 
@@ -109,7 +109,7 @@ func (handler *TransactionHandler) CountTransactionsByRoute(c *fiber.Ctx) error 
 	// Parse start_date
 	startDate, err := time.Parse(time.RFC3339, startDateStr)
 	if err != nil {
-		validationErr := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "Transaction", "start_date must be in RFC3339 format")
+		validationErr := pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", "start_date", "RFC3339 (e.g. 2026-01-01T00:00:00Z)")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid start_date format", validationErr)
 
@@ -121,11 +121,22 @@ func (handler *TransactionHandler) CountTransactionsByRoute(c *fiber.Ctx) error 
 	// Parse end_date
 	endDate, err := time.Parse(time.RFC3339, endDateStr)
 	if err != nil {
-		validationErr := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "Transaction", "end_date must be in RFC3339 format")
+		validationErr := pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", "end_date", "RFC3339 (e.g. 2026-01-01T00:00:00Z)")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid end_date format", validationErr)
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid end_date format: %s", endDateStr))
+
+		return http.WithError(c, validationErr)
+	}
+
+	// Validate start_date is before end_date
+	if !libCommons.IsInitialDateBeforeFinalDate(startDate, endDate) {
+		validationErr := pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, "")
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "start_date must be before end_date", validationErr)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("start_date (%s) is not before end_date (%s)", startDateStr, endDateStr))
 
 		return http.WithError(c, validationErr)
 	}

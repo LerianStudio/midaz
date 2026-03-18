@@ -1205,8 +1205,8 @@ func (r *TransactionPostgreSQLRepository) CountByRoute(ctx context.Context, orga
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("status = ?", status)).
 		Where(squirrel.Expr("route = ?", route)).
-		Where(squirrel.Expr("created_at >= ?", from)).
-		Where(squirrel.Expr("created_at < ?", to)).
+		Where(squirrel.GtOrEq{"created_at": from}).
+		Where(squirrel.LtOrEq{"created_at": to}).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		PlaceholderFormat(squirrel.Dollar)
 

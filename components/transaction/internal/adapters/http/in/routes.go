@@ -76,7 +76,6 @@ func RegisterRoutesToApp(f fiber.Router, auth *middleware.AuthClient, th *Transa
 
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", protectedMidaz(auth, "transactions", "get", routeOptions, http.ParseUUIDPathParameters("transaction"), th.GetTransaction)...)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", protectedMidaz(auth, "transactions", "get", routeOptions, http.ParseUUIDPathParameters("transaction"), th.GetAllTransactions)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", auth.Authorize(midazName, "transactions", "get"), http.ParseUUIDPathParameters("transaction"), th.GetAllTransactions)
 
 	// Operations
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations", protectedMidaz(auth, "operations", "get", routeOptions, http.ParseUUIDPathParameters("operation"), oh.GetAllOperationsByAccount)...)

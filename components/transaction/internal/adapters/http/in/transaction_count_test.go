@@ -126,6 +126,30 @@ func TestTransactionHandler_CountTransactionsByRoute(t *testing.T) {
 			},
 		},
 		{
+			name:           "invalid end_date format returns 400",
+			queryParams:    "?route=550e8400-e29b-41d4-a716-446655440010&status=APPROVED&start_date=2026-01-01T00:00:00Z&end_date=bad-date",
+			setupMocks:     func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {},
+			expectedStatus: nethttp.StatusBadRequest,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+				assert.Contains(t, errResp, "code")
+			},
+		},
+		{
+			name:           "start_date after end_date returns 400",
+			queryParams:    "?route=550e8400-e29b-41d4-a716-446655440010&status=APPROVED&start_date=2026-03-01T00:00:00Z&end_date=2026-01-01T00:00:00Z",
+			setupMocks:     func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {},
+			expectedStatus: nethttp.StatusBadRequest,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+				assert.Contains(t, errResp, "code")
+			},
+		},
+		{
 			name:        "repository error returns 500",
 			queryParams: "?route=550e8400-e29b-41d4-a716-446655440010&status=APPROVED&start_date=2026-01-01T00:00:00Z&end_date=2026-02-01T00:00:00Z",
 			setupMocks: func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {
