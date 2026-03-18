@@ -40,14 +40,16 @@ func (k BalanceCompositeKey) String() string {
 
 // BalanceCompositeKeyFromRedisKey extracts a composite key from a Redis balance key.
 // Redis key format: "balance:{transactions}:orgID:ledgerID:alias#partitionKey"
+// Note: alias may contain colons (e.g., "test:account:100"), so we join parts[4:] before splitting by #
 func BalanceCompositeKeyFromRedisKey(redisKey string) (BalanceCompositeKey, error) {
 	// Expected format: balance:{transactions}:orgID:ledgerID:alias#key
+	// Note: alias may contain colons, so we need at least 5 parts but may have more
 	parts := strings.Split(redisKey, ":")
 	if len(parts) < 5 {
-		return BalanceCompositeKey{}, fmt.Errorf("invalid redis key format: expected 5 parts, got %d", len(parts))
+		return BalanceCompositeKey{}, fmt.Errorf("invalid redis key format: expected at least 5 parts, got %d", len(parts))
 	}
 
-	// Parts: [balance, {transactions}, orgID, ledgerID, alias#key]
+	// Parts: [balance, {transactions}, orgID, ledgerID, alias...#key]
 	orgID, err := uuid.Parse(parts[2])
 	if err != nil {
 		return BalanceCompositeKey{}, fmt.Errorf("invalid organization ID at position 2: %w", err)
@@ -58,8 +60,8 @@ func BalanceCompositeKeyFromRedisKey(redisKey string) (BalanceCompositeKey, erro
 		return BalanceCompositeKey{}, fmt.Errorf("invalid ledger ID at position 3: %w", err)
 	}
 
-	// The last part contains alias#partitionKey
-	aliasAndKey := parts[4]
+	// Join all parts from index 4 onwards to handle aliases with colons (e.g., "test:account:100#other")
+	aliasAndKey := strings.Join(parts[4:], ":")
 	aliasParts := strings.Split(aliasAndKey, "#")
 
 	alias := aliasParts[0]

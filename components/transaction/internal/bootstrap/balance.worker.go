@@ -543,12 +543,17 @@ func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool
 func (w *BalanceSyncWorker) waitUntilDue(ctx context.Context, dueAtUnix int64, logger libLog.Logger) bool {
 	nowUnix := time.Now().Unix()
 	if dueAtUnix <= nowUnix {
-		return false
+		// Due time already passed but item not processed (ZSET/sync-queue desync).
+		// Apply minimal backoff to prevent busy loop when:
+		// - ZSET has entry with expired score
+		// - Sync queue is empty (lock already claimed or data expired)
+		// Without this delay, the worker would spin indefinitely.
+		return waitOrDone(ctx, 500*time.Millisecond, logger)
 	}
 
 	waitFor := time.Duration(dueAtUnix-nowUnix) * time.Second
 	if waitFor <= 0 {
-		return false
+		return waitOrDone(ctx, 500*time.Millisecond, logger)
 	}
 
 	return waitOrDone(ctx, waitFor, logger)
