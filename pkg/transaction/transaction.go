@@ -64,10 +64,12 @@ type Metadata struct {
 // swagger:model Amount
 // @Description Amount is the struct designed to represent the amount of an operation.
 type Amount struct {
-	Asset           string          `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value           decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
-	Operation       string          `json:"operation,omitempty"`
-	TransactionType string          `json:"transactionType,omitempty"`
+	Asset                  string          `json:"asset,omitempty" validate:"required" example:"BRL"`
+	Value                  decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
+	Operation              string          `json:"operation,omitempty"`
+	TransactionType        string          `json:"transactionType,omitempty"`
+	Direction              string          `json:"direction,omitempty"`
+	RouteValidationEnabled bool            `json:"routeValidationEnabled,omitempty"`
 } // @name Amount
 
 // Share structure for marshaling/unmarshalling JSON.
@@ -130,7 +132,10 @@ type FromTo struct {
 	ChartOfAccounts string         `json:"chartOfAccounts" example:"1000"`
 	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 	IsFrom          bool           `json:"isFrom,omitempty" example:"true"`
-	Route           string         `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
+	// Deprecated: legacy route identifier, use routeId instead. Contains the same value as routeId but as a free-form string.
+	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
+	// UUID of the operation route. Prefer this over the legacy route field.
+	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 } // @name FromTo
 
 // SplitAlias function to split alias with index.
@@ -170,14 +175,15 @@ type Distribute struct {
 // swagger:model Transaction
 // @Description Transaction is a struct designed to store transaction data.
 type Transaction struct {
-	ChartOfAccountsGroupName string           `json:"chartOfAccountsGroupName,omitempty" example:"1000"`
-	Description              string           `json:"description,omitempty" example:"Description"`
-	Code                     string           `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	Pending                  bool             `json:"pending,omitempty" example:"false"`
-	Metadata                 map[string]any   `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-	Route                    string           `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
-	TransactionDate          *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
-	Send                     Send             `json:"send" validate:"required"`
+	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"1000"`
+	Description              string         `json:"description,omitempty" example:"Description"`
+	Code                     string         `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	Pending                  bool           `json:"pending,omitempty" example:"false"`
+	Metadata                 map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	// Deprecated: legacy route identifier, duplicates the operation route UUID. Prefer routeId on FromTo entries instead.
+	Route           string           `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
+	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
+	Send            Send             `json:"send" validate:"required"`
 } // @name Transaction
 
 // IsEmpty is a func that validate if transaction is Empty.

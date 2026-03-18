@@ -5,9 +5,11 @@
 package in
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
+	"fmt"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -54,21 +56,17 @@ func (handler *AccountTypeHandler) CreateAccountType(i any, c *fiber.Ctx) error 
 
 	payload := i.(*mmodel.CreateAccountTypeInput)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
-
-	logger.Infof("Request to create an account type with details: %#v", payload)
+	recordSafePayloadAttributes(span, payload)
+	logSafePayload(ctx, logger, "Request to create an account type", payload)
 
 	accountType, err := handler.Command.CreateAccountType(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account type", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create account type", err)
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully created account type")
+	logger.Log(ctx, libLog.LevelInfo, "Successfully created account type")
 
 	return http.Created(c, accountType)
 }
@@ -102,18 +100,18 @@ func (handler *AccountTypeHandler) GetAccountTypeByID(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating retrieval of Account Type with ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Account Type with ID: %s", id.String()))
 
 	accountType, err := handler.Query.GetAccountTypeByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account Type on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account Type on query", err)
 
-		logger.Errorf("Failed to retrieve Account Type with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account Type with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Account Type with ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved Account Type with ID: %s", id.String()))
 
 	return http.OK(c, accountType)
 }
@@ -152,32 +150,27 @@ func (handler *AccountTypeHandler) UpdateAccountType(i any, c *fiber.Ctx) error 
 
 	payload := i.(*mmodel.UpdateAccountTypeInput)
 
-	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.payload", payload)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
-	}
+	recordSafePayloadAttributes(span, payload)
+	logSafePayload(ctx, logger, fmt.Sprintf("Request to update account type with ID: %s", id.String()), payload)
 
-	logger.Infof("Request to update account type with ID: %s and details: %#v", id, payload)
+	if _, err := handler.Command.UpdateAccountType(ctx, organizationID, ledgerID, id, payload); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account type", err)
 
-	_, err = handler.Command.UpdateAccountType(ctx, organizationID, ledgerID, id, payload)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account type", err)
-
-		logger.Errorf("Failed to update account type with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update account type with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
 	accountType, err := handler.Query.GetAccountTypeByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get updated account type", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get updated account type", err)
 
-		logger.Errorf("Failed to get updated account type with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get updated account type with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully updated account type with ID: %s", id)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated account type with ID: %s", id.String()))
 
 	return http.OK(c, accountType)
 }
@@ -210,17 +203,17 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating deletion of Account Type with Account Type ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating deletion of Account Type with Account Type ID: %s", id.String()))
 
 	if err := handler.Command.DeleteAccountTypeByID(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete Account Type on command", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete Account Type on command", err)
 
-		logger.Errorf("Failed to delete Account Type with Account Type ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete Account Type with Account Type ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully deleted Account Type with Account Type ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully deleted Account Type with Account Type ID: %s", id.String()))
 
 	return http.NoContent(c)
 }
@@ -242,7 +235,7 @@ func (handler *AccountTypeHandler) DeleteAccountTypeByID(c *fiber.Ctx) error {
 //	@Param			sort_order		query		string																										false	"Sort order (asc or desc, default: asc)"
 //	@Param			start_date		query		string																										false	"Start date for filtering (YYYY-MM-DD)"
 //	@Param			end_date		query		string																										false	"End date for filtering (YYYY-MM-DD)"
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.AccountType,next_cursor=string,prev_cursor=string,limit=int,page=int}	"Successfully retrieved account types"
+//	@Success		200				{object}	http.Pagination{items=[]mmodel.AccountType}	"Successfully retrieved account types"
 //	@Failure		400				{object}	mmodel.Error																								"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error																								"Unauthorized access"
 //	@Failure		403				{object}	mmodel.Error																								"Forbidden access"
@@ -262,39 +255,37 @@ func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to convert query params to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
-	pagination := libPostgres.Pagination{
-		Limit:      headerParams.Limit,
-		NextCursor: headerParams.Cursor,
-		SortOrder:  headerParams.SortOrder,
-		StartDate:  headerParams.StartDate,
-		EndDate:    headerParams.EndDate,
+	pagination := http.Pagination{
+		Limit:     headerParams.Limit,
+		Page:      headerParams.Page,
+		Cursor:    headerParams.Cursor,
+		SortOrder: headerParams.SortOrder,
+		StartDate: headerParams.StartDate,
+		EndDate:   headerParams.EndDate,
 	}
 
 	if headerParams.Metadata != nil {
-		logger.Infof("Initiating retrieval of all Account Types by metadata")
+		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Account Types by metadata")
 
 		accountTypes, cur, err := handler.Query.GetAllMetadataAccountType(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Account Types on query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Account Types on query", err)
 
-			logger.Errorf("Failed to retrieve all Account Types, Error: %s", err.Error())
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve all Account Types, Error: %s", err.Error()))
 
 			return http.WithError(c, err)
 		}
 
-		logger.Infof("Successfully retrieved all Account Types by metadata")
+		logger.Log(ctx, libLog.LevelInfo, "Successfully retrieved all Account Types by metadata")
 
 		pagination.SetItems(accountTypes)
 		pagination.SetCursor(cur.Next, cur.Prev)
@@ -302,20 +293,20 @@ func (handler *AccountTypeHandler) GetAllAccountTypes(c *fiber.Ctx) error {
 		return http.OK(c, pagination)
 	}
 
-	logger.Infof("Initiating retrieval of Account Types")
+	logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of Account Types")
 
 	headerParams.Metadata = &bson.M{}
 
 	accountTypes, cur, err := handler.Query.GetAllAccountType(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Account Types on query", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Account Types on query", err)
 
-		logger.Errorf("Failed to retrieve Account Types, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Account Types, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved %d Account Types", len(accountTypes))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully retrieved %d Account Types", len(accountTypes)))
 
 	pagination.SetItems(accountTypes)
 	pagination.SetCursor(cur.Next, cur.Prev)

@@ -5,20 +5,21 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	tmpostgres "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
@@ -30,12 +31,31 @@ import (
 const ApplicationName = "transaction"
 
 // initLogger initializes the logger from options or creates a new one.
-func initLogger(opts *Options) (libLog.Logger, error) {
+func initLogger(opts *Options, cfg *Config) (libLog.Logger, error) {
 	if opts != nil && opts.Logger != nil {
 		return opts.Logger, nil
 	}
 
-	return libZap.InitializeLoggerWithError()
+	return libZap.New(libZap.Config{
+		Environment:     resolveLoggerEnvironment(cfg.EnvName),
+		Level:           cfg.LogLevel,
+		OTelLibraryName: ApplicationName,
+	})
+}
+
+func resolveLoggerEnvironment(env string) libZap.Environment {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case string(libZap.EnvironmentProduction):
+		return libZap.EnvironmentProduction
+	case string(libZap.EnvironmentStaging):
+		return libZap.EnvironmentStaging
+	case string(libZap.EnvironmentUAT):
+		return libZap.EnvironmentUAT
+	case string(libZap.EnvironmentDevelopment):
+		return libZap.EnvironmentDevelopment
+	default:
+		return libZap.EnvironmentLocal
+	}
 }
 
 // buildRabbitMQConnectionString constructs an AMQP connection string with optional vhost.
@@ -229,34 +249,73 @@ type handlers struct {
 	transactionRoute *in.TransactionRouteHandler
 }
 
-// initRedis creates the Redis connection and consumer repository.
-func initRedis(cfg *Config, logger libLog.Logger, balanceSyncWorkerEnabled bool) (*redis.RedisConsumerRepository, *libRedis.RedisConnection, error) {
-	redisConnection := &libRedis.RedisConnection{
-		Address:                      strings.Split(cfg.RedisHost, ","),
-		Password:                     cfg.RedisPassword,
-		DB:                           cfg.RedisDB,
-		Protocol:                     cfg.RedisProtocol,
-		MasterName:                   cfg.RedisMasterName,
-		UseTLS:                       cfg.RedisTLS,
-		CACert:                       cfg.RedisCACert,
-		UseGCPIAMAuth:                cfg.RedisUseGCPIAM,
-		ServiceAccount:               cfg.RedisServiceAccount,
-		GoogleApplicationCredentials: cfg.GoogleApplicationCredentials,
-		TokenLifeTime:                time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
-		RefreshDuration:              time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
-		Logger:                       logger,
-		PoolSize:                     cfg.RedisPoolSize,
-		MinIdleConns:                 cfg.RedisMinIdleConns,
-		ReadTimeout:                  time.Duration(cfg.RedisReadTimeout) * time.Second,
-		WriteTimeout:                 time.Duration(cfg.RedisWriteTimeout) * time.Second,
-		DialTimeout:                  time.Duration(cfg.RedisDialTimeout) * time.Second,
-		PoolTimeout:                  time.Duration(cfg.RedisPoolTimeout) * time.Second,
-		MaxRetries:                   cfg.RedisMaxRetries,
-		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
-		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
+func buildRedisConfig(cfg *Config, logger libLog.Logger) (libRedis.Config, error) {
+	redisAddresses := strings.Split(cfg.RedisHost, ",")
+
+	if len(redisAddresses) == 0 || strings.TrimSpace(redisAddresses[0]) == "" {
+		return libRedis.Config{}, fmt.Errorf("redis host is required")
 	}
 
-	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection, balanceSyncWorkerEnabled)
+	topology := libRedis.Topology{}
+	if cfg.RedisMasterName != "" {
+		topology.Sentinel = &libRedis.SentinelTopology{Addresses: redisAddresses, MasterName: cfg.RedisMasterName}
+	} else if len(redisAddresses) > 1 {
+		topology.Cluster = &libRedis.ClusterTopology{Addresses: redisAddresses}
+	} else {
+		topology.Standalone = &libRedis.StandaloneTopology{Address: redisAddresses[0]}
+	}
+
+	var tlsCfg *libRedis.TLSConfig
+	if cfg.RedisTLS {
+		tlsCfg = &libRedis.TLSConfig{CACertBase64: cfg.RedisCACert}
+	}
+
+	auth := libRedis.Auth{}
+	if cfg.RedisUseGCPIAM {
+		auth = libRedis.Auth{GCPIAM: &libRedis.GCPIAMAuth{
+			CredentialsBase64: cfg.GoogleApplicationCredentials,
+			ServiceAccount:    cfg.RedisServiceAccount,
+			TokenLifetime:     time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
+			RefreshEvery:      time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
+		}}
+	} else if cfg.RedisPassword != "" {
+		auth = libRedis.Auth{StaticPassword: &libRedis.StaticPasswordAuth{Password: cfg.RedisPassword}}
+	}
+
+	return libRedis.Config{
+		Topology: topology,
+		TLS:      tlsCfg,
+		Auth:     auth,
+		Options: libRedis.ConnectionOptions{
+			DB:              cfg.RedisDB,
+			Protocol:        cfg.RedisProtocol,
+			PoolSize:        cfg.RedisPoolSize,
+			MinIdleConns:    cfg.RedisMinIdleConns,
+			ReadTimeout:     time.Duration(cfg.RedisReadTimeout) * time.Second,
+			WriteTimeout:    time.Duration(cfg.RedisWriteTimeout) * time.Second,
+			DialTimeout:     time.Duration(cfg.RedisDialTimeout) * time.Second,
+			PoolTimeout:     time.Duration(cfg.RedisPoolTimeout) * time.Second,
+			MaxRetries:      cfg.RedisMaxRetries,
+			MinRetryBackoff: time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
+			MaxRetryBackoff: time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
+		},
+		Logger: logger,
+	}, nil
+}
+
+// initRedis creates the Redis connection and consumer repository.
+func initRedis(cfg *Config, logger libLog.Logger) (*redis.RedisConsumerRepository, *libRedis.Client, error) {
+	redisConfig, err := buildRedisConfig(cfg, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	redisConnection, err := libRedis.New(context.Background(), redisConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize redis client: %w", err)
+	}
+
+	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize redis: %w", err)
 	}
@@ -295,19 +354,14 @@ func initHandlers(commandUC *command.UseCase, queryUC *query.UseCase) *handlers 
 }
 
 // initBalanceSyncWorker creates the balance sync worker (multi-tenant or single-tenant).
-func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, redisConn *libRedis.RedisConnection, pgManager *tmpostgres.Manager) *BalanceSyncWorker {
+func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, redisConn *libRedis.Client, pgManager *tmpostgres.Manager) *BalanceSyncWorker {
 	const defaultBalanceSyncMaxWorkers = 5
 
 	balanceSyncMaxWorkers := cfg.BalanceSyncMaxWorkers
 
 	if balanceSyncMaxWorkers <= 0 {
 		balanceSyncMaxWorkers = defaultBalanceSyncMaxWorkers
-		logger.Infof("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers)
-	}
-
-	if !cfg.BalanceSyncWorkerEnabled {
-		logger.Info("BalanceSyncWorker disabled.")
-		return nil
+		logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers))
 	}
 
 	var balanceSyncWorker *BalanceSyncWorker
@@ -318,7 +372,7 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 		balanceSyncWorker = NewBalanceSyncWorker(redisConn, logger, commandUC, balanceSyncMaxWorkers)
 	}
 
-	logger.Infof("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers)
+	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers))
 
 	return balanceSyncWorker
 }
@@ -331,16 +385,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	logger, err := initLogger(opts)
+	logger, err := initLogger(opts, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
-	// BalanceSyncWorkerEnabled defaults to true via struct tag
-	balanceSyncWorkerEnabled := cfg.BalanceSyncWorkerEnabled
-	logger.Infof("BalanceSyncWorker: BALANCE_SYNC_WORKER_ENABLED=%v", balanceSyncWorkerEnabled)
+	// BALANCE_SYNC_WORKER_ENABLED is deprecated - balance sync is always enabled
+	logger.Log(context.Background(), libLog.LevelInfo, "BalanceSyncWorker: always enabled (BALANCE_SYNC_WORKER_ENABLED env var is deprecated)")
 
-	telemetry, err := libOpentelemetry.InitializeTelemetryWithError(&libOpentelemetry.TelemetryConfig{
+	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -365,7 +418,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize MongoDB: %w", err)
 	}
 
-	redisConsumerRepository, redisConnection, err := initRedis(cfg, logger, balanceSyncWorkerEnabled)
+	redisConsumerRepository, redisConnection, err := initRedis(cfg, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -417,11 +470,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
-	rmq.wireConsumer(commandUseCase)
+	if err := rmq.wireConsumer(commandUseCase); err != nil {
+		return nil, err
+	}
 
 	h := initHandlers(commandUseCase, queryUseCase)
 
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
 
 	app := in.NewRouter(logger, telemetry, auth, h.transaction, h.operation, h.assetRate, h.balance, h.operationRoute, h.transactionRoute)
 
@@ -430,7 +485,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if cfg.ProtoAddress == "" || cfg.ProtoAddress == ":" {
 		cfg.ProtoAddress = ":3011"
 
-		logger.Warn("PROTO_ADDRESS not set or invalid, using default: :3011")
+		logger.Log(context.Background(), libLog.LevelWarn, "PROTO_ADDRESS not set or invalid, using default: :3011")
 	}
 
 	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, commandUseCase, queryUseCase)
@@ -454,7 +509,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MultiTenantConsumer:      rmq.multiTenantConsumer,
 		RedisQueueConsumer:       redisConsumer,
 		BalanceSyncWorker:        balanceSyncWorker,
-		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
+		BalanceSyncWorkerEnabled: true, // Always enabled (env var is deprecated)
 		CircuitBreakerManager:    rmq.circuitBreakerManager,
 		Logger:                   logger,
 		Ports: Ports{

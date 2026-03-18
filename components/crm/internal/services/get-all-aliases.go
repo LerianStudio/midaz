@@ -6,12 +6,14 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -33,8 +35,8 @@ func (uc *UseCase) GetAllAliases(ctx context.Context, organizationID string, hol
 
 	aliases, err := uc.AliasRepo.FindAll(ctx, organizationID, holderID, filter, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get aliases", err)
-		logger.Errorf("Failed to get aliases: %v", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get aliases", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get aliases: %v", err))
 
 		return nil, err
 	}

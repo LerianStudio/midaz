@@ -7,14 +7,15 @@ package services
 import (
 	"context"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// GetAllHolders that match a query filter, and returns inside a paginated array
+// GetAllHolders retrieves holders that match the query filter.
 func (uc *UseCase) GetAllHolders(ctx context.Context, organizationID string, filter http.QueryHeader, includeDeleted bool) ([]*mmodel.Holder, error) {
 	logger, tracer, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -26,13 +27,13 @@ func (uc *UseCase) GetAllHolders(ctx context.Context, organizationID string, fil
 		attribute.String("app.request.organization_id", organizationID),
 	)
 
-	logger.Infof("Retrieving holders")
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving holders")
 
 	holders, err := uc.HolderRepo.FindAll(ctx, organizationID, filter, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get holders", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get holders", err)
 
-		logger.Errorf("Failed to get holders: %v", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get holders", libLog.Err(err))
 
 		return nil, err
 	}

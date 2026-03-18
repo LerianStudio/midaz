@@ -21,9 +21,8 @@ import (
 	"testing"
 	"time"
 
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 	"github.com/google/uuid"
@@ -44,7 +43,7 @@ type onboardingChaosInfra struct {
 	redisContainer *redistestutil.ContainerResult
 	chaosInfra     *chaos.Infrastructure
 	proxyRepo      *RedisConsumerRepository
-	proxyConn      *libRedis.RedisConnection
+	proxyConn      *libRedis.Client
 	proxy          *chaos.Proxy
 }
 
@@ -85,11 +84,7 @@ func setupOnboardingRedisChaosNetworkInfra(t *testing.T) *onboardingChaosInfra {
 	proxyAddr := containerInfo.ProxyListen
 
 	// 6. Build a RedisConsumerRepository pointing at the proxy address.
-	logger := libZap.InitializeLogger()
-	proxyConn := &libRedis.RedisConnection{
-		Address: []string{proxyAddr},
-		Logger:  logger,
-	}
+	proxyConn := redistestutil.CreateConnection(t, proxyAddr)
 
 	proxyRepo := &RedisConsumerRepository{
 		conn: proxyConn,
@@ -105,7 +100,7 @@ func setupOnboardingRedisChaosNetworkInfra(t *testing.T) *onboardingChaosInfra {
 }
 
 // =============================================================================
-// CS-1: CONNECTION LOSS DURING SET
+// CONNECTION LOSS DURING SET
 // =============================================================================
 
 // TestIntegration_Chaos_RedisNamespacing_ConnectionLossOnSet verifies that
@@ -209,11 +204,11 @@ func TestIntegration_Chaos_RedisNamespacing_ConnectionLossOnSet(t *testing.T) {
 	assert.Equal(t, recoveryValue, rawVal,
 		"Phase 5: value stored under namespaced key must match after recovery")
 
-	t.Log("CS-1 PASS: Set with tenant context returns error on connection loss, recovers with correct namespace")
+	t.Log("PASS: Set with tenant context returns error on connection loss, recovers with correct namespace")
 }
 
 // =============================================================================
-// CS-2: FULL CYCLE — RECOVERY AFTER RECONNECT
+// FULL CYCLE — RECOVERY AFTER RECONNECT
 // =============================================================================
 
 // TestIntegration_Chaos_RedisNamespacing_RecoveryAfterReconnect verifies the
@@ -384,5 +379,5 @@ func TestIntegration_Chaos_RedisNamespacing_RecoveryAfterReconnect(t *testing.T)
 	assert.ErrorIs(t, barePostErr, redis.Nil, "Phase 5: bare key must NOT exist in Redis after recovery")
 	assert.Empty(t, barePost, "Phase 5: bare key must have no value after recovery")
 
-	t.Log("CS-2 PASS: namespaced Set/Get work correctly after Redis recovers from outage")
+	t.Log("PASS: namespaced Set/Get work correctly after Redis recovers from outage")
 }

@@ -8,11 +8,11 @@ import (
 	"context"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v3/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -124,24 +124,24 @@ func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, k
 	tenantID := tmcore.GetTenantIDFromContext(ctx)
 	if tenantID == "" {
 		err := fmt.Errorf("tenant ID is required in context for multi-tenant producer")
-		libOpentelemetry.HandleSpanError(&span, "Missing tenant ID in context", err)
+		libOpentelemetry.HandleSpanError(span, "Missing tenant ID in context", err)
 
 		return nil, err
 	}
 
-	logger.Infof("Publishing message to exchange: %s, key: %s, tenant: %s", exchange, key, tenantID)
+	logger.Log(ctx, libLog.LevelInfo, "Publishing message", libLog.String("exchange", exchange), libLog.String("key", key), libLog.String("tenant_id", tenantID))
 
 	ch, err := p.channelProvider.GetChannel(ctx, tenantID)
 	if err != nil {
-		logger.Errorf("Failed to get channel for tenant %s: %v", tenantID, err)
-		libOpentelemetry.HandleSpanError(&span, "Failed to get channel", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get channel for tenant", libLog.String("tenant_id", tenantID), libLog.Err(err))
+		libOpentelemetry.HandleSpanError(span, "Failed to get channel", err)
 
 		return nil, fmt.Errorf("failed to get channel for tenant %s: %w", tenantID, err)
 	}
 
 	if ch == nil {
 		err := fmt.Errorf("channel provider returned nil channel for tenant %s", tenantID)
-		libOpentelemetry.HandleSpanError(&span, "Nil channel returned", err)
+		libOpentelemetry.HandleSpanError(span, "Nil channel returned", err)
 
 		return nil, err
 	}
@@ -162,13 +162,13 @@ func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, k
 		Body:         message,
 	})
 	if err != nil {
-		logger.Errorf("Failed to publish message to exchange: %s, key: %s, tenant: %s: %v", exchange, key, tenantID, err)
-		libOpentelemetry.HandleSpanError(&span, "Failed to publish message", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to publish message", libLog.String("exchange", exchange), libLog.String("key", key), libLog.String("tenant_id", tenantID), libLog.Err(err))
+		libOpentelemetry.HandleSpanError(span, "Failed to publish message", err)
 
 		return nil, err
 	}
 
-	logger.Infof("Message sent successfully to exchange: %s, key: %s, tenant: %s", exchange, key, tenantID)
+	logger.Log(ctx, libLog.LevelInfo, "Message sent successfully", libLog.String("exchange", exchange), libLog.String("key", key), libLog.String("tenant_id", tenantID))
 
 	return nil, nil
 }

@@ -11,9 +11,9 @@ import (
 	"testing"
 	"testing/quick"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -223,7 +223,8 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 	// incompatible with parallel ancestors (Go testing restriction).
 
 	// Inject a pre-configured logger to avoid logger init side effects in test output.
-	logger, _ := libZap.InitializeLoggerWithError()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "ledger-test"})
+	require.NoError(t, err, "logger init must not fail")
 
 	tests := []struct {
 		name            string
@@ -232,7 +233,7 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 		wantErrContains string
 	}{
 		{
-			// AC-2: The primary scenario - enabled with no URL set at all.
+			// The primary scenario - enabled with no URL set at all.
 			name: "enabled_no_url_set_returns_error",
 			envVars: map[string]string{
 				"MULTI_TENANT_ENABLED": "true",
@@ -243,7 +244,7 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 			wantErrContains: "MULTI_TENANT_URL",
 		},
 		{
-			// AC-2: Explicitly set to empty string is also rejected.
+			// Explicitly set to empty string is also rejected.
 			name: "enabled_url_explicit_empty_returns_error",
 			envVars: map[string]string{
 				"MULTI_TENANT_ENABLED": "true",
@@ -277,7 +278,7 @@ func TestInitServersWithOptions_MultiTenantValidation(t *testing.T) {
 			wantErrContains: "APPLICATION_NAME",
 		},
 		{
-			// AC-3: Disabled flag short-circuits all multi-tenant logic — no error
+			// Disabled flag short-circuits all multi-tenant logic — no error
 			// even though URL is also absent.
 			name: "disabled_no_url_no_error_from_validation",
 			envVars: map[string]string{
@@ -587,7 +588,7 @@ func TestProperty_Config_DisabledModeIsIdentity(t *testing.T) {
 // MultiTenantEnabled=true and MultiTenantURL is empty, the validation
 // guard always evaluates to the error branch.
 func TestProperty_Config_EnabledEmptyURLAlwaysErrors(t *testing.T) {
-	logger, err := libZap.InitializeLoggerWithError()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "ledger-test"})
 	require.NoError(t, err, "logger init must not fail")
 
 	property := func(service, env string, cbFailures, cbTimeout uint8) bool {

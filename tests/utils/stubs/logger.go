@@ -9,10 +9,11 @@
 package stubs
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
 // Compile-time check that LoggerStub implements libLog.Logger
@@ -40,6 +41,44 @@ type LoggerStub struct {
 	Errors   []string
 	Debugs   []string
 	Fatals   []string
+}
+
+// Log captures structured log messages from libLog.Logger interface.
+func (l *LoggerStub) Log(_ context.Context, level libLog.Level, msg string, fields ...libLog.Field) {
+	if len(fields) > 0 {
+		parts := make([]string, 0, len(fields))
+		for _, field := range fields {
+			parts = append(parts, fmt.Sprintf("%s=%v", field.Key, field.Value))
+		}
+
+		msg = fmt.Sprintf("%s %s", msg, strings.Join(parts, " "))
+	}
+
+	switch level {
+	case libLog.LevelError:
+		l.Errors = append(l.Errors, msg)
+	case libLog.LevelWarn:
+		l.Warnings = append(l.Warnings, msg)
+	case libLog.LevelDebug:
+		l.Debugs = append(l.Debugs, msg)
+	default:
+		l.Infos = append(l.Infos, msg)
+	}
+}
+
+// With returns self (no-op for stub).
+func (l *LoggerStub) With(_ ...libLog.Field) libLog.Logger {
+	return l
+}
+
+// WithGroup returns self (no-op for stub).
+func (l *LoggerStub) WithGroup(_ string) libLog.Logger {
+	return l
+}
+
+// Enabled always returns true for tests.
+func (l *LoggerStub) Enabled(_ libLog.Level) bool {
+	return true
 }
 
 // Info captures info messages.
@@ -117,18 +156,8 @@ func (l *LoggerStub) Fatalln(args ...any) {
 	l.Fatals = append(l.Fatals, fmt.Sprintln(args...))
 }
 
-// WithFields returns self (no-op for stub).
-func (l *LoggerStub) WithFields(fields ...any) libLog.Logger {
-	return l
-}
-
-// WithDefaultMessageTemplate returns self (no-op for stub).
-func (l *LoggerStub) WithDefaultMessageTemplate(message string) libLog.Logger {
-	return l
-}
-
 // Sync is a no-op for stub.
-func (l *LoggerStub) Sync() error {
+func (l *LoggerStub) Sync(_ context.Context) error {
 	return nil
 }
 

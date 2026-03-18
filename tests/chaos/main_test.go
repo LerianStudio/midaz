@@ -11,5 +11,5 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	h.RunTestsWithAuth(m)
+	h.RunChaosTests(m)
 }

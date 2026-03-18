@@ -20,11 +20,11 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v3/commons/rabbitmq"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
@@ -54,7 +54,7 @@ type testInfra struct {
 	pgContainer    *postgrestestutil.ContainerResult
 	mongoContainer *mongotestutil.ContainerResult
 	redisContainer *redistestutil.ContainerResult
-	pgConn         *libPostgres.PostgresConnection
+	pgConn         *libPostgres.Client
 	redisRepo      redis.RedisRepository
 	metadataRepo   mongodb.Repository
 	handler        *TransactionHandler
@@ -79,18 +79,10 @@ func setupTestInfra(t *testing.T) *testInfra {
 	infra.redisContainer = redistestutil.SetupContainer(t)
 
 	// Create PostgreSQL connection following lib-commons pattern
-	logger := libZap.InitializeLogger()
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
 	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
 
-	infra.pgConn = &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           infra.pgContainer.Config.DBName,
-		ReplicaDBName:           infra.pgContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	infra.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, infra.pgContainer.Config.DBName, migrationsPath)
 
 	// Create MongoDB connection
 	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
@@ -103,7 +95,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
-	redisRepo, err := redis.NewConsumerRedis(redisConn, false)
+	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	// Store repositories for test assertions
@@ -134,8 +126,8 @@ func setupTestInfra(t *testing.T) *testInfra {
 
 	// Use fake UUIDs for org and ledger (they're in the onboarding component, not transaction)
 	// The transaction component only validates these IDs exist in its own tables
-	infra.orgID = libCommons.GenerateUUIDv7()
-	infra.ledgerID = libCommons.GenerateUUIDv7()
+	infra.orgID = uuid.Must(libCommons.GenerateUUIDv7())
+	infra.ledgerID = uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Setup Fiber app with routes
 	infra.app = fiber.New()
@@ -219,8 +211,8 @@ func TestIntegration_TransactionHandler_CreateTransactionJSON_Sync(t *testing.T)
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
 	// Use fake account IDs (account table is in onboarding component)
-	sourceAccountID := libCommons.GenerateUUIDv7()
-	destAccountID := libCommons.GenerateUUIDv7()
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create source balance (@source-account) with 1000 USD available
 	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
@@ -466,7 +458,7 @@ type testAsyncInfra struct {
 	mongoContainer       *mongotestutil.ContainerResult
 	redisContainer       *redistestutil.ContainerResult
 	rabbitmqContainer    *rabbitmqtestutil.ContainerResult
-	pgConn               *libPostgres.PostgresConnection
+	pgConn               *libPostgres.Client
 	redisRepo            redis.RedisRepository
 	handler              *TransactionHandler
 	commandUC            *command.UseCase
@@ -509,23 +501,23 @@ func (mq *testMultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []by
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update")
 	defer span.End()
 
-	logger.Info("Processing message from balance_retry_queue_fifo")
+	logger.Log(ctx, libLog.LevelInfo, "Processing message from balance_retry_queue_fifo")
 
 	var message mmodel.Queue
 
 	err := msgpack.Unmarshal(body, &message)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Error unmarshalling message JSON", err)
-		logger.Errorf("Error unmarshalling balance message JSON: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Error unmarshalling message JSON", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error unmarshalling balance message JSON: %v", err))
 		return err
 	}
 
-	logger.Infof("Transaction message consumed: %s", message.QueueData[0].ID)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction message consumed: %s", message.QueueData[0].ID))
 
 	err = mq.useCase.CreateBalanceTransactionOperationsAsync(ctx, message)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Error creating transaction", err)
-		logger.Errorf("Error creating transaction: %v", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Error creating transaction", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating transaction: %v", err))
 		return err
 	}
 
@@ -583,31 +575,24 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	rabbitmqtestutil.SetupQueue(t, infra.rabbitmqContainer.Channel, "test.transaction.queue", "test.transaction.exchange", "test.transaction.key")
 
 	// Create PostgreSQL connection following lib-commons pattern
-	logger := libZap.InitializeLogger()
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
 	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
 
-	infra.pgConn = &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           infra.pgContainer.Config.DBName,
-		ReplicaDBName:           infra.pgContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	infra.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, infra.pgContainer.Config.DBName, migrationsPath)
 
 	// Create MongoDB connection
 	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
 
 	// Create Redis connection
 	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	logger := &libLog.GoLogger{Level: libLog.LevelInfo}
 
 	// Create repositories
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
-	redisRepo, err := redis.NewConsumerRedis(redisConn, false)
+	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
 
 	// Store Redis repository for test assertions
@@ -623,7 +608,8 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 		Pass:                   rabbitmqtestutil.DefaultPassword,
 		Logger:                 logger,
 	}
-	producerRepo := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	producerRepo, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	require.NoError(t, err, "failed to create RabbitMQ producer")
 
 	// Create use cases with RabbitMQ producer
 	queryUC := &query.UseCase{
@@ -649,8 +635,8 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	}
 
 	// Use fake UUIDs for org and ledger (they're in the onboarding component, not transaction)
-	infra.orgID = libCommons.GenerateUUIDv7()
-	infra.ledgerID = libCommons.GenerateUUIDv7()
+	infra.orgID = uuid.Must(libCommons.GenerateUUIDv7())
+	infra.ledgerID = uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Setup Fiber app with routes
 	infra.app = fiber.New()
@@ -669,13 +655,14 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	}
 
 	// Initialize telemetry for consumer
-	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
+	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
 		LibraryName:     "test",
 		ServiceName:     "transaction-test",
 		ServiceVersion:  "test",
 		EnableTelemetry: false,
 		Logger:          logger,
 	})
+	require.NoError(t, err, "failed to initialize telemetry")
 
 	// Create consumer routes (used by newTestMultiQueueConsumer during test execution)
 	infra.consumerRoutes = rabbitmq.NewConsumerRoutes(infra.consumerRabbitMQConn, 1, 1, logger, telemetry)
@@ -800,8 +787,8 @@ func TestIntegration_TransactionHandler_CreateTransactionJSON_Async(t *testing.T
 	time.Sleep(500 * time.Millisecond)
 
 	// Use fake account IDs (account table is in onboarding component)
-	sourceAccountID := libCommons.GenerateUUIDv7()
-	destAccountID := libCommons.GenerateUUIDv7()
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create source balance (@source-async) with 1000 USD available
 	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
@@ -998,8 +985,8 @@ func TestIntegration_TransactionHandler_PendingTransaction_CreateAndCommit(t *te
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
 	// Use fake account IDs (account table is in onboarding component)
-	sourceAccountID := libCommons.GenerateUUIDv7()
-	destAccountID := libCommons.GenerateUUIDv7()
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create source balance (@source-pending) with 1000 USD available
 	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
@@ -1228,8 +1215,8 @@ func TestIntegration_TransactionHandler_CommitOnNonPending_Returns4xx(t *testing
 	// Ensure sync mode is enabled
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
-	sourceAccountID := libCommons.GenerateUUIDv7()
-	destAccountID := libCommons.GenerateUUIDv7()
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create source balance with 1000 USD
 	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
@@ -1315,8 +1302,8 @@ func TestIntegration_TransactionHandler_RevertOnPending_Returns4xx(t *testing.T)
 	// Ensure sync mode is enabled
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
-	sourceAccountID := libCommons.GenerateUUIDv7()
-	destAccountID := libCommons.GenerateUUIDv7()
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create source balance with 1000 USD
 	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
@@ -1411,8 +1398,8 @@ func TestIntegration_TransactionHandler_PendingTransaction_Revert(t *testing.T) 
 	// Ensure sync mode is enabled
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
-	sourceAccountID := libCommons.GenerateUUIDv7()
-	destAccountID := libCommons.GenerateUUIDv7()
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create source balance with 1000 USD
 	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
@@ -1592,8 +1579,8 @@ func TestIntegration_TransactionHandler_CancelPendingTransaction(t *testing.T) {
 	// Ensure sync mode is enabled
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
-	sourceAccountID := libCommons.GenerateUUIDv7()
-	destAccountID := libCommons.GenerateUUIDv7()
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Initial balances: source=1000 USD, dest=0 USD
 	initialSourceAvailable := decimal.NewFromInt(1000)
@@ -1756,8 +1743,8 @@ func TestIntegration_TransactionHandler_CancelOnNonPending_Returns4xx(t *testing
 	// Ensure sync mode is enabled
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
-	sourceAccountID := libCommons.GenerateUUIDv7()
-	destAccountID := libCommons.GenerateUUIDv7()
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create source balance with 1000 USD
 	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
@@ -1859,7 +1846,7 @@ func TestIntegration_TransactionHandler_ConcurrentMixedTransactions(t *testing.T
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
 	// Use fake account ID (account table is in onboarding component)
-	accountID := libCommons.GenerateUUIDv7()
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Initial balance: 100 USD
 	initialBalance := decimal.NewFromInt(100)
@@ -1874,7 +1861,7 @@ func TestIntegration_TransactionHandler_ConcurrentMixedTransactions(t *testing.T
 		infra.orgID, infra.ledgerID, accountID, balanceParams)
 
 	// Create external account balance (external accounts allow overdraft)
-	externalAccountID := libCommons.GenerateUUIDv7()
+	externalAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 	externalBalanceParams := postgrestestutil.DefaultBalanceParams()
 	externalBalanceParams.Alias = "@external"
 	externalBalanceParams.AssetCode = "USD"
@@ -2048,8 +2035,8 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 	infra := setupTestInfra(t)
 
 	// Use fake account IDs (account table is in onboarding component)
-	sourceAccountID := libCommons.GenerateUUIDv7()
-	destAccountID := libCommons.GenerateUUIDv7()
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	sourceAlias := "@source-idempotency"
 	destAlias := "@dest-idempotency"
@@ -2181,8 +2168,8 @@ func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
 	infra := setupTestInfra(t)
 
 	// Use fake account IDs (account table is in onboarding component)
-	sourceAccountID := libCommons.GenerateUUIDv7()
-	destAccountID := libCommons.GenerateUUIDv7()
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	sourceAlias := "@source-idem-conflict"
 	destAlias := "@dest-idem-conflict"
@@ -2302,8 +2289,8 @@ func TestIntegration_Property_Transaction_Amounts(t *testing.T) {
 	infra := setupTestInfra(t)
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
-	sourceAccountID := libCommons.GenerateUUIDv7()
-	destAccountID := libCommons.GenerateUUIDv7()
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create source balance with large available amount
 	sourceParams := postgrestestutil.DefaultBalanceParams()
@@ -2389,8 +2376,8 @@ func TestIntegration_Property_Protocol_RapidFire(t *testing.T) {
 	infra := setupTestInfra(t)
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
-	sourceAccountID := libCommons.GenerateUUIDv7()
-	destAccountID := libCommons.GenerateUUIDv7()
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create source balance with enough funds for multiple transactions
 	sourceParams := postgrestestutil.DefaultBalanceParams()
@@ -2482,8 +2469,8 @@ func TestIntegration_Property_Protocol_Idempotency(t *testing.T) {
 	infra := setupTestInfra(t)
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
-	sourceAccountID := libCommons.GenerateUUIDv7()
-	destAccountID := libCommons.GenerateUUIDv7()
+	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
+	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create balances
 	sourceParams := postgrestestutil.DefaultBalanceParams()

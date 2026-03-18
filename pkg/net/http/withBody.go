@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -1020,7 +1020,7 @@ func validateInvalidStrings(fl validator.FieldLevel) bool {
 // of the fields whose value is nil.
 // The prefix parameter is used to build the complete path (e.g., "object.field").
 func findNilFields(data map[string]any, prefix string) []string {
-	var nilFields []string
+	nilFields := []string{}
 
 	for key, value := range data {
 		var fullPath string

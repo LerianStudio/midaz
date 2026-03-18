@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -23,7 +23,7 @@ func TestGetHolderByID(t *testing.T) {
 
 	mockRepo := holder.NewMockRepository(ctrl)
 
-	holderID := libCommons.GenerateUUIDv7()
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 	name := "John Smith"
 	document := "90217469051"
 

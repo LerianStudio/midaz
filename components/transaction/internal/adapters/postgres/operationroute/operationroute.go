@@ -6,6 +6,7 @@ package operationroute
 
 import (
 	"database/sql"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ type OperationRoutePostgreSQLModel struct {
 	OperationType      string         `db:"operation_type"`
 	AccountRuleType    string         `db:"account_rule_type"`
 	AccountRuleValidIf string         `db:"account_rule_valid_if"`
+	AccountingEntries  []byte         `db:"accounting_entries"`
 	CreatedAt          time.Time      `db:"created_at"`
 	UpdatedAt          time.Time      `db:"updated_at"`
 	DeletedAt          sql.NullTime   `db:"deleted_at"`
@@ -72,6 +74,17 @@ func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 		}
 
 		e.Account = account
+	}
+
+	if len(m.AccountingEntries) > 0 {
+		var ae mmodel.AccountingEntries
+		if err := json.Unmarshal(m.AccountingEntries, &ae); err == nil {
+			e.AccountingEntries = &ae
+
+			if actions := ae.Actions(); len(actions) > 0 {
+				e.Action = actions[0]
+			}
+		}
 	}
 
 	if m.DeletedAt.Valid {
@@ -125,6 +138,12 @@ func (m *OperationRoutePostgreSQLModel) FromEntity(e *mmodel.OperationRoute) {
 			if value, ok := e.Account.ValidIf.(string); ok {
 				m.AccountRuleValidIf = value
 			}
+		}
+	}
+
+	if e.AccountingEntries != nil {
+		if data, err := json.Marshal(e.AccountingEntries); err == nil {
+			m.AccountingEntries = data
 		}
 	}
 

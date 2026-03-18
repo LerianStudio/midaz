@@ -9,4 +9,7 @@ const (
 	CREDIT  = "CREDIT"
 	ONHOLD  = "ON_HOLD"
 	RELEASE = "RELEASE"
+
+	DirectionDebit  = "debit"
+	DirectionCredit = "credit"
 )

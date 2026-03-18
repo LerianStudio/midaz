@@ -11,8 +11,8 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 source "$REPO_ROOT"/pkg/shell/colors.sh 2>/dev/null || true
 
 # Get staged files by type (excluding generated files)
-# Excludes: *.pb.go (protobuf), mock_*.go, *_mock.go, *_mocks.go (mockgen)
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=d | grep -E '\.(go|ts|js|sh|proto)$' | grep -v '\.pb\.go$' | grep -v -E '(^|/)mock_.*\.go$' | grep -v -E '_mocks?\.go$' || true)
+# Excludes: *.pb.go (protobuf), mock_*.go, *_mock.go, *_mocks.go (mockgen), docs.go, *_docs.go (swag)
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=d | grep -E '\.(go|ts|js|sh|proto)$' | grep -v '\.pb\.go$' | grep -v -E '(^|/)mock_.*\.go$' | grep -v -E '_mocks?\.go$' | grep -v -E '(^|/)docs\.go$' | grep -v -E '_docs\.go$' || true)
 
 if [ -z "$STAGED_FILES" ]; then
     exit 0

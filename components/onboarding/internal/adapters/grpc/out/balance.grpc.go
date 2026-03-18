@@ -8,9 +8,10 @@ import (
 	"context"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libConstant "github.com/LerianStudio/lib-commons/v3/commons/constants"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libConstant "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
@@ -59,9 +60,9 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 	ctx, span := tracer.Start(ctx, "grpc.create_balance")
 	defer span.End()
 
-	conn, err := b.conn.GetNewClient()
+	conn, err := b.conn.GetNewClientWithContext(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get new client", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get new client", err)
 
 		return nil, err
 	}
@@ -69,27 +70,24 @@ func (b *BalanceGRPCRepository) CreateBalance(ctx context.Context, token string,
 	client := proto.NewBalanceProtoClient(conn)
 
 	ctxReq, spanClientReq := tracer.Start(ctx, "grpc.create_balance.client_request")
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "app.request.payload", req); err != nil {
-		libOpentelemetry.HandleSpanError(&spanClientReq, "Failed to convert BalanceRequest to JSON payload", err)
+	defer spanClientReq.End()
 
-		return nil, err
+	if err := libOpentelemetry.SetSpanAttributesFromValue(spanClientReq, "app.request.payload", req, nil); err != nil {
+		libOpentelemetry.HandleSpanError(spanClientReq, "Failed to convert BalanceRequest to JSON payload", err)
 	}
 
 	// Inject trace context and propagate request_id and authorization (if provided)
 	ctxReq = b.conn.ContextMetadataInjection(ctxReq, token)
 
 	resp, err := client.CreateBalance(ctxReq, req)
-
-	spanClientReq.End()
-
 	if err != nil {
 		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrAccountCreationFailed.Error(), "Account Creation Failed", "Account could not be created")
 		if mapped != err {
 			return nil, mapped
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create balance", err)
-		logger.Errorf("gRPC CreateBalance error: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to create balance", err)
+		logger.Log(ctx, libLog.LevelError, "gRPC CreateBalance error", libLog.Err(err))
 
 		return nil, err
 	}
@@ -104,34 +102,32 @@ func (b *BalanceGRPCRepository) DeleteAllBalancesByAccountID(ctx context.Context
 	ctx, span := tracer.Start(ctx, "grpc.delete_all_balances_by_account_id")
 	defer span.End()
 
-	conn, err := b.conn.GetNewClient()
+	conn, err := b.conn.GetNewClientWithContext(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get new client", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get new client", err)
 		return err
 	}
 
 	client := proto.NewBalanceProtoClient(conn)
 
 	ctxReq, spanClientReq := tracer.Start(ctx, "grpc.delete_all_balances_by_account_id.client_request")
-	if err := libOpentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "app.request.payload", req); err != nil {
-		libOpentelemetry.HandleSpanError(&spanClientReq, "Failed to convert DeleteAllBalancesByAccountIDRequest to JSON payload", err)
-		return err
+	defer spanClientReq.End()
+
+	if err := libOpentelemetry.SetSpanAttributesFromValue(spanClientReq, "app.request.payload", req, nil); err != nil {
+		libOpentelemetry.HandleSpanError(spanClientReq, "Failed to convert DeleteAllBalancesByAccountIDRequest to JSON payload", err)
 	}
 
 	ctxReq = b.conn.ContextMetadataInjection(ctxReq, token)
 
 	_, err = client.DeleteAllBalancesByAccountID(ctxReq, req)
-
-	spanClientReq.End()
-
 	if err != nil {
 		mapped := mgrpc.MapAuthGRPCError(ctxReq, err, constant.ErrAccountBalanceDeletion.Error(), "All Balances Deletion Failed", "All balances could not be deleted")
 		if mapped != err {
 			return mapped
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete all balances by account id", err)
-		logger.Errorf("gRPC DeleteAllBalancesByAccountID error: %v", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to delete all balances by account id", err)
+		logger.Log(ctx, libLog.LevelError, "gRPC DeleteAllBalancesByAccountID error", libLog.Err(err))
 
 		return err
 	}

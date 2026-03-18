@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
@@ -324,6 +325,8 @@ func TestMongoDBModel_ToEntity(t *testing.T) {
 }
 
 func TestMongoDBModel_ToEntity_LegalPerson(t *testing.T) {
+	t.Parallel()
+
 	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
 	holderID := uuid.New()
@@ -370,6 +373,105 @@ func TestMongoDBModel_ToEntity_LegalPerson(t *testing.T) {
 	assert.Equal(t, originalHolder.LegalPerson.Representative.Role, resultHolder.LegalPerson.Representative.Role)
 }
 
+func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing.T) {
+	t.Parallel()
+
+	crypto := testutils.SetupCrypto(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	holderID := uuid.New()
+
+	originalHolder := &mmodel.Holder{
+		ID:       &holderID,
+		Type:     testutils.Ptr("LEGAL_PERSON"),
+		Name:     testutils.Ptr("Nil Optionals Holder"),
+		Document: testutils.Ptr("12345678000190"),
+		Contact:  &mmodel.Contact{},
+		NaturalPerson: &mmodel.NaturalPerson{
+			FavoriteName: testutils.Ptr("Nilly"),
+		},
+		LegalPerson: &mmodel.LegalPerson{
+			TradeName: testutils.Ptr("Nil Fields LLC"),
+			Representative: &mmodel.Representative{
+				Role: testutils.Ptr("Director"),
+			},
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	var model MongoDBModel
+	err := model.FromEntity(originalHolder, crypto)
+	require.NoError(t, err)
+
+	require.NotNil(t, model.Contact)
+	assert.Nil(t, model.Contact.PrimaryEmail)
+	assert.Nil(t, model.Contact.SecondaryEmail)
+	assert.Nil(t, model.Contact.MobilePhone)
+	assert.Nil(t, model.Contact.OtherPhone)
+	require.NotNil(t, model.NaturalPerson)
+	assert.Nil(t, model.NaturalPerson.MotherName)
+	assert.Nil(t, model.NaturalPerson.FatherName)
+	require.NotNil(t, model.LegalPerson)
+	require.NotNil(t, model.LegalPerson.Representative)
+	assert.Nil(t, model.LegalPerson.Representative.Name)
+	assert.Nil(t, model.LegalPerson.Representative.Document)
+	assert.Nil(t, model.LegalPerson.Representative.Email)
+
+	resultHolder, err := model.ToEntity(crypto)
+	require.NoError(t, err)
+
+	require.NotNil(t, resultHolder.Contact)
+	assert.Nil(t, resultHolder.Contact.PrimaryEmail)
+	assert.Nil(t, resultHolder.Contact.SecondaryEmail)
+	assert.Nil(t, resultHolder.Contact.MobilePhone)
+	assert.Nil(t, resultHolder.Contact.OtherPhone)
+	require.NotNil(t, resultHolder.NaturalPerson)
+	assert.Nil(t, resultHolder.NaturalPerson.MotherName)
+	assert.Nil(t, resultHolder.NaturalPerson.FatherName)
+	require.NotNil(t, resultHolder.LegalPerson)
+	require.NotNil(t, resultHolder.LegalPerson.Representative)
+	assert.Nil(t, resultHolder.LegalPerson.Representative.Name)
+	assert.Nil(t, resultHolder.LegalPerson.Representative.Document)
+	assert.Nil(t, resultHolder.LegalPerson.Representative.Email)
+}
+
+func TestMapRepresentativeToEntity_InvalidEncryptedEmailReturnsError(t *testing.T) {
+	t.Parallel()
+
+	crypto := testutils.SetupCrypto(t)
+
+	_, err := mapRepresentativeToEntity(crypto, &RepresentativeMongoDBModel{
+		Email: testutils.Ptr("not-a-valid-ciphertext"),
+	})
+	require.Error(t, err)
+}
+
+func TestMongoDBModel_FromEntity_ContactEncryptFailureReturnsError(t *testing.T) {
+	t.Parallel()
+
+	// A zero-value Crypto lacks the required encryption keys,
+	// so Contact encryption is expected to fail in FromEntity.
+	crypto := &libCrypto.Crypto{}
+	holderID := uuid.New()
+	now := time.Now().UTC().Truncate(time.Second)
+
+	holder := &mmodel.Holder{
+		ID:       &holderID,
+		Type:     testutils.Ptr("LEGAL_PERSON"),
+		Name:     testutils.Ptr("John Doe"),
+		Document: testutils.Ptr("12345678901"),
+		Contact: &mmodel.Contact{
+			PrimaryEmail: testutils.Ptr(""),
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	_, err := mapContactFromEntity(crypto, holder.Contact)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cipher not initialized")
+}
+
 func TestMapAddressFromEntity(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -404,6 +506,19 @@ func TestMapAddressFromEntity(t *testing.T) {
 			},
 			wantNil: false,
 		},
+		{
+			name: "address with description",
+			address: &mmodel.Address{
+				Line1:       "789 Office Blvd",
+				Line2:       testutils.Ptr("Suite 200"),
+				ZipCode:     "54321",
+				City:        "Business City",
+				State:       "BC",
+				Country:     "US",
+				Description: testutils.Ptr("Corporate Office"),
+			},
+			wantNil: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -421,6 +536,9 @@ func TestMapAddressFromEntity(t *testing.T) {
 			assert.Equal(t, tt.address.City, *result.City)
 			assert.Equal(t, tt.address.State, *result.State)
 			assert.Equal(t, tt.address.Country, *result.Country)
+			if tt.address.Description != nil {
+				assert.Equal(t, *tt.address.Description, *result.Description)
+			}
 		})
 	}
 }
@@ -460,6 +578,19 @@ func TestMapAddressToEntity(t *testing.T) {
 			},
 			wantNil: false,
 		},
+		{
+			name: "model with description",
+			model: &AddressMongoDBModel{
+				Line1:       testutils.Ptr("321 Home Lane"),
+				Line2:       testutils.Ptr("Unit 5"),
+				ZipCode:     testutils.Ptr("11111"),
+				City:        testutils.Ptr("Hometown"),
+				State:       testutils.Ptr("HT"),
+				Country:     testutils.Ptr("US"),
+				Description: testutils.Ptr("Primary Residence"),
+			},
+			wantNil: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -476,6 +607,9 @@ func TestMapAddressToEntity(t *testing.T) {
 				assert.Equal(t, *tt.model.Line1, result.Line1)
 			} else {
 				assert.Empty(t, result.Line1)
+			}
+			if tt.model.Description != nil {
+				assert.Equal(t, *tt.model.Description, *result.Description)
 			}
 		})
 	}

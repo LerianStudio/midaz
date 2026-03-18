@@ -7,6 +7,7 @@ package mmodel
 import (
 	"fmt"
 	"maps"
+	"sort"
 
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -187,6 +188,21 @@ var settingsSchema = map[string]map[string]string{
 	},
 }
 
+// knownNestedFieldNames contains all field names that should be nested under a parent key.
+// Used to detect flat structures where these fields appear at the root level.
+// Automatically derived from settingsSchema to ensure consistency.
+var knownNestedFieldNames = func() map[string]string {
+	result := make(map[string]string)
+
+	for parentKey, nestedFields := range settingsSchema {
+		for fieldName := range nestedFields {
+			result[fieldName] = parentKey
+		}
+	}
+
+	return result
+}()
+
 // ValidateSettings validates that the input settings contain only known fields
 // with correct types. Returns an error if unknown fields are found or types are invalid.
 // This enforces strict schema compliance for settings updates.
@@ -199,6 +215,21 @@ var settingsSchema = map[string]map[string]string{
 func ValidateSettings(settings map[string]any) error {
 	if settings == nil {
 		return nil
+	}
+
+	// Check for root-level fields that should be nested under a parent key.
+	// Keys are sorted for deterministic error reporting when multiple root-level fields exist.
+	keys := make([]string, 0, len(settings))
+	for key := range settings {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		if parentKey, isNested := knownNestedFieldNames[key]; isNested {
+			return pkg.ValidateBusinessError(constant.ErrSettingsRootLevelField, "LedgerSettings", key, parentKey, parentKey, key)
+		}
 	}
 
 	// Check each top-level key

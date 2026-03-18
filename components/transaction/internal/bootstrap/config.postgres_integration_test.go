@@ -16,11 +16,12 @@
 package bootstrap
 
 import (
+	"context"
 	"testing"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -78,7 +79,8 @@ func (infra *integrationTestInfra) buildTestConfig() *Config {
 func TestIntegration_InitPostgres_SingleTenantProducesWorkingRepos(t *testing.T) {
 	infra := setupBootstrapIntegrationInfra(t)
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 	cfg := infra.buildTestConfig()
 
 	// Restore the default connector so the real PostgreSQL container is used.
@@ -95,7 +97,6 @@ func TestIntegration_InitPostgres_SingleTenantProducesWorkingRepos(t *testing.T)
 
 	// Verify connection is live.
 	assert.NotNil(t, result.connection, "connection must be non-nil")
-	assert.True(t, result.connection.Connected, "connection must be marked as connected")
 	assert.Nil(t, result.pgManager, "single-tenant must not have a pgManager")
 
 	// Verify all repositories are initialized.
@@ -107,7 +108,7 @@ func TestIntegration_InitPostgres_SingleTenantProducesWorkingRepos(t *testing.T)
 	assert.NotNil(t, result.transactionRouteRepo, "transactionRouteRepo must be initialized")
 
 	// Verify the connection can actually execute queries (Ping via GetDB).
-	db, dbErr := result.connection.GetDB()
+	db, dbErr := result.connection.Resolver(context.Background())
 	require.NoError(t, dbErr, "GetDB must succeed on a connected connection")
 
 	err = db.PingContext(t.Context())
@@ -125,7 +126,8 @@ func TestIntegration_InitPostgres_SingleTenantProducesWorkingRepos(t *testing.T)
 func TestIntegration_InitPostgres_MultiTenantProducesWorkingRepos(t *testing.T) {
 	infra := setupBootstrapIntegrationInfra(t)
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 	cfg := infra.buildTestConfig()
 
 	original := postgresConnector
@@ -134,7 +136,8 @@ func TestIntegration_InitPostgres_MultiTenantProducesWorkingRepos(t *testing.T) 
 
 	// Use a mock TenantClient pointing at a non-routable address (it will not
 	// be called during init, only stored for later middleware resolution).
-	mockClient := tmclient.NewClient("http://localhost:0", logger)
+	mockClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
+	require.NoError(t, err)
 
 	opts := &Options{
 		MultiTenantEnabled: true,
@@ -150,7 +153,6 @@ func TestIntegration_InitPostgres_MultiTenantProducesWorkingRepos(t *testing.T) 
 
 	// Verify connection is live.
 	assert.NotNil(t, result.connection, "connection must be non-nil (placeholder)")
-	assert.True(t, result.connection.Connected, "connection must be marked as connected")
 
 	// Verify pgManager is set.
 	assert.NotNil(t, result.pgManager, "multi-tenant mode must have a non-nil pgManager")
@@ -164,7 +166,7 @@ func TestIntegration_InitPostgres_MultiTenantProducesWorkingRepos(t *testing.T) 
 	assert.NotNil(t, result.transactionRouteRepo, "transactionRouteRepo must be initialized")
 
 	// Verify the connection can actually execute queries.
-	db, dbErr := result.connection.GetDB()
+	db, dbErr := result.connection.Resolver(context.Background())
 	require.NoError(t, dbErr, "GetDB must succeed on a connected connection")
 
 	err = db.PingContext(t.Context())
@@ -181,38 +183,22 @@ func TestIntegration_InitPostgres_MultiTenantProducesWorkingRepos(t *testing.T) 
 func TestIntegration_InitPostgres_BuildConnectionProducesConnectable(t *testing.T) {
 	infra := setupBootstrapIntegrationInfra(t)
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 	cfg := infra.buildTestConfig()
 
-	conn := buildPostgresConnection(cfg, logger)
+	conn, err := buildPostgresConnection(cfg, logger)
+	require.NoError(t, err, "buildPostgresConnection must return no error")
 	require.NotNil(t, conn, "buildPostgresConnection must return a non-nil connection")
 
-	// Verify the connection string contains the container's host and port.
-	assert.Contains(t, conn.ConnectionStringPrimary, infra.pgResult.Host,
-		"primary connection string must contain the container host")
-	assert.Contains(t, conn.ConnectionStringPrimary, infra.pgResult.Port,
-		"primary connection string must contain the container port")
-	assert.Contains(t, conn.ConnectionStringReplica, infra.pgResult.Host,
-		"replica connection string must contain the container host")
-
-	// Verify connection metadata.
-	assert.Equal(t, infra.pgResult.Config.DBName, conn.PrimaryDBName,
-		"PrimaryDBName must match the container config")
-	assert.Equal(t, ApplicationName, conn.Component,
-		"Component must be set to ApplicationName")
-	assert.Equal(t, logger, conn.Logger,
-		"Logger must be the one provided")
-
 	// Verify the connection can actually connect to the real PG container.
-	err := conn.Connect()
+	err = conn.Connect(context.Background())
 	require.NoError(t, err, "Connect must succeed against real PG container")
 
 	t.Cleanup(func() { closePGConnection(conn) })
 
-	assert.True(t, conn.Connected, "connection must be marked as connected after Connect()")
-
 	// Verify a query can be executed.
-	db, dbErr := conn.GetDB()
+	db, dbErr := conn.Resolver(context.Background())
 	require.NoError(t, dbErr, "GetDB must succeed after Connect()")
 
 	var result int
@@ -232,7 +218,8 @@ func TestIntegration_InitPostgres_BuildConnectionProducesConnectable(t *testing.
 func TestIntegration_InitPostgres_DispatcherRoutesCorrectly(t *testing.T) {
 	infra := setupBootstrapIntegrationInfra(t)
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 	cfg := infra.buildTestConfig()
 
 	original := postgresConnector
@@ -250,7 +237,7 @@ func TestIntegration_InitPostgres_DispatcherRoutesCorrectly(t *testing.T) {
 		assert.Nil(t, result.pgManager, "nil opts must produce single-tenant (no pgManager)")
 		assert.NotNil(t, result.connection, "connection must be non-nil")
 
-		db, dbErr := result.connection.GetDB()
+		db, dbErr := result.connection.Resolver(context.Background())
 		require.NoError(t, dbErr)
 
 		err = db.PingContext(t.Context())
@@ -265,7 +252,8 @@ func TestIntegration_InitPostgres_DispatcherRoutesCorrectly(t *testing.T) {
 		postgresConnector = defaultPostgresConnector
 		t.Cleanup(func() { postgresConnector = prev })
 
-		mockClient := tmclient.NewClient("http://localhost:0", logger)
+		mockClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
+		require.NoError(t, err)
 		opts := &Options{
 			MultiTenantEnabled: true,
 			TenantClient:       mockClient,
@@ -281,7 +269,7 @@ func TestIntegration_InitPostgres_DispatcherRoutesCorrectly(t *testing.T) {
 		assert.NotNil(t, result.pgManager, "multi-tenant opts must produce pgManager")
 		assert.NotNil(t, result.connection, "connection must be non-nil (placeholder)")
 
-		db, dbErr := result.connection.GetDB()
+		db, dbErr := result.connection.Resolver(context.Background())
 		require.NoError(t, dbErr)
 
 		err = db.PingContext(t.Context())
@@ -300,7 +288,8 @@ func TestIntegration_InitPostgres_DispatcherRoutesCorrectly(t *testing.T) {
 func TestIntegration_InitPostgres_PrefixedFallbackConnects(t *testing.T) {
 	infra := setupBootstrapIntegrationInfra(t)
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 
 	// Use prefixed values pointing at the real container, with fallback values
 	// pointing at an invalid host to prove prefixed takes priority.
@@ -324,15 +313,16 @@ func TestIntegration_InitPostgres_PrefixedFallbackConnects(t *testing.T) {
 		ReplicaDBPort: "9999",
 	}
 
-	conn := buildPostgresConnection(cfg, logger)
+	conn, err := buildPostgresConnection(cfg, logger)
+	require.NoError(t, err)
 	require.NotNil(t, conn)
 
-	err := conn.Connect()
+	err = conn.Connect(context.Background())
 	require.NoError(t, err, "Connect must succeed using prefixed values against real PG container")
 
 	t.Cleanup(func() { closePGConnection(conn) })
 
-	db, dbErr := conn.GetDB()
+	db, dbErr := conn.Resolver(context.Background())
 	require.NoError(t, dbErr)
 
 	var result int
@@ -349,7 +339,8 @@ func TestIntegration_InitPostgres_PrefixedFallbackConnects(t *testing.T) {
 // initSingleTenantPostgres returns an error (not a panic) when given a Config
 // that points to a non-existent PostgreSQL instance.
 func TestIntegration_InitPostgres_InvalidConfigReturnsError(t *testing.T) {
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 
 	original := postgresConnector
 	postgresConnector = defaultPostgresConnector
@@ -381,7 +372,8 @@ func TestIntegration_InitPostgres_InvalidConfigReturnsError(t *testing.T) {
 // TestIntegration_InitPostgres_MultiTenantInvalidConfigReturnsError verifies
 // that initMultiTenantPostgres returns an error when the PG connection fails.
 func TestIntegration_InitPostgres_MultiTenantInvalidConfigReturnsError(t *testing.T) {
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 
 	original := postgresConnector
 	postgresConnector = defaultPostgresConnector
@@ -402,7 +394,8 @@ func TestIntegration_InitPostgres_MultiTenantInvalidConfigReturnsError(t *testin
 		ReplicaDBSSLMode:  "disable",
 	}
 
-	mockClient := tmclient.NewClient("http://localhost:0", logger)
+	mockClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
+	require.NoError(t, err)
 	opts := &Options{
 		MultiTenantEnabled: true,
 		TenantClient:       mockClient,
@@ -424,8 +417,8 @@ func TestIntegration_InitPostgres_MultiTenantInvalidConfigReturnsError(t *testin
 // closePGConnection is a helper that safely closes a PostgresConnection's
 // underlying DB handle. PostgresConnection does not have a Close method;
 // we must close the ConnectionDB directly.
-func closePGConnection(conn *libPostgres.PostgresConnection) {
-	if conn != nil && conn.ConnectionDB != nil {
-		_ = (*conn.ConnectionDB).Close()
+func closePGConnection(conn *libPostgres.Client) {
+	if conn != nil {
+		_ = conn.Close()
 	}
 }

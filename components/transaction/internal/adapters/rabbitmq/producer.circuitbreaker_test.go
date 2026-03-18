@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -19,10 +19,7 @@ import (
 
 func setupMockLogger(ctrl *gomock.Controller) *libLog.MockLogger {
 	logger := libLog.NewMockLogger(ctrl)
-	logger.EXPECT().Infof(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Debugf(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Warnf(gomock.Any(), gomock.Any()).AnyTimes()
-	logger.EXPECT().Errorf(gomock.Any(), gomock.Any()).AnyTimes()
+	logger.EXPECT().Log(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
 	return logger
 }
@@ -30,7 +27,11 @@ func setupMockLogger(ctrl *gomock.Controller) *libLog.MockLogger {
 // setupCircuitBreakerManager creates a cbManager with the circuit breaker pre-registered.
 // This simulates what NewCircuitBreakerManager does in bootstrap.
 func setupCircuitBreakerManager(logger libLog.Logger) libCircuitBreaker.Manager {
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager, err := libCircuitBreaker.NewManager(logger)
+	if err != nil {
+		return nil
+	}
+
 	// Pre-register the circuit breaker (normally done by bootstrap.NewCircuitBreakerManager)
 	cbConfig := CircuitBreakerConfig{
 		ConsecutiveFailures: 3,
@@ -460,7 +461,8 @@ func TestCircuitBreakerProducer_ProducerDefault_HalfOpenState(t *testing.T) {
 	logger := setupMockLogger(ctrl)
 
 	// Create circuit breaker with very short timeout to trigger half-open quickly
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager, err := libCircuitBreaker.NewManager(logger)
+	require.NoError(t, err)
 	cbConfig := CircuitBreakerConfig{
 		ConsecutiveFailures: 3,
 		FailureRatio:        0.5,
@@ -520,7 +522,8 @@ func TestCircuitBreakerProducer_ProducerDefault_HalfOpenToOpen(t *testing.T) {
 	logger := setupMockLogger(ctrl)
 
 	// Create circuit breaker with very short timeout
-	cbManager := libCircuitBreaker.NewManager(logger)
+	cbManager, err := libCircuitBreaker.NewManager(logger)
+	require.NoError(t, err)
 	cbConfig := CircuitBreakerConfig{
 		ConsecutiveFailures: 3,
 		FailureRatio:        0.5,

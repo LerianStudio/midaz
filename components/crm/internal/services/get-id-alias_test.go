@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -25,10 +25,10 @@ func TestGetAliasByID(t *testing.T) {
 	mockHolderRepo := holder.NewMockRepository(ctrl)
 	mockAliasRepo := alias.NewMockRepository(ctrl)
 
-	holderID := libCommons.GenerateUUIDv7()
-	id := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7().String()
-	ledgerID := libCommons.GenerateUUIDv7().String()
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	id := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	holderDocument := "90217469051"
 
 	uc := &UseCase{

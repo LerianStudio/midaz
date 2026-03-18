@@ -13,8 +13,7 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
@@ -656,6 +655,3 @@ func TestOperationHandler_UpdateOperation(t *testing.T) {
 		})
 	}
 }
-
-// Ensure libPostgres.Pagination is used (referenced in handler)
-var _ = libPostgres.Pagination{}

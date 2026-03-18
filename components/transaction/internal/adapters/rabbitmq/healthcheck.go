@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v3/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
 // ErrRabbitMQUnhealthy indicates the RabbitMQ broker health check failed.
@@ -40,12 +40,12 @@ type CircuitStateChecker interface {
 // Satisfied by *libRabbitmq.RabbitMQConnection.
 type RabbitMQHealthChecker interface {
 	// HealthCheck verifies the RabbitMQ service is responding (HTTP management API).
-	HealthCheck() bool
+	HealthCheck() (bool, error)
 	// EnsureChannel verifies and establishes AMQP connection and channel.
 	EnsureChannel() error
-	// EnsureChannelWithContext verifies and establishes AMQP connection and channel,
+	// EnsureChannelContext verifies and establishes AMQP connection and channel,
 	// respecting context cancellation and deadline for timeout control.
-	EnsureChannelWithContext(ctx context.Context) error
+	EnsureChannelContext(ctx context.Context) error
 }
 
 // NewRabbitMQHealthCheckFunc creates the health check function that tests RabbitMQ connectivity.
@@ -73,13 +73,18 @@ func NewRabbitMQHealthCheckFunc(conn RabbitMQHealthChecker) libCircuitBreaker.He
 		}
 
 		// Check 1: Service health (HTTP management API)
-		if !conn.HealthCheck() {
+		healthy, err := conn.HealthCheck()
+		if err != nil {
+			return errors.Join(ErrRabbitMQUnhealthy, err)
+		}
+
+		if !healthy {
 			return ErrRabbitMQUnhealthy
 		}
 
 		// Check 2: Connection and channel state (AMQP)
 		// Use context-aware version to respect cancellation and timeouts
-		if err := conn.EnsureChannelWithContext(ctx); err != nil {
+		if err := conn.EnsureChannelContext(ctx); err != nil {
 			return errors.Join(ErrRabbitMQChannelUnavailable, err)
 		}
 
@@ -151,7 +156,7 @@ func (s *StateAwareHealthChecker) Register(serviceName string, healthCheckFn lib
 // Start is called during initialization but doesn't actually start the health checker.
 // The health checker starts automatically when a circuit opens (see OnStateChange).
 func (s *StateAwareHealthChecker) Start() {
-	s.logger.Info("StateAwareHealthChecker initialized - will start when circuit opens")
+	s.logger.Log(context.Background(), libLog.LevelInfo, "StateAwareHealthChecker initialized - will start when circuit opens")
 }
 
 // Stop stops the health checker if it's running.
@@ -175,7 +180,7 @@ func (s *StateAwareHealthChecker) Stop() {
 	if wasRunning {
 		s.stopRecoveryMonitorLocked()
 		s.underlying.Stop()
-		s.logger.Info("StateAwareHealthChecker stopped")
+		s.logger.Log(context.Background(), libLog.LevelInfo, "StateAwareHealthChecker stopped")
 	}
 }
 
@@ -191,9 +196,9 @@ func (s *StateAwareHealthChecker) GetHealthStatus() map[string]string {
 //   - Any circuit opens (CLOSED → OPEN): Start health checker
 //   - Circuit goes half-open (OPEN → HALF-OPEN): Keep running
 //   - All circuits close (→ CLOSED): Stop health checker
-func (s *StateAwareHealthChecker) OnStateChange(serviceName string, from, to libCircuitBreaker.State) {
+func (s *StateAwareHealthChecker) OnStateChange(_ context.Context, serviceName string, from, to libCircuitBreaker.State) {
 	// Log state change outside the critical section to reduce lock contention
-	s.logger.Debugf("StateAwareHealthChecker: %s state changed %s -> %s", serviceName, from, to)
+	s.logger.Log(context.Background(), libLog.LevelDebug, "StateAwareHealthChecker state changed", libLog.String("service", serviceName), libLog.Any("from", from), libLog.Any("to", to))
 
 	// Update unhealthy states map
 	s.mu.Lock()
@@ -228,13 +233,13 @@ func (s *StateAwareHealthChecker) OnStateChange(serviceName string, from, to lib
 
 	// Execute underlying start/stop and monitor operations under startStopMu
 	if shouldStart {
-		s.logger.Infof("Circuit opened for %s - starting health checker", serviceName)
+		s.logger.Log(context.Background(), libLog.LevelInfo, "Circuit opened - starting health checker", libLog.String("service", serviceName))
 		s.underlying.Start()
 		s.startRecoveryMonitorLocked()
 	}
 
 	if shouldStop {
-		s.logger.Infof("All circuits closed - stopping health checker")
+		s.logger.Log(context.Background(), libLog.LevelInfo, "All circuits closed - stopping health checker")
 		s.stopRecoveryMonitorLocked()
 		s.underlying.Stop()
 	}
@@ -242,7 +247,7 @@ func (s *StateAwareHealthChecker) OnStateChange(serviceName string, from, to lib
 	s.startStopMu.Unlock()
 
 	// Forward to underlying for immediate health check on open
-	s.underlying.OnStateChange(serviceName, from, to)
+	s.underlying.OnStateChange(context.Background(), serviceName, from, to)
 }
 
 // IsRunning returns whether the health checker is currently active.
@@ -324,10 +329,10 @@ func (s *StateAwareHealthChecker) checkForRecoveredServices() {
 		if s.stateChecker.IsHealthy(serviceName) {
 			// Circuit was reset to closed - manually trigger notification
 			previousState := previousStates[serviceName]
-			s.logger.Infof("Recovery monitor detected %s circuit reset from %s to closed", serviceName, previousState)
+			s.logger.Log(context.Background(), libLog.LevelInfo, "Recovery monitor detected circuit reset", libLog.String("service", serviceName), libLog.Any("from", previousState), libLog.Any("to", libCircuitBreaker.StateClosed))
 
 			// Trigger the state change notification (this will update unhealthyStates and potentially stop the checker)
-			s.OnStateChange(serviceName, previousState, libCircuitBreaker.StateClosed)
+			s.OnStateChange(context.Background(), serviceName, previousState, libCircuitBreaker.StateClosed)
 		}
 	}
 }

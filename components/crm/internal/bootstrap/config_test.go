@@ -5,11 +5,14 @@
 package bootstrap
 
 import (
+	"context"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -136,8 +139,10 @@ func TestInitTenantMiddleware(t *testing.T) {
 		{
 			name: "returns non-nil middleware when enabled with valid URL",
 			cfg: &Config{
-				MultiTenantEnabled: true,
-				MultiTenantURL:     "http://tenant-manager:8080",
+				MultiTenantEnabled:  true,
+				EnvName:             "development",
+				MultiTenantURL:      "http://tenant-manager:8080",
+				TenantManagerAPIKey: "test-api-key",
 			},
 			expectNil: false,
 		},
@@ -145,10 +150,12 @@ func TestInitTenantMiddleware(t *testing.T) {
 			name: "returns non-nil middleware with all config options set",
 			cfg: &Config{
 				MultiTenantEnabled:                 true,
+				EnvName:                            "development",
 				MultiTenantURL:                     "http://tenant-manager:8080",
 				MultiTenantTimeout:                 30,
 				MultiTenantIdleTimeoutSec:          300,
 				MultiTenantCircuitBreakerThreshold: 3,
+				TenantManagerAPIKey:                "test-api-key",
 			},
 			expectNil: false,
 		},
@@ -223,8 +230,10 @@ func TestInitTenantMiddleware_URLWhitespaceVariations(t *testing.T) {
 			t.Parallel()
 
 			cfg := &Config{
-				MultiTenantEnabled: true,
-				MultiTenantURL:     tt.url,
+				MultiTenantEnabled:  true,
+				EnvName:             "development",
+				MultiTenantURL:      tt.url,
+				TenantManagerAPIKey: "test-api-key",
 			}
 			logger := newMockLogger()
 
@@ -303,8 +312,10 @@ func TestInitTenantMiddleware_MetricsEmission(t *testing.T) {
 		t.Parallel()
 
 		cfg := &Config{
-			MultiTenantEnabled: true,
-			MultiTenantURL:     "http://tenant-manager:8080",
+			MultiTenantEnabled:  true,
+			EnvName:             "development",
+			MultiTenantURL:      "http://tenant-manager:8080",
+			TenantManagerAPIKey: "test-api-key",
 		}
 		logger := newMockLogger()
 
@@ -336,8 +347,10 @@ func TestInitTenantMiddleware_MetricsEmission(t *testing.T) {
 		t.Parallel()
 
 		cfg := &Config{
-			MultiTenantEnabled: true,
-			MultiTenantURL:     "http://tenant-manager:8080",
+			MultiTenantEnabled:  true,
+			EnvName:             "development",
+			MultiTenantURL:      "http://tenant-manager:8080",
+			TenantManagerAPIKey: "test-api-key",
 		}
 		logger := newMockLogger()
 
@@ -352,26 +365,114 @@ func TestInitTenantMiddleware_MetricsEmission(t *testing.T) {
 	})
 }
 
+func TestBuildTenantClientOptions_RejectsHTTPOutsideDevelopment(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildTenantClientOptions(&Config{EnvName: "production"}, "http://tenant-manager:8080")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must use https")
+}
+
+func TestBuildTenantClientOptions_AllowsHTTPInSafeEnvironments(t *testing.T) {
+	t.Parallel()
+
+	for _, envName := range []string{"local", "development", "dev", "test", "testing"} {
+		t.Run(envName, func(t *testing.T) {
+			t.Parallel()
+
+			opts, err := buildTenantClientOptions(&Config{EnvName: envName}, "http://tenant-manager:8080")
+			require.NoError(t, err)
+			assert.NotEmpty(t, opts)
+		})
+	}
+}
+
+func TestBuildTenantClientOptions_InvalidURLReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildTenantClientOptions(&Config{EnvName: "development"}, "://bad-url")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid MULTI_TENANT_URL")
+}
+
+func TestBuildTenantClientOptions_RejectsRelativeURL(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildTenantClientOptions(&Config{EnvName: "development"}, "tenant-manager:8080")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "absolute URL")
+}
+
+func TestBuildTenantClientOptions_RejectsUnsupportedScheme(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildTenantClientOptions(&Config{EnvName: "development"}, "ftp://tenant-manager:8080")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "scheme must be http or https")
+}
+
+func TestAllowInsecureTenantManagerHTTP(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, allowInsecureTenantManagerHTTP(" local "))
+	assert.True(t, allowInsecureTenantManagerHTTP("DEV"))
+	assert.True(t, allowInsecureTenantManagerHTTP("testing"))
+	assert.False(t, allowInsecureTenantManagerHTTP("production"))
+	assert.False(t, allowInsecureTenantManagerHTTP("staging"))
+}
+
+func TestRedactedTenantManagerURL(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "https://user:xxxxx@example.com", redactedTenantManagerURL("https://user:secret@example.com"))
+	assert.Equal(t, "https://user:xxxxx@example.com/path", redactedTenantManagerURL("https://user:secret@example.com/path?token=secret#frag"))
+	assert.Equal(t, "invalid-url", redactedTenantManagerURL("://bad-url"))
+}
+
+func TestWrapTenantMiddlewareWithMetrics_PreservesError(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := fiber.ErrUnauthorized
+	handler := wrapTenantMiddlewareWithMetrics(func(_ *fiber.Ctx) error { return expectedErr }, nil, newMockLogger())
+	app := fiber.New()
+	app.Get("/", handler)
+
+	req := httptest.NewRequest(fiber.MethodGet, "/", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestResolveMongoURI_LegacySchemeValueBuildsFullURI(t *testing.T) {
+	t.Parallel()
+
+	uri, err := resolveMongoURI(&Config{
+		MongoURI:        "mongodb",
+		MongoDBHost:     "midaz-mongodb",
+		MongoDBUser:     "midaz",
+		MongoDBPassword: "lerian",
+	}, "5703", "")
+	require.NoError(t, err)
+	assert.Contains(t, uri, "mongodb://")
+	assert.Contains(t, uri, "midaz-mongodb")
+	assert.NotContains(t, uri, "/crm")
+}
+
+func TestResolveMongoURI_InvalidLegacyValueReturnsError(t *testing.T) {
+	t.Parallel()
+
+	_, err := resolveMongoURI(&Config{MongoURI: "mongodb-invalid"}, "5703", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid MONGO_URI format")
+}
+
 // mockLogger implements libLog.Logger for testing.
 type mockLogger struct{}
 
 func newMockLogger() *mockLogger { return &mockLogger{} }
 
-func (m *mockLogger) Info(args ...any)                                  {}
-func (m *mockLogger) Infof(format string, args ...any)                  {}
-func (m *mockLogger) Infoln(args ...any)                                {}
-func (m *mockLogger) Error(args ...any)                                 {}
-func (m *mockLogger) Errorf(format string, args ...any)                 {}
-func (m *mockLogger) Errorln(args ...any)                               {}
-func (m *mockLogger) Warn(args ...any)                                  {}
-func (m *mockLogger) Warnf(format string, args ...any)                  {}
-func (m *mockLogger) Warnln(args ...any)                                {}
-func (m *mockLogger) Debug(args ...any)                                 {}
-func (m *mockLogger) Debugf(format string, args ...any)                 {}
-func (m *mockLogger) Debugln(args ...any)                               {}
-func (m *mockLogger) Fatal(args ...any)                                 {}
-func (m *mockLogger) Fatalf(format string, args ...any)                 {}
-func (m *mockLogger) Fatalln(args ...any)                               {}
-func (m *mockLogger) WithFields(fields ...any) libLog.Logger            { return m }
-func (m *mockLogger) WithDefaultMessageTemplate(s string) libLog.Logger { return m }
-func (m *mockLogger) Sync() error                                       { return nil }
+func (m *mockLogger) Log(_ context.Context, _ libLog.Level, _ string, _ ...libLog.Field) {}
+func (m *mockLogger) With(_ ...libLog.Field) libLog.Logger                               { return m }
+func (m *mockLogger) WithGroup(_ string) libLog.Logger                                   { return m }
+func (m *mockLogger) Enabled(_ libLog.Level) bool                                        { return true }
+func (m *mockLogger) Sync(_ context.Context) error                                       { return nil }

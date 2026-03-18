@@ -9,9 +9,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LerianStudio/lib-commons/v3/commons"
-	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
-	"github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"github.com/LerianStudio/lib-commons/v4/commons"
+	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 )
 
@@ -25,24 +27,24 @@ func ValidateBalancesRules(ctx context.Context, transaction Transaction, validat
 	if len(balances) != (len(validate.From) + len(validate.To)) {
 		err := commons.ValidateBusinessError(constant.ErrAccountIneligibility, "ValidateAccounts")
 
-		opentelemetry.HandleSpanBusinessErrorEvent(&spanValidateBalances, "validations.validate_balances_rules", err)
+		opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "validations.validate_balances_rules", err)
 
 		return err
 	}
 
 	for _, balance := range balances {
 		if err := validateFromBalances(balance, validate.From, validate.Asset, validate.Pending); err != nil {
-			opentelemetry.HandleSpanBusinessErrorEvent(&spanValidateBalances, "validations.validate_from_balances_", err)
+			opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "validations.validate_from_balances_", err)
 
-			logger.Errorf("validations.validate_from_balances_err: %s", err)
+			logger.Log(ctx, libLog.LevelError, "validations.validate_from_balances_err", libLog.Err(err))
 
 			return err
 		}
 
 		if err := validateToBalances(balance, validate.To, validate.Asset); err != nil {
-			opentelemetry.HandleSpanBusinessErrorEvent(&spanValidateBalances, "validations.validate_to_balances_", err)
+			opentelemetry.HandleSpanBusinessErrorEvent(spanValidateBalances, "validations.validate_to_balances_", err)
 
-			logger.Errorf("validations.validate_to_balances_err: %s", err)
+			logger.Log(ctx, libLog.LevelError, "validations.validate_to_balances_err", libLog.Err(err))
 
 			return err
 		}
@@ -133,72 +135,160 @@ func ConcatAlias(i int, alias string) string {
 
 // OperateBalances Function to sum or sub two balances and Normalize the scale
 func OperateBalances(amount Amount, balance Balance) (Balance, error) {
-	var (
-		total        decimal.Decimal
-		totalOnHold  decimal.Decimal
-		totalVersion int64
-	)
-
-	total = balance.Available
-	totalOnHold = balance.OnHold
-
-	switch {
-	case amount.Operation == constant.ONHOLD && amount.TransactionType == constant.PENDING:
-		total = balance.Available.Sub(amount.Value)
-		totalOnHold = balance.OnHold.Add(amount.Value)
-	case amount.Operation == constant.RELEASE && amount.TransactionType == constant.CANCELED:
-		totalOnHold = balance.OnHold.Sub(amount.Value)
-		total = balance.Available.Add(amount.Value)
-	case amount.Operation == constant.DEBIT && amount.TransactionType == constant.APPROVED:
-		totalOnHold = balance.OnHold.Sub(amount.Value)
-	case amount.Operation == constant.CREDIT && amount.TransactionType == constant.APPROVED:
-		total = balance.Available.Add(amount.Value)
-	case amount.Operation == constant.DEBIT && amount.TransactionType == constant.CREATED:
-		total = balance.Available.Sub(amount.Value)
-	case amount.Operation == constant.CREDIT && amount.TransactionType == constant.CREATED:
-		total = balance.Available.Add(amount.Value)
-	default:
-		// For unknown operations, return the original balance without changing the version.
+	available, onHold, matched := applyBalanceChange(amount, balance)
+	if !matched {
 		return balance, nil
 	}
 
-	totalVersion = balance.Version + 1
-
 	return Balance{
-		Available: total,
-		OnHold:    totalOnHold,
-		Version:   totalVersion,
+		Available: available,
+		OnHold:    onHold,
+		Version:   balance.Version + 1,
 	}, nil
 }
 
-// DetermineOperation Function to determine the operation
-func DetermineOperation(isPending bool, isFrom bool, transactionType string) string {
+// applyBalanceChange computes the new Available and OnHold values for a given
+// operation+transaction type combination. Returns matched=false for unknown operations.
+func applyBalanceChange(amount Amount, balance Balance) (available, onHold decimal.Decimal, matched bool) {
+	switch amount.TransactionType {
+	case constant.PENDING:
+		return applyPendingBalance(amount, balance)
+	case constant.CANCELED:
+		return applyCanceledBalance(amount, balance)
+	case constant.APPROVED:
+		return applyApprovedBalance(amount, balance)
+	case constant.CREATED:
+		return applyCreatedBalance(amount, balance)
+	default:
+		return balance.Available, balance.OnHold, false
+	}
+}
+
+func applyPendingBalance(amount Amount, balance Balance) (available, onHold decimal.Decimal, matched bool) {
+	switch {
+	case amount.Operation == constant.DEBIT && amount.RouteValidationEnabled:
+		// Double-entry: DEBIT only decrements Available.
+		return balance.Available.Sub(amount.Value), balance.OnHold, true
+	case amount.Operation == constant.ONHOLD && amount.RouteValidationEnabled:
+		// Double-entry: ON_HOLD only increments OnHold.
+		return balance.Available, balance.OnHold.Add(amount.Value), true
+	case amount.Operation == constant.ONHOLD:
+		// Legacy: ON_HOLD moves from Available to OnHold.
+		return balance.Available.Sub(amount.Value), balance.OnHold.Add(amount.Value), true
+	default:
+		return balance.Available, balance.OnHold, false
+	}
+}
+
+func applyCanceledBalance(amount Amount, balance Balance) (available, onHold decimal.Decimal, matched bool) {
+	switch {
+	case amount.Operation == constant.RELEASE && amount.RouteValidationEnabled:
+		// Double-entry: RELEASE only decrements OnHold.
+		return balance.Available, balance.OnHold.Sub(amount.Value), true
+	case amount.Operation == constant.RELEASE:
+		// Legacy: RELEASE moves from OnHold to Available.
+		return balance.Available.Add(amount.Value), balance.OnHold.Sub(amount.Value), true
+	case amount.Operation == constant.CREDIT && amount.RouteValidationEnabled:
+		// Double-entry: CREDIT only increments Available.
+		return balance.Available.Add(amount.Value), balance.OnHold, true
+	default:
+		return balance.Available, balance.OnHold, false
+	}
+}
+
+func applyApprovedBalance(amount Amount, balance Balance) (available, onHold decimal.Decimal, matched bool) {
+	switch amount.Operation {
+	case constant.DEBIT:
+		return balance.Available, balance.OnHold.Sub(amount.Value), true
+	case constant.ONHOLD:
+		// Route validation: ON_HOLD in APPROVED decrements OnHold (same as DEBIT).
+		return balance.Available, balance.OnHold.Sub(amount.Value), true
+	case constant.CREDIT:
+		return balance.Available.Add(amount.Value), balance.OnHold, true
+	default:
+		return balance.Available, balance.OnHold, false
+	}
+}
+
+func applyCreatedBalance(amount Amount, balance Balance) (available, onHold decimal.Decimal, matched bool) {
+	switch amount.Operation {
+	case constant.DEBIT:
+		return balance.Available.Sub(amount.Value), balance.OnHold, true
+	case constant.CREDIT:
+		return balance.Available.Add(amount.Value), balance.OnHold, true
+	default:
+		return balance.Available, balance.OnHold, false
+	}
+}
+
+// IsDoubleEntrySource returns true when an Amount entry requires double-entry
+// splitting (two separate operations that each affect a single balance field).
+// This applies to source entries with route validation enabled for PENDING or CANCELED transactions.
+func IsDoubleEntrySource(amt Amount) bool {
+	if !amt.RouteValidationEnabled {
+		return false
+	}
+
+	switch amt.TransactionType {
+	case constant.PENDING:
+		return amt.Operation == constant.ONHOLD
+	case constant.CANCELED:
+		return amt.Operation == constant.RELEASE
+	default:
+		return false
+	}
+}
+
+// SplitDoubleEntryOps takes an Amount that qualifies for double-entry (per IsDoubleEntrySource)
+// and returns the two split operations. For PENDING: DEBIT + ONHOLD. For CANCELED: RELEASE + CREDIT.
+// The caller must check IsDoubleEntrySource first; behavior is undefined for non-qualifying amounts.
+func SplitDoubleEntryOps(amt Amount) (Amount, Amount) {
+	op1 := amt
+	op2 := amt
+
+	switch amt.TransactionType {
+	case constant.PENDING:
+		op1.Operation = constant.DEBIT
+		op1.Direction = pkgConstant.DirectionDebit
+		op2.Operation = constant.ONHOLD
+		op2.Direction = pkgConstant.DirectionCredit
+	case constant.CANCELED:
+		op1.Operation = constant.RELEASE
+		op1.Direction = pkgConstant.DirectionDebit
+		op2.Operation = constant.CREDIT
+		op2.Direction = pkgConstant.DirectionCredit
+	}
+
+	return op1, op2
+}
+
+// DetermineOperation determines the operation type and direction for a balance entry.
+// Returns (type, direction) where type is the operation type (DEBIT, CREDIT, ON_HOLD, RELEASE)
+// and direction is the accounting direction ("debit" or "credit").
+func DetermineOperation(isPending bool, isFrom bool, transactionType string) (string, string) {
 	switch {
 	case isPending && transactionType == constant.PENDING:
-		switch {
-		case isFrom:
-			return constant.ONHOLD
-		default:
-			return constant.CREDIT
+		if isFrom {
+			return constant.ONHOLD, pkgConstant.DirectionDebit
 		}
+
+		return constant.CREDIT, pkgConstant.DirectionCredit
 	case isPending && isFrom && transactionType == constant.CANCELED:
-		return constant.RELEASE
+		return constant.RELEASE, pkgConstant.DirectionCredit
 	case isPending && transactionType == constant.APPROVED:
-		switch {
-		case isFrom:
-			return constant.DEBIT
-		default:
-			return constant.CREDIT
+		if isFrom {
+			return constant.DEBIT, pkgConstant.DirectionDebit
 		}
+
+		return constant.CREDIT, pkgConstant.DirectionCredit
 	case !isPending:
-		switch {
-		case isFrom:
-			return constant.DEBIT
-		default:
-			return constant.CREDIT
+		if isFrom {
+			return constant.DEBIT, pkgConstant.DirectionDebit
 		}
+
+		return constant.CREDIT, pkgConstant.DirectionCredit
 	default:
-		return constant.CREDIT
+		return constant.CREDIT, pkgConstant.DirectionCredit
 	}
 }
 
@@ -220,7 +310,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 	for i := range fromTos {
 		operationRoute[fromTos[i].AccountAlias] = fromTos[i].Route
 
-		operation := DetermineOperation(transaction.Pending, fromTos[i].IsFrom, transactionType)
+		operation, direction := DetermineOperation(transaction.Pending, fromTos[i].IsFrom, transactionType)
 
 		if fromTos[i].Share != nil && fromTos[i].Share.Percentage != 0 {
 			oneHundred := decimal.NewFromInt(100)
@@ -241,6 +331,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 				Value:           shareValue,
 				Operation:       operation,
 				TransactionType: transactionType,
+				Direction:       direction,
 			}
 
 			total = total.Add(shareValue)
@@ -253,6 +344,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 				Value:           fromTos[i].Amount.Value,
 				Operation:       operation,
 				TransactionType: transactionType,
+				Direction:       direction,
 			}
 
 			fmto[fromTos[i].AccountAlias] = amount
@@ -265,6 +357,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 			total = total.Add(remaining.Value)
 
 			remaining.Operation = operation
+			remaining.Direction = direction
 
 			fmto[fromTos[i].AccountAlias] = remaining
 			fromTos[i].Amount = &remaining
@@ -350,7 +443,7 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 
 	for i, source := range response.Sources {
 		if _, ok := response.To[ConcatAlias(i, source)]; ok {
-			logger.Errorf("ValidateSendSourceAndDistribute: Ambiguous transaction source and destination")
+			logger.Log(ctx, libLog.LevelError, "ValidateSendSourceAndDistribute: Ambiguous transaction source and destination")
 
 			return nil, commons.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
 		}
@@ -358,14 +451,14 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 
 	for i, destination := range response.Destinations {
 		if _, ok := response.From[ConcatAlias(i, destination)]; ok {
-			logger.Errorf("ValidateSendSourceAndDistribute: Ambiguous transaction source and destination")
+			logger.Log(ctx, libLog.LevelError, "ValidateSendSourceAndDistribute: Ambiguous transaction source and destination")
 
 			return nil, commons.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
 		}
 	}
 
 	if !sourcesTotal.Equal(destinationsTotal) || !destinationsTotal.Equal(response.Total) {
-		logger.Errorf("ValidateSendSourceAndDistribute: Transaction value mismatch")
+		logger.Log(ctx, libLog.LevelError, "ValidateSendSourceAndDistribute: Transaction value mismatch")
 
 		return nil, commons.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
 	}

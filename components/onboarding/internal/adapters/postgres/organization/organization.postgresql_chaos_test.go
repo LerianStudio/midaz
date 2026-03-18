@@ -22,9 +22,8 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
@@ -43,7 +42,7 @@ type chaosNetworkTestInfra struct {
 	pgResult   *pgtestutil.ContainerResult
 	chaosInfra *chaos.Infrastructure
 	repo       *OrganizationPostgreSQLRepository
-	conn       *libPostgres.PostgresConnection
+	conn       *libPostgres.Client
 	proxy      *chaos.Proxy
 }
 
@@ -79,19 +78,11 @@ func setupOrganizationChaosNetworkInfra(t *testing.T) *chaosNetworkTestInfra {
 	require.NotEmpty(t, containerInfo.ProxyListen, "proxy listen address must be non-empty")
 
 	// 6. Build OrganizationPostgreSQLRepository connected through proxy
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 
 	proxyConnStr := pgtestutil.BuildConnectionStringWithHost(containerInfo.ProxyListen, pgResult.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: proxyConnStr,
-		ConnectionStringReplica: proxyConnStr,
-		PrimaryDBName:           pgResult.Config.DBName,
-		ReplicaDBName:           pgResult.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, proxyConnStr, proxyConnStr, pgResult.Config.DBName, migrationsPath)
 
 	repo := NewOrganizationPostgreSQLRepository(conn)
 
@@ -123,7 +114,7 @@ func (infra *chaosNetworkTestInfra) createTestOrganization(t *testing.T, name st
 }
 
 // =============================================================================
-// CS-1: CONNECTION LOSS
+// CONNECTION LOSS
 // =============================================================================
 
 // TestIntegration_Chaos_Organization_ConnectionLoss verifies that getDB and
@@ -256,11 +247,11 @@ func TestIntegration_Chaos_Organization_ConnectionLoss(t *testing.T) {
 	assert.Equal(t, org.ID, recovered.ID, "Phase 5: organization ID must be unchanged after recovery")
 	assert.Equal(t, org.LegalName, recovered.LegalName, "Phase 5: data integrity must be preserved")
 
-	t.Log("CS-1 PASS: getDB returns error (not panic) when connection is lost, recovers correctly")
+	t.Log("PASS: getDB returns error (not panic) when connection is lost, recovers correctly")
 }
 
 // =============================================================================
-// CS-2: HIGH LATENCY
+// HIGH LATENCY
 // =============================================================================
 
 // TestIntegration_Chaos_Organization_HighLatency verifies that getDB and
@@ -373,11 +364,11 @@ func TestIntegration_Chaos_Organization_HighLatency(t *testing.T) {
 	assert.Equal(t, org.ID, recovered.ID, "Phase 5: data integrity must be preserved")
 	t.Logf("Phase 5: recovery Find completed in %v (baseline was %v)", recoveryLatency, baselineLatency)
 
-	t.Log("CS-2 PASS: getDB handles high latency correctly via context timeout propagation")
+	t.Log("PASS: getDB handles high latency correctly via context timeout propagation")
 }
 
 // =============================================================================
-// CS-3: NETWORK PARTITION (tenant path fails, static path fallback)
+// NETWORK PARTITION (tenant path fails, static path fallback)
 // =============================================================================
 
 // TestIntegration_Chaos_Organization_NetworkPartition verifies that getDB
@@ -410,7 +401,7 @@ func TestIntegration_Chaos_Organization_NetworkPartition(t *testing.T) {
 
 	// Build a tenant context that uses the same proxied DB (simulating the
 	// tenant path going through the same PostgreSQL instance).
-	tenantDB, err := infra.conn.GetDB()
+	tenantDB, err := infra.conn.Resolver(context.Background())
 	require.NoError(t, err, "setup: must be able to get DB from proxied connection")
 
 	tenantCtx := tmcore.ContextWithModulePGConnection(ctx, "onboarding", tenantDB)
@@ -535,7 +526,7 @@ func TestIntegration_Chaos_Organization_NetworkPartition(t *testing.T) {
 		t.Log("Phase 5: delete succeeded during partition; org may be soft-deleted")
 	}
 
-	t.Log("CS-3 PASS: getDB falls back gracefully during network partition, both paths recover")
+	t.Log("PASS: getDB falls back gracefully during network partition, both paths recover")
 }
 
 // =============================================================================

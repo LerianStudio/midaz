@@ -10,7 +10,7 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -29,9 +29,9 @@ func TestUpdateBalance(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	allowSending := false
 
@@ -85,9 +85,9 @@ func TestUpdateBalance_RepoError(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	errMSG := "errDatabaseItemNotFound"
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	allowSending := true
 	allowReceiving := false
@@ -123,9 +123,9 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	allowSending := false
 
@@ -199,8 +199,8 @@ func TestUpdateBalances_PrimaryPath_UsesAfterDirectly(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balancesBefore := []*mmodel.Balance{
 		{
@@ -272,8 +272,8 @@ func TestUpdateBalances_FallbackPath_NilAfter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balancesBefore := []*mmodel.Balance{
 		{
@@ -321,43 +321,34 @@ func TestUpdateBalances_FallbackPath_NilAfter(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestUpdateBalances_PrimaryPath_SkipsMissingAlias(t *testing.T) {
+func TestUpdateBalances_PrimaryPath_FailsOnMissingAlias(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balancesBefore := []*mmodel.Balance{
 		{ID: "bal-1", Alias: "@alice"},
 		{ID: "bal-2", Alias: "@bob"},
 	}
 
-	// Only @alice has AFTER state (no change for @bob)
+	// Only @alice has AFTER state; incomplete payload must fail closed.
 	balancesAfter := []*mmodel.Balance{
 		{Alias: "@alice", Available: decimal.NewFromInt(900), OnHold: decimal.NewFromInt(0), Version: 2},
 	}
 
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
-
-	mockBalanceRepo.EXPECT().
-		BalancesUpdate(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []*mmodel.Balance) error {
-			// Only @alice should be persisted, @bob is skipped
-			require.Len(t, balances, 1)
-			assert.Equal(t, "bal-1", balances[0].ID)
-			assert.Equal(t, "@alice", balances[0].Alias)
-
-			return nil
-		}).Times(1)
+	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 	uc := UseCase{BalanceRepo: mockBalanceRepo}
 
 	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, pkgTransaction.Responses{}, balancesBefore, balancesAfter)
 
-	assert.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing AFTER state for alias @bob")
 }
 
 func TestUpdateBalances_BalancesUpdateError(t *testing.T) {
@@ -366,8 +357,8 @@ func TestUpdateBalances_BalancesUpdateError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	balancesBefore := []*mmodel.Balance{
 		{ID: "bal-1", Alias: "@alice"},

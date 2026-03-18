@@ -5,7 +5,7 @@
 package redis
 
 // =============================================================================
-// PROPERTY-BASED TESTS — Redis Key Namespacing (T-001)
+// PROPERTY-BASED TESTS — Redis Key Namespacing
 //
 // These tests verify that the domain invariants of tmvalkey.GetKey and
 // tmvalkey.StripTenantPrefix hold across hundreds of automatically-generated
@@ -26,8 +26,8 @@ import (
 	"testing"
 	"testing/quick"
 
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	tmvalkey "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/valkey"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmvalkey "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/valkey"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,7 +51,10 @@ func sanitizeQuickString(s string, maxLen int) string {
 func TestProperty_KeyNamespacing_Identity(t *testing.T) {
 	property := func(key string) bool {
 		key = sanitizeQuickString(key, 512)
-		result := tmvalkey.GetKey("", key)
+		result, err := tmvalkey.GetKey("", key)
+		if err != nil {
+			return true
+		}
 
 		return result == key
 	}
@@ -78,7 +81,10 @@ func TestProperty_KeyNamespacing_PrefixStructure(t *testing.T) {
 			return true
 		}
 
-		result := tmvalkey.GetKey(tenantID, key)
+		result, err := tmvalkey.GetKey(tenantID, key)
+		if err != nil {
+			return true
+		}
 		expectedPrefix := "tenant:" + tenantID + ":"
 
 		startsCorrectly := strings.HasPrefix(result, expectedPrefix)
@@ -104,8 +110,15 @@ func TestProperty_KeyNamespacing_Reversibility(t *testing.T) {
 		tenantID = sanitizeQuickString(tenantID, 256)
 		key = sanitizeQuickString(key, 512)
 
-		namespaced := tmvalkey.GetKey(tenantID, key)
-		recovered := tmvalkey.StripTenantPrefix(tenantID, namespaced)
+		namespaced, err := tmvalkey.GetKey(tenantID, key)
+		if err != nil {
+			return true
+		}
+
+		recovered, err := tmvalkey.StripTenantPrefix(tenantID, namespaced)
+		if err != nil {
+			return true
+		}
 
 		return recovered == key
 	}
@@ -127,8 +140,15 @@ func TestProperty_KeyNamespacing_Determinism(t *testing.T) {
 		tenantID = sanitizeQuickString(tenantID, 256)
 		key = sanitizeQuickString(key, 512)
 
-		first := tmvalkey.GetKey(tenantID, key)
-		second := tmvalkey.GetKey(tenantID, key)
+		first, err := tmvalkey.GetKey(tenantID, key)
+		if err != nil {
+			return true
+		}
+
+		second, err := tmvalkey.GetKey(tenantID, key)
+		if err != nil {
+			return true
+		}
 
 		return first == second
 	}
@@ -164,7 +184,7 @@ func TestProperty_MGet_OutputKeysMatchOriginal(t *testing.T) {
 		originalKeys := []string{keyA, keyB}
 
 		conn, _ := newRecordingConnection(t)
-		repo := &RedisConsumerRepository{conn: conn, balanceSyncEnabled: false}
+		repo := &RedisConsumerRepository{conn: conn}
 
 		ctx := context.Background()
 		if tenantID != "" {

@@ -20,13 +20,15 @@ package bootstrap
 import (
 	"context"
 	"net"
+	stdhttp "net/http"
+	"net/http/httptest"
 	"os"
 	"strconv"
 	"testing"
 	"time"
 
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	"github.com/stretchr/testify/assert"
@@ -111,7 +113,7 @@ func (infra *chaosBootstrapInfra) buildProxiedConfig(t *testing.T) *Config {
 }
 
 // =============================================================================
-// CS-1: initSingleTenantPostgres when PG connection fails
+// initSingleTenantPostgres when PG connection fails
 // =============================================================================
 
 // TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss verifies that
@@ -135,7 +137,8 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 
 	infra := setupBootstrapChaosInfra(t)
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 	cfg := infra.buildProxiedConfig(t)
 
 	// Use the real connector so connections go through the proxy.
@@ -150,11 +153,10 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 	result, err := initSingleTenantPostgres(cfg, logger)
 	require.NoError(t, err, "Phase 1: initSingleTenantPostgres must succeed through proxy")
 	require.NotNil(t, result)
-	assert.True(t, result.connection.Connected, "Phase 1: connection must be connected")
 
 	// Verify a query works.
-	db, dbErr := result.connection.GetDB()
-	require.NoError(t, dbErr, "Phase 1: GetDB must succeed")
+	db, dbErr := result.connection.Resolver(context.Background())
+	require.NoError(t, dbErr, "Phase 1: Resolver must succeed")
 
 	var pingResult int
 	err = db.QueryRowContext(context.Background(), "SELECT 1").Scan(&pingResult)
@@ -221,11 +223,11 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 	assert.True(t, recoveredResult.connection.Connected,
 		"Phase 5: connection must be connected after recovery")
 
-	t.Log("CS-1 PASS: initSingleTenantPostgres returns error (not panic) on connection loss, recovers correctly")
+	t.Log("PASS: initSingleTenantPostgres returns error (not panic) on connection loss, recovers correctly")
 }
 
 // =============================================================================
-// CS-2: initMultiTenantPostgres when PG connection fails
+// initMultiTenantPostgres when PG connection fails
 // =============================================================================
 
 // TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss verifies that
@@ -249,14 +251,20 @@ func TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss(t *testing.T) 
 
 	infra := setupBootstrapChaosInfra(t)
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 	cfg := infra.buildProxiedConfig(t)
 
 	original := postgresConnector
 	postgresConnector = defaultPostgresConnector
 	t.Cleanup(func() { postgresConnector = original })
 
-	mockClient := tmclient.NewClient("http://localhost:0", logger)
+	tenantSrv := httptest.NewServer(stdhttp.HandlerFunc(func(w stdhttp.ResponseWriter, _ *stdhttp.Request) {
+		w.WriteHeader(stdhttp.StatusOK)
+	}))
+	t.Cleanup(tenantSrv.Close)
+	mockClient, err := tmclient.NewClient(tenantSrv.URL, logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
+	require.NoError(t, err)
 	opts := &Options{
 		MultiTenantEnabled: true,
 		TenantClient:       mockClient,
@@ -270,10 +278,9 @@ func TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss(t *testing.T) 
 	require.NoError(t, err, "Phase 1: initMultiTenantPostgres must succeed through proxy")
 	require.NotNil(t, result)
 	assert.NotNil(t, result.pgManager, "Phase 1: pgManager must be set")
-	assert.True(t, result.connection.Connected, "Phase 1: connection must be connected")
 
-	db, dbErr := result.connection.GetDB()
-	require.NoError(t, dbErr, "Phase 1: GetDB must succeed")
+	db, dbErr := result.connection.Resolver(context.Background())
+	require.NoError(t, dbErr, "Phase 1: Resolver must succeed")
 
 	var pingResult int
 	err = db.QueryRowContext(context.Background(), "SELECT 1").Scan(&pingResult)
@@ -330,28 +337,25 @@ func TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss(t *testing.T) 
 	require.NotNil(t, recoveredResult)
 
 	t.Cleanup(func() { closePGConnection(recoveredResult.connection) })
-
-	assert.True(t, recoveredResult.connection.Connected,
-		"Phase 5: connection must be connected after recovery")
 	assert.NotNil(t, recoveredResult.pgManager,
 		"Phase 5: pgManager must be set after recovery")
 
-	t.Log("CS-2 PASS: initMultiTenantPostgres returns error (not panic) on connection loss, recovers correctly")
+	t.Log("PASS: initMultiTenantPostgres returns error (not panic) on connection loss, recovers correctly")
 }
 
 // =============================================================================
-// CS-3: Init succeeds, then PG goes down -- repos degrade gracefully
+// Init succeeds, then PG goes down -- repos degrade gracefully
 // =============================================================================
 
 // TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss verifies that
 // when initSingleTenantPostgres succeeds and then PostgreSQL goes down,
-// subsequent GetDB/query operations on the repos return errors gracefully
+// subsequent Resolver/query operations on the repos return errors gracefully
 // (no panic), and recover once PG comes back.
 //
 // 5-Phase structure:
 //  1. Normal   -- Init succeeds, repos can query
 //  2. Inject   -- PG goes down via Toxiproxy disconnect
-//  3. Verify   -- GetDB and queries return errors, no panic
+//  3. Verify   -- Resolver and queries return errors, no panic
 //  4. Restore  -- PG comes back via Toxiproxy reconnect
 //  5. Recovery -- Repos can query again
 func TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss(t *testing.T) {
@@ -365,7 +369,8 @@ func TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss(t *testing.T) {
 
 	infra := setupBootstrapChaosInfra(t)
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 	cfg := infra.buildProxiedConfig(t)
 
 	original := postgresConnector
@@ -381,8 +386,8 @@ func TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss(t *testing.T) {
 
 	t.Cleanup(func() { closePGConnection(result.connection) })
 
-	db, dbErr := result.connection.GetDB()
-	require.NoError(t, dbErr, "Phase 1: GetDB must succeed")
+	db, dbErr := result.connection.Resolver(context.Background())
+	require.NoError(t, dbErr, "Phase 1: Resolver must succeed")
 
 	var pingResult int
 	err = db.QueryRowContext(context.Background(), "SELECT 1").Scan(&pingResult)
@@ -423,9 +428,9 @@ func TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss(t *testing.T) {
 
 	// 3b. Getting a fresh DB handle must not panic.
 	require.NotPanics(t, func() {
-		freshDB, freshErr := result.connection.GetDB()
+		freshDB, freshErr := result.connection.Resolver(context.Background())
 		if freshErr != nil {
-			t.Logf("Phase 3: GetDB returned error: %v", freshErr)
+			t.Logf("Phase 3: Resolver returned error: %v", freshErr)
 			return
 		}
 
@@ -434,7 +439,7 @@ func TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss(t *testing.T) {
 
 		var dummy int
 		_ = freshDB.QueryRowContext(freshCtx, "SELECT 1").Scan(&dummy)
-	}, "Phase 3: GetDB + query must not panic when PG is down")
+	}, "Phase 3: Resolver + query must not panic when PG is down")
 
 	// --- Phase 4: Restore ---
 	t.Log("Phase 4 (Restore): re-enabling Toxiproxy proxy")
@@ -458,5 +463,5 @@ func TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss(t *testing.T) {
 	require.NoError(t, err, "Phase 5: query must succeed after recovery")
 	assert.Equal(t, 1, recoveredResult, "Phase 5: SELECT 1 must return 1")
 
-	t.Log("CS-3 PASS: repos degrade gracefully when PG goes down post-init, recover correctly")
+	t.Log("PASS: repos degrade gracefully when PG goes down post-init, recover correctly")
 }

@@ -8,8 +8,9 @@ import (
 	"database/sql"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 )
 
 // LedgerPostgreSQLModel represents the entity.Ledger into SQL context in Database
@@ -33,6 +34,13 @@ func (t *LedgerPostgreSQLModel) ToEntity() *mmodel.Ledger {
 		Description: t.StatusDescription,
 	}
 
+	var settings *mmodel.LedgerSettings
+
+	if len(t.Settings) > 0 {
+		parsed := mmodel.ParseLedgerSettings(t.Settings)
+		settings = &parsed
+	}
+
 	ledger := &mmodel.Ledger{
 		ID:             t.ID,
 		Name:           t.Name,
@@ -41,7 +49,7 @@ func (t *LedgerPostgreSQLModel) ToEntity() *mmodel.Ledger {
 		CreatedAt:      t.CreatedAt,
 		UpdatedAt:      t.UpdatedAt,
 		DeletedAt:      nil,
-		Settings:       t.Settings,
+		Settings:       settings,
 	}
 
 	if !t.DeletedAt.Time.IsZero() {
@@ -54,15 +62,20 @@ func (t *LedgerPostgreSQLModel) ToEntity() *mmodel.Ledger {
 
 // FromEntity converts an entity.Ledger to LedgerPostgreSQLModel
 func (t *LedgerPostgreSQLModel) FromEntity(ledger *mmodel.Ledger) {
+	var settingsMap map[string]any
+	if ledger.Settings != nil {
+		settingsMap = mmodel.LedgerSettingsToMap(*ledger.Settings)
+	}
+
 	*t = LedgerPostgreSQLModel{
-		ID:                libCommons.GenerateUUIDv7().String(),
+		ID:                uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Name:              ledger.Name,
 		OrganizationID:    ledger.OrganizationID,
 		Status:            ledger.Status.Code,
 		StatusDescription: ledger.Status.Description,
 		CreatedAt:         ledger.CreatedAt,
 		UpdatedAt:         ledger.UpdatedAt,
-		Settings:          ledger.Settings,
+		Settings:          settingsMap,
 	}
 
 	if ledger.DeletedAt != nil {

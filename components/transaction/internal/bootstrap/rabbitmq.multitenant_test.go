@@ -7,7 +7,7 @@ package bootstrap
 import (
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -18,7 +18,9 @@ import (
 // not from the code under test.
 func goleakIgnores() []goleak.Option {
 	return []goleak.Option{
+		goleak.IgnoreTopFunction("github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/cache.(*InMemoryCache).cleanupLoop"),
 		goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
+		goleak.IgnoreTopFunction("github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/cache.(*InMemoryCache).cleanupLoop"),
 		goleak.IgnoreAnyFunction("testing.tRunner"),
 		goleak.IgnoreAnyFunction("testing.tRunner.func1"),
 		goleak.IgnoreAnyFunction("testing.(*T).Run"),
@@ -26,6 +28,8 @@ func goleakIgnores() []goleak.Option {
 		goleak.IgnoreAnyFunction("testing.(*M).Run"),
 		goleak.IgnoreAnyFunction("go.uber.org/goleak.(*opts).retry"),
 		goleak.IgnoreAnyFunction("go.uber.org/goleak.Find"),
+		goleak.IgnoreAnyFunction("github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/cache.(*InMemoryCache).cleanupLoop"),
+		goleak.IgnoreAnyFunction("github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq.(*ConsumerRoutes).RunConsumers.func1"),
 	}
 }
 

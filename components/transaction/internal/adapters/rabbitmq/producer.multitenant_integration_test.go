@@ -17,10 +17,10 @@ import (
 	"testing"
 	"time"
 
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/core"
-	tmrabbitmq "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/rabbitmq"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmrabbitmq "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/rabbitmq"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -114,8 +114,13 @@ func setupMultiTenantInfra(t *testing.T, tenantIDs []string) *multiTenantTestInf
 	})
 
 	// Create tmclient pointing to mock server
-	logger := libZap.InitializeLogger()
-	client := tmclient.NewClient(mockServer.URL, logger)
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
+	client, err := tmclient.NewClient(mockServer.URL, logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
+	require.NoError(t, err, "failed to create tenant-manager client")
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
 
 	// Create tmrabbitmq.Manager using the client
 	manager := tmrabbitmq.NewManager(client, "ledger",

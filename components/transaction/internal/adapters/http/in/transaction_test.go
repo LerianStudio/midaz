@@ -5,24 +5,30 @@
 package in
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	nethttp "net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v3/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	operationroute "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/gofiber/fiber/v2"
@@ -917,6 +923,459 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 
 	assert.Equal(t, cn.ErrTransactionCantRevert.Error(), errResp["code"],
 		"expected error code 0089 (ErrTransactionCantRevert)")
+}
+
+// TestRevertTransaction_BidirectionalRouteAllows validates that a revert is allowed
+// when the operation route has OperationType "bidirectional".
+func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	operationRouteID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+
+	amount := decimal.NewFromInt(1000)
+	tran := &transaction.Transaction{
+		ID:                  transactionID.String(),
+		OrganizationID:      orgID.String(),
+		LedgerID:            ledgerID.String(),
+		ParentTransactionID: nil,
+		Description:         "Test transaction with bidirectional route",
+		AssetCode:           "USD",
+		Amount:              &amount,
+		Status: transaction.Status{
+			Code: cn.APPROVED,
+		},
+		Operations: []*operation.Operation{
+			{
+				Type:         libConstants.CREDIT,
+				AccountAlias: "@receiver",
+				AssetCode:    "USD",
+				Amount:       operation.Amount{Value: &amount},
+				Route:        operationRouteID.String(),
+			},
+		},
+	}
+
+	// Mock: No existing revert
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Find transaction with operations
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(tran, nil).
+		Times(1)
+
+	// Mock: Metadata lookup
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Operation route is bidirectional
+	mockOperationRouteRepo.EXPECT().
+		FindByID(gomock.Any(), orgID, ledgerID, operationRouteID).
+		Return(&mmodel.OperationRoute{
+			ID:            operationRouteID,
+			OperationType: "bidirectional",
+		}, nil).
+		Times(1)
+
+	// Mock: Metadata for the operation route
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "OperationRoute", operationRouteID.String()).
+		Return(nil, nil).
+		AnyTimes()
+
+	queryUC := &query.UseCase{
+		TransactionRepo:    mockTransactionRepo,
+		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo: mockOperationRouteRepo,
+	}
+	// The handler needs Command for createTransaction; since we only test
+	// that the bidirectional check passes (not the full createTransaction flow),
+	// we use a Fiber error handler to catch panics from nil Command and verify
+	// the bidirectional error was not returned.
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New(fiber.Config{
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
+		},
+	})
+	app.Use(func(c *fiber.Ctx) error {
+		defer func() {
+			if r := recover(); r != nil {
+				_ = c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "recovered"})
+			}
+		}()
+		return c.Next()
+	})
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.RevertTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert: should NOT return the bidirectional error.
+	// The handler passes the bidirectional gate but may fail downstream
+	// (e.g., nil Command for createTransaction). We verify the gate passed,
+	// not the full revert flow.
+	require.NoError(t, err)
+	if resp.StatusCode >= 400 {
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var errResp map[string]any
+		require.NoError(t, json.Unmarshal(body, &errResp))
+
+		// If there's an error, it must NOT be the bidirectional error
+		assert.NotEqual(t, cn.ErrRouteNotBidirectional.Error(), errResp["code"],
+			"bidirectional route should allow revert; gate check must pass")
+	}
+}
+
+// TestRevertTransaction_NonBidirectionalRouteRejects validates that a revert is rejected
+// when the operation route has OperationType other than "bidirectional" (e.g., "source").
+func TestRevertTransaction_NonBidirectionalRouteRejects(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	operationRouteID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+
+	amount := decimal.NewFromInt(1000)
+	tran := &transaction.Transaction{
+		ID:                  transactionID.String(),
+		OrganizationID:      orgID.String(),
+		LedgerID:            ledgerID.String(),
+		ParentTransactionID: nil,
+		Description:         "Test transaction with non-bidirectional route",
+		AssetCode:           "USD",
+		Amount:              &amount,
+		Status: transaction.Status{
+			Code: cn.APPROVED,
+		},
+		Operations: []*operation.Operation{
+			{
+				Type:         libConstants.CREDIT,
+				AccountAlias: "@receiver",
+				AssetCode:    "USD",
+				Amount:       operation.Amount{Value: &amount},
+				Route:        operationRouteID.String(),
+			},
+		},
+	}
+
+	// Mock: No existing revert
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Find transaction with operations
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(tran, nil).
+		Times(1)
+
+	// Mock: Metadata lookup
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Operation route is NOT bidirectional (type "source")
+	mockOperationRouteRepo.EXPECT().
+		FindByID(gomock.Any(), orgID, ledgerID, operationRouteID).
+		Return(&mmodel.OperationRoute{
+			ID:            operationRouteID,
+			OperationType: "source",
+		}, nil).
+		Times(1)
+
+	// Mock: Metadata for the operation route
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "OperationRoute", operationRouteID.String()).
+		Return(nil, nil).
+		AnyTimes()
+
+	queryUC := &query.UseCase{
+		TransactionRepo:    mockTransactionRepo,
+		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo: mockOperationRouteRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New()
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.RevertTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, 422, resp.StatusCode, "expected HTTP 422 for non-bidirectional route")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var errResp map[string]any
+	err = json.Unmarshal(body, &errResp)
+	require.NoError(t, err, "error response should be valid JSON")
+
+	assert.Equal(t, cn.ErrRouteNotBidirectional.Error(), errResp["code"],
+		"expected ErrRouteNotBidirectional error code")
+}
+
+// TestRevertTransaction_NoRouteRevertsNormally validates that operations without
+// a route_id skip the bidirectional check and revert normally.
+func TestRevertTransaction_NoRouteRevertsNormally(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	amount := decimal.NewFromInt(1000)
+	tran := &transaction.Transaction{
+		ID:                  transactionID.String(),
+		OrganizationID:      orgID.String(),
+		LedgerID:            ledgerID.String(),
+		ParentTransactionID: nil,
+		Description:         "Test transaction without routes",
+		AssetCode:           "USD",
+		Amount:              &amount,
+		Status: transaction.Status{
+			Code: cn.APPROVED,
+		},
+		Operations: []*operation.Operation{
+			{
+				Type:         libConstants.CREDIT,
+				AccountAlias: "@receiver",
+				AssetCode:    "USD",
+				Amount:       operation.Amount{Value: &amount},
+				// No Route set
+			},
+		},
+	}
+
+	// Mock: No existing revert
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Find transaction with operations
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(tran, nil).
+		Times(1)
+
+	// Mock: Metadata lookup
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		Times(1)
+
+	// No OperationRouteRepo mock needed -- no route to look up
+
+	queryUC := &query.UseCase{
+		TransactionRepo: mockTransactionRepo,
+		MetadataRepo:    mockMetadataRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New(fiber.Config{
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal"})
+		},
+	})
+	app.Use(func(c *fiber.Ctx) error {
+		defer func() {
+			if r := recover(); r != nil {
+				_ = c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "recovered"})
+			}
+		}()
+		return c.Next()
+	})
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.RevertTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert: should NOT return a bidirectional error.
+	// The handler passes the bidirectional gate (skipped for no-route ops)
+	// but may fail downstream (e.g., nil Command). We verify the gate passed,
+	// not the full revert flow.
+	require.NoError(t, err)
+	if resp.StatusCode >= 400 {
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var errResp map[string]any
+		require.NoError(t, json.Unmarshal(body, &errResp))
+
+		assert.NotEqual(t, cn.ErrRouteNotBidirectional.Error(), errResp["code"],
+			"operations without route should skip bidirectional check")
+	}
+}
+
+// TestRevertTransaction_RouteLookupError_ReturnsError validates that when the
+// route lookup fails, the revert is blocked (fail-closed behavior).
+func TestRevertTransaction_RouteLookupError_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	// Arrange
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New()
+	operationRouteID := uuid.New()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+
+	amount := decimal.NewFromInt(1000)
+	tran := &transaction.Transaction{
+		ID:                  transactionID.String(),
+		OrganizationID:      orgID.String(),
+		LedgerID:            ledgerID.String(),
+		ParentTransactionID: nil,
+		Description:         "Test transaction with route lookup failure",
+		AssetCode:           "USD",
+		Amount:              &amount,
+		Status: transaction.Status{
+			Code: cn.APPROVED,
+		},
+		Operations: []*operation.Operation{
+			{
+				Type:         libConstants.CREDIT,
+				AccountAlias: "@receiver",
+				AssetCode:    "USD",
+				Amount:       operation.Amount{Value: &amount},
+				Route:        operationRouteID.String(),
+			},
+		},
+	}
+
+	routeLookupErr := errors.New("database connection error")
+
+	// Mock: No existing revert
+	mockTransactionRepo.EXPECT().
+		FindByParentID(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Find transaction with operations
+	mockTransactionRepo.EXPECT().
+		FindWithOperations(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(tran, nil).
+		Times(1)
+
+	// Mock: Metadata lookup
+	mockMetadataRepo.EXPECT().
+		FindByEntity(gomock.Any(), "Transaction", transactionID.String()).
+		Return(nil, nil).
+		Times(1)
+
+	// Mock: Operation route lookup fails
+	mockOperationRouteRepo.EXPECT().
+		FindByID(gomock.Any(), orgID, ledgerID, operationRouteID).
+		Return(nil, routeLookupErr).
+		Times(1)
+
+	queryUC := &query.UseCase{
+		TransactionRepo:    mockTransactionRepo,
+		MetadataRepo:       mockMetadataRepo,
+		OperationRouteRepo: mockOperationRouteRepo,
+	}
+	handler := &TransactionHandler{Query: queryUC}
+
+	app := fiber.New()
+	app.Post("/test/:organization_id/:ledger_id/transactions/:transaction_id/revert",
+		func(c *fiber.Ctx) error {
+			c.Locals("organization_id", orgID)
+			c.Locals("ledger_id", ledgerID)
+			c.Locals("transaction_id", transactionID)
+			return c.Next()
+		},
+		handler.RevertTransaction,
+	)
+
+	// Act
+	req := httptest.NewRequest("POST",
+		"/test/"+orgID.String()+"/"+ledgerID.String()+"/transactions/"+transactionID.String()+"/revert",
+		nil)
+	resp, err := app.Test(req)
+
+	// Assert: route lookup failure must block the revert (fail-closed)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, resp.StatusCode, 400,
+		"route lookup failure should return an error status")
 }
 
 // TestCommitTransaction_GetTransactionError_ReturnsError validates that errors from
@@ -2546,9 +3005,9 @@ func TestGetTransaction_WriteBehindHit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	queryUC := &query.UseCase{RedisRepo: mockRedisRepo}
@@ -2591,9 +3050,9 @@ func TestCancelTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
@@ -2638,9 +3097,9 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
@@ -2703,9 +3162,9 @@ func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	queryUC := &query.UseCase{RedisRepo: mockRedisRepo}
@@ -2754,9 +3213,9 @@ func TestCommitTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
@@ -2801,9 +3260,9 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
@@ -2866,9 +3325,9 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	tranID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	queryUC := &query.UseCase{RedisRepo: mockRedisRepo}
@@ -2909,4 +3368,1127 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 
 	// Error from SetNX short-circuit, but write-behind was used and Postgres was NOT called
 	assert.True(t, resp.StatusCode >= 400)
+}
+
+func TestPropagateRouteValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		isPending         bool
+		from              map[string]pkgTransaction.Amount
+		to                map[string]pkgTransaction.Amount
+		expectedFromFlags map[string]bool
+		expectedToFlags   map[string]bool
+	}{
+		{
+			name:      "pending transaction sets RouteValidationEnabled on all From entries",
+			isPending: true,
+			from: map[string]pkgTransaction.Amount{
+				"@source1": {
+					Value:     decimal.NewFromInt(500),
+					Operation: libConstants.ONHOLD,
+				},
+				"@source2": {
+					Value:     decimal.NewFromInt(500),
+					Operation: libConstants.ONHOLD,
+				},
+			},
+			to: map[string]pkgTransaction.Amount{
+				"@dest1": {
+					Value:     decimal.NewFromInt(1000),
+					Operation: libConstants.CREDIT,
+				},
+			},
+			expectedFromFlags: map[string]bool{
+				"@source1": true,
+				"@source2": true,
+			},
+			expectedToFlags: map[string]bool{
+				"@dest1": false,
+			},
+		},
+		{
+			name:      "non-pending transaction does not set RouteValidationEnabled",
+			isPending: false,
+			from: map[string]pkgTransaction.Amount{
+				"@source1": {
+					Value:     decimal.NewFromInt(1000),
+					Operation: libConstants.DEBIT,
+				},
+			},
+			to: map[string]pkgTransaction.Amount{
+				"@dest1": {
+					Value:     decimal.NewFromInt(1000),
+					Operation: libConstants.CREDIT,
+				},
+			},
+			expectedFromFlags: map[string]bool{
+				"@source1": false,
+			},
+			expectedToFlags: map[string]bool{
+				"@dest1": false,
+			},
+		},
+		{
+			name:              "pending transaction with empty From map is a no-op",
+			isPending:         true,
+			from:              map[string]pkgTransaction.Amount{},
+			to:                map[string]pkgTransaction.Amount{},
+			expectedFromFlags: map[string]bool{},
+			expectedToFlags:   map[string]bool{},
+		},
+		{
+			name:      "pending transaction with single From entry",
+			isPending: true,
+			from: map[string]pkgTransaction.Amount{
+				"@source1": {
+					Value:                  decimal.NewFromInt(100),
+					Operation:              libConstants.ONHOLD,
+					RouteValidationEnabled: false,
+				},
+			},
+			to: map[string]pkgTransaction.Amount{},
+			expectedFromFlags: map[string]bool{
+				"@source1": true,
+			},
+			expectedToFlags: map[string]bool{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			validate := &pkgTransaction.Responses{
+				From: tt.from,
+				To:   tt.to,
+			}
+
+			transactionStatus := cn.CREATED
+			if tt.isPending {
+				transactionStatus = cn.PENDING
+			}
+
+			propagateRouteValidation(ctx, validate, tt.isPending, transactionStatus)
+
+			for key, expectedFlag := range tt.expectedFromFlags {
+				amt, exists := validate.From[key]
+				assert.True(t, exists, "From map should contain key %s", key)
+				assert.Equal(t, expectedFlag, amt.RouteValidationEnabled,
+					"From[%s].RouteValidationEnabled should be %v", key, expectedFlag)
+			}
+
+			for key, expectedFlag := range tt.expectedToFlags {
+				amt, exists := validate.To[key]
+				assert.True(t, exists, "To map should contain key %s", key)
+				assert.Equal(t, expectedFlag, amt.RouteValidationEnabled,
+					"To[%s].RouteValidationEnabled should not be modified", key)
+			}
+		})
+	}
+}
+
+func TestBuildDoubleEntryPendingOps(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		balance            *mmodel.Balance
+		fromTo             pkgTransaction.FromTo
+		amount             pkgTransaction.Amount
+		balanceAfter       pkgTransaction.Balance
+		tran               transaction.Transaction
+		transactionInput   pkgTransaction.Transaction
+		isAnnotation       bool
+		expectedOpCount    int
+		expectedOp1Type    string
+		expectedOp2Type    string
+		checkVersionChain  bool
+		checkBalanceFields bool
+	}{
+		{
+			name: "generates exactly 2 operations with correct types",
+			balance: &mmodel.Balance{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				Alias:          "@source1",
+				Key:            "default",
+				Available:      decimal.NewFromInt(1000),
+				OnHold:         decimal.NewFromInt(0),
+				Version:        5,
+			},
+			fromTo: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+				Description:  "test operation",
+			},
+			amount: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(300),
+				Operation:              libConstants.ONHOLD,
+				TransactionType:        cn.PENDING,
+				RouteValidationEnabled: true,
+			},
+			balanceAfter: pkgTransaction.Balance{
+				Available: decimal.NewFromInt(700),
+				OnHold:    decimal.NewFromInt(300),
+				Version:   7,
+			},
+			tran: transaction.Transaction{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: true,
+				Send:    pkgTransaction.Send{Asset: "BRL"},
+			},
+			isAnnotation:       false,
+			expectedOpCount:    2,
+			expectedOp1Type:    cn.DEBIT,
+			expectedOp2Type:    libConstants.ONHOLD,
+			checkVersionChain:  true,
+			checkBalanceFields: true,
+		},
+		{
+			name: "annotation mode zeroes all balance fields",
+			balance: &mmodel.Balance{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				Alias:          "@source1",
+				Key:            "default",
+				Available:      decimal.NewFromInt(1000),
+				OnHold:         decimal.NewFromInt(0),
+				Version:        5,
+			},
+			fromTo: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amount: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(200),
+				Operation:              libConstants.ONHOLD,
+				TransactionType:        cn.PENDING,
+				RouteValidationEnabled: true,
+			},
+			balanceAfter: pkgTransaction.Balance{
+				Available: decimal.NewFromInt(800),
+				OnHold:    decimal.NewFromInt(200),
+				Version:   7,
+			},
+			tran: transaction.Transaction{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending:     true,
+				Description: "annotation test",
+				Send:        pkgTransaction.Send{Asset: "BRL"},
+			},
+			isAnnotation:    true,
+			expectedOpCount: 2,
+			expectedOp1Type: cn.DEBIT,
+			expectedOp2Type: libConstants.ONHOLD,
+		},
+		{
+			name: "uses transaction description when fromTo description is empty",
+			balance: &mmodel.Balance{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				Alias:          "@source1",
+				Key:            "default",
+				Available:      decimal.NewFromInt(500),
+				OnHold:         decimal.NewFromInt(0),
+				Version:        1,
+			},
+			fromTo: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+				Description:  "",
+			},
+			amount: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(100),
+				Operation:              libConstants.ONHOLD,
+				TransactionType:        cn.PENDING,
+				RouteValidationEnabled: true,
+			},
+			balanceAfter: pkgTransaction.Balance{
+				Available: decimal.NewFromInt(400),
+				OnHold:    decimal.NewFromInt(100),
+				Version:   3,
+			},
+			tran: transaction.Transaction{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending:     true,
+				Description: "fallback description",
+				Send:        pkgTransaction.Send{Asset: "USD"},
+			},
+			isAnnotation:    false,
+			expectedOpCount: 2,
+			expectedOp1Type: cn.DEBIT,
+			expectedOp2Type: libConstants.ONHOLD,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			handler := &TransactionHandler{}
+			transactionDate := time.Now()
+
+			ops, err := handler.buildDoubleEntryPendingOps(
+				ctx,
+				tt.balance,
+				tt.fromTo,
+				tt.amount,
+				tt.balanceAfter,
+				tt.tran,
+				tt.transactionInput,
+				transactionDate,
+				tt.isAnnotation,
+			)
+			require.NoError(t, err)
+
+			require.Len(t, ops, tt.expectedOpCount, "should generate exactly %d operations", tt.expectedOpCount)
+
+			op1 := ops[0]
+			op2 := ops[1]
+
+			// Verify operation types
+			assert.Equal(t, tt.expectedOp1Type, op1.Type, "op1 should be DEBIT")
+			assert.Equal(t, tt.expectedOp2Type, op2.Type, "op2 should be ON_HOLD")
+
+			// Both ops share the same transaction and balance IDs
+			assert.Equal(t, tt.tran.ID, op1.TransactionID)
+			assert.Equal(t, tt.tran.ID, op2.TransactionID)
+			assert.Equal(t, tt.balance.ID, op1.BalanceID)
+			assert.Equal(t, tt.balance.ID, op2.BalanceID)
+
+			// Both ops have same amount value
+			assert.True(t, tt.amount.Value.Equal(*op1.Amount.Value), "op1 amount should match input")
+			assert.True(t, tt.amount.Value.Equal(*op2.Amount.Value), "op2 amount should match input")
+
+			// Op IDs are different (each is a distinct UUIDv7)
+			assert.NotEqual(t, op1.ID, op2.ID, "op1 and op2 should have distinct IDs")
+
+			// BalanceAffected flag
+			assert.Equal(t, !tt.isAnnotation, op1.BalanceAffected, "op1 BalanceAffected")
+			assert.Equal(t, !tt.isAnnotation, op2.BalanceAffected, "op2 BalanceAffected")
+
+			if tt.checkVersionChain && !tt.isAnnotation {
+				// Version chaining: op1 starts at original, ends at original+1
+				// op2 starts at original+1, ends at original+2
+				originalVersion := tt.balance.Version
+
+				assert.Equal(t, originalVersion, *op1.Balance.Version,
+					"op1 balance before should have original version")
+				assert.Equal(t, originalVersion+1, *op1.BalanceAfter.Version,
+					"op1 balance after should be original+1")
+				assert.Equal(t, originalVersion+1, *op2.Balance.Version,
+					"op2 balance before should chain from op1 (original+1)")
+				assert.Equal(t, originalVersion+2, *op2.BalanceAfter.Version,
+					"op2 balance after should be original+2")
+			}
+
+			if tt.checkBalanceFields && !tt.isAnnotation {
+				// Op1 (DEBIT): only Available changes, OnHold unchanged
+				expectedDebitAvailable := tt.balance.Available.Sub(tt.amount.Value)
+				assert.True(t, expectedDebitAvailable.Equal(*op1.BalanceAfter.Available),
+					"op1 should decrease Available by amount: want %s got %s",
+					expectedDebitAvailable.String(), op1.BalanceAfter.Available.String())
+				assert.True(t, tt.balance.OnHold.Equal(*op1.BalanceAfter.OnHold),
+					"op1 should not change OnHold: want %s got %s",
+					tt.balance.OnHold.String(), op1.BalanceAfter.OnHold.String())
+
+				// Op2 (ONHOLD): OnHold increases, Available stays at op1's result
+				expectedOnHoldValue := tt.balance.OnHold.Add(tt.amount.Value)
+				assert.True(t, expectedDebitAvailable.Equal(*op2.Balance.Available),
+					"op2 balance before Available should match op1 after Available")
+				assert.True(t, expectedOnHoldValue.Equal(*op2.BalanceAfter.OnHold),
+					"op2 should increase OnHold by amount: want %s got %s",
+					expectedOnHoldValue.String(), op2.BalanceAfter.OnHold.String())
+			}
+
+			if tt.isAnnotation {
+				// All balance fields should be zeroed
+				zero := decimal.NewFromInt(0)
+				zeroVersion := int64(0)
+
+				assert.True(t, zero.Equal(*op1.Balance.Available), "annotation op1 balance Available should be zero")
+				assert.True(t, zero.Equal(*op1.Balance.OnHold), "annotation op1 balance OnHold should be zero")
+				assert.Equal(t, zeroVersion, *op1.Balance.Version, "annotation op1 balance Version should be zero")
+				assert.True(t, zero.Equal(*op1.BalanceAfter.Available), "annotation op1 balanceAfter Available should be zero")
+				assert.True(t, zero.Equal(*op1.BalanceAfter.OnHold), "annotation op1 balanceAfter OnHold should be zero")
+				assert.Equal(t, zeroVersion, *op1.BalanceAfter.Version, "annotation op1 balanceAfter Version should be zero")
+
+				assert.True(t, zero.Equal(*op2.Balance.Available), "annotation op2 balance Available should be zero")
+				assert.True(t, zero.Equal(*op2.Balance.OnHold), "annotation op2 balance OnHold should be zero")
+				assert.Equal(t, zeroVersion, *op2.Balance.Version, "annotation op2 balance Version should be zero")
+				assert.True(t, zero.Equal(*op2.BalanceAfter.Available), "annotation op2 balanceAfter Available should be zero")
+				assert.True(t, zero.Equal(*op2.BalanceAfter.OnHold), "annotation op2 balanceAfter OnHold should be zero")
+				assert.Equal(t, zeroVersion, *op2.BalanceAfter.Version, "annotation op2 balanceAfter Version should be zero")
+			}
+
+			// Description fallback
+			if tt.fromTo.Description != "" {
+				assert.Equal(t, tt.fromTo.Description, op1.Description, "should use fromTo description")
+				assert.Equal(t, tt.fromTo.Description, op2.Description, "should use fromTo description")
+			} else {
+				assert.Equal(t, tt.transactionInput.Description, op1.Description, "should fall back to transaction description")
+				assert.Equal(t, tt.transactionInput.Description, op2.Description, "should fall back to transaction description")
+			}
+		})
+	}
+}
+
+func TestPropagateRouteValidation_Canceled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		isPending         bool
+		transactionStatus string
+		from              map[string]pkgTransaction.Amount
+		to                map[string]pkgTransaction.Amount
+		expectedFromFlags map[string]bool
+		expectedToFlags   map[string]bool
+	}{
+		{
+			name:              "canceled transaction sets RouteValidationEnabled on all From entries",
+			isPending:         false,
+			transactionStatus: cn.CANCELED,
+			from: map[string]pkgTransaction.Amount{
+				"@source1": {
+					Value:     decimal.NewFromInt(500),
+					Operation: libConstants.RELEASE,
+				},
+			},
+			to: map[string]pkgTransaction.Amount{
+				"@dest1": {
+					Value:     decimal.NewFromInt(500),
+					Operation: libConstants.CREDIT,
+				},
+			},
+			expectedFromFlags: map[string]bool{
+				"@source1": true,
+			},
+			expectedToFlags: map[string]bool{
+				"@dest1": false,
+			},
+		},
+		{
+			name:              "canceled transaction with multiple From entries sets flag on all",
+			isPending:         false,
+			transactionStatus: cn.CANCELED,
+			from: map[string]pkgTransaction.Amount{
+				"@source1": {
+					Value:     decimal.NewFromInt(300),
+					Operation: libConstants.RELEASE,
+				},
+				"@source2": {
+					Value:     decimal.NewFromInt(200),
+					Operation: libConstants.RELEASE,
+				},
+				"@source3": {
+					Value:     decimal.NewFromInt(500),
+					Operation: libConstants.RELEASE,
+				},
+			},
+			to: map[string]pkgTransaction.Amount{},
+			expectedFromFlags: map[string]bool{
+				"@source1": true,
+				"@source2": true,
+				"@source3": true,
+			},
+			expectedToFlags: map[string]bool{},
+		},
+		{
+			name:              "APPROVED transaction sets RouteValidationEnabled on From entries",
+			isPending:         false,
+			transactionStatus: cn.APPROVED,
+			from: map[string]pkgTransaction.Amount{
+				"@source1": {
+					Value:     decimal.NewFromInt(100),
+					Operation: libConstants.DEBIT,
+				},
+			},
+			to: map[string]pkgTransaction.Amount{
+				"@dest1": {
+					Value:     decimal.NewFromInt(100),
+					Operation: libConstants.CREDIT,
+				},
+			},
+			expectedFromFlags: map[string]bool{
+				"@source1": true,
+			},
+			expectedToFlags: map[string]bool{
+				"@dest1": false,
+			},
+		},
+		{
+			name:              "CREATED transaction does NOT set RouteValidationEnabled",
+			isPending:         false,
+			transactionStatus: cn.CREATED,
+			from: map[string]pkgTransaction.Amount{
+				"@source1": {
+					Value:     decimal.NewFromInt(100),
+					Operation: libConstants.DEBIT,
+				},
+			},
+			to:                map[string]pkgTransaction.Amount{},
+			expectedFromFlags: map[string]bool{"@source1": false},
+			expectedToFlags:   map[string]bool{},
+		},
+		{
+			name:              "canceled transaction with empty From map is a no-op",
+			isPending:         false,
+			transactionStatus: cn.CANCELED,
+			from:              map[string]pkgTransaction.Amount{},
+			to:                map[string]pkgTransaction.Amount{},
+			expectedFromFlags: map[string]bool{},
+			expectedToFlags:   map[string]bool{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			validate := &pkgTransaction.Responses{
+				From: tt.from,
+				To:   tt.to,
+			}
+
+			propagateRouteValidation(ctx, validate, tt.isPending, tt.transactionStatus)
+
+			for key, expectedFlag := range tt.expectedFromFlags {
+				amt, exists := validate.From[key]
+				assert.True(t, exists, "From map should contain key %s", key)
+				assert.Equal(t, expectedFlag, amt.RouteValidationEnabled,
+					"From[%s].RouteValidationEnabled should be %v", key, expectedFlag)
+			}
+
+			for key, expectedFlag := range tt.expectedToFlags {
+				amt, exists := validate.To[key]
+				assert.True(t, exists, "To map should contain key %s", key)
+				assert.Equal(t, expectedFlag, amt.RouteValidationEnabled,
+					"To[%s].RouteValidationEnabled should not be modified", key)
+			}
+		})
+	}
+}
+
+func TestBuildDoubleEntryCanceledOps(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		balance            *mmodel.Balance
+		fromTo             pkgTransaction.FromTo
+		amount             pkgTransaction.Amount
+		balanceAfter       pkgTransaction.Balance
+		tran               transaction.Transaction
+		transactionInput   pkgTransaction.Transaction
+		isAnnotation       bool
+		expectedOpCount    int
+		expectedOp1Type    string
+		expectedOp2Type    string
+		checkVersionChain  bool
+		checkBalanceFields bool
+	}{
+		{
+			name: "generates exactly 2 operations RELEASE+CREDIT with correct types",
+			balance: &mmodel.Balance{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				Alias:          "@source1",
+				Key:            "default",
+				Available:      decimal.NewFromInt(500),
+				OnHold:         decimal.NewFromInt(300),
+				Version:        7,
+			},
+			fromTo: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+				Description:  "canceled operation",
+			},
+			amount: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(300),
+				Operation:              libConstants.RELEASE,
+				TransactionType:        cn.CANCELED,
+				RouteValidationEnabled: true,
+			},
+			balanceAfter: pkgTransaction.Balance{
+				Available: decimal.NewFromInt(800),
+				OnHold:    decimal.NewFromInt(0),
+				Version:   10,
+			},
+			tran: transaction.Transaction{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: false,
+				Send:    pkgTransaction.Send{Asset: "BRL"},
+			},
+			isAnnotation:       false,
+			expectedOpCount:    2,
+			expectedOp1Type:    cn.RELEASE,
+			expectedOp2Type:    cn.CREDIT,
+			checkVersionChain:  true,
+			checkBalanceFields: true,
+		},
+		{
+			name: "annotation mode zeroes all balance fields",
+			balance: &mmodel.Balance{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				Alias:          "@source1",
+				Key:            "default",
+				Available:      decimal.NewFromInt(500),
+				OnHold:         decimal.NewFromInt(300),
+				Version:        7,
+			},
+			fromTo: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amount: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(300),
+				Operation:              libConstants.RELEASE,
+				TransactionType:        cn.CANCELED,
+				RouteValidationEnabled: true,
+			},
+			balanceAfter: pkgTransaction.Balance{
+				Available: decimal.NewFromInt(800),
+				OnHold:    decimal.NewFromInt(0),
+				Version:   10,
+			},
+			tran: transaction.Transaction{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending:     false,
+				Description: "annotation canceled",
+				Send:        pkgTransaction.Send{Asset: "BRL"},
+			},
+			isAnnotation:    true,
+			expectedOpCount: 2,
+			expectedOp1Type: cn.RELEASE,
+			expectedOp2Type: cn.CREDIT,
+		},
+		{
+			name: "uses transaction description when fromTo description is empty",
+			balance: &mmodel.Balance{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				Alias:          "@source1",
+				Key:            "default",
+				Available:      decimal.NewFromInt(1000),
+				OnHold:         decimal.NewFromInt(200),
+				Version:        1,
+			},
+			fromTo: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+				Description:  "",
+			},
+			amount: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(200),
+				Operation:              libConstants.RELEASE,
+				TransactionType:        cn.CANCELED,
+				RouteValidationEnabled: true,
+			},
+			balanceAfter: pkgTransaction.Balance{
+				Available: decimal.NewFromInt(1200),
+				OnHold:    decimal.NewFromInt(0),
+				Version:   4,
+			},
+			tran: transaction.Transaction{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending:     false,
+				Description: "fallback canceled description",
+				Send:        pkgTransaction.Send{Asset: "USD"},
+			},
+			isAnnotation:    false,
+			expectedOpCount: 2,
+			expectedOp1Type: cn.RELEASE,
+			expectedOp2Type: cn.CREDIT,
+		},
+		{
+			name: "zero amount produces 2 operations with unchanged balances",
+			balance: &mmodel.Balance{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				Alias:          "@source1",
+				Key:            "default",
+				Available:      decimal.NewFromInt(1000),
+				OnHold:         decimal.NewFromInt(500),
+				Version:        5,
+			},
+			fromTo: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+				Description:  "zero amount test",
+			},
+			amount: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(0),
+				Operation:              libConstants.RELEASE,
+				TransactionType:        cn.CANCELED,
+				RouteValidationEnabled: true,
+			},
+			balanceAfter: pkgTransaction.Balance{
+				Available: decimal.NewFromInt(1000),
+				OnHold:    decimal.NewFromInt(500),
+				Version:   7,
+			},
+			tran: transaction.Transaction{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: false,
+				Send:    pkgTransaction.Send{Asset: "BRL"},
+			},
+			isAnnotation:       false,
+			expectedOpCount:    2,
+			expectedOp1Type:    cn.RELEASE,
+			expectedOp2Type:    cn.CREDIT,
+			checkVersionChain:  true,
+			checkBalanceFields: true,
+		},
+		{
+			name: "version starting at 0 chains correctly",
+			balance: &mmodel.Balance{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				Alias:          "@source1",
+				Key:            "default",
+				Available:      decimal.NewFromInt(100),
+				OnHold:         decimal.NewFromInt(100),
+				Version:        0,
+			},
+			fromTo: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+				Description:  "version zero test",
+			},
+			amount: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(100),
+				Operation:              libConstants.RELEASE,
+				TransactionType:        cn.CANCELED,
+				RouteValidationEnabled: true,
+			},
+			balanceAfter: pkgTransaction.Balance{
+				Available: decimal.NewFromInt(200),
+				OnHold:    decimal.NewFromInt(0),
+				Version:   2,
+			},
+			tran: transaction.Transaction{
+				ID:             uuid.New().String(),
+				OrganizationID: uuid.New().String(),
+				LedgerID:       uuid.New().String(),
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: false,
+				Send:    pkgTransaction.Send{Asset: "BRL"},
+			},
+			isAnnotation:       false,
+			expectedOpCount:    2,
+			expectedOp1Type:    cn.RELEASE,
+			expectedOp2Type:    cn.CREDIT,
+			checkVersionChain:  true,
+			checkBalanceFields: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			handler := &TransactionHandler{}
+			transactionDate := time.Now()
+
+			ops, err := handler.buildDoubleEntryCanceledOps(
+				ctx,
+				tt.balance,
+				tt.fromTo,
+				tt.amount,
+				tt.balanceAfter,
+				tt.tran,
+				tt.transactionInput,
+				transactionDate,
+				tt.isAnnotation,
+			)
+			require.NoError(t, err)
+
+			require.Len(t, ops, tt.expectedOpCount, "should generate exactly %d operations", tt.expectedOpCount)
+
+			op1 := ops[0]
+			op2 := ops[1]
+
+			// Verify operation types
+			assert.Equal(t, tt.expectedOp1Type, op1.Type, "op1 should be RELEASE")
+			assert.Equal(t, tt.expectedOp2Type, op2.Type, "op2 should be CREDIT")
+
+			// Both ops share the same transaction and balance IDs
+			assert.Equal(t, tt.tran.ID, op1.TransactionID)
+			assert.Equal(t, tt.tran.ID, op2.TransactionID)
+			assert.Equal(t, tt.balance.ID, op1.BalanceID)
+			assert.Equal(t, tt.balance.ID, op2.BalanceID)
+
+			// Both ops have same amount value
+			assert.True(t, tt.amount.Value.Equal(*op1.Amount.Value), "op1 amount should match input")
+			assert.True(t, tt.amount.Value.Equal(*op2.Amount.Value), "op2 amount should match input")
+
+			// Op IDs are different (each is a distinct UUIDv7)
+			assert.NotEqual(t, op1.ID, op2.ID, "op1 and op2 should have distinct IDs")
+
+			// BalanceAffected flag
+			assert.Equal(t, !tt.isAnnotation, op1.BalanceAffected, "op1 BalanceAffected")
+			assert.Equal(t, !tt.isAnnotation, op2.BalanceAffected, "op2 BalanceAffected")
+
+			if tt.checkVersionChain && !tt.isAnnotation {
+				// Version chaining: op1 starts at original, ends at original+1
+				// op2 starts at original+1 (release version), ends at original+2
+				originalVersion := tt.balance.Version
+
+				assert.Equal(t, originalVersion, *op1.Balance.Version,
+					"op1 balance before should have original version")
+				assert.Equal(t, originalVersion+1, *op1.BalanceAfter.Version,
+					"op1 balance after should be original+1")
+				assert.Equal(t, originalVersion+1, *op2.Balance.Version,
+					"op2 balance before should chain from op1 (original+1)")
+				assert.Equal(t, originalVersion+2, *op2.BalanceAfter.Version,
+					"op2 balance after should be original+2")
+			}
+
+			if tt.checkBalanceFields && !tt.isAnnotation {
+				// Op1 (RELEASE): only OnHold changes, Available unchanged
+				expectedReleaseOnHold := tt.balance.OnHold.Sub(tt.amount.Value)
+				assert.True(t, tt.balance.Available.Equal(*op1.BalanceAfter.Available),
+					"op1 should NOT change Available: want %s got %s",
+					tt.balance.Available.String(), op1.BalanceAfter.Available.String())
+				assert.True(t, expectedReleaseOnHold.Equal(*op1.BalanceAfter.OnHold),
+					"op1 should decrease OnHold by amount: want %s got %s",
+					expectedReleaseOnHold.String(), op1.BalanceAfter.OnHold.String())
+
+				// Op2 (CREDIT): Available increases, OnHold stays at op1's result
+				expectedCreditAvailable := tt.balance.Available.Add(tt.amount.Value)
+				assert.True(t, expectedReleaseOnHold.Equal(*op2.BalanceAfter.OnHold),
+					"op2 OnHold should remain at op1 result: want %s got %s",
+					expectedReleaseOnHold.String(), op2.BalanceAfter.OnHold.String())
+				assert.True(t, expectedCreditAvailable.Equal(*op2.BalanceAfter.Available),
+					"op2 should increase Available by amount: want %s got %s",
+					expectedCreditAvailable.String(), op2.BalanceAfter.Available.String())
+			}
+
+			if tt.isAnnotation {
+				// All balance fields should be zeroed
+				zero := decimal.NewFromInt(0)
+				zeroVersion := int64(0)
+
+				assert.True(t, zero.Equal(*op1.Balance.Available), "annotation op1 balance Available should be zero")
+				assert.True(t, zero.Equal(*op1.Balance.OnHold), "annotation op1 balance OnHold should be zero")
+				assert.Equal(t, zeroVersion, *op1.Balance.Version, "annotation op1 balance Version should be zero")
+				assert.True(t, zero.Equal(*op1.BalanceAfter.Available), "annotation op1 balanceAfter Available should be zero")
+				assert.True(t, zero.Equal(*op1.BalanceAfter.OnHold), "annotation op1 balanceAfter OnHold should be zero")
+				assert.Equal(t, zeroVersion, *op1.BalanceAfter.Version, "annotation op1 balanceAfter Version should be zero")
+
+				assert.True(t, zero.Equal(*op2.Balance.Available), "annotation op2 balance Available should be zero")
+				assert.True(t, zero.Equal(*op2.Balance.OnHold), "annotation op2 balance OnHold should be zero")
+				assert.Equal(t, zeroVersion, *op2.Balance.Version, "annotation op2 balance Version should be zero")
+				assert.True(t, zero.Equal(*op2.BalanceAfter.Available), "annotation op2 balanceAfter Available should be zero")
+				assert.True(t, zero.Equal(*op2.BalanceAfter.OnHold), "annotation op2 balanceAfter OnHold should be zero")
+				assert.Equal(t, zeroVersion, *op2.BalanceAfter.Version, "annotation op2 balanceAfter Version should be zero")
+			}
+
+			// Description fallback
+			if tt.fromTo.Description != "" {
+				assert.Equal(t, tt.fromTo.Description, op1.Description, "should use fromTo description")
+				assert.Equal(t, tt.fromTo.Description, op2.Description, "should use fromTo description")
+			} else {
+				assert.Equal(t, tt.transactionInput.Description, op1.Description, "should fall back to transaction description")
+				assert.Equal(t, tt.transactionInput.Description, op2.Description, "should fall back to transaction description")
+			}
+		})
+	}
+}
+
+func TestTryBuildDoubleEntryOps(t *testing.T) {
+	t.Parallel()
+
+	baseBalance := &mmodel.Balance{
+		ID:             uuid.New().String(),
+		OrganizationID: uuid.New().String(),
+		LedgerID:       uuid.New().String(),
+		AccountID:      uuid.New().String(),
+		Alias:          "@source1",
+		Key:            "default",
+		Available:      decimal.NewFromInt(1000),
+		OnHold:         decimal.NewFromInt(200),
+		Version:        5,
+	}
+
+	baseTran := transaction.Transaction{
+		ID:             uuid.New().String(),
+		OrganizationID: uuid.New().String(),
+		LedgerID:       uuid.New().String(),
+	}
+
+	baseBalanceAfter := pkgTransaction.Balance{
+		Available: decimal.NewFromInt(800),
+		OnHold:    decimal.NewFromInt(400),
+		Version:   7,
+	}
+
+	tests := []struct {
+		name                   string
+		ft                     pkgTransaction.FromTo
+		amt                    pkgTransaction.Amount
+		transactionInput       pkgTransaction.Transaction
+		routeValidationEnabled bool
+		processedDoubleEntry   map[string]bool
+		fromToIndex            int
+		expectedOps            int
+		expectedHandled        bool
+	}{
+		{
+			name: "returns (nil, false) when routeValidationEnabled is false",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amt: pkgTransaction.Amount{
+				Value:           decimal.NewFromInt(100),
+				Operation:       libConstants.ONHOLD,
+				TransactionType: cn.PENDING,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: true,
+				Send:    pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: false,
+			processedDoubleEntry:   make(map[string]bool),
+			expectedOps:            0,
+			expectedHandled:        false,
+		},
+		{
+			name: "returns (nil, false) when IsFrom is false",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@dest1",
+				BalanceKey:   "default",
+				IsFrom:       false,
+			},
+			amt: pkgTransaction.Amount{
+				Value:           decimal.NewFromInt(100),
+				Operation:       libConstants.ONHOLD,
+				TransactionType: cn.PENDING,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: true,
+				Send:    pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: true,
+			processedDoubleEntry:   make(map[string]bool),
+			expectedOps:            0,
+			expectedHandled:        false,
+		},
+		{
+			name: "returns (nil, true) for already-processed alias (deduplication)",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amt: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(100),
+				Operation:              libConstants.ONHOLD,
+				TransactionType:        cn.PENDING,
+				RouteValidationEnabled: true,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: true,
+				Send:    pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: true,
+			processedDoubleEntry:   map[string]bool{"@source1#0": true},
+			fromToIndex:            0,
+			expectedOps:            0,
+			expectedHandled:        true,
+		},
+		{
+			name: "returns (nil, false) for non-double-entry operation (DEBIT+CREATED)",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amt: pkgTransaction.Amount{
+				Value:           decimal.NewFromInt(100),
+				Operation:       cn.DEBIT,
+				TransactionType: cn.CREATED,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Send: pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: true,
+			processedDoubleEntry:   make(map[string]bool),
+			expectedOps:            0,
+			expectedHandled:        false,
+		},
+		{
+			name: "dispatches to pending path for PENDING+ONHOLD",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amt: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(100),
+				Operation:              libConstants.ONHOLD,
+				TransactionType:        cn.PENDING,
+				RouteValidationEnabled: true,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: true,
+				Send:    pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: true,
+			processedDoubleEntry:   make(map[string]bool),
+			expectedOps:            2,
+			expectedHandled:        true,
+		},
+		{
+			name: "dispatches to canceled path for CANCELED+RELEASE",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amt: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(100),
+				Operation:              cn.RELEASE,
+				TransactionType:        cn.CANCELED,
+				RouteValidationEnabled: true,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Send: pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: true,
+			processedDoubleEntry:   make(map[string]bool),
+			expectedOps:            2,
+			expectedHandled:        true,
+		},
+		{
+			name: "allows second entry for same alias with different fromToIndex (transfer+fee)",
+			ft: pkgTransaction.FromTo{
+				AccountAlias: "@source1",
+				BalanceKey:   "default",
+				IsFrom:       true,
+			},
+			amt: pkgTransaction.Amount{
+				Value:                  decimal.NewFromInt(50),
+				Operation:              libConstants.ONHOLD,
+				TransactionType:        cn.PENDING,
+				RouteValidationEnabled: true,
+			},
+			transactionInput: pkgTransaction.Transaction{
+				Pending: true,
+				Send:    pkgTransaction.Send{Asset: "USD"},
+			},
+			routeValidationEnabled: true,
+			processedDoubleEntry:   map[string]bool{"@source1#0": true},
+			fromToIndex:            1,
+			expectedOps:            2,
+			expectedHandled:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			handler := &TransactionHandler{}
+			transactionDate := time.Now()
+
+			ops, handled, err := handler.tryBuildDoubleEntryOps(
+				ctx,
+				baseBalance,
+				tt.ft,
+				tt.amt,
+				baseBalanceAfter,
+				baseTran,
+				tt.transactionInput,
+				transactionDate,
+				false, // isAnnotation
+				tt.routeValidationEnabled,
+				tt.processedDoubleEntry,
+				tt.fromToIndex,
+			)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expectedHandled, handled, "handled flag mismatch")
+
+			if tt.expectedOps == 0 {
+				assert.Nil(t, ops, "expected nil ops")
+			} else {
+				require.Len(t, ops, tt.expectedOps, "expected %d operations", tt.expectedOps)
+
+				// Verify ops have distinct IDs
+				assert.NotEqual(t, ops[0].ID, ops[1].ID, "operations should have distinct IDs")
+
+				// Verify composite key (alias#index) was marked as processed
+				dedupKey := baseBalance.Alias + "#" + strconv.Itoa(tt.fromToIndex)
+				assert.True(t, tt.processedDoubleEntry[dedupKey],
+					"composite key should be marked as processed in the deduplication map")
+			}
+		})
+	}
 }

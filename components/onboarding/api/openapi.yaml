@@ -69,6 +69,20 @@ paths:
           - asc
           - desc
           type: string
+      - description: Filter organizations by legal name (case-insensitive, prefix
+          match)
+        in: query
+        name: legal_name
+        schema:
+          maxLength: 256
+          type: string
+      - description: Filter organizations by doing business as name (case-insensitive,
+          prefix match)
+        in: query
+        name: doing_business_as
+        schema:
+          maxLength: 256
+          type: string
       responses:
         "200":
           content:
@@ -451,6 +465,12 @@ paths:
           - asc
           - desc
           type: string
+      - description: Filter ledgers by name (case-insensitive, prefix match)
+        in: query
+        name: name
+        schema:
+          maxLength: 256
+          type: string
       responses:
         "200":
           content:
@@ -817,7 +837,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{id}/settings:
     get:
       description: Returns the current configuration settings for a specific ledger.
-        Returns an empty object {} if no settings have been defined.
+        If no settings have been persisted, returns the default settings object.
       parameters:
       - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
@@ -847,8 +867,7 @@ paths:
           content:
             application/json:
               schema:
-                additionalProperties: true
-                type: object
+                $ref: '#/components/schemas/mmodel.LedgerSettings'
           description: Successfully retrieved ledger settings
         "401":
           content:
@@ -878,12 +897,14 @@ paths:
       tags:
       - Ledgers
     patch:
-      description: Updates the configuration settings for a specific ledger. New settings
-        are merged at TOP LEVEL only (shallow merge). Nested objects are REPLACED
-        entirely, not deep-merged. To update a nested key, you must send the complete
-        nested object. Setting a key to null will set its value to null; keys are
-        retained, not removed. Server-side validation limits apply - maximum payload
-        size of 64KB, maximum 100 top-level keys, and maximum nesting depth of 10 levels.
+      description: 'Updates the configuration settings for a specific ledger using
+        schema-aware deep merge. Only known settings fields are allowed - unknown
+        fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced
+        - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested
+        objects (like ''accounting'') are deep-merged, preserving existing properties
+        not specified in the update. Example: updating only ''accounting.validateRoutes''
+        preserves the existing ''accounting.validateAccountType'' value. Allowed fields:
+        accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).'
       parameters:
       - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
@@ -912,24 +933,25 @@ paths:
         content:
           application/json:
             schema:
-              additionalProperties: true
               type: object
-        description: Settings to merge with existing settings
+        description: 'Settings to merge with existing settings. Only known fields
+          allowed: accounting.validateAccountType (bool), accounting.validateRoutes
+          (bool)'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                additionalProperties: true
-                type: object
+                $ref: '#/components/schemas/mmodel.LedgerSettings'
           description: Successfully updated ledger settings
         "400":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Invalid request body
+          description: Invalid request body, unknown field (0147), or invalid field
+            type (0148)
         "401":
           content:
             application/json:
@@ -3621,6 +3643,14 @@ components:
           maxLength: 2
           minLength: 2
           type: string
+        description:
+          description: |-
+            A descriptive label for the address (e.g., "Home", "Office", "Billing")
+            example: Home
+            maxLength: 100
+          example: Home
+          maxLength: 100
+          type: string
         line1:
           description: |-
             Primary address line (street address or PO Box)
@@ -3924,6 +3954,7 @@ components:
         units within an organization that group related financial accounts and assets
         together.
       example:
+        settings: '{}'
         metadata:
           key: '{}'
         name: name
@@ -3944,6 +3975,13 @@ components:
             maxLength: 256
           maxLength: 256
           type: string
+        settings:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.LedgerSettings'
+          description: |-
+            Dynamic configuration settings for this ledger. When nil, no settings are persisted (optional).
+            example: {"accounting": {"validateAccountType": true}}
+          type: object
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
@@ -4149,6 +4187,7 @@ components:
       example:
         organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
+        settings: '{}'
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
           key: '{}'
@@ -4204,6 +4243,13 @@ components:
           example: 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        settings:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.LedgerSettings'
+          description: |-
+            Dynamic configuration settings for this ledger
+            example: {"accounting": {"validateAccountType": true}}
+          type: object
         status:
           allOf:
           - $ref: '#/components/schemas/Status'
@@ -4317,33 +4363,6 @@ components:
           example: 2021-01-01T00:00:00Z
           format: date-time
           type: string
-      type: object
-    Pagination:
-      description: Pagination is the struct designed to store the pagination data
-        of an entity list.
-      example:
-        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        limit: 10
-        page: 1
-        items: '{}'
-      properties:
-        items:
-          type: object
-        limit:
-          example: 10
-          type: integer
-        next_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
-        page:
-          example: 1
-          type: integer
-        prev_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
       type: object
     Portfolio:
       description: Portfolio represents a collection of accounts grouped for specific
@@ -4769,138 +4788,16 @@ components:
           description: Updated status of the segment (active, inactive, pending)
           type: object
       type: object
-    inline_response_200:
+    http.Pagination:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
-        limit: 0
-        page: 6
-        items:
-        - legalName: Lerian Financial Services Ltd.
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: '{}'
-          address: '{}'
-          doingBusinessAs: Lerian FS
-          id: 00000000-0000-0000-0000-000000000000
-          legalDocument: "123456789012345"
-          parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-        - legalName: Lerian Financial Services Ltd.
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: '{}'
-          address: '{}'
-          doingBusinessAs: Lerian FS
-          id: 00000000-0000-0000-0000-000000000000
-          legalDocument: "123456789012345"
-          parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/Organization'
-          type: array
-        limit:
-          type: integer
-        page:
-          type: integer
-      type: object
-    inline_response_200_1:
-      example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
-        limit: 0
-        page: 6
-        items:
-        - organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: '{}'
-          name: Treasury Operations
-          id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-        - organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: '{}'
-          name: Treasury Operations
-          id: 00000000-0000-0000-0000-000000000000
-          status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/Ledger'
-          type: array
-        limit:
-          type: integer
-        page:
-          type: integer
-      type: object
-    inline_response_200_2:
-      example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
         prev_cursor: prev_cursor
         next_cursor: next_cursor
         limit: 0
         page: 6
-        items:
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: '{}'
-          keyValue: current_assets
-          name: Current Assets
-          description: Assets that are expected to be converted to cash within one
-            year
-          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          updatedAt: 2021-01-01T00:00:00Z
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: '{}'
-          keyValue: current_assets
-          name: Current Assets
-          description: Assets that are expected to be converted to cash within one
-            year
-          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          updatedAt: 2021-01-01T00:00:00Z
+        items: '{}'
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
         items:
-          items:
-            $ref: '#/components/schemas/AccountType'
-          type: array
+          type: object
         limit:
           type: integer
         next_cursor:
@@ -4910,16 +4807,158 @@ components:
         prev_cursor:
           type: string
       type: object
+    mmodel.AccountingValidation:
+      properties:
+        validateAccountType:
+          description: |-
+            ValidateAccountType enables validation of account types during transaction processing.
+            When true, accounts must have types that match the operation route rules.
+            Default: false (permissive - no validation)
+          type: boolean
+        validateRoutes:
+          description: |-
+            ValidateRoutes enables validation of transaction routes during processing.
+            When true, transactions must specify valid route IDs that exist in the ledger.
+            Default: false (permissive - no validation)
+          type: boolean
+      type: object
+    mmodel.LedgerSettings:
+      example:
+        accounting: '{}'
+      properties:
+        accounting:
+          allOf:
+          - $ref: '#/components/schemas/mmodel.AccountingValidation'
+          description: Accounting contains validation settings for accounting operations.
+          type: object
+      type: object
+    inline_response_200:
+      example:
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
+        items:
+        - legalName: Lerian Financial Services Ltd.
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          address: '{}'
+          doingBusinessAs: Lerian FS
+          id: 00000000-0000-0000-0000-000000000000
+          legalDocument: "123456789012345"
+          parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          status: '{}'
+          updatedAt: 2021-01-01T00:00:00Z
+        - legalName: Lerian Financial Services Ltd.
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          address: '{}'
+          doingBusinessAs: Lerian FS
+          id: 00000000-0000-0000-0000-000000000000
+          legalDocument: "123456789012345"
+          parentOrganizationId: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+          status: '{}'
+          updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/Organization'
+          type: array
+      type: object
+    inline_response_200_1:
+      example:
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
+        items:
+        - organizationId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          settings: '{}'
+          deletedAt: 2021-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          name: Treasury Operations
+          id: 00000000-0000-0000-0000-000000000000
+          status: '{}'
+          updatedAt: 2021-01-01T00:00:00Z
+        - organizationId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          settings: '{}'
+          deletedAt: 2021-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          name: Treasury Operations
+          id: 00000000-0000-0000-0000-000000000000
+          status: '{}'
+          updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/Ledger'
+          type: array
+      type: object
+    inline_response_200_2:
+      example:
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
+          items: '{}'
+        items:
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          keyValue: current_assets
+          name: Current Assets
+          description: Assets that are expected to be converted to cash within one
+            year
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          updatedAt: 2021-01-01T00:00:00Z
+        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          keyValue: current_assets
+          name: Current Assets
+          description: Assets that are expected to be converted to cash within one
+            year
+          id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/AccountType'
+          type: array
+      type: object
     inline_response_200_3:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - metadata:
             key: '{}'
@@ -4958,27 +4997,21 @@ components:
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Account'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_4:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -5005,27 +5038,21 @@ components:
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Asset'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_5:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -5050,27 +5077,21 @@ components:
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Portfolio'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_6:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -5093,16 +5114,12 @@ components:
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Segment'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
   securitySchemes:
     BearerAuth:

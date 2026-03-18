@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libLog "github.com/LerianStudio/lib-commons/v3/commons/log"
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
@@ -28,7 +28,7 @@ import (
 
 // newTestLogger creates a real logger for tests (no-op by using high log level filtering)
 func newTestLogger() libLog.Logger {
-	return &libLog.GoLogger{Level: libLog.FatalLevel}
+	return libLog.NewNop()
 }
 
 // --- Tests for NewBalanceSyncWorker ---
@@ -62,7 +62,7 @@ func TestNewBalanceSyncWorker(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			conn := &libRedis.RedisConnection{}
+			conn := &libRedis.Client{}
 			logger := newTestLogger()
 			useCase := &command.UseCase{}
 
@@ -83,8 +83,8 @@ func TestNewBalanceSyncWorker(t *testing.T) {
 func TestExtractIDsFromMember(t *testing.T) {
 	t.Parallel()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	tests := []struct {
 		name           string
@@ -410,8 +410,8 @@ func TestProcessBalancesToExpire_ShutdownDuringProcessing(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	member := "balance:{transactions}:" + orgID.String() + ":" + ledgerID.String() + ":default"
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
@@ -449,8 +449,6 @@ type mockRedisClient struct {
 	ttlErr       error
 	getResult    string
 	getErr       error
-	zRemResult   int64
-	zRemErr      error
 	ttlCallCount int
 	getCallCount int
 }
@@ -655,8 +653,8 @@ func TestProcessBalanceToExpire_InvalidJSON(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	member := "balance:{transactions}:" + orgID.String() + ":" + ledgerID.String() + ":default"
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
@@ -691,12 +689,12 @@ func TestProcessBalanceToExpire_SyncError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	member := "balance:{transactions}:" + orgID.String() + ":" + ledgerID.String() + ":default"
 
 	balanceRedis := mmodel.BalanceRedis{
-		ID:        libCommons.GenerateUUIDv7().String(),
+		ID:        uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:     "@test",
 		Available: decimal.NewFromInt(1000),
 		OnHold:    decimal.Zero,
@@ -739,12 +737,12 @@ func TestProcessBalanceToExpire_SyncSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	member := "balance:{transactions}:" + orgID.String() + ":" + ledgerID.String() + ":default"
 
 	balanceRedis := mmodel.BalanceRedis{
-		ID:        libCommons.GenerateUUIDv7().String(),
+		ID:        uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:     "@test",
 		Available: decimal.NewFromInt(1000),
 		OnHold:    decimal.Zero,
@@ -791,12 +789,12 @@ func TestProcessBalanceToExpire_SyncSkipped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	member := "balance:{transactions}:" + orgID.String() + ":" + ledgerID.String() + ":default"
 
 	balanceRedis := mmodel.BalanceRedis{
-		ID:        libCommons.GenerateUUIDv7().String(),
+		ID:        uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:     "@test",
 		Available: decimal.NewFromInt(1000),
 		OnHold:    decimal.Zero,
@@ -894,8 +892,8 @@ func TestProperty_ExtractIDsFromMember_ValidKeys(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
+		orgID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 		for _, tc := range testCases {
 			t.Run(tc.prefix+tc.suffix, func(t *testing.T) {

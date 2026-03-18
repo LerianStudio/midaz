@@ -7,18 +7,21 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+
+	// CountAccounts returns the number of accounts for the specified organization, ledger and optional portfolio.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// CountAccounts returns the number of accounts for the specified organization, ledger and optional portfolio.
 func (uc *UseCase) CountAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -27,19 +30,19 @@ func (uc *UseCase) CountAccounts(ctx context.Context, organizationID, ledgerID u
 
 	count, err := uc.AccountRepo.Count(ctx, organizationID, ledgerID)
 	if err != nil {
-		logger.Errorf("Error counting accounts on repo: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting accounts on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-			logger.Warnf("No accounts found for organization: %s", organizationID.String())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("No accounts found for organization: %s", organizationID.String()))
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count accounts on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count accounts on repo", err)
 
 			return 0, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to count accounts on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count accounts on repo", err)
 
 		return 0, err
 	}

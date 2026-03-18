@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	http "github.com/LerianStudio/lib-commons/v3/commons/net/http"
+	http "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	mmodel "github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	uuid "github.com/google/uuid"
@@ -59,7 +59,7 @@ func (mr *MockRepositoryMockRecorder) Create(arg0, arg1, arg2, arg3 any) *gomock
 }
 
 // Delete mocks base method.
-func (m *MockRepository) Delete(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 []uuid.UUID) error {
+func (m *MockRepository) Delete(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 []mmodel.OperationRouteActionInput) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
@@ -104,7 +104,7 @@ func (mr *MockRepositoryMockRecorder) FindByID(arg0, arg1, arg2, arg3 any) *gomo
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 *mmodel.TransactionRoute, arg5, arg6 []uuid.UUID) (*mmodel.TransactionRoute, error) {
+func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 *mmodel.TransactionRoute, arg5, arg6 []mmodel.OperationRouteActionInput) (*mmodel.TransactionRoute, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 	ret0, _ := ret[0].(*mmodel.TransactionRoute)

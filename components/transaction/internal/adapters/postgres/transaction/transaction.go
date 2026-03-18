@@ -8,11 +8,11 @@ import (
 	"database/sql"
 	"time"
 
-	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -92,7 +92,7 @@ type CreateTransactionInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Route
+	// Deprecated: legacy route identifier, use routeId on FromTo entries instead. Contains the operation route UUID as a free-form string for backwards compatibility.
 	// example: "00000000-0000-0000-0000-000000000000"
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
@@ -381,10 +381,11 @@ type Transaction struct {
 	// Transaction body containing detailed operation data (not exposed in JSON)
 	Body pkgTransaction.Transaction `json:"-"`
 
-	// Route
+	// Deprecated: legacy route identifier, use routeId on individual operations instead. Contains the operation route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
-	// format: string
-	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
 
 	// Timestamp when the transaction was created
 	// example: 2021-01-01T00:00:00Z
@@ -453,7 +454,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 
 // FromEntity converts an entity Transaction to TransactionPostgreSQLModel
 func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
-	ID := libCommons.GenerateUUIDv7().String()
+	ID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	if transaction.ID != "" {
 		ID = transaction.ID
 	}
@@ -510,43 +511,49 @@ func (cti *CreateTransactionInput) BuildTransaction() *pkgTransaction.Transactio
 	return dsl
 }
 
-// TransactionRevert is a func that revert transaction
+// TransactionRevert builds a reversed transaction by swapping from/to sides.
+// Original CREDIT operations become sources (from) and original DEBIT operations
+// become destinations (to). Direction is intentionally omitted because
+// CalculateTotal re-derives it via DetermineOperation based on IsFrom.
 func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
+	if t.Amount == nil {
+		return pkgTransaction.Transaction{}
+	}
+
 	froms := make([]pkgTransaction.FromTo, 0)
 	tos := make([]pkgTransaction.FromTo, 0)
 
 	for _, op := range t.Operations {
+		if op.Amount.Value == nil {
+			continue
+		}
+
 		switch op.Type {
+		// Only CREDIT and DEBIT appear in APPROVED transactions, which is the
+		// only status eligible for revert (guarded upstream).  ONHOLD and
+		// RELEASE are excluded because they belong to PENDING flows.
 		case constant.CREDIT:
-			from := pkgTransaction.FromTo{
-				IsFrom:       true,
-				AccountAlias: op.AccountAlias,
-				Amount: &pkgTransaction.Amount{
-					Asset: op.AssetCode,
-					Value: *op.Amount.Value,
-				},
+			froms = append(froms, pkgTransaction.FromTo{
+				IsFrom:          true,
+				AccountAlias:    op.AccountAlias,
+				Amount:          &pkgTransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
 				Route:           op.Route,
-			}
-
-			froms = append(froms, from)
+				RouteID:         op.RouteID,
+			})
 		case constant.DEBIT:
-			to := pkgTransaction.FromTo{
-				IsFrom:       false,
-				AccountAlias: op.AccountAlias,
-				Amount: &pkgTransaction.Amount{
-					Asset: op.AssetCode,
-					Value: *op.Amount.Value,
-				},
+			tos = append(tos, pkgTransaction.FromTo{
+				IsFrom:          false,
+				AccountAlias:    op.AccountAlias,
+				Amount:          &pkgTransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
 				Route:           op.Route,
-			}
-
-			tos = append(tos, to)
+				RouteID:         op.RouteID,
+			})
 		}
 	}
 
@@ -650,7 +657,7 @@ type CreateTransactionInflowInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Transaction route
+	// Deprecated: legacy route identifier, use routeId on FromTo entries instead. Contains the operation route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
@@ -856,7 +863,7 @@ type CreateTransactionOutflowInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Transaction route
+	// Deprecated: legacy route identifier, use routeId on FromTo entries instead. Contains the operation route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`

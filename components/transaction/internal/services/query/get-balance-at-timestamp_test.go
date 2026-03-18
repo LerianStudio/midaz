@@ -10,12 +10,13 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,10 +30,10 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
-		accountID := libCommons.GenerateUUIDv7()
-		balanceID := libCommons.GenerateUUIDv7()
+		orgID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+		accountID := uuid.Must(libCommons.GenerateUUIDv7())
+		balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 		timestamp := time.Now().Add(-time.Hour)
 		balanceCreatedAt := time.Now().Add(-24 * time.Hour)
 		operationCreatedAt := timestamp.Add(-30 * time.Minute)
@@ -54,7 +55,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		}
 
 		lastOperation := &operation.Operation{
-			ID:         libCommons.GenerateUUIDv7().String(),
+			ID:         uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			AccountID:  accountID.String(),
 			BalanceKey: "default",
 			AssetCode:  "USD",
@@ -97,9 +98,9 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
-		balanceID := libCommons.GenerateUUIDv7()
+		orgID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+		balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 		futureTimestamp := time.Now().Add(time.Hour)
 
 		balanceRepo := balance.NewMockRepository(ctrl)
@@ -118,9 +119,9 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
-		balanceID := libCommons.GenerateUUIDv7()
+		orgID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+		balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 		timestamp := time.Now().Add(-time.Hour)
 
 		balanceRepo := balance.NewMockRepository(ctrl)
@@ -171,9 +172,9 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 				ctrl := gomock.NewController(t)
 				defer ctrl.Finish()
 
-				orgID := libCommons.GenerateUUIDv7()
-				ledgerID := libCommons.GenerateUUIDv7()
-				balanceID := libCommons.GenerateUUIDv7()
+				orgID := uuid.Must(libCommons.GenerateUUIDv7())
+				ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+				balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 				timestamp := time.Now().Add(-time.Hour)
 
 				currentBalance := &mmodel.Balance{
@@ -215,10 +216,10 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
-		accountID := libCommons.GenerateUUIDv7()
-		balanceID := libCommons.GenerateUUIDv7()
+		orgID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+		accountID := uuid.Must(libCommons.GenerateUUIDv7())
+		balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 		timestamp := time.Now().Add(-time.Hour)
 		// Balance was created before the timestamp
 		balanceCreatedAt := time.Now().Add(-24 * time.Hour)
@@ -267,9 +268,9 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
-		balanceID := libCommons.GenerateUUIDv7()
+		orgID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+		balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 		timestamp := time.Now().Add(-24 * time.Hour)
 		// Balance was created AFTER the timestamp
 		balanceCreatedAt := time.Now().Add(-time.Hour)
@@ -306,10 +307,10 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
-		accountID := libCommons.GenerateUUIDv7()
-		balanceID := libCommons.GenerateUUIDv7()
+		orgID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+		accountID := uuid.Must(libCommons.GenerateUUIDv7())
+		balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 		timestamp := time.Now().Add(-time.Hour)
 		balanceCreatedAt := time.Now().Add(-24 * time.Hour)
 		operationCreatedAt := timestamp.Add(-30 * time.Minute)
@@ -328,7 +329,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 
 		// Operation with nil BalanceAfter fields
 		lastOperation := &operation.Operation{
-			ID:           libCommons.GenerateUUIDv7().String(),
+			ID:           uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			AccountID:    accountID.String(),
 			BalanceKey:   "default",
 			AssetCode:    "USD",

@@ -157,7 +157,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 					Return(nil, errors.New("mongodb connection failed"))
 			},
 			expectErr:   true,
-			errContains: "No accounts were found",
+			errContains: "mongodb connection failed",
 		},
 		{
 			name:           "error - account repository returns ErrDatabaseItemNotFound",

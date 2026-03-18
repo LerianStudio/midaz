@@ -4,13 +4,27 @@
 
 package utils
 
-import "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry/metrics"
+import "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 
 var (
 	BalanceSynced = metrics.Metric{
 		Name:        "balance_synced",
 		Unit:        "1",
 		Description: "Measures the number of balances synced.",
+	}
+
+	// BalanceSyncBatchFailures counts batch sync operation failures.
+	BalanceSyncBatchFailures = metrics.Metric{
+		Name:        "balance_sync_batch_failures_total",
+		Unit:        "1",
+		Description: "Total batch sync operation failures.",
+	}
+
+	// BalanceSyncCleanupFailures counts schedule cleanup failures after successful DB sync.
+	BalanceSyncCleanupFailures = metrics.Metric{
+		Name:        "balance_sync_cleanup_failures_total",
+		Unit:        "1",
+		Description: "Total schedule cleanup failures after successful balance sync.",
 	}
 
 	// CircuitBreakerState indicates the current state of the RabbitMQ circuit breaker.

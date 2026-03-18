@@ -11,13 +11,14 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -27,9 +28,9 @@ func TestUpdateAccountTypeSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountTypeID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now()
 
 	payload := &mmodel.UpdateAccountTypeInput{
@@ -100,9 +101,9 @@ func TestUpdateAccountTypeSuccessWithoutMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountTypeID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now()
 
 	payload := &mmodel.UpdateAccountTypeInput{
@@ -158,9 +159,9 @@ func TestUpdateAccountTypeError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountTypeID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	payload := &mmodel.UpdateAccountTypeInput{
 		Name:        "Updated Asset Type",
@@ -194,9 +195,9 @@ func TestUpdateAccountTypeNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountTypeID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	payload := &mmodel.UpdateAccountTypeInput{
 		Name:        "Updated Asset Type",
@@ -230,9 +231,9 @@ func TestUpdateAccountTypeMetadataError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountTypeID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now()
 
 	payload := &mmodel.UpdateAccountTypeInput{
@@ -314,9 +315,9 @@ func TestUpdateAccountTypePartialUpdate(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			organizationID := libCommons.GenerateUUIDv7()
-			ledgerID := libCommons.GenerateUUIDv7()
-			accountTypeID := libCommons.GenerateUUIDv7()
+			organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 			now := time.Now()
 
 			expectedAccountType := &mmodel.AccountType{
@@ -366,9 +367,9 @@ func TestUpdateAccountTypeEmptyInput(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountTypeID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now()
 
 	payload := &mmodel.UpdateAccountTypeInput{

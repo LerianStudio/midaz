@@ -11,13 +11,14 @@ import (
 	"reflect"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -29,15 +30,15 @@ func TestGetBalanceByID(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		id := libCommons.GenerateUUIDv7()
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
+		id := uuid.Must(libCommons.GenerateUUIDv7())
+		orgID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 		bal := &mmodel.Balance{
 			ID:             id.String(),
 			OrganizationID: orgID.String(),
 			LedgerID:       ledgerID.String(),
-			AccountID:      libCommons.GenerateUUIDv7().String(),
+			AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			Alias:          "@user1",
 			Key:            "default",
 			AssetCode:      "USD",
@@ -70,9 +71,9 @@ func TestGetBalanceByID(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		id := libCommons.GenerateUUIDv7()
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
+		id := uuid.Must(libCommons.GenerateUUIDv7())
+		orgID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 		balanceRepo := balance.NewMockRepository(ctrl)
 		redisRepo := redis.NewMockRedisRepository(ctrl)
@@ -95,15 +96,15 @@ func TestGetBalanceByID(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		id := libCommons.GenerateUUIDv7()
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
+		id := uuid.Must(libCommons.GenerateUUIDv7())
+		orgID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 		base := &mmodel.Balance{
 			ID:             id.String(),
 			OrganizationID: orgID.String(),
 			LedgerID:       ledgerID.String(),
-			AccountID:      libCommons.GenerateUUIDv7().String(),
+			AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 			Alias:          "@alice",
 			Key:            "default",
 			AssetCode:      "USD",
@@ -180,15 +181,15 @@ func TestGetBalanceByID(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			id := libCommons.GenerateUUIDv7()
-			orgID := libCommons.GenerateUUIDv7()
-			ledgerID := libCommons.GenerateUUIDv7()
+			id := uuid.Must(libCommons.GenerateUUIDv7())
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 			base := &mmodel.Balance{
 				ID:             id.String(),
 				OrganizationID: orgID.String(),
 				LedgerID:       ledgerID.String(),
-				AccountID:      libCommons.GenerateUUIDv7().String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias:          tt.alias,
 				Key:            "default",
 				AssetCode:      "USD",
@@ -220,9 +221,9 @@ func TestGetBalanceByID(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		id := libCommons.GenerateUUIDv7()
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
+		id := uuid.Must(libCommons.GenerateUUIDv7())
+		orgID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 		balanceRepo := balance.NewMockRepository(ctrl)
 		redisRepo := redis.NewMockRedisRepository(ctrl)
@@ -244,9 +245,9 @@ func TestGetBalanceByID(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		id := libCommons.GenerateUUIDv7()
-		orgID := libCommons.GenerateUUIDv7()
-		ledgerID := libCommons.GenerateUUIDv7()
+		id := uuid.Must(libCommons.GenerateUUIDv7())
+		orgID := uuid.Must(libCommons.GenerateUUIDv7())
+		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 		balanceRepo := balance.NewMockRepository(ctrl)
 		redisRepo := redis.NewMockRedisRepository(ctrl)

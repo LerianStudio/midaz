@@ -6,20 +6,23 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+
+	// CreateTransactionRoute creates a new transaction route.
+	// It returns the created transaction route and an error if the operation fails.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// CreateTransactionRoute creates a new transaction route.
-// It returns the created transaction route and an error if the operation fails.
 func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateTransactionRouteInput) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -29,7 +32,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 	now := time.Now()
 
 	transactionRoute := &mmodel.TransactionRoute{
-		ID:             libCommons.GenerateUUIDv7(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Title:          payload.Title,
@@ -38,37 +41,37 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		UpdatedAt:      now,
 	}
 
-	operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, payload.OperationRoutes)
+	operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, payload.OperationRouteIDs())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to find operation routes", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find operation routes", err)
 
-		logger.Errorf("Failed to find operation routes: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to find operation routes: %v", err))
 
 		return nil, err
 	}
 
 	// Validate operation route types
 	if err := validateOperationRouteTypes(operationRouteList); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate operation route types", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate operation route types", err)
 
-		logger.Errorf("Operation route validation failed: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Operation route validation failed: %v", err))
 
 		return nil, err
 	}
 
-	// Convert to slice for assignment
+	// Convert fetched operation routes to slice for assignment
 	operationRoutes := make([]mmodel.OperationRoute, 0, len(operationRouteList))
-	for _, operationRoute := range operationRouteList {
-		operationRoutes = append(operationRoutes, *operationRoute)
+	for _, fetched := range operationRouteList {
+		operationRoutes = append(operationRoutes, *fetched)
 	}
 
 	transactionRoute.OperationRoutes = operationRoutes
 
 	createdTransactionRoute, err := uc.TransactionRouteRepo.Create(ctx, organizationID, ledgerID, transactionRoute)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction route", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create transaction route", err)
 
-		logger.Errorf("Failed to create transaction route: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create transaction route: %v", err))
 
 		return nil, err
 	}
@@ -85,9 +88,9 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), &meta); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create transaction route metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create transaction route metadata", err)
 
-			logger.Errorf("Failed to create transaction route metadata: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create transaction route metadata: %v", err))
 
 			return nil, err
 		}
@@ -95,30 +98,39 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		createdTransactionRoute.Metadata = payload.Metadata
 	}
 
-	logger.Infof("Successfully created transaction route with %d operation routes", len(createdTransactionRoute.OperationRoutes))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully created transaction route with %d operation routes", len(createdTransactionRoute.OperationRoutes)))
 
 	return createdTransactionRoute, nil
 }
 
-// validateOperationRouteTypes validates that operation routes contain both source and destination types.
-// Returns an error if either source or destination type is missing.
-func validateOperationRouteTypes(operationRoutes []*mmodel.OperationRoute) error {
+// validateOperationRouteTypes validates operation route types for a transaction route.
+// It ensures that the set of operation routes has at least one source and one destination
+// (bidirectional counts as both).
+func validateOperationRouteTypes(opRoutes []*mmodel.OperationRoute) error {
+	entityType := reflect.TypeOf(mmodel.TransactionRoute{}).Name()
+
 	hasSource := false
 	hasDestination := false
 
-	for _, operationRoute := range operationRoutes {
-		if operationRoute.OperationType == "source" {
+	for _, route := range opRoutes {
+		switch route.OperationType {
+		case "source":
 			hasSource = true
-		}
-
-		if operationRoute.OperationType == "destination" {
+		case "destination":
 			hasDestination = true
-		}
-
-		if hasSource && hasDestination {
-			return nil
+		case "bidirectional":
+			hasSource = true
+			hasDestination = true
 		}
 	}
 
-	return pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	if !hasSource {
+		return pkg.ValidateBusinessError(constant.ErrNoSourceForAction, entityType, "")
+	}
+
+	if !hasDestination {
+		return pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, entityType, "")
+	}
+
+	return nil
 }

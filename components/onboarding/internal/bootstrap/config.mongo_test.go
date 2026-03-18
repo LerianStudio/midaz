@@ -7,17 +7,25 @@ package bootstrap
 import (
 	"testing"
 
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func mustTenantClient(t *testing.T, logger libLog.Logger) *tmclient.Client {
+	t.Helper()
+
+	client, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
+	require.NoError(t, err)
+
+	return client
+}
+
 func TestInitMongo(t *testing.T) {
 	t.Parallel()
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
 	cfg := &Config{}
 
@@ -25,11 +33,13 @@ func TestInitMongo(t *testing.T) {
 		name            string
 		opts            *Options
 		wantMultiTenant bool
+		wantErr         bool
 	}{
 		{
 			name:            "nil opts calls single-tenant path",
 			opts:            nil,
 			wantMultiTenant: false,
+			wantErr:         true,
 		},
 		{
 			name: "multi-tenant disabled calls single-tenant path",
@@ -37,15 +47,17 @@ func TestInitMongo(t *testing.T) {
 				MultiTenantEnabled: false,
 			},
 			wantMultiTenant: false,
+			wantErr:         true,
 		},
 		{
 			name: "multi-tenant enabled calls multi-tenant path",
 			opts: &Options{
 				MultiTenantEnabled: true,
-				TenantClient:       tmclient.NewClient("http://localhost:0", logger),
+				TenantClient:       mustTenantClient(t, logger),
 				TenantServiceName:  "onboarding",
 			},
 			wantMultiTenant: true,
+			wantErr:         false,
 		},
 	}
 
@@ -54,6 +66,13 @@ func TestInitMongo(t *testing.T) {
 			t.Parallel()
 
 			result, err := initMongo(tt.opts, cfg, logger)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+
+				return
+			}
+
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.NotNil(t, result.metadataRepo)
@@ -72,10 +91,9 @@ func TestInitMongo(t *testing.T) {
 func TestInitMultiTenantMongo_Success(t *testing.T) {
 	t.Parallel()
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
-	client := tmclient.NewClient("http://localhost:0", logger)
+	client := mustTenantClient(t, logger)
 
 	opts := &Options{
 		MultiTenantEnabled: true,
@@ -95,8 +113,7 @@ func TestInitMultiTenantMongo_Success(t *testing.T) {
 func TestInitMultiTenantMongo_NilTenantClient_ReturnsError(t *testing.T) {
 	t.Parallel()
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
 	opts := &Options{
 		MultiTenantEnabled: true,
@@ -113,18 +130,12 @@ func TestInitMultiTenantMongo_NilTenantClient_ReturnsError(t *testing.T) {
 func TestInitSingleTenantMongo_CreatesComponents(t *testing.T) {
 	t.Parallel()
 
-	logger, err := libZap.InitializeLoggerWithError()
-	require.NoError(t, err)
+	logger := libLog.NewNop()
 
-	// Empty config: ensureMongoIndexes will log warnings (no real MongoDB)
-	// but initSingleTenantMongo will still return valid components.
+	// Empty config should fail fast with strict URI validation.
 	cfg := &Config{}
 
 	result, err := initSingleTenantMongo(cfg, logger)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	assert.NotNil(t, result.connection, "single-tenant mode must have a non-nil connection")
-	assert.NotNil(t, result.metadataRepo, "single-tenant mode must have a non-nil metadataRepo")
-	assert.Nil(t, result.mongoManager, "single-tenant mode must have a nil mongoManager")
+	require.Error(t, err)
+	assert.Nil(t, result)
 }

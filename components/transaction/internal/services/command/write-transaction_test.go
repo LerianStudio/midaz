@@ -108,27 +108,18 @@ func createTestData(organizationID, ledgerID uuid.UUID) *testData {
 }
 
 // setupMocksForFallback sets up all mocks needed for CreateBalanceTransactionOperationsAsync
-// which is called as a fallback when RabbitMQ fails
+// which is called as a fallback when RabbitMQ fails.
+// Note: Balance repository and UUIDs are not needed because balance persistence
+// is now async via BalanceSyncWorker (hot balance updated by Lua script).
 func setupMocksForFallback(
-	mockBalanceRepo *balance.MockRepository,
 	mockTransactionRepo *transaction.MockRepository,
 	mockMetadataRepo *mongodb.MockRepository,
 	mockRabbitMQRepo *rabbitmq.MockProducerRepository,
 	mockRedisRepo *redis.MockRedisRepository,
+	mockBalanceRepo *balance.MockRepository,
 	tran *transaction.Transaction,
-	organizationID, ledgerID uuid.UUID,
 ) {
-	// Mock RedisRepo.ListBalanceByKey for stale balance check
-	mockRedisRepo.EXPECT().
-		ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
-		Return(nil, nil).
-		AnyTimes()
-	mockRedisRepo.EXPECT().
-		ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias2").
-		Return(nil, nil).
-		AnyTimes()
-
-	// Mock BalanceRepo.BalancesUpdate
+	// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
 	mockBalanceRepo.EXPECT().
 		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).
@@ -260,7 +251,7 @@ func TestWriteTransaction(t *testing.T) {
 		}
 
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
-		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallback(mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockBalanceRepo, td.tran)
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
@@ -296,7 +287,7 @@ func TestWriteTransaction(t *testing.T) {
 		}
 
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
-		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallback(mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockBalanceRepo, td.tran)
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
@@ -330,7 +321,7 @@ func TestWriteTransaction(t *testing.T) {
 		}
 
 		// Setup mocks for sync path (CreateBalanceTransactionOperationsAsync)
-		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallback(mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockBalanceRepo, td.tran)
 
 		err := uc.WriteTransaction(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
@@ -407,7 +398,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 			Times(1)
 
 		// Setup mocks for fallback path (CreateBalanceTransactionOperationsAsync)
-		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallback(mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockBalanceRepo, td.tran)
 
 		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
@@ -447,20 +438,16 @@ func TestWriteTransactionAsync(t *testing.T) {
 			Return(nil, errors.New("rabbitmq connection failed")).
 			Times(1)
 
-		// Mock RedisRepo.ListBalanceByKey for stale balance check
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
-			Return(nil, nil).
-			AnyTimes()
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias2").
-			Return(nil, nil).
-			AnyTimes()
-
-		// Fallback also fails - BalancesUpdate returns error
+		// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
 		mockBalanceRepo.EXPECT().
 			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(errors.New("database connection failed")).
+			Return(nil).
+			Times(1)
+
+		// Fallback also fails - TransactionRepo.Create returns error
+		mockTransactionRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(nil, errors.New("database connection failed")).
 			Times(1)
 
 		err := uc.WriteTransactionAsync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
@@ -529,7 +516,7 @@ func TestWriteTransactionSync(t *testing.T) {
 		}
 
 		// Setup mocks for CreateBalanceTransactionOperationsAsync
-		setupMocksForFallback(mockBalanceRepo, mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, td.tran, organizationID, ledgerID)
+		setupMocksForFallback(mockTransactionRepo, mockMetadataRepo, mockRabbitMQRepo, mockRedisRepo, mockBalanceRepo, td.tran)
 
 		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 
@@ -537,51 +524,6 @@ func TestWriteTransactionSync(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 
 		assert.NoError(t, err)
-	})
-
-	t.Run("error_propagates_from_balance_update", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockBalanceRepo := balance.NewMockRepository(ctrl)
-		mockTransactionRepo := transaction.NewMockRepository(ctrl)
-		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-		mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
-		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		ctx := context.Background()
-		organizationID := uuid.New()
-		ledgerID := uuid.New()
-		td := createTestData(organizationID, ledgerID)
-
-		uc := &UseCase{
-			BalanceRepo:     mockBalanceRepo,
-			TransactionRepo: mockTransactionRepo,
-			MetadataRepo:    mockMetadataRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
-			RedisRepo:       mockRedisRepo,
-		}
-
-		// Mock RedisRepo.ListBalanceByKey for stale balance check
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
-			Return(nil, nil).
-			AnyTimes()
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias2").
-			Return(nil, nil).
-			AnyTimes()
-
-		// BalancesUpdate fails
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(errors.New("failed to update balances")).
-			Times(1)
-
-		err := uc.WriteTransactionSync(ctx, organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to update balances")
 	})
 
 	t.Run("error_propagates_from_transaction_create", func(t *testing.T) {
@@ -607,17 +549,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			RedisRepo:       mockRedisRepo,
 		}
 
-		// Mock RedisRepo.ListBalanceByKey for stale balance check
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
-			Return(nil, nil).
-			AnyTimes()
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias2").
-			Return(nil, nil).
-			AnyTimes()
-
-		// BalancesUpdate succeeds
+		// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
 		mockBalanceRepo.EXPECT().
 			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil).
@@ -693,13 +625,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			RedisRepo:       mockRedisRepo,
 		}
 
-		// Mock RedisRepo.ListBalanceByKey for stale balance check
-		mockRedisRepo.EXPECT().
-			ListBalanceByKey(gomock.Any(), organizationID, ledgerID, "alias1").
-			Return(nil, nil).
-			AnyTimes()
-
-		// Mock BalanceRepo.BalancesUpdate
+		// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
 		mockBalanceRepo.EXPECT().
 			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil).

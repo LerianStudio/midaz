@@ -12,10 +12,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libPointers "github.com/LerianStudio/lib-commons/v3/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v3/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v3/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -31,19 +29,11 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *AccountPostgreSQLRepository {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           container.Config.DBName,
-		ReplicaDBName:           container.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
 	return NewAccountPostgreSQLRepository(conn)
 }
@@ -63,8 +53,8 @@ func TestIntegration_AccountRepository_Find_ReturnsAccount(t *testing.T) {
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
 	// Insert test account directly
-	accountID := libCommons.GenerateUUIDv7()
-	alias := fmt.Sprintf("@test-%s", libCommons.GenerateUUIDv7().String()[:8])
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+	alias := fmt.Sprintf("@test-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := container.DB.Exec(`
@@ -103,8 +93,8 @@ func TestIntegration_AccountRepository_Find_ReturnsEntityNotFoundError(t *testin
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
 	// Setup: create soft-deleted account for one test case
-	softDeletedID := libCommons.GenerateUUIDv7()
-	alias := fmt.Sprintf("@deleted-%s", libCommons.GenerateUUIDv7().String()[:8])
+	softDeletedID := uuid.Must(libCommons.GenerateUUIDv7())
+	alias := fmt.Sprintf("@deleted-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := container.DB.Exec(`
@@ -119,7 +109,7 @@ func TestIntegration_AccountRepository_Find_ReturnsEntityNotFoundError(t *testin
 	}{
 		{
 			name:      "non-existent account",
-			accountID: libCommons.GenerateUUIDv7(),
+			accountID: uuid.Must(libCommons.GenerateUUIDv7()),
 		},
 		{
 			name:      "soft-deleted account",
@@ -163,8 +153,8 @@ func TestIntegration_AccountRepository_Find_FiltersCorrectlyByOrgAndLedger(t *te
 	ledger2ID := pgtestutil.CreateTestLedger(t, container.DB, org2ID)
 
 	// Insert account in org1/ledger1
-	accountID := libCommons.GenerateUUIDv7()
-	alias := fmt.Sprintf("@org1-%s", libCommons.GenerateUUIDv7().String()[:8])
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+	alias := fmt.Sprintf("@org1-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := container.DB.Exec(`
@@ -206,7 +196,7 @@ func TestIntegration_AccountRepository_Create_InsertsAccount(t *testing.T) {
 
 	ctx := context.Background()
 
-	alias := fmt.Sprintf("@new-%s", libCommons.GenerateUUIDv7().String()[:8])
+	alias := fmt.Sprintf("@new-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
 	blocked := false
 	now := time.Now().Truncate(time.Microsecond)
 
@@ -273,8 +263,8 @@ func TestIntegration_AccountRepository_Find_BackwardCompatible_ExtraColumns(t *t
 	require.NoError(t, err, "failed to add another future column")
 
 	// Insert account with the extra columns populated
-	accountID := libCommons.GenerateUUIDv7()
-	alias := fmt.Sprintf("@compat-%s", libCommons.GenerateUUIDv7().String()[:8])
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+	alias := fmt.Sprintf("@compat-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err = container.DB.Exec(`
@@ -324,7 +314,7 @@ func TestIntegration_AccountRepository_Create_BackwardCompatible_ExtraColumns(t 
 
 	ctx := context.Background()
 
-	alias := fmt.Sprintf("@new-compat-%s", libCommons.GenerateUUIDv7().String()[:8])
+	alias := fmt.Sprintf("@new-compat-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
 	blocked := false
 	now := time.Now().Truncate(time.Microsecond)
 
@@ -378,7 +368,7 @@ func TestIntegration_AccountRepository_FindAll_ReturnsPaginatedAccounts(t *testi
 
 	// Insert 5 accounts
 	for i := 0; i < 5; i++ {
-		alias := fmt.Sprintf("@findall-%d-%s", i, libCommons.GenerateUUIDv7().String()[:8])
+		alias := fmt.Sprintf("@findall-%d-%s", i, uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
 		pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, fmt.Sprintf("Account %d", i), alias, "USD", nil)
 	}
 
@@ -416,7 +406,7 @@ func TestIntegration_AccountRepository_FindAll_PaginatesWithoutDuplicates(t *tes
 
 	// Insert 5 accounts
 	for i := 0; i < 5; i++ {
-		alias := fmt.Sprintf("@paginate-%d-%s", i, libCommons.GenerateUUIDv7().String()[:8])
+		alias := fmt.Sprintf("@paginate-%d-%s", i, uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
 		pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, fmt.Sprintf("Paginate Account %d", i), alias, "USD", nil)
 	}
 
@@ -832,7 +822,7 @@ func TestIntegration_AccountRepository_Update_ReturnsErrorForNonExistent(t *test
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
 	ctx := context.Background()
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	updateData := &mmodel.Account{Name: "Updated"}
 
@@ -1048,7 +1038,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsEmptyForNoMatch(t *testi
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, []uuid.UUID{libCommons.GenerateUUIDv7()})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())})
 
 	// Assert
 	require.NoError(t, err)

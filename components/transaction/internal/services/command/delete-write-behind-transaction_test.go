@@ -9,9 +9,10 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
 )
 
@@ -19,9 +20,9 @@ func TestDeleteWriteBehindTransaction_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7().String()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	uc := &UseCase{
@@ -42,9 +43,9 @@ func TestDeleteWriteBehindTransaction_DelError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7().String()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	uc := &UseCase{

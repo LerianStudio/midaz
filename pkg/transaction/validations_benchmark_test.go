@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	constant "github.com/LerianStudio/lib-commons/v3/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	"github.com/shopspring/decimal"
 )
 
@@ -381,7 +381,7 @@ func BenchmarkDetermineOperation(b *testing.B) {
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				_ = DetermineOperation(sc.isPending, sc.isFrom, sc.transactionType)
+				_, _ = DetermineOperation(sc.isPending, sc.isFrom, sc.transactionType)
 			}
 		})
 	}

@@ -12,18 +12,85 @@ definitions:
         description: The rule condition for account selection. String for alias type
           (e.g. "@cash_account"), array for account_type.
     type: object
+  AccountingEntries:
+    description: AccountingEntries object containing optional accounting entries for
+      each action type (direct, hold, commit, cancel, revert).
+    properties:
+      cancel:
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+        description: The accounting entry for the cancel action.
+      commit:
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+        description: The accounting entry for the commit action.
+      direct:
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+        description: The accounting entry for the direct action.
+      hold:
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+        description: The accounting entry for the hold action.
+      revert:
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+        description: The accounting entry for the revert action.
+    type: object
+  AccountingEntry:
+    description: AccountingEntry object containing debit and credit rubrics for a
+      specific action.
+    properties:
+      credit:
+        allOf:
+        - $ref: '#/definitions/AccountingRubric'
+        description: The credit rubric for this entry.
+      debit:
+        allOf:
+        - $ref: '#/definitions/AccountingRubric'
+        description: The debit rubric for this entry.
+    required:
+    - credit
+    - debit
+    type: object
+  AccountingRubric:
+    description: AccountingRubric object containing the code and description for a
+      debit or credit entry.
+    properties:
+      code:
+        description: The accounting rubric code.
+        example: "1001"
+        maxLength: 50
+        type: string
+      description:
+        description: The accounting rubric description.
+        example: Cash
+        maxLength: 250
+        type: string
+    required:
+    - code
+    - description
+    type: object
   Amount:
     description: Amount is the struct designed to represent the amount of an operation.
-      Contains the value and scale (decimal places) of an operation amount.
     properties:
+      asset:
+        example: BRL
+        type: string
+      direction:
+        type: string
+      operation:
+        type: string
+      routeValidationEnabled:
+        type: boolean
+      transactionType:
+        type: string
       value:
-        description: |-
-          The amount value in the smallest unit of the asset (e.g., cents)
-          example: 1500
-          minimum: 0
-        example: 1500
-        minimum: 0
+        example: 1000
         type: number
+    required:
+    - asset
+    - value
     type: object
   AssetRate:
     description: AssetRate is a struct designed to store asset rate data. Represents
@@ -391,6 +458,11 @@ definitions:
         allOf:
         - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
+      accountingEntries:
+        allOf:
+        - $ref: '#/definitions/AccountingEntries'
+        description: Optional accounting entries for each action type associated with
+          this operation route.
       code:
         description: External reference of the operation route.
         example: EXT-001
@@ -660,7 +732,7 @@ definitions:
         description: An object containing accounting data of Operation Routes from
           the Transaction Route.
         items:
-          type: string
+          $ref: '#/definitions/OperationRouteActionInput'
         type: array
       title:
         description: Short text summarizing the purpose of the transaction. Used as
@@ -671,6 +743,19 @@ definitions:
     required:
     - operationRoutes
     - title
+    type: object
+  Distribute:
+    description: Distribute is the struct designed to represent the distribution fields
+      of an operation.
+    properties:
+      remaining:
+        type: string
+      to:
+        items:
+          $ref: '#/definitions/FromTo'
+        type: array
+    required:
+    - to
     type: object
   Error:
     description: Standardized error response format used across all API endpoints
@@ -717,6 +802,49 @@ definitions:
         example: Bad Request
         maxLength: 100
         type: string
+    type: object
+  FromTo:
+    description: FromTo is the struct designed to represent the from/to fields of
+      an operation.
+    properties:
+      accountAlias:
+        example: '@person1'
+        type: string
+      amount:
+        $ref: '#/definitions/Amount'
+      balanceKey:
+        example: asset-freeze
+        type: string
+      chartOfAccounts:
+        example: "1000"
+        type: string
+      description:
+        example: description
+        type: string
+      isFrom:
+        example: true
+        type: boolean
+      metadata:
+        additionalProperties: {}
+        type: object
+      rate:
+        $ref: '#/definitions/Rate'
+      remaining:
+        example: remaining
+        type: string
+      route:
+        description: 'Deprecated: legacy route identifier, use routeId instead. Contains
+          the same value as routeId but as a free-form string.'
+        example: 00000000-0000-0000-0000-000000000000
+        maxLength: 250
+        type: string
+      routeId:
+        description: UUID of the operation route. Prefer this over the legacy route
+          field.
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      share:
+        $ref: '#/definitions/Share'
     type: object
   Operation:
     description: Operation is a struct designed to store operation data. Represents
@@ -816,6 +944,17 @@ definitions:
         example: Credit card operation
         maxLength: 256
         type: string
+      direction:
+        description: |-
+          Direction of the operation (debit, credit)
+          example: debit
+          maxLength: 50
+        enum:
+        - debit
+        - credit
+        example: debit
+        maxLength: 50
+        type: string
       id:
         description: |-
           Unique identifier for the operation
@@ -848,11 +987,28 @@ definitions:
         type: string
       route:
         description: |-
-          Route
+          Deprecated: legacy route identifier, use routeId instead. Contains the same operation route UUID as routeId but stored as a free-form string for backwards compatibility.
           example: 00000000-0000-0000-0000-000000000000
-          format: string
+          maxLength: 250
+          deprecated: true
         example: 00000000-0000-0000-0000-000000000000
-        format: string
+        maxLength: 250
+        type: string
+      routeCode:
+        description: |-
+          Human-readable code of the operation route for accounting traceability
+          example: ROUTE-001
+          maxLength: 100
+        example: ROUTE-001
+        maxLength: 100
+        type: string
+      routeId:
+        description: |-
+          UUID of the operation route that generated this operation. Prefer this over the legacy route field.
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       status:
         allOf:
@@ -890,6 +1046,22 @@ definitions:
         allOf:
         - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
+      accountingEntries:
+        allOf:
+        - $ref: '#/definitions/AccountingEntries'
+        description: Optional accounting entries for each action type associated with
+          this operation route.
+      action:
+        description: The action associated with this operation route in the context
+          of a transaction route.
+        enum:
+        - direct
+        - hold
+        - commit
+        - cancel
+        - revert
+        example: direct
+        type: string
       code:
         description: External reference of the operation route.
         example: EXT-001
@@ -923,6 +1095,10 @@ definitions:
         type: object
       operationType:
         description: The type of the operation route.
+        enum:
+        - source
+        - destination
+        - bidirectional
         example: source
         type: string
       organizationId:
@@ -940,25 +1116,83 @@ definitions:
         format: date-time
         type: string
     type: object
-  Pagination:
-    description: Pagination is the struct designed to store the pagination data of
-      an entity list.
+  OperationRouteActionInput:
+    description: OperationRouteActionInput payload for associating an operation route
+      with a transaction route.
     properties:
-      items: {}
-      limit:
-        example: 10
-        type: integer
-      next_cursor:
-        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+      operationRouteId:
+        description: The unique identifier of the Operation Route.
+        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        format: uuid
         type: string
-        x-omitempty: true
-      page:
-        example: 1
-        type: integer
-      prev_cursor:
-        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+    required:
+    - operationRouteId
+    type: object
+  Rate:
+    description: Rate is the struct designed to represent the rate fields of an operation.
+    properties:
+      externalId:
+        example: 00000000-0000-0000-0000-000000000000
         type: string
-        x-omitempty: true
+      from:
+        example: BRL
+        type: string
+      to:
+        example: USDe
+        type: string
+      value:
+        example: 1000
+        type: number
+    required:
+    - externalId
+    - from
+    - to
+    - value
+    type: object
+  Send:
+    description: Send is the struct designed to represent the sending fields of an
+      operation.
+    properties:
+      asset:
+        example: BRL
+        type: string
+      distribute:
+        $ref: '#/definitions/Distribute'
+      source:
+        $ref: '#/definitions/Source'
+      value:
+        example: 1000
+        type: number
+    required:
+    - asset
+    - distribute
+    - source
+    - value
+    type: object
+  Share:
+    description: Share is the struct designed to represent the sharing fields of an
+      operation.
+    properties:
+      percentage:
+        type: integer
+      percentageOfPercentage:
+        type: integer
+    required:
+    - percentage
+    type: object
+  Source:
+    description: Source is the struct designed to represent the source fields of an
+      operation.
+    properties:
+      from:
+        items:
+          $ref: '#/definitions/FromTo'
+        type: array
+      remaining:
+        example: remaining
+        type: string
+    required:
+    - from
     type: object
   Status:
     description: Status is the struct designed to represent the status of a transaction.
@@ -1091,11 +1325,12 @@ definitions:
         type: string
       route:
         description: |-
-          Route
+          Deprecated: legacy route identifier, use routeId on individual operations instead. Contains the operation route UUID as a free-form string for backwards compatibility.
           example: 00000000-0000-0000-0000-000000000000
-          format: string
+          maxLength: 250
+          deprecated: true
         example: 00000000-0000-0000-0000-000000000000
-        format: string
+        maxLength: 250
         type: string
       source:
         description: |-
@@ -1212,6 +1447,11 @@ definitions:
         allOf:
         - $ref: '#/definitions/AccountRule'
         description: The account selection rule configuration.
+      accountingEntries:
+        allOf:
+        - $ref: '#/definitions/AccountingEntries'
+        description: Optional accounting entries for each action type associated with
+          this operation route.
       code:
         description: External reference of the operation route.
         example: EXT-001
@@ -1269,13 +1509,25 @@ definitions:
         description: An object containing accounting data of Operation Routes from
           the Transaction Route.
         items:
-          type: string
+          $ref: '#/definitions/OperationRouteActionInput'
         type: array
       title:
         description: Short text summarizing the purpose of the transaction. Used as
           an entry note for identification.
         example: Charge Settlement
         maxLength: 50
+        type: string
+    type: object
+  http.Pagination:
+    properties:
+      items: {}
+      limit:
+        type: integer
+      next_cursor:
+        type: string
+      page:
+        type: integer
+      prev_cursor:
         type: string
     type: object
   mmodel.Balance:
@@ -1642,6 +1894,9 @@ paths:
         name: end_date
         type: string
       - description: Sort Order
+        enum:
+        - asc
+        - desc
         in: query
         name: sort_order
         type: string
@@ -1656,18 +1911,12 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -1866,6 +2115,9 @@ paths:
         name: end_date
         type: string
       - description: Sort Order
+        enum:
+        - asc
+        - desc
         in: query
         name: sort_order
         type: string
@@ -1877,6 +2129,18 @@ paths:
         in: query
         name: type
         type: string
+      - description: Filter by direction
+        enum:
+        - debit
+        - credit
+        in: query
+        name: direction
+        type: string
+      - description: Filter by operation route ID
+        format: uuid
+        in: query
+        name: route_id
+        type: string
       produces:
       - application/json
       responses:
@@ -1884,18 +2148,12 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/Operation'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -2014,18 +2272,12 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "401":
           description: Unauthorized access
@@ -2081,18 +2333,12 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "401":
           description: Unauthorized access
@@ -2294,18 +2540,12 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/AssetRate'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -2367,6 +2607,9 @@ paths:
         name: end_date
         type: string
       - description: Sort Order
+        enum:
+        - asc
+        - desc
         in: query
         name: sort_order
         type: string
@@ -2381,18 +2624,12 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/mmodel.Balance'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -2707,20 +2944,12 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/OperationRoute'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                page:
-                  type: object
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid input, validation errors
@@ -3019,20 +3248,12 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/TransactionRoute'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                page:
-                  type: object
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid input, validation errors
@@ -3341,20 +3562,12 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/Transaction'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                page:
-                  type: object
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid query parameters

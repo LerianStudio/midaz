@@ -32,10 +32,13 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 	operationRouteID2 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		Description:     "Test Description",
-		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
-		Metadata:        map[string]any{"key": "value"},
+		Title:       "Test Transaction Route",
+		Description: "Test Description",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{OperationRouteID: operationRouteID1},
+			{OperationRouteID: operationRouteID2},
+		},
+		Metadata: map[string]any{"key": "value"},
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
@@ -78,7 +81,7 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
@@ -113,9 +116,12 @@ func TestCreateTransactionRouteSuccessWithoutMetadata(t *testing.T) {
 	operationRouteID2 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		Description:     "Test Description",
-		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
+		Title:       "Test Transaction Route",
+		Description: "Test Description",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{OperationRouteID: operationRouteID1},
+			{OperationRouteID: operationRouteID2},
+		},
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
@@ -144,7 +150,7 @@ func TestCreateTransactionRouteSuccessWithoutMetadata(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
@@ -170,8 +176,10 @@ func TestCreateTransactionRouteErrorOperationRoutesNotFound(t *testing.T) {
 	operationRouteID1 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		OperationRoutes: []uuid.UUID{operationRouteID1},
+		Title: "Test Transaction Route",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{OperationRouteID: operationRouteID1},
+		},
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
@@ -182,7 +190,7 @@ func TestCreateTransactionRouteErrorOperationRoutesNotFound(t *testing.T) {
 	expectedError := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name())
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(nil, expectedError).
 		Times(1)
 
@@ -203,8 +211,10 @@ func TestCreateTransactionRouteErrorMissingDebitRoute(t *testing.T) {
 	operationRouteID1 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		OperationRoutes: []uuid.UUID{operationRouteID1},
+		Title: "Test Transaction Route",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{OperationRouteID: operationRouteID1},
+		},
 	}
 
 	// Only credit operation route, missing debit
@@ -221,7 +231,7 @@ func TestCreateTransactionRouteErrorMissingDebitRoute(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
@@ -229,7 +239,7 @@ func TestCreateTransactionRouteErrorMissingDebitRoute(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	expectedError := pkg.ValidateBusinessError(constant.ErrNoSourceForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "")
 	assert.Equal(t, expectedError, err)
 }
 
@@ -243,8 +253,10 @@ func TestCreateTransactionRouteErrorMissingCreditRoute(t *testing.T) {
 	operationRouteID1 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		OperationRoutes: []uuid.UUID{operationRouteID1},
+		Title: "Test Transaction Route",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{OperationRouteID: operationRouteID1},
+		},
 	}
 
 	// Only debit operation route, missing credit
@@ -261,7 +273,7 @@ func TestCreateTransactionRouteErrorMissingCreditRoute(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
@@ -269,7 +281,7 @@ func TestCreateTransactionRouteErrorMissingCreditRoute(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	expectedError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "")
 	assert.Equal(t, expectedError, err)
 }
 
@@ -284,8 +296,11 @@ func TestCreateTransactionRouteErrorTransactionRouteCreationFails(t *testing.T) 
 	operationRouteID2 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
+		Title: "Test Transaction Route",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{OperationRouteID: operationRouteID1},
+			{OperationRouteID: operationRouteID2},
+		},
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
@@ -308,7 +323,7 @@ func TestCreateTransactionRouteErrorTransactionRouteCreationFails(t *testing.T) 
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
@@ -336,9 +351,12 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	operationRouteID2 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:           "Test Transaction Route",
-		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
-		Metadata:        map[string]any{"key": "value"},
+		Title: "Test Transaction Route",
+		OperationRoutes: []mmodel.OperationRouteActionInput{
+			{OperationRouteID: operationRouteID1},
+			{OperationRouteID: operationRouteID2},
+		},
+		Metadata: map[string]any{"key": "value"},
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
@@ -369,7 +387,7 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	}
 
 	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRoutes).
+		FindByIDs(gomock.Any(), organizationID, ledgerID, payload.OperationRouteIDs()).
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
@@ -394,46 +412,65 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 // TestValidateOperationRouteTypesSuccess tests successful validation
 func TestValidateOperationRouteTypesSuccess(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{
-		{OperationType: "source"},
-		{OperationType: "destination"},
+		{ID: uuid.New(), OperationType: "source"},
+		{ID: uuid.New(), OperationType: "destination"},
 	}
 
 	err := validateOperationRouteTypes(operationRoutes)
 	assert.NoError(t, err)
 }
 
-// TestValidateOperationRouteTypesMissingDebit tests validation error when debit is missing
+// TestValidateOperationRouteTypesBidirectionalOnly tests that bidirectional routes satisfy both source and destination
+func TestValidateOperationRouteTypesBidirectionalOnly(t *testing.T) {
+	operationRoutes := []*mmodel.OperationRoute{
+		{ID: uuid.New(), OperationType: "bidirectional"},
+	}
+
+	err := validateOperationRouteTypes(operationRoutes)
+	assert.NoError(t, err)
+}
+
+// TestValidateOperationRouteTypesBidirectionalWithSource tests bidirectional mixed with source
+func TestValidateOperationRouteTypesBidirectionalWithSource(t *testing.T) {
+	operationRoutes := []*mmodel.OperationRoute{
+		{ID: uuid.New(), OperationType: "bidirectional"},
+		{ID: uuid.New(), OperationType: "source"},
+	}
+
+	err := validateOperationRouteTypes(operationRoutes)
+	assert.NoError(t, err)
+}
+
+// TestValidateOperationRouteTypesMissingDebit tests validation error when source is missing
 func TestValidateOperationRouteTypesMissingDebit(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{
-		{OperationType: "destination"},
-		{OperationType: "destination"},
+		{ID: uuid.New(), OperationType: "destination"},
+		{ID: uuid.New(), OperationType: "destination"},
 	}
 
 	err := validateOperationRouteTypes(operationRoutes)
 	assert.Error(t, err)
-	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	expectedError := pkg.ValidateBusinessError(constant.ErrNoSourceForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "")
 	assert.Equal(t, expectedError, err)
 }
 
-// TestValidateOperationRouteTypesMissingCredit tests validation error when credit is missing
+// TestValidateOperationRouteTypesMissingCredit tests validation error when destination is missing
 func TestValidateOperationRouteTypesMissingCredit(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{
-		{OperationType: "source"},
-		{OperationType: "source"},
+		{ID: uuid.New(), OperationType: "source"},
+		{ID: uuid.New(), OperationType: "source"},
 	}
 
 	err := validateOperationRouteTypes(operationRoutes)
 	assert.Error(t, err)
-	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+	expectedError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), "")
 	assert.Equal(t, expectedError, err)
 }
 
-// TestValidateOperationRouteTypesEmpty tests validation with empty array
+// TestValidateOperationRouteTypesEmpty tests validation with empty arrays
 func TestValidateOperationRouteTypesEmpty(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{}
 
 	err := validateOperationRouteTypes(operationRoutes)
-	assert.Error(t, err)
-	expectedError := pkg.ValidateBusinessError(constant.ErrMissingOperationRoutes, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
-	assert.Equal(t, expectedError, err)
+	assert.Error(t, err, "empty routes should fail — no source or destination")
 }

@@ -5,7 +5,7 @@
 package bootstrap
 
 // =============================================================================
-// PROPERTY-BASED TESTS -- Multi-tenant worker/consumer domain invariants (T-007)
+// PROPERTY-BASED TESTS -- Multi-tenant worker/consumer domain invariants
 //
 // These tests verify that the domain invariants of the multi-tenant constructors
 // and predicates hold across hundreds of automatically-generated inputs using
@@ -34,9 +34,9 @@ import (
 	"testing/quick"
 	"time"
 
-	libRedis "github.com/LerianStudio/lib-commons/v3/commons/redis"
-	tmclient "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/client"
-	tmpostgres "github.com/LerianStudio/lib-commons/v3/commons/tenant-manager/postgres"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/stretchr/testify/require"
@@ -53,9 +53,10 @@ func TestProperty_BalanceSyncWorker_PredicateEqualsEnabledAndPGManagerNonNil(t *
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.RedisConnection{}
+	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
-	tc := tmclient.NewClient("http://localhost:0", logger)
+	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
+	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
 
 	property := func(enabled bool, hasPGManager bool, hasTenantClient bool) bool {
@@ -86,7 +87,7 @@ func TestProperty_BalanceSyncWorker_PredicateEqualsEnabledAndPGManagerNonNil(t *
 		return worker.isMultiTenantReady() == got
 	}
 
-	err := quick.Check(property, &quick.Config{MaxCount: 200})
+	err = quick.Check(property, &quick.Config{MaxCount: 200})
 	require.NoError(t, err,
 		"Property violated: BalanceSyncWorker.isMultiTenantReady() != (multiTenantEnabled && pgManager != nil && tenantClient != nil)")
 }
@@ -101,7 +102,8 @@ func TestProperty_RedisQueueConsumer_PredicateEqualsEnabledAndPGManagerNonNil(t 
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
-	tc := tmclient.NewClient("http://localhost:0", logger)
+	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
+	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
 
 	property := func(enabled bool, hasPGManager bool, hasTenantClient bool) bool {
@@ -132,7 +134,7 @@ func TestProperty_RedisQueueConsumer_PredicateEqualsEnabledAndPGManagerNonNil(t 
 		return consumer.isMultiTenantReady() == got
 	}
 
-	err := quick.Check(property, &quick.Config{MaxCount: 200})
+	err = quick.Check(property, &quick.Config{MaxCount: 200})
 	require.NoError(t, err,
 		"Property violated: RedisQueueConsumer.isMultiTenantReady() != (multiTenantEnabled && pgManager != nil && tenantClient != nil)")
 }
@@ -152,9 +154,10 @@ func TestProperty_NewBalanceSyncWorkerMultiTenant_PreservesBaseFields(t *testing
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.RedisConnection{}
+	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
-	tenantClient := tmclient.NewClient("http://localhost:0", logger)
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
+	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
 	property := func(maxWorkers int, enabled bool) bool {
@@ -226,7 +229,7 @@ func TestProperty_NewBalanceSyncWorkerMultiTenant_PreservesBaseFields(t *testing
 		return true
 	}
 
-	err := quick.Check(property, &quick.Config{MaxCount: 100})
+	err = quick.Check(property, &quick.Config{MaxCount: 100})
 	require.NoError(t, err,
 		"Property violated: NewBalanceSyncWorkerMultiTenant did not preserve base fields or apply maxWorkers default guard")
 }
@@ -247,7 +250,8 @@ func TestProperty_NewRedisQueueConsumerMultiTenant_PreservesBaseFields(t *testin
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
-	tenantClient := tmclient.NewClient("http://localhost:0", logger)
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
+	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
 	property := func(enabled bool, hasPGManager bool) bool {
@@ -291,7 +295,7 @@ func TestProperty_NewRedisQueueConsumerMultiTenant_PreservesBaseFields(t *testin
 		return consumer.isMultiTenantReady() == expectedReady
 	}
 
-	err := quick.Check(property, &quick.Config{MaxCount: 100})
+	err = quick.Check(property, &quick.Config{MaxCount: 100})
 	require.NoError(t, err,
 		"Property violated: NewRedisQueueConsumerMultiTenant did not preserve base fields or set multi-tenant fields correctly")
 }
@@ -308,10 +312,11 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.RedisConnection{}
+	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	handler := in.TransactionHandler{}
-	tenantClient := tmclient.NewClient("http://localhost:0", logger)
+	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
+	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
 	property := func(
@@ -321,7 +326,7 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 		consumerHasTenantClient bool, consumerHasPGManager bool,
 	) bool {
 		// --- BalanceSyncWorker constructor with varying nil pointers ---
-		var wConn *libRedis.RedisConnection
+		var wConn *libRedis.Client
 		if workerHasConn {
 			wConn = conn
 		}
@@ -397,7 +402,7 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 		return true
 	}
 
-	err := quick.Check(property, &quick.Config{MaxCount: 100})
+	err = quick.Check(property, &quick.Config{MaxCount: 100})
 	require.NoError(t, err,
 		"Property violated: a constructor or predicate panicked or returned an inconsistent result for a nil/non-nil combination")
 }
