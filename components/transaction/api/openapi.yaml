@@ -3493,7 +3493,7 @@ components:
           key: '{}'
         code: code
         description: description
-        transactionDate: transactionDate
+        transactionDate: 2021-01-01T00:00:00Z
         chartOfAccountsGroupName: chartOfAccountsGroupName
         send:
           distribute:
@@ -3550,6 +3550,8 @@ components:
             Example "2021-01-01T00:00:00Z"
             swagger: type string
             required: false
+          example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
       type: object
     CreateTransactionOutflowSwaggerModel:
@@ -3561,7 +3563,7 @@ components:
         code: code
         pending: true
         description: description
-        transactionDate: transactionDate
+        transactionDate: 2021-01-01T00:00:00Z
         chartOfAccountsGroupName: chartOfAccountsGroupName
         send:
           source:
@@ -3626,6 +3628,8 @@ components:
             Example "2021-01-01T00:00:00Z"
             swagger: type string
             required: false
+          example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
       type: object
     CreateTransactionRouteInput:
@@ -4737,6 +4741,8 @@ components:
             Example "2021-01-01T00:00:00Z"
             swagger: type string
             required: false
+          example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
       type: object
     inline_response_200:

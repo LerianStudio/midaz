@@ -4186,7 +4186,9 @@ const docTemplatetransaction = `{
                 },
                 "transactionDate": {
                     "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
@@ -4279,7 +4281,9 @@ const docTemplatetransaction = `{
                 },
                 "transactionDate": {
                     "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
@@ -5200,7 +5204,9 @@ const docTemplatetransaction = `{
                 },
                 "transactionDate": {
                     "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         }

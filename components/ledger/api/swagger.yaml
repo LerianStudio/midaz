@@ -7358,6 +7358,8 @@ definitions:
 
           required: false'
         type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
   CreateTransactionOutflowSwaggerModel:
     description: Schema for creating outflow transaction with the complete SendOutflow
       operation structure defined inline
@@ -7486,6 +7488,8 @@ definitions:
 
           required: false'
         type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
   CreateTransactionRouteInput:
     description: CreateTransactionRouteInput payload
     type: object
@@ -8477,6 +8481,8 @@ definitions:
 
           required: false'
         type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
   CreateMetadataIndexInput:
     description: CreateMetadataIndexInput payload
     type: object

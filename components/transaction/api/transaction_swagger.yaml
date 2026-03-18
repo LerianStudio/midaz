@@ -590,6 +590,8 @@ definitions:
           Example "2021-01-01T00:00:00Z"
           swagger: type string
           required: false
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
     type: object
   CreateTransactionOutflowSwaggerModel:
@@ -706,6 +708,8 @@ definitions:
           Example "2021-01-01T00:00:00Z"
           swagger: type string
           required: false
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
     type: object
   CreateTransactionRouteInput:
@@ -1698,6 +1702,8 @@ definitions:
           Example "2021-01-01T00:00:00Z"
           swagger: type string
           required: false
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
     type: object
 host: localhost:3001
