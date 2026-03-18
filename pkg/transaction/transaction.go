@@ -175,7 +175,7 @@ type Distribute struct {
 // swagger:model Transaction
 // @Description Transaction is a struct designed to store transaction data.
 type Transaction struct {
-	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"1000"`
+	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"FUNDING"`
 	Description              string         `json:"description,omitempty" example:"Description"`
 	Code                     string         `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
 	Pending                  bool           `json:"pending,omitempty" example:"false"`
