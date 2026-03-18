@@ -4307,7 +4307,7 @@ const docTemplatetransaction = `{
                     "additionalProperties": {}
                 },
                 "operationRoutes": {
-                    "description": "A list of Operation Route IDs associated with the Transaction Route.",
+                    "description": "A list of Operation Route IDs associated with the Transaction Route (minimum 2 required).",
                     "type": "array",
                     "items": {
                         "type": "string",

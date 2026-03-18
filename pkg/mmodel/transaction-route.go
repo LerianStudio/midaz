@@ -49,7 +49,7 @@ type CreateTransactionRouteInput struct {
 	Description string `json:"description,omitempty" validate:"max=250" example:"Settlement route for service charges"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-	// A list of Operation Route IDs associated with the Transaction Route.
+	// A list of Operation Route IDs associated with the Transaction Route (minimum 2 required).
 	OperationRoutes []uuid.UUID `json:"operationRoutes,omitempty" validate:"required,dive,required" format:"uuid"`
 } // @name CreateTransactionRouteInput
 
