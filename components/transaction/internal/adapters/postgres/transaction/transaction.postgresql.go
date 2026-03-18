@@ -80,6 +80,7 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
+	CountByRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, route, status string, from, to time.Time) (int64, error)
 }
 
 // transactionColumns is derived from transactionColumnList for use with squirrel.Select.
@@ -1140,4 +1141,58 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 	}
 
 	return transactions, cur, nil
+}
+
+// CountByRoute counts transactions matching the given route, status, and date range.
+func (r *TransactionPostgreSQLRepository) CountByRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, route, status string, from, to time.Time) (int64, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.count_transactions_by_route")
+	defer span.End()
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		logger.Errorf("Failed to get database connection: %v", err)
+
+		return 0, err
+	}
+
+	countQuery := squirrel.Select("COUNT(*)").
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("status = ?", status)).
+		Where(squirrel.Expr("route = ?", route)).
+		Where(squirrel.Expr("created_at >= ?", from)).
+		Where(squirrel.Expr("created_at < ?", to)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := countQuery.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		logger.Errorf("Failed to build query: %v", err)
+
+		return 0, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.count_by_route.query")
+	defer spanQuery.End()
+
+	var count int64
+
+	row := db.QueryRowContext(ctx, query, args...)
+
+	if err := row.Scan(&count); err != nil {
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to scan count result", err)
+
+		logger.Errorf("Failed to scan count result: %v", err)
+
+		return 0, err
+	}
+
+	return count, nil
 }

@@ -12,6 +12,7 @@ package transaction
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	http "github.com/LerianStudio/lib-commons/v3/commons/net/http"
 	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -41,6 +42,21 @@ func NewMockRepository(ctrl *gomock.Controller) *MockRepository {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 	return m.recorder
+}
+
+// CountByRoute mocks base method.
+func (m *MockRepository) CountByRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, route, status string, from, to time.Time) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountByRoute", ctx, organizationID, ledgerID, route, status, from, to)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountByRoute indicates an expected call of CountByRoute.
+func (mr *MockRepositoryMockRecorder) CountByRoute(ctx, organizationID, ledgerID, route, status, from, to any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByRoute", reflect.TypeOf((*MockRepository)(nil).CountByRoute), ctx, organizationID, ledgerID, route, status, from, to)
 }
 
 // Create mocks base method.

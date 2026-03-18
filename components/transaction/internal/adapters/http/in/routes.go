@@ -75,6 +75,7 @@ func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, th *Transact
 
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", auth.Authorize(midazName, "transactions", "patch"), http.ParseUUIDPathParameters("transaction"), http.WithBody(new(transaction.UpdateTransactionInput), th.UpdateTransaction))
 
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/count", auth.Authorize(midazName, "transactions", "get"), http.ParseUUIDPathParameters("transaction"), th.CountTransactionsByRoute)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", auth.Authorize(midazName, "transactions", "get"), http.ParseUUIDPathParameters("transaction"), th.GetTransaction)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", auth.Authorize(midazName, "transactions", "get"), http.ParseUUIDPathParameters("transaction"), th.GetAllTransactions)
 
