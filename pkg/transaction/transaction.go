@@ -172,8 +172,8 @@ type Distribute struct {
 
 // Transaction structure for marshaling/unmarshalling JSON.
 //
-// swagger:model Transaction
-// @Description Transaction is a struct designed to store transaction data.
+// swagger:model TransactionInput
+// @Description TransactionInput is the request payload for creating a transaction.
 type Transaction struct {
 	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"FUNDING"`
 	Description              string         `json:"description,omitempty" example:"Description"`
@@ -184,7 +184,7 @@ type Transaction struct {
 	Route           string           `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
 	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
 	Send            Send             `json:"send" validate:"required"`
-} // @name Transaction
+} // @name TransactionInput
 
 // IsEmpty is a func that validate if transaction is Empty.
 func (t Transaction) IsEmpty() bool {
