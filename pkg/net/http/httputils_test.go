@@ -170,7 +170,8 @@ func TestValidateParameters_WithPortfolioID(t *testing.T) {
 	result, err := ValidateParameters(params)
 
 	require.NoError(t, err)
-	assert.Equal(t, validUUID, result.PortfolioID)
+	require.NotNil(t, result.PortfolioID)
+	assert.Equal(t, validUUID, *result.PortfolioID)
 }
 
 func TestValidateParameters_WithInvalidPortfolioID(t *testing.T) {
@@ -556,7 +557,7 @@ func TestQueryHeader_ToOffsetPagination(t *testing.T) {
 		StartDate:     startDate,
 		EndDate:       endDate,
 		UseMetadata:   true,
-		PortfolioID:   "portfolio-123",
+		PortfolioID:   strPtr("portfolio-123"),
 		OperationType: "CREDIT",
 		ToAssetCodes:  []string{"USD", "EUR"},
 	}
@@ -584,7 +585,7 @@ func TestQueryHeader_ToCursorPagination(t *testing.T) {
 		StartDate:     startDate,
 		EndDate:       endDate,
 		UseMetadata:   true,
-		PortfolioID:   "portfolio-123",
+		PortfolioID:   strPtr("portfolio-123"),
 		OperationType: "CREDIT",
 		ToAssetCodes:  []string{"USD", "EUR"},
 	}
@@ -619,7 +620,8 @@ func TestValidateParameters_AllParams(t *testing.T) {
 	assert.Equal(t, 25, result.Limit)
 	assert.Equal(t, 2, result.Page)
 	assert.Equal(t, "desc", result.SortOrder)
-	assert.Equal(t, "123e4567-e89b-12d3-a456-426614174000", result.PortfolioID)
+	require.NotNil(t, result.PortfolioID)
+	assert.Equal(t, "123e4567-e89b-12d3-a456-426614174000", *result.PortfolioID)
 	assert.Equal(t, "DEBIT", result.OperationType)
 	assert.Equal(t, []string{"USD", "BRL"}, result.ToAssetCodes)
 	assert.True(t, result.UseMetadata)
@@ -919,7 +921,8 @@ func TestValidateParameters_WithSegmentID(t *testing.T) {
 	result, err := ValidateParameters(params)
 
 	require.NoError(t, err)
-	assert.Equal(t, validUUID, result.SegmentID)
+	require.NotNil(t, result.SegmentID)
+	assert.Equal(t, validUUID, *result.SegmentID)
 }
 
 func TestValidateParameters_WithInvalidSegmentID(t *testing.T) {
@@ -939,7 +942,7 @@ func TestValidateParameters_SegmentIDEmptyByDefault(t *testing.T) {
 	result, err := ValidateParameters(params)
 
 	require.NoError(t, err)
-	assert.Empty(t, result.SegmentID)
+	assert.Nil(t, result.SegmentID)
 }
 
 func TestValidateParameters_SegmentIDAndPortfolioIDCombined(t *testing.T) {
@@ -953,8 +956,10 @@ func TestValidateParameters_SegmentIDAndPortfolioIDCombined(t *testing.T) {
 	result, err := ValidateParameters(params)
 
 	require.NoError(t, err)
-	assert.Equal(t, segmentUUID, result.SegmentID)
-	assert.Equal(t, portfolioUUID, result.PortfolioID)
+	require.NotNil(t, result.SegmentID)
+	assert.Equal(t, segmentUUID, *result.SegmentID)
+	require.NotNil(t, result.PortfolioID)
+	assert.Equal(t, portfolioUUID, *result.PortfolioID)
 }
 
 func TestValidateParameters_WithDirectionDebit(t *testing.T) {
@@ -1016,4 +1021,8 @@ func TestValidateParameters_DirectionAndRouteIDNilByDefault(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, result.Direction)
 	assert.Nil(t, result.RouteID)
+}
+
+func strPtr(s string) *string {
+	return &s
 }

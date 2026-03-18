@@ -5,10 +5,12 @@
 package in
 
 import (
+	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -56,9 +58,9 @@ func (handler *TransactionHandler) CountTransactionsByRoute(c *fiber.Ctx) error 
 	if route == "" {
 		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "Transaction", "route")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing required query parameter: route", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing required query parameter: route", err)
 
-		logger.Errorf("Missing required query parameter: route")
+		logger.Log(ctx, libLog.LevelError, "Missing required query parameter: route")
 
 		return http.WithError(c, err)
 	}
@@ -66,9 +68,9 @@ func (handler *TransactionHandler) CountTransactionsByRoute(c *fiber.Ctx) error 
 	if status == "" {
 		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "Transaction", "status")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing required query parameter: status", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing required query parameter: status", err)
 
-		logger.Errorf("Missing required query parameter: status")
+		logger.Log(ctx, libLog.LevelError, "Missing required query parameter: status")
 
 		return http.WithError(c, err)
 	}
@@ -76,9 +78,9 @@ func (handler *TransactionHandler) CountTransactionsByRoute(c *fiber.Ctx) error 
 	if startDateStr == "" {
 		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "Transaction", "start_date")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing required query parameter: start_date", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing required query parameter: start_date", err)
 
-		logger.Errorf("Missing required query parameter: start_date")
+		logger.Log(ctx, libLog.LevelError, "Missing required query parameter: start_date")
 
 		return http.WithError(c, err)
 	}
@@ -86,9 +88,9 @@ func (handler *TransactionHandler) CountTransactionsByRoute(c *fiber.Ctx) error 
 	if endDateStr == "" {
 		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "Transaction", "end_date")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Missing required query parameter: end_date", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing required query parameter: end_date", err)
 
-		logger.Errorf("Missing required query parameter: end_date")
+		logger.Log(ctx, libLog.LevelError, "Missing required query parameter: end_date")
 
 		return http.WithError(c, err)
 	}
@@ -97,9 +99,9 @@ func (handler *TransactionHandler) CountTransactionsByRoute(c *fiber.Ctx) error 
 	if _, err := uuid.Parse(route); err != nil {
 		validationErr := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "Transaction", "route must be a valid UUID")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid route UUID", validationErr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid route UUID", validationErr)
 
-		logger.Errorf("Invalid route UUID: %s", route)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid route UUID: %s", route))
 
 		return http.WithError(c, validationErr)
 	}
@@ -109,9 +111,9 @@ func (handler *TransactionHandler) CountTransactionsByRoute(c *fiber.Ctx) error 
 	if err != nil {
 		validationErr := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "Transaction", "start_date must be in RFC3339 format")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid start_date format", validationErr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid start_date format", validationErr)
 
-		logger.Errorf("Invalid start_date format: %s", startDateStr)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid start_date format: %s", startDateStr))
 
 		return http.WithError(c, validationErr)
 	}
@@ -121,25 +123,25 @@ func (handler *TransactionHandler) CountTransactionsByRoute(c *fiber.Ctx) error 
 	if err != nil {
 		validationErr := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, "Transaction", "end_date must be in RFC3339 format")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid end_date format", validationErr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid end_date format", validationErr)
 
-		logger.Errorf("Invalid end_date format: %s", endDateStr)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid end_date format: %s", endDateStr))
 
 		return http.WithError(c, validationErr)
 	}
 
-	logger.Infof("Counting transactions by route: org=%s ledger=%s route=%s status=%s", organizationID, ledgerID, route, status)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Counting transactions by route: org=%s ledger=%s route=%s status=%s", organizationID, ledgerID, route, status))
 
 	result, err := handler.Query.CountTransactionsByRoute(ctx, organizationID, ledgerID, route, status, startDate, endDate)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count transactions by route", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to count transactions by route", err)
 
-		logger.Errorf("Failed to count transactions by route: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to count transactions by route: %v", err))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully counted transactions: totalCount=%d", result.TotalCount)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully counted transactions: totalCount=%d", result.TotalCount))
 
 	return http.OK(c, result)
 }

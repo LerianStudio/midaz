@@ -35,8 +35,8 @@ type QueryHeader struct {
 	StartDate                           time.Time
 	EndDate                             time.Time
 	UseMetadata                         bool
-	PortfolioID                         string
-	SegmentID                           string
+	PortfolioID                         *string
+	SegmentID                           *string
 	OperationType                       string
 	Direction                           *string
 	RouteID                             *string

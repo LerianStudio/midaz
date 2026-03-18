@@ -6,10 +6,12 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/google/uuid"
 )
 
@@ -57,13 +59,13 @@ func (uc *UseCase) CountTransactionsByRoute(ctx context.Context, organizationID,
 	ctx, span := tracer.Start(ctx, "query.count_transactions_by_route")
 	defer span.End()
 
-	logger.Infof("Counting transactions by route: route=%s status=%s", route, status)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Counting transactions by route: route=%s status=%s", route, status))
 
 	count, err := uc.TransactionRepo.CountByRoute(ctx, organizationID, ledgerID, route, status, from, to)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to count transactions by route", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to count transactions by route", err)
 
-		logger.Errorf("Error counting transactions by route: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting transactions by route: %v", err))
 
 		return nil, err
 	}

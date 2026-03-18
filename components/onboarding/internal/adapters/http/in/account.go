@@ -145,18 +145,18 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		EndDate:   headerParams.EndDate,
 	}
 
-	if !libCommons.IsNilOrEmpty(&headerParams.PortfolioID) {
-		parsedID := uuid.MustParse(headerParams.PortfolioID)
+	if headerParams.PortfolioID != nil {
+		parsedID := uuid.MustParse(*headerParams.PortfolioID)
 		portfolioID = &parsedID
 
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Search of all Accounts with Portfolio ID: %s", portfolioID))
 	}
 
-	if !libCommons.IsNilOrEmpty(&headerParams.SegmentID) {
-		parsedID := uuid.MustParse(headerParams.SegmentID)
+	if headerParams.SegmentID != nil {
+		parsedID := uuid.MustParse(*headerParams.SegmentID)
 		segmentID = &parsedID
 
-		logger.Infof("Search of all Accounts with Segment ID: %s", segmentID)
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Search of all Accounts with Segment ID: %s", segmentID))
 	}
 
 	if headerParams.Metadata != nil {

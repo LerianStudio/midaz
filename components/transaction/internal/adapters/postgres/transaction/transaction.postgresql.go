@@ -1192,9 +1192,9 @@ func (r *TransactionPostgreSQLRepository) CountByRoute(ctx context.Context, orga
 
 	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return 0, err
 	}
@@ -1212,9 +1212,9 @@ func (r *TransactionPostgreSQLRepository) CountByRoute(ctx context.Context, orga
 
 	query, args, err := countQuery.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return 0, err
 	}
@@ -1227,9 +1227,9 @@ func (r *TransactionPostgreSQLRepository) CountByRoute(ctx context.Context, orga
 	row := db.QueryRowContext(ctx, query, args...)
 
 	if err := row.Scan(&count); err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to scan count result", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to scan count result", err)
 
-		logger.Errorf("Failed to scan count result: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan count result: %v", err))
 
 		return 0, err
 	}
