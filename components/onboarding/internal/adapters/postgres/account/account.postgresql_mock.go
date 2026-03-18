@@ -193,18 +193,18 @@ func (mr *MockRepositoryMockRecorder) ListByAlias(ctx, organizationID, ledgerID,
 }
 
 // ListByIDs mocks base method.
-func (m *MockRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
+func (m *MockRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListByIDs", ctx, organizationID, ledgerID, portfolioID, ids)
+	ret := m.ctrl.Call(m, "ListByIDs", ctx, organizationID, ledgerID, portfolioID, segmentID, ids)
 	ret0, _ := ret[0].([]*mmodel.Account)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListByIDs indicates an expected call of ListByIDs.
-func (mr *MockRepositoryMockRecorder) ListByIDs(ctx, organizationID, ledgerID, portfolioID, ids any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) ListByIDs(ctx, organizationID, ledgerID, portfolioID, segmentID, ids any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByIDs", reflect.TypeOf((*MockRepository)(nil).ListByIDs), ctx, organizationID, ledgerID, portfolioID, ids)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByIDs", reflect.TypeOf((*MockRepository)(nil).ListByIDs), ctx, organizationID, ledgerID, portfolioID, segmentID, ids)
 }
 
 // Update mocks base method.

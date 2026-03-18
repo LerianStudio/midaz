@@ -61,7 +61,7 @@ type Repository interface {
 	FindWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error)
 	FindAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string) (*mmodel.Account, error)
 	FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error)
-	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
+	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string) ([]*mmodel.Account, error)
 	Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error)
 	Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error
@@ -645,7 +645,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 }
 
 // ListByIDs retrieves Accounts entities from the database using the provided IDs.
-func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
+func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
@@ -673,6 +673,10 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
 		findAll = findAll.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
+	}
+
+	if segmentID != nil && *segmentID != uuid.Nil {
+		findAll = findAll.Where(squirrel.Expr("segment_id = ?", *segmentID))
 	}
 
 	query, args, err := findAll.ToSql()

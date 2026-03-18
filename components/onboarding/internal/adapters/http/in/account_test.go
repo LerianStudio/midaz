@@ -341,7 +341,7 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 
 				// AccountRepo.ListByIDs returns the accounts
 				accountRepo.EXPECT().
-					ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Any()).
+					ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{
 							ID:             account1ID,
@@ -422,7 +422,7 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 
 				// AccountRepo.ListByIDs returns not found error
 				accountRepo.EXPECT().
-					ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Any()).
+					ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())).
 					Times(1)
 			},

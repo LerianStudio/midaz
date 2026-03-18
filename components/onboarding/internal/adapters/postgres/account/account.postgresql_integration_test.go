@@ -988,7 +988,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsMatchingAccounts(t *test
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, []uuid.UUID{id1, id2})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2})
 
 	// Assert
 	require.NoError(t, err)
@@ -1018,7 +1018,7 @@ func TestIntegration_AccountRepository_ListByIDs_ExcludesSoftDeleted(t *testing.
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, []uuid.UUID{id1, id2})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2})
 
 	// Assert
 	require.NoError(t, err)
@@ -1038,7 +1038,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsEmptyForNoMatch(t *testi
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())})
 
 	// Assert
 	require.NoError(t, err)
