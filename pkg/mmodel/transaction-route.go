@@ -73,7 +73,7 @@ type UpdateTransactionRouteInput struct {
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// A list of Operation Route IDs associated with the Transaction Route.
-	OperationRoutes *[]uuid.UUID `json:"operationRoutes,omitempty" validate:"omitempty,dive,required" format:"uuid"`
+	OperationRoutes *[]uuid.UUID `json:"operationRoutes,omitempty" validate:"omitempty,dive" format:"uuid"`
 } // @name UpdateTransactionRouteInput
 
 // OperationRouteIDs extracts the operation route UUIDs from the input.

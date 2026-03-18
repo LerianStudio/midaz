@@ -10432,9 +10432,6 @@ const docTemplate = `
     "UpdateTransactionRouteInput": {
       "description": "UpdateTransactionRouteInput payload",
       "type": "object",
-      "required": [
-        "operationRoutes"
-      ],
       "properties": {
         "description": {
           "description": "A description for the Transaction Route.",

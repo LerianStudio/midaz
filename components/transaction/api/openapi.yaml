@@ -4837,8 +4837,6 @@ components:
           example: Charge Settlement
           maxLength: 50
           type: string
-      required:
-      - operationRoutes
       type: object
     http.Pagination:
       example:

@@ -1400,8 +1400,6 @@ definitions:
         example: Charge Settlement
         maxLength: 50
         type: string
-    required:
-    - operationRoutes
     type: object
   http.Pagination:
     properties:
