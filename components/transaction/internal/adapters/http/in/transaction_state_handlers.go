@@ -246,20 +246,26 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	// Validate bidirectional routes: operations with a route_id require
 	// the referenced OperationRoute to have OperationType "bidirectional".
 	for _, op := range tran.Operations {
-		if op.Route == "" {
+		if op.RouteID == nil || *op.RouteID == "" {
 			continue
 		}
 
-		routeUUID, parseErr := uuid.Parse(op.Route)
+		routeUUID, parseErr := uuid.Parse(*op.RouteID)
 		if parseErr != nil {
-			continue
+			parseValidationErr := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "RevertTransaction", "routeId")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid routeId format on operation during revert validation", parseValidationErr)
+
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid routeId %s on operation during revert validation: %v", *op.RouteID, parseErr))
+
+			return http.WithError(c, parseValidationErr)
 		}
 
 		operationRoute, routeErr := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, routeUUID)
 		if routeErr != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve operation route for revert validation", routeErr)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve operation route %s for revert validation: %v", op.Route, routeErr))
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve operation route %s for revert validation: %v", *op.RouteID, routeErr))
 
 			return http.WithError(c, routeErr)
 		}
@@ -270,7 +276,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route is not bidirectional", err)
 
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Operation route %s is not bidirectional (type: %s), cannot revert transaction %s",
-				op.Route, operationRoute.OperationType, transactionID.String()))
+				*op.RouteID, operationRoute.OperationType, transactionID.String()))
 
 			return http.WithError(c, err)
 		}

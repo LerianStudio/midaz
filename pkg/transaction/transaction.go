@@ -132,9 +132,9 @@ type FromTo struct {
 	ChartOfAccounts string         `json:"chartOfAccounts" example:"1000"`
 	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 	IsFrom          bool           `json:"isFrom,omitempty" example:"true"`
-	// Deprecated: legacy route identifier, use routeId instead. Contains the same value as routeId but as a free-form string.
+	// Deprecated: passive field kept for backward compatibility. Accepted from client and persisted, but not used in any validation or business logic. Use routeId instead.
 	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
-	// UUID of the operation route. Prefer this over the legacy route field.
+	// UUID of the operation route. Primary field used for route validation and accounting rules.
 	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 } // @name FromTo
 

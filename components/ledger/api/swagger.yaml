@@ -7674,9 +7674,8 @@ definitions:
         format: uuid
         example: 00000000-0000-0000-0000-000000000000
       route:
-        description: 'Deprecated: legacy route identifier, use routeId instead. Contains
-          the same operation route UUID as routeId but stored as a free-form string
-          for backwards compatibility.
+        description: 'Deprecated: passive field kept for backward compatibility. Not
+          used in validation or business logic. Use routeId instead.
 
           example: 00000000-0000-0000-0000-000000000000
 
@@ -7696,8 +7695,8 @@ definitions:
         maxLength: 100
         example: ROUTE-001
       routeId:
-        description: 'UUID of the operation route that generated this operation. Prefer
-          this over the legacy route field.
+        description: 'UUID of the operation route that generated this operation. Primary
+          field for route identification, validation, and accounting.
 
           example: 00000000-0000-0000-0000-000000000000
 

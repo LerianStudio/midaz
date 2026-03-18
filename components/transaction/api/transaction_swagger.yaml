@@ -928,7 +928,7 @@ definitions:
         type: string
       route:
         description: |-
-          Deprecated: legacy route identifier, use routeId instead. Contains the same operation route UUID as routeId but stored as a free-form string for backwards compatibility.
+          Deprecated: passive field kept for backward compatibility. Not used in validation or business logic. Use routeId instead.
           example: 00000000-0000-0000-0000-000000000000
           maxLength: 250
           deprecated: true
@@ -945,7 +945,7 @@ definitions:
         type: string
       routeId:
         description: |-
-          UUID of the operation route that generated this operation. Prefer this over the legacy route field.
+          UUID of the operation route that generated this operation. Primary field for route identification, validation, and accounting.
           example: 00000000-0000-0000-0000-000000000000
           format: uuid
         example: 00000000-0000-0000-0000-000000000000
