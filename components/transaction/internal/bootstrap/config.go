@@ -227,11 +227,12 @@ type Options struct {
 	SettingsPort mbootstrap.SettingsPort
 
 	// Multi-tenant configuration (only used in unified ledger mode).
-	MultiTenantEnabled bool
-	TenantClient       *tmclient.Client
-	TenantServiceName  string
-	TenantEnvironment  string
-	TenantManagerURL   string
+	MultiTenantEnabled  bool
+	TenantClient        *tmclient.Client
+	TenantServiceName   string
+	TenantEnvironment   string
+	TenantManagerURL    string
+	TenantManagerAPIKey string
 }
 
 // InitServers initiate http and grpc servers.
