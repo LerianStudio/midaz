@@ -944,6 +944,7 @@ func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 
 	amount := decimal.NewFromInt(1000)
+	routeIDStr := operationRouteID.String()
 	tran := &transaction.Transaction{
 		ID:                  transactionID.String(),
 		OrganizationID:      orgID.String(),
@@ -961,7 +962,7 @@ func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
 				AccountAlias: "@receiver",
 				AssetCode:    "USD",
 				Amount:       operation.Amount{Value: &amount},
-				Route:        operationRouteID.String(),
+				RouteID:      &routeIDStr,
 			},
 		},
 	}
@@ -1076,6 +1077,7 @@ func TestRevertTransaction_NonBidirectionalRouteRejects(t *testing.T) {
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 
 	amount := decimal.NewFromInt(1000)
+	routeIDStr := operationRouteID.String()
 	tran := &transaction.Transaction{
 		ID:                  transactionID.String(),
 		OrganizationID:      orgID.String(),
@@ -1093,7 +1095,7 @@ func TestRevertTransaction_NonBidirectionalRouteRejects(t *testing.T) {
 				AccountAlias: "@receiver",
 				AssetCode:    "USD",
 				Amount:       operation.Amount{Value: &amount},
-				Route:        operationRouteID.String(),
+				RouteID:      &routeIDStr,
 			},
 		},
 	}
@@ -1300,6 +1302,7 @@ func TestRevertTransaction_RouteLookupError_ReturnsError(t *testing.T) {
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 
 	amount := decimal.NewFromInt(1000)
+	routeIDStr := operationRouteID.String()
 	tran := &transaction.Transaction{
 		ID:                  transactionID.String(),
 		OrganizationID:      orgID.String(),
@@ -1317,7 +1320,7 @@ func TestRevertTransaction_RouteLookupError_ReturnsError(t *testing.T) {
 				AccountAlias: "@receiver",
 				AssetCode:    "USD",
 				Amount:       operation.Amount{Value: &amount},
-				Route:        operationRouteID.String(),
+				RouteID:      &routeIDStr,
 			},
 		},
 	}

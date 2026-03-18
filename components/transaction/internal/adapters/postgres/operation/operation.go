@@ -227,7 +227,7 @@ type Operation struct {
 	// format: uuid
 	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// Deprecated: legacy route identifier, use routeId instead. Contains the same operation route UUID as routeId but stored as a free-form string for backwards compatibility.
+	// Deprecated: passive field kept for backward compatibility. Not used in validation or business logic. Use routeId instead.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	// deprecated: true
@@ -242,7 +242,7 @@ type Operation struct {
 	// maxLength: 50
 	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50" enums:"debit,credit"`
 
-	// UUID of the operation route that generated this operation. Prefer this over the legacy route field.
+	// UUID of the operation route that generated this operation. Primary field for route identification, validation, and accounting.
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
@@ -613,7 +613,7 @@ type OperationLog struct {
 	// format: date-time
 	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Deprecated: legacy route identifier, use routeId instead. Contains the same operation route UUID as routeId but stored as a free-form string for backwards compatibility.
+	// Deprecated: passive field kept for backward compatibility. Not used in validation or business logic. Use routeId instead.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	// deprecated: true
@@ -628,7 +628,7 @@ type OperationLog struct {
 	// maxLength: 50
 	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50" enums:"debit,credit"`
 
-	// UUID of the operation route that generated this operation. Prefer this over the legacy route field.
+	// UUID of the operation route that generated this operation. Primary field for route identification, validation, and accounting.
 	// example: 00000000-0000-0000-0000-000000000000
 	// format: uuid
 	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`

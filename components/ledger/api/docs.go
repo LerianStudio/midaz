@@ -9918,7 +9918,7 @@ const docTemplate = `
           "example": "00000000-0000-0000-0000-000000000000"
         },
         "route": {
-          "description": "Deprecated: legacy route identifier, use routeId instead. Contains the same operation route UUID as routeId but stored as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
+          "description": "Deprecated: passive field kept for backward compatibility. Not used in validation or business logic. Use routeId instead.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
           "type": "string",
           "maxLength": 250,
           "example": "00000000-0000-0000-0000-000000000000"
@@ -9930,7 +9930,7 @@ const docTemplate = `
           "example": "ROUTE-001"
         },
         "routeId": {
-          "description": "UUID of the operation route that generated this operation. Prefer this over the legacy route field.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+          "description": "UUID of the operation route that generated this operation. Primary field for route identification, validation, and accounting.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
           "type": "string",
           "format": "uuid",
           "example": "00000000-0000-0000-0000-000000000000"
