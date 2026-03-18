@@ -35,6 +35,7 @@ type QueryHeader struct {
 	EndDate                             time.Time
 	UseMetadata                         bool
 	PortfolioID                         string
+	SegmentID                           string
 	OperationType                       string
 	ToAssetCodes                        []string
 	HolderID                            *string
@@ -71,6 +72,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
 		metadata                            *bson.M
 		portfolioID                         string
+		segmentID                           string
 		operationType                       string
 		toAssetCodes                        []string
 		startDate                           time.Time
@@ -126,6 +128,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			endDate = parsedDate
 		case strings.Contains(key, "portfolio_id"):
 			portfolioID = value
+		case key == "segment_id":
+			segmentID = value
 		case strings.Contains(strings.ToLower(key), "type"):
 			operationType = strings.ToUpper(value)
 		case strings.Contains(key, "to"):
@@ -192,6 +196,13 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		}
 	}
 
+	if !libCommons.IsNilOrEmpty(&segmentID) {
+		_, err := uuid.Parse(segmentID)
+		if err != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "segment_id")
+		}
+	}
+
 	query := &QueryHeader{
 		Metadata:                            metadata,
 		Limit:                               limit,
@@ -202,6 +213,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		EndDate:                             endDate,
 		UseMetadata:                         useMetadata,
 		PortfolioID:                         portfolioID,
+		SegmentID:                           segmentID,
 		OperationType:                       operationType,
 		ToAssetCodes:                        toAssetCodes,
 		HolderID:                            holderID,

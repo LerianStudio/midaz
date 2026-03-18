@@ -520,7 +520,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) 
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, &portfolioID, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, &portfolioID, nil, filter)
 
 	// Assert
 	require.NoError(t, err)

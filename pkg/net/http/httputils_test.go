@@ -868,3 +868,50 @@ func TestValidateParameters_SearchFieldsNilByDefault(t *testing.T) {
 	assert.Nil(t, result.LegalName)
 	assert.Nil(t, result.DoingBusinessAs)
 }
+
+func TestValidateParameters_WithSegmentID(t *testing.T) {
+	validUUID := uuid.New().String()
+	params := map[string]string{
+		"segment_id": validUUID,
+	}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.Equal(t, validUUID, result.SegmentID)
+}
+
+func TestValidateParameters_WithInvalidSegmentID(t *testing.T) {
+	params := map[string]string{
+		"segment_id": "invalid-uuid",
+	}
+
+	result, err := ValidateParameters(params)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestValidateParameters_SegmentIDEmptyByDefault(t *testing.T) {
+	params := make(map[string]string)
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.Empty(t, result.SegmentID)
+}
+
+func TestValidateParameters_SegmentIDAndPortfolioIDCombined(t *testing.T) {
+	segmentUUID := uuid.New().String()
+	portfolioUUID := uuid.New().String()
+	params := map[string]string{
+		"segment_id":   segmentUUID,
+		"portfolio_id": portfolioUUID,
+	}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.Equal(t, segmentUUID, result.SegmentID)
+	assert.Equal(t, portfolioUUID, result.PortfolioID)
+}

@@ -1,0 +1,80 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package query
+
+import (
+	"context"
+	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/v3/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v3/commons/opentelemetry"
+	"github.com/google/uuid"
+)
+
+// CountResponse represents the response for a transaction count query.
+//
+// swagger:model CountResponse
+// @Description CountResponse contains the total count of transactions matching the specified filters.
+type CountResponse struct {
+	// Period range for the query
+	Period Period `json:"period"`
+
+	// Route UUID used as filter
+	// example: 550e8400-e29b-41d4-a716-446655440010
+	Route string `json:"route"`
+
+	// Transaction status used as filter
+	// example: APPROVED
+	Status string `json:"status"`
+
+	// Total number of matching transactions
+	// example: 773
+	TotalCount int64 `json:"totalCount"`
+} // @name CountResponse
+
+// Period represents a time range.
+//
+// swagger:model Period
+// @Description Period defines the from/to time range for a transaction count query.
+type Period struct {
+	// Start of the period (inclusive)
+	// example: 2026-01-01T00:00:00Z
+	// format: date-time
+	From time.Time `json:"from" format:"date-time"`
+
+	// End of the period (exclusive)
+	// example: 2026-02-01T00:00:00Z
+	// format: date-time
+	To time.Time `json:"to" format:"date-time"`
+} // @name Period
+
+// CountTransactionsByRoute counts transactions for a given route, status, and date range.
+func (uc *UseCase) CountTransactionsByRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, route, status string, from, to time.Time) (*CountResponse, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.count_transactions_by_route")
+	defer span.End()
+
+	logger.Infof("Counting transactions by route: route=%s status=%s", route, status)
+
+	count, err := uc.TransactionRepo.CountByRoute(ctx, organizationID, ledgerID, route, status, from, to)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to count transactions by route", err)
+
+		logger.Errorf("Error counting transactions by route: %v", err)
+
+		return nil, err
+	}
+
+	return &CountResponse{
+		Period: Period{
+			From: from,
+			To:   to,
+		},
+		Route:      route,
+		Status:     status,
+		TotalCount: count,
+	}, nil
+}

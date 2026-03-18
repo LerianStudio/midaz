@@ -228,7 +228,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetAllMetadataAccounts(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.filter)
+			result, err := uc.GetAllMetadataAccounts(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, nil, tt.filter)
 
 			if tt.expectErr {
 				require.Error(t, err)

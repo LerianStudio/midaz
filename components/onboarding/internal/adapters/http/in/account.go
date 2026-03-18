@@ -123,6 +123,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
 	var portfolioID *uuid.UUID
+	var segmentID *uuid.UUID
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -152,10 +153,17 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		logger.Infof("Search of all Accounts with Portfolio ID: %s", portfolioID)
 	}
 
+	if !libCommons.IsNilOrEmpty(&headerParams.SegmentID) {
+		parsedID := uuid.MustParse(headerParams.SegmentID)
+		segmentID = &parsedID
+
+		logger.Infof("Search of all Accounts with Segment ID: %s", segmentID)
+	}
+
 	if headerParams.Metadata != nil {
 		logger.Infof("Initiating retrieval of all Accounts by metadata")
 
-		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, *headerParams)
+		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Accounts on query", err)
 
@@ -175,7 +183,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	headerParams.Metadata = &bson.M{}
 
-	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, *headerParams)
+	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve all Accounts on query", err)
 
