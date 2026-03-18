@@ -10146,21 +10146,6 @@ const docTemplate = `
         }
       }
     },
-    "OperationRouteActionInput": {
-      "description": "OperationRouteActionInput payload for associating an operation route with a transaction route.",
-      "type": "object",
-      "required": [
-        "operationRouteId"
-      ],
-      "properties": {
-        "operationRouteId": {
-          "description": "The unique identifier of the Operation Route.",
-          "type": "string",
-          "format": "uuid",
-          "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
-        }
-      }
-    },
     "Rate": {
       "description": "Rate is the struct designed to represent the rate fields of an operation.",
       "type": "object",
@@ -10250,120 +10235,43 @@ const docTemplate = `
       }
     },
     "Transaction": {
-      "description": "Transaction is a struct designed to store transaction data. Represents a financial transaction that consists of multiple operations affecting account balances, including details about the transaction's status, amounts, and related operations.",
+      "description": "Transaction is a struct designed to store transaction data.",
       "type": "object",
+      "required": [
+        "send"
+      ],
       "properties": {
-        "amount": {
-          "description": "Transaction amount value in the smallest unit of the asset\nexample: 1500\nminimum: 0",
-          "type": "number",
-          "minimum": 0,
-          "example": 1500
-        },
-        "assetCode": {
-          "description": "Asset code for the transaction\nexample: BRL\nminLength: 2\nmaxLength: 10",
-          "type": "string",
-          "maxLength": 10,
-          "minLength": 2,
-          "example": "BRL"
-        },
         "chartOfAccountsGroupName": {
-          "description": "Chart of accounts group name for accounting purposes\nexample: Chart of accounts group name\nmaxLength: 256",
           "type": "string",
-          "maxLength": 256,
-          "example": "Chart of accounts group name"
+          "example": "1000"
         },
-        "createdAt": {
-          "description": "Timestamp when the transaction was created\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+        "code": {
           "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
-        },
-        "deletedAt": {
-          "description": "Timestamp when the transaction was deleted (if soft-deleted)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
-          "type": "string",
-          "format": "date-time",
-          "example": "2021-01-01T00:00:00Z"
+          "example": "00000000-0000-0000-0000-000000000000"
         },
         "description": {
-          "description": "Human-readable description of the transaction\nexample: Transaction description\nmaxLength: 256",
           "type": "string",
-          "maxLength": 256,
-          "example": "Transaction description"
-        },
-        "destination": {
-          "description": "List of destination account aliases or identifiers\nexample: [\"@person2\"]",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "example": [
-            "@person2"
-          ]
-        },
-        "id": {
-          "description": "Unique identifier for the transaction\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "ledgerId": {
-          "description": "Ledger identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
+          "example": "Description"
         },
         "metadata": {
-          "description": "Additional custom attributes\nexample: {\"purpose\": \"Monthly payment\", \"category\": \"Utility\"}",
           "type": "object",
           "additionalProperties": {}
         },
-        "operations": {
-          "description": "List of operations associated with this transaction",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/Operation"
-          }
-        },
-        "organizationId": {
-          "description": "Organization identifier\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
-        },
-        "parentTransactionId": {
-          "description": "Parent transaction identifier (for reversals or child transactions)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
-          "type": "string",
-          "format": "uuid",
-          "example": "00000000-0000-0000-0000-000000000000"
+        "pending": {
+          "type": "boolean",
+          "example": false
         },
         "route": {
-          "description": "Deprecated: legacy route identifier, use routeId on individual operations instead. Contains the operation route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
+          "description": "Deprecated: legacy route identifier, duplicates the operation route UUID. Prefer routeId on FromTo entries instead.",
           "type": "string",
           "maxLength": 250,
           "example": "00000000-0000-0000-0000-000000000000"
         },
-        "source": {
-          "description": "List of source account aliases or identifiers\nexample: [\"@person1\"]",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "example": [
-            "@person1"
-          ]
+        "send": {
+          "$ref": "#/definitions/Send"
         },
-        "status": {
-          "description": "Transaction status information",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Status"
-            }
-          ]
-        },
-        "updatedAt": {
-          "description": "Timestamp when the transaction was last updated\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+        "transactionDate": {
           "type": "string",
-          "format": "date-time",
           "example": "2021-01-01T00:00:00Z"
         }
       }
@@ -10524,6 +10432,9 @@ const docTemplate = `
     "UpdateTransactionRouteInput": {
       "description": "UpdateTransactionRouteInput payload",
       "type": "object",
+      "required": [
+        "operationRoutes"
+      ],
       "properties": {
         "description": {
           "description": "A description for the Transaction Route.",
@@ -10537,10 +10448,11 @@ const docTemplate = `
           "additionalProperties": {}
         },
         "operationRoutes": {
-          "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
+          "description": "A list of Operation Route IDs associated with the Transaction Route.",
           "type": "array",
           "items": {
-            "$ref": "#/definitions/OperationRouteActionInput"
+            "type": "string",
+            "format": "uuid"
           }
         },
         "title": {

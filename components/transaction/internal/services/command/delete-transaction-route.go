@@ -46,11 +46,9 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 		return err
 	}
 
-	operationRoutesToRemove := make([]mmodel.OperationRouteActionInput, 0, len(transactionRoute.OperationRoutes))
+	operationRoutesToRemove := make([]uuid.UUID, 0, len(transactionRoute.OperationRoutes))
 	for _, operationRoute := range transactionRoute.OperationRoutes {
-		operationRoutesToRemove = append(operationRoutesToRemove, mmodel.OperationRouteActionInput{
-			OperationRouteID: operationRoute.ID,
-		})
+		operationRoutesToRemove = append(operationRoutesToRemove, operationRoute.ID)
 	}
 
 	err = uc.TransactionRouteRepo.Delete(ctx, organizationID, ledgerID, transactionRouteID, operationRoutesToRemove)
