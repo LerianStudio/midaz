@@ -47,24 +47,41 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Route validation enabled for ledger %s, validating accounting rules", ledgerID.String()))
 
-	if libCommons.IsNilOrEmpty(&validate.TransactionRoute) {
+	// Resolve the transaction route UUID: prefer the new routeId field, fall back to the deprecated route string.
+	var (
+		transactionRouteID uuid.UUID
+		err                error
+	)
+
+	if !libCommons.IsNilOrEmpty(validate.TransactionRouteID) {
+		transactionRouteID, err = uuid.Parse(*validate.TransactionRouteID)
+		if err != nil {
+			validationErr := pkg.ValidateBusinessError(constant.ErrInvalidTransactionRouteID, "")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction route ID format", validationErr)
+
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid transaction route ID format: %v", err))
+
+			return nil, validationErr
+		}
+	} else if !libCommons.IsNilOrEmpty(&validate.TransactionRoute) {
+		transactionRouteID, err = uuid.Parse(validate.TransactionRoute)
+		if err != nil {
+			validationErr := pkg.ValidateBusinessError(constant.ErrInvalidTransactionRouteID, "")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction route ID format", validationErr)
+
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid transaction route ID format: %v", err))
+
+			return nil, validationErr
+		}
+	} else {
 		err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotInformed, "")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route is empty", err)
 
 		logger.Log(ctx, libLog.LevelWarn, "Transaction route is empty")
 
 		return nil, err
-	}
-
-	transactionRouteID, err := uuid.Parse(validate.TransactionRoute)
-	if err != nil {
-		validationErr := pkg.ValidateBusinessError(constant.ErrInvalidTransactionRouteID, "")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction route ID format", validationErr)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid transaction route ID format: %v", err))
-
-		return nil, validationErr
 	}
 
 	transactionRouteCache, err := uc.GetOrCreateTransactionRouteCache(ctx, organizationID, ledgerID, transactionRouteID)

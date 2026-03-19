@@ -362,6 +362,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 		CreatedAt:                m.TransactionDate,
 		UpdatedAt:                time.Now(),
 		Route:                    m.TransactionInput.Route,
+		RouteID:                  m.TransactionInput.RouteID,
 		Metadata:                 m.TransactionInput.Metadata,
 		Status: postgreTransaction.Status{
 			Code:        m.TransactionStatus,

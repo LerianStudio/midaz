@@ -867,6 +867,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		CreatedAt:                transactionDate,
 		UpdatedAt:                time.Now(),
 		Route:                    transactionInput.Route,
+		RouteID:                  transactionInput.RouteID,
 		Metadata:                 transactionInput.Metadata,
 		Status: transaction.Status{
 			Code:        transactionStatus,

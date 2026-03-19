@@ -413,6 +413,7 @@ func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 		Aliases:             make([]string, 0, sizeFrom+sizeTo),
 		Pending:             transaction.Pending,
 		TransactionRoute:    transaction.Route,
+		TransactionRouteID:  transaction.RouteID,
 		OperationRoutesFrom: make(map[string]string, sizeFrom),
 		OperationRoutesTo:   make(map[string]string, sizeTo),
 	}

@@ -37,7 +37,8 @@ type TransactionPostgreSQLModel struct {
 	CreatedAt                time.Time                   // Creation timestamp
 	UpdatedAt                time.Time                   // Last update timestamp
 	DeletedAt                sql.NullTime                // Deletion timestamp (if soft-deleted)
-	Route                    *string                     // Route
+	Route                    *string                     // Deprecated: legacy route identifier. Use RouteID instead.
+	RouteID                  *string                     // UUID of the transaction route (FK to transaction_route.id)
 	Metadata                 map[string]any              // Additional custom attributes
 }
 
@@ -92,10 +93,15 @@ type CreateTransactionInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Deprecated: legacy route identifier, use routeId on FromTo entries instead. Contains the operation route UUID as a free-form string for backwards compatibility.
+	// Deprecated: legacy route identifier, use routeId instead. Contains the operation route UUID as a free-form string for backwards compatibility.
 	// example: "00000000-0000-0000-0000-000000000000"
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
+
+	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
@@ -381,11 +387,16 @@ type Transaction struct {
 	// Transaction body containing detailed operation data (not exposed in JSON)
 	Body pkgTransaction.Transaction `json:"-"`
 
-	// Deprecated: legacy route identifier, use routeId on individual operations instead. Contains the operation route UUID as a free-form string for backwards compatibility.
+	// Deprecated: legacy route identifier, use routeId instead. Contains the operation route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	// deprecated: true
 	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
+
+	// UUID of the transaction route. Primary field for route identification, validation, and accounting.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// Timestamp when the transaction was created
 	// example: 2021-01-01T00:00:00Z
@@ -444,6 +455,10 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		transaction.Route = *t.Route
 	}
 
+	if t.RouteID != nil {
+		transaction.RouteID = t.RouteID
+	}
+
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
 		transaction.DeletedAt = &deletedAtCopy
@@ -482,6 +497,10 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		t.Route = &transaction.Route
 	}
 
+	if transaction.RouteID != nil {
+		t.RouteID = transaction.RouteID
+	}
+
 	if transaction.DeletedAt != nil {
 		deletedAtCopy := *transaction.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
@@ -498,6 +517,7 @@ func (cti *CreateTransactionInput) BuildTransaction() *pkgTransaction.Transactio
 		Metadata:                 cti.Metadata,
 		TransactionDate:          cti.TransactionDate,
 		Route:                    cti.Route,
+		RouteID:                  cti.RouteID,
 	}
 
 	if cti.Send != nil {
@@ -574,6 +594,7 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 		Pending:                  false,
 		Metadata:                 t.Metadata,
 		Route:                    t.Route,
+		RouteID:                  t.RouteID,
 		Send:                     send,
 	}
 
@@ -657,10 +678,15 @@ type CreateTransactionInflowInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Deprecated: legacy route identifier, use routeId on FromTo entries instead. Contains the operation route UUID as a free-form string for backwards compatibility.
+	// Deprecated: legacy route identifier, use routeId instead. Contains the operation route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
+
+	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
@@ -822,6 +848,7 @@ func (c *CreateTransactionInflowInput) BuildInflowEntry() *pkgTransaction.Transa
 		Metadata:                 c.Metadata,
 		TransactionDate:          c.TransactionDate,
 		Route:                    c.Route,
+		RouteID:                  c.RouteID,
 		Send: pkgTransaction.Send{
 			Asset:      c.Send.Asset,
 			Value:      c.Send.Value,
@@ -863,10 +890,15 @@ type CreateTransactionOutflowInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Deprecated: legacy route identifier, use routeId on FromTo entries instead. Contains the operation route UUID as a free-form string for backwards compatibility.
+	// Deprecated: legacy route identifier, use routeId instead. Contains the operation route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
+
+	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
@@ -1034,6 +1066,7 @@ func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *pkgTransaction.Tran
 		Metadata:                 c.Metadata,
 		TransactionDate:          c.TransactionDate,
 		Route:                    c.Route,
+		RouteID:                  c.RouteID,
 		Send: pkgTransaction.Send{
 			Asset: c.Send.Asset,
 			Value: c.Send.Value,
