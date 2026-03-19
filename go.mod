@@ -10,7 +10,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.1
 	github.com/gofiber/fiber/v2 v2.52.12
 	github.com/jackc/pgx/v5 v5.8.0
-	github.com/lib/pq v1.11.2
+	github.com/lib/pq v1.12.0
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/redis/go-redis/v9 v9.18.0
@@ -25,7 +25,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.42.0
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.27.1 // indirect
-	google.golang.org/grpc v1.79.2
+	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -59,7 +59,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.19.1 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
-	github.com/googleapis/gax-go/v2 v2.18.0 // indirect
+	github.com/googleapis/gax-go/v2 v2.19.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
@@ -100,7 +100,7 @@ require (
 )
 
 require (
-	github.com/LerianStudio/lib-commons/v4 v4.1.0-beta.6
+	github.com/LerianStudio/lib-commons/v4 v4.1.0-beta.9
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0

@@ -623,6 +623,8 @@ func TestOperation_ToRedis(t *testing.T) {
 		statusDesc := "Approved"
 
 		redisRouteID := "00000000-0000-0000-0000-000000000005"
+		redisRouteCode := "1.1.01.001"
+		redisRouteDesc := "Settlement route for service charges"
 
 		op := &Operation{
 			ID:              "op-123",
@@ -646,19 +648,21 @@ func TestOperation_ToRedis(t *testing.T) {
 				Code:        "APPROVED",
 				Description: &statusDesc,
 			},
-			BalanceID:       "bal-012",
-			AccountID:       "acc-789",
-			AccountAlias:    "@main",
-			BalanceKey:      "default",
-			OrganizationID:  "org-345",
-			LedgerID:        "ledger-678",
-			CreatedAt:       now,
-			UpdatedAt:       now,
-			Route:           "route-123",
-			BalanceAffected: true,
-			Direction:       "source",
-			RouteID:         &redisRouteID,
-			Metadata:        map[string]any{"key": "value"},
+			BalanceID:        "bal-012",
+			AccountID:        "acc-789",
+			AccountAlias:     "@main",
+			BalanceKey:       "default",
+			OrganizationID:   "org-345",
+			LedgerID:         "ledger-678",
+			CreatedAt:        now,
+			UpdatedAt:        now,
+			Route:            "route-123",
+			BalanceAffected:  true,
+			Direction:        "source",
+			RouteID:          &redisRouteID,
+			RouteCode:        &redisRouteCode,
+			RouteDescription: &redisRouteDesc,
+			Metadata:         map[string]any{"key": "value"},
 		}
 
 		r := op.ToRedis()
@@ -692,6 +696,10 @@ func TestOperation_ToRedis(t *testing.T) {
 		assert.Equal(t, "source", r.Direction)
 		require.NotNil(t, r.RouteID)
 		assert.Equal(t, redisRouteID, *r.RouteID)
+		require.NotNil(t, r.RouteCode)
+		assert.Equal(t, redisRouteCode, *r.RouteCode)
+		require.NotNil(t, r.RouteDescription)
+		assert.Equal(t, redisRouteDesc, *r.RouteDescription)
 		assert.Equal(t, op.Metadata, r.Metadata)
 	})
 
@@ -722,6 +730,8 @@ func TestOperation_ToRedis(t *testing.T) {
 		assert.False(t, r.BalanceAffected)
 		assert.Empty(t, r.Direction)
 		assert.Nil(t, r.RouteID)
+		assert.Nil(t, r.RouteCode)
+		assert.Nil(t, r.RouteDescription)
 	})
 }
 
@@ -739,6 +749,8 @@ func TestOperationFromRedis(t *testing.T) {
 		rtStatusDesc := "Active"
 
 		rtRouteID := "00000000-0000-0000-0000-000000000006"
+		rtRouteCode := "4.1.01.001"
+		rtRouteDesc := "Revenue from services"
 
 		original := &Operation{
 			ID:              "op-roundtrip",
@@ -762,19 +774,21 @@ func TestOperationFromRedis(t *testing.T) {
 				Code:        "ACTIVE",
 				Description: &rtStatusDesc,
 			},
-			BalanceID:       "bal-rt",
-			AccountID:       "acc-rt",
-			AccountAlias:    "@savings",
-			BalanceKey:      "USD",
-			OrganizationID:  "org-rt",
-			LedgerID:        "ledger-rt",
-			CreatedAt:       now,
-			UpdatedAt:       now,
-			Route:           "route-rt",
-			BalanceAffected: true,
-			Direction:       "destination",
-			RouteID:         &rtRouteID,
-			Metadata:        map[string]any{"env": "test"},
+			BalanceID:        "bal-rt",
+			AccountID:        "acc-rt",
+			AccountAlias:     "@savings",
+			BalanceKey:       "USD",
+			OrganizationID:   "org-rt",
+			LedgerID:         "ledger-rt",
+			CreatedAt:        now,
+			UpdatedAt:        now,
+			Route:            "route-rt",
+			BalanceAffected:  true,
+			Direction:        "destination",
+			RouteID:          &rtRouteID,
+			RouteCode:        &rtRouteCode,
+			RouteDescription: &rtRouteDesc,
+			Metadata:         map[string]any{"env": "test"},
 		}
 
 		redisModel := original.ToRedis()
@@ -816,6 +830,10 @@ func TestOperationFromRedis(t *testing.T) {
 		assert.Equal(t, "destination", restored.Direction)
 		require.NotNil(t, restored.RouteID)
 		assert.Equal(t, rtRouteID, *restored.RouteID)
+		require.NotNil(t, restored.RouteCode)
+		assert.Equal(t, rtRouteCode, *restored.RouteCode)
+		require.NotNil(t, restored.RouteDescription)
+		assert.Equal(t, rtRouteDesc, *restored.RouteDescription)
 		assert.Equal(t, original.Metadata, restored.Metadata)
 	})
 }
@@ -948,4 +966,134 @@ func TestOperationColumnList_ContainsRouteCode(t *testing.T) {
 	}
 
 	assert.True(t, found, "operationColumnList must contain 'route_code'")
+}
+
+func TestOperationPostgreSQLModel_RouteDescription_ToEntity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("with_route_description_populated", func(t *testing.T) {
+		t.Parallel()
+
+		routeDescription := "Settlement route for service charges"
+
+		model := &OperationPostgreSQLModel{
+			ID:               "op-rd-1",
+			TransactionID:    "tx-rd-1",
+			Type:             "DEBIT",
+			AssetCode:        "BRL",
+			Status:           "ACTIVE",
+			AccountID:        "acc-rd-1",
+			BalanceID:        "bal-rd-1",
+			OrganizationID:   "org-rd-1",
+			LedgerID:         "ledger-rd-1",
+			BalanceAffected:  true,
+			RouteDescription: &routeDescription,
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
+		}
+
+		entity := model.ToEntity()
+
+		require.NotNil(t, entity)
+		require.NotNil(t, entity.RouteDescription, "RouteDescription must be populated on entity when model has it")
+		assert.Equal(t, routeDescription, *entity.RouteDescription)
+	})
+
+	t.Run("with_route_description_nil", func(t *testing.T) {
+		t.Parallel()
+
+		model := &OperationPostgreSQLModel{
+			ID:               "op-rd-2",
+			TransactionID:    "tx-rd-2",
+			Type:             "CREDIT",
+			AssetCode:        "USD",
+			Status:           "PENDING",
+			AccountID:        "acc-rd-2",
+			BalanceID:        "bal-rd-2",
+			OrganizationID:   "org-rd-2",
+			LedgerID:         "ledger-rd-2",
+			BalanceAffected:  false,
+			RouteDescription: nil,
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
+		}
+
+		entity := model.ToEntity()
+
+		require.NotNil(t, entity)
+		assert.Nil(t, entity.RouteDescription, "RouteDescription must be nil on entity when model has nil")
+	})
+}
+
+func TestOperationPostgreSQLModel_RouteDescription_FromEntity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("with_route_description_populated", func(t *testing.T) {
+		t.Parallel()
+
+		routeDescription := "Route used for internal settlement"
+
+		entity := &Operation{
+			ID:               "op-rd-from-1",
+			TransactionID:    "tx-rd-from-1",
+			Type:             "DEBIT",
+			AssetCode:        "BRL",
+			Status:           Status{Code: "ACTIVE"},
+			AccountID:        "acc-rd-from-1",
+			BalanceID:        "bal-rd-from-1",
+			OrganizationID:   "org-rd-from-1",
+			LedgerID:         "ledger-rd-from-1",
+			BalanceAffected:  true,
+			RouteDescription: &routeDescription,
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
+		}
+
+		var model OperationPostgreSQLModel
+		model.FromEntity(entity)
+
+		require.NotNil(t, model.RouteDescription, "RouteDescription must be populated on model when entity has it")
+		assert.Equal(t, routeDescription, *model.RouteDescription)
+	})
+
+	t.Run("with_route_description_nil", func(t *testing.T) {
+		t.Parallel()
+
+		entity := &Operation{
+			ID:               "op-rd-from-2",
+			TransactionID:    "tx-rd-from-2",
+			Type:             "CREDIT",
+			AssetCode:        "USD",
+			Status:           Status{Code: "PENDING"},
+			AccountID:        "acc-rd-from-2",
+			BalanceID:        "bal-rd-from-2",
+			OrganizationID:   "org-rd-from-2",
+			LedgerID:         "ledger-rd-from-2",
+			BalanceAffected:  false,
+			RouteDescription: nil,
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
+		}
+
+		var model OperationPostgreSQLModel
+		model.FromEntity(entity)
+
+		assert.Nil(t, model.RouteDescription, "RouteDescription must be nil on model when entity has nil")
+	})
+}
+
+func TestOperationColumnList_ContainsRouteDescription(t *testing.T) {
+	t.Parallel()
+
+	found := false
+
+	for _, col := range operationColumnList {
+		if col == "route_description" {
+			found = true
+
+			break
+		}
+	}
+
+	assert.True(t, found, "operationColumnList must contain 'route_description'")
 }
