@@ -335,6 +335,20 @@ definitions:
         minimum: 1
         type: integer
     type: object
+  Period:
+    description: Period represents a date range for filtering queries.
+    properties:
+      start_date:
+        description: |-
+          Start date in RFC3339 format
+          example: 2024-01-01T00:00:00Z
+        type: string
+      end_date:
+        description: |-
+          End date in RFC3339 format
+          example: 2024-12-31T23:59:59Z
+        type: string
+    type: object
   CountResponse:
     description: CountResponse contains the total count of transactions matching the
       specified filters.

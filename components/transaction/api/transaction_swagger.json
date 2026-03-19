@@ -4060,6 +4060,20 @@
                 }
             }
         },
+        "Period": {
+            "description": "Period represents a date range for filtering queries.",
+            "type": "object",
+            "properties": {
+                "start_date": {
+                    "description": "Start date in RFC3339 format\nexample: 2024-01-01T00:00:00Z",
+                    "type": "string"
+                },
+                "end_date": {
+                    "description": "End date in RFC3339 format\nexample: 2024-12-31T23:59:59Z",
+                    "type": "string"
+                }
+            }
+        },
         "CountResponse": {
             "description": "CountResponse contains the total count of transactions matching the specified filters.",
             "type": "object",
