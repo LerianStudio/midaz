@@ -1,5 +1,5 @@
 FROM --platform=$BUILDPLATFORM golang:1.25.8-alpine AS builder
-# ci: force rebuild to sync ledger image with beta.59
+# ci: force rebuild to sync ledger image with beta.10
 
 WORKDIR /ledger-app
 
