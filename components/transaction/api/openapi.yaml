@@ -3744,6 +3744,7 @@ components:
         accountId: 00000000-0000-0000-0000-000000000000
         deletedAt: 2021-01-01T00:00:00Z
         route: 00000000-0000-0000-0000-000000000000
+        routeDescription: Settlement route for service charges
         balanceKey: asset-freeze
         balanceId: 00000000-0000-0000-0000-000000000000
         status: '{}'
@@ -3902,6 +3903,14 @@ components:
             maxLength: 100
           example: ROUTE-001
           maxLength: 100
+          type: string
+        routeDescription:
+          description: |-
+            Human-readable description of the operation route for accounting traceability
+            example: Settlement route for service charges
+            maxLength: 250
+          example: Settlement route for service charges
+          maxLength: 250
           type: string
         routeId:
           description: |-
@@ -4104,6 +4113,7 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           deletedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
+          routeDescription: Settlement route for service charges
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
           status: '{}'
@@ -4130,10 +4140,12 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           deletedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
+          routeDescription: Settlement route for service charges
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
           status: '{}'
         route: 00000000-0000-0000-0000-000000000000
+        routeId: 00000000-0000-0000-0000-000000000000
         id: 00000000-0000-0000-0000-000000000000
         status: '{}'
         updatedAt: 2021-01-01T00:00:00Z
@@ -4243,12 +4255,20 @@ components:
           type: string
         route:
           description: |-
-            Deprecated: legacy route identifier, use routeId on individual operations instead. Contains the operation route UUID as a free-form string for backwards compatibility.
+            Deprecated: legacy route identifier, use routeId instead. Contains the operation route UUID as a free-form string for backwards compatibility.
             example: 00000000-0000-0000-0000-000000000000
             maxLength: 250
             deprecated: true
           example: 00000000-0000-0000-0000-000000000000
           maxLength: 250
+          type: string
+        routeId:
+          description: |-
+            UUID of the transaction route. Primary field for route identification, validation, and accounting.
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         source:
           description: |-
@@ -4830,6 +4850,7 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           deletedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
+          routeDescription: Settlement route for service charges
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
           status: '{}'
@@ -4856,6 +4877,7 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           deletedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
+          routeDescription: Settlement route for service charges
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
           status: '{}'
@@ -5112,6 +5134,7 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             deletedAt: 2021-01-01T00:00:00Z
             route: 00000000-0000-0000-0000-000000000000
+            routeDescription: Settlement route for service charges
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
             status: '{}'
@@ -5138,10 +5161,12 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             deletedAt: 2021-01-01T00:00:00Z
             route: 00000000-0000-0000-0000-000000000000
+            routeDescription: Settlement route for service charges
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
             status: '{}'
           route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
           id: 00000000-0000-0000-0000-000000000000
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
@@ -5184,6 +5209,7 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             deletedAt: 2021-01-01T00:00:00Z
             route: 00000000-0000-0000-0000-000000000000
+            routeDescription: Settlement route for service charges
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
             status: '{}'
@@ -5210,10 +5236,12 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             deletedAt: 2021-01-01T00:00:00Z
             route: 00000000-0000-0000-0000-000000000000
+            routeDescription: Settlement route for service charges
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
             status: '{}'
           route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
           id: 00000000-0000-0000-0000-000000000000
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
