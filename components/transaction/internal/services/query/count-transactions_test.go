@@ -27,6 +27,13 @@ func TestCountTransactionsByRoute(t *testing.T) {
 	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
 
+	filter := transaction.CountFilter{
+		Route:  route,
+		Status: status,
+		From:   from,
+		To:     to,
+	}
+
 	tests := []struct {
 		name        string
 		setupMocks  func(mockTxRepo *transaction.MockRepository)
@@ -37,7 +44,7 @@ func TestCountTransactionsByRoute(t *testing.T) {
 			name: "success returns count",
 			setupMocks: func(mockTxRepo *transaction.MockRepository) {
 				mockTxRepo.EXPECT().
-					CountByRoute(gomock.Any(), organizationID, ledgerID, route, status, from, to).
+					CountByRoute(gomock.Any(), organizationID, ledgerID, filter).
 					Return(int64(773), nil)
 			},
 			expectedErr: nil,
@@ -55,7 +62,7 @@ func TestCountTransactionsByRoute(t *testing.T) {
 			name: "zero count",
 			setupMocks: func(mockTxRepo *transaction.MockRepository) {
 				mockTxRepo.EXPECT().
-					CountByRoute(gomock.Any(), organizationID, ledgerID, route, status, from, to).
+					CountByRoute(gomock.Any(), organizationID, ledgerID, filter).
 					Return(int64(0), nil)
 			},
 			expectedErr: nil,
@@ -73,7 +80,7 @@ func TestCountTransactionsByRoute(t *testing.T) {
 			name: "repository error",
 			setupMocks: func(mockTxRepo *transaction.MockRepository) {
 				mockTxRepo.EXPECT().
-					CountByRoute(gomock.Any(), organizationID, ledgerID, route, status, from, to).
+					CountByRoute(gomock.Any(), organizationID, ledgerID, filter).
 					Return(int64(0), errors.New("database connection error"))
 			},
 			expectedErr: errors.New("database connection error"),
@@ -94,7 +101,7 @@ func TestCountTransactionsByRoute(t *testing.T) {
 				TransactionRepo: mockTxRepo,
 			}
 
-			result, err := uc.CountTransactionsByRoute(context.Background(), organizationID, ledgerID, route, status, from, to)
+			result, err := uc.CountTransactionsByRoute(context.Background(), organizationID, ledgerID, filter)
 
 			if tt.expectedErr != nil {
 				require.Error(t, err)

@@ -30,11 +30,11 @@ func TestTransactionHandler_CountTransactionsByRoute(t *testing.T) {
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
-			name:        "success returns 200 with count",
+			name:        "success with all filters returns 200",
 			queryParams: "?route=550e8400-e29b-41d4-a716-446655440010&status=APPROVED&start_date=2026-01-01T00:00:00Z&end_date=2026-02-01T00:00:00Z",
 			setupMocks: func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {
 				transactionRepo.EXPECT().
-					CountByRoute(gomock.Any(), orgID, ledgerID, "550e8400-e29b-41d4-a716-446655440010", "APPROVED", gomock.Any(), gomock.Any()).
+					CountByRoute(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return(int64(773), nil).
 					Times(1)
 			},
@@ -54,56 +54,51 @@ func TestTransactionHandler_CountTransactionsByRoute(t *testing.T) {
 			},
 		},
 		{
-			name:           "missing route returns 400",
-			queryParams:    "?status=APPROVED&start_date=2026-01-01T00:00:00Z&end_date=2026-02-01T00:00:00Z",
-			setupMocks:     func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {},
-			expectedStatus: nethttp.StatusBadRequest,
+			name:        "success with no filters defaults to today",
+			queryParams: "",
+			setupMocks: func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {
+				transactionRepo.EXPECT().
+					CountByRoute(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					Return(int64(42), nil).
+					Times(1)
+			},
+			expectedStatus: nethttp.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
-				assert.Contains(t, errResp, "code")
+
+				assert.Contains(t, result, "totalCount")
+				assert.Contains(t, result, "period")
+				assert.Equal(t, float64(42), result["totalCount"])
+				// route and status should be omitted when empty
+				assert.NotContains(t, result, "route")
+				assert.NotContains(t, result, "status")
 			},
 		},
 		{
-			name:           "missing status returns 400",
-			queryParams:    "?route=550e8400-e29b-41d4-a716-446655440010&start_date=2026-01-01T00:00:00Z&end_date=2026-02-01T00:00:00Z",
-			setupMocks:     func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {},
-			expectedStatus: nethttp.StatusBadRequest,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-				assert.Contains(t, errResp, "code")
+			name:        "success with only status filter",
+			queryParams: "?status=APPROVED",
+			setupMocks: func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {
+				transactionRepo.EXPECT().
+					CountByRoute(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					Return(int64(100), nil).
+					Times(1)
 			},
-		},
-		{
-			name:           "missing start_date returns 400",
-			queryParams:    "?route=550e8400-e29b-41d4-a716-446655440010&status=APPROVED&end_date=2026-02-01T00:00:00Z",
-			setupMocks:     func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {},
-			expectedStatus: nethttp.StatusBadRequest,
+			expectedStatus: nethttp.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
+				var result map[string]any
+				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
-				assert.Contains(t, errResp, "code")
-			},
-		},
-		{
-			name:           "missing end_date returns 400",
-			queryParams:    "?route=550e8400-e29b-41d4-a716-446655440010&status=APPROVED&start_date=2026-01-01T00:00:00Z",
-			setupMocks:     func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {},
-			expectedStatus: nethttp.StatusBadRequest,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-				assert.Contains(t, errResp, "code")
+
+				assert.Equal(t, float64(100), result["totalCount"])
+				assert.Equal(t, "APPROVED", result["status"])
+				assert.NotContains(t, result, "route")
 			},
 		},
 		{
 			name:           "invalid route UUID returns 400",
-			queryParams:    "?route=not-a-uuid&status=APPROVED&start_date=2026-01-01T00:00:00Z&end_date=2026-02-01T00:00:00Z",
+			queryParams:    "?route=not-a-uuid",
 			setupMocks:     func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {},
 			expectedStatus: nethttp.StatusBadRequest,
 			validateBody: func(t *testing.T, body []byte) {
@@ -115,7 +110,7 @@ func TestTransactionHandler_CountTransactionsByRoute(t *testing.T) {
 		},
 		{
 			name:           "invalid start_date format returns 400",
-			queryParams:    "?route=550e8400-e29b-41d4-a716-446655440010&status=APPROVED&start_date=bad-date&end_date=2026-02-01T00:00:00Z",
+			queryParams:    "?start_date=bad-date",
 			setupMocks:     func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {},
 			expectedStatus: nethttp.StatusBadRequest,
 			validateBody: func(t *testing.T, body []byte) {
@@ -127,7 +122,7 @@ func TestTransactionHandler_CountTransactionsByRoute(t *testing.T) {
 		},
 		{
 			name:           "invalid end_date format returns 400",
-			queryParams:    "?route=550e8400-e29b-41d4-a716-446655440010&status=APPROVED&start_date=2026-01-01T00:00:00Z&end_date=bad-date",
+			queryParams:    "?end_date=bad-date",
 			setupMocks:     func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {},
 			expectedStatus: nethttp.StatusBadRequest,
 			validateBody: func(t *testing.T, body []byte) {
@@ -139,7 +134,7 @@ func TestTransactionHandler_CountTransactionsByRoute(t *testing.T) {
 		},
 		{
 			name:           "start_date after end_date returns 400",
-			queryParams:    "?route=550e8400-e29b-41d4-a716-446655440010&status=APPROVED&start_date=2026-03-01T00:00:00Z&end_date=2026-01-01T00:00:00Z",
+			queryParams:    "?start_date=2026-03-01T00:00:00Z&end_date=2026-01-01T00:00:00Z",
 			setupMocks:     func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {},
 			expectedStatus: nethttp.StatusBadRequest,
 			validateBody: func(t *testing.T, body []byte) {
@@ -154,7 +149,7 @@ func TestTransactionHandler_CountTransactionsByRoute(t *testing.T) {
 			queryParams: "?route=550e8400-e29b-41d4-a716-446655440010&status=APPROVED&start_date=2026-01-01T00:00:00Z&end_date=2026-02-01T00:00:00Z",
 			setupMocks: func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {
 				transactionRepo.EXPECT().
-					CountByRoute(gomock.Any(), orgID, ledgerID, "550e8400-e29b-41d4-a716-446655440010", "APPROVED", gomock.Any(), gomock.Any()).
+					CountByRoute(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return(int64(0), pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",

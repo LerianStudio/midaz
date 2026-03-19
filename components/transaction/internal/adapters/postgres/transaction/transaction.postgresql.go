@@ -82,7 +82,7 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
-	CountByRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, route, status string, from, to time.Time) (int64, error)
+	CountByRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, filter CountFilter) (int64, error)
 }
 
 // transactionColumns is derived from transactionColumnList for use with squirrel.Select.
@@ -1186,8 +1186,8 @@ func derefString(s *string) string {
 	return *s
 }
 
-// CountByRoute counts transactions matching the given route, status, and date range.
-func (r *TransactionPostgreSQLRepository) CountByRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, route, status string, from, to time.Time) (int64, error) {
+// CountByRoute counts transactions matching the given optional filters.
+func (r *TransactionPostgreSQLRepository) CountByRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, filter CountFilter) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.count_transactions_by_route")
@@ -1206,12 +1206,18 @@ func (r *TransactionPostgreSQLRepository) CountByRoute(ctx context.Context, orga
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
-		Where(squirrel.Expr("status = ?", status)).
-		Where(squirrel.Expr("route = ?", route)).
-		Where(squirrel.GtOrEq{"created_at": from}).
-		Where(squirrel.LtOrEq{"created_at": to}).
+		Where(squirrel.GtOrEq{"created_at": filter.From}).
+		Where(squirrel.LtOrEq{"created_at": filter.To}).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		PlaceholderFormat(squirrel.Dollar)
+
+	if filter.Status != "" {
+		countQuery = countQuery.Where(squirrel.Expr("status = ?", filter.Status))
+	}
+
+	if filter.Route != "" {
+		countQuery = countQuery.Where(squirrel.Expr("route = ?", filter.Route))
+	}
 
 	query, args, err := countQuery.ToSql()
 	if err != nil {
