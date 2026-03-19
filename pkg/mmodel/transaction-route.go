@@ -106,6 +106,7 @@ type OperationRouteCache struct {
 	Account           *AccountCache      `json:"account,omitempty" msgpack:"account"`
 	OperationType     string             `json:"operationType,omitempty" msgpack:"operationType"`
 	Code              string             `json:"code,omitempty" msgpack:"code"`
+	Description       string             `json:"description,omitempty" msgpack:"description"`
 	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty" msgpack:"accountingEntries"`
 }
 
@@ -127,6 +128,7 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 		routeData := OperationRouteCache{
 			OperationType:     operationRoute.OperationType,
 			Code:              operationRoute.Code,
+			Description:       operationRoute.Description,
 			AccountingEntries: operationRoute.AccountingEntries,
 		}
 

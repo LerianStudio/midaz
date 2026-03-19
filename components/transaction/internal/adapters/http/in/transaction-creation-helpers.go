@@ -238,10 +238,10 @@ func (handler *TransactionHandler) BuildOperations(
 	return operations, preBalances, nil
 }
 
-// resolveRouteCodesFromCache populates the RouteCode field on each operation by
-// looking up the operation's RouteID in the transaction route cache. The cache
-// is keyed by routeID within each action's Source, Destination, and Bidirectional
-// maps, and each entry carries the human-readable Code of the operation route.
+// resolveRouteCodesFromCache populates the RouteCode and RouteDescription fields
+// on each operation by looking up the operation's RouteID in the transaction route
+// cache. The cache is keyed by routeID within each action's Source, Destination,
+// and Bidirectional maps.
 func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache) {
 	if cache == nil {
 		return
@@ -255,28 +255,39 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 		routeID := *op.RouteID
 
 		for _, actionCache := range cache.Actions {
-			if rc, ok := actionCache.Source[routeID]; ok && rc.Code != "" {
-				code := rc.Code
-				op.RouteCode = &code
+			if rc, ok := findRouteInActionCache(actionCache, routeID); ok {
+				if rc.Code != "" {
+					code := rc.Code
+					op.RouteCode = &code
+				}
 
-				break
-			}
-
-			if rc, ok := actionCache.Destination[routeID]; ok && rc.Code != "" {
-				code := rc.Code
-				op.RouteCode = &code
-
-				break
-			}
-
-			if rc, ok := actionCache.Bidirectional[routeID]; ok && rc.Code != "" {
-				code := rc.Code
-				op.RouteCode = &code
+				if rc.Description != "" {
+					desc := rc.Description
+					op.RouteDescription = &desc
+				}
 
 				break
 			}
 		}
 	}
+}
+
+// findRouteInActionCache searches for a routeID across Source, Destination, and
+// Bidirectional maps of an ActionRouteCache.
+func findRouteInActionCache(actionCache mmodel.ActionRouteCache, routeID string) (mmodel.OperationRouteCache, bool) {
+	if rc, ok := actionCache.Source[routeID]; ok {
+		return rc, true
+	}
+
+	if rc, ok := actionCache.Destination[routeID]; ok {
+		return rc, true
+	}
+
+	if rc, ok := actionCache.Bidirectional[routeID]; ok {
+		return rc, true
+	}
+
+	return mmodel.OperationRouteCache{}, false
 }
 
 // zeroAnnotationBalances zeroes out the Available, OnHold, and Version fields of the

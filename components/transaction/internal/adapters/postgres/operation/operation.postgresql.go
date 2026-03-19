@@ -93,6 +93,7 @@ var operationColumnList = []string{
 	"direction",
 	"route_id",
 	"route_code",
+	"route_description",
 }
 
 // operationColumns is derived from operationColumnList for use with squirrel.Select.
@@ -196,6 +197,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 			record.Direction,
 			record.RouteID,
 			record.RouteCode,
+			record.RouteDescription,
 		).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -352,6 +354,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.Direction,
 			&operation.RouteID,
 			&operation.RouteCode,
+			&operation.RouteDescription,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -473,6 +476,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.Direction,
 			&operation.RouteID,
 			&operation.RouteCode,
+			&operation.RouteDescription,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -567,6 +571,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.Direction,
 		&operation.RouteID,
 		&operation.RouteCode,
+		&operation.RouteDescription,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
@@ -660,6 +665,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.Direction,
 		&operation.RouteID,
 		&operation.RouteCode,
+		&operation.RouteDescription,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
@@ -939,6 +945,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 			&operation.Direction,
 			&operation.RouteID,
 			&operation.RouteCode,
+			&operation.RouteDescription,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
