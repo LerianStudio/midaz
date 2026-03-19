@@ -74,6 +74,43 @@ func TestMetadataIndexHandler_ContextHelpers_MissingManager(t *testing.T) {
 	assert.Contains(t, err.Error(), "transaction")
 }
 
+func TestMetadataIndexHandler_ContextForEntity_NoTenantWithManagerPresent(t *testing.T) {
+	t.Parallel()
+
+	// When manager is configured but no tenant ID is set, should return error.
+	handler := &MetadataIndexHandler{
+		TransactionMongoManager: &tmmongo.Manager{},
+	}
+
+	ctx := context.Background() // no tenant ID
+
+	result, err := handler.contextForEntity(ctx, "transaction")
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "tenant id is required")
+}
+
+func TestMetadataIndexHandler_ContextForRepoGroup_NoTenantWithManagerPresent(t *testing.T) {
+	t.Parallel()
+
+	handler := &MetadataIndexHandler{
+		OnboardingMongoManager:  &tmmongo.Manager{},
+		TransactionMongoManager: &tmmongo.Manager{},
+	}
+
+	ctx := context.Background() // no tenant ID
+
+	result, err := handler.contextForRepoGroup(ctx, true)
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "tenant id is required")
+
+	result, err = handler.contextForRepoGroup(ctx, false)
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "tenant id is required")
+}
+
 func TestMetadataIndexHandler_MultiTenantContextResolutionErrors(t *testing.T) {
 	t.Parallel()
 

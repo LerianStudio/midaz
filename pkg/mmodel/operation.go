@@ -43,5 +43,6 @@ type OperationRedis struct {
 	Direction             string          `json:"direction,omitempty" enums:"debit,credit"`
 	RouteID               *string         `json:"routeId,omitempty"`
 	RouteCode             *string         `json:"routeCode,omitempty"`
+	RouteDescription      *string         `json:"routeDescription,omitempty"`
 	Metadata              map[string]any  `json:"metadata,omitempty"`
 }

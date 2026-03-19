@@ -421,10 +421,7 @@ func TestIntegration_TransactionRouteRepository_Update_AddOperationRoutes(t *tes
 	}
 
 	// Act - add operation routes
-	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, []mmodel.OperationRouteActionInput{
-		{OperationRouteID: opRouteID1},
-		{OperationRouteID: opRouteID2},
-	}, nil)
+	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, []uuid.UUID{opRouteID1, opRouteID2}, nil)
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
@@ -460,9 +457,7 @@ func TestIntegration_TransactionRouteRepository_Update_RemoveOperationRoutes(t *
 	}
 
 	// Act - remove one operation route
-	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, nil, []mmodel.OperationRouteActionInput{
-		{OperationRouteID: opRouteID2},
-	})
+	updated, err := repo.Update(ctx, orgID, ledgerID, transactionRouteID, updateData, nil, []uuid.UUID{opRouteID2})
 
 	// Assert
 	require.NoError(t, err, "Update should not return error")
@@ -573,10 +568,7 @@ func TestIntegration_TransactionRouteRepository_Delete_WithOperationRoutes(t *te
 	ctx := context.Background()
 
 	// Act - delete with operation route removals
-	err := repo.Delete(ctx, orgID, ledgerID, transactionRouteID, []mmodel.OperationRouteActionInput{
-		{OperationRouteID: opRouteID1},
-		{OperationRouteID: opRouteID2},
-	})
+	err := repo.Delete(ctx, orgID, ledgerID, transactionRouteID, []uuid.UUID{opRouteID1, opRouteID2})
 
 	// Assert
 	require.NoError(t, err, "Delete should not return error")

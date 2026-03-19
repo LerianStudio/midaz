@@ -191,7 +191,7 @@ type CreateTransactionSwaggerModel struct {
 	// Example "2021-01-01T00:00:00Z"
 	// swagger: type string
 	// required: false
-	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty"`
+	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
 	// Send operation details including source and distribution
 	// required: true
@@ -744,7 +744,7 @@ type CreateTransactionInflowSwaggerModel struct {
 	// Example "2021-01-01T00:00:00Z"
 	// swagger: type string
 	// required: false
-	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty"`
+	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
 	// Send operation details including distribution only
 	// required: true
@@ -955,7 +955,7 @@ type CreateTransactionOutflowSwaggerModel struct {
 	// Example "2021-01-01T00:00:00Z"
 	// swagger: type string
 	// required: false
-	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty"`
+	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
 	// Send operation details including source only
 	// required: true

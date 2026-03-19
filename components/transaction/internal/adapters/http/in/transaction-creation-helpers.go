@@ -155,6 +155,7 @@ func (handler *TransactionHandler) BuildOperations(
 	transactionDate time.Time,
 	isAnnotation bool,
 	routeValidationEnabled bool,
+	transactionRouteCache *mmodel.TransactionRouteCache,
 ) ([]*operation.Operation, []*mmodel.Balance, error) {
 	var operations []*operation.Operation
 
@@ -232,7 +233,61 @@ func (handler *TransactionHandler) BuildOperations(
 		}
 	}
 
+	resolveRouteCodesFromCache(operations, transactionRouteCache)
+
 	return operations, preBalances, nil
+}
+
+// resolveRouteCodesFromCache populates the RouteCode and RouteDescription fields
+// on each operation by looking up the operation's RouteID in the transaction route
+// cache. The cache is keyed by routeID within each action's Source, Destination,
+// and Bidirectional maps.
+func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache) {
+	if cache == nil {
+		return
+	}
+
+	for _, op := range operations {
+		if op.RouteID == nil || *op.RouteID == "" {
+			continue
+		}
+
+		routeID := *op.RouteID
+
+		for _, actionCache := range cache.Actions {
+			if rc, ok := findRouteInActionCache(actionCache, routeID); ok {
+				if rc.Code != "" {
+					code := rc.Code
+					op.RouteCode = &code
+				}
+
+				if rc.Description != "" {
+					desc := rc.Description
+					op.RouteDescription = &desc
+				}
+
+				break
+			}
+		}
+	}
+}
+
+// findRouteInActionCache searches for a routeID across Source, Destination, and
+// Bidirectional maps of an ActionRouteCache.
+func findRouteInActionCache(actionCache mmodel.ActionRouteCache, routeID string) (mmodel.OperationRouteCache, bool) {
+	if rc, ok := actionCache.Source[routeID]; ok {
+		return rc, true
+	}
+
+	if rc, ok := actionCache.Destination[routeID]; ok {
+		return rc, true
+	}
+
+	if rc, ok := actionCache.Bidirectional[routeID]; ok {
+		return rc, true
+	}
+
+	return mmodel.OperationRouteCache{}, false
 }
 
 // zeroAnnotationBalances zeroes out the Available, OnHold, and Version fields of the
@@ -369,6 +424,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
 		Route:           ft.Route,
+		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
 		Direction:       constant.DirectionDebit,
@@ -420,6 +476,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
 		Route:           ft.Route,
+		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
 		Direction:       constant.DirectionCredit,
@@ -502,6 +559,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
 		Route:           ft.Route,
+		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
 		Direction:       constant.DirectionDebit,
@@ -553,6 +611,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
 		Route:           ft.Route,
+		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
 		Direction:       constant.DirectionCredit,
@@ -675,6 +734,7 @@ func (handler *TransactionHandler) buildStandardOp(
 		CreatedAt:       transactionDate,
 		UpdatedAt:       time.Now(),
 		Route:           ft.Route,
+		RouteID:         ft.RouteID,
 		Metadata:        ft.Metadata,
 		BalanceAffected: !isAnnotation,
 		Direction:       amt.Direction,
@@ -772,7 +832,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		action = constant.ActionHold
 	}
 
-	balancesBefore, balancesAfter, _, err := handler.Query.GetBalances(ctx, scope.OrganizationID, scope.LedgerID, transactionID, &transactionInput, validate, transactionStatus, action)
+	balancesBefore, balancesAfter, routeCache, err := handler.Query.GetBalances(ctx, scope.OrganizationID, scope.LedgerID, transactionID, &transactionInput, validate, transactionStatus, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
 
@@ -814,7 +874,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		},
 	}
 
-	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes)
+	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 

@@ -3862,32 +3862,14 @@ const docTemplatetransaction = `{
             }
         },
         "Amount": {
-            "description": "Amount is the struct designed to represent the amount of an operation.",
+            "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
             "type": "object",
-            "required": [
-                "asset",
-                "value"
-            ],
             "properties": {
-                "asset": {
-                    "type": "string",
-                    "example": "BRL"
-                },
-                "direction": {
-                    "type": "string"
-                },
-                "operation": {
-                    "type": "string"
-                },
-                "routeValidationEnabled": {
-                    "type": "boolean"
-                },
-                "transactionType": {
-                    "type": "string"
-                },
                 "value": {
+                    "description": "The amount value in the smallest unit of the asset (e.g., cents)\nexample: 1500\nminimum: 0",
                     "type": "number",
-                    "example": 1000
+                    "minimum": 0,
+                    "example": 1500
                 }
             }
         },
@@ -4331,7 +4313,9 @@ const docTemplatetransaction = `{
                 },
                 "transactionDate": {
                     "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
@@ -4424,7 +4408,9 @@ const docTemplatetransaction = `{
                 },
                 "transactionDate": {
                     "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
@@ -4448,10 +4434,11 @@ const docTemplatetransaction = `{
                     "additionalProperties": {}
                 },
                 "operationRoutes": {
-                    "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
+                    "description": "A list of Operation Route IDs associated with the Transaction Route.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/OperationRouteActionInput"
+                        "type": "string",
+                        "format": "uuid"
                     }
                 },
                 "title": {
@@ -4459,24 +4446,6 @@ const docTemplatetransaction = `{
                     "type": "string",
                     "maxLength": 50,
                     "example": "Charge Settlement"
-                }
-            }
-        },
-        "Distribute": {
-            "description": "Distribute is the struct designed to represent the distribution fields of an operation.",
-            "type": "object",
-            "required": [
-                "to"
-            ],
-            "properties": {
-                "remaining": {
-                    "type": "string"
-                },
-                "to": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/FromTo"
-                    }
                 }
             }
         },
@@ -4514,60 +4483,6 @@ const docTemplatetransaction = `{
                     "type": "string",
                     "maxLength": 100,
                     "example": "Bad Request"
-                }
-            }
-        },
-        "FromTo": {
-            "description": "FromTo is the struct designed to represent the from/to fields of an operation.",
-            "type": "object",
-            "properties": {
-                "accountAlias": {
-                    "type": "string",
-                    "example": "@person1"
-                },
-                "amount": {
-                    "$ref": "#/definitions/Amount"
-                },
-                "balanceKey": {
-                    "type": "string",
-                    "example": "asset-freeze"
-                },
-                "chartOfAccounts": {
-                    "type": "string",
-                    "example": "1000"
-                },
-                "description": {
-                    "type": "string",
-                    "example": "description"
-                },
-                "isFrom": {
-                    "type": "boolean",
-                    "example": true
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "rate": {
-                    "$ref": "#/definitions/Rate"
-                },
-                "remaining": {
-                    "type": "string",
-                    "example": "remaining"
-                },
-                "route": {
-                    "description": "Deprecated: legacy route identifier, use routeId instead. Contains the same value as routeId but as a free-form string.",
-                    "type": "string",
-                    "maxLength": 250,
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "routeId": {
-                    "description": "UUID of the operation route. Prefer this over the legacy route field.",
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "share": {
-                    "$ref": "#/definitions/Share"
                 }
             }
         },
@@ -4694,7 +4609,7 @@ const docTemplatetransaction = `{
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "route": {
-                    "description": "Deprecated: legacy route identifier, use routeId instead. Contains the same operation route UUID as routeId but stored as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
+                    "description": "Deprecated: passive field kept for backward compatibility. Not used in validation or business logic. Use routeId instead.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
                     "type": "string",
                     "maxLength": 250,
                     "example": "00000000-0000-0000-0000-000000000000"
@@ -4706,7 +4621,7 @@ const docTemplatetransaction = `{
                     "example": "ROUTE-001"
                 },
                 "routeId": {
-                    "description": "UUID of the operation route that generated this operation. Prefer this over the legacy route field.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "description": "UUID of the operation route that generated this operation. Primary field for route identification, validation, and accounting.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
                     "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
@@ -4833,125 +4748,6 @@ const docTemplatetransaction = `{
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
-                }
-            }
-        },
-        "OperationRouteActionInput": {
-            "description": "OperationRouteActionInput payload for associating an operation route with a transaction route.",
-            "type": "object",
-            "required": [
-                "operationRouteId"
-            ],
-            "properties": {
-                "operationRouteId": {
-                    "description": "The unique identifier of the Operation Route.",
-                    "type": "string",
-                    "format": "uuid",
-                    "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
-                }
-            }
-        },
-        "Period": {
-            "description": "Period defines the from/to time range for a transaction count query.",
-            "type": "object",
-            "properties": {
-                "from": {
-                    "description": "Start of the period (inclusive)\nexample: 2026-01-01T00:00:00Z\nformat: date-time",
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "to": {
-                    "description": "End of the period (inclusive)\nexample: 2026-02-01T00:00:00Z\nformat: date-time",
-                    "type": "string",
-                    "format": "date-time"
-                }
-            }
-        },
-        "Rate": {
-            "description": "Rate is the struct designed to represent the rate fields of an operation.",
-            "type": "object",
-            "required": [
-                "externalId",
-                "from",
-                "to",
-                "value"
-            ],
-            "properties": {
-                "externalId": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "from": {
-                    "type": "string",
-                    "example": "BRL"
-                },
-                "to": {
-                    "type": "string",
-                    "example": "USDe"
-                },
-                "value": {
-                    "type": "number",
-                    "example": 1000
-                }
-            }
-        },
-        "Send": {
-            "description": "Send is the struct designed to represent the sending fields of an operation.",
-            "type": "object",
-            "required": [
-                "asset",
-                "distribute",
-                "source",
-                "value"
-            ],
-            "properties": {
-                "asset": {
-                    "type": "string",
-                    "example": "BRL"
-                },
-                "distribute": {
-                    "$ref": "#/definitions/Distribute"
-                },
-                "source": {
-                    "$ref": "#/definitions/Source"
-                },
-                "value": {
-                    "type": "number",
-                    "example": 1000
-                }
-            }
-        },
-        "Share": {
-            "description": "Share is the struct designed to represent the sharing fields of an operation.",
-            "type": "object",
-            "required": [
-                "percentage"
-            ],
-            "properties": {
-                "percentage": {
-                    "type": "integer"
-                },
-                "percentageOfPercentage": {
-                    "type": "integer"
-                }
-            }
-        },
-        "Source": {
-            "description": "Source is the struct designed to represent the source fields of an operation.",
-            "type": "object",
-            "required": [
-                "from"
-            ],
-            "properties": {
-                "from": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/FromTo"
-                    }
-                },
-                "remaining": {
-                    "type": "string",
-                    "example": "remaining"
                 }
             }
         },
@@ -5261,10 +5057,11 @@ const docTemplatetransaction = `{
                     "additionalProperties": {}
                 },
                 "operationRoutes": {
-                    "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
+                    "description": "A list of Operation Route IDs associated with the Transaction Route. Omit to leave existing associations unchanged. When provided, replaces all current associations with the supplied UUIDs.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/OperationRouteActionInput"
+                        "type": "string",
+                        "format": "uuid"
                     }
                 },
                 "title": {
@@ -5534,7 +5331,9 @@ const docTemplatetransaction = `{
                 },
                 "transactionDate": {
                     "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         }

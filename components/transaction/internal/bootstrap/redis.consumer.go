@@ -28,6 +28,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/google/uuid"
 )
 
 const (
@@ -389,10 +390,26 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 
 		ledgerSettings := r.TransactionHandler.Query.GetLedgerSettings(msgCtxWithSpan, m.OrganizationID, m.LedgerID)
 
+		var routeCache *mmodel.TransactionRouteCache
+
+		if ledgerSettings.Accounting.ValidateRoutes && m.Validate.TransactionRoute != "" {
+			trID, parseErr := uuid.Parse(m.Validate.TransactionRoute)
+			if parseErr != nil {
+				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to parse TransactionRoute UUID %s: %v", m.Validate.TransactionRoute, parseErr))
+			} else {
+				cache, cacheErr := r.TransactionHandler.Query.GetOrCreateTransactionRouteCache(msgCtxWithSpan, m.OrganizationID, m.LedgerID, trID)
+				if cacheErr != nil {
+					logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to get route cache for org=%s ledger=%s route=%s: %v", m.OrganizationID, m.LedgerID, trID, cacheErr))
+				} else {
+					routeCache = &cache
+				}
+			}
+		}
+
 		var buildErr error
 
 		operations, _, buildErr = r.TransactionHandler.BuildOperations(
-			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes,
+			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache,
 		)
 		if buildErr != nil {
 			libOpentelemetry.HandleSpanError(msgSpan, "Failed to validate balances", buildErr)

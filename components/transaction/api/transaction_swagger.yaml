@@ -73,24 +73,16 @@ definitions:
     type: object
   Amount:
     description: Amount is the struct designed to represent the amount of an operation.
+      Contains the value and scale (decimal places) of an operation amount.
     properties:
-      asset:
-        example: BRL
-        type: string
-      direction:
-        type: string
-      operation:
-        type: string
-      routeValidationEnabled:
-        type: boolean
-      transactionType:
-        type: string
       value:
-        example: 1000
+        description: |-
+          The amount value in the smallest unit of the asset (e.g., cents)
+          example: 1500
+          minimum: 0
+        example: 1500
+        minimum: 0
         type: number
-    required:
-    - asset
-    - value
     type: object
   AssetRate:
     description: AssetRate is a struct designed to store asset rate data. Represents
@@ -622,6 +614,8 @@ definitions:
           Example "2021-01-01T00:00:00Z"
           swagger: type string
           required: false
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
     type: object
   CreateTransactionOutflowSwaggerModel:
@@ -738,6 +732,8 @@ definitions:
           Example "2021-01-01T00:00:00Z"
           swagger: type string
           required: false
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
     type: object
   CreateTransactionRouteInput:
@@ -753,10 +749,11 @@ definitions:
         description: Additional metadata stored as JSON
         type: object
       operationRoutes:
-        description: An object containing accounting data of Operation Routes from
-          the Transaction Route.
+        description: A list of Operation Route IDs associated with the Transaction
+          Route.
         items:
-          $ref: '#/definitions/OperationRouteActionInput'
+          format: uuid
+          type: string
         type: array
       title:
         description: Short text summarizing the purpose of the transaction. Used as
@@ -767,19 +764,6 @@ definitions:
     required:
     - operationRoutes
     - title
-    type: object
-  Distribute:
-    description: Distribute is the struct designed to represent the distribution fields
-      of an operation.
-    properties:
-      remaining:
-        type: string
-      to:
-        items:
-          $ref: '#/definitions/FromTo'
-        type: array
-    required:
-    - to
     type: object
   Error:
     description: Standardized error response format used across all API endpoints
@@ -826,49 +810,6 @@ definitions:
         example: Bad Request
         maxLength: 100
         type: string
-    type: object
-  FromTo:
-    description: FromTo is the struct designed to represent the from/to fields of
-      an operation.
-    properties:
-      accountAlias:
-        example: '@person1'
-        type: string
-      amount:
-        $ref: '#/definitions/Amount'
-      balanceKey:
-        example: asset-freeze
-        type: string
-      chartOfAccounts:
-        example: "1000"
-        type: string
-      description:
-        example: description
-        type: string
-      isFrom:
-        example: true
-        type: boolean
-      metadata:
-        additionalProperties: {}
-        type: object
-      rate:
-        $ref: '#/definitions/Rate'
-      remaining:
-        example: remaining
-        type: string
-      route:
-        description: 'Deprecated: legacy route identifier, use routeId instead. Contains
-          the same value as routeId but as a free-form string.'
-        example: 00000000-0000-0000-0000-000000000000
-        maxLength: 250
-        type: string
-      routeId:
-        description: UUID of the operation route. Prefer this over the legacy route
-          field.
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      share:
-        $ref: '#/definitions/Share'
     type: object
   Operation:
     description: Operation is a struct designed to store operation data. Represents
@@ -1011,7 +952,7 @@ definitions:
         type: string
       route:
         description: |-
-          Deprecated: legacy route identifier, use routeId instead. Contains the same operation route UUID as routeId but stored as a free-form string for backwards compatibility.
+          Deprecated: passive field kept for backward compatibility. Not used in validation or business logic. Use routeId instead.
           example: 00000000-0000-0000-0000-000000000000
           maxLength: 250
           deprecated: true
@@ -1028,7 +969,7 @@ definitions:
         type: string
       routeId:
         description: |-
-          UUID of the operation route that generated this operation. Prefer this over the legacy route field.
+          UUID of the operation route that generated this operation. Primary field for route identification, validation, and accounting.
           example: 00000000-0000-0000-0000-000000000000
           format: uuid
         example: 00000000-0000-0000-0000-000000000000
@@ -1139,102 +1080,6 @@ definitions:
         example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
-    type: object
-  OperationRouteActionInput:
-    description: OperationRouteActionInput payload for associating an operation route
-      with a transaction route.
-    properties:
-      operationRouteId:
-        description: The unique identifier of the Operation Route.
-        example: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        format: uuid
-        type: string
-    required:
-    - operationRouteId
-    type: object
-  Period:
-    description: Period defines the from/to time range for a transaction count query.
-    properties:
-      from:
-        description: |-
-          Start of the period (inclusive)
-          example: 2026-01-01T00:00:00Z
-          format: date-time
-        format: date-time
-        type: string
-      to:
-        description: |-
-          End of the period (inclusive)
-          example: 2026-02-01T00:00:00Z
-          format: date-time
-        format: date-time
-        type: string
-    type: object
-  Rate:
-    description: Rate is the struct designed to represent the rate fields of an operation.
-    properties:
-      externalId:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      from:
-        example: BRL
-        type: string
-      to:
-        example: USDe
-        type: string
-      value:
-        example: 1000
-        type: number
-    required:
-    - externalId
-    - from
-    - to
-    - value
-    type: object
-  Send:
-    description: Send is the struct designed to represent the sending fields of an
-      operation.
-    properties:
-      asset:
-        example: BRL
-        type: string
-      distribute:
-        $ref: '#/definitions/Distribute'
-      source:
-        $ref: '#/definitions/Source'
-      value:
-        example: 1000
-        type: number
-    required:
-    - asset
-    - distribute
-    - source
-    - value
-    type: object
-  Share:
-    description: Share is the struct designed to represent the sharing fields of an
-      operation.
-    properties:
-      percentage:
-        type: integer
-      percentageOfPercentage:
-        type: integer
-    required:
-    - percentage
-    type: object
-  Source:
-    description: Source is the struct designed to represent the source fields of an
-      operation.
-    properties:
-      from:
-        items:
-          $ref: '#/definitions/FromTo'
-        type: array
-      remaining:
-        example: remaining
-        type: string
-    required:
-    - from
     type: object
   Status:
     description: Status is the struct designed to represent the status of a transaction.
@@ -1548,10 +1393,12 @@ definitions:
         description: Additional metadata stored as JSON
         type: object
       operationRoutes:
-        description: An object containing accounting data of Operation Routes from
-          the Transaction Route.
+        description: A list of Operation Route IDs associated with the Transaction
+          Route. Omit to leave existing associations unchanged. When provided, replaces
+          all current associations with the supplied UUIDs.
         items:
-          $ref: '#/definitions/OperationRouteActionInput'
+          format: uuid
+          type: string
         type: array
       title:
         description: Short text summarizing the purpose of the transaction. Used as
@@ -1879,6 +1726,8 @@ definitions:
           Example "2021-01-01T00:00:00Z"
           swagger: type string
           required: false
+        example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
     type: object
 host: localhost:3001

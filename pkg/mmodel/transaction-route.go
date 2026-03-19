@@ -38,15 +38,6 @@ type TransactionRoute struct {
 	DeletedAt *time.Time `json:"deletedAt" example:"2025-01-01T00:00:00Z"`
 } // @name TransactionRoute
 
-// OperationRouteActionInput represents an operation route association in a transaction route.
-//
-// swagger:model OperationRouteActionInput
-// @Description OperationRouteActionInput payload for associating an operation route with a transaction route.
-type OperationRouteActionInput struct {
-	// The unique identifier of the Operation Route.
-	OperationRouteID uuid.UUID `json:"operationRouteId" validate:"required" format:"uuid" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
-} // @name OperationRouteActionInput
-
 // CreateTransactionRouteInput is a struct designed to store CreateRouteInput data.
 //
 // swagger:model CreateTransactionRouteInput
@@ -58,16 +49,14 @@ type CreateTransactionRouteInput struct {
 	Description string `json:"description,omitempty" validate:"max=250" example:"Settlement route for service charges"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-	// An object containing accounting data of Operation Routes from the Transaction Route.
-	OperationRoutes []OperationRouteActionInput `json:"operationRoutes,omitempty" validate:"required,dive"`
+	// A list of Operation Route IDs associated with the Transaction Route.
+	OperationRoutes []uuid.UUID `json:"operationRoutes,omitempty" validate:"required,dive,required" format:"uuid"`
 } // @name CreateTransactionRouteInput
 
 // OperationRouteIDs extracts the operation route UUIDs from the input.
 func (c *CreateTransactionRouteInput) OperationRouteIDs() []uuid.UUID {
 	ids := make([]uuid.UUID, len(c.OperationRoutes))
-	for i, route := range c.OperationRoutes {
-		ids[i] = route.OperationRouteID
-	}
+	copy(ids, c.OperationRoutes)
 
 	return ids
 }
@@ -83,8 +72,8 @@ type UpdateTransactionRouteInput struct {
 	Description string `json:"description,omitempty" validate:"max=250" example:"Settlement route for service charges"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-	// An object containing accounting data of Operation Routes from the Transaction Route.
-	OperationRoutes *[]OperationRouteActionInput `json:"operationRoutes,omitempty" validate:"omitempty,dive"`
+	// A list of Operation Route IDs associated with the Transaction Route. Omit to leave existing associations unchanged. When provided, replaces all current associations with the supplied UUIDs.
+	OperationRoutes *[]uuid.UUID `json:"operationRoutes,omitempty" validate:"omitempty" format:"uuid"`
 } // @name UpdateTransactionRouteInput
 
 // OperationRouteIDs extracts the operation route UUIDs from the input.
@@ -95,9 +84,7 @@ func (u *UpdateTransactionRouteInput) OperationRouteIDs() []uuid.UUID {
 	}
 
 	ids := make([]uuid.UUID, len(*u.OperationRoutes))
-	for i, route := range *u.OperationRoutes {
-		ids[i] = route.OperationRouteID
-	}
+	copy(ids, *u.OperationRoutes)
 
 	return ids
 }
@@ -119,6 +106,7 @@ type OperationRouteCache struct {
 	Account           *AccountCache      `json:"account,omitempty" msgpack:"account"`
 	OperationType     string             `json:"operationType,omitempty" msgpack:"operationType"`
 	Code              string             `json:"code,omitempty" msgpack:"code"`
+	Description       string             `json:"description,omitempty" msgpack:"description"`
 	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty" msgpack:"accountingEntries"`
 }
 
@@ -140,6 +128,7 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 		routeData := OperationRouteCache{
 			OperationType:     operationRoute.OperationType,
 			Code:              operationRoute.Code,
+			Description:       operationRoute.Description,
 			AccountingEntries: operationRoute.AccountingEntries,
 		}
 

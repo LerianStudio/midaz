@@ -40,8 +40,8 @@ import (
 type Repository interface {
 	Create(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionRoute *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error)
 	FindByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (*mmodel.TransactionRoute, error)
-	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []mmodel.OperationRouteActionInput) (*mmodel.TransactionRoute, error)
-	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID, toRemove []mmodel.OperationRouteActionInput) error
+	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error)
+	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID, toRemove []uuid.UUID) error
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error)
 }
 
@@ -387,7 +387,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 // Update updates a transaction route by its ID and manages its operation route relationships.
 // It returns the updated transaction route and an error if the operation fails.
 // If the transaction route has operation routes, it will update the relationships atomically.
-func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []mmodel.OperationRouteActionInput) (*mmodel.TransactionRoute, error) {
+func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction_route")
@@ -517,7 +517,7 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 // Delete deletes a transaction route by its ID and manages its operation route relationships.
 // It returns an error if the operation fails.
 // If the transaction route has operation routes, it will delete the relationships atomically.
-func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID, toRemove []mmodel.OperationRouteActionInput) error {
+func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID, toRemove []uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_transaction_route")
@@ -704,12 +704,12 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 	return transactionRoutes, cur, nil
 }
 
-// updateOperationRouteRelationships handles the complex logic of updating operation route relationships within an existing transaction.
-// Each entry carries both the operation route ID and the action, enabling composite-key-aware inserts and deletes.
+// updateOperationRouteRelationships handles the logic of updating operation route relationships within an existing transaction.
+// It receives only operation route IDs for inserts and soft-deletes.
 func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships(ctx context.Context, tx interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-}, transactionRouteID uuid.UUID, toAdd, toRemove []mmodel.OperationRouteActionInput,
+}, transactionRouteID uuid.UUID, toAdd, toRemove []uuid.UUID,
 ) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -721,14 +721,14 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 		ctxDelete, spanDelete := tracer.Start(ctxSpan, "postgres.soft_delete_relationships")
 		defer spanDelete.End()
 
-		for _, entry := range toRemove {
+		for _, operationRouteID := range toRemove {
 			deleteQuery := `UPDATE operation_transaction_route
 							SET deleted_at = NOW()
 							WHERE transaction_route_id = $1
 							AND operation_route_id = $2
 							AND deleted_at IS NULL`
 
-			_, err := tx.ExecContext(ctxDelete, deleteQuery, transactionRouteID, entry.OperationRouteID)
+			_, err := tx.ExecContext(ctxDelete, deleteQuery, transactionRouteID, operationRouteID)
 			if err != nil {
 				libOpentelemetry.HandleSpanError(spanDelete, "Failed to soft delete operation route relationship", err)
 
@@ -744,13 +744,13 @@ func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships
 		ctxCreate, spanCreate := tracer.Start(ctxSpan, "postgres.create_relationships")
 		defer spanCreate.End()
 
-		for _, entry := range toAdd {
+		for _, operationRouteID := range toAdd {
 			relationID := uuid.Must(libCommons.GenerateUUIDv7())
 			now := time.Now()
 
 			_, err := tx.ExecContext(ctxCreate, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at) VALUES ($1, $2, $3, $4)`,
 				relationID,
-				entry.OperationRouteID,
+				operationRouteID,
 				transactionRouteID,
 				now,
 			)

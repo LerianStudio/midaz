@@ -41,7 +41,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 	}
 
 	// Handle operation route updates if provided
-	var toAdd, toRemove []mmodel.OperationRouteActionInput
+	var toAdd, toRemove []uuid.UUID
 
 	if input.OperationRoutes != nil {
 		var err error
@@ -87,8 +87,8 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 
 // handleOperationRouteUpdates processes operation route relationship updates by comparing
 // existing vs new operation routes using operation route IDs.
-// It returns arrays of OperationRouteActionInput entries to add and remove, or an error if validation fails.
-func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteInputs []mmodel.OperationRouteActionInput) (toAdd, toRemove []mmodel.OperationRouteActionInput, err error) {
+// It returns arrays of operation route IDs to add and remove, or an error if validation fails.
+func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID, newOperationRouteInputs []uuid.UUID) (toAdd, toRemove []uuid.UUID, err error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.handle_operation_route_updates")
@@ -111,20 +111,17 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 	// Deduplicate input by operation route ID
 	seen := make(map[uuid.UUID]bool)
 
-	var deduplicatedInputs []mmodel.OperationRouteActionInput
+	deduplicatedInputs := make([]uuid.UUID, 0, len(newOperationRouteInputs))
 
-	uniqueIDs := make([]uuid.UUID, 0, len(newOperationRouteInputs))
+	for _, operationRouteID := range newOperationRouteInputs {
+		if !seen[operationRouteID] {
+			seen[operationRouteID] = true
 
-	for _, input := range newOperationRouteInputs {
-		if !seen[input.OperationRouteID] {
-			seen[input.OperationRouteID] = true
-
-			deduplicatedInputs = append(deduplicatedInputs, input)
-			uniqueIDs = append(uniqueIDs, input.OperationRouteID)
+			deduplicatedInputs = append(deduplicatedInputs, operationRouteID)
 		}
 	}
 
-	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, uniqueIDs)
+	operationRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, deduplicatedInputs)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error fetching operation routes: %v", err))
 		return nil, nil, err
@@ -143,25 +140,21 @@ func (uc *UseCase) handleOperationRouteUpdates(ctx context.Context, organization
 	}
 
 	newIDs := make(map[uuid.UUID]bool)
-	for _, input := range deduplicatedInputs {
-		newIDs[input.OperationRouteID] = true
+	for _, operationRouteID := range deduplicatedInputs {
+		newIDs[operationRouteID] = true
 	}
 
 	// Find relationships to remove (exist currently but not in new list)
 	for id := range existingIDs {
 		if !newIDs[id] {
-			toRemove = append(toRemove, mmodel.OperationRouteActionInput{
-				OperationRouteID: id,
-			})
+			toRemove = append(toRemove, id)
 		}
 	}
 
 	// Find relationships to add (in new list but don't exist currently)
 	for id := range newIDs {
 		if !existingIDs[id] {
-			toAdd = append(toAdd, mmodel.OperationRouteActionInput{
-				OperationRouteID: id,
-			})
+			toAdd = append(toAdd, id)
 		}
 	}
 

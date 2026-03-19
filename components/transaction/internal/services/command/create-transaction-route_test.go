@@ -32,13 +32,10 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 	operationRouteID2 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:       "Test Transaction Route",
-		Description: "Test Description",
-		OperationRoutes: []mmodel.OperationRouteActionInput{
-			{OperationRouteID: operationRouteID1},
-			{OperationRouteID: operationRouteID2},
-		},
-		Metadata: map[string]any{"key": "value"},
+		Title:           "Test Transaction Route",
+		Description:     "Test Description",
+		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
+		Metadata:        map[string]any{"key": "value"},
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
@@ -116,12 +113,9 @@ func TestCreateTransactionRouteSuccessWithoutMetadata(t *testing.T) {
 	operationRouteID2 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title:       "Test Transaction Route",
-		Description: "Test Description",
-		OperationRoutes: []mmodel.OperationRouteActionInput{
-			{OperationRouteID: operationRouteID1},
-			{OperationRouteID: operationRouteID2},
-		},
+		Title:           "Test Transaction Route",
+		Description:     "Test Description",
+		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
@@ -176,10 +170,8 @@ func TestCreateTransactionRouteErrorOperationRoutesNotFound(t *testing.T) {
 	operationRouteID1 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title: "Test Transaction Route",
-		OperationRoutes: []mmodel.OperationRouteActionInput{
-			{OperationRouteID: operationRouteID1},
-		},
+		Title:           "Test Transaction Route",
+		OperationRoutes: []uuid.UUID{operationRouteID1},
 	}
 
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
@@ -211,10 +203,8 @@ func TestCreateTransactionRouteErrorMissingDebitRoute(t *testing.T) {
 	operationRouteID1 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title: "Test Transaction Route",
-		OperationRoutes: []mmodel.OperationRouteActionInput{
-			{OperationRouteID: operationRouteID1},
-		},
+		Title:           "Test Transaction Route",
+		OperationRoutes: []uuid.UUID{operationRouteID1},
 	}
 
 	// Only credit operation route, missing debit
@@ -253,10 +243,8 @@ func TestCreateTransactionRouteErrorMissingCreditRoute(t *testing.T) {
 	operationRouteID1 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title: "Test Transaction Route",
-		OperationRoutes: []mmodel.OperationRouteActionInput{
-			{OperationRouteID: operationRouteID1},
-		},
+		Title:           "Test Transaction Route",
+		OperationRoutes: []uuid.UUID{operationRouteID1},
 	}
 
 	// Only debit operation route, missing credit
@@ -296,11 +284,8 @@ func TestCreateTransactionRouteErrorTransactionRouteCreationFails(t *testing.T) 
 	operationRouteID2 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title: "Test Transaction Route",
-		OperationRoutes: []mmodel.OperationRouteActionInput{
-			{OperationRouteID: operationRouteID1},
-			{OperationRouteID: operationRouteID2},
-		},
+		Title:           "Test Transaction Route",
+		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{
@@ -351,12 +336,9 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	operationRouteID2 := uuid.New()
 
 	payload := &mmodel.CreateTransactionRouteInput{
-		Title: "Test Transaction Route",
-		OperationRoutes: []mmodel.OperationRouteActionInput{
-			{OperationRouteID: operationRouteID1},
-			{OperationRouteID: operationRouteID2},
-		},
-		Metadata: map[string]any{"key": "value"},
+		Title:           "Test Transaction Route",
+		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
+		Metadata:        map[string]any{"key": "value"},
 	}
 
 	expectedOperationRoutes := []*mmodel.OperationRoute{

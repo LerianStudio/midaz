@@ -787,7 +787,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		"o.account_alias", "o.balance_id", "o.chart_of_accounts", "o.organization_id",
 		"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
 		"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
-		"o.direction", "o.route_id", "o.route_code",
+		"o.direction", "o.route_id", "o.route_code", "o.route_description",
 	}
 
 	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
@@ -874,6 +874,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&op.Direction,
 			&op.RouteID,
 			&op.RouteCode,
+			&op.RouteDescription,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
@@ -969,7 +970,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		"o.account_alias", "o.balance_id", "o.chart_of_accounts", "o.organization_id",
 		"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
 		"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
-		"o.direction", "o.route_id", "o.route_code",
+		"o.direction", "o.route_id", "o.route_code", "o.route_description",
 	}
 
 	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
@@ -1026,7 +1027,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			opDeletedAt                                                  sql.NullTime
 			opBalanceAffected                                            *bool
 			opVersionBalance, opVersionBalanceAfter                      *int64
-			opDirection, opRouteID, opRouteCode                          *string
+			opDirection, opRouteID, opRouteCode, opRouteDescription      *string
 		)
 
 		if err := rows.Scan(
@@ -1074,6 +1075,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&opDirection,
 			&opRouteID,
 			&opRouteCode,
+			&opRouteDescription,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
@@ -1136,6 +1138,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 				Direction:             derefString(opDirection),
 				RouteID:               opRouteID,
 				RouteCode:             opRouteCode,
+				RouteDescription:      opRouteDescription,
 			}
 
 			t.Operations = append(t.Operations, op.ToEntity())
