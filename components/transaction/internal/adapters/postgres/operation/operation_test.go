@@ -623,6 +623,8 @@ func TestOperation_ToRedis(t *testing.T) {
 		statusDesc := "Approved"
 
 		redisRouteID := "00000000-0000-0000-0000-000000000005"
+		redisRouteCode := "1.1.01.001"
+		redisRouteDesc := "Settlement route for service charges"
 
 		op := &Operation{
 			ID:              "op-123",
@@ -646,19 +648,21 @@ func TestOperation_ToRedis(t *testing.T) {
 				Code:        "APPROVED",
 				Description: &statusDesc,
 			},
-			BalanceID:       "bal-012",
-			AccountID:       "acc-789",
-			AccountAlias:    "@main",
-			BalanceKey:      "default",
-			OrganizationID:  "org-345",
-			LedgerID:        "ledger-678",
-			CreatedAt:       now,
-			UpdatedAt:       now,
-			Route:           "route-123",
-			BalanceAffected: true,
-			Direction:       "source",
-			RouteID:         &redisRouteID,
-			Metadata:        map[string]any{"key": "value"},
+			BalanceID:        "bal-012",
+			AccountID:        "acc-789",
+			AccountAlias:     "@main",
+			BalanceKey:       "default",
+			OrganizationID:   "org-345",
+			LedgerID:         "ledger-678",
+			CreatedAt:        now,
+			UpdatedAt:        now,
+			Route:            "route-123",
+			BalanceAffected:  true,
+			Direction:        "source",
+			RouteID:          &redisRouteID,
+			RouteCode:        &redisRouteCode,
+			RouteDescription: &redisRouteDesc,
+			Metadata:         map[string]any{"key": "value"},
 		}
 
 		r := op.ToRedis()
@@ -692,6 +696,10 @@ func TestOperation_ToRedis(t *testing.T) {
 		assert.Equal(t, "source", r.Direction)
 		require.NotNil(t, r.RouteID)
 		assert.Equal(t, redisRouteID, *r.RouteID)
+		require.NotNil(t, r.RouteCode)
+		assert.Equal(t, redisRouteCode, *r.RouteCode)
+		require.NotNil(t, r.RouteDescription)
+		assert.Equal(t, redisRouteDesc, *r.RouteDescription)
 		assert.Equal(t, op.Metadata, r.Metadata)
 	})
 
@@ -722,6 +730,8 @@ func TestOperation_ToRedis(t *testing.T) {
 		assert.False(t, r.BalanceAffected)
 		assert.Empty(t, r.Direction)
 		assert.Nil(t, r.RouteID)
+		assert.Nil(t, r.RouteCode)
+		assert.Nil(t, r.RouteDescription)
 	})
 }
 
@@ -739,6 +749,8 @@ func TestOperationFromRedis(t *testing.T) {
 		rtStatusDesc := "Active"
 
 		rtRouteID := "00000000-0000-0000-0000-000000000006"
+		rtRouteCode := "4.1.01.001"
+		rtRouteDesc := "Revenue from services"
 
 		original := &Operation{
 			ID:              "op-roundtrip",
@@ -762,19 +774,21 @@ func TestOperationFromRedis(t *testing.T) {
 				Code:        "ACTIVE",
 				Description: &rtStatusDesc,
 			},
-			BalanceID:       "bal-rt",
-			AccountID:       "acc-rt",
-			AccountAlias:    "@savings",
-			BalanceKey:      "USD",
-			OrganizationID:  "org-rt",
-			LedgerID:        "ledger-rt",
-			CreatedAt:       now,
-			UpdatedAt:       now,
-			Route:           "route-rt",
-			BalanceAffected: true,
-			Direction:       "destination",
-			RouteID:         &rtRouteID,
-			Metadata:        map[string]any{"env": "test"},
+			BalanceID:        "bal-rt",
+			AccountID:        "acc-rt",
+			AccountAlias:     "@savings",
+			BalanceKey:       "USD",
+			OrganizationID:   "org-rt",
+			LedgerID:         "ledger-rt",
+			CreatedAt:        now,
+			UpdatedAt:        now,
+			Route:            "route-rt",
+			BalanceAffected:  true,
+			Direction:        "destination",
+			RouteID:          &rtRouteID,
+			RouteCode:        &rtRouteCode,
+			RouteDescription: &rtRouteDesc,
+			Metadata:         map[string]any{"env": "test"},
 		}
 
 		redisModel := original.ToRedis()
@@ -816,6 +830,10 @@ func TestOperationFromRedis(t *testing.T) {
 		assert.Equal(t, "destination", restored.Direction)
 		require.NotNil(t, restored.RouteID)
 		assert.Equal(t, rtRouteID, *restored.RouteID)
+		require.NotNil(t, restored.RouteCode)
+		assert.Equal(t, rtRouteCode, *restored.RouteCode)
+		require.NotNil(t, restored.RouteDescription)
+		assert.Equal(t, rtRouteDesc, *restored.RouteDescription)
 		assert.Equal(t, original.Metadata, restored.Metadata)
 	})
 }
