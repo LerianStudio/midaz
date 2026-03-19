@@ -338,16 +338,18 @@ definitions:
   Period:
     description: Period represents a date range for filtering queries.
     properties:
-      start_date:
+      from:
         description: |-
-          Start date in RFC3339 format
+          Start of the period (inclusive) in RFC3339 format
           example: 2024-01-01T00:00:00Z
         type: string
-      end_date:
+        format: date-time
+      to:
         description: |-
-          End date in RFC3339 format
+          End of the period (inclusive) in RFC3339 format
           example: 2024-12-31T23:59:59Z
         type: string
+        format: date-time
     type: object
   CountResponse:
     description: CountResponse contains the total count of transactions matching the
@@ -3946,7 +3948,8 @@ paths:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/count:
     get:
-      description: Count transactions matching the given route, status, and date range
+      description: Count transactions matching optional filters. Defaults to today's
+        date range (UTC) when start_date/end_date are omitted.
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -3967,25 +3970,21 @@ paths:
         name: ledger_id
         required: true
         type: string
-      - description: Transaction route UUID
+      - description: Transaction route UUID (optional filter)
         in: query
         name: route
-        required: true
         type: string
-      - description: Transaction status (e.g., APPROVED)
+      - description: Transaction status, e.g. APPROVED (optional filter)
         in: query
         name: status
-        required: true
         type: string
-      - description: Start date (RFC3339 format)
+      - description: Start date in RFC3339 format. Defaults to start of today UTC
         in: query
         name: start_date
-        required: true
         type: string
-      - description: End date (RFC3339 format)
+      - description: End date in RFC3339 format. Defaults to end of today UTC
         in: query
         name: end_date
-        required: true
         type: string
       produces:
       - application/json
@@ -4010,7 +4009,7 @@ paths:
           description: Internal server error
           schema:
             $ref: '#/definitions/Error'
-      summary: Count Transactions by Route
+      summary: Count Transactions
       tags:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl:

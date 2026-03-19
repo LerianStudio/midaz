@@ -6753,14 +6753,14 @@ const docTemplate = `
     },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/count": {
       "get": {
-        "description": "Count transactions matching the given route, status, and date range",
+        "description": "Count transactions matching optional filters. Defaults to today's date range (UTC) when start_date/end_date are omitted.",
         "produces": [
           "application/json"
         ],
         "tags": [
           "Transactions"
         ],
-        "summary": "Count Transactions by Route",
+        "summary": "Count Transactions",
         "parameters": [
           {
             "type": "string",
@@ -6791,31 +6791,27 @@ const docTemplate = `
           },
           {
             "type": "string",
-            "description": "Transaction route UUID",
+            "description": "Transaction route UUID (optional filter)",
             "name": "route",
-            "in": "query",
-            "required": true
+            "in": "query"
           },
           {
             "type": "string",
-            "description": "Transaction status (e.g., APPROVED)",
+            "description": "Transaction status, e.g. APPROVED (optional filter)",
             "name": "status",
-            "in": "query",
-            "required": true
+            "in": "query"
           },
           {
             "type": "string",
-            "description": "Start date (RFC3339 format)",
+            "description": "Start date in RFC3339 format. Defaults to start of today UTC",
             "name": "start_date",
-            "in": "query",
-            "required": true
+            "in": "query"
           },
           {
             "type": "string",
-            "description": "End date (RFC3339 format)",
+            "description": "End date in RFC3339 format. Defaults to end of today UTC",
             "name": "end_date",
-            "in": "query",
-            "required": true
+            "in": "query"
           }
         ],
         "responses": {
@@ -9536,6 +9532,22 @@ const docTemplate = `
           "type": "integer",
           "minimum": 1,
           "example": 1
+        }
+      }
+    },
+    "Period": {
+      "description": "Period represents a date range for filtering queries.",
+      "type": "object",
+      "properties": {
+        "from": {
+          "description": "Start of the period (inclusive) in RFC3339 format\nexample: 2024-01-01T00:00:00Z",
+          "type": "string",
+          "format": "date-time"
+        },
+        "to": {
+          "description": "End of the period (inclusive) in RFC3339 format\nexample: 2024-12-31T23:59:59Z",
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
