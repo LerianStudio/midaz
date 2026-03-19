@@ -16,6 +16,7 @@ import (
 
 	http "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/repository"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -57,6 +58,21 @@ func (m *MockRepository) Create(ctx context.Context, operation *Operation) (*Ope
 func (mr *MockRepositoryMockRecorder) Create(ctx, operation any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), ctx, operation)
+}
+
+// CreateBulk mocks base method.
+func (m *MockRepository) CreateBulk(ctx context.Context, operations []*Operation) (*repository.BulkInsertResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateBulk", ctx, operations)
+	ret0, _ := ret[0].(*repository.BulkInsertResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateBulk indicates an expected call of CreateBulk.
+func (mr *MockRepositoryMockRecorder) CreateBulk(ctx, operations any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBulk", reflect.TypeOf((*MockRepository)(nil).CreateBulk), ctx, operations)
 }
 
 // Delete mocks base method.
