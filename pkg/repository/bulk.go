@@ -8,7 +8,11 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 )
+
+// ErrNilDBExecutor is returned when a nil database executor is provided to bulk operations.
+var ErrNilDBExecutor = errors.New("nil database executor provided")
 
 // DBExecutor is a minimal interface satisfied by both dbresolver.DB and dbresolver.Tx.
 // This allows bulk insert operations to work with either a direct database connection

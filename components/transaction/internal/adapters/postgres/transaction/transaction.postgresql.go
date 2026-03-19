@@ -258,6 +258,10 @@ func (r *TransactionPostgreSQLRepository) CreateBulk(ctx context.Context, transa
 //
 // NOTE: The input slice is sorted in-place by ID. Callers should not rely on original order after this call.
 func (r *TransactionPostgreSQLRepository) CreateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkInsertResult, error) {
+	if tx == nil {
+		return nil, repository.ErrNilDBExecutor
+	}
+
 	return r.createBulkInternal(ctx, tx, transactions, "postgres.create_bulk_transactions_tx", " (tx)")
 }
 
