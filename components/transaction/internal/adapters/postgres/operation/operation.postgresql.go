@@ -275,16 +275,6 @@ func (r *OperationPostgreSQLRepository) CreateBulk(ctx context.Context, operatio
 		return &repository.BulkInsertResult{}, nil
 	}
 
-	// Validate input before acquiring DB connection
-	for i, op := range operations {
-		if op == nil {
-			err := fmt.Errorf("nil operation at index %d", i)
-			libOpentelemetry.HandleSpanError(span, "Invalid input: nil operation", err)
-
-			return nil, err
-		}
-	}
-
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)

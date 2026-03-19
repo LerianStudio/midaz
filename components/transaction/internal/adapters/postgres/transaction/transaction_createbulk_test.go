@@ -85,9 +85,13 @@ func TestCreateBulk_NilInput(t *testing.T) {
 func TestCreateBulk_NilElementInSlice(t *testing.T) {
 	t.Parallel()
 
+	mockDB := &bulkMockDB{}
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
 	repo := &TransactionPostgreSQLRepository{
-		connection: nil,
-		tableName:  "transaction",
+		connection:    nil,
+		tableName:     "transaction",
+		requireTenant: false,
 	}
 
 	transactions := []*Transaction{
@@ -96,7 +100,7 @@ func TestCreateBulk_NilElementInSlice(t *testing.T) {
 		generateTestTransaction(""),
 	}
 
-	result, err := repo.CreateBulk(context.Background(), transactions)
+	result, err := repo.CreateBulk(ctx, transactions)
 
 	require.Error(t, err, "should error on nil element")
 	assert.Nil(t, result)
@@ -106,9 +110,13 @@ func TestCreateBulk_NilElementInSlice(t *testing.T) {
 func TestCreateBulk_NilElementAtStart(t *testing.T) {
 	t.Parallel()
 
+	mockDB := &bulkMockDB{}
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
 	repo := &TransactionPostgreSQLRepository{
-		connection: nil,
-		tableName:  "transaction",
+		connection:    nil,
+		tableName:     "transaction",
+		requireTenant: false,
 	}
 
 	transactions := []*Transaction{
@@ -116,7 +124,7 @@ func TestCreateBulk_NilElementAtStart(t *testing.T) {
 		generateTestTransaction(""),
 	}
 
-	result, err := repo.CreateBulk(context.Background(), transactions)
+	result, err := repo.CreateBulk(ctx, transactions)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -126,9 +134,13 @@ func TestCreateBulk_NilElementAtStart(t *testing.T) {
 func TestCreateBulk_NilElementAtEnd(t *testing.T) {
 	t.Parallel()
 
+	mockDB := &bulkMockDB{}
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
 	repo := &TransactionPostgreSQLRepository{
-		connection: nil,
-		tableName:  "transaction",
+		connection:    nil,
+		tableName:     "transaction",
+		requireTenant: false,
 	}
 
 	transactions := []*Transaction{
@@ -137,7 +149,7 @@ func TestCreateBulk_NilElementAtEnd(t *testing.T) {
 		nil, // nil at end
 	}
 
-	result, err := repo.CreateBulk(context.Background(), transactions)
+	result, err := repo.CreateBulk(ctx, transactions)
 
 	require.Error(t, err)
 	assert.Nil(t, result)

@@ -94,9 +94,13 @@ func TestOperationCreateBulk_NilInput(t *testing.T) {
 func TestOperationCreateBulk_NilElementInSlice(t *testing.T) {
 	t.Parallel()
 
+	mockDB := &mockOperationDB{}
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
 	repo := &OperationPostgreSQLRepository{
-		connection: nil,
-		tableName:  "operation",
+		connection:    nil,
+		tableName:     "operation",
+		requireTenant: false,
 	}
 
 	operations := []*Operation{
@@ -105,7 +109,7 @@ func TestOperationCreateBulk_NilElementInSlice(t *testing.T) {
 		generateTestOperation(""),
 	}
 
-	result, err := repo.CreateBulk(context.Background(), operations)
+	result, err := repo.CreateBulk(ctx, operations)
 
 	require.Error(t, err, "should error on nil element")
 	assert.Nil(t, result)
@@ -115,9 +119,13 @@ func TestOperationCreateBulk_NilElementInSlice(t *testing.T) {
 func TestOperationCreateBulk_NilElementAtStart(t *testing.T) {
 	t.Parallel()
 
+	mockDB := &mockOperationDB{}
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
 	repo := &OperationPostgreSQLRepository{
-		connection: nil,
-		tableName:  "operation",
+		connection:    nil,
+		tableName:     "operation",
+		requireTenant: false,
 	}
 
 	operations := []*Operation{
@@ -125,7 +133,7 @@ func TestOperationCreateBulk_NilElementAtStart(t *testing.T) {
 		generateTestOperation(""),
 	}
 
-	result, err := repo.CreateBulk(context.Background(), operations)
+	result, err := repo.CreateBulk(ctx, operations)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -135,9 +143,13 @@ func TestOperationCreateBulk_NilElementAtStart(t *testing.T) {
 func TestOperationCreateBulk_NilElementAtEnd(t *testing.T) {
 	t.Parallel()
 
+	mockDB := &mockOperationDB{}
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
 	repo := &OperationPostgreSQLRepository{
-		connection: nil,
-		tableName:  "operation",
+		connection:    nil,
+		tableName:     "operation",
+		requireTenant: false,
 	}
 
 	operations := []*Operation{
@@ -146,7 +158,7 @@ func TestOperationCreateBulk_NilElementAtEnd(t *testing.T) {
 		nil, // nil at end
 	}
 
-	result, err := repo.CreateBulk(context.Background(), operations)
+	result, err := repo.CreateBulk(ctx, operations)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -403,14 +415,18 @@ func TestInsertOperationChunk_ParameterLimitCalculation(t *testing.T) {
 func TestOperationCreateBulk_AllNilElements(t *testing.T) {
 	t.Parallel()
 
+	mockDB := &mockOperationDB{}
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
 	repo := &OperationPostgreSQLRepository{
-		connection: nil,
-		tableName:  "operation",
+		connection:    nil,
+		tableName:     "operation",
+		requireTenant: false,
 	}
 
 	operations := []*Operation{nil, nil, nil}
 
-	result, err := repo.CreateBulk(context.Background(), operations)
+	result, err := repo.CreateBulk(ctx, operations)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -420,9 +436,13 @@ func TestOperationCreateBulk_AllNilElements(t *testing.T) {
 func TestOperationCreateBulk_MultipleNilElements(t *testing.T) {
 	t.Parallel()
 
+	mockDB := &mockOperationDB{}
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
 	repo := &OperationPostgreSQLRepository{
-		connection: nil,
-		tableName:  "operation",
+		connection:    nil,
+		tableName:     "operation",
+		requireTenant: false,
 	}
 
 	operations := []*Operation{
@@ -432,7 +452,7 @@ func TestOperationCreateBulk_MultipleNilElements(t *testing.T) {
 		nil,
 	}
 
-	result, err := repo.CreateBulk(context.Background(), operations)
+	result, err := repo.CreateBulk(ctx, operations)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
