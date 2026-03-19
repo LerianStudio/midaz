@@ -9,6 +9,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/shopspring/decimal"
 )
@@ -66,13 +67,18 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 
 // ToEntity converts an BalancePostgreSQLModel to a response entity Balance
 func (b *BalancePostgreSQLModel) ToEntity() *mmodel.Balance {
+	key := b.Key
+	if libCommons.IsNilOrEmpty(&key) {
+		key = constant.DefaultBalanceKey
+	}
+
 	balance := &mmodel.Balance{
 		ID:             b.ID,
 		OrganizationID: b.OrganizationID,
 		LedgerID:       b.LedgerID,
 		AccountID:      b.AccountID,
 		Alias:          b.Alias,
-		Key:            b.Key,
+		Key:            key,
 		AssetCode:      b.AssetCode,
 		Available:      b.Available,
 		OnHold:         b.OnHold,
@@ -106,13 +112,18 @@ type BalanceAtTimestampModel struct {
 
 // ToEntity converts BalanceAtTimestampModel to mmodel.Balance
 func (b *BalanceAtTimestampModel) ToEntity() *mmodel.Balance {
+	key := b.Key
+	if libCommons.IsNilOrEmpty(&key) {
+		key = constant.DefaultBalanceKey
+	}
+
 	return &mmodel.Balance{
 		ID:             b.ID,
 		OrganizationID: b.OrganizationID,
 		LedgerID:       b.LedgerID,
 		AccountID:      b.AccountID,
 		Alias:          b.Alias,
-		Key:            b.Key,
+		Key:            key,
 		AssetCode:      b.AssetCode,
 		AccountType:    b.AccountType,
 		Available:      b.Available,

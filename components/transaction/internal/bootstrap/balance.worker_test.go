@@ -236,13 +236,13 @@ func TestWaitUntilDue(t *testing.T) {
 		expectedResult bool
 	}{
 		{
-			name:           "past time returns immediately",
+			name:           "past time applies minimal backoff and returns false",
 			dueAtUnix:      time.Now().Unix() - 100,
 			cancelBefore:   false,
 			expectedResult: false,
 		},
 		{
-			name:           "current time returns immediately",
+			name:           "current time applies minimal backoff and returns false",
 			dueAtUnix:      time.Now().Unix(),
 			cancelBefore:   false,
 			expectedResult: false,
@@ -272,6 +272,53 @@ func TestWaitUntilDue(t *testing.T) {
 			assert.Equal(t, tt.expectedResult, result)
 		})
 	}
+}
+
+// TestWaitUntilDue_ExpiredScoreAppliesBackoff verifies that when the due time has already
+// passed, waitUntilDue applies a minimal backoff (500ms) to prevent busy looping.
+// This is critical for preventing infinite loops when ZSET has expired scores but
+// the sync queue is empty (desync scenario).
+func TestWaitUntilDue_ExpiredScoreAppliesBackoff(t *testing.T) {
+	t.Parallel()
+
+	worker := &BalanceSyncWorker{}
+	ctx := context.Background()
+
+	// Due time is in the past
+	pastDueTime := time.Now().Unix() - 60
+
+	start := time.Now()
+	result := worker.waitUntilDue(ctx, pastDueTime, newTestLogger())
+	elapsed := time.Since(start)
+
+	assert.False(t, result, "should return false when not cancelled")
+	assert.GreaterOrEqual(t, elapsed, 400*time.Millisecond, "should wait at least ~500ms backoff (with tolerance)")
+	assert.Less(t, elapsed, 1*time.Second, "should not wait excessively")
+}
+
+// TestWaitUntilDue_ExpiredScoreRespectsContextCancellation verifies that even during
+// the backoff wait, the function respects context cancellation for graceful shutdown.
+func TestWaitUntilDue_ExpiredScoreRespectsContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	worker := &BalanceSyncWorker{}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Due time is in the past
+	pastDueTime := time.Now().Unix() - 60
+
+	// Cancel after a short delay (less than the 500ms backoff)
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	result := worker.waitUntilDue(ctx, pastDueTime, newTestLogger())
+	elapsed := time.Since(start)
+
+	assert.True(t, result, "should return true when context is cancelled")
+	assert.Less(t, elapsed, 400*time.Millisecond, "should exit early on cancellation")
 }
 
 // --- Tests for shouldShutdown ---
