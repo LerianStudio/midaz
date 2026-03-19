@@ -1,4 +1,5 @@
-# syntax=docker/dockerfile:1.4 
+# syntax=docker/dockerfile:1.4
+# ci: force rebuild to sync crm image with lib-commons beta.10
 
 FROM --platform=$BUILDPLATFORM golang:1.25.8-alpine AS builder
 
