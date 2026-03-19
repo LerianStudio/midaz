@@ -7,11 +7,14 @@ package operation
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"testing"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/repository"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -162,12 +165,39 @@ func TestOperationCreateBulk_SortsInputByID(t *testing.T) {
 	op3 := generateTestOperation("88888888-8888-8888-8888-888888888888") // Middle
 
 	input := []*Operation{op1, op2, op3}
-	originalFirst := input[0].ID
 
-	// Verify the expected sorting order
-	assert.Equal(t, originalFirst, op1.ID, "original order should have op1 first")
+	// Verify initial order: op1 (highest) is first
+	assert.Equal(t, op1.ID, input[0].ID, "original order should have op1 first")
+
+	// Verify lexicographic ordering assumption
 	assert.True(t, op2.ID < op3.ID, "op2 should be less than op3")
 	assert.True(t, op3.ID < op1.ID, "op3 should be less than op1")
+
+	// Create mock DB that returns success
+	mockDB := &mockOperationDB{
+		rowsAffected: 3,
+	}
+
+	// Inject mock DB into context using tenant manager
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
+	repo := &OperationPostgreSQLRepository{
+		connection:    nil,
+		tableName:     "operation",
+		requireTenant: false,
+	}
+
+	// Call CreateBulk which sorts the slice in-place before inserting
+	result, err := repo.CreateBulk(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Verify the slice was sorted in-place by ID (ascending)
+	// Expected order after sort: op2 (lowest) -> op3 (middle) -> op1 (highest)
+	assert.Equal(t, op2.ID, input[0].ID, "after CreateBulk, first element should be op2 (lowest ID)")
+	assert.Equal(t, op3.ID, input[1].ID, "after CreateBulk, second element should be op3 (middle ID)")
+	assert.Equal(t, op1.ID, input[2].ID, "after CreateBulk, third element should be op1 (highest ID)")
 }
 
 func TestOperationCreateBulk_ChunkingBoundaryConditions(t *testing.T) {
@@ -248,6 +278,30 @@ type mockOperationDB struct {
 	rowsAffectedErr error
 }
 
+func (m *mockOperationDB) Begin() (dbresolver.Tx, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockOperationDB) BeginTx(ctx context.Context, opts *sql.TxOptions) (dbresolver.Tx, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockOperationDB) Close() error {
+	return nil
+}
+
+func (m *mockOperationDB) Conn(ctx context.Context) (dbresolver.Conn, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockOperationDB) Driver() driver.Driver {
+	return nil
+}
+
+func (m *mockOperationDB) Exec(query string, args ...any) (sql.Result, error) {
+	return m.ExecContext(context.Background(), query, args...)
+}
+
 func (m *mockOperationDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	if m.execErr != nil {
 		return nil, m.execErr
@@ -256,12 +310,56 @@ func (m *mockOperationDB) ExecContext(ctx context.Context, query string, args ..
 	return &mockOperationResult{rowsAffected: m.rowsAffected, rowsAffectedErr: m.rowsAffectedErr}, nil
 }
 
+func (m *mockOperationDB) Ping() error {
+	return nil
+}
+
+func (m *mockOperationDB) PingContext(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockOperationDB) Prepare(query string) (dbresolver.Stmt, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockOperationDB) PrepareContext(ctx context.Context, query string) (dbresolver.Stmt, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockOperationDB) Query(query string, args ...any) (*sql.Rows, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (m *mockOperationDB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockOperationDB) QueryRow(query string, args ...any) *sql.Row {
+	return nil
+}
+
 func (m *mockOperationDB) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
 	return nil
+}
+
+func (m *mockOperationDB) SetConnMaxIdleTime(d time.Duration) {}
+
+func (m *mockOperationDB) SetConnMaxLifetime(d time.Duration) {}
+
+func (m *mockOperationDB) SetMaxIdleConns(n int) {}
+
+func (m *mockOperationDB) SetMaxOpenConns(n int) {}
+
+func (m *mockOperationDB) PrimaryDBs() []*sql.DB {
+	return nil
+}
+
+func (m *mockOperationDB) ReplicaDBs() []*sql.DB {
+	return nil
+}
+
+func (m *mockOperationDB) Stats() sql.DBStats {
+	return sql.DBStats{}
 }
 
 type mockOperationResult struct {

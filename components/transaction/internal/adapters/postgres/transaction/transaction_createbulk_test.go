@@ -7,11 +7,14 @@ package transaction
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"testing"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/repository"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -153,17 +156,39 @@ func TestCreateBulk_SortsInputByID(t *testing.T) {
 	tx3 := generateTestTransaction("88888888-8888-8888-8888-888888888888") // Middle
 
 	input := []*Transaction{tx1, tx2, tx3}
-	originalFirst := input[0].ID
 
-	// We can't test the actual database operation without mocks,
-	// but we can verify the sorting happens by checking the slice after
-	// the nil validation (which happens before sort)
+	// Verify initial order: tx1 (highest) is first
+	assert.Equal(t, tx1.ID, input[0].ID, "original order should have tx1 first")
 
-	// This test verifies that the slice would be sorted
-	// by checking the expected order
-	assert.Equal(t, originalFirst, tx1.ID, "original order should have tx1 first")
+	// Verify lexicographic ordering assumption
 	assert.True(t, tx2.ID < tx3.ID, "tx2 should be less than tx3")
 	assert.True(t, tx3.ID < tx1.ID, "tx3 should be less than tx1")
+
+	// Create mock DB that returns success
+	mockDB := &bulkMockDB{
+		rowsAffected: 3,
+	}
+
+	// Inject mock DB into context using tenant manager
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
+	repo := &TransactionPostgreSQLRepository{
+		connection:    nil,
+		tableName:     "transaction",
+		requireTenant: false,
+	}
+
+	// Call CreateBulk which sorts the slice in-place before inserting
+	result, err := repo.CreateBulk(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Verify the slice was sorted in-place by ID (ascending)
+	// Expected order after sort: tx2 (lowest) -> tx3 (middle) -> tx1 (highest)
+	assert.Equal(t, tx2.ID, input[0].ID, "after CreateBulk, first element should be tx2 (lowest ID)")
+	assert.Equal(t, tx3.ID, input[1].ID, "after CreateBulk, second element should be tx3 (middle ID)")
+	assert.Equal(t, tx1.ID, input[2].ID, "after CreateBulk, third element should be tx1 (highest ID)")
 }
 
 func TestCreateBulk_ChunkingBoundaryConditions(t *testing.T) {
@@ -244,6 +269,30 @@ type bulkMockDB struct {
 	rowsAffectedErr error
 }
 
+func (m *bulkMockDB) Begin() (dbresolver.Tx, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *bulkMockDB) BeginTx(ctx context.Context, opts *sql.TxOptions) (dbresolver.Tx, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *bulkMockDB) Close() error {
+	return nil
+}
+
+func (m *bulkMockDB) Conn(ctx context.Context) (dbresolver.Conn, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *bulkMockDB) Driver() driver.Driver {
+	return nil
+}
+
+func (m *bulkMockDB) Exec(query string, args ...any) (sql.Result, error) {
+	return m.ExecContext(context.Background(), query, args...)
+}
+
 func (m *bulkMockDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	if m.execErr != nil {
 		return nil, m.execErr
@@ -252,12 +301,56 @@ func (m *bulkMockDB) ExecContext(ctx context.Context, query string, args ...any)
 	return &bulkMockResult{rowsAffected: m.rowsAffected, rowsAffectedErr: m.rowsAffectedErr}, nil
 }
 
+func (m *bulkMockDB) Ping() error {
+	return nil
+}
+
+func (m *bulkMockDB) PingContext(ctx context.Context) error {
+	return nil
+}
+
+func (m *bulkMockDB) Prepare(query string) (dbresolver.Stmt, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *bulkMockDB) PrepareContext(ctx context.Context, query string) (dbresolver.Stmt, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *bulkMockDB) Query(query string, args ...any) (*sql.Rows, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (m *bulkMockDB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	return nil, errors.New("not implemented")
 }
 
+func (m *bulkMockDB) QueryRow(query string, args ...any) *sql.Row {
+	return nil
+}
+
 func (m *bulkMockDB) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
 	return nil
+}
+
+func (m *bulkMockDB) SetConnMaxIdleTime(d time.Duration) {}
+
+func (m *bulkMockDB) SetConnMaxLifetime(d time.Duration) {}
+
+func (m *bulkMockDB) SetMaxIdleConns(n int) {}
+
+func (m *bulkMockDB) SetMaxOpenConns(n int) {}
+
+func (m *bulkMockDB) PrimaryDBs() []*sql.DB {
+	return nil
+}
+
+func (m *bulkMockDB) ReplicaDBs() []*sql.DB {
+	return nil
+}
+
+func (m *bulkMockDB) Stats() sql.DBStats {
+	return sql.DBStats{}
 }
 
 type bulkMockResult struct {
