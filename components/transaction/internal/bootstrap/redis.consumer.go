@@ -44,6 +44,7 @@ type RedisQueueConsumer struct {
 	multiTenantEnabled bool
 	tenantClient       *tmclient.Client
 	pgManager          *tmpostgres.Manager
+	serviceName        string
 }
 
 func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) *RedisQueueConsumer {
@@ -57,17 +58,21 @@ func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) 
 // When multiTenantEnabled is true, both tenantClient and pgManager must be non-nil for the consumer
 // to be considered ready (isMultiTenantReady). The consumer uses tenantClient to discover active
 // tenants and pgManager to resolve per-tenant PostgreSQL connections.
+// serviceName is the service identifier used to query active tenants from the Tenant Manager
+// (e.g. the value of APPLICATION_NAME). It must not be empty when multi-tenant is enabled.
 func NewRedisQueueConsumerMultiTenant(
 	logger libLog.Logger,
 	handler in.TransactionHandler,
 	multiTenantEnabled bool,
 	tenantClient *tmclient.Client,
 	pgManager *tmpostgres.Manager,
+	serviceName string,
 ) *RedisQueueConsumer {
 	c := NewRedisQueueConsumer(logger, handler)
 	c.multiTenantEnabled = multiTenantEnabled
 	c.tenantClient = tenantClient
 	c.pgManager = pgManager
+	c.serviceName = serviceName
 
 	return c
 }
@@ -131,7 +136,7 @@ func (r *RedisQueueConsumer) runMultiTenant() error {
 			return nil
 
 		case <-ticker.C:
-			tenants, err := r.tenantClient.GetActiveTenantsByService(ctx, "transaction")
+			tenants, err := r.tenantClient.GetActiveTenantsByService(ctx, r.serviceName)
 			if err != nil {
 				r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("RedisQueueConsumer: failed to get active tenants: %v", err))
 

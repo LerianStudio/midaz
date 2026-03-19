@@ -368,7 +368,7 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 	var balanceSyncWorker *BalanceSyncWorker
 
 	if opts != nil && opts.MultiTenantEnabled {
-		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, true, opts.TenantClient, pgManager)
+		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, true, opts.TenantClient, pgManager, opts.TenantServiceName)
 	} else {
 		balanceSyncWorker = NewBalanceSyncWorker(redisConn, logger, commandUC, balanceSyncMaxWorkers)
 	}
@@ -495,7 +495,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// RedisQueueConsumer: multi-tenant or single-tenant
 	var redisConsumer *RedisQueueConsumer
 	if opts != nil && opts.MultiTenantEnabled {
-		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *h.transaction, true, opts.TenantClient, pg.pgManager)
+		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *h.transaction, true, opts.TenantClient, pg.pgManager, opts.TenantServiceName)
 	} else {
 		redisConsumer = NewRedisQueueConsumer(logger, *h.transaction)
 	}

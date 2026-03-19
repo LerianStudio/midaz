@@ -72,7 +72,7 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, maxWorkers int, multiTenantEnabled bool) {
 		// Property: constructor must never panic (enforced by test execution).
-		worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, maxWorkers, multiTenantEnabled, tenantClient, pgMgr)
+		worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, maxWorkers, multiTenantEnabled, tenantClient, pgMgr, "transaction")
 
 		// Property: returned worker is never nil.
 		if worker == nil {
@@ -141,7 +141,7 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 		}
 
 		// Property: constructor must never panic.
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, multiTenantEnabled, tenantClient, mgr)
+		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, multiTenantEnabled, tenantClient, mgr, "transaction")
 
 		// Property: returned consumer is never nil.
 		if consumer == nil {
