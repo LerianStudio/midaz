@@ -270,11 +270,12 @@ func (r *OperationPostgreSQLRepository) CreateBulk(ctx context.Context, operatio
 	ctx, span := tracer.Start(ctx, "postgres.create_bulk_operations")
 	defer span.End()
 
+	// Early return for empty input before acquiring DB connection
 	if len(operations) == 0 {
 		return &repository.BulkInsertResult{}, nil
 	}
 
-	// Validate no nil elements to prevent panic during sort or insert
+	// Validate input before acquiring DB connection
 	for i, op := range operations {
 		if op == nil {
 			err := fmt.Errorf("nil operation at index %d", i)
@@ -292,49 +293,7 @@ func (r *OperationPostgreSQLRepository) CreateBulk(ctx context.Context, operatio
 		return nil, err
 	}
 
-	// Sort by ID (string UUID) to prevent deadlocks in concurrent bulk operations
-	sort.Slice(operations, func(i, j int) bool {
-		return operations[i].ID < operations[j].ID
-	})
-
-	result := &repository.BulkInsertResult{Attempted: int64(len(operations))}
-
-	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
-	// Operation has 30 columns, so 1000 rows = 30,000 parameters (under 65,535 limit)
-	const chunkSize = 1000
-
-	for i := 0; i < len(operations); i += chunkSize {
-		// Check for context cancellation between chunks
-		select {
-		case <-ctx.Done():
-			libOpentelemetry.HandleSpanError(span, "Context cancelled during bulk insert", ctx.Err())
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Context cancelled during bulk insert: %v", ctx.Err()))
-
-			// Return partial result; Ignored stays 0 since remaining items were not processed
-			return result, ctx.Err()
-		default:
-		}
-
-		end := min(i+chunkSize, len(operations))
-
-		chunkInserted, err := r.insertOperationChunk(ctx, db, operations[i:end])
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to insert operation chunk", err)
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to insert operation chunk: %v", err))
-
-			// Return partial result; Ignored stays 0 since remaining items were not processed (not duplicates)
-			return result, err
-		}
-
-		result.Inserted += chunkInserted
-	}
-
-	result.Ignored = result.Attempted - result.Inserted
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Bulk insert operations: attempted=%d, inserted=%d, ignored=%d",
-		result.Attempted, result.Inserted, result.Ignored))
-
-	return result, nil
+	return r.createBulkInternal(ctx, db, operations, "postgres.create_bulk_operations_internal", "")
 }
 
 // CreateBulkTx inserts multiple operations in bulk using a caller-provided transaction.
@@ -349,9 +308,22 @@ func (r *OperationPostgreSQLRepository) CreateBulk(ctx context.Context, operatio
 //
 // NOTE: The input slice is sorted in-place by ID. Callers should not rely on original order after this call.
 func (r *OperationPostgreSQLRepository) CreateBulkTx(ctx context.Context, tx repository.DBExecutor, operations []*Operation) (*repository.BulkInsertResult, error) {
+	return r.createBulkInternal(ctx, tx, operations, "postgres.create_bulk_operations_tx", " (tx)")
+}
+
+// createBulkInternal contains the shared logic for CreateBulk and CreateBulkTx.
+// It validates input, sorts operations by ID to prevent deadlocks, and inserts in chunks.
+// Returns partial results on error with Attempted/Inserted counts.
+func (r *OperationPostgreSQLRepository) createBulkInternal(
+	ctx context.Context,
+	db repository.DBExecutor,
+	operations []*Operation,
+	spanName string,
+	logSuffix string,
+) (*repository.BulkInsertResult, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.create_bulk_operations_tx")
+	ctx, span := tracer.Start(ctx, spanName)
 	defer span.End()
 
 	if len(operations) == 0 {
@@ -393,7 +365,7 @@ func (r *OperationPostgreSQLRepository) CreateBulkTx(ctx context.Context, tx rep
 
 		end := min(i+chunkSize, len(operations))
 
-		chunkInserted, err := r.insertOperationChunk(ctx, tx, operations[i:end])
+		chunkInserted, err := r.insertOperationChunk(ctx, db, operations[i:end])
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to insert operation chunk", err)
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to insert operation chunk: %v", err))
@@ -407,8 +379,8 @@ func (r *OperationPostgreSQLRepository) CreateBulkTx(ctx context.Context, tx rep
 
 	result.Ignored = result.Attempted - result.Inserted
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Bulk insert operations (tx): attempted=%d, inserted=%d, ignored=%d",
-		result.Attempted, result.Inserted, result.Ignored))
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Bulk insert operations%s: attempted=%d, inserted=%d, ignored=%d",
+		logSuffix, result.Attempted, result.Inserted, result.Ignored))
 
 	return result, nil
 }

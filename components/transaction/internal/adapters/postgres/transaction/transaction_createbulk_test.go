@@ -50,9 +50,6 @@ func generateTestTransactions(n int) []*Transaction {
 	return transactions
 }
 
-// Ensure generateTestTransactions is used in at least one test
-var _ = generateTestTransactions
-
 func TestCreateBulk_EmptyInput(t *testing.T) {
 	t.Parallel()
 

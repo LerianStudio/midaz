@@ -59,9 +59,6 @@ func generateTestOperations(n int) []*Operation {
 	return operations
 }
 
-// Ensure generateTestOperations is used in at least one test
-var _ = generateTestOperations
-
 func TestOperationCreateBulk_EmptyInput(t *testing.T) {
 	t.Parallel()
 
