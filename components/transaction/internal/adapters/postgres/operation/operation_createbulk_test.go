@@ -442,3 +442,139 @@ func TestOperationCreateBulk_MultipleNilElements(t *testing.T) {
 	// Should fail on first nil (index 1)
 	assert.Contains(t, err.Error(), "nil operation at index 1")
 }
+
+// mockOperationDBSequence tracks call count and returns different results per call
+type mockOperationDBSequence struct {
+	mockOperationDB
+	callCount      int
+	resultsPerCall []mockCallResult
+}
+
+type mockCallResult struct {
+	err          error
+	rowsAffected int64
+}
+
+func (m *mockOperationDBSequence) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	if m.callCount < len(m.resultsPerCall) {
+		result := m.resultsPerCall[m.callCount]
+		m.callCount++
+
+		if result.err != nil {
+			return nil, result.err
+		}
+
+		return &mockOperationResult{rowsAffected: result.rowsAffected}, nil
+	}
+
+	m.callCount++
+
+	return &mockOperationResult{rowsAffected: 0}, nil
+}
+
+func TestOperationCreateBulk_ChunkFailure_PartialResult(t *testing.T) {
+	t.Parallel()
+
+	// Create 2001 operations to trigger 3 chunks (1000 + 1000 + 1)
+	operations := generateTestOperations(2001)
+
+	// Mock: chunk 1 succeeds (1000 rows), chunk 2 fails
+	dbErr := errors.New("database connection lost")
+	mockDB := &mockOperationDBSequence{
+		resultsPerCall: []mockCallResult{
+			{rowsAffected: 1000}, // Chunk 1: success
+			{err: dbErr},         // Chunk 2: failure
+		},
+	}
+
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
+	repo := &OperationPostgreSQLRepository{
+		connection:    nil,
+		tableName:     "operation",
+		requireTenant: false,
+	}
+
+	result, err := repo.CreateBulk(ctx, operations)
+
+	// Should return error
+	require.Error(t, err)
+	assert.Equal(t, dbErr, err)
+
+	// Should return partial result
+	require.NotNil(t, result)
+	assert.Equal(t, int64(2001), result.Attempted, "Attempted should be total count")
+	assert.Equal(t, int64(1000), result.Inserted, "Inserted should reflect chunk 1 only")
+	assert.Equal(t, int64(0), result.Ignored, "Ignored should be 0 on error (unprocessed items are not duplicates)")
+}
+
+func TestOperationCreateBulk_FirstChunkFailure(t *testing.T) {
+	t.Parallel()
+
+	operations := generateTestOperations(500)
+
+	// Mock: first chunk fails immediately
+	dbErr := errors.New("connection refused")
+	mockDB := &mockOperationDBSequence{
+		resultsPerCall: []mockCallResult{
+			{err: dbErr}, // Chunk 1: failure
+		},
+	}
+
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
+	repo := &OperationPostgreSQLRepository{
+		connection:    nil,
+		tableName:     "operation",
+		requireTenant: false,
+	}
+
+	result, err := repo.CreateBulk(ctx, operations)
+
+	require.Error(t, err)
+	assert.Equal(t, dbErr, err)
+
+	require.NotNil(t, result)
+	assert.Equal(t, int64(500), result.Attempted)
+	assert.Equal(t, int64(0), result.Inserted, "No rows should be inserted when first chunk fails")
+	assert.Equal(t, int64(0), result.Ignored, "Ignored should be 0 on error")
+}
+
+func TestOperationCreateBulk_ContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	// Create enough operations to require multiple chunks
+	operations := generateTestOperations(2500)
+
+	// Mock: chunk 1 succeeds, then context is cancelled before chunk 2
+	mockDB := &mockOperationDBSequence{
+		resultsPerCall: []mockCallResult{
+			{rowsAffected: 1000}, // Chunk 1: success
+			{rowsAffected: 1000}, // Chunk 2: would succeed but context cancelled
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = tmcore.ContextWithModulePGConnection(ctx, "transaction", mockDB)
+
+	repo := &OperationPostgreSQLRepository{
+		connection:    nil,
+		tableName:     "operation",
+		requireTenant: false,
+	}
+
+	// Cancel context before calling CreateBulk
+	cancel()
+
+	result, err := repo.CreateBulk(ctx, operations)
+
+	// Should return context error
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+
+	// Should return partial result (0 since cancelled before first chunk)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(2500), result.Attempted)
+	assert.Equal(t, int64(0), result.Inserted, "No rows inserted when context cancelled before first chunk")
+	assert.Equal(t, int64(0), result.Ignored)
+}

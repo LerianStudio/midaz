@@ -77,6 +77,7 @@ var transactionColumnListPrefixed = []string{
 type Repository interface {
 	Create(ctx context.Context, transaction *Transaction) (*Transaction, error)
 	CreateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkInsertResult, error)
+	CreateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkInsertResult, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
@@ -210,6 +211,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 //
 // NOTE: Chunks are committed independently. If chunk N fails, chunks 1 to N-1 remain committed.
 // On error, partial results are returned along with the error. Retry is safe due to idempotency.
+// On error, only Inserted is reliable; Ignored remains 0 since unprocessed chunks are not duplicates.
 //
 // NOTE: The input slice is sorted in-place by ID. Callers should not rely on original order after this call.
 func (r *TransactionPostgreSQLRepository) CreateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkInsertResult, error) {
@@ -252,6 +254,17 @@ func (r *TransactionPostgreSQLRepository) CreateBulk(ctx context.Context, transa
 	const chunkSize = 1000
 
 	for i := 0; i < len(transactions); i += chunkSize {
+		// Check for context cancellation between chunks
+		select {
+		case <-ctx.Done():
+			libOpentelemetry.HandleSpanError(span, "Context cancelled during bulk insert", ctx.Err())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Context cancelled during bulk insert: %v", ctx.Err()))
+
+			// Return partial result; Ignored stays 0 since remaining items were not processed
+			return result, ctx.Err()
+		default:
+		}
+
 		end := min(i+chunkSize, len(transactions))
 
 		chunkInserted, err := r.insertTransactionChunk(ctx, db, transactions[i:end])
@@ -259,9 +272,7 @@ func (r *TransactionPostgreSQLRepository) CreateBulk(ctx context.Context, transa
 			libOpentelemetry.HandleSpanError(span, "Failed to insert transaction chunk", err)
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to insert transaction chunk: %v", err))
 
-			// Return partial result with error so caller knows what was committed
-			result.Ignored = result.Attempted - result.Inserted
-
+			// Return partial result; Ignored stays 0 since remaining items were not processed (not duplicates)
 			return result, err
 		}
 
@@ -276,8 +287,85 @@ func (r *TransactionPostgreSQLRepository) CreateBulk(ctx context.Context, transa
 	return result, nil
 }
 
+// CreateBulkTx inserts multiple transactions in bulk using a caller-provided transaction.
+// This allows the caller to control transaction boundaries for atomic multi-table operations.
+// Returns BulkInsertResult with counts of attempted, inserted, and ignored (duplicate) rows.
+// Transactions are sorted by ID before insert to prevent deadlocks in concurrent scenarios.
+// Large bulks are automatically chunked to stay within PostgreSQL's parameter limits.
+//
+// NOTE: The caller is responsible for calling Commit() or Rollback() on the transaction.
+// On error, partial results are returned along with the error. The caller should rollback.
+// On error, only Inserted is reliable; Ignored remains 0 since unprocessed chunks are not duplicates.
+//
+// NOTE: The input slice is sorted in-place by ID. Callers should not rely on original order after this call.
+func (r *TransactionPostgreSQLRepository) CreateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkInsertResult, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.create_bulk_transactions_tx")
+	defer span.End()
+
+	if len(transactions) == 0 {
+		return &repository.BulkInsertResult{}, nil
+	}
+
+	// Validate no nil elements to prevent panic during sort or insert
+	for i, txn := range transactions {
+		if txn == nil {
+			err := fmt.Errorf("nil transaction at index %d", i)
+			libOpentelemetry.HandleSpanError(span, "Invalid input: nil transaction", err)
+
+			return nil, err
+		}
+	}
+
+	// Sort by ID (string UUID) to prevent deadlocks in concurrent bulk operations
+	sort.Slice(transactions, func(i, j int) bool {
+		return transactions[i].ID < transactions[j].ID
+	})
+
+	result := &repository.BulkInsertResult{Attempted: int64(len(transactions))}
+
+	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
+	// Transaction has 15 columns, so 1000 rows = 15,000 parameters (under 65,535 limit)
+	const chunkSize = 1000
+
+	for i := 0; i < len(transactions); i += chunkSize {
+		// Check for context cancellation between chunks
+		select {
+		case <-ctx.Done():
+			libOpentelemetry.HandleSpanError(span, "Context cancelled during bulk insert", ctx.Err())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Context cancelled during bulk insert: %v", ctx.Err()))
+
+			// Return partial result; Ignored stays 0 since remaining items were not processed
+			return result, ctx.Err()
+		default:
+		}
+
+		end := min(i+chunkSize, len(transactions))
+
+		chunkInserted, err := r.insertTransactionChunk(ctx, tx, transactions[i:end])
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to insert transaction chunk", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to insert transaction chunk: %v", err))
+
+			// Return partial result; Ignored stays 0 since remaining items were not processed (not duplicates)
+			return result, err
+		}
+
+		result.Inserted += chunkInserted
+	}
+
+	result.Ignored = result.Attempted - result.Inserted
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Bulk insert transactions (tx): attempted=%d, inserted=%d, ignored=%d",
+		result.Attempted, result.Inserted, result.Ignored))
+
+	return result, nil
+}
+
 // insertTransactionChunk inserts a chunk of transactions using multi-row INSERT.
-func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Context, db dbresolver.DB, transactions []*Transaction) (int64, error) {
+// Uses repository.DBExecutor to work with both dbresolver.DB and dbresolver.Tx.
+func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Context, db repository.DBExecutor, transactions []*Transaction) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.insert_transaction_chunk")
