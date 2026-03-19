@@ -2146,6 +2146,91 @@ paths:
       tags:
       - Transactions
       x-codegen-request-body-name: transaction
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/count:
+    get:
+      description: Count transactions matching the given route, status, and date range
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Transaction route UUID
+        in: query
+        name: route
+        required: true
+        schema:
+          type: string
+      - description: Transaction status (e.g., APPROVED)
+        in: query
+        name: status
+        required: true
+        schema:
+          type: string
+      - description: Start date (RFC3339 format)
+        in: query
+        name: start_date
+        required: true
+        schema:
+          type: string
+      - description: End date (RFC3339 format)
+        in: query
+        name: end_date
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CountResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid query parameters
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Count Transactions by Route
+      tags:
+      - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl:
     post:
       description: Create a Transaction with the input DSL file
@@ -3316,6 +3401,36 @@ components:
           minimum: 1
           type: integer
       type: object
+    CountResponse:
+      description: CountResponse contains the total count of transactions matching
+        the specified filters.
+      example:
+        period: '{}'
+        route: route
+        totalCount: 0
+        status: status
+      properties:
+        period:
+          allOf:
+          - $ref: '#/components/schemas/Period'
+          description: Period range for the query
+          type: object
+        route:
+          description: |-
+            Route UUID used as filter
+            example: 550e8400-e29b-41d4-a716-446655440010
+          type: string
+        status:
+          description: |-
+            Transaction status used as filter
+            example: APPROVED
+          type: string
+        totalCount:
+          description: |-
+            Total number of matching transactions
+            example: 773
+          type: integer
+      type: object
     CreateAdditionalBalance:
       description: Request payload for creating a new balance with specified permissions
         and custom key.
@@ -4111,6 +4226,24 @@ components:
           type: string
       required:
       - operationRouteId
+      type: object
+    Period:
+      description: Period defines the from/to time range for a transaction count query.
+      properties:
+        from:
+          description: |-
+            Start of the period (inclusive)
+            example: 2026-01-01T00:00:00Z
+            format: date-time
+          format: date-time
+          type: string
+        to:
+          description: |-
+            End of the period (inclusive)
+            example: 2026-02-01T00:00:00Z
+            format: date-time
+          format: date-time
+          type: string
       type: object
     Rate:
       description: Rate is the struct designed to represent the rate fields of an

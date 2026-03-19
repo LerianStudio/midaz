@@ -343,6 +343,30 @@ definitions:
         minimum: 1
         type: integer
     type: object
+  CountResponse:
+    description: CountResponse contains the total count of transactions matching the
+      specified filters.
+    properties:
+      period:
+        allOf:
+        - $ref: '#/definitions/Period'
+        description: Period range for the query
+      route:
+        description: |-
+          Route UUID used as filter
+          example: 550e8400-e29b-41d4-a716-446655440010
+        type: string
+      status:
+        description: |-
+          Transaction status used as filter
+          example: APPROVED
+        type: string
+      totalCount:
+        description: |-
+          Total number of matching transactions
+          example: 773
+        type: integer
+    type: object
   CreateAdditionalBalance:
     description: Request payload for creating a new balance with specified permissions
       and custom key.
@@ -1127,6 +1151,24 @@ definitions:
         type: string
     required:
     - operationRouteId
+    type: object
+  Period:
+    description: Period defines the from/to time range for a transaction count query.
+    properties:
+      from:
+        description: |-
+          Start of the period (inclusive)
+          example: 2026-01-01T00:00:00Z
+          format: date-time
+        format: date-time
+        type: string
+      to:
+        description: |-
+          End of the period (inclusive)
+          example: 2026-02-01T00:00:00Z
+          format: date-time
+        format: date-time
+        type: string
     type: object
   Rate:
     description: Rate is the struct designed to represent the rate fields of an operation.
@@ -4037,6 +4079,75 @@ paths:
           schema:
             $ref: '#/definitions/Error'
       summary: Create a Transaction Annotation using JSON
+      tags:
+      - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/count:
+    get:
+      description: Count transactions matching the given route, status, and date range
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction route UUID
+        in: query
+        name: route
+        required: true
+        type: string
+      - description: Transaction status (e.g., APPROVED)
+        in: query
+        name: status
+        required: true
+        type: string
+      - description: Start date (RFC3339 format)
+        in: query
+        name: start_date
+        required: true
+        type: string
+      - description: End date (RFC3339 format)
+        in: query
+        name: end_date
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/CountResponse'
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Count Transactions by Route
       tags:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl:

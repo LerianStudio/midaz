@@ -2710,6 +2710,107 @@ const docTemplatetransaction = `{
                 }
             }
         },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/count": {
+            "get": {
+                "description": "Count transactions matching the given route, status, and date range",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Count Transactions by Route",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Transaction route UUID",
+                        "name": "route",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Transaction status (e.g., APPROVED)",
+                        "name": "status",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start date (RFC3339 format)",
+                        "name": "start_date",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (RFC3339 format)",
+                        "name": "end_date",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/CountResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl": {
             "post": {
                 "description": "Create a Transaction with the input DSL file",
@@ -3983,6 +4084,32 @@ const docTemplatetransaction = `{
                 }
             }
         },
+        "CountResponse": {
+            "description": "CountResponse contains the total count of transactions matching the specified filters.",
+            "type": "object",
+            "properties": {
+                "period": {
+                    "description": "Period range for the query",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Period"
+                        }
+                    ]
+                },
+                "route": {
+                    "description": "Route UUID used as filter\nexample: 550e8400-e29b-41d4-a716-446655440010",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Transaction status used as filter\nexample: APPROVED",
+                    "type": "string"
+                },
+                "totalCount": {
+                    "description": "Total number of matching transactions\nexample: 773",
+                    "type": "integer"
+                }
+            }
+        },
         "CreateAdditionalBalance": {
             "description": "Request payload for creating a new balance with specified permissions and custom key.",
             "type": "object",
@@ -4721,6 +4848,22 @@ const docTemplatetransaction = `{
                     "type": "string",
                     "format": "uuid",
                     "example": "01965ed9-7fa4-75b2-8872-fc9e8509ab0a"
+                }
+            }
+        },
+        "Period": {
+            "description": "Period defines the from/to time range for a transaction count query.",
+            "type": "object",
+            "properties": {
+                "from": {
+                    "description": "Start of the period (inclusive)\nexample: 2026-01-01T00:00:00Z\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "to": {
+                    "description": "End of the period (inclusive)\nexample: 2026-02-01T00:00:00Z\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
