@@ -362,6 +362,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 		CreatedAt:                m.TransactionDate,
 		UpdatedAt:                time.Now(),
 		Route:                    m.TransactionInput.Route,
+		RouteID:                  m.TransactionInput.RouteID,
 		Metadata:                 m.TransactionInput.Metadata,
 		Status: postgreTransaction.Status{
 			Code:        m.TransactionStatus,
@@ -392,11 +393,25 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 
 		var routeCache *mmodel.TransactionRouteCache
 
-		if ledgerSettings.Accounting.ValidateRoutes && m.Validate.TransactionRoute != "" {
-			trID, parseErr := uuid.Parse(m.Validate.TransactionRoute)
-			if parseErr != nil {
-				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to parse TransactionRoute UUID %s: %v", m.Validate.TransactionRoute, parseErr))
-			} else {
+		if ledgerSettings.Accounting.ValidateRoutes {
+			// Prefer the new TransactionRouteID (UUID) over the deprecated TransactionRoute string.
+			var trID uuid.UUID
+
+			var parseErr error
+
+			if !libCommons.IsNilOrEmpty(m.Validate.TransactionRouteID) {
+				trID, parseErr = uuid.Parse(*m.Validate.TransactionRouteID)
+				if parseErr != nil {
+					logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to parse TransactionRouteID %s: %v", *m.Validate.TransactionRouteID, parseErr))
+				}
+			} else if m.Validate.TransactionRoute != "" {
+				trID, parseErr = uuid.Parse(m.Validate.TransactionRoute)
+				if parseErr != nil {
+					logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to parse TransactionRoute UUID %s: %v", m.Validate.TransactionRoute, parseErr))
+				}
+			}
+
+			if parseErr == nil && trID != uuid.Nil {
 				cache, cacheErr := r.TransactionHandler.Query.GetOrCreateTransactionRouteCache(msgCtxWithSpan, m.OrganizationID, m.LedgerID, trID)
 				if cacheErr != nil {
 					logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to get route cache for org=%s ledger=%s route=%s: %v", m.OrganizationID, m.LedgerID, trID, cacheErr))

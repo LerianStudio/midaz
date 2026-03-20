@@ -46,6 +46,7 @@ type Responses struct {
 	Aliases             []string
 	Pending             bool
 	TransactionRoute    string
+	TransactionRouteID  *string
 	OperationRoutesFrom map[string]string
 	OperationRoutesTo   map[string]string
 }
@@ -180,8 +181,10 @@ type Transaction struct {
 	Code                     string         `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
 	Pending                  bool           `json:"pending,omitempty" example:"false"`
 	Metadata                 map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-	// Deprecated: legacy route identifier, duplicates the operation route UUID. Prefer routeId on FromTo entries instead.
-	Route           string           `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
+	// Deprecated: legacy route identifier, contains the transaction route UUID as a string. Use routeId instead.
+	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
+	// UUID of the transaction route. Primary field replacing the deprecated Route string.
+	RouteID         *string          `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
 	Send            Send             `json:"send" validate:"required"`
 } // @name TransactionInput

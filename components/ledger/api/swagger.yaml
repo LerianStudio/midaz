@@ -7694,6 +7694,16 @@ definitions:
         type: string
         maxLength: 100
         example: ROUTE-001
+      routeDescription:
+        description: 'Human-readable description of the operation route for accounting
+          traceability
+
+          example: Settlement route for service charges
+
+          maxLength: 250'
+        type: string
+        maxLength: 250
+        example: Settlement route for service charges
       routeId:
         description: 'UUID of the operation route that generated this operation. Primary
           field for route identification, validation, and accounting.
@@ -7933,9 +7943,8 @@ definitions:
         format: uuid
         example: 00000000-0000-0000-0000-000000000000
       route:
-        description: 'Deprecated: legacy route identifier, use routeId on individual
-          operations instead. Contains the operation route UUID as a free-form string
-          for backwards compatibility.
+        description: 'Deprecated: legacy route identifier, use routeId instead. Contains
+          the transaction route UUID as a free-form string for backwards compatibility.
 
           example: 00000000-0000-0000-0000-000000000000
 
@@ -7944,6 +7953,16 @@ definitions:
           deprecated: true'
         type: string
         maxLength: 250
+        example: 00000000-0000-0000-0000-000000000000
+      routeId:
+        description: 'UUID of the transaction route. Primary field for route identification,
+          validation, and accounting.
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
         example: 00000000-0000-0000-0000-000000000000
       source:
         description: 'List of source account aliases or identifiers
