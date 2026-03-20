@@ -7,14 +7,14 @@ package bootstrap
 // =============================================================================
 // PROPERTY-BASED TESTS -- Service getter domain invariants
 //
-// These tests verify that the domain invariants of the three opaque-handle
+// These tests verify that the domain invariants of the two opaque-handle
 // getters on Service hold across hundreds of automatically-generated inputs.
 //
 // Invariants verified:
 //   1. GettersReturnExactValue: whatever value is stored is exactly what is
 //      returned (identity / referential-equality property).
-//   2. NilFieldsReturnNil: when all three manager fields are nil, all three
-//      getters return nil (single-tenant safety property).
+//   2. NilFieldsReturnNil: when both manager fields are nil, both getters
+//      return nil (single-tenant safety property).
 //
 // Run with:
 //
@@ -31,8 +31,8 @@ import (
 )
 
 // TestProperty_Service_GettersReturnExactValue verifies the identity property:
-// for any non-nil interface{} value stored in pgManager, mongoManager, or
-// multiTenantConsumerPort, the corresponding getter returns that exact value.
+// for any non-nil interface{} value stored in pgManager or mongoManager,
+// the corresponding getter returns that exact value.
 //
 // This guards against accidental wrapping, copying, or transformation of the
 // opaque handle, which would break identity checks performed by callers that
@@ -44,7 +44,7 @@ func TestProperty_Service_GettersReturnExactValue(t *testing.T) {
 	// generates. Strings are immutable and comparable by value in Go, so
 	// assert.Equal / == works correctly for the identity check. Using a
 	// primitive type also avoids any pointer aliasing ambiguity.
-	property := func(pgVal, mgoVal, consumerVal string) bool {
+	property := func(pgVal, mgoVal string) bool {
 		// Bound generated strings to prevent memory pressure.
 		const maxLen = 256
 		if len(pgVal) > maxLen {
@@ -55,15 +55,10 @@ func TestProperty_Service_GettersReturnExactValue(t *testing.T) {
 			mgoVal = mgoVal[:maxLen]
 		}
 
-		if len(consumerVal) > maxLen {
-			consumerVal = consumerVal[:maxLen]
-		}
-
 		// Store concrete string values as interface{}.
 		svc := &Service{
-			pgManager:               pgVal,
-			mongoManager:            mgoVal,
-			multiTenantConsumerPort: consumerVal,
+			pgManager:    pgVal,
+			mongoManager: mgoVal,
 		}
 
 		// Identity property: getter must return the exact stored value.
@@ -73,13 +68,8 @@ func TestProperty_Service_GettersReturnExactValue(t *testing.T) {
 		}
 
 		mgoGot := svc.GetMongoManager()
-		if mgoGot != mgoVal {
-			return false
-		}
 
-		consumerGot := svc.GetMultiTenantConsumer()
-
-		return consumerGot == consumerVal
+		return mgoGot == mgoVal
 	}
 
 	err := quick.Check(property, &quick.Config{MaxCount: 100})
@@ -88,8 +78,8 @@ func TestProperty_Service_GettersReturnExactValue(t *testing.T) {
 }
 
 // TestProperty_Service_NilFieldsReturnNil verifies the nil-safety invariant:
-// when all three manager fields are nil (single-tenant deployment), all three
-// getters must return nil for any combination of other Service fields.
+// when both manager fields are nil (single-tenant deployment), both getters
+// must return nil for any combination of other Service fields.
 //
 // quick.Check generates random bool values to vary an unrelated field
 // (BalanceSyncWorkerEnabled) on each iteration, proving the nil-return
@@ -98,18 +88,16 @@ func TestProperty_Service_NilFieldsReturnNil(t *testing.T) {
 	t.Parallel()
 
 	property := func(balanceSyncEnabled bool) bool {
-		// All three manager fields are nil — single-tenant mode.
+		// Both manager fields are nil — single-tenant mode.
 		svc := &Service{
-			pgManager:                nil,
-			mongoManager:             nil,
-			multiTenantConsumerPort:  nil,
+			pgManager:               nil,
+			mongoManager:            nil,
 			BalanceSyncWorkerEnabled: balanceSyncEnabled,
 		}
 
-		// All three getters must return nil regardless of other field values.
+		// Both getters must return nil regardless of other field values.
 		return svc.GetPGManager() == nil &&
-			svc.GetMongoManager() == nil &&
-			svc.GetMultiTenantConsumer() == nil
+			svc.GetMongoManager() == nil
 	}
 
 	err := quick.Check(property, &quick.Config{MaxCount: 100})

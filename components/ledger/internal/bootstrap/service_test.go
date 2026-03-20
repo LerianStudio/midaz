@@ -82,7 +82,6 @@ type StubTransactionService struct {
 	settingsPort      mbootstrap.SettingsPort
 	pgManager         interface{}
 	mongoManager      interface{}
-	consumer          interface{}
 }
 
 func (s *StubTransactionService) GetRunnables() []mbootstrap.RunnableConfig {
@@ -111,10 +110,6 @@ func (s *StubTransactionService) GetPGManager() interface{} {
 
 func (s *StubTransactionService) GetMongoManager() interface{} {
 	return s.mongoManager
-}
-
-func (s *StubTransactionService) GetMultiTenantConsumer() interface{} {
-	return s.consumer
 }
 
 // Ensure StubTransactionService implements transaction.TransactionService
