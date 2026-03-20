@@ -80,6 +80,8 @@ type Repository interface {
 	Create(ctx context.Context, transaction *Transaction) (*Transaction, error)
 	CreateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkInsertResult, error)
 	CreateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkInsertResult, error)
+	UpdateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkUpdateResult, error)
+	UpdateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkUpdateResult, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
@@ -366,6 +368,7 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 			record.UpdatedAt,
 			record.DeletedAt,
 			record.Route,
+			record.RouteID,
 		)
 	}
 
@@ -393,6 +396,178 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 	}
 
 	return rowsAffected, nil
+}
+
+// UpdateBulk updates multiple transactions in bulk using multi-row UPDATE with ON CONFLICT.
+// This is used for status transitions (e.g., PENDING -> APPROVED/CANCELED).
+// Returns BulkUpdateResult with counts of attempted, updated, and unchanged rows.
+// Transactions are sorted by ID before update to prevent deadlocks in concurrent scenarios.
+// Large bulks are automatically chunked to stay within PostgreSQL's parameter limits.
+//
+// NOTE: Chunks are committed independently. If chunk N fails, chunks 1 to N-1 remain committed.
+// On error, partial results are returned along with the error. Retry is safe due to idempotency.
+//
+// NOTE: The input slice is sorted in-place by ID. Callers should not rely on original order after this call.
+func (r *TransactionPostgreSQLRepository) UpdateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkUpdateResult, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_bulk_transactions")
+	defer span.End()
+
+	// Early return for empty input before acquiring DB connection
+	if len(transactions) == 0 {
+		return &repository.BulkUpdateResult{}, nil
+	}
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+
+		return nil, err
+	}
+
+	return r.updateBulkInternal(ctx, db, transactions, "postgres.update_bulk_transactions_internal", "")
+}
+
+// UpdateBulkTx updates multiple transactions in bulk using a caller-provided transaction.
+// This allows the caller to control transaction boundaries for atomic multi-table operations.
+// Returns BulkUpdateResult with counts of attempted, updated, and unchanged rows.
+// Transactions are sorted by ID before update to prevent deadlocks in concurrent scenarios.
+// Large bulks are automatically chunked to stay within PostgreSQL's parameter limits.
+//
+// NOTE: The caller is responsible for calling Commit() or Rollback() on the transaction.
+// On error, partial results are returned along with the error. The caller should rollback.
+//
+// NOTE: The input slice is sorted in-place by ID. Callers should not rely on original order after this call.
+func (r *TransactionPostgreSQLRepository) UpdateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkUpdateResult, error) {
+	if tx == nil {
+		return nil, repository.ErrNilDBExecutor
+	}
+
+	return r.updateBulkInternal(ctx, tx, transactions, "postgres.update_bulk_transactions_tx", " (tx)")
+}
+
+// updateBulkInternal contains the shared logic for UpdateBulk and UpdateBulkTx.
+// It validates input, sorts transactions by ID to prevent deadlocks, and updates in chunks.
+// Returns partial results on error with Attempted/Updated counts.
+func (r *TransactionPostgreSQLRepository) updateBulkInternal(
+	ctx context.Context,
+	db repository.DBExecutor,
+	transactions []*Transaction,
+	spanName string,
+	logSuffix string,
+) (*repository.BulkUpdateResult, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, spanName)
+	defer span.End()
+
+	if len(transactions) == 0 {
+		return &repository.BulkUpdateResult{}, nil
+	}
+
+	// Validate no nil elements to prevent panic during sort or update
+	for i, txn := range transactions {
+		if txn == nil {
+			err := fmt.Errorf("nil transaction at index %d", i)
+			libOpentelemetry.HandleSpanError(span, "Invalid input: nil transaction", err)
+
+			return nil, err
+		}
+	}
+
+	// Sort by ID (string UUID) to prevent deadlocks in concurrent bulk operations
+	sort.Slice(transactions, func(i, j int) bool {
+		return transactions[i].ID < transactions[j].ID
+	})
+
+	result := &repository.BulkUpdateResult{Attempted: int64(len(transactions))}
+
+	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
+	// Transaction update uses 4 columns (id, status, status_description, updated_at), so 1000 rows = 4,000 parameters
+	const chunkSize = 1000
+
+	for i := 0; i < len(transactions); i += chunkSize {
+		// Check for context cancellation between chunks
+		select {
+		case <-ctx.Done():
+			libOpentelemetry.HandleSpanError(span, "Context cancelled during bulk update", ctx.Err())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Context cancelled during bulk update: %v", ctx.Err()))
+
+			// Return partial result; Unchanged stays 0 since remaining items were not processed
+			return result, ctx.Err()
+		default:
+		}
+
+		end := min(i+chunkSize, len(transactions))
+
+		chunkUpdated, err := r.updateTransactionChunk(ctx, db, transactions[i:end])
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to update transaction chunk", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update transaction chunk: %v", err))
+
+			// Return partial result
+			return result, err
+		}
+
+		result.Updated += chunkUpdated
+	}
+
+	result.Unchanged = result.Attempted - result.Updated
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Bulk update transactions%s: attempted=%d, updated=%d, unchanged=%d",
+		logSuffix, result.Attempted, result.Updated, result.Unchanged))
+
+	return result, nil
+}
+
+// updateTransactionChunk updates a chunk of transactions using individual UPDATE statements.
+// Each transaction is updated only if its status differs from the new status.
+// Uses repository.DBExecutor to work with both dbresolver.DB and dbresolver.Tx.
+func (r *TransactionPostgreSQLRepository) updateTransactionChunk(ctx context.Context, db repository.DBExecutor, transactions []*Transaction) (int64, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_transaction_chunk")
+	defer span.End()
+
+	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Updating chunk of %d transactions", len(transactions)))
+
+	var totalUpdated int64
+
+	for _, tx := range transactions {
+		record := &TransactionPostgreSQLModel{}
+		record.FromEntity(tx)
+
+		// Update only status-related fields and updated_at
+		// Only update if the current status differs from the new status
+		query := `UPDATE transaction
+			SET status = $1, status_description = $2, updated_at = $3
+			WHERE id = $4 AND status != $1 AND deleted_at IS NULL`
+
+		execResult, err := db.ExecContext(ctx, query,
+			record.Status,
+			record.StatusDescription,
+			time.Now(),
+			record.ID,
+		)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to execute update", err)
+
+			return totalUpdated, err
+		}
+
+		rowsAffected, err := execResult.RowsAffected()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
+
+			return totalUpdated, err
+		}
+
+		totalUpdated += rowsAffected
+	}
+
+	return totalUpdated, nil
 }
 
 // FindAll retrieves Transactions entities from the database.

@@ -89,6 +89,36 @@ func (mr *MockRepositoryMockRecorder) CreateBulkTx(ctx, tx, transactions any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBulkTx", reflect.TypeOf((*MockRepository)(nil).CreateBulkTx), ctx, tx, transactions)
 }
 
+// UpdateBulk mocks base method.
+func (m *MockRepository) UpdateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkUpdateResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateBulk", ctx, transactions)
+	ret0, _ := ret[0].(*repository.BulkUpdateResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateBulk indicates an expected call of UpdateBulk.
+func (mr *MockRepositoryMockRecorder) UpdateBulk(ctx, transactions any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBulk", reflect.TypeOf((*MockRepository)(nil).UpdateBulk), ctx, transactions)
+}
+
+// UpdateBulkTx mocks base method.
+func (m *MockRepository) UpdateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkUpdateResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateBulkTx", ctx, tx, transactions)
+	ret0, _ := ret[0].(*repository.BulkUpdateResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateBulkTx indicates an expected call of UpdateBulkTx.
+func (mr *MockRepositoryMockRecorder) UpdateBulkTx(ctx, tx, transactions any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBulkTx", reflect.TypeOf((*MockRepository)(nil).UpdateBulkTx), ctx, tx, transactions)
+}
+
 // Delete mocks base method.
 func (m *MockRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	m.ctrl.T.Helper()

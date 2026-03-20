@@ -28,3 +28,11 @@ type BulkInsertResult struct {
 	Inserted  int64 // Rows actually inserted
 	Ignored   int64 // Rows skipped (duplicates via ON CONFLICT DO NOTHING)
 }
+
+// BulkUpdateResult contains the counts from a bulk update operation.
+// It tracks how many rows were attempted and actually updated.
+type BulkUpdateResult struct {
+	Attempted int64 // Rows sent to UPDATE
+	Updated   int64 // Rows actually updated (status changed)
+	Unchanged int64 // Rows skipped (status already matches)
+}

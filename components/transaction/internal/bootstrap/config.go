@@ -209,6 +209,14 @@ type Config struct {
 	// Multi-tenant consumer configuration
 	RabbitMQMultiTenantSyncInterval     int `env:"RABBITMQ_MULTI_TENANT_SYNC_INTERVAL"`     // Stored in seconds
 	RabbitMQMultiTenantDiscoveryTimeout int `env:"RABBITMQ_MULTI_TENANT_DISCOVERY_TIMEOUT"` // Stored in milliseconds
+
+	// Bulk Recorder configuration
+	// Bulk mode only activates when RABBITMQ_TRANSACTION_ASYNC=true AND BulkRecorderEnabled=true
+	BulkRecorderEnabled          bool `env:"BULK_RECORDER_ENABLED" default:"true"`             // Enable bulk mode when async is enabled
+	BulkRecorderSize             int  `env:"BULK_RECORDER_SIZE"`                               // Messages per bulk; defaults to workers × prefetch if not set
+	BulkRecorderFlushTimeoutMs   int  `env:"BULK_RECORDER_FLUSH_TIMEOUT_MS" default:"100"`     // Max wait before flushing incomplete bulk (ms)
+	BulkRecorderMaxRowsPerInsert int  `env:"BULK_RECORDER_MAX_ROWS_PER_INSERT" default:"1000"` // Max rows per INSERT statement
+	BulkRecorderFallbackEnabled  bool `env:"BULK_RECORDER_FALLBACK_ENABLED" default:"true"`    // Fall back to individual inserts on bulk failure
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -233,6 +241,48 @@ type Options struct {
 	TenantEnvironment        string
 	TenantManagerURL         string
 	MultiTenantServiceAPIKey string
+}
+
+// BulkRecorderConfig holds resolved bulk recorder configuration.
+type BulkRecorderConfig struct {
+	Enabled          bool
+	Size             int
+	FlushTimeoutMs   int
+	MaxRowsPerInsert int
+	FallbackEnabled  bool
+}
+
+// GetBulkRecorderConfig returns the resolved bulk recorder configuration.
+// If BulkRecorderSize is not set, it derives from workers × prefetch.
+func (c *Config) GetBulkRecorderConfig() BulkRecorderConfig {
+	const defaultBulkSize = 50
+
+	size := c.BulkRecorderSize
+	if size <= 0 {
+		// Derive from RabbitMQ prefetch: workers × prefetch
+		size = c.RabbitMQNumbersOfWorkers * c.RabbitMQNumbersOfPrefetch
+		if size <= 0 {
+			size = defaultBulkSize
+		}
+	}
+
+	flushTimeout := c.BulkRecorderFlushTimeoutMs
+	if flushTimeout <= 0 {
+		flushTimeout = 100 // default 100ms
+	}
+
+	maxRows := c.BulkRecorderMaxRowsPerInsert
+	if maxRows <= 0 {
+		maxRows = 1000 // default 1000 rows
+	}
+
+	return BulkRecorderConfig{
+		Enabled:          c.BulkRecorderEnabled,
+		Size:             size,
+		FlushTimeoutMs:   flushTimeout,
+		MaxRowsPerInsert: maxRows,
+		FallbackEnabled:  c.BulkRecorderFallbackEnabled,
+	}
 }
 
 // InitServers initiate http and grpc servers.
@@ -533,7 +583,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		mongoManager:            mgo.mongoManager,
 		commandUseCase:          commandUseCase,
 		queryUseCase:            queryUseCase,
-		metricsFactory: rmq.metricsFactory,
+		metricsFactory:          rmq.metricsFactory,
 		auth:                    auth,
 		transactionHandler:      h.transaction,
 		operationHandler:        h.operation,

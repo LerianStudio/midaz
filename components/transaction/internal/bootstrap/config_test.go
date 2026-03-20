@@ -613,3 +613,165 @@ func FuzzEnvFallbackInt_Inputs(f *testing.F) {
 		}
 	})
 }
+
+// TestGetBulkRecorderConfig verifies that GetBulkRecorderConfig correctly resolves
+// bulk recorder configuration with defaults and derived values.
+func TestGetBulkRecorderConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cfg      Config
+		expected BulkRecorderConfig
+	}{
+		{
+			name: "explicit values are used",
+			cfg: Config{
+				BulkRecorderEnabled:          true,
+				BulkRecorderSize:             100,
+				BulkRecorderFlushTimeoutMs:   200,
+				BulkRecorderMaxRowsPerInsert: 500,
+				BulkRecorderFallbackEnabled:  false,
+			},
+			expected: BulkRecorderConfig{
+				Enabled:          true,
+				Size:             100,
+				FlushTimeoutMs:   200,
+				MaxRowsPerInsert: 500,
+				FallbackEnabled:  false,
+			},
+		},
+		{
+			name: "size derived from workers × prefetch",
+			cfg: Config{
+				BulkRecorderEnabled:         true,
+				BulkRecorderSize:            0, // not set
+				RabbitMQNumbersOfWorkers:    5,
+				RabbitMQNumbersOfPrefetch:   10,
+				BulkRecorderFlushTimeoutMs:  0, // not set
+				BulkRecorderFallbackEnabled: true,
+			},
+			expected: BulkRecorderConfig{
+				Enabled:          true,
+				Size:             50, // 5 × 10
+				FlushTimeoutMs:   100,
+				MaxRowsPerInsert: 1000,
+				FallbackEnabled:  true,
+			},
+		},
+		{
+			name: "default size when workers and prefetch are zero",
+			cfg: Config{
+				BulkRecorderEnabled:       true,
+				BulkRecorderSize:          0,
+				RabbitMQNumbersOfWorkers:  0,
+				RabbitMQNumbersOfPrefetch: 0,
+			},
+			expected: BulkRecorderConfig{
+				Enabled:          true,
+				Size:             50, // default
+				FlushTimeoutMs:   100,
+				MaxRowsPerInsert: 1000,
+				FallbackEnabled:  false,
+			},
+		},
+		{
+			name: "disabled bulk recorder",
+			cfg: Config{
+				BulkRecorderEnabled:         false,
+				BulkRecorderSize:            100,
+				BulkRecorderFlushTimeoutMs:  200,
+				BulkRecorderFallbackEnabled: true,
+			},
+			expected: BulkRecorderConfig{
+				Enabled:          false,
+				Size:             100,
+				FlushTimeoutMs:   200,
+				MaxRowsPerInsert: 1000,
+				FallbackEnabled:  true,
+			},
+		},
+		{
+			name: "negative values use defaults",
+			cfg: Config{
+				BulkRecorderEnabled:          true,
+				BulkRecorderSize:             -10,
+				RabbitMQNumbersOfWorkers:     5,
+				RabbitMQNumbersOfPrefetch:    10,
+				BulkRecorderFlushTimeoutMs:   -100,
+				BulkRecorderMaxRowsPerInsert: -500,
+				BulkRecorderFallbackEnabled:  true,
+			},
+			expected: BulkRecorderConfig{
+				Enabled:          true,
+				Size:             50, // derived: 5 × 10
+				FlushTimeoutMs:   100,
+				MaxRowsPerInsert: 1000,
+				FallbackEnabled:  true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := tt.cfg.GetBulkRecorderConfig()
+
+			assert.Equal(t, tt.expected.Enabled, result.Enabled, "Enabled mismatch")
+			assert.Equal(t, tt.expected.Size, result.Size, "Size mismatch")
+			assert.Equal(t, tt.expected.FlushTimeoutMs, result.FlushTimeoutMs, "FlushTimeoutMs mismatch")
+			assert.Equal(t, tt.expected.MaxRowsPerInsert, result.MaxRowsPerInsert, "MaxRowsPerInsert mismatch")
+			assert.Equal(t, tt.expected.FallbackEnabled, result.FallbackEnabled, "FallbackEnabled mismatch")
+		})
+	}
+}
+
+// TestGetBulkRecorderConfig_SizeDerivation verifies the size derivation logic in detail.
+func TestGetBulkRecorderConfig_SizeDerivation(t *testing.T) {
+	t.Parallel()
+
+	// Table-driven test for size derivation edge cases
+	tests := []struct {
+		name         string
+		explicitSize int
+		workers      int
+		prefetch     int
+		expectedSize int
+	}{
+		{"explicit size takes precedence", 200, 5, 10, 200},
+		{"derived from workers × prefetch", 0, 5, 10, 50},
+		{"large derived size", 0, 20, 50, 1000},
+		{"single worker single prefetch", 0, 1, 1, 1},
+		{"workers zero falls back to default", 0, 0, 10, 50},
+		{"prefetch zero falls back to default", 0, 5, 0, 50},
+		{"both zero falls back to default", 0, 0, 0, 50},
+		{"negative values fall back to derived/default", -1, 5, 10, 50},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := Config{
+				BulkRecorderSize:          tt.explicitSize,
+				RabbitMQNumbersOfWorkers:  tt.workers,
+				RabbitMQNumbersOfPrefetch: tt.prefetch,
+			}
+
+			result := cfg.GetBulkRecorderConfig()
+			assert.Equal(t, tt.expectedSize, result.Size)
+		})
+	}
+}
+
+// TestGetBulkRecorderConfig_DefaultTimeout verifies timeout defaults.
+func TestGetBulkRecorderConfig_DefaultTimeout(t *testing.T) {
+	t.Parallel()
+
+	cfg := Config{}
+	result := cfg.GetBulkRecorderConfig()
+
+	assert.Equal(t, 100, result.FlushTimeoutMs, "default flush timeout should be 100ms")
+	assert.Equal(t, 1000, result.MaxRowsPerInsert, "default max rows should be 1000")
+}
