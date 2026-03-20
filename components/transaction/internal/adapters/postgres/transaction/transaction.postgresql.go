@@ -80,6 +80,7 @@ type Repository interface {
 	Create(ctx context.Context, transaction *Transaction) (*Transaction, error)
 	CreateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkInsertResult, error)
 	CreateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkInsertResult, error)
+	BulkUpdateTransactionStatus(ctx context.Context, transactions []*Transaction) (*repository.BulkInsertResult, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
@@ -366,6 +367,7 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 			record.UpdatedAt,
 			record.DeletedAt,
 			record.Route,
+			record.RouteID,
 		)
 	}
 
@@ -381,6 +383,149 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 	execResult, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to execute bulk insert", err)
+
+		return 0, err
+	}
+
+	rowsAffected, err := execResult.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
+
+		return 0, err
+	}
+
+	return rowsAffected, nil
+}
+
+// BulkUpdateTransactionStatus updates the status of multiple transactions from PENDING to a final state.
+// This method is used for PENDING→APPROVED or PENDING→CANCELED transitions.
+// Transactions are sorted by ID before update to prevent deadlocks in concurrent scenarios.
+// Large bulks are automatically chunked to stay within PostgreSQL's parameter limits.
+//
+// NOTE: Only transactions with status='PENDING' are updated. Non-PENDING transactions are silently ignored.
+// The result.Ignored count reflects transactions that were not updated (either not found or not PENDING).
+//
+// NOTE: The input slice is sorted in-place by ID. Callers should not rely on original order after this call.
+func (r *TransactionPostgreSQLRepository) BulkUpdateTransactionStatus(ctx context.Context, transactions []*Transaction) (*repository.BulkInsertResult, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.bulk_update_transaction_status")
+	defer span.End()
+
+	// Early return for empty input before acquiring DB connection
+	if len(transactions) == 0 {
+		return &repository.BulkInsertResult{}, nil
+	}
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+
+		return nil, err
+	}
+
+	// Validate no nil elements to prevent panic during sort or update
+	for i, txn := range transactions {
+		if txn == nil {
+			err := fmt.Errorf("nil transaction at index %d", i)
+			libOpentelemetry.HandleSpanError(span, "Invalid input: nil transaction", err)
+
+			return nil, err
+		}
+	}
+
+	// Sort by ID (string UUID) to prevent deadlocks in concurrent bulk operations
+	sort.Slice(transactions, func(i, j int) bool {
+		return transactions[i].ID < transactions[j].ID
+	})
+
+	result := &repository.BulkInsertResult{Attempted: int64(len(transactions))}
+
+	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
+	// Update has 3 parameters per row (id, status, status_description), so 1000 rows = 3,000 parameters
+	const chunkSize = 1000
+
+	for i := 0; i < len(transactions); i += chunkSize {
+		// Check for context cancellation between chunks
+		select {
+		case <-ctx.Done():
+			libOpentelemetry.HandleSpanError(span, "Context cancelled during bulk update", ctx.Err())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Context cancelled during bulk update: %v", ctx.Err()))
+
+			return result, ctx.Err()
+		default:
+		}
+
+		end := min(i+chunkSize, len(transactions))
+
+		chunkUpdated, err := r.updateTransactionStatusChunk(ctx, db, transactions[i:end])
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to update transaction status chunk", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update transaction status chunk: %v", err))
+
+			return result, err
+		}
+
+		result.Inserted += chunkUpdated // Using Inserted to track updated count for consistency
+	}
+
+	result.Ignored = result.Attempted - result.Inserted
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Bulk update transaction status: attempted=%d, updated=%d, ignored=%d",
+		result.Attempted, result.Inserted, result.Ignored))
+
+	return result, nil
+}
+
+// updateTransactionStatusChunk updates a chunk of transaction statuses using a single UPDATE statement.
+// Uses VALUES clause to pass multiple rows and joins with the transaction table.
+// Only updates transactions with status='PENDING'.
+func (r *TransactionPostgreSQLRepository) updateTransactionStatusChunk(ctx context.Context, db repository.DBExecutor, transactions []*Transaction) (int64, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_transaction_status_chunk")
+	defer span.End()
+
+	if len(transactions) == 0 {
+		return 0, nil
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Updating status for chunk of %d transactions", len(transactions)))
+
+	// Build VALUES clause: ($1, $2, $3), ($4, $5, $6), ...
+	var (
+		valuesClauses []string
+		args          []any
+	)
+
+	paramIdx := 1
+
+	for _, tx := range transactions {
+		valuesClauses = append(valuesClauses, fmt.Sprintf("($%d::uuid, $%d, $%d)", paramIdx, paramIdx+1, paramIdx+2))
+
+		statusDesc := ""
+		if tx.Status.Description != nil {
+			statusDesc = *tx.Status.Description
+		}
+
+		args = append(args, tx.ID, tx.Status.Code, statusDesc)
+		paramIdx += 3
+	}
+
+	// Build the UPDATE query using FROM VALUES
+	query := fmt.Sprintf(`
+		UPDATE %s AS t
+		SET status = data.status,
+		    status_description = data.status_description,
+		    updated_at = now()
+		FROM (VALUES %s) AS data(id, status, status_description)
+		WHERE t.id = data.id AND t.status = 'PENDING'`,
+		r.tableName, strings.Join(valuesClauses, ", "))
+
+	execResult, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to execute bulk status update", err)
 
 		return 0, err
 	}

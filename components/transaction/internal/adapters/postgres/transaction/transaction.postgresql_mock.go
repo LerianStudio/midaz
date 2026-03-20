@@ -44,6 +44,21 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 	return m.recorder
 }
 
+// BulkUpdateTransactionStatus mocks base method.
+func (m *MockRepository) BulkUpdateTransactionStatus(ctx context.Context, transactions []*Transaction) (*repository.BulkInsertResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BulkUpdateTransactionStatus", ctx, transactions)
+	ret0, _ := ret[0].(*repository.BulkInsertResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BulkUpdateTransactionStatus indicates an expected call of BulkUpdateTransactionStatus.
+func (mr *MockRepositoryMockRecorder) BulkUpdateTransactionStatus(ctx, transactions any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkUpdateTransactionStatus", reflect.TypeOf((*MockRepository)(nil).BulkUpdateTransactionStatus), ctx, transactions)
+}
+
 // Create mocks base method.
 func (m *MockRepository) Create(ctx context.Context, transaction *Transaction) (*Transaction, error) {
 	m.ctrl.T.Helper()

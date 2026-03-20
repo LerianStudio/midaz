@@ -537,3 +537,230 @@ func TestCreateBulk_ContextCancellation(t *testing.T) {
 	assert.Equal(t, int64(0), result.Inserted, "No rows inserted when context cancelled before first chunk")
 	assert.Equal(t, int64(0), result.Ignored)
 }
+
+// =============================================================================
+// UNIT TESTS - BulkUpdateTransactionStatus
+// =============================================================================
+
+func TestBulkUpdateTransactionStatus_EmptyInput(t *testing.T) {
+	t.Parallel()
+
+	repo := &TransactionPostgreSQLRepository{
+		connection: nil, // Will return empty result before DB call
+		tableName:  "transaction",
+	}
+
+	result, err := repo.BulkUpdateTransactionStatus(context.Background(), []*Transaction{})
+
+	require.NoError(t, err, "empty input should not error")
+	assert.Equal(t, int64(0), result.Attempted)
+	assert.Equal(t, int64(0), result.Inserted)
+	assert.Equal(t, int64(0), result.Ignored)
+}
+
+func TestBulkUpdateTransactionStatus_NilInput(t *testing.T) {
+	t.Parallel()
+
+	repo := &TransactionPostgreSQLRepository{
+		connection: nil,
+		tableName:  "transaction",
+	}
+
+	result, err := repo.BulkUpdateTransactionStatus(context.Background(), nil)
+
+	require.NoError(t, err, "nil input should be treated as empty")
+	assert.Equal(t, int64(0), result.Attempted)
+	assert.Equal(t, int64(0), result.Inserted)
+	assert.Equal(t, int64(0), result.Ignored)
+}
+
+func TestBulkUpdateTransactionStatus_NilElementInSlice(t *testing.T) {
+	t.Parallel()
+
+	mockDB := &bulkMockDB{}
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
+	repo := &TransactionPostgreSQLRepository{
+		connection:    nil,
+		tableName:     "transaction",
+		requireTenant: false,
+	}
+
+	transactions := []*Transaction{
+		generateTestTransaction(""),
+		nil, // nil element
+		generateTestTransaction(""),
+	}
+
+	result, err := repo.BulkUpdateTransactionStatus(ctx, transactions)
+
+	require.Error(t, err, "should error on nil element")
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "nil transaction at index 1")
+}
+
+func TestBulkUpdateTransactionStatus_SortsInputByID(t *testing.T) {
+	t.Parallel()
+
+	// Create transactions with IDs that will sort differently
+	tx1 := generateTestTransaction("ffffffff-ffff-ffff-ffff-ffffffffffff")
+	tx1.Status = Status{Code: "APPROVED"}
+	tx2 := generateTestTransaction("00000000-0000-0000-0000-000000000001")
+	tx2.Status = Status{Code: "APPROVED"}
+	tx3 := generateTestTransaction("88888888-8888-8888-8888-888888888888")
+	tx3.Status = Status{Code: "APPROVED"}
+
+	input := []*Transaction{tx1, tx2, tx3}
+
+	// Verify initial order: tx1 (highest) is first
+	assert.Equal(t, tx1.ID, input[0].ID, "original order should have tx1 first")
+
+	// Create mock DB that returns success
+	mockDB := &bulkMockDB{
+		rowsAffected: 3,
+	}
+
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
+	repo := &TransactionPostgreSQLRepository{
+		connection:    nil,
+		tableName:     "transaction",
+		requireTenant: false,
+	}
+
+	result, err := repo.BulkUpdateTransactionStatus(ctx, input)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Verify the slice was sorted in-place by ID (ascending)
+	assert.Equal(t, tx2.ID, input[0].ID, "after BulkUpdateTransactionStatus, first element should be tx2 (lowest ID)")
+	assert.Equal(t, tx3.ID, input[1].ID, "after BulkUpdateTransactionStatus, second element should be tx3 (middle ID)")
+	assert.Equal(t, tx1.ID, input[2].ID, "after BulkUpdateTransactionStatus, third element should be tx1 (highest ID)")
+}
+
+func TestBulkUpdateTransactionStatus_Success(t *testing.T) {
+	t.Parallel()
+
+	tx1 := generateTestTransaction("")
+	tx1.Status = Status{Code: "APPROVED"}
+	description := "Approved"
+	tx1.Status.Description = &description
+
+	tx2 := generateTestTransaction("")
+	tx2.Status = Status{Code: "CANCELED"}
+	cancelDesc := "Canceled"
+	tx2.Status.Description = &cancelDesc
+
+	transactions := []*Transaction{tx1, tx2}
+
+	mockDB := &bulkMockDB{
+		rowsAffected: 2, // Both rows updated
+	}
+
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
+	repo := &TransactionPostgreSQLRepository{
+		connection:    nil,
+		tableName:     "transaction",
+		requireTenant: false,
+	}
+
+	result, err := repo.BulkUpdateTransactionStatus(ctx, transactions)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(2), result.Attempted)
+	assert.Equal(t, int64(2), result.Inserted) // Inserted tracks updated rows
+	assert.Equal(t, int64(0), result.Ignored)
+}
+
+func TestBulkUpdateTransactionStatus_PartialUpdate(t *testing.T) {
+	t.Parallel()
+
+	tx1 := generateTestTransaction("")
+	tx1.Status = Status{Code: "APPROVED"}
+	tx2 := generateTestTransaction("")
+	tx2.Status = Status{Code: "APPROVED"}
+
+	transactions := []*Transaction{tx1, tx2}
+
+	// Mock returns only 1 row affected (other was not in PENDING state)
+	mockDB := &bulkMockDB{
+		rowsAffected: 1,
+	}
+
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
+	repo := &TransactionPostgreSQLRepository{
+		connection:    nil,
+		tableName:     "transaction",
+		requireTenant: false,
+	}
+
+	result, err := repo.BulkUpdateTransactionStatus(ctx, transactions)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(2), result.Attempted)
+	assert.Equal(t, int64(1), result.Inserted) // Only 1 updated
+	assert.Equal(t, int64(1), result.Ignored)  // 1 ignored (not in PENDING state)
+}
+
+func TestBulkUpdateTransactionStatus_DatabaseError(t *testing.T) {
+	t.Parallel()
+
+	tx1 := generateTestTransaction("")
+	tx1.Status = Status{Code: "APPROVED"}
+
+	transactions := []*Transaction{tx1}
+
+	dbErr := errors.New("database connection lost")
+	mockDB := &bulkMockDB{
+		execErr: dbErr,
+	}
+
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
+	repo := &TransactionPostgreSQLRepository{
+		connection:    nil,
+		tableName:     "transaction",
+		requireTenant: false,
+	}
+
+	result, err := repo.BulkUpdateTransactionStatus(ctx, transactions)
+
+	require.Error(t, err)
+	assert.Equal(t, dbErr, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(1), result.Attempted)
+	assert.Equal(t, int64(0), result.Inserted)
+}
+
+func TestBulkUpdateTransactionStatus_NilStatusDescription(t *testing.T) {
+	t.Parallel()
+
+	tx1 := generateTestTransaction("")
+	tx1.Status = Status{Code: "APPROVED", Description: nil} // nil description
+
+	transactions := []*Transaction{tx1}
+
+	mockDB := &bulkMockDB{
+		rowsAffected: 1,
+	}
+
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+
+	repo := &TransactionPostgreSQLRepository{
+		connection:    nil,
+		tableName:     "transaction",
+		requireTenant: false,
+	}
+
+	result, err := repo.BulkUpdateTransactionStatus(ctx, transactions)
+
+	require.NoError(t, err, "nil status description should be handled")
+	require.NotNil(t, result)
+	assert.Equal(t, int64(1), result.Attempted)
+	assert.Equal(t, int64(1), result.Inserted)
+}

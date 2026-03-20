@@ -552,13 +552,15 @@ func TestCreateBulkTransactionOperationsAsync_DuplicatesIgnored(t *testing.T) {
 			Ignored:   1, // One duplicate
 		}, nil)
 
+	// Operations CreateBulk may not be called if there are no operations
 	mockOperationRepo.EXPECT().
 		CreateBulk(gomock.Any(), gomock.Any()).
 		Return(&repository.BulkInsertResult{
 			Attempted: 0,
 			Inserted:  0,
 			Ignored:   0,
-		}, nil)
+		}, nil).
+		AnyTimes()
 
 	mockMetadataRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -704,13 +706,15 @@ func TestCreateBulkTransactionOperationsAsync_WithBalanceProcessing(t *testing.T
 			Ignored:   0,
 		}, nil)
 
+	// Operations CreateBulk may not be called if there are no operations
 	mockOperationRepo.EXPECT().
 		CreateBulk(gomock.Any(), gomock.Any()).
 		Return(&repository.BulkInsertResult{
 			Attempted: 0,
 			Inserted:  0,
 			Ignored:   0,
-		}, nil)
+		}, nil).
+		AnyTimes()
 
 	mockMetadataRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -850,13 +854,15 @@ func TestCreateBulkTransactionOperationsAsync_PartialUnmarshalFailure(t *testing
 			Ignored:   0,
 		}, nil)
 
+	// Operations CreateBulk may not be called if there are no operations
 	mockOperationRepo.EXPECT().
 		CreateBulk(gomock.Any(), gomock.Any()).
 		Return(&repository.BulkInsertResult{
 			Attempted: 0,
 			Inserted:  0,
 			Ignored:   0,
-		}, nil)
+		}, nil).
+		AnyTimes()
 
 	mockMetadataRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -1004,4 +1010,609 @@ func TestSortOperationsByID_AllNil(t *testing.T) {
 	for _, op := range operations {
 		assert.Nil(t, op)
 	}
+}
+
+// =============================================================================
+// UNIT TESTS - classifyAndExtractEntities
+// =============================================================================
+
+func TestClassifyAndExtractEntities_AllNewTransactions(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	// Create transactions with CREATED status (should go to toInsert)
+	createdStatus := constant.CREATED
+	tran1 := &transaction.Transaction{
+		ID:             uuid.New().String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        createdStatus,
+			Description: &createdStatus,
+		},
+		Operations: []*operation.Operation{
+			{ID: uuid.New().String()},
+		},
+	}
+
+	payloads := []*transaction.TransactionProcessingPayload{
+		{
+			Transaction: tran1,
+			Validate:    &pkgTransaction.Responses{Pending: false}, // Not a pending transition
+		},
+	}
+
+	uc := &UseCase{}
+	toInsert, toUpdate, operations := uc.classifyAndExtractEntities(payloads, []int{0})
+
+	assert.Len(t, toInsert, 1, "Should have 1 transaction to insert")
+	assert.Len(t, toUpdate, 0, "Should have 0 transactions to update")
+	assert.Len(t, operations, 1, "Should have 1 operation")
+	assert.Equal(t, constant.APPROVED, toInsert[0].Status.Code, "CREATED should be converted to APPROVED")
+}
+
+func TestClassifyAndExtractEntities_AllPendingToApproved(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	// Create transaction with APPROVED status and Validate.Pending=true (should go to toUpdate)
+	approvedStatus := constant.APPROVED
+	tran1 := &transaction.Transaction{
+		ID:             uuid.New().String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        approvedStatus,
+			Description: &approvedStatus,
+		},
+		Operations: []*operation.Operation{
+			{ID: uuid.New().String()},
+		},
+	}
+
+	payloads := []*transaction.TransactionProcessingPayload{
+		{
+			Transaction: tran1,
+			Validate:    &pkgTransaction.Responses{Pending: true}, // This is a pending transition
+		},
+	}
+
+	uc := &UseCase{}
+	toInsert, toUpdate, operations := uc.classifyAndExtractEntities(payloads, []int{0})
+
+	assert.Len(t, toInsert, 0, "Should have 0 transactions to insert")
+	assert.Len(t, toUpdate, 1, "Should have 1 transaction to update")
+	assert.Len(t, operations, 1, "Should have 1 operation")
+	assert.Equal(t, constant.APPROVED, toUpdate[0].Status.Code)
+}
+
+func TestClassifyAndExtractEntities_AllPendingToCanceled(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	// Create transaction with CANCELED status and Validate.Pending=true (should go to toUpdate)
+	canceledStatus := constant.CANCELED
+	tran1 := &transaction.Transaction{
+		ID:             uuid.New().String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        canceledStatus,
+			Description: &canceledStatus,
+		},
+		Operations: []*operation.Operation{},
+	}
+
+	payloads := []*transaction.TransactionProcessingPayload{
+		{
+			Transaction: tran1,
+			Validate:    &pkgTransaction.Responses{Pending: true}, // This is a pending transition
+		},
+	}
+
+	uc := &UseCase{}
+	toInsert, toUpdate, operations := uc.classifyAndExtractEntities(payloads, []int{0})
+
+	assert.Len(t, toInsert, 0, "Should have 0 transactions to insert")
+	assert.Len(t, toUpdate, 1, "Should have 1 transaction to update")
+	assert.Len(t, operations, 0, "Should have 0 operations")
+	assert.Equal(t, constant.CANCELED, toUpdate[0].Status.Code)
+}
+
+func TestClassifyAndExtractEntities_MixedBatch(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	// Transaction 1: CREATED (goes to toInsert)
+	createdStatus := constant.CREATED
+	tran1 := &transaction.Transaction{
+		ID:             uuid.New().String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        createdStatus,
+			Description: &createdStatus,
+		},
+		Operations: []*operation.Operation{{ID: uuid.New().String()}},
+	}
+
+	// Transaction 2: APPROVED with Pending=true (goes to toUpdate)
+	approvedStatus := constant.APPROVED
+	tran2 := &transaction.Transaction{
+		ID:             uuid.New().String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        approvedStatus,
+			Description: &approvedStatus,
+		},
+		Operations: []*operation.Operation{{ID: uuid.New().String()}},
+	}
+
+	// Transaction 3: NOTED (goes to toInsert, no status change needed)
+	notedStatus := constant.NOTED
+	tran3 := &transaction.Transaction{
+		ID:             uuid.New().String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        notedStatus,
+			Description: &notedStatus,
+		},
+		Operations: []*operation.Operation{{ID: uuid.New().String()}},
+	}
+
+	payloads := []*transaction.TransactionProcessingPayload{
+		{Transaction: tran1, Validate: &pkgTransaction.Responses{Pending: false}},
+		{Transaction: tran2, Validate: &pkgTransaction.Responses{Pending: true}},
+		{Transaction: tran3, Validate: &pkgTransaction.Responses{Pending: false}},
+	}
+
+	uc := &UseCase{}
+	toInsert, toUpdate, operations := uc.classifyAndExtractEntities(payloads, []int{0, 1, 2})
+
+	assert.Len(t, toInsert, 2, "Should have 2 transactions to insert (CREATED and NOTED)")
+	assert.Len(t, toUpdate, 1, "Should have 1 transaction to update (APPROVED with Pending)")
+	assert.Len(t, operations, 3, "Should have 3 operations total")
+}
+
+func TestClassifyAndExtractEntities_NilValidate(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	// Create transaction with APPROVED status but nil Validate (should go to toInsert)
+	approvedStatus := constant.APPROVED
+	tran1 := &transaction.Transaction{
+		ID:             uuid.New().String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        approvedStatus,
+			Description: &approvedStatus,
+		},
+		Operations: []*operation.Operation{},
+	}
+
+	payloads := []*transaction.TransactionProcessingPayload{
+		{
+			Transaction: tran1,
+			Validate:    nil, // Nil Validate should not trigger update
+		},
+	}
+
+	uc := &UseCase{}
+	toInsert, toUpdate, _ := uc.classifyAndExtractEntities(payloads, []int{0})
+
+	assert.Len(t, toInsert, 1, "Should have 1 transaction to insert (nil Validate)")
+	assert.Len(t, toUpdate, 0, "Should have 0 transactions to update")
+}
+
+func TestClassifyAndExtractEntities_ApprovedWithPendingFalse(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	// Create transaction with APPROVED status but Pending=false (should go to toInsert)
+	approvedStatus := constant.APPROVED
+	tran1 := &transaction.Transaction{
+		ID:             uuid.New().String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        approvedStatus,
+			Description: &approvedStatus,
+		},
+		Operations: []*operation.Operation{},
+	}
+
+	payloads := []*transaction.TransactionProcessingPayload{
+		{
+			Transaction: tran1,
+			Validate:    &pkgTransaction.Responses{Pending: false}, // Pending=false should not trigger update
+		},
+	}
+
+	uc := &UseCase{}
+	toInsert, toUpdate, _ := uc.classifyAndExtractEntities(payloads, []int{0})
+
+	assert.Len(t, toInsert, 1, "Should have 1 transaction to insert (Pending=false)")
+	assert.Len(t, toUpdate, 0, "Should have 0 transactions to update")
+}
+
+// =============================================================================
+// UNIT TESTS - BulkResult with Update Fields
+// =============================================================================
+
+func TestBulkResult_UpdateFields(t *testing.T) {
+	t.Parallel()
+
+	result := &BulkResult{
+		TransactionsAttempted:       10,
+		TransactionsInserted:        8,
+		TransactionsIgnored:         2,
+		TransactionsUpdateAttempted: 5,
+		TransactionsUpdated:         5,
+		OperationsAttempted:         30,
+		OperationsInserted:          28,
+		OperationsIgnored:           2,
+	}
+
+	assert.Equal(t, int64(10), result.TransactionsAttempted)
+	assert.Equal(t, int64(8), result.TransactionsInserted)
+	assert.Equal(t, int64(2), result.TransactionsIgnored)
+	assert.Equal(t, int64(5), result.TransactionsUpdateAttempted)
+	assert.Equal(t, int64(5), result.TransactionsUpdated)
+}
+
+// =============================================================================
+// UNIT TESTS - Bulk Update Threshold
+// =============================================================================
+
+func TestBulkUpdateThreshold_Constant(t *testing.T) {
+	t.Parallel()
+
+	// Verify the threshold constant is set to expected value
+	assert.Equal(t, 10, bulkUpdateThreshold, "Bulk update threshold should be 10")
+}
+
+// =============================================================================
+// UNIT TESTS - CreateBulkTransactionOperationsAsync with Updates
+// =============================================================================
+
+func TestCreateBulkTransactionOperationsAsync_WithPendingToApproved(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+
+	// Create an APPROVED transaction with Validate.Pending=true (PENDING→APPROVED transition)
+	approvedStatus := constant.APPROVED
+	tran := &transaction.Transaction{
+		ID:             transactionID,
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        approvedStatus,
+			Description: &approvedStatus,
+		},
+		Operations: []*operation.Operation{
+			{ID: uuid.New().String(), TransactionID: transactionID},
+		},
+	}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: tran,
+		Validate:    &pkgTransaction.Responses{Pending: true}, // This triggers update instead of insert
+	}
+
+	payloadBytes, err := msgpack.Marshal(payload)
+	require.NoError(t, err)
+
+	messages := []mmodel.Queue{
+		{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData: []mmodel.QueueData{
+				{ID: uuid.New(), Value: payloadBytes},
+			},
+		},
+	}
+
+	// Mock balance update
+	mockBalanceRepo.EXPECT().
+		SyncBatch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(int64(1), nil).
+		AnyTimes()
+
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	// No CreateBulk call expected (toInsert is empty)
+	// Individual status update expected (1 transaction < threshold)
+	mockTransactionRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(tran, nil)
+
+	// Operations still need to be inserted
+	mockOperationRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 1,
+			Inserted:  1,
+			Ignored:   0,
+		}, nil)
+
+	// Mock metadata creation
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	// Mock Redis cleanup
+	mockRedisRepo.EXPECT().
+		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	// Mock RabbitMQ for events
+	mockRabbitMQRepo.EXPECT().
+		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		AnyTimes()
+
+	result, messageResults, err := uc.CreateBulkTransactionOperationsAsync(ctx, messages, true)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, int64(0), result.TransactionsInserted, "No inserts expected")
+	assert.Equal(t, int64(1), result.TransactionsUpdateAttempted, "1 update attempted")
+	assert.Equal(t, int64(1), result.TransactionsUpdated, "1 update succeeded")
+	assert.Equal(t, int64(1), result.OperationsInserted)
+	assert.False(t, result.FallbackUsed)
+	assert.Len(t, messageResults, 1)
+	assert.True(t, messageResults[0].Success)
+
+	// Wait for goroutines to complete
+	<-time.After(100 * time.Millisecond)
+}
+
+func TestCreateBulkTransactionOperationsAsync_MixedInsertAndUpdate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	createPayload := func(t *testing.T, status string, pending bool) []byte {
+		t.Helper()
+
+		tran := &transaction.Transaction{
+			ID:             uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Status: transaction.Status{
+				Code:        status,
+				Description: &status,
+			},
+			Operations: []*operation.Operation{},
+		}
+		payload := transaction.TransactionProcessingPayload{
+			Transaction: tran,
+			Validate:    &pkgTransaction.Responses{Pending: pending},
+		}
+		bytes, err := msgpack.Marshal(payload)
+		require.NoError(t, err)
+
+		return bytes
+	}
+
+	messages := []mmodel.Queue{
+		// Message 1: NOTED transaction (insert)
+		{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData:      []mmodel.QueueData{{ID: uuid.New(), Value: createPayload(t, constant.NOTED, false)}},
+		},
+		// Message 2: APPROVED with Pending=true (update)
+		{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData:      []mmodel.QueueData{{ID: uuid.New(), Value: createPayload(t, constant.APPROVED, true)}},
+		},
+	}
+
+	// Mock for insert (1 NOTED transaction)
+	mockTransactionRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 1,
+			Inserted:  1,
+			Ignored:   0,
+		}, nil)
+
+	// Mock for individual update (1 APPROVED transaction)
+	mockTransactionRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&transaction.Transaction{}, nil)
+
+	// No operations to insert
+	mockOperationRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 0,
+			Inserted:  0,
+			Ignored:   0,
+		}, nil).
+		AnyTimes()
+
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	mockRedisRepo.EXPECT().
+		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	mockRabbitMQRepo.EXPECT().
+		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		AnyTimes()
+
+	result, messageResults, err := uc.CreateBulkTransactionOperationsAsync(ctx, messages, true)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, int64(1), result.TransactionsInserted, "1 insert expected")
+	assert.Equal(t, int64(1), result.TransactionsUpdateAttempted, "1 update attempted")
+	assert.Equal(t, int64(1), result.TransactionsUpdated, "1 update succeeded")
+	assert.Len(t, messageResults, 2)
+
+	// Wait for goroutines to complete
+	<-time.After(100 * time.Millisecond)
+}
+
+func TestCreateBulkTransactionOperationsAsync_UpdateFailureReturnsError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+
+	// Create an APPROVED transaction with Validate.Pending=true
+	approvedStatus := constant.APPROVED
+	tran := &transaction.Transaction{
+		ID:             transactionID,
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        approvedStatus,
+			Description: &approvedStatus,
+		},
+		Operations: []*operation.Operation{},
+	}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: tran,
+		Validate:    &pkgTransaction.Responses{Pending: true},
+	}
+
+	payloadBytes, err := msgpack.Marshal(payload)
+	require.NoError(t, err)
+
+	messages := []mmodel.Queue{
+		{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData: []mmodel.QueueData{
+				{ID: uuid.New(), Value: payloadBytes},
+			},
+		},
+	}
+
+	// Mock balance update
+	mockBalanceRepo.EXPECT().
+		SyncBatch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(int64(1), nil).
+		AnyTimes()
+
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	// Mock update failure
+	updateErr := errors.New("database connection lost")
+	mockTransactionRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, updateErr)
+
+	// Fallback disabled - should return error
+	result, messageResults, err := uc.CreateBulkTransactionOperationsAsync(ctx, messages, false)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "transaction status update failed")
+	assert.NotNil(t, result)
+	assert.Equal(t, int64(1), result.TransactionsUpdateAttempted)
+	assert.Equal(t, int64(0), result.TransactionsUpdated)
+	assert.Len(t, messageResults, 1)
+	assert.False(t, messageResults[0].Success)
 }

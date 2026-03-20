@@ -23,6 +23,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// bulkUpdateThreshold determines when to use bulk update vs individual updates.
+// If the number of transactions to update exceeds this threshold, bulk update is used.
+const bulkUpdateThreshold = 10
+
 // BulkResult aggregates the results from bulk insert operations.
 // It contains counts for both transactions and operations.
 type BulkResult struct {
@@ -30,6 +34,10 @@ type BulkResult struct {
 	TransactionsAttempted int64
 	TransactionsInserted  int64
 	TransactionsIgnored   int64
+
+	// Transaction update results (PENDING → APPROVED/CANCELED)
+	TransactionsUpdateAttempted int64
+	TransactionsUpdated         int64
 
 	// Operation insert results
 	OperationsAttempted int64
@@ -125,15 +133,16 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 		return result, messageResults, fmt.Errorf("all messages failed balance processing")
 	}
 
-	// Phase 3: Extract transactions and operations from valid payloads
-	transactions, operations := uc.extractEntities(payloads, validPayloadIndices)
+	// Phase 3: Classify and extract transactions and operations from valid payloads
+	toInsert, toUpdate, operations := uc.classifyAndExtractEntities(payloads, validPayloadIndices)
 
 	// Phase 4: Sort by ID to prevent deadlocks
-	sortTransactionsByID(transactions)
+	sortTransactionsByID(toInsert)
+	sortTransactionsByID(toUpdate)
 	sortOperationsByID(operations)
 
-	// Phase 5: Attempt bulk insert
-	bulkErr := uc.performBulkInsert(ctx, logger, tracer, transactions, operations, result)
+	// Phase 5: Attempt bulk insert and update
+	bulkErr := uc.performBulkInsertAndUpdate(ctx, logger, tracer, toInsert, toUpdate, operations, result)
 	if bulkErr != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Bulk insert failed, checking fallback",
 			libLog.Err(bulkErr),
@@ -173,6 +182,7 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 	logger.Log(ctx, libLog.LevelInfo, "Bulk transaction processing completed",
 		libLog.Any("transactionsInserted", result.TransactionsInserted),
 		libLog.Any("transactionsIgnored", result.TransactionsIgnored),
+		libLog.Any("transactionsUpdated", result.TransactionsUpdated),
 		libLog.Any("operationsInserted", result.OperationsInserted),
 		libLog.Any("operationsIgnored", result.OperationsIgnored))
 
@@ -269,13 +279,20 @@ func (uc *UseCase) processBalances(
 	return results
 }
 
-// extractEntities extracts transactions and operations from valid payloads.
-func (uc *UseCase) extractEntities(
+// classifyAndExtractEntities extracts transactions and operations from valid payloads,
+// classifying transactions into those that need insert vs those that need status update.
+//
+// Classification logic (matching CreateOrUpdateTransaction):
+//   - toUpdate: transactions where Validate.Pending == true AND status is APPROVED or CANCELED
+//     (these are PENDING→final transitions that need UPDATE instead of INSERT)
+//   - toInsert: all other transactions (new transactions to be inserted)
+func (uc *UseCase) classifyAndExtractEntities(
 	payloads []*transaction.TransactionProcessingPayload,
 	validIndices []int,
-) ([]*transaction.Transaction, []*operation.Operation) {
-	transactions := make([]*transaction.Transaction, 0, len(validIndices))
-	operations := make([]*operation.Operation, 0, len(validIndices)*5) // Estimate 5 ops per transaction
+) (toInsert []*transaction.Transaction, toUpdate []*transaction.Transaction, operations []*operation.Operation) {
+	toInsert = make([]*transaction.Transaction, 0, len(validIndices))
+	toUpdate = make([]*transaction.Transaction, 0)
+	operations = make([]*operation.Operation, 0, len(validIndices)*5) // Estimate 5 ops per transaction
 
 	for _, idx := range validIndices {
 		payload := payloads[idx]
@@ -299,9 +316,19 @@ func (uc *UseCase) extractEntities(
 			tran.Body = *payload.Input
 		}
 
-		transactions = append(transactions, tran)
+		// Classification: check if this is a PENDING→final transition
+		// Matching logic from CreateOrUpdateTransaction
+		needsUpdate := payload.Validate != nil &&
+			payload.Validate.Pending &&
+			(tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED)
 
-		// Collect operations
+		if needsUpdate {
+			toUpdate = append(toUpdate, tran)
+		} else {
+			toInsert = append(toInsert, tran)
+		}
+
+		// Collect operations (needed for both insert and update cases)
 		for _, op := range tran.Operations {
 			if op != nil {
 				operations = append(operations, op)
@@ -309,61 +336,148 @@ func (uc *UseCase) extractEntities(
 		}
 	}
 
-	return transactions, operations
+	return toInsert, toUpdate, operations
 }
 
-// performBulkInsert executes bulk inserts for transactions and operations.
-func (uc *UseCase) performBulkInsert(
+// performBulkInsertAndUpdate executes bulk inserts for new transactions and updates for
+// transactions transitioning from PENDING to a final state (APPROVED/CANCELED).
+func (uc *UseCase) performBulkInsertAndUpdate(
 	ctx context.Context,
 	logger libLog.Logger,
 	tracer trace.Tracer,
-	transactions []*transaction.Transaction,
+	toInsert []*transaction.Transaction,
+	toUpdate []*transaction.Transaction,
 	operations []*operation.Operation,
 	result *BulkResult,
 ) error {
-	// Bulk insert transactions
-	ctxTxInsert, spanTxInsert := tracer.Start(ctx, "command.bulk.insert_transactions")
+	// Bulk insert transactions (if any)
+	if len(toInsert) > 0 {
+		ctxTxInsert, spanTxInsert := tracer.Start(ctx, "command.bulk.insert_transactions")
 
-	txResult, err := uc.TransactionRepo.CreateBulk(ctxTxInsert, transactions)
+		txResult, err := uc.TransactionRepo.CreateBulk(ctxTxInsert, toInsert)
 
-	spanTxInsert.End()
+		spanTxInsert.End()
 
-	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Bulk transaction insert failed", libLog.Err(err))
+		if err != nil {
+			logger.Log(ctx, libLog.LevelError, "Bulk transaction insert failed", libLog.Err(err))
 
-		return fmt.Errorf("bulk transaction insert failed: %w", err)
+			return fmt.Errorf("bulk transaction insert failed: %w", err)
+		}
+
+		result.TransactionsAttempted = txResult.Attempted
+		result.TransactionsInserted = txResult.Inserted
+		result.TransactionsIgnored = txResult.Ignored
+
+		logger.Log(ctx, libLog.LevelDebug, "Bulk transaction insert completed",
+			libLog.Any("attempted", txResult.Attempted),
+			libLog.Any("inserted", txResult.Inserted),
+			libLog.Any("ignored", txResult.Ignored))
 	}
 
-	result.TransactionsAttempted = txResult.Attempted
-	result.TransactionsInserted = txResult.Inserted
-	result.TransactionsIgnored = txResult.Ignored
+	// Update transactions transitioning from PENDING to final state (if any)
+	if len(toUpdate) > 0 {
+		result.TransactionsUpdateAttempted = int64(len(toUpdate))
 
-	logger.Log(ctx, libLog.LevelDebug, "Bulk transaction insert completed",
-		libLog.Any("attempted", txResult.Attempted),
-		libLog.Any("inserted", txResult.Inserted),
-		libLog.Any("ignored", txResult.Ignored))
+		if len(toUpdate) > bulkUpdateThreshold {
+			// Use bulk update for large batches
+			if err := uc.performBulkStatusUpdate(ctx, logger, tracer, toUpdate, result); err != nil {
+				return err
+			}
+		} else {
+			// Use individual updates for small batches
+			if err := uc.performIndividualStatusUpdates(ctx, logger, tracer, toUpdate, result); err != nil {
+				return err
+			}
+		}
+	}
 
 	// Bulk insert operations
-	ctxOpInsert, spanOpInsert := tracer.Start(ctx, "command.bulk.insert_operations")
+	if len(operations) > 0 {
+		ctxOpInsert, spanOpInsert := tracer.Start(ctx, "command.bulk.insert_operations")
 
-	opResult, err := uc.OperationRepo.CreateBulk(ctxOpInsert, operations)
+		opResult, err := uc.OperationRepo.CreateBulk(ctxOpInsert, operations)
 
-	spanOpInsert.End()
+		spanOpInsert.End()
 
-	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Bulk operation insert failed", libLog.Err(err))
+		if err != nil {
+			logger.Log(ctx, libLog.LevelError, "Bulk operation insert failed", libLog.Err(err))
 
-		return fmt.Errorf("bulk operation insert failed: %w", err)
+			return fmt.Errorf("bulk operation insert failed: %w", err)
+		}
+
+		result.OperationsAttempted = opResult.Attempted
+		result.OperationsInserted = opResult.Inserted
+		result.OperationsIgnored = opResult.Ignored
+
+		logger.Log(ctx, libLog.LevelDebug, "Bulk operation insert completed",
+			libLog.Any("attempted", opResult.Attempted),
+			libLog.Any("inserted", opResult.Inserted),
+			libLog.Any("ignored", opResult.Ignored))
 	}
 
-	result.OperationsAttempted = opResult.Attempted
-	result.OperationsInserted = opResult.Inserted
-	result.OperationsIgnored = opResult.Ignored
+	return nil
+}
 
-	logger.Log(ctx, libLog.LevelDebug, "Bulk operation insert completed",
-		libLog.Any("attempted", opResult.Attempted),
-		libLog.Any("inserted", opResult.Inserted),
-		libLog.Any("ignored", opResult.Ignored))
+// performBulkStatusUpdate executes a bulk update for PENDING→final transitions.
+func (uc *UseCase) performBulkStatusUpdate(
+	ctx context.Context,
+	logger libLog.Logger,
+	tracer trace.Tracer,
+	toUpdate []*transaction.Transaction,
+	result *BulkResult,
+) error {
+	ctxTxUpdate, spanTxUpdate := tracer.Start(ctx, "command.bulk.update_transaction_status")
+	defer spanTxUpdate.End()
+
+	updateResult, err := uc.TransactionRepo.BulkUpdateTransactionStatus(ctxTxUpdate, toUpdate)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelError, "Bulk transaction status update failed", libLog.Err(err))
+
+		return fmt.Errorf("bulk transaction status update failed: %w", err)
+	}
+
+	result.TransactionsUpdated = updateResult.Inserted // Inserted tracks updated rows
+
+	logger.Log(ctx, libLog.LevelDebug, "Bulk transaction status update completed",
+		libLog.Any("attempted", updateResult.Attempted),
+		libLog.Any("updated", updateResult.Inserted),
+		libLog.Any("ignored", updateResult.Ignored))
+
+	return nil
+}
+
+// performIndividualStatusUpdates executes individual updates for PENDING→final transitions.
+// Used when the number of updates is below the bulk threshold.
+func (uc *UseCase) performIndividualStatusUpdates(
+	ctx context.Context,
+	logger libLog.Logger,
+	tracer trace.Tracer,
+	toUpdate []*transaction.Transaction,
+	result *BulkResult,
+) error {
+	ctxTxUpdate, spanTxUpdate := tracer.Start(ctx, "command.bulk.update_transaction_status_individual")
+	defer spanTxUpdate.End()
+
+	var updatedCount int64
+
+	for _, tran := range toUpdate {
+		_, err := uc.UpdateTransactionStatus(ctxTxUpdate, tran)
+		if err != nil {
+			logger.Log(ctx, libLog.LevelError, "Individual transaction status update failed",
+				libLog.String("transactionID", tran.ID),
+				libLog.Err(err))
+
+			return fmt.Errorf("transaction status update failed for %s: %w", tran.ID, err)
+		}
+
+		updatedCount++
+	}
+
+	result.TransactionsUpdated = updatedCount
+
+	logger.Log(ctx, libLog.LevelDebug, "Individual transaction status updates completed",
+		libLog.Any("attempted", len(toUpdate)),
+		libLog.Any("updated", updatedCount))
 
 	return nil
 }
