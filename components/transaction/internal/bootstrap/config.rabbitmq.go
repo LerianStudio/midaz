@@ -108,7 +108,7 @@ func initMultiTenantRabbitMQ(
 		SyncInterval:     syncInterval,
 		PrefetchCount:    prefetchCount,
 		MultiTenantURL:   opts.TenantManagerURL,
-		ServiceAPIKey:    opts.TenantManagerAPIKey,
+		ServiceAPIKey:    opts.MultiTenantServiceAPIKey,
 		Service:          opts.TenantServiceName,
 		Environment:      opts.TenantEnvironment,
 		DiscoveryTimeout: discoveryTimeout,

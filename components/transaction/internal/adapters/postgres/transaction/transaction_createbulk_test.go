@@ -384,7 +384,7 @@ func TestInsertTransactionChunk_ColumnCount(t *testing.T) {
 
 	// Verify that transactionColumnList has expected number of columns
 	// This ensures the bulk insert won't have column/value mismatch
-	expectedColumns := 15 // Based on transactionColumnList definition
+	expectedColumns := 16 // Based on transactionColumnList definition
 	assert.Equal(t, expectedColumns, len(transactionColumnList),
 		"transactionColumnList should have %d columns", expectedColumns)
 }
@@ -394,7 +394,7 @@ func TestInsertTransactionChunk_ParameterLimitCalculation(t *testing.T) {
 
 	// Verify that 1000 rows * 15 columns stays under PostgreSQL's 65,535 limit
 	const chunkSize = 1000
-	const columnCount = 15 // transactionColumnList length
+	const columnCount = 16 // transactionColumnList length
 	const postgresLimit = 65535
 
 	parametersPerChunk := chunkSize * columnCount

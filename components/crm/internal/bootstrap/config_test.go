@@ -139,10 +139,10 @@ func TestInitTenantMiddleware(t *testing.T) {
 		{
 			name: "returns non-nil middleware when enabled with valid URL",
 			cfg: &Config{
-				MultiTenantEnabled:  true,
-				EnvName:             "development",
-				MultiTenantURL:      "http://tenant-manager:8080",
-				TenantManagerAPIKey: "test-api-key",
+				MultiTenantEnabled:       true,
+				EnvName:                  "development",
+				MultiTenantURL:           "http://tenant-manager:8080",
+				MultiTenantServiceAPIKey: "test-api-key",
 			},
 			expectNil: false,
 		},
@@ -155,7 +155,7 @@ func TestInitTenantMiddleware(t *testing.T) {
 				MultiTenantTimeout:                 30,
 				MultiTenantIdleTimeoutSec:          300,
 				MultiTenantCircuitBreakerThreshold: 3,
-				TenantManagerAPIKey:                "test-api-key",
+				MultiTenantServiceAPIKey:           "test-api-key",
 			},
 			expectNil: false,
 		},
@@ -230,10 +230,10 @@ func TestInitTenantMiddleware_URLWhitespaceVariations(t *testing.T) {
 			t.Parallel()
 
 			cfg := &Config{
-				MultiTenantEnabled:  true,
-				EnvName:             "development",
-				MultiTenantURL:      tt.url,
-				TenantManagerAPIKey: "test-api-key",
+				MultiTenantEnabled:       true,
+				EnvName:                  "development",
+				MultiTenantURL:           tt.url,
+				MultiTenantServiceAPIKey: "test-api-key",
 			}
 			logger := newMockLogger()
 
@@ -312,10 +312,10 @@ func TestInitTenantMiddleware_MetricsEmission(t *testing.T) {
 		t.Parallel()
 
 		cfg := &Config{
-			MultiTenantEnabled:  true,
-			EnvName:             "development",
-			MultiTenantURL:      "http://tenant-manager:8080",
-			TenantManagerAPIKey: "test-api-key",
+			MultiTenantEnabled:       true,
+			EnvName:                  "development",
+			MultiTenantURL:           "http://tenant-manager:8080",
+			MultiTenantServiceAPIKey: "test-api-key",
 		}
 		logger := newMockLogger()
 
@@ -347,10 +347,10 @@ func TestInitTenantMiddleware_MetricsEmission(t *testing.T) {
 		t.Parallel()
 
 		cfg := &Config{
-			MultiTenantEnabled:  true,
-			EnvName:             "development",
-			MultiTenantURL:      "http://tenant-manager:8080",
-			TenantManagerAPIKey: "test-api-key",
+			MultiTenantEnabled:       true,
+			EnvName:                  "development",
+			MultiTenantURL:           "http://tenant-manager:8080",
+			MultiTenantServiceAPIKey: "test-api-key",
 		}
 		logger := newMockLogger()
 

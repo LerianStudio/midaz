@@ -74,12 +74,12 @@ type Options struct {
 	SettingsPort mbootstrap.SettingsPort
 
 	// Multi-tenant configuration (only used in unified mode)
-	MultiTenantEnabled    bool
-	TenantClient          *tmclient.Client
-	TenantServiceName     string
-	TenantEnvironment     string
-	TenantManagerURL      string
-	TenantManagerAPIKey   string
+	MultiTenantEnabled       bool
+	TenantClient             *tmclient.Client
+	TenantServiceName        string
+	TenantEnvironment        string
+	TenantManagerURL         string
+	MultiTenantServiceAPIKey string
 }
 
 // InitService initializes the transaction service.
@@ -118,6 +118,6 @@ func InitServiceWithOptionsOrError(opts *Options) (TransactionService, error) {
 		TenantServiceName:           opts.TenantServiceName,
 		TenantEnvironment:           opts.TenantEnvironment,
 		TenantManagerURL:            opts.TenantManagerURL,
-		TenantManagerAPIKey:         opts.TenantManagerAPIKey,
+		MultiTenantServiceAPIKey:    opts.MultiTenantServiceAPIKey,
 	})
 }

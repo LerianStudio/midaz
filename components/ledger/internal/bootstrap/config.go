@@ -62,7 +62,7 @@ type Config struct {
 	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"`
 	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
 	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
-	TenantManagerAPIKey                 string `env:"TENANT_MANAGER_API_KEY"`
+	MultiTenantServiceAPIKey            string `env:"MULTI_TENANT_SERVICE_API_KEY"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -184,7 +184,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TenantServiceName:           tenantServiceName,
 		TenantEnvironment:           cfg.MultiTenantEnvironment,
 		TenantManagerURL:            strings.TrimSpace(cfg.MultiTenantURL),
-		TenantManagerAPIKey:         strings.TrimSpace(cfg.TenantManagerAPIKey),
+		MultiTenantServiceAPIKey:    strings.TrimSpace(cfg.MultiTenantServiceAPIKey),
 	}
 
 	// Initialize transaction module first to get the BalancePort
@@ -378,9 +378,9 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 		return nil, "", fmt.Errorf("APPLICATION_NAME is required when MULTI_TENANT_ENABLED=true")
 	}
 
-	tenantManagerAPIKey := strings.TrimSpace(cfg.TenantManagerAPIKey)
+	tenantManagerAPIKey := strings.TrimSpace(cfg.MultiTenantServiceAPIKey)
 	if tenantManagerAPIKey == "" {
-		return nil, "", fmt.Errorf("TENANT_MANAGER_API_KEY is required when MULTI_TENANT_ENABLED=true")
+		return nil, "", fmt.Errorf("MULTI_TENANT_SERVICE_API_KEY is required when MULTI_TENANT_ENABLED=true")
 	}
 
 	// Apply safe defaults for circuit breaker when not configured
