@@ -38,6 +38,7 @@ type BulkResult struct {
 	// Transaction update results (PENDING → APPROVED/CANCELED)
 	TransactionsUpdateAttempted int64
 	TransactionsUpdated         int64
+	TransactionsUpdateFailed    int64
 
 	// Operation insert results
 	OperationsAttempted int64
@@ -448,6 +449,7 @@ func (uc *UseCase) performBulkStatusUpdate(
 
 // performIndividualStatusUpdates executes individual updates for PENDING→final transitions.
 // Used when the number of updates is below the bulk threshold.
+// The function attempts all updates even if some fail, tracking partial success.
 func (uc *UseCase) performIndividualStatusUpdates(
 	ctx context.Context,
 	logger libLog.Logger,
@@ -460,6 +462,8 @@ func (uc *UseCase) performIndividualStatusUpdates(
 
 	var updatedCount int64
 
+	var failedCount int64
+
 	for _, tran := range toUpdate {
 		_, err := uc.UpdateTransactionStatus(ctxTxUpdate, tran)
 		if err != nil {
@@ -467,17 +471,26 @@ func (uc *UseCase) performIndividualStatusUpdates(
 				libLog.String("transactionID", tran.ID),
 				libLog.Err(err))
 
-			return fmt.Errorf("transaction status update failed for %s: %w", tran.ID, err)
+			failedCount++
+
+			continue
 		}
 
 		updatedCount++
 	}
 
 	result.TransactionsUpdated = updatedCount
+	result.TransactionsUpdateFailed = failedCount
 
 	logger.Log(ctx, libLog.LevelDebug, "Individual transaction status updates completed",
 		libLog.Any("attempted", len(toUpdate)),
-		libLog.Any("updated", updatedCount))
+		libLog.Any("updated", updatedCount),
+		libLog.Any("failed", failedCount))
+
+	// Return error only if all updates failed
+	if updatedCount == 0 && failedCount > 0 {
+		return fmt.Errorf("all %d transaction status updates failed", failedCount)
+	}
 
 	return nil
 }

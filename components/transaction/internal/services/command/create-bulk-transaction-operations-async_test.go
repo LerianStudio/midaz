@@ -1609,10 +1609,11 @@ func TestCreateBulkTransactionOperationsAsync_UpdateFailureReturnsError(t *testi
 	result, messageResults, err := uc.CreateBulkTransactionOperationsAsync(ctx, messages, false)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "transaction status update failed")
+	assert.Contains(t, err.Error(), "transaction status updates failed")
 	assert.NotNil(t, result)
 	assert.Equal(t, int64(1), result.TransactionsUpdateAttempted)
 	assert.Equal(t, int64(0), result.TransactionsUpdated)
+	assert.Equal(t, int64(1), result.TransactionsUpdateFailed)
 	assert.Len(t, messageResults, 1)
 	assert.False(t, messageResults[0].Success)
 }
