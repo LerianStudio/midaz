@@ -10154,7 +10154,7 @@ const docTemplate = `
           "example": "00000000-0000-0000-0000-000000000000"
         },
         "route": {
-          "description": "Deprecated: legacy route identifier, use routeId instead. Contains the operation route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
+          "description": "Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
           "type": "string",
           "maxLength": 250,
           "example": "00000000-0000-0000-0000-000000000000"

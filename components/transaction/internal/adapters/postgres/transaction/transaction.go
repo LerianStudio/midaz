@@ -93,7 +93,7 @@ type CreateTransactionInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Deprecated: legacy route identifier, use routeId instead. Contains the operation route UUID as a free-form string for backwards compatibility.
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: "00000000-0000-0000-0000-000000000000"
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
@@ -192,6 +192,17 @@ type CreateTransactionSwaggerModel struct {
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
+	// example: 00000000-0000-0000-0000-000000000000
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route,omitempty" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
+
+	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
@@ -387,7 +398,7 @@ type Transaction struct {
 	// Transaction body containing detailed operation data (not exposed in JSON)
 	Body pkgTransaction.Transaction `json:"-"`
 
-	// Deprecated: legacy route identifier, use routeId instead. Contains the operation route UUID as a free-form string for backwards compatibility.
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	// deprecated: true
@@ -678,7 +689,7 @@ type CreateTransactionInflowInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Deprecated: legacy route identifier, use routeId instead. Contains the operation route UUID as a free-form string for backwards compatibility.
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
@@ -765,6 +776,17 @@ type CreateTransactionInflowSwaggerModel struct {
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
+	// example: 00000000-0000-0000-0000-000000000000
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route,omitempty" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
+
+	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
@@ -890,7 +912,7 @@ type CreateTransactionOutflowInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Deprecated: legacy route identifier, use routeId instead. Contains the operation route UUID as a free-form string for backwards compatibility.
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
@@ -982,6 +1004,17 @@ type CreateTransactionOutflowSwaggerModel struct {
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
+	// example: 00000000-0000-0000-0000-000000000000
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route,omitempty" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
+
+	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"

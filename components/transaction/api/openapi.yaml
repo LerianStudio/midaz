@@ -4255,7 +4255,7 @@ components:
           type: string
         route:
           description: |-
-            Deprecated: legacy route identifier, use routeId instead. Contains the operation route UUID as a free-form string for backwards compatibility.
+            Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
             example: 00000000-0000-0000-0000-000000000000
             maxLength: 250
             deprecated: true
