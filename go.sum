@@ -19,8 +19,8 @@ github.com/KyleBanks/depth v1.2.1 h1:5h8fQADFrWtarTdtDudMmGsC7GPbOAu6RVB3ffsVFHc
 github.com/KyleBanks/depth v1.2.1/go.mod h1:jzSb9d0L43HxTQfT+oSA1EEp2q+ne2uh6XgeJcm8brE=
 github.com/LerianStudio/lib-auth/v2 v2.5.0-beta.8 h1:Cl8e8hXgxVVavy2/f6goUxmVyOnTXSwsrqSHOJJTTW0=
 github.com/LerianStudio/lib-auth/v2 v2.5.0-beta.8/go.mod h1:xdXYO1Ncgf++1WAHKZYPCs7YPrcvVt3/zso/X+qUuaI=
-github.com/LerianStudio/lib-commons/v4 v4.1.0-beta.10 h1:TWVgforICH6KWpXAu3HSAjWz/0+7/uchn2kIFyNSEmk=
-github.com/LerianStudio/lib-commons/v4 v4.1.0-beta.10/go.mod h1:WMQ17ouiJ13uUVhH/eY+p++4xb/NOtR44yIMGZ0r8Ow=
+github.com/LerianStudio/lib-commons/v4 v4.2.0-beta.7 h1:P/CxbiPlmMR8h1tq44jg/Dab5APUw1c9y51uhkRvyqU=
+github.com/LerianStudio/lib-commons/v4 v4.2.0-beta.7/go.mod h1:89mzZKE3Hf0aDdKo3qfjfPL38ZsQRciqRbEeR718O+g=
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
@@ -30,8 +30,8 @@ github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578/go.mod h1:uGdko
 github.com/Shopify/toxiproxy/v2 v2.12.0 h1:d1x++lYZg/zijXPPcv7PH0MvHMzEI5aX/YuUi/Sw+yg=
 github.com/Shopify/toxiproxy/v2 v2.12.0/go.mod h1:R9Z38Pw6k2cGZWXHe7tbxjGW9azmY1KbDQJ1kd+h7Tk=
 github.com/agiledragon/gomonkey/v2 v2.3.1/go.mod h1:ap1AmDzcVOAz1YpeJ3TCzIgstoaWLA6jbbgxfB4w2iY=
-github.com/alicebob/miniredis/v2 v2.36.1 h1:Dvc5oAnNOr7BIfPn7tF269U8DvRW1dBG2D5n0WrfYMI=
-github.com/alicebob/miniredis/v2 v2.36.1/go.mod h1:TcL7YfarKPGDAthEtl5NBeHZfeUQj6OXMm/+iu5cLMM=
+github.com/alicebob/miniredis/v2 v2.37.0 h1:RheObYW32G1aiJIj81XVt78ZHJpHonHLHW7OLIshq68=
+github.com/alicebob/miniredis/v2 v2.37.0/go.mod h1:TcL7YfarKPGDAthEtl5NBeHZfeUQj6OXMm/+iu5cLMM=
 github.com/andybalholm/brotli v1.0.4/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=
 github.com/andybalholm/brotli v1.2.0/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
@@ -327,8 +327,8 @@ github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0 h1:s2bIayFX
 github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0/go.mod h1:h+u/2KoREGTnTl9UwrQ/g+XhasAT8E6dClclAADeXoQ=
 github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.40.0 h1:wGznWj8ZlEoqWfMN2L+EWjQBbjZ99vhoy/S61h+cED0=
 github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.40.0/go.mod h1:Y+9/8YMZo3ElEZmHZOgFnjKrxE4+H2OFrjWdYzm/jtU=
-github.com/testcontainers/testcontainers-go/modules/redis v0.40.0 h1:OG4qwcxp2O0re7V7M9lY9w0v6wWgWf7j7rtkpAnGMd0=
-github.com/testcontainers/testcontainers-go/modules/redis v0.40.0/go.mod h1:Bc+EDhKMo5zI5V5zdBkHiMVzeAXbtI4n5isS/nzf6zw=
+github.com/testcontainers/testcontainers-go/modules/redis v0.41.0 h1:QlTSe4JGOnjr/37MXx0GqNLGa+8sKQst7lsn7uLjg8E=
+github.com/testcontainers/testcontainers-go/modules/redis v0.41.0/go.mod h1:5mDOIWrS/a+z8gBesXBQAAQtrqJrW2tUi9Tf46+/Luo=
 github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.40.0 h1:JtBm3qORRmX5lKdlBaAaNUMmXQojGKQHxTMf3Cz1ze0=
 github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.40.0/go.mod h1:9NUCf6iXexsvcccyJlFiHbS2R8e3TL+oaGkNYKDdjFI=
 github.com/tklauser/go-sysconf v0.3.16 h1:frioLaCQSsF5Cy1jgRBrzr6t502KIIwQ0MArYICU0nA=
