@@ -341,15 +341,29 @@ func buildUnifiedRouteSetup(
 		libLog.Bool("cross_module_injection", true),
 	)
 
-	transactionMiddleware, err := buildModuleTenantMiddleware(
-		"transaction",
-		logger,
-		transactionService.GetPGManager(),
-		transactionService.GetMongoManager(),
-	)
-	if err != nil {
-		return nil, err
+	transactionMongoManager, ok := transactionService.GetMongoManager().(*tmmongo.Manager)
+	if !ok || transactionMongoManager == nil {
+		return nil, fmt.Errorf("transaction multi-tenant MongoDB manager not available")
 	}
+
+	// Build transaction middleware with cross-module injection so that
+	// in-process calls from transaction into the onboarding module
+	// (e.g. GetLedgerSettings → SettingsPort → LedgerRepo) find the "onboarding"
+	// PG connection already present in the request context.
+	transactionMiddleware := tmmiddleware.NewMultiPoolMiddleware(
+		tmmiddleware.WithDefaultRoute("transaction", transactionPGManager, transactionMongoManager),
+		tmmiddleware.WithRoute(nil, "onboarding", onboardingPGManager, nil),
+		tmmiddleware.WithCrossModuleInjection(),
+		tmmiddleware.WithMultiPoolLogger(logger),
+		tmmiddleware.WithErrorMapper(midazErrorMapper),
+	)
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
+		libLog.String("module", "transaction"),
+		libLog.Bool("cross_module_injection", true),
+	)
+
+	var err error
 
 	setup.onboardingMongoManager, err = requireMongoManager("onboarding", onboardingService.GetMongoManager())
 	if err != nil {
