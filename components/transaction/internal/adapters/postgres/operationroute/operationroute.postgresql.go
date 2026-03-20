@@ -770,7 +770,11 @@ func splitMergePatch(raw json.RawMessage) (mergeJSON []byte, removeKeys []string
 	}
 
 	if len(merge) > 0 {
-		mergeJSON, _ = json.Marshal(merge)
+		var err error
+		if mergeJSON, err = json.Marshal(merge); err != nil {
+			// If we can't re-serialize, fall back to the raw input (full replacement)
+			return raw, nil
+		}
 	}
 
 	return mergeJSON, removeKeys
