@@ -5,6 +5,7 @@
 package mmodel
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -100,6 +101,9 @@ type OperationRoute struct {
 	Action string `json:"action,omitempty" example:"direct" enums:"direct,hold,commit,cancel,revert"`
 	// Optional accounting entries for each action type associated with this operation route.
 	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty"`
+	// AccountingEntriesRaw holds the raw JSON for accountingEntries for merge-patch updates.
+	// This is not serialized to API responses; it is only used internally during updates.
+	AccountingEntriesRaw json.RawMessage `json:"-"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
@@ -145,6 +149,11 @@ type UpdateOperationRouteInput struct {
 	Code string `json:"code,omitempty" validate:"max=100" example:"EXT-001"`
 	// Optional accounting entries for each action type associated with this operation route.
 	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty"`
+	// AccountingEntriesRaw holds the raw JSON for accountingEntries exactly as sent in the request.
+	// This preserves explicit null values for RFC 7396 JSON Merge Patch semantics,
+	// allowing the repository to distinguish between "field absent" (keep existing)
+	// and "field: null" (remove entry).
+	AccountingEntriesRaw json.RawMessage `json:"-"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.

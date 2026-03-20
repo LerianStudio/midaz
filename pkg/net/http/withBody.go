@@ -840,7 +840,16 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 
 		marshaledValue, ok := marshaled[key]
 		if !ok {
+			// A nil value in the original means the client explicitly sent "field": null.
+			// When the struct uses omitempty, json.Marshal omits nil pointer fields, so
+			// the key disappears from the marshaled map. This is not an unknown field —
+			// it is a valid RFC 7396 JSON Merge Patch request to remove/null-out the field.
+			if value == nil {
+				continue
+			}
+
 			diffFields[key] = value
+
 			continue
 		}
 

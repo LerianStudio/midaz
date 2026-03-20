@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -144,6 +145,93 @@ func TestOperationRouteHandler_validateAccountingEntries(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.errorField, "error message should reference the invalid field path")
 			} else {
 				require.NoError(t, err, "expected no validation error")
+			}
+		})
+	}
+}
+
+func TestFindUnknownAccountingEntryKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		raw        json.RawMessage
+		expectNil  bool
+		expectKeys []string
+	}{
+		{
+			name:       "all valid keys",
+			raw:        json.RawMessage(`{"direct":{"debit":{}},"hold":{"debit":{}},"commit":{"debit":{}},"cancel":{"debit":{}},"revert":{"debit":{}}}`),
+			expectNil:  true,
+			expectKeys: nil,
+		},
+		{
+			name:       "single valid key",
+			raw:        json.RawMessage(`{"direct":{"debit":{"code":"1001"}}}`),
+			expectNil:  true,
+			expectKeys: nil,
+		},
+		{
+			name:       "valid key with null value",
+			raw:        json.RawMessage(`{"hold":null}`),
+			expectNil:  true,
+			expectKeys: nil,
+		},
+		{
+			name:       "unknown key with value",
+			raw:        json.RawMessage(`{"foobar":{"debit":{"code":"1001"}}}`),
+			expectNil:  false,
+			expectKeys: []string{"foobar"},
+		},
+		{
+			name:       "unknown key with null value",
+			raw:        json.RawMessage(`{"foobar":null}`),
+			expectNil:  false,
+			expectKeys: []string{"foobar"},
+		},
+		{
+			name:       "mix of valid and unknown keys",
+			raw:        json.RawMessage(`{"direct":{"debit":{}},"foobar":{"debit":{}},"hold":null}`),
+			expectNil:  false,
+			expectKeys: []string{"foobar"},
+		},
+		{
+			name:       "multiple unknown keys",
+			raw:        json.RawMessage(`{"foo":{"debit":{}},"bar":null,"direct":{"debit":{}}}`),
+			expectNil:  false,
+			expectKeys: []string{"bar", "foo"},
+		},
+		{
+			name:       "empty object",
+			raw:        json.RawMessage(`{}`),
+			expectNil:  true,
+			expectKeys: nil,
+		},
+		{
+			name:       "invalid JSON returns nil",
+			raw:        json.RawMessage(`{invalid}`),
+			expectNil:  true,
+			expectKeys: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := findUnknownAccountingEntryKeys(tt.raw)
+
+			if tt.expectNil {
+				assert.Nil(t, result, "expected nil for valid keys")
+			} else {
+				require.NotNil(t, result, "expected unknown keys to be detected")
+
+				var actualKeys []string
+				for k := range result {
+					actualKeys = append(actualKeys, k)
+				}
+
+				assert.ElementsMatch(t, tt.expectKeys, actualKeys, "unexpected keys mismatch")
 			}
 		})
 	}
