@@ -172,20 +172,30 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 		return result, messageResults, nil
 	}
 
-	// Bulk insert succeeded: mark all valid messages as successful
-	for _, idx := range validPayloadIndices {
-		messageResults[idx] = BulkMessageResult{Index: idx, Success: true}
-	}
+	// Phase 7: Post-processing (metadata, events) - strict behavior
+	metadataFailures := uc.postProcessBulk(ctx, logger, payloads, validPayloadIndices, messages)
 
-	// Phase 7: Post-processing (metadata, events) - best effort
-	uc.postProcessBulk(ctx, logger, payloads, validPayloadIndices, messages)
+	// Mark message results based on metadata success/failure
+	for _, idx := range validPayloadIndices {
+		if err, failed := metadataFailures[idx]; failed {
+			messageResults[idx] = BulkMessageResult{Index: idx, Success: false, Error: err}
+		} else {
+			messageResults[idx] = BulkMessageResult{Index: idx, Success: true}
+		}
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, "Bulk transaction processing completed",
 		libLog.Any("transactionsInserted", result.TransactionsInserted),
 		libLog.Any("transactionsIgnored", result.TransactionsIgnored),
 		libLog.Any("transactionsUpdated", result.TransactionsUpdated),
 		libLog.Any("operationsInserted", result.OperationsInserted),
-		libLog.Any("operationsIgnored", result.OperationsIgnored))
+		libLog.Any("operationsIgnored", result.OperationsIgnored),
+		libLog.Int("metadataFailures", len(metadataFailures)))
+
+	// Return error if any metadata creation failed (strict behavior)
+	if len(metadataFailures) > 0 {
+		return result, messageResults, fmt.Errorf("metadata creation failed for %d message(s)", len(metadataFailures))
+	}
 
 	return result, messageResults, nil
 }
@@ -247,7 +257,12 @@ func (uc *UseCase) processBalances(
 		results[i] = BulkMessageResult{Index: i, Success: true}
 
 		if payload == nil {
-			results[i] = BulkMessageResult{Index: i, Success: false, Error: errors.New("nil payload")}
+			// Only set error if no prior error exists (e.g., from unmarshal phase)
+			// This preserves the root cause error for debugging
+			if results[i].Error == nil {
+				results[i] = BulkMessageResult{Index: i, Success: false, Error: errors.New("nil payload")}
+			}
+
 			continue
 		}
 
@@ -257,7 +272,11 @@ func (uc *UseCase) processBalances(
 		}
 
 		if payload.Validate == nil {
-			results[i] = BulkMessageResult{Index: i, Success: false, Error: errors.New("nil Validate field")}
+			// Only set error if no prior error exists (preserve root cause)
+			if results[i].Error == nil {
+				results[i] = BulkMessageResult{Index: i, Success: false, Error: errors.New("nil Validate field")}
+			}
+
 			continue
 		}
 
@@ -273,7 +292,10 @@ func (uc *UseCase) processBalances(
 				libLog.Int("index", i),
 				libLog.Err(err))
 
-			results[i] = BulkMessageResult{Index: i, Success: false, Error: err}
+			// Only set error if no prior error exists (preserve root cause)
+			if results[i].Error == nil {
+				results[i] = BulkMessageResult{Index: i, Success: false, Error: err}
+			}
 		}
 	}
 
@@ -547,8 +569,10 @@ func (uc *UseCase) processFallback(
 			continue
 		}
 
-		// Create operations individually
+		// Create operations individually with metadata (strict behavior)
 		allOpsSuccess := true
+
+		var opFailErr error
 
 		for _, op := range tran.Operations {
 			// Defensive nil check to prevent panic
@@ -559,17 +583,32 @@ func (uc *UseCase) processFallback(
 			_, opErr := uc.OperationRepo.Create(ctx, op)
 			if opErr != nil {
 				var pgErr *pgconn.PgError
-				if errors.As(opErr, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-					// Duplicate operation is fine (idempotency)
-					continue
-				}
 
-				logger.Log(ctx, libLog.LevelError, "Fallback: failed to create operation",
+				// Non-duplicate errors are fatal; duplicates are idempotent (continue to metadata)
+				isDuplicate := errors.As(opErr, &pgErr) && pgErr.Code == constant.UniqueViolationCode
+				if !isDuplicate {
+					logger.Log(ctx, libLog.LevelError, "Fallback: failed to create operation",
+						libLog.Int("index", idx),
+						libLog.String("operationID", op.ID),
+						libLog.Err(opErr))
+
+					allOpsSuccess = false
+					opFailErr = opErr
+
+					break
+				}
+			}
+
+			// Create operation metadata (strict: failure is an error)
+			// Matches the individual flow in CreateBalanceTransactionOperationsAsync
+			if metaErr := uc.CreateMetadataAsync(ctx, logger, op.Metadata, op.ID, reflect.TypeOf(operation.Operation{}).Name()); metaErr != nil {
+				logger.Log(ctx, libLog.LevelError, "Fallback: failed to create operation metadata",
 					libLog.Int("index", idx),
 					libLog.String("operationID", op.ID),
-					libLog.Err(opErr))
+					libLog.Err(metaErr))
 
 				allOpsSuccess = false
+				opFailErr = fmt.Errorf("failed to create operation metadata: %w", metaErr)
 
 				break
 			}
@@ -585,7 +624,7 @@ func (uc *UseCase) processFallback(
 			go uc.RemoveTransactionFromRedisQueue(asyncCtx, logger, msg.OrganizationID, msg.LedgerID, tran.ID)
 			go uc.DeleteWriteBehindTransaction(asyncCtx, msg.OrganizationID, msg.LedgerID, tran.ID)
 		} else {
-			results = append(results, BulkMessageResult{Index: idx, Success: false, Error: errors.New("operation insert failed")})
+			results = append(results, BulkMessageResult{Index: idx, Success: false, Error: opFailErr})
 		}
 	}
 
@@ -593,6 +632,7 @@ func (uc *UseCase) processFallback(
 }
 
 // createTransactionIndividually creates a single transaction using the existing pattern.
+// Strict behavior: returns error if metadata creation fails, consistent with individual flow.
 func (uc *UseCase) createTransactionIndividually(
 	ctx context.Context,
 	logger libLog.Logger,
@@ -604,25 +644,30 @@ func (uc *UseCase) createTransactionIndividually(
 		return nil, err
 	}
 
-	// Create metadata for transaction
+	// Create metadata for transaction (strict: failure is an error)
 	if err := uc.CreateMetadataAsync(ctx, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name()); err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "Fallback: failed to create transaction metadata",
+		logger.Log(ctx, libLog.LevelError, "Fallback: failed to create transaction metadata",
 			libLog.String("transactionID", tran.ID),
 			libLog.Err(err))
-		// Continue despite metadata error
+
+		return nil, fmt.Errorf("failed to create transaction metadata: %w", err)
 	}
 
 	return tran, nil
 }
 
 // postProcessBulk handles metadata creation and event sending for bulk-inserted transactions.
+// Returns a map of indices that failed metadata creation with their respective errors.
+// Strict behavior: metadata failure is reported as an error, consistent with the individual flow.
 func (uc *UseCase) postProcessBulk(
 	ctx context.Context,
 	logger libLog.Logger,
 	payloads []*transaction.TransactionProcessingPayload,
 	validIndices []int,
 	messages []mmodel.Queue,
-) {
+) map[int]error {
+	failedIndices := make(map[int]error)
+
 	for _, idx := range validIndices {
 		payload := payloads[idx]
 		msg := messages[idx]
@@ -633,31 +678,49 @@ func (uc *UseCase) postProcessBulk(
 
 		tran := payload.Transaction
 
-		// Create metadata (best effort)
+		var metadataFailed bool
+
+		// Create transaction metadata (strict: failure is an error)
 		if err := uc.CreateMetadataAsync(ctx, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name()); err != nil {
-			logger.Log(ctx, libLog.LevelWarn, "Bulk: failed to create transaction metadata",
+			logger.Log(ctx, libLog.LevelError, "Bulk: failed to create transaction metadata",
 				libLog.String("transactionID", tran.ID),
 				libLog.Err(err))
+
+			failedIndices[idx] = fmt.Errorf("failed to create transaction metadata: %w", err)
+			metadataFailed = true
 		}
 
-		// Create operation metadata
-		for _, op := range tran.Operations {
-			if op != nil && op.Metadata != nil {
-				if err := uc.CreateMetadataAsync(ctx, logger, op.Metadata, op.ID, reflect.TypeOf(operation.Operation{}).Name()); err != nil {
-					logger.Log(ctx, libLog.LevelWarn, "Bulk: failed to create operation metadata",
-						libLog.String("operationID", op.ID),
-						libLog.Err(err))
+		// Create operation metadata (strict: failure is an error)
+		// Only attempt if transaction metadata succeeded
+		if !metadataFailed {
+			for _, op := range tran.Operations {
+				if op != nil {
+					if err := uc.CreateMetadataAsync(ctx, logger, op.Metadata, op.ID, reflect.TypeOf(operation.Operation{}).Name()); err != nil {
+						logger.Log(ctx, libLog.LevelError, "Bulk: failed to create operation metadata",
+							libLog.String("operationID", op.ID),
+							libLog.Err(err))
+
+						failedIndices[idx] = fmt.Errorf("failed to create operation metadata for %s: %w", op.ID, err)
+						metadataFailed = true
+
+						break
+					}
 				}
 			}
 		}
 
-		// Async cleanup and events
-		// Use detached context so async work completes even if request context is canceled
-		asyncCtx := context.WithoutCancel(ctx)
-		go uc.SendTransactionEvents(asyncCtx, tran)
-		go uc.RemoveTransactionFromRedisQueue(asyncCtx, logger, msg.OrganizationID, msg.LedgerID, tran.ID)
-		go uc.DeleteWriteBehindTransaction(asyncCtx, msg.OrganizationID, msg.LedgerID, tran.ID)
+		// Only send events and cleanup if metadata succeeded
+		if !metadataFailed {
+			// Async cleanup and events
+			// Use detached context so async work completes even if request context is canceled
+			asyncCtx := context.WithoutCancel(ctx)
+			go uc.SendTransactionEvents(asyncCtx, tran)
+			go uc.RemoveTransactionFromRedisQueue(asyncCtx, logger, msg.OrganizationID, msg.LedgerID, tran.ID)
+			go uc.DeleteWriteBehindTransaction(asyncCtx, msg.OrganizationID, msg.LedgerID, tran.ID)
+		}
 	}
+
+	return failedIndices
 }
 
 // sortTransactionsByID sorts transactions by ID to prevent deadlocks during bulk insert.

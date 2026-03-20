@@ -94,21 +94,55 @@ type Repository interface {
 // transactionColumns is derived from transactionColumnList for use with squirrel.Select.
 var transactionColumns = strings.Join(transactionColumnList, ", ")
 
+// defaultChunkSize is the default maximum rows per INSERT statement to stay under PostgreSQL's 65,535 parameter limit.
+const defaultChunkSize = 1000
+
 // TransactionPostgreSQLRepository is a Postgresql-specific implementation of the TransactionRepository.
 type TransactionPostgreSQLRepository struct {
 	connection    *libPostgres.Client
 	tableName     string
 	requireTenant bool
+	chunkSize     int // Maximum rows per bulk INSERT, defaults to 1000
+}
+
+// TransactionRepoOption is a functional option for configuring TransactionPostgreSQLRepository.
+type TransactionRepoOption func(*TransactionPostgreSQLRepository)
+
+// WithTransactionChunkSize sets the maximum rows per bulk INSERT statement.
+// If not set or set to 0, defaults to 1000.
+func WithTransactionChunkSize(size int) TransactionRepoOption {
+	return func(r *TransactionPostgreSQLRepository) {
+		if size > 0 {
+			r.chunkSize = size
+		}
+	}
+}
+
+// WithRequireTenant configures whether tenant context is required.
+func WithRequireTenant(require bool) TransactionRepoOption {
+	return func(r *TransactionPostgreSQLRepository) {
+		r.requireTenant = require
+	}
 }
 
 // NewTransactionPostgreSQLRepository returns a new instance of TransactionPostgreSQLRepository using the given Postgres connection.
-func NewTransactionPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *TransactionPostgreSQLRepository {
+// Accepts optional configuration via TransactionRepoOption functions.
+// For backward compatibility, also accepts a single bool parameter for requireTenant.
+func NewTransactionPostgreSQLRepository(pc *libPostgres.Client, opts ...any) *TransactionPostgreSQLRepository {
 	c := &TransactionPostgreSQLRepository{
 		connection: pc,
 		tableName:  "transaction",
+		chunkSize:  defaultChunkSize,
 	}
-	if len(requireTenant) > 0 {
-		c.requireTenant = requireTenant[0]
+
+	for _, opt := range opts {
+		switch v := opt.(type) {
+		case bool:
+			// Backward compatibility: single bool arg means requireTenant
+			c.requireTenant = v
+		case TransactionRepoOption:
+			v(c)
+		}
 	}
 
 	return c
@@ -295,9 +329,12 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 
 	result := &repository.BulkInsertResult{Attempted: int64(len(transactions))}
 
-	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
-	// Transaction has 15 columns, so 1000 rows = 15,000 parameters (under 65,535 limit)
-	const chunkSize = 1000
+	// Chunk into bulks to stay within PostgreSQL's parameter limit
+	// Transaction has 16 columns, so 1000 rows = 16,000 parameters (under 65,535 limit)
+	chunkSize := r.chunkSize
+	if chunkSize <= 0 {
+		chunkSize = defaultChunkSize
+	}
 
 	for i := 0; i < len(transactions); i += chunkSize {
 		// Check for context cancellation between chunks
@@ -442,9 +479,12 @@ func (r *TransactionPostgreSQLRepository) BulkUpdateTransactionStatus(ctx contex
 
 	result := &repository.BulkInsertResult{Attempted: int64(len(transactions))}
 
-	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
+	// Chunk into bulks to stay within PostgreSQL's parameter limit
 	// Update has 3 parameters per row (id, status, status_description), so 1000 rows = 3,000 parameters
-	const chunkSize = 1000
+	chunkSize := r.chunkSize
+	if chunkSize <= 0 {
+		chunkSize = defaultChunkSize
+	}
 
 	for i := 0; i < len(transactions); i += chunkSize {
 		// Check for context cancellation between chunks

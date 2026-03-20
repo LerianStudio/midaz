@@ -764,3 +764,63 @@ func TestBulkUpdateTransactionStatus_NilStatusDescription(t *testing.T) {
 	assert.Equal(t, int64(1), result.Attempted)
 	assert.Equal(t, int64(1), result.Inserted)
 }
+
+// =============================================================================
+// UNIT TESTS - Configurable Chunk Size (Issue 2)
+// =============================================================================
+
+func TestNewTransactionPostgreSQLRepository_DefaultChunkSize(t *testing.T) {
+	t.Parallel()
+
+	repo := NewTransactionPostgreSQLRepository(nil)
+
+	assert.Equal(t, defaultChunkSize, repo.chunkSize, "Should use default chunk size of 1000")
+}
+
+func TestNewTransactionPostgreSQLRepository_CustomChunkSize(t *testing.T) {
+	t.Parallel()
+
+	customSize := 500
+	repo := NewTransactionPostgreSQLRepository(nil, WithTransactionChunkSize(customSize))
+
+	assert.Equal(t, customSize, repo.chunkSize, "Should use custom chunk size")
+}
+
+func TestNewTransactionPostgreSQLRepository_ZeroChunkSizeDefaultsTo1000(t *testing.T) {
+	t.Parallel()
+
+	repo := NewTransactionPostgreSQLRepository(nil, WithTransactionChunkSize(0))
+
+	assert.Equal(t, defaultChunkSize, repo.chunkSize, "Zero chunk size should use default")
+}
+
+func TestNewTransactionPostgreSQLRepository_NegativeChunkSizeDefaultsTo1000(t *testing.T) {
+	t.Parallel()
+
+	repo := NewTransactionPostgreSQLRepository(nil, WithTransactionChunkSize(-100))
+
+	assert.Equal(t, defaultChunkSize, repo.chunkSize, "Negative chunk size should use default")
+}
+
+func TestNewTransactionPostgreSQLRepository_BackwardCompatibility(t *testing.T) {
+	t.Parallel()
+
+	// Test backward compatibility with single bool argument
+	repo := NewTransactionPostgreSQLRepository(nil, true)
+
+	assert.True(t, repo.requireTenant, "Bool argument should set requireTenant")
+	assert.Equal(t, defaultChunkSize, repo.chunkSize, "Should use default chunk size")
+}
+
+func TestNewTransactionPostgreSQLRepository_MixedOptions(t *testing.T) {
+	t.Parallel()
+
+	customSize := 250
+	repo := NewTransactionPostgreSQLRepository(nil,
+		WithRequireTenant(true),
+		WithTransactionChunkSize(customSize),
+	)
+
+	assert.True(t, repo.requireTenant, "Should set requireTenant")
+	assert.Equal(t, customSize, repo.chunkSize, "Should use custom chunk size")
+}

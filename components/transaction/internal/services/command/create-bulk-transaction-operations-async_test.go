@@ -1617,3 +1617,542 @@ func TestCreateBulkTransactionOperationsAsync_UpdateFailureReturnsError(t *testi
 	assert.Len(t, messageResults, 1)
 	assert.False(t, messageResults[0].Success)
 }
+
+// =============================================================================
+// UNIT TESTS - Error Preservation (Issue 3)
+// =============================================================================
+
+func TestCreateBulkTransactionOperationsAsync_UnmarshalErrorPreservedOverNilPayload(t *testing.T) {
+	t.Parallel()
+
+	// This test verifies that when a message fails to unmarshal, the original
+	// unmarshal error is preserved even when processBalances later encounters
+	// a nil payload for the same entry.
+
+	uc := &UseCase{}
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	// Create message with invalid msgpack data - will cause unmarshal error
+	messages := []mmodel.Queue{
+		{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData: []mmodel.QueueData{
+				{ID: uuid.New(), Value: []byte("invalid msgpack data")},
+			},
+		},
+	}
+
+	result, messageResults, err := uc.CreateBulkTransactionOperationsAsync(ctx, messages, true)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unmarshal")
+	assert.NotNil(t, result)
+	assert.Len(t, messageResults, 1)
+	assert.False(t, messageResults[0].Success)
+
+	// The error should be the original unmarshal error, NOT "nil payload"
+	assert.NotNil(t, messageResults[0].Error)
+	assert.NotContains(t, messageResults[0].Error.Error(), "nil payload",
+		"Error should be the original unmarshal error, not overwritten by 'nil payload'")
+}
+
+func TestProcessBalances_PreservesExistingError(t *testing.T) {
+	t.Parallel()
+
+	// This test directly tests the processBalances function to ensure it
+	// preserves existing errors instead of overwriting them with "nil payload"
+
+	uc := &UseCase{}
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	messages := []mmodel.Queue{
+		{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData: []mmodel.QueueData{
+				{ID: uuid.New(), Value: []byte("test")},
+			},
+		},
+	}
+
+	// Create payloads with nil entry (simulating unmarshal failure)
+	payloads := []*transaction.TransactionProcessingPayload{nil}
+
+	// Call processBalances directly
+	results := uc.processBalances(ctx, nil, nil, messages, payloads)
+
+	// Verify that processBalances sets error for nil payload
+	assert.Len(t, results, 1)
+	assert.False(t, results[0].Success)
+	assert.NotNil(t, results[0].Error)
+	assert.Contains(t, results[0].Error.Error(), "nil payload")
+}
+
+func TestProcessBalances_SetsErrorWhenNoExistingError(t *testing.T) {
+	t.Parallel()
+
+	// This test verifies that processBalances correctly sets error
+	// when there is no existing error for an entry
+
+	uc := &UseCase{}
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	messages := []mmodel.Queue{
+		{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData: []mmodel.QueueData{
+				{ID: uuid.New(), Value: []byte("test")},
+			},
+		},
+	}
+
+	// Create payloads with valid payload but nil Validate field
+	payloads := []*transaction.TransactionProcessingPayload{
+		{
+			Transaction: &transaction.Transaction{
+				ID: uuid.New().String(),
+				Status: transaction.Status{
+					Code: constant.CREATED,
+				},
+			},
+			Validate: nil, // This should trigger "nil Validate field" error
+		},
+	}
+
+	// Call processBalances directly
+	results := uc.processBalances(ctx, nil, nil, messages, payloads)
+
+	assert.Len(t, results, 1)
+	assert.False(t, results[0].Success)
+	assert.NotNil(t, results[0].Error)
+	assert.Contains(t, results[0].Error.Error(), "nil Validate field")
+}
+
+// =============================================================================
+// UNIT TESTS - Metadata Strict Behavior (Issue 1)
+// =============================================================================
+
+func TestCreateBulkTransactionOperationsAsync_MetadataFailureReturnsError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+
+	// Create a NOTED transaction (skips balance update)
+	notedStatus := constant.NOTED
+	tran := &transaction.Transaction{
+		ID:             transactionID,
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        notedStatus,
+			Description: &notedStatus,
+		},
+		Metadata:   map[string]any{"key": "value"}, // Has metadata
+		Operations: []*operation.Operation{},
+	}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: tran,
+		Validate:    &pkgTransaction.Responses{},
+	}
+
+	payloadBytes, err := msgpack.Marshal(payload)
+	require.NoError(t, err)
+
+	messages := []mmodel.Queue{
+		{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData: []mmodel.QueueData{
+				{ID: uuid.New(), Value: payloadBytes},
+			},
+		},
+	}
+
+	// Mock bulk insert success
+	mockTransactionRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 1,
+			Inserted:  1,
+			Ignored:   0,
+		}, nil)
+
+	mockOperationRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 0,
+			Inserted:  0,
+			Ignored:   0,
+		}, nil).
+		AnyTimes()
+
+	// Mock metadata creation failure (strict behavior should return error)
+	metadataErr := errors.New("mongodb connection refused")
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(metadataErr)
+
+	result, messageResults, err := uc.CreateBulkTransactionOperationsAsync(ctx, messages, true)
+
+	// Should return error because metadata creation failed (strict behavior)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "metadata creation failed")
+	assert.NotNil(t, result)
+	assert.Len(t, messageResults, 1)
+	assert.False(t, messageResults[0].Success)
+	assert.NotNil(t, messageResults[0].Error)
+	assert.Contains(t, messageResults[0].Error.Error(), "metadata")
+}
+
+func TestCreateBulkTransactionOperationsAsync_OperationMetadataFailureReturnsError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+	operationID := uuid.New().String()
+
+	// Create a NOTED transaction with metadata and operation that has metadata
+	notedStatus := constant.NOTED
+	tran := &transaction.Transaction{
+		ID:             transactionID,
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        notedStatus,
+			Description: &notedStatus,
+		},
+		Metadata: map[string]any{"txKey": "txValue"}, // Transaction has metadata
+		Operations: []*operation.Operation{
+			{
+				ID:            operationID,
+				TransactionID: transactionID,
+				Metadata:      map[string]any{"opKey": "opValue"},
+			},
+		},
+	}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: tran,
+		Validate:    &pkgTransaction.Responses{},
+	}
+
+	payloadBytes, err := msgpack.Marshal(payload)
+	require.NoError(t, err)
+
+	messages := []mmodel.Queue{
+		{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData: []mmodel.QueueData{
+				{ID: uuid.New(), Value: payloadBytes},
+			},
+		},
+	}
+
+	// Mock bulk insert success
+	mockTransactionRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 1,
+			Inserted:  1,
+			Ignored:   0,
+		}, nil)
+
+	mockOperationRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 1,
+			Inserted:  1,
+			Ignored:   0,
+		}, nil)
+
+	// Transaction metadata succeeds, operation metadata fails
+	metadataErr := errors.New("mongodb operation metadata failure")
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), "Transaction", gomock.Any()).
+		Return(nil) // Transaction metadata succeeds
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), "Operation", gomock.Any()).
+		Return(metadataErr) // Operation metadata fails
+
+	result, messageResults, err := uc.CreateBulkTransactionOperationsAsync(ctx, messages, true)
+
+	// Should return error because operation metadata creation failed
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "metadata creation failed")
+	assert.NotNil(t, result)
+	assert.Len(t, messageResults, 1)
+	assert.False(t, messageResults[0].Success)
+	assert.NotNil(t, messageResults[0].Error)
+	assert.Contains(t, messageResults[0].Error.Error(), "operation metadata")
+}
+
+func TestFallbackPath_CreatesOperationMetadata(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+	operationID := uuid.New().String()
+
+	// Create a NOTED transaction with metadata and operation with metadata
+	notedStatus := constant.NOTED
+	tran := &transaction.Transaction{
+		ID:             transactionID,
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        notedStatus,
+			Description: &notedStatus,
+		},
+		Metadata: map[string]any{"txKey": "txValue"}, // Transaction has metadata
+		Operations: []*operation.Operation{
+			{
+				ID:            operationID,
+				TransactionID: transactionID,
+				Metadata:      map[string]any{"opKey": "opValue"},
+			},
+		},
+	}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: tran,
+		Validate:    &pkgTransaction.Responses{},
+	}
+
+	payloadBytes, err := msgpack.Marshal(payload)
+	require.NoError(t, err)
+
+	messages := []mmodel.Queue{
+		{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData: []mmodel.QueueData{
+				{ID: uuid.New(), Value: payloadBytes},
+			},
+		},
+	}
+
+	// Mock bulk insert FAILURE to trigger fallback
+	mockTransactionRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("bulk insert failed"))
+
+	// Fallback: individual transaction creation
+	mockTransactionRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		Return(tran, nil)
+
+	// Fallback: transaction metadata creation
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), "Transaction", gomock.Any()).
+		Return(nil)
+
+	// Fallback: individual operation creation
+	mockOperationRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		Return(tran.Operations[0], nil)
+
+	// Fallback: operation metadata creation (this is what we're testing - it should be called!)
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), "Operation", gomock.Any()).
+		Return(nil)
+
+	// Mock Redis cleanup (best effort)
+	mockRedisRepo.EXPECT().
+		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	// Mock RabbitMQ for events
+	mockRabbitMQRepo.EXPECT().
+		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		AnyTimes()
+
+	result, messageResults, err := uc.CreateBulkTransactionOperationsAsync(ctx, messages, true)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.True(t, result.FallbackUsed)
+	assert.Equal(t, 1, result.FallbackCount)
+	assert.Len(t, messageResults, 1)
+	assert.True(t, messageResults[0].Success)
+
+	// Wait for goroutines to complete
+	<-time.After(100 * time.Millisecond)
+}
+
+func TestFallbackPath_OperationMetadataFailureReturnsError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+	operationID := uuid.New().String()
+
+	// Create a NOTED transaction with metadata and operation with metadata
+	notedStatus := constant.NOTED
+	tran := &transaction.Transaction{
+		ID:             transactionID,
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code:        notedStatus,
+			Description: &notedStatus,
+		},
+		Metadata: map[string]any{"txKey": "txValue"}, // Transaction has metadata
+		Operations: []*operation.Operation{
+			{
+				ID:            operationID,
+				TransactionID: transactionID,
+				Metadata:      map[string]any{"opKey": "opValue"},
+			},
+		},
+	}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: tran,
+		Validate:    &pkgTransaction.Responses{},
+	}
+
+	payloadBytes, err := msgpack.Marshal(payload)
+	require.NoError(t, err)
+
+	messages := []mmodel.Queue{
+		{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData: []mmodel.QueueData{
+				{ID: uuid.New(), Value: payloadBytes},
+			},
+		},
+	}
+
+	// Mock bulk insert FAILURE to trigger fallback
+	mockTransactionRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("bulk insert failed"))
+
+	// Fallback: individual transaction creation
+	mockTransactionRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		Return(tran, nil)
+
+	// Fallback: transaction metadata creation
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), "Transaction", gomock.Any()).
+		Return(nil)
+
+	// Fallback: individual operation creation
+	mockOperationRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		Return(tran.Operations[0], nil)
+
+	// Fallback: operation metadata creation fails
+	metadataErr := errors.New("mongodb operation metadata failure")
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), "Operation", gomock.Any()).
+		Return(metadataErr)
+
+	result, messageResults, err := uc.CreateBulkTransactionOperationsAsync(ctx, messages, true)
+
+	// Fallback should succeed but message should be marked as failed
+	require.NoError(t, err) // Overall succeeds because fallback completed
+	assert.NotNil(t, result)
+	assert.True(t, result.FallbackUsed)
+	assert.Equal(t, 0, result.FallbackCount) // No successful fallbacks
+	assert.Len(t, messageResults, 1)
+	assert.False(t, messageResults[0].Success)
+	assert.NotNil(t, messageResults[0].Error)
+	assert.Contains(t, messageResults[0].Error.Error(), "operation metadata")
+}

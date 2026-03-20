@@ -595,3 +595,63 @@ func TestOperationCreateBulk_ContextCancellation(t *testing.T) {
 	assert.Equal(t, int64(0), result.Inserted, "No rows inserted when context cancelled before first chunk")
 	assert.Equal(t, int64(0), result.Ignored)
 }
+
+// =============================================================================
+// UNIT TESTS - Configurable Chunk Size (Issue 2)
+// =============================================================================
+
+func TestNewOperationPostgreSQLRepository_DefaultChunkSize(t *testing.T) {
+	t.Parallel()
+
+	repo := NewOperationPostgreSQLRepository(nil)
+
+	assert.Equal(t, defaultOperationChunkSize, repo.chunkSize, "Should use default chunk size of 1000")
+}
+
+func TestNewOperationPostgreSQLRepository_CustomChunkSize(t *testing.T) {
+	t.Parallel()
+
+	customSize := 500
+	repo := NewOperationPostgreSQLRepository(nil, WithOperationChunkSize(customSize))
+
+	assert.Equal(t, customSize, repo.chunkSize, "Should use custom chunk size")
+}
+
+func TestNewOperationPostgreSQLRepository_ZeroChunkSizeDefaultsTo1000(t *testing.T) {
+	t.Parallel()
+
+	repo := NewOperationPostgreSQLRepository(nil, WithOperationChunkSize(0))
+
+	assert.Equal(t, defaultOperationChunkSize, repo.chunkSize, "Zero chunk size should use default")
+}
+
+func TestNewOperationPostgreSQLRepository_NegativeChunkSizeDefaultsTo1000(t *testing.T) {
+	t.Parallel()
+
+	repo := NewOperationPostgreSQLRepository(nil, WithOperationChunkSize(-100))
+
+	assert.Equal(t, defaultOperationChunkSize, repo.chunkSize, "Negative chunk size should use default")
+}
+
+func TestNewOperationPostgreSQLRepository_BackwardCompatibility(t *testing.T) {
+	t.Parallel()
+
+	// Test backward compatibility with single bool argument
+	repo := NewOperationPostgreSQLRepository(nil, true)
+
+	assert.True(t, repo.requireTenant, "Bool argument should set requireTenant")
+	assert.Equal(t, defaultOperationChunkSize, repo.chunkSize, "Should use default chunk size")
+}
+
+func TestNewOperationPostgreSQLRepository_MixedOptions(t *testing.T) {
+	t.Parallel()
+
+	customSize := 250
+	repo := NewOperationPostgreSQLRepository(nil,
+		WithOperationRequireTenant(true),
+		WithOperationChunkSize(customSize),
+	)
+
+	assert.True(t, repo.requireTenant, "Should set requireTenant")
+	assert.Equal(t, customSize, repo.chunkSize, "Should use custom chunk size")
+}

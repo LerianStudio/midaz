@@ -60,11 +60,15 @@ type Repository interface {
 	FindLastOperationsForAccountBeforeTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
 }
 
+// defaultOperationChunkSize is the default maximum rows per INSERT statement to stay under PostgreSQL's 65,535 parameter limit.
+const defaultOperationChunkSize = 1000
+
 // OperationPostgreSQLRepository is a Postgresql-specific implementation of the OperationRepository.
 type OperationPostgreSQLRepository struct {
 	connection    *libPostgres.Client
 	tableName     string
 	requireTenant bool
+	chunkSize     int // Maximum rows per bulk INSERT, defaults to 1000
 }
 
 var operationColumnList = []string{
@@ -120,13 +124,44 @@ var operationPointInTimeColumns = []string{
 }
 
 // NewOperationPostgreSQLRepository returns a new instance of OperationPostgreSQLRepository using the given Postgres connection.
-func NewOperationPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *OperationPostgreSQLRepository {
+// OperationRepoOption is a functional option for configuring OperationPostgreSQLRepository.
+type OperationRepoOption func(*OperationPostgreSQLRepository)
+
+// WithOperationChunkSize sets the maximum rows per bulk INSERT statement.
+// If not set or set to 0, defaults to 1000.
+func WithOperationChunkSize(size int) OperationRepoOption {
+	return func(r *OperationPostgreSQLRepository) {
+		if size > 0 {
+			r.chunkSize = size
+		}
+	}
+}
+
+// WithOperationRequireTenant configures whether tenant context is required.
+func WithOperationRequireTenant(require bool) OperationRepoOption {
+	return func(r *OperationPostgreSQLRepository) {
+		r.requireTenant = require
+	}
+}
+
+// NewOperationPostgreSQLRepository returns a new instance of OperationPostgreSQLRepository using the given Postgres connection.
+// Accepts optional configuration via OperationRepoOption functions.
+// For backward compatibility, also accepts a single bool parameter for requireTenant.
+func NewOperationPostgreSQLRepository(pc *libPostgres.Client, opts ...any) *OperationPostgreSQLRepository {
 	c := &OperationPostgreSQLRepository{
 		connection: pc,
 		tableName:  "operation",
+		chunkSize:  defaultOperationChunkSize,
 	}
-	if len(requireTenant) > 0 {
-		c.requireTenant = requireTenant[0]
+
+	for _, opt := range opts {
+		switch v := opt.(type) {
+		case bool:
+			// Backward compatibility: single bool arg means requireTenant
+			c.requireTenant = v
+		case OperationRepoOption:
+			v(c)
+		}
 	}
 
 	return c
@@ -341,9 +376,12 @@ func (r *OperationPostgreSQLRepository) createBulkInternal(
 
 	result := &repository.BulkInsertResult{Attempted: int64(len(operations))}
 
-	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
+	// Chunk into bulks to stay within PostgreSQL's parameter limit
 	// Operation has 30 columns, so 1000 rows = 30,000 parameters (under 65,535 limit)
-	const chunkSize = 1000
+	chunkSize := r.chunkSize
+	if chunkSize <= 0 {
+		chunkSize = defaultOperationChunkSize
+	}
 
 	for i := 0; i < len(operations); i += chunkSize {
 		// Check for context cancellation between chunks

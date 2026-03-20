@@ -65,11 +65,20 @@ func initMultiTenantPostgres(opts *Options, cfg *Config, logger libLog.Logger) (
 		return nil, fmt.Errorf("failed to connect to PostgreSQL (multi-tenant): %w", err)
 	}
 
+	// Get bulk recorder chunk size from config (defaults to 1000 if not set)
+	bulkCfg := cfg.GetBulkRecorderConfig()
+
 	return &postgresComponents{
-		connection:           conn,
-		pgManager:            pgMgr,
-		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn, true),
-		operationRepo:        operation.NewOperationPostgreSQLRepository(conn, true),
+		connection: conn,
+		pgManager:  pgMgr,
+		transactionRepo: transaction.NewTransactionPostgreSQLRepository(conn,
+			transaction.WithRequireTenant(true),
+			transaction.WithTransactionChunkSize(bulkCfg.MaxRowsPerInsert),
+		),
+		operationRepo: operation.NewOperationPostgreSQLRepository(conn,
+			operation.WithOperationRequireTenant(true),
+			operation.WithOperationChunkSize(bulkCfg.MaxRowsPerInsert),
+		),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn, true),
 		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, true),
 		operationRouteRepo:   operationroute.NewOperationRoutePostgreSQLRepository(conn, true),
@@ -89,10 +98,17 @@ func initSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*postgresCompo
 		return nil, fmt.Errorf("failed to run PostgreSQL migrations: %w", err)
 	}
 
+	// Get bulk recorder chunk size from config (defaults to 1000 if not set)
+	bulkCfg := cfg.GetBulkRecorderConfig()
+
 	return &postgresComponents{
-		connection:           conn,
-		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn),
-		operationRepo:        operation.NewOperationPostgreSQLRepository(conn),
+		connection: conn,
+		transactionRepo: transaction.NewTransactionPostgreSQLRepository(conn,
+			transaction.WithTransactionChunkSize(bulkCfg.MaxRowsPerInsert),
+		),
+		operationRepo: operation.NewOperationPostgreSQLRepository(conn,
+			operation.WithOperationChunkSize(bulkCfg.MaxRowsPerInsert),
+		),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn),
 		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn),
 		operationRouteRepo:   operationroute.NewOperationRoutePostgreSQLRepository(conn),
