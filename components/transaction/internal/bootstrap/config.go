@@ -209,6 +209,18 @@ type Config struct {
 	// Multi-tenant consumer configuration
 	RabbitMQMultiTenantSyncInterval     int `env:"RABBITMQ_MULTI_TENANT_SYNC_INTERVAL"`     // Stored in seconds
 	RabbitMQMultiTenantDiscoveryTimeout int `env:"RABBITMQ_MULTI_TENANT_DISCOVERY_TIMEOUT"` // Stored in milliseconds
+
+	// Bulk Recorder configuration
+	// Enables bulk message processing for improved throughput (only effective when RABBITMQ_TRANSACTION_ASYNC=true)
+	BulkRecorderEnabled bool `env:"BULK_RECORDER_ENABLED" default:"true"`
+	// Messages per bulk; if 0 or not set, defaults to workers × prefetch (5 × 10 = 50)
+	BulkRecorderSize int `env:"BULK_RECORDER_SIZE"`
+	// Maximum wait time before flushing an incomplete bulk (milliseconds)
+	BulkRecorderFlushTimeoutMs int `env:"BULK_RECORDER_FLUSH_TIMEOUT_MS" default:"100"`
+	// Maximum rows per INSERT statement to avoid PostgreSQL parameter limit
+	BulkRecorderMaxRowsPerInsert int `env:"BULK_RECORDER_MAX_ROWS_PER_INSERT" default:"1000"`
+	// Fall back to individual inserts when bulk processing fails
+	BulkRecorderFallbackEnabled bool `env:"BULK_RECORDER_FALLBACK_ENABLED" default:"true"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -378,6 +390,58 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers))
 
 	return balanceSyncWorker
+}
+
+// BulkRecorderConfig holds the resolved bulk recorder configuration values.
+// Use GetBulkRecorderConfig to obtain an instance with properly derived defaults.
+type BulkRecorderConfig struct {
+	Enabled          bool
+	Size             int
+	FlushTimeoutMs   int
+	MaxRowsPerInsert int
+	FallbackEnabled  bool
+}
+
+// defaultBulkRecorderSize is the fallback when neither BulkRecorderSize nor prefetch derivation yields a value.
+const defaultBulkRecorderSize = 50
+
+// defaultBulkRecorderFlushTimeoutMs is the default flush timeout in milliseconds.
+const defaultBulkRecorderFlushTimeoutMs = 100
+
+// defaultBulkRecorderMaxRowsPerInsert is the default max rows per INSERT to stay under PostgreSQL's 65,535 parameter limit.
+const defaultBulkRecorderMaxRowsPerInsert = 1000
+
+// GetBulkRecorderConfig returns the resolved bulk recorder configuration.
+// It derives BulkRecorderSize from RabbitMQ workers × prefetch if not explicitly set.
+func (c *Config) GetBulkRecorderConfig() BulkRecorderConfig {
+	size := c.BulkRecorderSize
+	if size <= 0 {
+		// Derive from RabbitMQ prefetch configuration: workers × prefetch
+		prefetch := c.RabbitMQNumbersOfWorkers * c.RabbitMQNumbersOfPrefetch
+		if prefetch > 0 {
+			size = prefetch
+		} else {
+			size = defaultBulkRecorderSize
+		}
+	}
+
+	flushTimeout := c.BulkRecorderFlushTimeoutMs
+	if flushTimeout <= 0 {
+		flushTimeout = defaultBulkRecorderFlushTimeoutMs
+	}
+
+	maxRows := c.BulkRecorderMaxRowsPerInsert
+	if maxRows <= 0 {
+		maxRows = defaultBulkRecorderMaxRowsPerInsert
+	}
+
+	return BulkRecorderConfig{
+		Enabled:          c.BulkRecorderEnabled,
+		Size:             size,
+		FlushTimeoutMs:   flushTimeout,
+		MaxRowsPerInsert: maxRows,
+		FallbackEnabled:  c.BulkRecorderFallbackEnabled,
+	}
 }
 
 // InitServersWithOptions initiates http and grpc servers with optional dependency injection.
