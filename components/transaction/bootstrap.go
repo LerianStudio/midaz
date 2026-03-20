@@ -52,10 +52,6 @@ type TransactionService interface {
 	// type assertion to *tmmongo.Manager internally.
 	GetMongoManager() any
 
-	// GetMultiTenantConsumer returns the multi-tenant RabbitMQ consumer as an opaque handle.
-	// Returns nil until multi-tenant consumer is wired. The caller (ledger bootstrap) performs
-	// type assertion to the concrete consumer type internally.
-	GetMultiTenantConsumer() any
 }
 
 // Options configures the transaction service initialization behavior.
@@ -74,12 +70,12 @@ type Options struct {
 	SettingsPort mbootstrap.SettingsPort
 
 	// Multi-tenant configuration (only used in unified mode)
-	MultiTenantEnabled    bool
-	TenantClient          *tmclient.Client
-	TenantServiceName     string
-	TenantEnvironment     string
-	TenantManagerURL      string
-	TenantManagerAPIKey   string
+	MultiTenantEnabled       bool
+	TenantClient             *tmclient.Client
+	TenantServiceName        string
+	TenantEnvironment        string
+	TenantManagerURL         string
+	MultiTenantServiceAPIKey string
 }
 
 // InitService initializes the transaction service.
@@ -118,6 +114,6 @@ func InitServiceWithOptionsOrError(opts *Options) (TransactionService, error) {
 		TenantServiceName:           opts.TenantServiceName,
 		TenantEnvironment:           opts.TenantEnvironment,
 		TenantManagerURL:            opts.TenantManagerURL,
-		TenantManagerAPIKey:         opts.TenantManagerAPIKey,
+		MultiTenantServiceAPIKey:    opts.MultiTenantServiceAPIKey,
 	})
 }

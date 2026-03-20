@@ -64,4 +64,69 @@ var (
 		Unit:        "1",
 		Description: "Total messages processed per tenant.",
 	}
+
+	// Bulk Recorder metrics for transaction layer bulk insert operations
+
+	// BulkRecorderTransactionsAttempted counts transactions sent to bulk INSERT.
+	BulkRecorderTransactionsAttempted = metrics.Metric{
+		Name:        "bulk_recorder_transactions_attempted_total",
+		Unit:        "1",
+		Description: "Total transactions sent to bulk INSERT.",
+	}
+
+	// BulkRecorderTransactionsInserted counts transactions actually inserted.
+	BulkRecorderTransactionsInserted = metrics.Metric{
+		Name:        "bulk_recorder_transactions_inserted_total",
+		Unit:        "1",
+		Description: "Total transactions actually inserted (excluding duplicates).",
+	}
+
+	// BulkRecorderTransactionsIgnored counts transactions skipped due to duplicates.
+	BulkRecorderTransactionsIgnored = metrics.Metric{
+		Name:        "bulk_recorder_transactions_ignored_total",
+		Unit:        "1",
+		Description: "Total transactions skipped (duplicates via ON CONFLICT DO NOTHING).",
+	}
+
+	// BulkRecorderOperationsAttempted counts operations sent to bulk INSERT.
+	BulkRecorderOperationsAttempted = metrics.Metric{
+		Name:        "bulk_recorder_operations_attempted_total",
+		Unit:        "1",
+		Description: "Total operations sent to bulk INSERT.",
+	}
+
+	// BulkRecorderOperationsInserted counts operations actually inserted.
+	BulkRecorderOperationsInserted = metrics.Metric{
+		Name:        "bulk_recorder_operations_inserted_total",
+		Unit:        "1",
+		Description: "Total operations actually inserted (excluding duplicates).",
+	}
+
+	// BulkRecorderOperationsIgnored counts operations skipped due to duplicates.
+	BulkRecorderOperationsIgnored = metrics.Metric{
+		Name:        "bulk_recorder_operations_ignored_total",
+		Unit:        "1",
+		Description: "Total operations skipped (duplicates via ON CONFLICT DO NOTHING).",
+	}
+
+	// BulkRecorderBulkSize tracks the number of messages per bulk.
+	BulkRecorderBulkSize = metrics.Metric{
+		Name:        "bulk_recorder_bulk_size",
+		Unit:        "1",
+		Description: "Number of messages per bulk processing batch.",
+	}
+
+	// BulkRecorderBulkDuration tracks the time taken for each bulk processing.
+	BulkRecorderBulkDuration = metrics.Metric{
+		Name:        "bulk_recorder_bulk_duration_seconds",
+		Unit:        "s",
+		Description: "Time taken for bulk processing in seconds.",
+	}
+
+	// BulkRecorderFallbackTotal counts fallback activations when bulk fails.
+	BulkRecorderFallbackTotal = metrics.Metric{
+		Name:        "bulk_recorder_fallback_total",
+		Unit:        "1",
+		Description: "Total fallback activations when bulk processing fails.",
+	}
 )

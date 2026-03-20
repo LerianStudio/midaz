@@ -62,7 +62,7 @@ type Config struct {
 	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"`
 	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
 	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
-	TenantManagerAPIKey                 string `env:"TENANT_MANAGER_API_KEY"`
+	MultiTenantServiceAPIKey            string `env:"MULTI_TENANT_SERVICE_API_KEY"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -184,7 +184,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TenantServiceName:           tenantServiceName,
 		TenantEnvironment:           cfg.MultiTenantEnvironment,
 		TenantManagerURL:            strings.TrimSpace(cfg.MultiTenantURL),
-		TenantManagerAPIKey:         strings.TrimSpace(cfg.TenantManagerAPIKey),
+		MultiTenantServiceAPIKey:    strings.TrimSpace(cfg.MultiTenantServiceAPIKey),
 	}
 
 	// Initialize transaction module first to get the BalancePort
@@ -314,7 +314,6 @@ func buildUnifiedRouteSetup(
 		logger,
 		onboardingService.GetPGManager(),
 		onboardingService.GetMongoManager(),
-		nil,
 	)
 	if err != nil {
 		return nil, err
@@ -325,7 +324,6 @@ func buildUnifiedRouteSetup(
 		logger,
 		transactionService.GetPGManager(),
 		transactionService.GetMongoManager(),
-		transactionService.GetMultiTenantConsumer(),
 	)
 	if err != nil {
 		return nil, err
@@ -378,9 +376,9 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 		return nil, "", fmt.Errorf("APPLICATION_NAME is required when MULTI_TENANT_ENABLED=true")
 	}
 
-	tenantManagerAPIKey := strings.TrimSpace(cfg.TenantManagerAPIKey)
+	tenantManagerAPIKey := strings.TrimSpace(cfg.MultiTenantServiceAPIKey)
 	if tenantManagerAPIKey == "" {
-		return nil, "", fmt.Errorf("TENANT_MANAGER_API_KEY is required when MULTI_TENANT_ENABLED=true")
+		return nil, "", fmt.Errorf("MULTI_TENANT_SERVICE_API_KEY is required when MULTI_TENANT_ENABLED=true")
 	}
 
 	// Apply safe defaults for circuit breaker when not configured
@@ -413,7 +411,7 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 	return tenantClient, tenantServiceName, nil
 }
 
-func buildModuleTenantMiddleware(moduleName string, logger libLog.Logger, rawPGManager, rawMongoManager, rawConsumer any) (*tmmiddleware.MultiPoolMiddleware, error) {
+func buildModuleTenantMiddleware(moduleName string, logger libLog.Logger, rawPGManager, rawMongoManager any) (*tmmiddleware.MultiPoolMiddleware, error) {
 	pgManager, ok := rawPGManager.(*tmpostgres.Manager)
 	if !ok || pgManager == nil {
 		return nil, fmt.Errorf("%s multi-tenant PostgreSQL manager not available", moduleName)
@@ -428,13 +426,6 @@ func buildModuleTenantMiddleware(moduleName string, logger libLog.Logger, rawPGM
 		tmmiddleware.WithDefaultRoute(moduleName, pgManager, mongoManager),
 		tmmiddleware.WithMultiPoolLogger(logger),
 		tmmiddleware.WithErrorMapper(midazErrorMapper),
-	}
-
-	if rawConsumer != nil {
-		consumer, ok := rawConsumer.(tmmiddleware.ConsumerTrigger)
-		if ok {
-			options = append(options, tmmiddleware.WithConsumerTrigger(consumer))
-		}
 	}
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",

@@ -12,6 +12,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	redisBalance "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis/balance"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
@@ -84,6 +85,15 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		}
 
 		compositeKey.AssetCode = balance.AssetCode
+
+		// Fall back to BalanceRedis.Key if parsed partition key is empty/default and balance has specific key.
+		// This handles malformed Redis keys like "@account#" (trailing # with no partition value).
+		parsedIsGeneric := compositeKey.PartitionKey == "" || compositeKey.PartitionKey == constant.DefaultBalanceKey
+		balanceHasSpecificKey := balance.Key != "" && balance.Key != constant.DefaultBalanceKey
+
+		if parsedIsGeneric && balanceHasSpecificKey {
+			compositeKey.PartitionKey = balance.Key
+		}
 
 		aggregatedBalances = append(aggregatedBalances, &redisBalance.AggregatedBalance{
 			RedisKey: key,

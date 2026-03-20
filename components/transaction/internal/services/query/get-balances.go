@@ -132,7 +132,12 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	balanceOperations := make([]mmodel.BalanceOperation, 0)
 
 	for _, balance := range balances {
-		aliasKey := balance.Alias + "#" + balance.Key
+		balanceKey := balance.Key
+		if balanceKey == "" {
+			balanceKey = constant.DefaultBalanceKey
+		}
+
+		aliasKey := balance.Alias + "#" + balanceKey
 		internalKey := utils.BalanceInternalKey(organizationID, ledgerID, aliasKey)
 
 		for k, v := range validate.From {

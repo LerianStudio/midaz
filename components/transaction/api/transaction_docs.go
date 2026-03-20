@@ -4616,6 +4616,12 @@ const docTemplatetransaction = `{
                     "maxLength": 100,
                     "example": "ROUTE-001"
                 },
+                "routeDescription": {
+                    "description": "Human-readable description of the operation route for accounting traceability\nexample: Settlement route for service charges\nmaxLength: 250",
+                    "type": "string",
+                    "maxLength": 250,
+                    "example": "Settlement route for service charges"
+                },
                 "routeId": {
                     "description": "UUID of the operation route that generated this operation. Primary field for route identification, validation, and accounting.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
@@ -4853,9 +4859,15 @@ const docTemplatetransaction = `{
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "route": {
-                    "description": "Deprecated: legacy route identifier, use routeId on individual operations instead. Contains the operation route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
+                    "description": "Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
                     "type": "string",
                     "maxLength": 250,
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "routeId": {
+                    "description": "UUID of the transaction route. Primary field for route identification, validation, and accounting.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "source": {

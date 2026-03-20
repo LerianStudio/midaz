@@ -61,7 +61,7 @@ func TestBalancePostgreSQLModel_ToEntity(t *testing.T) {
 			},
 		},
 		{
-			name: "handles zero values",
+			name: "handles zero values with empty key defaulting to default",
 			model: BalancePostgreSQLModel{
 				ID:             "00000000-0000-0000-0000-000000000001",
 				OrganizationID: "00000000-0000-0000-0000-000000000002",
@@ -86,7 +86,7 @@ func TestBalancePostgreSQLModel_ToEntity(t *testing.T) {
 				LedgerID:       "00000000-0000-0000-0000-000000000003",
 				AccountID:      "00000000-0000-0000-0000-000000000004",
 				Alias:          "",
-				Key:            "",
+				Key:            "default", // Empty key defaults to "default"
 				AssetCode:      "",
 				Available:      decimal.Zero,
 				OnHold:         decimal.Zero,
@@ -449,4 +449,101 @@ func TestBalancePostgreSQLModel_RoundTrip(t *testing.T) {
 // timePtr is a helper to get a pointer to a time.Time
 func timePtr(t time.Time) *time.Time {
 	return &t
+}
+
+// TestBalancePostgreSQLModel_ToEntity_EmptyKey verifies that empty or whitespace Key values
+// default to "default" to prevent malformed cache keys.
+func TestBalancePostgreSQLModel_ToEntity_EmptyKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		inputKey    string
+		expectedKey string
+	}{
+		{
+			name:        "empty key defaults to default",
+			inputKey:    "",
+			expectedKey: "default",
+		},
+		{
+			name:        "whitespace key defaults to default",
+			inputKey:    "   ",
+			expectedKey: "default",
+		},
+		{
+			name:        "valid key preserved",
+			inputKey:    "asset-freeze",
+			expectedKey: "asset-freeze",
+		},
+		{
+			name:        "default key preserved",
+			inputKey:    "default",
+			expectedKey: "default",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			model := &BalancePostgreSQLModel{
+				ID:             "test-id",
+				OrganizationID: "org-id",
+				LedgerID:       "ledger-id",
+				AccountID:      "account-id",
+				Alias:          "@test",
+				Key:            tt.inputKey,
+				AssetCode:      "USD",
+			}
+
+			entity := model.ToEntity()
+
+			assert.Equal(t, tt.expectedKey, entity.Key)
+		})
+	}
+}
+
+// TestBalanceAtTimestampModel_ToEntity_EmptyKey verifies that empty Key in
+// BalanceAtTimestampModel defaults to "default".
+func TestBalanceAtTimestampModel_ToEntity_EmptyKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		inputKey    string
+		expectedKey string
+	}{
+		{
+			name:        "empty key defaults to default",
+			inputKey:    "",
+			expectedKey: "default",
+		},
+		{
+			name:        "whitespace key defaults to default",
+			inputKey:    "   ",
+			expectedKey: "default",
+		},
+		{
+			name:        "valid key preserved",
+			inputKey:    "custom-partition",
+			expectedKey: "custom-partition",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			model := &BalanceAtTimestampModel{
+				ID:    "test-id",
+				Key:   tt.inputKey,
+				Alias: "@test",
+			}
+
+			entity := model.ToEntity()
+
+			assert.Equal(t, tt.expectedKey, entity.Key)
+		})
+	}
 }

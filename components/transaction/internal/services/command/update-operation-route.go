@@ -29,10 +29,12 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, led
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update operation route: %v", input))
 
 	operationRoute := &mmodel.OperationRoute{
-		Title:       input.Title,
-		Description: input.Description,
-		Code:        input.Code,
-		Account:     input.Account,
+		Title:                input.Title,
+		Description:          input.Description,
+		Code:                 input.Code,
+		Account:              input.Account,
+		AccountingEntries:    input.AccountingEntries,
+		AccountingEntriesRaw: input.AccountingEntriesRaw,
 	}
 
 	operationRouteUpdated, err := uc.OperationRouteRepo.Update(ctx, organizationID, ledgerID, id, operationRoute)

@@ -65,7 +65,7 @@ func initTenantMiddleware(cfg *Config, logger libLog.Logger, telemetry *libOpent
 func buildTenantClientOptions(cfg *Config, mtURL string) ([]tmclient.ClientOption, error) {
 	clientOpts := make([]tmclient.ClientOption, 0)
 
-	clientOpts = append(clientOpts, tmclient.WithServiceAPIKey(cfg.TenantManagerAPIKey))
+	clientOpts = append(clientOpts, tmclient.WithServiceAPIKey(cfg.MultiTenantServiceAPIKey))
 
 	if cfg.MultiTenantTimeout > 0 {
 		clientOpts = append(clientOpts, tmclient.WithTimeout(time.Duration(cfg.MultiTenantTimeout)*time.Second))

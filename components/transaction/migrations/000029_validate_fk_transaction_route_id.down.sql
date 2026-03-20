@@ -1,0 +1,3 @@
+-- VALIDATE CONSTRAINT is idempotent and non-destructive; nothing to undo.
+-- The constraint remains valid after rollback. Re-running 000027 with NOT VALID
+-- would re-create it as not-yet-validated if a full rollback is needed.

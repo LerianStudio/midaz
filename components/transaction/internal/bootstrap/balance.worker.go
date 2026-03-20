@@ -40,6 +40,7 @@ type BalanceSyncWorker struct {
 	multiTenantEnabled bool
 	tenantClient       *tmclient.Client
 	pgManager          *tmpostgres.Manager
+	serviceName        string
 }
 
 func NewBalanceSyncWorker(conn *libRedis.Client, logger libLog.Logger, useCase *command.UseCase, maxWorkers int) *BalanceSyncWorker {
@@ -61,6 +62,8 @@ func NewBalanceSyncWorker(conn *libRedis.Client, logger libLog.Logger, useCase *
 // When multiTenantEnabled is true, both tenantClient and pgManager must be non-nil for the worker
 // to be considered ready (isMultiTenantReady). The worker uses tenantClient to discover active
 // tenants and pgManager to resolve per-tenant PostgreSQL connections.
+// serviceName is the service identifier used to query active tenants from the Tenant Manager
+// (e.g. the value of APPLICATION_NAME). It must not be empty when multi-tenant is enabled.
 func NewBalanceSyncWorkerMultiTenant(
 	conn *libRedis.Client,
 	logger libLog.Logger,
@@ -69,11 +72,13 @@ func NewBalanceSyncWorkerMultiTenant(
 	multiTenantEnabled bool,
 	tenantClient *tmclient.Client,
 	pgManager *tmpostgres.Manager,
+	serviceName string,
 ) *BalanceSyncWorker {
 	w := NewBalanceSyncWorker(conn, logger, useCase, maxWorkers)
 	w.multiTenantEnabled = multiTenantEnabled
 	w.tenantClient = tenantClient
 	w.pgManager = pgManager
+	w.serviceName = serviceName
 
 	return w
 }
@@ -189,7 +194,7 @@ func (w *BalanceSyncWorker) runMultiTenant() error {
 // Returns (tenants, true) on success, (nil, false) if an error or empty result requires
 // backing off and retrying, or (nil, true) if shutdown was requested during backoff.
 func (w *BalanceSyncWorker) discoverActiveTenants(ctx context.Context, rds redis.UniversalClient) ([]*tmclient.TenantSummary, bool) {
-	tenants, err := w.tenantClient.GetActiveTenantsByService(ctx, "transaction")
+	tenants, err := w.tenantClient.GetActiveTenantsByService(ctx, w.serviceName)
 	if err != nil {
 		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get active tenants: %v", err))
 
@@ -543,12 +548,17 @@ func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool
 func (w *BalanceSyncWorker) waitUntilDue(ctx context.Context, dueAtUnix int64, logger libLog.Logger) bool {
 	nowUnix := time.Now().Unix()
 	if dueAtUnix <= nowUnix {
-		return false
+		// Due time already passed but item not processed (ZSET/sync-queue desync).
+		// Apply minimal backoff to prevent busy loop when:
+		// - ZSET has entry with expired score
+		// - Sync queue is empty (lock already claimed or data expired)
+		// Without this delay, the worker would spin indefinitely.
+		return waitOrDone(ctx, 500*time.Millisecond, logger)
 	}
 
 	waitFor := time.Duration(dueAtUnix-nowUnix) * time.Second
 	if waitFor <= 0 {
-		return false
+		return waitOrDone(ctx, 500*time.Millisecond, logger)
 	}
 
 	return waitOrDone(ctx, waitFor, logger)

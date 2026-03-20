@@ -15,6 +15,7 @@ import (
 
 	http "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	http0 "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	repository "github.com/LerianStudio/midaz/v3/pkg/repository"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -71,6 +72,36 @@ func (m *MockRepository) Create(ctx context.Context, transaction *Transaction) (
 func (mr *MockRepositoryMockRecorder) Create(ctx, transaction any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), ctx, transaction)
+}
+
+// CreateBulk mocks base method.
+func (m *MockRepository) CreateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkInsertResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateBulk", ctx, transactions)
+	ret0, _ := ret[0].(*repository.BulkInsertResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateBulk indicates an expected call of CreateBulk.
+func (mr *MockRepositoryMockRecorder) CreateBulk(ctx, transactions any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBulk", reflect.TypeOf((*MockRepository)(nil).CreateBulk), ctx, transactions)
+}
+
+// CreateBulkTx mocks base method.
+func (m *MockRepository) CreateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkInsertResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateBulkTx", ctx, tx, transactions)
+	ret0, _ := ret[0].(*repository.BulkInsertResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateBulkTx indicates an expected call of CreateBulkTx.
+func (mr *MockRepositoryMockRecorder) CreateBulkTx(ctx, tx, transactions any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBulkTx", reflect.TypeOf((*MockRepository)(nil).CreateBulkTx), ctx, tx, transactions)
 }
 
 // Delete mocks base method.

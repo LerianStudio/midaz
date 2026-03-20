@@ -55,8 +55,7 @@ type Service struct {
 	// nil in single-tenant mode. Populated from pg.pgManager / mgo.mongoManager at construction.
 	pgManager               any
 	mongoManager            any
-	multiTenantConsumerPort any                     // RabbitMQ consumer; nil until multi-tenant consumer is wired
-	metricsFactory          *metrics.MetricsFactory // nil in single-tenant mode or when telemetry disabled; for tenant consumer gauge
+	metricsFactory *metrics.MetricsFactory // nil in single-tenant mode or when telemetry disabled; for tenant consumer gauge
 
 	// Route registration dependencies (for unified ledger mode)
 	auth                    *middleware.AuthClient
@@ -211,12 +210,6 @@ func (app *Service) GetPGManager() any {
 // Returns nil in single-tenant mode.
 func (app *Service) GetMongoManager() any {
 	return app.mongoManager
-}
-
-// GetMultiTenantConsumer returns the multi-tenant RabbitMQ consumer as an opaque handle.
-// Returns nil until multi-tenant consumer is wired.
-func (app *Service) GetMultiTenantConsumer() any {
-	return app.multiTenantConsumerPort
 }
 
 // Ensure Service implements mbootstrap.Service interface at compile time

@@ -44,6 +44,7 @@ type RedisQueueConsumer struct {
 	multiTenantEnabled bool
 	tenantClient       *tmclient.Client
 	pgManager          *tmpostgres.Manager
+	serviceName        string
 }
 
 func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) *RedisQueueConsumer {
@@ -57,17 +58,21 @@ func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) 
 // When multiTenantEnabled is true, both tenantClient and pgManager must be non-nil for the consumer
 // to be considered ready (isMultiTenantReady). The consumer uses tenantClient to discover active
 // tenants and pgManager to resolve per-tenant PostgreSQL connections.
+// serviceName is the service identifier used to query active tenants from the Tenant Manager
+// (e.g. the value of APPLICATION_NAME). It must not be empty when multi-tenant is enabled.
 func NewRedisQueueConsumerMultiTenant(
 	logger libLog.Logger,
 	handler in.TransactionHandler,
 	multiTenantEnabled bool,
 	tenantClient *tmclient.Client,
 	pgManager *tmpostgres.Manager,
+	serviceName string,
 ) *RedisQueueConsumer {
 	c := NewRedisQueueConsumer(logger, handler)
 	c.multiTenantEnabled = multiTenantEnabled
 	c.tenantClient = tenantClient
 	c.pgManager = pgManager
+	c.serviceName = serviceName
 
 	return c
 }
@@ -131,7 +136,7 @@ func (r *RedisQueueConsumer) runMultiTenant() error {
 			return nil
 
 		case <-ticker.C:
-			tenants, err := r.tenantClient.GetActiveTenantsByService(ctx, "transaction")
+			tenants, err := r.tenantClient.GetActiveTenantsByService(ctx, r.serviceName)
 			if err != nil {
 				r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("RedisQueueConsumer: failed to get active tenants: %v", err))
 
@@ -362,6 +367,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 		CreatedAt:                m.TransactionDate,
 		UpdatedAt:                time.Now(),
 		Route:                    m.TransactionInput.Route,
+		RouteID:                  m.TransactionInput.RouteID,
 		Metadata:                 m.TransactionInput.Metadata,
 		Status: postgreTransaction.Status{
 			Code:        m.TransactionStatus,
@@ -392,11 +398,25 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 
 		var routeCache *mmodel.TransactionRouteCache
 
-		if ledgerSettings.Accounting.ValidateRoutes && m.Validate.TransactionRoute != "" {
-			trID, parseErr := uuid.Parse(m.Validate.TransactionRoute)
-			if parseErr != nil {
-				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to parse TransactionRoute UUID %s: %v", m.Validate.TransactionRoute, parseErr))
-			} else {
+		if ledgerSettings.Accounting.ValidateRoutes {
+			// Prefer the new TransactionRouteID (UUID) over the deprecated TransactionRoute string.
+			var trID uuid.UUID
+
+			var parseErr error
+
+			if !libCommons.IsNilOrEmpty(m.Validate.TransactionRouteID) {
+				trID, parseErr = uuid.Parse(*m.Validate.TransactionRouteID)
+				if parseErr != nil {
+					logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to parse TransactionRouteID %s: %v", *m.Validate.TransactionRouteID, parseErr))
+				}
+			} else if m.Validate.TransactionRoute != "" {
+				trID, parseErr = uuid.Parse(m.Validate.TransactionRoute)
+				if parseErr != nil {
+					logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to parse TransactionRoute UUID %s: %v", m.Validate.TransactionRoute, parseErr))
+				}
+			}
+
+			if parseErr == nil && trID != uuid.Nil {
 				cache, cacheErr := r.TransactionHandler.Query.GetOrCreateTransactionRouteCache(msgCtxWithSpan, m.OrganizationID, m.LedgerID, trID)
 				if cacheErr != nil {
 					logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Failed to get route cache for org=%s ledger=%s route=%s: %v", m.OrganizationID, m.LedgerID, trID, cacheErr))
