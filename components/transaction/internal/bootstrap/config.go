@@ -355,7 +355,9 @@ func initHandlers(commandUC *command.UseCase, queryUC *query.UseCase) *handlers 
 }
 
 // initBalanceSyncWorker creates the balance sync worker (multi-tenant or single-tenant).
-func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, redisConn *libRedis.Client, pgManager *tmpostgres.Manager) *BalanceSyncWorker {
+// tenantServiceName is the pre-validated service identifier for the Tenant Manager;
+// it is only used when multi-tenant mode is active.
+func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, redisConn *libRedis.Client, pgManager *tmpostgres.Manager, tenantServiceName string) *BalanceSyncWorker {
 	const defaultBalanceSyncMaxWorkers = 5
 
 	balanceSyncMaxWorkers := cfg.BalanceSyncMaxWorkers
@@ -368,7 +370,7 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 	var balanceSyncWorker *BalanceSyncWorker
 
 	if opts != nil && opts.MultiTenantEnabled {
-		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, true, opts.TenantClient, pgManager)
+		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, true, opts.TenantClient, pgManager, tenantServiceName)
 	} else {
 		balanceSyncWorker = NewBalanceSyncWorker(redisConn, logger, commandUC, balanceSyncMaxWorkers)
 	}
@@ -393,6 +395,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// BALANCE_SYNC_WORKER_ENABLED is deprecated - balance sync is always enabled
 	logger.Log(context.Background(), libLog.LevelInfo, "BalanceSyncWorker: always enabled (BALANCE_SYNC_WORKER_ENABLED env var is deprecated)")
+
+	// Validate TenantServiceName early so that workers fail fast on misconfiguration
+	// instead of silently backing off when the Tenant Manager returns no tenants.
+	var tenantServiceName string
+	if opts != nil && opts.MultiTenantEnabled {
+		tenantServiceName = strings.TrimSpace(opts.TenantServiceName)
+		if tenantServiceName == "" {
+			return nil, fmt.Errorf("TenantServiceName must not be empty when multi-tenant is enabled")
+		}
+	}
 
 	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
@@ -495,13 +507,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// RedisQueueConsumer: multi-tenant or single-tenant
 	var redisConsumer *RedisQueueConsumer
 	if opts != nil && opts.MultiTenantEnabled {
-		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *h.transaction, true, opts.TenantClient, pg.pgManager)
+		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *h.transaction, true, opts.TenantClient, pg.pgManager, tenantServiceName)
 	} else {
 		redisConsumer = NewRedisQueueConsumer(logger, *h.transaction)
 	}
 
 	// BalanceSyncWorker: multi-tenant or single-tenant
-	balanceSyncWorker := initBalanceSyncWorker(opts, cfg, logger, commandUseCase, redisConnection, pg.pgManager)
+	balanceSyncWorker := initBalanceSyncWorker(opts, cfg, logger, commandUseCase, redisConnection, pg.pgManager, tenantServiceName)
 
 	return &Service{
 		Server:                   server,

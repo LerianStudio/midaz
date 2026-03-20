@@ -220,7 +220,7 @@ func TestNewBalanceSyncWorkerMultiTenant(t *testing.T) {
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
-	worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, 5, true, tenantClient, pgMgr)
+	worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, 5, true, tenantClient, pgMgr, "transaction")
 
 	require.NotNil(t, worker, "worker should not be nil")
 	assert.True(t, worker.multiTenantEnabled,
@@ -231,6 +231,8 @@ func TestNewBalanceSyncWorkerMultiTenant(t *testing.T) {
 		"pgManager should be the same instance")
 	assert.Equal(t, 5, worker.maxWorkers,
 		"maxWorkers should be set correctly")
+	assert.Equal(t, "transaction", worker.serviceName,
+		"serviceName should be set correctly")
 }
 
 // TestNewRedisQueueConsumerMultiTenant verifies the multi-tenant-aware
@@ -244,7 +246,7 @@ func TestNewRedisQueueConsumerMultiTenant(t *testing.T) {
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
-	consumer := NewRedisQueueConsumerMultiTenant(logger, handler, true, tenantClient, pgMgr)
+	consumer := NewRedisQueueConsumerMultiTenant(logger, handler, true, tenantClient, pgMgr, "transaction")
 
 	require.NotNil(t, consumer, "consumer should not be nil")
 	assert.True(t, consumer.multiTenantEnabled,
@@ -253,6 +255,8 @@ func TestNewRedisQueueConsumerMultiTenant(t *testing.T) {
 		"tenantClient should be the same instance")
 	assert.Same(t, pgMgr, consumer.pgManager,
 		"pgManager should be the same instance")
+	assert.Equal(t, "transaction", consumer.serviceName,
+		"serviceName should be set correctly")
 }
 
 // TestRabbitMQConsumerHandlerReceivesPGManager verifies that the
@@ -498,7 +502,7 @@ func TestNewBalanceSyncWorkerMultiTenant_EdgeCases(t *testing.T) {
 
 			worker := NewBalanceSyncWorkerMultiTenant(
 				conn, logger, useCase, 5,
-				tt.multiTenantEnabled, tt.tenantClient, tt.pgManager,
+				tt.multiTenantEnabled, tt.tenantClient, tt.pgManager, "transaction",
 			)
 
 			require.NotNil(t, worker, "constructor must return non-nil")
@@ -566,7 +570,7 @@ func TestNewRedisQueueConsumerMultiTenant_EdgeCases(t *testing.T) {
 
 			consumer := NewRedisQueueConsumerMultiTenant(
 				logger, handler,
-				tt.multiTenantEnabled, tt.tenantClient, tt.pgManager,
+				tt.multiTenantEnabled, tt.tenantClient, tt.pgManager, "transaction",
 			)
 
 			require.NotNil(t, consumer, "constructor must return non-nil")
@@ -907,7 +911,7 @@ func TestBalanceSyncWorker_MultiTenantConstructorPreservesRunBehavior(t *testing
 
 			worker := NewBalanceSyncWorkerMultiTenant(
 				conn, logger, useCase, 5,
-				tt.multiTenantEnabled, tenantClient, tt.pgManager,
+				tt.multiTenantEnabled, tenantClient, tt.pgManager, "transaction",
 			)
 
 			require.NotNil(t, worker, "constructor must return non-nil worker")

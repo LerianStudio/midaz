@@ -36,30 +36,31 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 )
 
-// FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers fuzzes the maxWorkers parameter
-// and multiTenantEnabled flag of the NewBalanceSyncWorkerMultiTenant constructor.
+// FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers fuzzes the maxWorkers parameter,
+// multiTenantEnabled flag, and serviceName of the NewBalanceSyncWorkerMultiTenant constructor.
 //
 // Properties verified (not specific values):
-//  1. Constructor never panics for any int/bool combination.
+//  1. Constructor never panics for any int/bool/string combination.
 //  2. Returned worker is never nil.
 //  3. maxWorkers is always > 0 after construction (default applied for <= 0).
 //  4. multiTenantEnabled matches the input value.
 //  5. isMultiTenantReady() is consistent with field state.
+//  6. serviceName is stored exactly as provided (no implicit trimming).
 func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 	// Seed 1: typical valid input
-	f.Add(5, true)
+	f.Add(5, true, "transaction")
 	// Seed 2: zero maxWorkers (boundary -- triggers default)
-	f.Add(0, false)
+	f.Add(0, false, "ledger")
 	// Seed 3: negative maxWorkers (boundary -- triggers default)
-	f.Add(-1, true)
+	f.Add(-1, true, "")
 	// Seed 4: large maxWorkers (stress)
-	f.Add(math.MaxInt32, false)
+	f.Add(math.MaxInt32, false, " ")
 	// Seed 5: minimum int (extreme negative boundary)
-	f.Add(math.MinInt32, true)
+	f.Add(math.MinInt32, true, "  ledger  ")
 	// Seed 6: one worker (minimum valid)
-	f.Add(1, false)
+	f.Add(1, false, "transaction")
 	// Seed 7: large negative (another extreme)
-	f.Add(-1000000, false)
+	f.Add(-1000000, false, "my-service")
 
 	logger := newTestLogger()
 	conn := &libRedis.Client{}
@@ -70,9 +71,9 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 	}
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
-	f.Fuzz(func(t *testing.T, maxWorkers int, multiTenantEnabled bool) {
+	f.Fuzz(func(t *testing.T, maxWorkers int, multiTenantEnabled bool, serviceName string) {
 		// Property: constructor must never panic (enforced by test execution).
-		worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, maxWorkers, multiTenantEnabled, tenantClient, pgMgr)
+		worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, maxWorkers, multiTenantEnabled, tenantClient, pgMgr, serviceName)
 
 		// Property: returned worker is never nil.
 		if worker == nil {
@@ -87,6 +88,11 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 		// Property: multiTenantEnabled matches input.
 		if worker.multiTenantEnabled != multiTenantEnabled {
 			t.Fatalf("multiTenantEnabled mismatch: got %v, want %v", worker.multiTenantEnabled, multiTenantEnabled)
+		}
+
+		// Property: serviceName is stored exactly as provided.
+		if worker.serviceName != serviceName {
+			t.Fatalf("serviceName mismatch: got %q, want %q", worker.serviceName, serviceName)
 		}
 
 		// Property: isMultiTenantReady() is true only when enabled AND pgManager AND tenantClient non-nil.
@@ -107,24 +113,25 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 }
 
 // FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled fuzzes the
-// multiTenantEnabled flag of the NewRedisQueueConsumerMultiTenant constructor.
+// multiTenantEnabled flag and serviceName of the NewRedisQueueConsumerMultiTenant constructor.
 //
 // Properties verified:
 //  1. Constructor never panics.
 //  2. Returned consumer is never nil.
 //  3. multiTenantEnabled matches input.
 //  4. isMultiTenantReady() is consistent with field state.
+//  5. serviceName is stored exactly as provided.
 func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 	// Seed 1: enabled with pgManager (typical multi-tenant)
-	f.Add(true, true)
+	f.Add(true, true, "transaction")
 	// Seed 2: disabled with no pgManager (typical single-tenant)
-	f.Add(false, false)
+	f.Add(false, false, "ledger")
 	// Seed 3: enabled without pgManager (fallback case)
-	f.Add(true, false)
+	f.Add(true, false, "")
 	// Seed 4: disabled with pgManager (misconfiguration edge case)
-	f.Add(false, true)
-	// Seed 5: enabled with pgManager (duplicate to ensure stability)
-	f.Add(true, true)
+	f.Add(false, true, " ")
+	// Seed 5: enabled with pgManager, different service name
+	f.Add(true, true, "  ledger  ")
 
 	logger := newTestLogger()
 	handler := in.TransactionHandler{}
@@ -134,14 +141,14 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 	}
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
-	f.Fuzz(func(t *testing.T, multiTenantEnabled bool, hasPGManager bool) {
+	f.Fuzz(func(t *testing.T, multiTenantEnabled bool, hasPGManager bool, serviceName string) {
 		var mgr *tmpostgres.Manager
 		if hasPGManager {
 			mgr = pgMgr
 		}
 
 		// Property: constructor must never panic.
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, multiTenantEnabled, tenantClient, mgr)
+		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, multiTenantEnabled, tenantClient, mgr, serviceName)
 
 		// Property: returned consumer is never nil.
 		if consumer == nil {
@@ -151,6 +158,11 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 		// Property: multiTenantEnabled matches input.
 		if consumer.multiTenantEnabled != multiTenantEnabled {
 			t.Fatalf("multiTenantEnabled mismatch: got %v, want %v", consumer.multiTenantEnabled, multiTenantEnabled)
+		}
+
+		// Property: serviceName is stored exactly as provided.
+		if consumer.serviceName != serviceName {
+			t.Fatalf("serviceName mismatch: got %q, want %q", consumer.serviceName, serviceName)
 		}
 
 		// Property: isMultiTenantReady() follows the predicate logic.

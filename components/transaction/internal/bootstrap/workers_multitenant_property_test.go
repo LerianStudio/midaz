@@ -172,7 +172,7 @@ func TestProperty_NewBalanceSyncWorkerMultiTenant_PreservesBaseFields(t *testing
 			maxWorkers = -maxBound
 		}
 
-		worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, maxWorkers, enabled, tenantClient, pgMgr)
+		worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, maxWorkers, enabled, tenantClient, pgMgr, "transaction")
 
 		// Property: constructor never returns nil.
 		if worker == nil {
@@ -260,7 +260,7 @@ func TestProperty_NewRedisQueueConsumerMultiTenant_PreservesBaseFields(t *testin
 			mgr = pgMgr
 		}
 
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, enabled, tenantClient, mgr)
+		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, enabled, tenantClient, mgr, "transaction")
 
 		// Property: constructor never returns nil.
 		if consumer == nil {
@@ -350,7 +350,7 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 		// Note: logger is always non-nil because the base constructor calls
 		// logger methods; passing nil logger would panic in production too,
 		// but that is a caller contract, not a multi-tenant invariant.
-		worker := NewBalanceSyncWorkerMultiTenant(wConn, logger, wUseCase, 0, workerEnabled, wTenantClient, wPGManager)
+		worker := NewBalanceSyncWorkerMultiTenant(wConn, logger, wUseCase, 0, workerEnabled, wTenantClient, wPGManager, "transaction")
 		if worker == nil {
 			return false
 		}
@@ -375,7 +375,7 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 		}
 
 		// Property: NewRedisQueueConsumerMultiTenant must never panic.
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, consumerEnabled, cTenantClient, cPGManager)
+		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, consumerEnabled, cTenantClient, cPGManager, "transaction")
 		if consumer == nil {
 			return false
 		}
