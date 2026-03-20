@@ -925,7 +925,7 @@ func TestCreateBulkTransactionOperationsAsync_EmptyQueueData(t *testing.T) {
 	assert.Len(t, messageResults, 1)
 	assert.False(t, messageResults[0].Success)
 	assert.NotNil(t, messageResults[0].Error)
-	assert.Contains(t, messageResults[0].Error.Error(), "empty QueueData")
+	assert.Contains(t, messageResults[0].Error.Error(), "expected 1 queue item, got 0")
 }
 
 // =============================================================================
