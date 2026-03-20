@@ -146,14 +146,28 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	}
 
 	if headerParams.PortfolioID != nil {
-		parsedID := uuid.MustParse(*headerParams.PortfolioID)
+		parsedID, err := uuid.Parse(*headerParams.PortfolioID)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse PortfolioID", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to parse PortfolioID, Error: %s", err.Error()))
+
+			return http.WithError(c, err)
+		}
+
 		portfolioID = &parsedID
 
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Search of all Accounts with Portfolio ID: %s", portfolioID))
 	}
 
 	if headerParams.SegmentID != nil {
-		parsedID := uuid.MustParse(*headerParams.SegmentID)
+		parsedID, err := uuid.Parse(*headerParams.SegmentID)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to parse SegmentID", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to parse SegmentID, Error: %s", err.Error()))
+
+			return http.WithError(c, err)
+		}
+
 		segmentID = &parsedID
 
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Search of all Accounts with Segment ID: %s", segmentID))
