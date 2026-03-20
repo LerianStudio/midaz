@@ -1,0 +1,927 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/repository"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+)
+
+func TestCreateBulkTransactionOperationsAsync_EmptyPayloads(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), nil)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, int64(0), result.TransactionsAttempted)
+	assert.Equal(t, int64(0), result.OperationsAttempted)
+}
+
+func TestCreateBulkTransactionOperationsAsync_EmptySlice(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), []transaction.TransactionProcessingPayload{})
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, int64(0), result.TransactionsAttempted)
+}
+
+func TestCreateBulkTransactionOperationsAsync_SingleTransaction_Success(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+
+	tx := &transaction.Transaction{
+		ID:             transactionID,
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Status: transaction.Status{
+			Code: constant.CREATED,
+		},
+		Operations: []*operation.Operation{
+			{
+				ID:            uuid.New().String(),
+				TransactionID: transactionID,
+			},
+		},
+	}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: tx,
+		Validate: &pkgTransaction.Responses{
+			Aliases: []string{"alias1"},
+		},
+		Balances: []*mmodel.Balance{
+			{
+				ID:        uuid.New().String(),
+				Alias:     "alias1",
+				Available: decimal.NewFromInt(100),
+			},
+		},
+		BalancesAfter: []*mmodel.Balance{
+			{
+				ID:        uuid.New().String(),
+				Alias:     "alias1",
+				Available: decimal.NewFromInt(50),
+			},
+		},
+	}
+
+	// Mock balance update (BalancesUpdate is what UpdateBalances calls internally)
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	// Mock bulk insert transactions
+	mockTransactionRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 1,
+			Inserted:  1,
+			Ignored:   0,
+		}, nil).
+		Times(1)
+
+	// Mock bulk insert operations
+	mockOperationRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 1,
+			Inserted:  1,
+			Ignored:   0,
+		}, nil).
+		Times(1)
+
+	// Mock metadata creation (may be called)
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	// Mock event sending (async - uses ProducerDefault)
+	mockRabbitMQRepo.EXPECT().
+		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).
+		AnyTimes()
+
+	// Mock Redis cleanup (async)
+	mockRedisRepo.EXPECT().
+		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), []transaction.TransactionProcessingPayload{payload})
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, int64(1), result.TransactionsAttempted)
+	assert.Equal(t, int64(1), result.TransactionsInserted)
+	assert.Equal(t, int64(1), result.OperationsAttempted)
+	assert.Equal(t, int64(1), result.OperationsInserted)
+	assert.False(t, result.FallbackUsed)
+}
+
+func TestCreateBulkTransactionOperationsAsync_MultipleTransactions_Success(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	payloads := make([]transaction.TransactionProcessingPayload, 3)
+	for i := 0; i < 3; i++ {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New().String()
+
+		payloads[i] = transaction.TransactionProcessingPayload{
+			Transaction: &transaction.Transaction{
+				ID:             transactionID,
+				OrganizationID: orgID.String(),
+				LedgerID:       ledgerID.String(),
+				Status: transaction.Status{
+					Code: constant.CREATED,
+				},
+				Operations: []*operation.Operation{
+					{ID: uuid.New().String(), TransactionID: transactionID},
+					{ID: uuid.New().String(), TransactionID: transactionID},
+				},
+			},
+			Validate: &pkgTransaction.Responses{
+				Aliases: []string{"alias1"},
+			},
+			Balances: []*mmodel.Balance{
+				{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)},
+			},
+			BalancesAfter: []*mmodel.Balance{
+				{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)},
+			},
+		}
+	}
+
+	// Mock balance updates (3 times)
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(3)
+
+	// Mock bulk insert transactions (3 transactions)
+	mockTransactionRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 3,
+			Inserted:  3,
+			Ignored:   0,
+		}, nil).
+		Times(1)
+
+	// Mock bulk insert operations (6 operations total)
+	mockOperationRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 6,
+			Inserted:  6,
+			Ignored:   0,
+		}, nil).
+		Times(1)
+
+	// Mock metadata and events
+	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), payloads)
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), result.TransactionsAttempted)
+	assert.Equal(t, int64(3), result.TransactionsInserted)
+	assert.Equal(t, int64(6), result.OperationsAttempted)
+	assert.Equal(t, int64(6), result.OperationsInserted)
+}
+
+func TestCreateBulkTransactionOperationsAsync_WithDuplicates(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			ID:             transactionID,
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			Status:         transaction.Status{Code: constant.CREATED},
+			Operations: []*operation.Operation{
+				{ID: uuid.New().String(), TransactionID: transactionID},
+			},
+		},
+		Validate:      &pkgTransaction.Responses{Aliases: []string{"alias1"}},
+		Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
+		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
+	}
+
+	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	// Mock bulk insert with 1 ignored (duplicate)
+	mockTransactionRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 1,
+			Inserted:  0,
+			Ignored:   1,
+		}, nil).
+		Times(1)
+
+	mockOperationRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 1,
+			Inserted:  0,
+			Ignored:   1,
+		}, nil).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), []transaction.TransactionProcessingPayload{payload})
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), result.TransactionsAttempted)
+	assert.Equal(t, int64(0), result.TransactionsInserted)
+	assert.Equal(t, int64(1), result.TransactionsIgnored)
+}
+
+func TestCreateBulkTransactionOperationsAsync_StatusTransition_BelowThreshold(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+
+	// Status transition: PENDING -> APPROVED
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			ID:             transactionID,
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			Status:         transaction.Status{Code: constant.APPROVED},
+			Operations:     []*operation.Operation{},
+		},
+		Validate: &pkgTransaction.Responses{
+			Aliases: []string{"alias1"},
+			Pending: true, // This indicates a pending transaction being updated
+		},
+		Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
+		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
+	}
+
+	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	// Below threshold (< 10), uses individual update via UpdateTransactionStatus
+	// which internally calls TransactionRepo.Update
+	mockTransactionRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&transaction.Transaction{ID: transactionID}, nil).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), []transaction.TransactionProcessingPayload{payload})
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), result.TransactionsAttempted) // No inserts
+	assert.Equal(t, int64(1), result.TransactionsUpdateAttempted)
+	assert.Equal(t, int64(1), result.TransactionsUpdated)
+}
+
+func TestCreateBulkTransactionOperationsAsync_NilTransaction_Skipped(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{Transaction: nil}, // Nil transaction should be skipped
+	}
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), payloads)
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), result.TransactionsAttempted)
+	assert.Equal(t, int64(0), result.OperationsAttempted)
+}
+
+func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+	operationID := uuid.New().String()
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			ID:             transactionID,
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			Status:         transaction.Status{Code: constant.CREATED},
+			Operations: []*operation.Operation{
+				{ID: operationID, TransactionID: transactionID},
+			},
+		},
+		Validate:      &pkgTransaction.Responses{Aliases: []string{"alias1"}},
+		Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
+		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
+	}
+
+	// Balance update only happens in fallback now (bulk path updates balance AFTER success)
+	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	// Bulk insert fails
+	mockTransactionRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("bulk insert failed")).
+		Times(1)
+
+	// Fallback processing calls CreateBalanceTransactionOperationsAsync
+	// which creates or updates transaction individually
+	mockTransactionRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		Return(&transaction.Transaction{ID: transactionID}, nil).
+		Times(1)
+
+	// Fallback also creates operations
+	mockOperationRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		Return(&operation.Operation{ID: operationID}, nil).
+		Times(1)
+
+	// Metadata creation and events
+	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), []transaction.TransactionProcessingPayload{payload})
+
+	require.NoError(t, err)
+	assert.True(t, result.FallbackUsed)
+	assert.Equal(t, int64(1), result.FallbackCount)
+}
+
+func TestClassifyAndExtractEntities_SortsTransactions(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	// Create transactions with IDs that would sort differently
+	payloads := []transaction.TransactionProcessingPayload{
+		{
+			Transaction: &transaction.Transaction{
+				ID:     "zzz00000-0000-0000-0000-000000000003",
+				Status: transaction.Status{Code: constant.CREATED},
+			},
+		},
+		{
+			Transaction: &transaction.Transaction{
+				ID:     "aaa00000-0000-0000-0000-000000000001",
+				Status: transaction.Status{Code: constant.CREATED},
+			},
+		},
+		{
+			Transaction: &transaction.Transaction{
+				ID:     "mmm00000-0000-0000-0000-000000000002",
+				Status: transaction.Status{Code: constant.CREATED},
+			},
+		},
+	}
+
+	toInsert, _ := uc.classifyAndExtractEntities(payloads)
+
+	// Verify transactions are sorted by ID
+	assert.Equal(t, "aaa00000-0000-0000-0000-000000000001", toInsert.transactions[0].ID)
+	assert.Equal(t, "mmm00000-0000-0000-0000-000000000002", toInsert.transactions[1].ID)
+	assert.Equal(t, "zzz00000-0000-0000-0000-000000000003", toInsert.transactions[2].ID)
+}
+
+func TestClassifyAndExtractEntities_SeparatesInsertsAndUpdates(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	payloads := []transaction.TransactionProcessingPayload{
+		// Insert: new transaction
+		{
+			Transaction: &transaction.Transaction{
+				ID:     uuid.New().String(),
+				Status: transaction.Status{Code: constant.CREATED},
+			},
+		},
+		// Update: pending -> approved
+		{
+			Transaction: &transaction.Transaction{
+				ID:     uuid.New().String(),
+				Status: transaction.Status{Code: constant.APPROVED},
+			},
+			Validate: &pkgTransaction.Responses{Pending: true},
+		},
+		// Update: pending -> canceled
+		{
+			Transaction: &transaction.Transaction{
+				ID:     uuid.New().String(),
+				Status: transaction.Status{Code: constant.CANCELED},
+			},
+			Validate: &pkgTransaction.Responses{Pending: true},
+		},
+	}
+
+	toInsert, toUpdate := uc.classifyAndExtractEntities(payloads)
+
+	assert.Len(t, toInsert.transactions, 1)
+	assert.Len(t, toUpdate.transactions, 2)
+}
+
+func TestIsStatusTransition(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	tests := []struct {
+		name     string
+		payload  transaction.TransactionProcessingPayload
+		expected bool
+	}{
+		{
+			name: "pending to approved is transition",
+			payload: transaction.TransactionProcessingPayload{
+				Transaction: &transaction.Transaction{
+					Status: transaction.Status{Code: constant.APPROVED},
+				},
+				Validate: &pkgTransaction.Responses{Pending: true},
+			},
+			expected: true,
+		},
+		{
+			name: "pending to canceled is transition",
+			payload: transaction.TransactionProcessingPayload{
+				Transaction: &transaction.Transaction{
+					Status: transaction.Status{Code: constant.CANCELED},
+				},
+				Validate: &pkgTransaction.Responses{Pending: true},
+			},
+			expected: true,
+		},
+		{
+			name: "new created is not transition",
+			payload: transaction.TransactionProcessingPayload{
+				Transaction: &transaction.Transaction{
+					Status: transaction.Status{Code: constant.CREATED},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "nil validate is not transition",
+			payload: transaction.TransactionProcessingPayload{
+				Transaction: &transaction.Transaction{
+					Status: transaction.Status{Code: constant.APPROVED},
+				},
+				Validate: nil,
+			},
+			expected: false,
+		},
+		{
+			name: "pending false is not transition",
+			payload: transaction.TransactionProcessingPayload{
+				Transaction: &transaction.Transaction{
+					Status: transaction.Status{Code: constant.APPROVED},
+				},
+				Validate: &pkgTransaction.Responses{Pending: false},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := uc.isStatusTransition(tt.payload)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestBulkResult_InitialValues(t *testing.T) {
+	t.Parallel()
+
+	result := &BulkResult{}
+
+	assert.Equal(t, int64(0), result.TransactionsAttempted)
+	assert.Equal(t, int64(0), result.TransactionsInserted)
+	assert.Equal(t, int64(0), result.TransactionsIgnored)
+	assert.Equal(t, int64(0), result.TransactionsUpdateAttempted)
+	assert.Equal(t, int64(0), result.TransactionsUpdated)
+	assert.Equal(t, int64(0), result.OperationsAttempted)
+	assert.Equal(t, int64(0), result.OperationsInserted)
+	assert.Equal(t, int64(0), result.OperationsIgnored)
+	assert.False(t, result.FallbackUsed)
+	assert.Equal(t, int64(0), result.FallbackCount)
+}
+
+func TestSortTransactionsByID(t *testing.T) {
+	t.Parallel()
+
+	transactions := []*transaction.Transaction{
+		{ID: "ccc"},
+		{ID: "aaa"},
+		{ID: "bbb"},
+	}
+
+	sortTransactionsByID(transactions)
+
+	assert.Equal(t, "aaa", transactions[0].ID)
+	assert.Equal(t, "bbb", transactions[1].ID)
+	assert.Equal(t, "ccc", transactions[2].ID)
+}
+
+func TestSortOperationsByID(t *testing.T) {
+	t.Parallel()
+
+	operations := []*operation.Operation{
+		{ID: "ccc"},
+		{ID: "aaa"},
+		{ID: "bbb"},
+	}
+
+	sortOperationsByID(operations)
+
+	assert.Equal(t, "aaa", operations[0].ID)
+	assert.Equal(t, "bbb", operations[1].ID)
+	assert.Equal(t, "ccc", operations[2].ID)
+}
+
+func TestExtractOrgLedgerIDs_Valid(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+		},
+	}
+
+	extractedOrg, extractedLedger, err := uc.extractOrgLedgerIDs(payload)
+
+	require.NoError(t, err)
+	assert.Equal(t, orgID, extractedOrg)
+	assert.Equal(t, ledgerID, extractedLedger)
+}
+
+func TestExtractOrgLedgerIDs_NilTransaction(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: nil,
+	}
+
+	_, _, err := uc.extractOrgLedgerIDs(payload)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nil transaction")
+}
+
+func TestExtractOrgLedgerIDs_InvalidOrgID(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			OrganizationID: "not-a-uuid",
+			LedgerID:       uuid.New().String(),
+		},
+	}
+
+	_, _, err := uc.extractOrgLedgerIDs(payload)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid organization ID")
+}
+
+func TestExtractOrgLedgerIDs_InvalidLedgerID(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			OrganizationID: uuid.New().String(),
+			LedgerID:       "not-a-uuid",
+		},
+	}
+
+	_, _, err := uc.extractOrgLedgerIDs(payload)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid ledger ID")
+}
+
+func TestCreateBulkTransactionOperationsAsync_BalanceUpdateFails_UsesFallback(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	transactionID := uuid.New().String()
+	operationID := uuid.New().String()
+
+	payload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			ID:             transactionID,
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			Status:         transaction.Status{Code: constant.CREATED},
+			Operations: []*operation.Operation{
+				{ID: operationID, TransactionID: transactionID},
+			},
+		},
+		Validate:      &pkgTransaction.Responses{Aliases: []string{"alias1"}},
+		Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
+		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
+	}
+
+	// Bulk insert succeeds
+	mockTransactionRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 1,
+			Inserted:  1,
+			Ignored:   0,
+		}, nil).
+		Times(1)
+
+	mockOperationRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 1,
+			Inserted:  1,
+			Ignored:   0,
+		}, nil).
+		Times(1)
+
+	// Balance update fails after bulk insert
+	// Note: Balance sync worker will reconcile this later
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(errors.New("balance update failed")).
+		Times(1)
+
+	// Metadata creation and events still proceed
+	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), []transaction.TransactionProcessingPayload{payload})
+
+	// Balance update failure does NOT trigger fallback since transaction is already persisted
+	// The balance sync worker will eventually reconcile
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), result.TransactionsAttempted)
+	assert.Equal(t, int64(1), result.TransactionsInserted)
+	assert.False(t, result.FallbackUsed) // Fallback is NOT used for balance update failures
+}
+
+func TestCreateBulkTransactionOperationsAsync_StatusTransition_AboveThreshold_UsesBulkUpdate(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+		OperationRepo:   mockOperationRepo,
+		MetadataRepo:    mockMetadataRepo,
+		BalanceRepo:     mockBalanceRepo,
+		RabbitMQRepo:    mockRabbitMQRepo,
+		RedisRepo:       mockRedisRepo,
+	}
+
+	// Create 12 status transition payloads (above threshold of 10)
+	payloads := make([]transaction.TransactionProcessingPayload, 12)
+	for i := 0; i < 12; i++ {
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New().String()
+
+		payloads[i] = transaction.TransactionProcessingPayload{
+			Transaction: &transaction.Transaction{
+				ID:             transactionID,
+				OrganizationID: orgID.String(),
+				LedgerID:       ledgerID.String(),
+				Status:         transaction.Status{Code: constant.APPROVED},
+				Operations:     []*operation.Operation{}, // No operations for status transitions
+			},
+			Validate: &pkgTransaction.Responses{
+				Aliases: []string{"alias1"},
+				Pending: true, // This indicates a pending transaction being updated
+			},
+			Balances:      []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(100)}},
+			BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
+		}
+	}
+
+	// Mock balance updates (12 times)
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(12)
+
+	// Mock bulk update (above threshold uses UpdateBulk instead of individual Update)
+	mockTransactionRepo.EXPECT().
+		UpdateBulk(gomock.Any(), gomock.Any()).
+		Return(&repository.BulkUpdateResult{
+			Attempted: 12,
+			Updated:   12,
+			Unchanged: 0,
+		}, nil).
+		Times(1)
+
+	// Mock metadata and events
+	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), payloads)
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), result.TransactionsAttempted) // No inserts
+	assert.Equal(t, int64(12), result.TransactionsUpdateAttempted)
+	assert.Equal(t, int64(12), result.TransactionsUpdated)
+	assert.False(t, result.FallbackUsed)
+}

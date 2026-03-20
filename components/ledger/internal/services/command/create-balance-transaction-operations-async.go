@@ -54,6 +54,12 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
+	if t.Transaction == nil {
+		logger.Log(ctx, libLog.LevelError, "Transaction payload has nil Transaction field")
+
+		return fmt.Errorf("transaction payload has nil Transaction field")
+	}
+
 	if t.Transaction.Status.Code != constant.NOTED {
 		ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
 		defer spanUpdateBalances.End()
