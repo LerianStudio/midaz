@@ -23,4 +23,6 @@ COPY --from=builder /app /app
 
 EXPOSE 4003
 
+USER nonroot:nonroot
+
 ENTRYPOINT ["/app"]

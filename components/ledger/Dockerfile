@@ -25,4 +25,6 @@ COPY --from=builder /ledger-app/components/transaction/migrations /components/tr
 
 EXPOSE 3002
 
+USER nonroot:nonroot
+
 ENTRYPOINT ["/app"]
