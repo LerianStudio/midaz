@@ -191,12 +191,13 @@ func (uc *UseCase) unmarshalPayloads(
 	for i, msg := range messages {
 		results[i] = BulkMessageResult{Index: i, Success: true}
 
-		// Check for empty QueueData
-		if len(msg.QueueData) == 0 {
-			logger.Log(ctx, libLog.LevelError, "Empty QueueData in message",
-				libLog.Int("index", i))
+		// Validate exactly one queue item per message
+		if len(msg.QueueData) != 1 {
+			logger.Log(ctx, libLog.LevelError, "Invalid QueueData count in message",
+				libLog.Int("index", i),
+				libLog.Int("count", len(msg.QueueData)))
 
-			results[i] = BulkMessageResult{Index: i, Success: false, Error: errors.New("empty QueueData")}
+			results[i] = BulkMessageResult{Index: i, Success: false, Error: fmt.Errorf("expected 1 queue item, got %d", len(msg.QueueData))}
 			payloads[i] = nil
 
 			continue
@@ -204,22 +205,18 @@ func (uc *UseCase) unmarshalPayloads(
 
 		var payload transaction.TransactionProcessingPayload
 
-		for _, item := range msg.QueueData {
-			if err := msgpack.Unmarshal(item.Value, &payload); err != nil {
-				logger.Log(ctx, libLog.LevelError, "Failed to unmarshal queue message",
-					libLog.Int("index", i),
-					libLog.Err(err))
+		if err := msgpack.Unmarshal(msg.QueueData[0].Value, &payload); err != nil {
+			logger.Log(ctx, libLog.LevelError, "Failed to unmarshal queue message",
+				libLog.Int("index", i),
+				libLog.Err(err))
 
-				results[i] = BulkMessageResult{Index: i, Success: false, Error: err}
-				payloads[i] = nil
+			results[i] = BulkMessageResult{Index: i, Success: false, Error: err}
+			payloads[i] = nil
 
-				break
-			}
+			continue
 		}
 
-		if results[i].Success {
-			payloads[i] = &payload
-		}
+		payloads[i] = &payload
 	}
 
 	return payloads, results
