@@ -124,10 +124,14 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 
 	for i, res := range balanceResults {
 		if !res.Success {
-			messageResults[i] = res
-		} else {
-			validPayloadIndices = append(validPayloadIndices, i)
+			if messageResults[i].Error == nil {
+				messageResults[i] = res
+			}
+
+			continue
 		}
+
+		validPayloadIndices = append(validPayloadIndices, i)
 	}
 
 	if len(validPayloadIndices) == 0 {

@@ -21,6 +21,22 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
+// PostgreSQL bind parameter limit is 65,535. Safe ceilings computed per entity column count
+// to prevent "too many bind parameters" errors during bulk INSERT operations.
+const (
+	transactionSafeCeiling = 4096 // 65,535 / 16 columns
+	operationSafeCeiling   = 2185 // 65,535 / 30 columns
+)
+
+// clampChunkSize returns the minimum of configured and safe ceiling values.
+func clampChunkSize(configured, safeCeiling int) int {
+	if configured > safeCeiling {
+		return safeCeiling
+	}
+
+	return configured
+}
+
 // postgresComponents holds PostgreSQL-related components initialized during bootstrap.
 type postgresComponents struct {
 	connection           *libPostgres.Client
@@ -65,19 +81,28 @@ func initMultiTenantPostgres(opts *Options, cfg *Config, logger libLog.Logger) (
 		return nil, fmt.Errorf("failed to connect to PostgreSQL (multi-tenant): %w", err)
 	}
 
-	// Get bulk recorder chunk size from config (defaults to 1000 if not set)
+	// Get bulk recorder chunk size from config (defaults to 1000 if not set).
+	// Clamp per-repo to avoid exceeding PostgreSQL's 65,535 bind parameter limit.
 	bulkCfg := cfg.GetBulkRecorderConfig()
+	txChunkSize := clampChunkSize(bulkCfg.MaxRowsPerInsert, transactionSafeCeiling)
+	opChunkSize := clampChunkSize(bulkCfg.MaxRowsPerInsert, operationSafeCeiling)
+
+	if bulkCfg.MaxRowsPerInsert > operationSafeCeiling {
+		logger.Log(context.Background(), libLog.LevelWarn,
+			fmt.Sprintf("Configured MaxRowsPerInsert %d exceeds operation safe ceiling %d; clamped to avoid PostgreSQL bind parameter limit",
+				bulkCfg.MaxRowsPerInsert, operationSafeCeiling))
+	}
 
 	return &postgresComponents{
 		connection: conn,
 		pgManager:  pgMgr,
 		transactionRepo: transaction.NewTransactionPostgreSQLRepository(conn,
 			transaction.WithRequireTenant(true),
-			transaction.WithTransactionChunkSize(bulkCfg.MaxRowsPerInsert),
+			transaction.WithTransactionChunkSize(txChunkSize),
 		),
 		operationRepo: operation.NewOperationPostgreSQLRepository(conn,
 			operation.WithOperationRequireTenant(true),
-			operation.WithOperationChunkSize(bulkCfg.MaxRowsPerInsert),
+			operation.WithOperationChunkSize(opChunkSize),
 		),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn, true),
 		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, true),
@@ -98,16 +123,25 @@ func initSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*postgresCompo
 		return nil, fmt.Errorf("failed to run PostgreSQL migrations: %w", err)
 	}
 
-	// Get bulk recorder chunk size from config (defaults to 1000 if not set)
+	// Get bulk recorder chunk size from config (defaults to 1000 if not set).
+	// Clamp per-repo to avoid exceeding PostgreSQL's 65,535 bind parameter limit.
 	bulkCfg := cfg.GetBulkRecorderConfig()
+	txChunkSize := clampChunkSize(bulkCfg.MaxRowsPerInsert, transactionSafeCeiling)
+	opChunkSize := clampChunkSize(bulkCfg.MaxRowsPerInsert, operationSafeCeiling)
+
+	if bulkCfg.MaxRowsPerInsert > operationSafeCeiling {
+		logger.Log(context.Background(), libLog.LevelWarn,
+			fmt.Sprintf("Configured MaxRowsPerInsert %d exceeds operation safe ceiling %d; clamped to avoid PostgreSQL bind parameter limit",
+				bulkCfg.MaxRowsPerInsert, operationSafeCeiling))
+	}
 
 	return &postgresComponents{
 		connection: conn,
 		transactionRepo: transaction.NewTransactionPostgreSQLRepository(conn,
-			transaction.WithTransactionChunkSize(bulkCfg.MaxRowsPerInsert),
+			transaction.WithTransactionChunkSize(txChunkSize),
 		),
 		operationRepo: operation.NewOperationPostgreSQLRepository(conn,
-			operation.WithOperationChunkSize(bulkCfg.MaxRowsPerInsert),
+			operation.WithOperationChunkSize(opChunkSize),
 		),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn),
 		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn),
