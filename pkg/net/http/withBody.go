@@ -849,6 +849,7 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 			}
 
 			diffFields[key] = value
+
 			continue
 		}
 

@@ -401,6 +401,7 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 		if len(mergeJSON) > 0 {
 			paramIdx := strconv.Itoa(len(args) + 1)
 			expr := "COALESCE(accounting_entries, '{}'::jsonb) || $" + paramIdx + "::jsonb"
+
 			args = append(args, mergeJSON)
 
 			if len(removeKeys) > 0 {
