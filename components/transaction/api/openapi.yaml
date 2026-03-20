@@ -2178,6 +2178,7 @@ paths:
         in: query
         name: route
         schema:
+          format: uuid
           type: string
       - description: Transaction status, e.g. APPROVED (optional filter)
         in: query

@@ -69,6 +69,27 @@ func (handler *TransactionHandler) CountTransactionsByRoute(c *fiber.Ctx) error 
 		}
 	}
 
+	// Validate status against known transaction statuses
+	if status != "" {
+		validStatuses := map[string]bool{
+			constant.CREATED:  true,
+			constant.APPROVED: true,
+			constant.PENDING:  true,
+			constant.CANCELED: true,
+			constant.NOTED:    true,
+		}
+
+		if !validStatuses[status] {
+			validationErr := pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "status")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction status", validationErr)
+
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid transaction status: %s", status))
+
+			return http.WithError(c, validationErr)
+		}
+	}
+
 	// Default to today (UTC) when dates are not provided
 	now := time.Now().UTC()
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)

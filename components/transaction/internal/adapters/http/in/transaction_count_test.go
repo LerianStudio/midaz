@@ -6,10 +6,12 @@ package in
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	nethttp "net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
@@ -21,7 +23,51 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+// countFilterMatcher is a custom gomock.Matcher that validates CountFilter fields.
+type countFilterMatcher struct {
+	route  string
+	status string
+	// When exactDates is true, From/To must match exactly.
+	// When false, From/To are validated as "today UTC" boundaries.
+	exactDates bool
+	from       time.Time
+	to         time.Time
+}
+
+func (m countFilterMatcher) Matches(x any) bool {
+	filter, ok := x.(transaction.CountFilter)
+	if !ok {
+		return false
+	}
+
+	if filter.Route != m.route || filter.Status != m.status {
+		return false
+	}
+
+	if m.exactDates {
+		return filter.From.Equal(m.from) && filter.To.Equal(m.to)
+	}
+
+	// Validate "today UTC" defaults: From should be start of today, To should be end of today
+	now := time.Now().UTC()
+	expectedStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	expectedEnd := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
+
+	return filter.From.Equal(expectedStart) && filter.To.Equal(expectedEnd)
+}
+
+func (m countFilterMatcher) String() string {
+	if m.exactDates {
+		return fmt.Sprintf("CountFilter{route=%q, status=%q, from=%s, to=%s}", m.route, m.status, m.from, m.to)
+	}
+
+	return fmt.Sprintf("CountFilter{route=%q, status=%q, from=<today start>, to=<today end>}", m.route, m.status)
+}
+
 func TestTransactionHandler_CountTransactionsByRoute(t *testing.T) {
+	startDate := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+
 	tests := []struct {
 		name           string
 		queryParams    string
@@ -34,7 +80,13 @@ func TestTransactionHandler_CountTransactionsByRoute(t *testing.T) {
 			queryParams: "?route=550e8400-e29b-41d4-a716-446655440010&status=APPROVED&start_date=2026-01-01T00:00:00Z&end_date=2026-02-01T00:00:00Z",
 			setupMocks: func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {
 				transactionRepo.EXPECT().
-					CountByRoute(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					CountByRoute(gomock.Any(), orgID, ledgerID, countFilterMatcher{
+						route:      "550e8400-e29b-41d4-a716-446655440010",
+						status:     "APPROVED",
+						exactDates: true,
+						from:       startDate,
+						to:         endDate,
+					}).
 					Return(int64(773), nil).
 					Times(1)
 			},
@@ -58,7 +110,11 @@ func TestTransactionHandler_CountTransactionsByRoute(t *testing.T) {
 			queryParams: "",
 			setupMocks: func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {
 				transactionRepo.EXPECT().
-					CountByRoute(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					CountByRoute(gomock.Any(), orgID, ledgerID, countFilterMatcher{
+						route:      "",
+						status:     "",
+						exactDates: false,
+					}).
 					Return(int64(42), nil).
 					Times(1)
 			},
@@ -81,7 +137,11 @@ func TestTransactionHandler_CountTransactionsByRoute(t *testing.T) {
 			queryParams: "?status=APPROVED",
 			setupMocks: func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {
 				transactionRepo.EXPECT().
-					CountByRoute(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					CountByRoute(gomock.Any(), orgID, ledgerID, countFilterMatcher{
+						route:      "",
+						status:     "APPROVED",
+						exactDates: false,
+					}).
 					Return(int64(100), nil).
 					Times(1)
 			},
@@ -99,6 +159,18 @@ func TestTransactionHandler_CountTransactionsByRoute(t *testing.T) {
 		{
 			name:           "invalid route UUID returns 400",
 			queryParams:    "?route=not-a-uuid",
+			setupMocks:     func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {},
+			expectedStatus: nethttp.StatusBadRequest,
+			validateBody: func(t *testing.T, body []byte) {
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err)
+				assert.Contains(t, errResp, "code")
+			},
+		},
+		{
+			name:           "invalid status returns 400",
+			queryParams:    "?status=GARBAGE",
 			setupMocks:     func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {},
 			expectedStatus: nethttp.StatusBadRequest,
 			validateBody: func(t *testing.T, body []byte) {
@@ -149,7 +221,13 @@ func TestTransactionHandler_CountTransactionsByRoute(t *testing.T) {
 			queryParams: "?route=550e8400-e29b-41d4-a716-446655440010&status=APPROVED&start_date=2026-01-01T00:00:00Z&end_date=2026-02-01T00:00:00Z",
 			setupMocks: func(transactionRepo *transaction.MockRepository, orgID, ledgerID uuid.UUID) {
 				transactionRepo.EXPECT().
-					CountByRoute(gomock.Any(), orgID, ledgerID, gomock.Any()).
+					CountByRoute(gomock.Any(), orgID, ledgerID, countFilterMatcher{
+						route:      "550e8400-e29b-41d4-a716-446655440010",
+						status:     "APPROVED",
+						exactDates: true,
+						from:       startDate,
+						to:         endDate,
+					}).
 					Return(int64(0), pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",

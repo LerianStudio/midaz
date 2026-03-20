@@ -92,6 +92,7 @@ func safeQueryAttributes(query *midazhttp.QueryHeader) []attribute.KeyValue {
 		attribute.Bool("app.request.query.has_metadata", query.Metadata != nil),
 		attribute.Bool("app.request.query.has_date_range", !query.StartDate.IsZero() || !query.EndDate.IsZero()),
 		attribute.Bool("app.request.query.has_portfolio_id", query.PortfolioID != nil),
+		attribute.Bool("app.request.query.has_segment_id", query.SegmentID != nil),
 		attribute.Bool("app.request.query.has_name_filters", query.HasNameFilters()),
 		attribute.Bool("app.request.query.has_holder_id", query.HolderID != nil),
 		attribute.Bool("app.request.query.has_document", query.Document != nil),
