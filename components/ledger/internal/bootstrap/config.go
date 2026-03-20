@@ -314,7 +314,6 @@ func buildUnifiedRouteSetup(
 		logger,
 		onboardingService.GetPGManager(),
 		onboardingService.GetMongoManager(),
-		nil,
 	)
 	if err != nil {
 		return nil, err
@@ -325,7 +324,6 @@ func buildUnifiedRouteSetup(
 		logger,
 		transactionService.GetPGManager(),
 		transactionService.GetMongoManager(),
-		transactionService.GetMultiTenantConsumer(),
 	)
 	if err != nil {
 		return nil, err
@@ -413,7 +411,7 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 	return tenantClient, tenantServiceName, nil
 }
 
-func buildModuleTenantMiddleware(moduleName string, logger libLog.Logger, rawPGManager, rawMongoManager, rawConsumer any) (*tmmiddleware.MultiPoolMiddleware, error) {
+func buildModuleTenantMiddleware(moduleName string, logger libLog.Logger, rawPGManager, rawMongoManager any) (*tmmiddleware.MultiPoolMiddleware, error) {
 	pgManager, ok := rawPGManager.(*tmpostgres.Manager)
 	if !ok || pgManager == nil {
 		return nil, fmt.Errorf("%s multi-tenant PostgreSQL manager not available", moduleName)
@@ -428,13 +426,6 @@ func buildModuleTenantMiddleware(moduleName string, logger libLog.Logger, rawPGM
 		tmmiddleware.WithDefaultRoute(moduleName, pgManager, mongoManager),
 		tmmiddleware.WithMultiPoolLogger(logger),
 		tmmiddleware.WithErrorMapper(midazErrorMapper),
-	}
-
-	if rawConsumer != nil {
-		consumer, ok := rawConsumer.(tmmiddleware.ConsumerTrigger)
-		if ok {
-			options = append(options, tmmiddleware.WithConsumerTrigger(consumer))
-		}
 	}
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",

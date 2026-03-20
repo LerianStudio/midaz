@@ -52,10 +52,6 @@ type TransactionService interface {
 	// type assertion to *tmmongo.Manager internally.
 	GetMongoManager() any
 
-	// GetMultiTenantConsumer returns the multi-tenant RabbitMQ consumer as an opaque handle.
-	// Returns nil until multi-tenant consumer is wired. The caller (ledger bootstrap) performs
-	// type assertion to the concrete consumer type internally.
-	GetMultiTenantConsumer() any
 }
 
 // Options configures the transaction service initialization behavior.
