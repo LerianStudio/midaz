@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -78,6 +79,24 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 
 	if err := handler.validateAccountingEntries(ctx, payload.AccountingEntries); err != nil {
 		return http.WithError(c, err)
+	}
+
+	// Reject unknown keys inside accountingEntries (e.g., "foobar") that Go's
+	// json.Unmarshal silently ignores but could confuse clients into thinking
+	// their data was accepted.
+	if payload.AccountingEntries != nil {
+		var rawBody map[string]json.RawMessage
+
+		if err := json.Unmarshal(c.Body(), &rawBody); err == nil {
+			if raw, ok := rawBody["accountingEntries"]; ok {
+				if unknowns := findUnknownAccountingEntryKeys(raw); len(unknowns) > 0 {
+					return http.WithError(c, pkg.ValidateBadRequestFieldsError(
+						pkg.FieldValidations{}, pkg.FieldValidations{}, "",
+						map[string]any{"accountingEntries": unknowns},
+					))
+				}
+			}
+		}
 	}
 
 	operationRoute, err := handler.Command.CreateOperationRoute(ctx, organizationID, ledgerID, payload)
@@ -208,6 +227,26 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 	if err := handler.validateAccountingEntries(ctx, payload.AccountingEntries); err != nil {
 		return http.WithError(c, err)
+	}
+
+	// Extract the raw JSON for accountingEntries from the request body to preserve
+	// explicit null values for RFC 7396 JSON Merge Patch semantics. This allows the
+	// repository to distinguish "field absent" (keep existing) from "field: null" (remove).
+	if payload.AccountingEntries != nil {
+		var rawBody map[string]json.RawMessage
+
+		if err := json.Unmarshal(c.Body(), &rawBody); err == nil {
+			if raw, ok := rawBody["accountingEntries"]; ok {
+				if unknowns := findUnknownAccountingEntryKeys(raw); len(unknowns) > 0 {
+					return http.WithError(c, pkg.ValidateBadRequestFieldsError(
+						pkg.FieldValidations{}, pkg.FieldValidations{}, "",
+						map[string]any{"accountingEntries": unknowns},
+					))
+				}
+
+				payload.AccountingEntriesRaw = raw
+			}
+		}
 	}
 
 	recordSafePayloadAttributes(span, payload)
@@ -580,4 +619,38 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 	}
 
 	return nil
+}
+
+// validAccountingEntryKeys defines the allowed top-level keys inside accountingEntries.
+var validAccountingEntryKeys = map[string]struct{}{
+	"direct": {},
+	"hold":   {},
+	"commit": {},
+	"cancel": {},
+	"revert": {},
+}
+
+// findUnknownAccountingEntryKeys parses the raw JSON for accountingEntries and returns
+// a map of keys that are not in the allowed set (direct, hold, commit, cancel, revert).
+// Returns nil when all keys are valid. The returned map is suitable for use with
+// ValidateBadRequestFieldsError to produce a standard 0053 "Unexpected Fields" error.
+func findUnknownAccountingEntryKeys(raw json.RawMessage) map[string]any {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil
+	}
+
+	unknowns := make(map[string]any)
+
+	for key := range fields {
+		if _, ok := validAccountingEntryKeys[key]; !ok {
+			unknowns[key] = string(fields[key])
+		}
+	}
+
+	if len(unknowns) == 0 {
+		return nil
+	}
+
+	return unknowns
 }

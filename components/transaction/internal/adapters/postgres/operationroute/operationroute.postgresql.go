@@ -7,6 +7,7 @@ package operationroute
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -29,6 +30,7 @@ import (
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
 
 	// Repository provides an interface for operations related to operation route entities.
 	// It defines methods for creating, retrieving, updating, and deleting operation routes.
@@ -393,8 +395,27 @@ func (r *OperationRoutePostgreSQLRepository) Update(ctx context.Context, organiz
 		}
 	}
 
-	if record.AccountingEntries != nil {
-		updates = append(updates, "accounting_entries = $"+strconv.Itoa(len(args)+1))
+	if rawJSON := operationRoute.AccountingEntriesRaw; len(rawJSON) > 0 {
+		mergeJSON, removeKeys := splitMergePatch(rawJSON)
+
+		if len(mergeJSON) > 0 {
+			paramIdx := strconv.Itoa(len(args) + 1)
+			expr := "COALESCE(accounting_entries, '{}'::jsonb) || $" + paramIdx + "::jsonb"
+			args = append(args, mergeJSON)
+
+			if len(removeKeys) > 0 {
+				expr += " - $" + strconv.Itoa(len(args)+1) + "::text[]"
+				args = append(args, pq.Array(removeKeys))
+			}
+
+			updates = append(updates, "accounting_entries = "+expr)
+		} else if len(removeKeys) > 0 {
+			paramIdx := strconv.Itoa(len(args) + 1)
+			updates = append(updates, "accounting_entries = COALESCE(accounting_entries, '{}'::jsonb) - $"+paramIdx+"::text[]")
+			args = append(args, pq.Array(removeKeys))
+		}
+	} else if record.AccountingEntries != nil {
+		updates = append(updates, "accounting_entries = COALESCE(accounting_entries, '{}'::jsonb) || $"+strconv.Itoa(len(args)+1)+"::jsonb")
 		args = append(args, record.AccountingEntries)
 	}
 
@@ -720,4 +741,36 @@ func (r *OperationRoutePostgreSQLRepository) FindTransactionRouteIDs(ctx context
 	}
 
 	return transactionRouteIDs, nil
+}
+
+// splitMergePatch separates a raw JSON object into two parts for RFC 7396 merge-patch:
+//   - mergeJSON: a JSON object containing only the keys with non-null values (for JSONB || merge)
+//   - removeKeys: a list of keys whose value is explicitly null (for JSONB - removal)
+//
+// Example: {"direct":{"debit":{...}},"hold":null}
+//   - mergeJSON = {"direct":{"debit":{...}}}
+//   - removeKeys = ["hold"]
+func splitMergePatch(raw json.RawMessage) (mergeJSON []byte, removeKeys []string) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		// If we can't parse it, return the raw as merge (fallback to full replacement)
+		return raw, nil
+	}
+
+	merge := make(map[string]json.RawMessage, len(fields))
+
+	for k, v := range fields {
+		trimmed := strings.TrimSpace(string(v))
+		if trimmed == "null" {
+			removeKeys = append(removeKeys, k)
+		} else {
+			merge[k] = v
+		}
+	}
+
+	if len(merge) > 0 {
+		mergeJSON, _ = json.Marshal(merge)
+	}
+
+	return mergeJSON, removeKeys
 }
