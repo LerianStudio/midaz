@@ -32,6 +32,11 @@ jobs:
         components/transaction
         components/crm
         components/ledger
+      shared_paths: |
+        go.mod
+        go.sum
+        pkg/
+        Makefile
       path_level: "2"
       dockerhub_org: "lerianstudio"
     secrets: inherit
