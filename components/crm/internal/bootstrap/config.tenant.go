@@ -129,7 +129,7 @@ func redactedTenantManagerURL(raw string) string {
 
 func buildMongoManagerOptions(cfg *Config, logger libLog.Logger) []tmmongo.Option {
 	mongoOpts := []tmmongo.Option{
-		tmmongo.WithModule("crm"),
+		tmmongo.WithModule(in.ModuleName),
 		tmmongo.WithLogger(logger),
 	}
 
