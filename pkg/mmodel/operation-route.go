@@ -1,10 +1,82 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package mmodel
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// AccountingRubric represents an accounting rubric with a code and description.
+//
+// @Description AccountingRubric object containing the code and description for a debit or credit entry.
+type AccountingRubric struct {
+	// The accounting rubric code.
+	Code string `json:"code" validate:"required,max=50" msgpack:"code" example:"1001"`
+	// The accounting rubric description.
+	Description string `json:"description" validate:"required,max=250" msgpack:"description" example:"Cash"`
+} // @name AccountingRubric
+
+// AccountingEntry represents a single accounting entry with debit and credit rubrics.
+//
+// @Description AccountingEntry object containing debit and credit rubrics for a specific action.
+type AccountingEntry struct {
+	// The debit rubric for this entry.
+	Debit *AccountingRubric `json:"debit" validate:"required" msgpack:"debit"`
+	// The credit rubric for this entry.
+	Credit *AccountingRubric `json:"credit" validate:"required" msgpack:"credit"`
+} // @name AccountingEntry
+
+// AccountingEntries groups accounting entries by transaction action type.
+//
+// @Description AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert).
+type AccountingEntries struct {
+	// The accounting entry for the direct action.
+	Direct *AccountingEntry `json:"direct,omitempty" msgpack:"direct"`
+	// The accounting entry for the hold action.
+	Hold *AccountingEntry `json:"hold,omitempty" msgpack:"hold"`
+	// The accounting entry for the commit action.
+	Commit *AccountingEntry `json:"commit,omitempty" msgpack:"commit"`
+	// The accounting entry for the cancel action.
+	Cancel *AccountingEntry `json:"cancel,omitempty" msgpack:"cancel"`
+	// The accounting entry for the revert action.
+	Revert *AccountingEntry `json:"revert,omitempty" msgpack:"revert"`
+} // @name AccountingEntries
+
+// Actions returns the action names for which this AccountingEntries has non-nil entries.
+func (ae *AccountingEntries) Actions() []string {
+	if ae == nil {
+		return nil
+	}
+
+	var actions []string
+
+	if ae.Direct != nil {
+		actions = append(actions, "direct")
+	}
+
+	if ae.Hold != nil {
+		actions = append(actions, "hold")
+	}
+
+	if ae.Commit != nil {
+		actions = append(actions, "commit")
+	}
+
+	if ae.Cancel != nil {
+		actions = append(actions, "cancel")
+	}
+
+	if ae.Revert != nil {
+		actions = append(actions, "revert")
+	}
+
+	return actions
+}
 
 // OperationRoute is a struct designed to store Operation Route object data.
 //
@@ -24,7 +96,14 @@ type OperationRoute struct {
 	// External reference of the operation route.
 	Code string `json:"code,omitempty" example:"EXT-001"`
 	// The type of the operation route.
-	OperationType string `json:"operationType,omitempty" example:"source" enum:"source,destination"`
+	OperationType string `json:"operationType,omitempty" example:"source" enums:"source,destination,bidirectional"`
+	// The action associated with this operation route in the context of a transaction route.
+	Action string `json:"action,omitempty" example:"direct" enums:"direct,hold,commit,cancel,revert"`
+	// Optional accounting entries for each action type associated with this operation route.
+	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty"`
+	// AccountingEntriesRaw holds the raw JSON for accountingEntries for merge-patch updates.
+	// This is not serialized to API responses; it is only used internally during updates.
+	AccountingEntriesRaw json.RawMessage `json:"-"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
@@ -48,7 +127,9 @@ type CreateOperationRouteInput struct {
 	// External reference of the operation route.
 	Code string `json:"code,omitempty" validate:"max=100" example:"EXT-001"`
 	// The type of the operation route.
-	OperationType string `json:"operationType,omitempty" validate:"required" example:"source" enum:"source,destination"`
+	OperationType string `json:"operationType,omitempty" validate:"required" example:"source" enum:"source,destination,bidirectional"`
+	// Optional accounting entries for each action type associated with this operation route.
+	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.
@@ -66,6 +147,13 @@ type UpdateOperationRouteInput struct {
 	Description string `json:"description,omitempty" validate:"max=250" example:"This operation route handles cash-in transactions from service charge collections"`
 	// External reference of the operation route.
 	Code string `json:"code,omitempty" validate:"max=100" example:"EXT-001"`
+	// Optional accounting entries for each action type associated with this operation route.
+	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty"`
+	// AccountingEntriesRaw holds the raw JSON for accountingEntries exactly as sent in the request.
+	// This preserves explicit null values for RFC 7396 JSON Merge Patch semantics,
+	// allowing the repository to distinguish between "field absent" (keep existing)
+	// and "field: null" (remove entry).
+	AccountingEntriesRaw json.RawMessage `json:"-"`
 	// Additional metadata stored as JSON
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// The account selection rule configuration.

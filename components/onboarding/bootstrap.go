@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 // Package onboarding provides the public API for initializing the onboarding component.
 // This package exposes factory functions that allow other components to instantiate
 // the onboarding service while keeping internal implementation details private.
@@ -6,9 +10,11 @@ package onboarding
 import (
 	"fmt"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -19,11 +25,25 @@ type OnboardingService interface {
 
 	// GetRouteRegistrar returns a function that registers onboarding routes to a Fiber app.
 	// This is used by the unified ledger server to consolidate all routes on a single port.
-	GetRouteRegistrar() func(*fiber.App)
+	GetRouteRegistrar(routeOptions *midazhttp.ProtectedRouteOptions) func(fiber.Router)
 
 	// GetMetadataIndexPort returns the metadata index port for use by other modules.
 	// This allows direct in-process calls for metadata index operations when running in unified mode.
 	GetMetadataIndexPort() mbootstrap.MetadataIndexRepository
+
+	// GetSettingsPort returns the settings port for use by the transaction module.
+	// This allows direct in-process calls to query ledger settings when running in unified mode.
+	GetSettingsPort() mbootstrap.SettingsPort
+
+	// GetPGManager returns the multi-tenant PostgreSQL manager as an opaque handle.
+	// Returns nil in single-tenant mode. The caller (ledger bootstrap) performs
+	// type assertion to *tmpostgres.Manager internally.
+	GetPGManager() any
+
+	// GetMongoManager returns the multi-tenant MongoDB manager as an opaque handle.
+	// Returns nil in single-tenant mode. The caller (ledger bootstrap) performs
+	// type assertion to *tmmongo.Manager internally.
+	GetMongoManager() any
 }
 
 // Options configures the onboarding service initialization behavior.
@@ -60,6 +80,12 @@ type Options struct {
 	// Required when UnifiedMode is true. The BalancePort is typically the
 	// transaction.UseCase which implements mbootstrap.BalancePort.
 	BalancePort mbootstrap.BalancePort
+
+	// Multi-tenant configuration (only used in unified mode)
+	MultiTenantEnabled bool
+	TenantClient       *tmclient.Client
+	TenantServiceName  string
+	TenantEnvironment  string
 }
 
 // InitService initializes the onboarding service.
@@ -95,8 +121,12 @@ func InitServiceWithOptionsOrError(opts *Options) (OnboardingService, error) {
 	}
 
 	return bootstrap.InitServersWithOptions(&bootstrap.Options{
-		Logger:      opts.Logger,
-		UnifiedMode: opts.UnifiedMode,
-		BalancePort: opts.BalancePort,
+		Logger:             opts.Logger,
+		UnifiedMode:        opts.UnifiedMode,
+		BalancePort:        opts.BalancePort,
+		MultiTenantEnabled: opts.MultiTenantEnabled,
+		TenantClient:       opts.TenantClient,
+		TenantServiceName:  opts.TenantServiceName,
+		TenantEnvironment:  opts.TenantEnvironment,
 	})
 }

@@ -1,11 +1,16 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package alias
 
 import (
 	"testing"
 	"time"
 
+	libCrypto "github.com/LerianStudio/lib-commons/v4/commons/crypto"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/tests/utils"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -441,6 +446,8 @@ func TestMongoDBModel_ToEntity_WithDeletedAt(t *testing.T) {
 }
 
 func TestMongoDBModel_ToEntity_NilRegulatoryFieldsAndRelatedParties(t *testing.T) {
+	t.Parallel()
+
 	crypto := testutils.SetupCrypto(t)
 	now := time.Now().UTC().Truncate(time.Second)
 	aliasID := uuid.New()
@@ -467,4 +474,108 @@ func TestMongoDBModel_ToEntity_NilRegulatoryFieldsAndRelatedParties(t *testing.T
 	assert.Equal(t, *originalAlias.Document, *resultAlias.Document)
 	assert.Nil(t, resultAlias.RegulatoryFields)
 	assert.Empty(t, resultAlias.RelatedParties)
+}
+
+func TestMongoDBModel_FromEntity_RoundTrip_NilOptionalEncryptedFields(t *testing.T) {
+	t.Parallel()
+
+	crypto := testutils.SetupCrypto(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	aliasID := uuid.New()
+	holderID := uuid.New()
+
+	originalAlias := &mmodel.Alias{
+		ID:        &aliasID,
+		Document:  testutils.Ptr("12312312399"),
+		Type:      testutils.Ptr("NATURAL_PERSON"),
+		LedgerID:  testutils.Ptr("ledger-nil-optionals"),
+		AccountID: testutils.Ptr("account-nil-optionals"),
+		HolderID:  &holderID,
+		BankingDetails: &mmodel.BankingDetails{
+			Branch: testutils.Ptr("0001"),
+			Type:   testutils.Ptr("CACC"),
+			// Account and IBAN intentionally nil.
+		},
+		RegulatoryFields: &mmodel.RegulatoryFields{},
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+
+	var model MongoDBModel
+	err := model.FromEntity(originalAlias, crypto)
+	require.NoError(t, err)
+
+	require.NotNil(t, model.BankingDetails)
+	assert.Nil(t, model.BankingDetails.Account)
+	assert.Nil(t, model.BankingDetails.IBAN)
+	require.NotNil(t, model.RegulatoryFields)
+	assert.Nil(t, model.RegulatoryFields.ParticipantDocument)
+	require.NotNil(t, model.Search)
+	assert.Nil(t, model.Search.BankingDetailsAccount)
+	assert.Nil(t, model.Search.BankingDetailsIBAN)
+	assert.Nil(t, model.Search.RegulatoryFieldsParticipantDocument)
+
+	resultAlias, err := model.ToEntity(crypto)
+	require.NoError(t, err)
+
+	require.NotNil(t, resultAlias.BankingDetails)
+	assert.Nil(t, resultAlias.BankingDetails.Account)
+	assert.Nil(t, resultAlias.BankingDetails.IBAN)
+	require.NotNil(t, resultAlias.RegulatoryFields)
+	assert.Nil(t, resultAlias.RegulatoryFields.ParticipantDocument)
+}
+
+func TestMongoDBModel_ToEntity_InvalidOptionalCiphertextReturnsError(t *testing.T) {
+	t.Parallel()
+
+	crypto := testutils.SetupCrypto(t)
+	aliasID := uuid.New()
+
+	model := &MongoDBModel{
+		ID:       &aliasID,
+		Document: mustEncrypt(t, crypto, "12345678901"),
+		BankingDetails: &BankingMongoDBModel{
+			Account: testutils.Ptr("not-a-valid-ciphertext"),
+		},
+	}
+
+	_, err := model.ToEntity(crypto)
+	require.Error(t, err)
+}
+
+func TestMongoDBModel_FromEntity_EncryptOptionalFailureReturnsError(t *testing.T) {
+	t.Parallel()
+
+	crypto := &libCrypto.Crypto{}
+	aliasID := uuid.New()
+	now := time.Now().UTC().Truncate(time.Second)
+
+	alias := &mmodel.Alias{
+		ID:        &aliasID,
+		Document:  testutils.Ptr("12345678901"),
+		Type:      testutils.Ptr("NATURAL_PERSON"),
+		LedgerID:  testutils.Ptr("ledger-1"),
+		AccountID: testutils.Ptr("account-1"),
+		BankingDetails: &mmodel.BankingDetails{
+			Account: testutils.Ptr(""),
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	var model MongoDBModel
+	err := model.FromEntity(alias, crypto)
+	require.Error(t, err)
+}
+
+func mustEncrypt(t *testing.T, crypto interface {
+	Encrypt(*string) (*string, error)
+}, value string,
+) *string {
+	t.Helper()
+
+	encrypted, err := crypto.Encrypt(testutils.Ptr(value))
+	require.NoError(t, err)
+
+	return encrypted
 }

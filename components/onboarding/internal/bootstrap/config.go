@@ -1,38 +1,32 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package bootstrap
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const ApplicationName = "onboarding"
@@ -133,7 +127,7 @@ type Config struct {
 	RedisMasterName              string `env:"REDIS_MASTER_NAME" default:""`
 	RedisPassword                string `env:"REDIS_PASSWORD"`
 	RedisDB                      int    `env:"REDIS_DB" default:"0"`
-	RedisProtocol                int    `env:"REDIS_DB" default:"3"`
+	RedisProtocol                int    `env:"REDIS_PROTOCOL" default:"3"`
 	RedisTLS                     bool   `env:"REDIS_TLS" default:"false"`
 	RedisCACert                  string `env:"REDIS_CA_CERT"`
 	RedisUseGCPIAM               bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
@@ -154,6 +148,12 @@ type Config struct {
 	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
 	TransactionGRPCAddress       string `env:"TRANSACTION_GRPC_ADDRESS"`
 	TransactionGRPCPort          string `env:"TRANSACTION_GRPC_PORT"`
+
+	// SettingsCacheTTL is the TTL for cached ledger settings.
+	// Format: Go duration string (e.g., "5m", "1h", "30s"). Default: 5m.
+	SettingsCacheTTL string `env:"SETTINGS_CACHE_TTL"`
+
+	MultiTenantSettingsCheckIntervalSec int `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"` // seconds between tenant config revalidation checks
 }
 
 // Options contains optional dependencies that can be injected when running
@@ -172,6 +172,12 @@ type Options struct {
 	// Required when UnifiedMode is true.
 	// This is typically the transaction.UseCase which implements mbootstrap.BalancePort.
 	BalancePort mbootstrap.BalancePort
+
+	// Multi-tenant configuration (only used in unified ledger mode).
+	MultiTenantEnabled bool
+	TenantClient       *tmclient.Client
+	TenantServiceName  string
+	TenantEnvironment  string
 }
 
 // InitServers initiate http and grpc servers using default gRPC communication.
@@ -189,14 +195,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	var logger libLog.Logger
-	if opts != nil && opts.Logger != nil {
-		logger = opts.Logger
-	} else {
-		logger = libZap.InitializeLogger()
+	logger, err := initLogger(opts, cfg)
+	if err != nil {
+		return nil, err
 	}
 
-	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
+	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -205,98 +209,92 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		EnableTelemetry:           cfg.EnableTelemetry,
 		Logger:                    logger,
 	})
-
-	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
-	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
-	dbUser := envFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
-	dbPassword := envFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
-	dbName := envFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
-	dbPort := envFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
-	dbSSLMode := envFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
-
-	dbReplicaHost := envFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
-	dbReplicaUser := envFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
-	dbReplicaPassword := envFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
-	dbReplicaName := envFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
-	dbReplicaPort := envFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
-	dbReplicaSSLMode := envFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
-
-	maxOpenConns := envFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
-	maxIdleConns := envFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
-
-	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
-
-	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbReplicaHost, dbReplicaUser, dbReplicaPassword, dbReplicaName, dbReplicaPort, dbReplicaSSLMode)
-
-	postgresConnection := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: postgreSourcePrimary,
-		ConnectionStringReplica: postgreSourceReplica,
-		PrimaryDBName:           dbName,
-		ReplicaDBName:           dbReplicaName,
-		Component:               ApplicationName,
-		Logger:                  logger,
-		MaxOpenConnections:      maxOpenConns,
-		MaxIdleConnections:      maxIdleConns,
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
 
-	// Apply fallback for MongoDB prefixed env vars
-	mongoURI := envFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
-	mongoHost := envFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
-	mongoName := envFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
-	mongoUser := envFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
-	mongoPassword := envFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
-	mongoPortRaw := envFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
-	mongoParametersRaw := envFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
-	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
-
-	// Extract port and parameters for MongoDB connection (handles backward compatibility)
-	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
-
-	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
-		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort)
-
-	// Safe conversion: use uint64 with default, only assign if positive
-	var mongoMaxPoolSize uint64 = 100
-	if mongoPoolSize > 0 {
-		mongoMaxPoolSize = uint64(mongoPoolSize)
+	// PostgreSQL: single-tenant or multi-tenant (decided internally)
+	pg, err := initPostgres(opts, cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize PostgreSQL: %w", err)
 	}
 
-	if mongoParameters != "" {
-		mongoSource += "?" + mongoParameters
+	// MongoDB: single-tenant or multi-tenant (decided internally)
+	mgo, err := initMongo(opts, cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MongoDB: %w", err)
 	}
 
-	mongoConnection := &libMongo.MongoConnection{
-		ConnectionStringSource: mongoSource,
-		Database:               mongoName,
-		Logger:                 logger,
-		MaxPoolSize:            mongoMaxPoolSize,
+	redisAddresses := strings.Split(cfg.RedisHost, ",")
+
+	topology := libRedis.Topology{}
+	if cfg.RedisMasterName != "" {
+		topology.Sentinel = &libRedis.SentinelTopology{
+			Addresses:  redisAddresses,
+			MasterName: cfg.RedisMasterName,
+		}
+	} else {
+		if len(redisAddresses) == 0 || redisAddresses[0] == "" {
+			return nil, fmt.Errorf("redis host is required")
+		}
+
+		topology.Standalone = &libRedis.StandaloneTopology{
+			Address: redisAddresses[0],
+		}
 	}
 
-	redisConnection := &libRedis.RedisConnection{
-		Address:                      strings.Split(cfg.RedisHost, ","),
-		Password:                     cfg.RedisPassword,
-		DB:                           cfg.RedisDB,
-		Protocol:                     cfg.RedisProtocol,
-		MasterName:                   cfg.RedisMasterName,
-		UseTLS:                       cfg.RedisTLS,
-		CACert:                       cfg.RedisCACert,
-		UseGCPIAMAuth:                cfg.RedisUseGCPIAM,
-		ServiceAccount:               cfg.RedisServiceAccount,
-		GoogleApplicationCredentials: cfg.GoogleApplicationCredentials,
-		TokenLifeTime:                time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
-		RefreshDuration:              time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
-		Logger:                       logger,
-		PoolSize:                     cfg.RedisPoolSize,
-		MinIdleConns:                 cfg.RedisMinIdleConns,
-		ReadTimeout:                  time.Duration(cfg.RedisReadTimeout) * time.Second,
-		WriteTimeout:                 time.Duration(cfg.RedisWriteTimeout) * time.Second,
-		DialTimeout:                  time.Duration(cfg.RedisDialTimeout) * time.Second,
-		PoolTimeout:                  time.Duration(cfg.RedisPoolTimeout) * time.Second,
-		MaxRetries:                   cfg.RedisMaxRetries,
-		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
-		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
+	redisAuth := libRedis.Auth{}
+
+	if cfg.RedisUseGCPIAM {
+		credentialsBase64 := strings.TrimSpace(cfg.GoogleApplicationCredentials)
+		if credentialsBase64 == "" {
+			return nil, fmt.Errorf("GoogleApplicationCredentials must be base64-encoded service account JSON")
+		}
+
+		if _, err := base64.StdEncoding.DecodeString(credentialsBase64); err != nil {
+			return nil, fmt.Errorf("GoogleApplicationCredentials must be base64-encoded service account JSON, not a file path: %w", err)
+		}
+
+		redisAuth.GCPIAM = &libRedis.GCPIAMAuth{
+			CredentialsBase64: credentialsBase64,
+			ServiceAccount:    cfg.RedisServiceAccount,
+			TokenLifetime:     time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
+			RefreshEvery:      time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
+		}
+	} else {
+		redisAuth.StaticPassword = &libRedis.StaticPasswordAuth{
+			Password: cfg.RedisPassword,
+		}
+	}
+
+	var redisTLS *libRedis.TLSConfig
+	if cfg.RedisTLS {
+		redisTLS = &libRedis.TLSConfig{
+			CACertBase64: cfg.RedisCACert,
+		}
+	}
+
+	redisConnection, err := libRedis.New(context.Background(), libRedis.Config{
+		Topology: topology,
+		TLS:      redisTLS,
+		Auth:     redisAuth,
+		Options: libRedis.ConnectionOptions{
+			DB:              cfg.RedisDB,
+			Protocol:        cfg.RedisProtocol,
+			PoolSize:        cfg.RedisPoolSize,
+			MinIdleConns:    cfg.RedisMinIdleConns,
+			ReadTimeout:     time.Duration(cfg.RedisReadTimeout) * time.Second,
+			WriteTimeout:    time.Duration(cfg.RedisWriteTimeout) * time.Second,
+			DialTimeout:     time.Duration(cfg.RedisDialTimeout) * time.Second,
+			PoolTimeout:     time.Duration(cfg.RedisPoolTimeout) * time.Second,
+			MaxRetries:      cfg.RedisMaxRetries,
+			MinRetryBackoff: time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
+			MaxRetryBackoff: time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
+		},
+		Logger: logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize redis client: %w", err)
 	}
 
 	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection)
@@ -304,67 +302,32 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize redis: %w", err)
 	}
 
-	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
-	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(postgresConnection)
-	segmentPostgreSQLRepository := segment.NewSegmentPostgreSQLRepository(postgresConnection)
-	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(postgresConnection)
-	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
-	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)
-	accountTypePostgreSQLRepository := accounttype.NewAccountTypePostgreSQLRepository(postgresConnection)
+	organizationPostgreSQLRepository := pg.organizationRepo
+	ledgerPostgreSQLRepository := pg.ledgerRepo
+	segmentPostgreSQLRepository := pg.segmentRepo
+	portfolioPostgreSQLRepository := pg.portfolioRepo
+	accountPostgreSQLRepository := pg.accountRepo
+	assetPostgreSQLRepository := pg.assetRepo
+	accountTypePostgreSQLRepository := pg.accountTypeRepo
 
-	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
-
-	// Ensure indexes also for known base collections on fresh installs
-	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancelEnsureIndexes()
-
-	indexModel := mongo.IndexModel{
-		Keys: bson.D{{Key: "entity_id", Value: 1}},
-		Options: options.Index().
-			SetUnique(false),
+	balancePort, err := resolveBalancePort(opts, cfg, logger)
+	if err != nil {
+		return nil, err
 	}
 
-	collections := []string{"organization", "ledger", "segment", "account", "portfolio", "asset", "account_type"}
-	for _, collection := range collections {
-		if err := mongoConnection.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
-			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
-		}
-	}
+	settingsCacheTTL := resolveSettingsCacheTTL(cfg, logger)
 
-	// Choose balance port based on UnifiedMode:
-	// - If UnifiedMode is true, validate and use provided ports for in-process calls
-	// - Otherwise, use gRPC adapter to call the separate transaction service
-	var balancePort mbootstrap.BalancePort
-
-	if opts != nil && opts.UnifiedMode {
-		if opts.BalancePort == nil {
-			return nil, fmt.Errorf("unified mode requires BalancePort to be provided")
-		}
-
-		logger.Info("Running in UNIFIED MODE - using direct balance port (in-process calls)")
-
-		balancePort = opts.BalancePort
-	} else {
-		if cfg.TransactionGRPCAddress == "" {
-			cfg.TransactionGRPCAddress = "midaz-transaction"
-
-			logger.Warn("TRANSACTION_GRPC_ADDRESS not set, using default: midaz-transaction")
-		}
-
-		if cfg.TransactionGRPCPort == "" {
-			cfg.TransactionGRPCPort = "3011"
-
-			logger.Warn("TRANSACTION_GRPC_PORT not set, using default: 3011")
-		}
-
-		grpcConnection := &mgrpc.GRPCConnection{
-			Addr:   fmt.Sprintf("%s:%s", cfg.TransactionGRPCAddress, cfg.TransactionGRPCPort),
-			Logger: logger,
-		}
-
-		logger.Info("Running in MICROSERVICES MODE - using gRPC balance adapter (network calls)")
-
-		balancePort = grpcout.NewBalanceAdapter(grpcConnection)
+	queryUseCase := &query.UseCase{
+		OrganizationRepo: organizationPostgreSQLRepository,
+		LedgerRepo:       ledgerPostgreSQLRepository,
+		SegmentRepo:      segmentPostgreSQLRepository,
+		PortfolioRepo:    portfolioPostgreSQLRepository,
+		AccountRepo:      accountPostgreSQLRepository,
+		AssetRepo:        assetPostgreSQLRepository,
+		AccountTypeRepo:  accountTypePostgreSQLRepository,
+		MetadataRepo:     mgo.metadataRepo,
+		RedisRepo:        redisConsumerRepository,
+		SettingsCacheTTL: settingsCacheTTL,
 	}
 
 	commandUseCase := &command.UseCase{
@@ -375,21 +338,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
 		AccountTypeRepo:  accountTypePostgreSQLRepository,
-		MetadataRepo:     metadataMongoDBRepository,
+		MetadataRepo:     mgo.metadataRepo,
 		RedisRepo:        redisConsumerRepository,
 		BalancePort:      balancePort,
-	}
-
-	queryUseCase := &query.UseCase{
-		OrganizationRepo: organizationPostgreSQLRepository,
-		LedgerRepo:       ledgerPostgreSQLRepository,
-		SegmentRepo:      segmentPostgreSQLRepository,
-		PortfolioRepo:    portfolioPostgreSQLRepository,
-		AccountRepo:      accountPostgreSQLRepository,
-		AssetRepo:        assetPostgreSQLRepository,
-		AccountTypeRepo:  accountTypePostgreSQLRepository,
-		MetadataRepo:     metadataMongoDBRepository,
-		RedisRepo:        redisConsumerRepository,
 	}
 
 	accountHandler := &httpin.AccountHandler{
@@ -427,18 +378,22 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Query:   queryUseCase,
 	}
 
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
 
 	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
+	serverAPI.shutdownHooks = buildShutdownHooks(pg.connection, mgo.connection, redisConnection)
 
 	return &Service{
 		Server: serverAPI,
 		Logger: logger,
 		Ports: Ports{
-			MetadataPort: metadataMongoDBRepository,
+			MetadataPort: mgo.metadataRepo,
+			SettingsPort: queryUseCase,
 		},
+		pgManager:           pg.pgManager,
+		mongoManager:        mgo.mongoManager,
 		auth:                auth,
 		accountHandler:      accountHandler,
 		portfolioHandler:    portfolioHandler,
@@ -448,4 +403,109 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		segmentHandler:      segmentHandler,
 		accountTypeHandler:  accountTypeHandler,
 	}, nil
+}
+
+func buildShutdownHooks(pg *libPostgres.Client, mongo *libMongo.Client, redisConn *libRedis.Client) []func(context.Context) error {
+	hooks := make([]func(context.Context) error, 0, 3)
+
+	if redisConn != nil {
+		hooks = append(hooks, func(_ context.Context) error { return redisConn.Close() })
+	}
+
+	if mongo != nil {
+		hooks = append(hooks, func(ctx context.Context) error { return mongo.Close(ctx) })
+	}
+
+	if pg != nil {
+		hooks = append(hooks, func(_ context.Context) error { return pg.Close() })
+	}
+
+	return hooks
+}
+
+func initLogger(opts *Options, cfg *Config) (libLog.Logger, error) {
+	if opts != nil && opts.Logger != nil {
+		return opts.Logger, nil
+	}
+
+	logger, err := libZap.New(libZap.Config{
+		Environment:     resolveLoggerEnvironment(cfg.EnvName),
+		Level:           cfg.LogLevel,
+		OTelLibraryName: cfg.OtelLibraryName,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize logger: %w", err)
+	}
+
+	return logger, nil
+}
+
+func resolveLoggerEnvironment(env string) libZap.Environment {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case string(libZap.EnvironmentProduction):
+		return libZap.EnvironmentProduction
+	case string(libZap.EnvironmentStaging):
+		return libZap.EnvironmentStaging
+	case string(libZap.EnvironmentUAT):
+		return libZap.EnvironmentUAT
+	case string(libZap.EnvironmentLocal):
+		return libZap.EnvironmentLocal
+	default:
+		return libZap.EnvironmentDevelopment
+	}
+}
+
+// resolveBalancePort intentionally mutates cfg during initialization when
+// TransactionGRPCAddress or TransactionGRPCPort are blank, applying the default
+// network coordinates required by the gRPC balance adapter.
+func resolveBalancePort(opts *Options, cfg *Config, logger libLog.Logger) (mbootstrap.BalancePort, error) {
+	if opts != nil && opts.UnifiedMode {
+		if opts.BalancePort == nil {
+			return nil, fmt.Errorf("unified mode requires BalancePort to be provided")
+		}
+
+		logger.Log(context.Background(), libLog.LevelInfo, "Running in UNIFIED MODE - using direct balance port (in-process calls)")
+
+		return opts.BalancePort, nil
+	}
+
+	if cfg.TransactionGRPCAddress == "" {
+		cfg.TransactionGRPCAddress = "midaz-transaction"
+
+		logger.Log(context.Background(), libLog.LevelWarn, "TRANSACTION_GRPC_ADDRESS not set, using default: midaz-transaction")
+	}
+
+	if cfg.TransactionGRPCPort == "" {
+		cfg.TransactionGRPCPort = "3011"
+
+		logger.Log(context.Background(), libLog.LevelWarn, "TRANSACTION_GRPC_PORT not set, using default: 3011")
+	}
+
+	grpcConnection := &mgrpc.GRPCConnection{
+		Addr:   fmt.Sprintf("%s:%s", cfg.TransactionGRPCAddress, cfg.TransactionGRPCPort),
+		Logger: logger,
+	}
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Running in MICROSERVICES MODE - using gRPC balance adapter (network calls)")
+
+	return grpcout.NewBalanceAdapter(grpcConnection), nil
+}
+
+func resolveSettingsCacheTTL(cfg *Config, logger libLog.Logger) time.Duration {
+	const defaultSettingsCacheTTL = 5 * time.Minute
+
+	if cfg.SettingsCacheTTL == "" {
+		return defaultSettingsCacheTTL
+	}
+
+	parsed, err := time.ParseDuration(cfg.SettingsCacheTTL)
+	if err != nil || parsed <= 0 {
+		logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("Invalid SETTINGS_CACHE_TTL value '%s', using default %v", cfg.SettingsCacheTTL, defaultSettingsCacheTTL))
+
+		return defaultSettingsCacheTTL
+	}
+
+	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Settings cache TTL configured: %v", parsed))
+
+	return parsed
 }

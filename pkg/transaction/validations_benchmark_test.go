@@ -1,10 +1,14 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package transaction
 
 import (
 	"context"
 	"testing"
 
-	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	"github.com/shopspring/decimal"
 )
 
@@ -377,7 +381,7 @@ func BenchmarkDetermineOperation(b *testing.B) {
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				_ = DetermineOperation(sc.isPending, sc.isFrom, sc.transactionType)
+				_, _ = DetermineOperation(sc.isPending, sc.isFrom, sc.transactionType)
 			}
 		})
 	}

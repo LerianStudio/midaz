@@ -1,5 +1,9 @@
 //go:build integration
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package asset
 
 import (
@@ -7,9 +11,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -24,19 +26,11 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *AssetPostgreSQLRepository {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           container.Config.DBName,
-		ReplicaDBName:           container.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
 	return NewAssetPostgreSQLRepository(conn)
 }
@@ -86,7 +80,7 @@ func TestIntegration_AssetRepository_Find_ReturnsErrNotFound(t *testing.T) {
 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -217,7 +211,7 @@ func TestIntegration_AssetRepository_Create(t *testing.T) {
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
 	now := time.Now().Truncate(time.Microsecond)
-	assetID := libCommons.GenerateUUIDv7()
+	assetID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	asset := &mmodel.Asset{
 		ID:             assetID.String(),
@@ -309,7 +303,7 @@ func TestIntegration_AssetRepository_Update_ReturnsErrNotFound(t *testing.T) {
 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -372,7 +366,7 @@ func TestIntegration_AssetRepository_FindAll_EmptyForNonExistentLedger(t *testin
 	repo := createRepository(t, container)
 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-	nonExistentLedgerID := libCommons.GenerateUUIDv7()
+	nonExistentLedgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -553,7 +547,7 @@ func TestIntegration_AssetRepository_ListByIDs_EmptyForNonExistentIDs(t *testing
 	ctx := context.Background()
 
 	// Act
-	nonExistentIDs := []uuid.UUID{libCommons.GenerateUUIDv7(), libCommons.GenerateUUIDv7()}
+	nonExistentIDs := []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7()), uuid.Must(libCommons.GenerateUUIDv7())}
 	assets, err := repo.ListByIDs(ctx, orgID, ledgerID, nonExistentIDs)
 
 	// Assert
@@ -638,7 +632,7 @@ func TestIntegration_AssetRepository_Delete_ReturnsErrNotFound(t *testing.T) {
 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 

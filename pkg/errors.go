@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package pkg
 
 import (
@@ -261,7 +265,7 @@ func ValidateInternalError(err error, entityType string) error {
 
 // ValidateUnmarshallingError validates the error and returns an appropriate ResponseError.
 func ValidateUnmarshallingError(err error) error {
-	var message = err.Error()
+	message := err.Error()
 
 	var ute *json.UnmarshalTypeError
 	if errors.As(err, &ute) {
@@ -380,6 +384,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrActionNotPermitted.Error(),
 			Title:      "Action Not Permitted",
 			Message:    "The action you are attempting is not allowed in the current environment. Please refer to the documentation for guidance.",
+		},
+		constant.ErrMissingFieldsInRequest: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMissingFieldsInRequest.Error(),
+			Title:      "Missing Fields in Request",
+			Message:    fmt.Sprintf("Your request is missing one or more required fields: %v. Please refer to the documentation to ensure all necessary fields are included in your request.", args...),
 		},
 		constant.ErrAccountTypeImmutable: ValidationError{
 			EntityType: entityType,
@@ -865,7 +875,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrMessageBrokerUnavailable.Error(),
 			Title:      "Message Broker Unavailable",
-			Message:    "The server encountered an unexpected error while connecting to Message Broker. Please try again later or contact support."},
+			Message:    "The server encountered an unexpected error while connecting to Message Broker. Please try again later or contact support.",
+		},
 		constant.ErrAccountAliasInvalid: InternalServerError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountAliasInvalid.Error(),
@@ -978,7 +989,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrAccountingRouteCountMismatch.Error(),
 			Title:      "Accounting Route Count Mismatch",
-			Message:    fmt.Sprintf("The operation routes count does not match the transaction route cache. Expected %v source routes and %v destination routes, but found %v source routes and %v destination routes in the transaction route.", args...),
+			Message:    fmt.Sprintf("The operation routes count does not match the transaction route cache. Expected %v source and %v destination operations, but the route has %v source, %v destination, and %v bidirectional operation routes.", args...),
 		},
 		constant.ErrAccountingRouteNotFound: ValidationError{
 			EntityType: entityType,
@@ -1026,7 +1037,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidFutureTransactionDate.Error(),
 			Title:      "Invalid Future Date Error",
-			Message:    "The 'transactionDate' cannot be a future date. Please provide a valid date."},
+			Message:    "The 'transactionDate' cannot be a future date. Please provide a valid date.",
+		},
 		constant.ErrInvalidPendingFutureTransactionDate: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrInvalidPendingFutureTransactionDate.Error(),
@@ -1061,7 +1073,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidDatetimeFormat.Error(),
 			Title:      "Invalid Datetime Format Error",
-			Message:    "The 'initialDate', 'finalDate', or both are in the incorrect format. Please use the 'yyyy-mm-dd' or 'yyyy-mm-dd hh:mm:ss' format and try again.",
+			Message:    fmt.Sprintf("The '%v' parameter is in the incorrect format. Please use the '%v' format and try again.", args...),
 		},
 		constant.ErrHolderNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -1189,11 +1201,125 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Backup Cache Marshal Failed",
 			Message:    "The server encountered an unexpected error while serializing the transaction for the backup cache. This uses the same backup mechanism. Please try again later or contact support.",
 		},
+		constant.ErrTransactionBackupCacheRetrievalFailed: InternalServerError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBackupCacheRetrievalFailed.Error(),
+			Title:      "Transaction Backup Cache Retrieval Failed",
+			Message:    "The transaction could not be retrieved from the backup cache internal function. Please ensure the transaction exists in the cache before processing balances.",
+		},
 		constant.ErrGRPCServiceUnavailable: ServiceUnavailableError{
 			EntityType: entityType,
 			Code:       constant.ErrGRPCServiceUnavailable.Error(),
 			Title:      "gRPC Service Unavailable",
 			Message:    "The balance service is temporarily unavailable. Please try again later.",
+		},
+		constant.ErrMissingRequiredQueryParameter: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMissingRequiredQueryParameter.Error(),
+			Title:      "Missing Required Query Parameter",
+			Message:    fmt.Sprintf("The required query parameter '%v' is missing from the request.", args...),
+		},
+		constant.ErrInvalidTimestamp: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidTimestamp.Error(),
+			Title:      "Invalid Timestamp",
+			Message:    fmt.Sprintf("The provided timestamp '%v' is invalid. Timestamps cannot be in the future.", args...),
+		},
+		constant.ErrNoBalanceDataAtTimestamp: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoBalanceDataAtTimestamp.Error(),
+			Title:      "No Balance Data at Date",
+			Message:    "No balance data is available at the specified date.",
+		},
+		constant.ErrPayloadTooLarge: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrPayloadTooLarge.Error(),
+			Title:      "Payload Too Large",
+			Message:    "The request payload exceeds the maximum allowed size of 64KB.",
+		},
+		constant.ErrJSONNestingDepthExceeded: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrJSONNestingDepthExceeded.Error(),
+			Title:      "JSON Nesting Depth Exceeded",
+			Message:    "The JSON payload exceeds the maximum allowed nesting depth of 10 levels. Please flatten your data structure.",
+		},
+		constant.ErrJSONKeyCountExceeded: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrJSONKeyCountExceeded.Error(),
+			Title:      "JSON Key Count Exceeded",
+			Message:    "The JSON payload exceeds the maximum allowed number of keys (100). Please reduce the number of keys in your payload.",
+		},
+		constant.ErrUnknownSettingsField: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrUnknownSettingsField.Error(),
+			Title:      "Unknown Settings Field",
+			Message:    fmt.Sprintf("The settings contain an unknown field: '%v'. Only known settings fields are allowed.", args...),
+		},
+		constant.ErrInvalidSettingsFieldType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidSettingsFieldType.Error(),
+			Title:      "Invalid Settings Field Type",
+			Message:    fmt.Sprintf("The settings field '%v' has an invalid type. Expected %v.", args...),
+		},
+		constant.ErrSettingsRootLevelField: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrSettingsRootLevelField.Error(),
+			Title:      "Settings Field at Root Level",
+			Message:    fmt.Sprintf("The settings field '%v' must be nested under '%v'. Expected structure: {\"%v\": {\"%v\": value}}.", args...),
+		},
+		constant.ErrRouteNotBidirectional: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrRouteNotBidirectional.Error(),
+			Title:      "Route Not Bidirectional",
+			Message:    "The operation route does not allow bidirectional transactions. Only routes with operation type 'bidirectional' can be reverted.",
+		},
+		constant.ErrMissingCounterpart: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrMissingCounterpart.Error(),
+			Title:      "Missing Counterpart",
+			Message:    fmt.Sprintf("Route '%v' requires at least one debit and one credit operation (counterpart validation).", args...),
+		},
+		constant.ErrDirectionRouteMismatch: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrDirectionRouteMismatch.Error(),
+			Title:      "Direction Route Mismatch",
+			Message:    fmt.Sprintf("Operation direction '%v' is not compatible with route operation type '%v' for operation '%v'.", args...),
+		},
+		constant.ErrNoSourceForAction: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrNoSourceForAction.Error(),
+			Title:      "No Source for Action",
+			Message:    fmt.Sprintf("The action '%v' requires at least one source operation route. Please add a source route for this action.", args...),
+		},
+		constant.ErrNoDestinationForAction: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrNoDestinationForAction.Error(),
+			Title:      "No Destination for Action",
+			Message:    fmt.Sprintf("The action '%v' requires at least one destination operation route. Please add a destination route for this action.", args...),
+		},
+		constant.ErrInvalidRouteAction: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidRouteAction.Error(),
+			Title:      "Invalid Route Action",
+			Message:    fmt.Sprintf("The action '%v' is not a valid route action. Please provide a valid action value.", args...),
+		},
+		constant.ErrDuplicateActionRoute: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrDuplicateActionRoute.Error(),
+			Title:      "Duplicate Action Route",
+			Message:    fmt.Sprintf("The operation route '%v' is already assigned to the action '%v'. Please remove the duplicate entry.", args...),
+		},
+		constant.ErrNoRoutesForAction: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrNoRoutesForAction.Error(),
+			Title:      "No Routes for Action",
+			Message:    fmt.Sprintf("No routes found for action '%v'. Please configure operation routes for this action in the transaction route.", args...),
+		},
+		constant.ErrTooManyOperationRoutes: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTooManyOperationRoutes.Error(),
+			Title:      "Too Many Operation Routes",
+			Message:    "The number of operation routes exceeds the maximum allowed. Please reduce the number of operation routes and try again.",
 		},
 	}
 

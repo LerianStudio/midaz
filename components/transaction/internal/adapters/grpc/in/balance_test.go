@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package in
 
 import (
@@ -347,7 +351,8 @@ func TestBalanceProto_DeleteAllBalancesByAccountID(t *testing.T) {
 				AccountId:      uuid.New().String(),
 				RequestId:      uuid.New().String(),
 			},
-			setupMocks:  func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, accountID uuid.UUID) {},
+			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, accountID uuid.UUID) {
+			},
 			wantErr:     true,
 			errContains: "organizationId",
 		},
@@ -359,7 +364,8 @@ func TestBalanceProto_DeleteAllBalancesByAccountID(t *testing.T) {
 				AccountId:      uuid.New().String(),
 				RequestId:      uuid.New().String(),
 			},
-			setupMocks:  func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, accountID uuid.UUID) {},
+			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, accountID uuid.UUID) {
+			},
 			wantErr:     true,
 			errContains: "ledgerId",
 		},
@@ -371,7 +377,8 @@ func TestBalanceProto_DeleteAllBalancesByAccountID(t *testing.T) {
 				AccountId:      "invalid-uuid",
 				RequestId:      uuid.New().String(),
 			},
-			setupMocks:  func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, accountID uuid.UUID) {},
+			setupMocks: func(balanceRepo *balance.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, accountID uuid.UUID) {
+			},
 			wantErr:     true,
 			errContains: "accountId",
 		},

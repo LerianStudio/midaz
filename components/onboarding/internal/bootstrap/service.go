@@ -1,11 +1,16 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package bootstrap
 
 import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -15,6 +20,10 @@ import (
 type Ports struct {
 	// MetadataPort is the MongoDB metadata repository for direct access in unified ledger mode.
 	MetadataPort mbootstrap.MetadataIndexRepository
+
+	// SettingsPort is the ledger settings query service for direct access in unified ledger mode.
+	// This allows the transaction module to query ledger settings during validation.
+	SettingsPort mbootstrap.SettingsPort
 }
 
 // Service is the application glue where we put all top level components to be used.
@@ -24,6 +33,11 @@ type Service struct {
 
 	// Ports groups all external interface dependencies.
 	Ports Ports
+
+	// Multi-tenant manager handles (opaque any to avoid leaking lib-commons types).
+	// nil in single-tenant mode. Populated from pg.pgManager / mgo.mongoManager at construction.
+	pgManager    any
+	mongoManager any
 
 	// Route registration dependencies (for unified ledger mode)
 	auth                *middleware.AuthClient
@@ -55,10 +69,13 @@ func (app *Service) GetRunnables() []mbootstrap.RunnableConfig {
 
 // GetRouteRegistrar returns a function that registers onboarding routes to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
-func (app *Service) GetRouteRegistrar() func(*fiber.App) {
-	return func(fiberApp *fiber.App) {
+
+func (app *Service) GetRouteRegistrar(routeOptions *midazhttp.ProtectedRouteOptions) func(fiber.Router) {
+	return func(fiberRouter fiber.Router) {
+		group := fiberRouter.Group("", httpin.LegacyErrorBoundary())
+
 		httpin.RegisterRoutesToApp(
-			fiberApp,
+			group,
 			app.auth,
 			app.accountHandler,
 			app.portfolioHandler,
@@ -67,6 +84,7 @@ func (app *Service) GetRouteRegistrar() func(*fiber.App) {
 			app.organizationHandler,
 			app.segmentHandler,
 			app.accountTypeHandler,
+			routeOptions,
 		)
 	}
 }
@@ -75,6 +93,24 @@ func (app *Service) GetRouteRegistrar() func(*fiber.App) {
 // This allows direct in-process calls for metadata index operations.
 func (app *Service) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
 	return app.Ports.MetadataPort
+}
+
+// GetSettingsPort returns the settings port for use by transaction in unified mode.
+// This allows the transaction module to query ledger settings during validation.
+func (app *Service) GetSettingsPort() mbootstrap.SettingsPort {
+	return app.Ports.SettingsPort
+}
+
+// GetPGManager returns the multi-tenant PostgreSQL manager as an opaque handle.
+// Returns nil in single-tenant mode.
+func (app *Service) GetPGManager() any {
+	return app.pgManager
+}
+
+// GetMongoManager returns the multi-tenant MongoDB manager as an opaque handle.
+// Returns nil in single-tenant mode.
+func (app *Service) GetMongoManager() any {
+	return app.mongoManager
 }
 
 // Ensure Service implements mbootstrap.Service interface at compile time

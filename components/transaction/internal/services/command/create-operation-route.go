@@ -1,18 +1,25 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+
+	// CreateOperationRoute creates a new operation route.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// CreateOperationRoute creates a new operation route.
 func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput) (*mmodel.OperationRoute, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -22,23 +29,24 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 	now := time.Now()
 
 	operationRoute := &mmodel.OperationRoute{
-		ID:             libCommons.GenerateUUIDv7(),
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		Title:          payload.Title,
-		Description:    payload.Description,
-		Code:           payload.Code,
-		OperationType:  payload.OperationType,
-		Account:        payload.Account,
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		ID:                uuid.Must(libCommons.GenerateUUIDv7()),
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		Title:             payload.Title,
+		Description:       payload.Description,
+		Code:              payload.Code,
+		OperationType:     payload.OperationType,
+		Account:           payload.Account,
+		AccountingEntries: payload.AccountingEntries,
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	}
 
 	createdOperationRoute, err := uc.OperationRouteRepo.Create(ctx, organizationID, ledgerID, operationRoute)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation route", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route", err)
 
-		logger.Errorf("Failed to create operation route: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create operation route: %v", err))
 
 		return nil, err
 	}
@@ -53,9 +61,9 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(mmodel.OperationRoute{}).Name(), &meta); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create operation route metadata", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route metadata", err)
 
-			logger.Errorf("Failed to create operation route metadata: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create operation route metadata: %v", err))
 
 			return nil, err
 		}

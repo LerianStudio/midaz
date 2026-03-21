@@ -1,10 +1,10 @@
 # Project Structure Overview
 
-Welcome to the comprehensive guide on the structure of our project, which is designed with a focus on scalability, maintainability, and clear separation of concerns in line with the Command Query Responsibility Segregation (CQRS) pattern. This architecture not only enhances our project's efficiency and performance but also ensures that our codebase is organized in a way that allows developers to navigate and contribute effectively.
+This guide covers the project structure. The codebase is designed for scalability, maintainability, and clear separation of concerns following the Command Query Responsibility Segregation (CQRS) pattern. This architecture keeps the codebase organized so developers can navigate and contribute effectively.
 
 #### Directory Layout
 
-The project is structured into several key directories, each serving specific roles:
+The project is structured into key directories, each serving specific roles:
 
 ```
 MIDAZ
@@ -133,15 +133,15 @@ MIDAZ
 
 ###### API (`./onboarding/api`)
 
-* **Endpoints** : List and describe all API endpoints, including parameters, request/response formats, and error codes.
+* **Endpoints:** List and describe all API endpoints, including parameters, request/response formats, and error codes.
 
 ###### Internal (`./onboarding/internal`)
 
 * **Adapters** (`./adapters`):
-  * **Database** : Connection and operation guides for MongoDB and PostgreSQL.
+  * **Database:** Connection and operation guides for MongoDB and PostgreSQL.
 * **Application Logic** (`./app`):
-  * **Command** : Documentation of command handlers, including how commands are processed.
-  * **Query** : Details on query handlers, how queries are executed, and their return structures.
+  * **Command:** Documentation of command handlers, including how commands are processed.
+  * **Query:** Details on query handlers, how queries are executed, and their return structures.
 * **Domain** (`./domain`):
   * Description of domain models such as Onboarding, Portfolio, Transaction, etc., and their relationships.
 * **Services** (`./service`):
@@ -155,8 +155,8 @@ MIDAZ
 
 #### Images (`./image`)
 
-* **README** : Purpose of images stored and how to use them in the project.
+* **README:** Purpose of images stored and how to use them in the project.
 
 #### Postman Collections (`./postman`)
 
-* **Usage** : How to import and use the provided Postman collections for API testing.
+* **Usage:** How to import and use the provided Postman collections for API testing.

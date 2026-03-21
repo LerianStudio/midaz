@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package mgrpc
 
 import (
@@ -8,15 +12,13 @@ import (
 	"strings"
 	"time"
 
-	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	"go.uber.org/zap"
+	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
-
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
 )
 
 // GRPCConnection is a struct which deal with gRPC connections.
@@ -26,25 +28,50 @@ type GRPCConnection struct {
 	Logger libLog.Logger
 }
 
-// Connect keeps a singleton connection with gRPC.
-func (c *GRPCConnection) Connect() error {
+func (c *GRPCConnection) log(ctx context.Context, level libLog.Level, msg string, fields ...libLog.Field) {
+	if c == nil || c.Logger == nil {
+		return
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	c.Logger.Log(ctx, level, msg, fields...)
+}
+
+func (c *GRPCConnection) connect(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	conn, err := grpc.NewClient(c.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		c.Logger.Error("Failed to connect on gRPC", zap.Error(err))
+		c.log(ctx, libLog.LevelError, "Failed to connect on gRPC", libLog.Err(err))
 		return err
 	}
 
-	c.Logger.Info("Connected to gRPC ✅ ")
+	c.log(ctx, libLog.LevelInfo, "Connected to gRPC ✅")
 
 	c.Conn = conn
 
 	return nil
 }
 
+// Connect keeps a singleton connection with gRPC.
+func (c *GRPCConnection) Connect() error {
+	return c.connect(context.Background())
+}
+
 // GetNewClient returns a connection to gRPC, reconnect it if necessary.
 func (c *GRPCConnection) GetNewClient() (*grpc.ClientConn, error) {
+	return c.GetNewClientWithContext(context.Background())
+}
+
+// GetNewClientWithContext returns a connection to gRPC, reconnecting it with caller context when necessary.
+func (c *GRPCConnection) GetNewClientWithContext(ctx context.Context) (*grpc.ClientConn, error) {
 	if c.Conn == nil {
-		if err := c.Connect(); err != nil {
+		if err := c.connect(ctx); err != nil {
 			log.Printf("ERRCONECT %s", err)
 			return nil, err
 		}
@@ -58,8 +85,16 @@ func (c *GRPCConnection) GetNewClient() (*grpc.ClientConn, error) {
 // - traceparent/tracestate (W3C propagated via OpenTelemetry)
 // - authorization (JWT), when provided
 func (c *GRPCConnection) ContextMetadataInjection(ctx context.Context, token string) context.Context {
+	md, ok := metadata.FromOutgoingContext(ctx)
+	if !ok {
+		md = metadata.New(nil)
+	} else {
+		md = md.Copy()
+	}
+
 	// Inject W3C trace context into gRPC metadata
-	ctx = libOpentelemetry.InjectGRPCContext(ctx)
+	md = libOpentelemetry.InjectGRPCContext(ctx, md)
+	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	pairs := []string{}
 
@@ -92,13 +127,13 @@ func getHealthCheckTimeout() time.Duration {
 
 	timeout, err := time.ParseDuration(timeoutStr)
 	if err != nil {
-		log.Printf("Warning: invalid GRPC_HEALTH_CHECK_TIMEOUT value '%s', using default %v", timeoutStr, defaultHealthCheckTimeout)
+		log.Printf("Warning: invalid GRPC_HEALTH_CHECK_TIMEOUT value %q, using default %v", timeoutStr, defaultHealthCheckTimeout) // #nosec G706 -- %q escapes control characters
 
 		return defaultHealthCheckTimeout
 	}
 
 	if timeout <= 0 {
-		log.Printf("Warning: non-positive GRPC_HEALTH_CHECK_TIMEOUT value '%s', using default %v", timeoutStr, defaultHealthCheckTimeout)
+		log.Printf("Warning: non-positive GRPC_HEALTH_CHECK_TIMEOUT value %q, using default %v", timeoutStr, defaultHealthCheckTimeout) // #nosec G706 -- %q escapes control characters
 
 		return defaultHealthCheckTimeout
 	}
@@ -107,73 +142,51 @@ func getHealthCheckTimeout() time.Duration {
 }
 
 // CheckHealth verifies that the gRPC connection is healthy and ready to accept requests.
-// It checks the connection state and returns an error if the connection is not ready.
-// The check uses a configurable timeout from GRPC_HEALTH_CHECK_TIMEOUT environment variable
-// (default: 5 seconds).
+// It loops through gRPC connectivity state transitions (Idle → Connecting → Ready) within
+// a configurable timeout from GRPC_HEALTH_CHECK_TIMEOUT environment variable (default: 5 seconds).
 func (c *GRPCConnection) CheckHealth(ctx context.Context) error {
 	if c.Conn == nil {
-		c.Logger.Warn("gRPC connection is nil, attempting to establish connection")
+		c.log(ctx, libLog.LevelWarn, "gRPC connection is nil, attempting to establish connection")
 
-		if err := c.Connect(); err != nil {
-			c.Logger.Error("Failed to establish gRPC connection during health check", zap.Error(err))
+		if err := c.connect(ctx); err != nil {
+			c.log(ctx, libLog.LevelError, "Failed to establish gRPC connection during health check", libLog.Err(err))
 
 			return ErrGRPCConnectionNotReady
 		}
 	}
 
-	state := c.Conn.GetState()
 	timeout := getHealthCheckTimeout()
 
-	// Ready means connection is established and ready - healthy
-	if state == connectivity.Ready {
-		return nil
-	}
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
-	// For Idle state, we need to force a connection attempt to verify the server is reachable
-	// Idle only means no RPC has been made yet, not that the server is available
-	if state == connectivity.Idle {
-		c.Conn.Connect() // Force connection attempt
+	for {
+		state := c.Conn.GetState()
 
-		timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-
-		// Wait for state to change from Idle
-		c.Conn.WaitForStateChange(timeoutCtx, connectivity.Idle)
-
-		newState := c.Conn.GetState()
-		if newState == connectivity.Ready {
+		if state == connectivity.Ready {
 			return nil
 		}
 
-		c.Logger.Warn("gRPC connection failed to become ready from idle state",
-			zap.String("state", newState.String()),
-			zap.Duration("timeout", timeout))
+		if state == connectivity.Shutdown {
+			c.log(ctx, libLog.LevelWarn, "gRPC connection is shut down")
 
-		return ErrGRPCConnectionNotReady
-	}
-
-	// For Connecting state, wait briefly for the connection to become ready
-	if state == connectivity.Connecting {
-		timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-
-		c.Conn.WaitForStateChange(timeoutCtx, connectivity.Connecting)
-
-		newState := c.Conn.GetState()
-		if newState == connectivity.Ready {
-			return nil
+			return ErrGRPCConnectionNotReady
 		}
 
-		c.Logger.Warn("gRPC connection failed to become ready",
-			zap.String("state", newState.String()),
-			zap.Duration("timeout", timeout))
+		if state == connectivity.Idle {
+			c.Conn.Connect()
+		}
 
-		return ErrGRPCConnectionNotReady
+		if !c.Conn.WaitForStateChange(timeoutCtx, state) {
+			c.log(
+				ctx,
+				libLog.LevelWarn,
+				"gRPC connection failed to become ready within timeout",
+				libLog.String("lastState", state.String()),
+				libLog.Any("timeout", timeout),
+			)
+
+			return ErrGRPCConnectionNotReady
+		}
 	}
-
-	// TransientFailure or Shutdown states are unhealthy
-	c.Logger.Warn("gRPC connection is not healthy",
-		zap.String("state", state.String()))
-
-	return ErrGRPCConnectionNotReady
 }

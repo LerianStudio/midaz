@@ -1,10 +1,16 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/bootstrap"
 )
 
@@ -25,17 +31,14 @@ import (
 func main() {
 	libCommons.InitLocalEnvConfig()
 
-	logger := libZap.InitializeLogger()
-
-	service, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
-		Logger: logger,
-	})
+	service, err := bootstrap.InitServersWithOptions(nil)
 	if err != nil {
-		logger.Errorf("Failed to initialize onboarding service: %v", err)
-		_ = logger.Sync()
+		fmt.Fprintf(os.Stderr, "failed to initialize onboarding service: %v\n", err)
 
 		os.Exit(1)
 	}
+
+	service.Logger.Log(context.Background(), libLog.LevelInfo, "Onboarding service initialized successfully")
 
 	service.Run()
 }

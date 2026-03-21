@@ -68,3 +68,32 @@ func (mr *MockProducerRepositoryMockRecorder) ProducerDefault(ctx, exchange, key
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProducerDefault", reflect.TypeOf((*MockProducerRepository)(nil).ProducerDefault), ctx, exchange, key, message)
 }
+
+// ProducerDefaultWithContext mocks base method.
+func (m *MockProducerRepository) ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProducerDefaultWithContext", ctx, exchange, key, message)
+	ret0, _ := ret[0].(*string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ProducerDefaultWithContext indicates an expected call of ProducerDefaultWithContext.
+func (mr *MockProducerRepositoryMockRecorder) ProducerDefaultWithContext(ctx, exchange, key, message any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProducerDefaultWithContext", reflect.TypeOf((*MockProducerRepository)(nil).ProducerDefaultWithContext), ctx, exchange, key, message)
+}
+
+// Close mocks base method.
+func (m *MockProducerRepository) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockProducerRepositoryMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockProducerRepository)(nil).Close))
+}

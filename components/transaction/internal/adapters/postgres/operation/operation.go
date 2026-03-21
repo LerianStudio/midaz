@@ -1,11 +1,17 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package operation
 
 import (
 	"database/sql"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -39,7 +45,46 @@ type OperationPostgreSQLModel struct {
 	DeletedAt             sql.NullTime     // Deletion timestamp (if soft-deleted)
 	Route                 *string          // Route
 	BalanceAffected       bool             // BalanceAffected default true
+	Direction             string           // Direction of the operation (debit, credit)
+	RouteID               *string          // Route ID referencing operation_route table
+	RouteCode             *string          // Route code for accounting traceability
+	RouteDescription      *string          // Route description for accounting traceability
 	Metadata              map[string]any   // Additional custom attributes
+}
+
+// OperationPointInTimeModel is a lightweight model for point-in-time balance queries.
+// It contains only the fields needed to reconstruct the balance state at a specific timestamp,
+// enabling PostgreSQL to use Index-Only Scan with covering indexes.
+// Note: ID is included for cursor pagination support in list queries.
+type OperationPointInTimeModel struct {
+	ID                    string           // Unique identifier (UUID format) - for cursor pagination
+	BalanceID             string           // Balance ID affected by operation
+	AccountID             string           // Account ID associated with operation
+	AssetCode             string           // Asset code for the operation
+	BalanceKey            string           // Balance key for additional balances
+	AvailableBalanceAfter *decimal.Decimal // Available balance after operation
+	OnHoldBalanceAfter    *decimal.Decimal // On-hold balance after operation
+	VersionBalanceAfter   *int64           // Balance version after operation
+	CreatedAt             time.Time        // Creation timestamp (used as UpdatedAt for balance)
+}
+
+// ToEntity converts an OperationPointInTimeModel to entity Operation with only point-in-time relevant fields
+func (t *OperationPointInTimeModel) ToEntity() *Operation {
+	balanceAfter := Balance{
+		Available: t.AvailableBalanceAfter,
+		OnHold:    t.OnHoldBalanceAfter,
+		Version:   t.VersionBalanceAfter,
+	}
+
+	return &Operation{
+		ID:           t.ID,
+		BalanceID:    t.BalanceID,
+		AccountID:    t.AccountID,
+		AssetCode:    t.AssetCode,
+		BalanceKey:   t.BalanceKey,
+		BalanceAfter: balanceAfter,
+		CreatedAt:    t.CreatedAt,
+	}
 }
 
 // Status structure for marshaling/unmarshalling JSON.
@@ -183,14 +228,35 @@ type Operation struct {
 	// format: uuid
 	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// Route
+	// Deprecated: passive field kept for backward compatibility. Not used in validation or business logic. Use routeId instead.
 	// example: 00000000-0000-0000-0000-000000000000
-	// format: string
-	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
 
 	// BalanceAffected default true
 	// format: boolean
 	BalanceAffected bool `json:"balanceAffected" example:"true" format:"boolean"`
+
+	// Direction of the operation (debit, credit)
+	// example: debit
+	// maxLength: 50
+	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50" enums:"debit,credit"`
+
+	// UUID of the operation route that generated this operation. Primary field for route identification, validation, and accounting.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Human-readable code of the operation route for accounting traceability
+	// example: ROUTE-001
+	// maxLength: 100
+	RouteCode *string `json:"routeCode,omitempty" example:"ROUTE-001" maxLength:"100"`
+
+	// Human-readable description of the operation route for accounting traceability
+	// example: Settlement route for service charges
+	// maxLength: 250
+	RouteDescription *string `json:"routeDescription,omitempty" example:"Settlement route for service charges" maxLength:"250"`
 
 	// Timestamp when the operation was created
 	// example: 2021-01-01T00:00:00Z
@@ -262,6 +328,20 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 		Operation.Route = *t.Route
 	}
 
+	Operation.Direction = t.Direction
+
+	if t.RouteID != nil {
+		Operation.RouteID = t.RouteID
+	}
+
+	if t.RouteCode != nil {
+		Operation.RouteCode = t.RouteCode
+	}
+
+	if t.RouteDescription != nil {
+		Operation.RouteDescription = t.RouteDescription
+	}
+
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
 		Operation.DeletedAt = &deletedAtCopy
@@ -272,7 +352,7 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 
 // FromEntity converts an entity Operation to OperationPostgreSQLModel
 func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
-	ID := libCommons.GenerateUUIDv7().String()
+	ID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	if operation.ID != "" {
 		ID = operation.ID
 	}
@@ -313,9 +393,133 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		t.Route = &operation.Route
 	}
 
+	t.Direction = operation.Direction
+
+	if operation.RouteID != nil {
+		t.RouteID = operation.RouteID
+	}
+
+	if operation.RouteCode != nil {
+		t.RouteCode = operation.RouteCode
+	}
+
+	if operation.RouteDescription != nil {
+		t.RouteDescription = operation.RouteDescription
+	}
+
 	if operation.DeletedAt != nil {
 		deletedAtCopy := *operation.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
+	}
+}
+
+// ToRedis converts an Operation to its flat Redis cache representation.
+func (op *Operation) ToRedis() mmodel.OperationRedis {
+	r := mmodel.OperationRedis{
+		ID:               op.ID,
+		TransactionID:    op.TransactionID,
+		Description:      op.Description,
+		Type:             op.Type,
+		AssetCode:        op.AssetCode,
+		ChartOfAccounts:  op.ChartOfAccounts,
+		BalanceID:        op.BalanceID,
+		AccountID:        op.AccountID,
+		AccountAlias:     op.AccountAlias,
+		BalanceKey:       op.BalanceKey,
+		OrganizationID:   op.OrganizationID,
+		LedgerID:         op.LedgerID,
+		CreatedAt:        op.CreatedAt,
+		UpdatedAt:        op.UpdatedAt,
+		Route:            op.Route,
+		BalanceAffected:  op.BalanceAffected,
+		Direction:        op.Direction,
+		RouteID:          op.RouteID,
+		RouteCode:        op.RouteCode,
+		RouteDescription: op.RouteDescription,
+		Metadata:         op.Metadata,
+	}
+
+	if op.Amount.Value != nil {
+		r.AmountValue = *op.Amount.Value
+	}
+
+	if op.Balance.Available != nil {
+		r.BalanceAvailable = *op.Balance.Available
+	}
+
+	if op.Balance.OnHold != nil {
+		r.BalanceOnHold = *op.Balance.OnHold
+	}
+
+	if op.Balance.Version != nil {
+		r.BalanceVersion = *op.Balance.Version
+	}
+
+	if op.BalanceAfter.Available != nil {
+		r.BalanceAfterAvailable = *op.BalanceAfter.Available
+	}
+
+	if op.BalanceAfter.OnHold != nil {
+		r.BalanceAfterOnHold = *op.BalanceAfter.OnHold
+	}
+
+	if op.BalanceAfter.Version != nil {
+		r.BalanceAfterVersion = *op.BalanceAfter.Version
+	}
+
+	r.StatusCode = op.Status.Code
+	r.StatusDescription = op.Status.Description
+
+	return r
+}
+
+// OperationFromRedis converts a flat Redis cache representation back into an Operation.
+func OperationFromRedis(r mmodel.OperationRedis) *Operation {
+	amountVal := r.AmountValue
+	balAvail := r.BalanceAvailable
+	balOnHold := r.BalanceOnHold
+	balVersion := r.BalanceVersion
+	balAfterAvail := r.BalanceAfterAvailable
+	balAfterOnHold := r.BalanceAfterOnHold
+	balAfterVersion := r.BalanceAfterVersion
+
+	return &Operation{
+		ID:              r.ID,
+		TransactionID:   r.TransactionID,
+		Description:     r.Description,
+		Type:            r.Type,
+		AssetCode:       r.AssetCode,
+		ChartOfAccounts: r.ChartOfAccounts,
+		Amount:          Amount{Value: &amountVal},
+		Balance: Balance{
+			Available: &balAvail,
+			OnHold:    &balOnHold,
+			Version:   &balVersion,
+		},
+		BalanceAfter: Balance{
+			Available: &balAfterAvail,
+			OnHold:    &balAfterOnHold,
+			Version:   &balAfterVersion,
+		},
+		BalanceID:      r.BalanceID,
+		AccountID:      r.AccountID,
+		AccountAlias:   r.AccountAlias,
+		BalanceKey:     r.BalanceKey,
+		OrganizationID: r.OrganizationID,
+		LedgerID:       r.LedgerID,
+		CreatedAt:      r.CreatedAt,
+		UpdatedAt:      r.UpdatedAt,
+		Route:          r.Route,
+		Status: Status{
+			Code:        r.StatusCode,
+			Description: r.StatusDescription,
+		},
+		BalanceAffected:  r.BalanceAffected,
+		Direction:        r.Direction,
+		RouteID:          r.RouteID,
+		RouteCode:        r.RouteCode,
+		RouteDescription: r.RouteDescription,
+		Metadata:         r.Metadata,
 	}
 }
 
@@ -425,34 +629,59 @@ type OperationLog struct {
 	// format: date-time
 	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Route for the operation
+	// Deprecated: passive field kept for backward compatibility. Not used in validation or business logic. Use routeId instead.
 	// example: 00000000-0000-0000-0000-000000000000
-	// format: string
-	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
 
 	// BalanceAffected default true
 	// format: boolean
 	BalanceAffected bool `json:"balanceAffected" example:"true" format:"boolean"`
+
+	// Direction of the operation (debit, credit)
+	// example: debit
+	// maxLength: 50
+	Direction string `json:"direction,omitempty" example:"debit" maxLength:"50" enums:"debit,credit"`
+
+	// UUID of the operation route that generated this operation. Primary field for route identification, validation, and accounting.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Human-readable code of the operation route for accounting traceability
+	// example: ROUTE-001
+	// maxLength: 100
+	RouteCode *string `json:"routeCode,omitempty" example:"ROUTE-001" maxLength:"100"`
+
+	// Human-readable description of the operation route for accounting traceability
+	// example: Settlement route for service charges
+	// maxLength: 250
+	RouteDescription *string `json:"routeDescription,omitempty" example:"Settlement route for service charges" maxLength:"250"`
 }
 
 // ToLog converts an Operation excluding the fields that are not immutable
 func (o *Operation) ToLog() *OperationLog {
 	return &OperationLog{
-		ID:              o.ID,
-		TransactionID:   o.TransactionID,
-		Type:            o.Type,
-		AssetCode:       o.AssetCode,
-		ChartOfAccounts: o.ChartOfAccounts,
-		Amount:          o.Amount,
-		Balance:         o.Balance,
-		BalanceAfter:    o.BalanceAfter,
-		Status:          o.Status,
-		AccountID:       o.AccountID,
-		AccountAlias:    o.AccountAlias,
-		BalanceKey:      o.BalanceKey,
-		BalanceID:       o.BalanceID,
-		Route:           o.Route,
-		CreatedAt:       o.CreatedAt,
-		BalanceAffected: o.BalanceAffected,
+		ID:               o.ID,
+		TransactionID:    o.TransactionID,
+		Type:             o.Type,
+		AssetCode:        o.AssetCode,
+		ChartOfAccounts:  o.ChartOfAccounts,
+		Amount:           o.Amount,
+		Balance:          o.Balance,
+		BalanceAfter:     o.BalanceAfter,
+		Status:           o.Status,
+		AccountID:        o.AccountID,
+		AccountAlias:     o.AccountAlias,
+		BalanceKey:       o.BalanceKey,
+		BalanceID:        o.BalanceID,
+		Route:            o.Route,
+		CreatedAt:        o.CreatedAt,
+		BalanceAffected:  o.BalanceAffected,
+		Direction:        o.Direction,
+		RouteID:          o.RouteID,
+		RouteCode:        o.RouteCode,
+		RouteDescription: o.RouteDescription,
 	}
 }

@@ -1,5 +1,9 @@
 //go:build integration
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package segment
 
 import (
@@ -7,9 +11,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -24,19 +26,11 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *SegmentPostgreSQLRepository {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           container.Config.DBName,
-		ReplicaDBName:           container.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
 	return NewSegmentPostgreSQLRepository(conn)
 }
@@ -82,7 +76,7 @@ func TestIntegration_SegmentRepository_Find_ReturnsErrNotFound(t *testing.T) {
 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -271,7 +265,7 @@ func TestIntegration_SegmentRepository_Update_ReturnsErrNotFound(t *testing.T) {
 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -482,7 +476,7 @@ func TestIntegration_SegmentRepository_FindByIDs_ReturnsEmptyForNoMatches(t *tes
 	ctx := context.Background()
 
 	// Act
-	nonExistentIDs := []uuid.UUID{libCommons.GenerateUUIDv7(), libCommons.GenerateUUIDv7()}
+	nonExistentIDs := []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7()), uuid.Must(libCommons.GenerateUUIDv7())}
 	segments, err := repo.FindByIDs(ctx, orgID, ledgerID, nonExistentIDs)
 
 	// Assert
@@ -535,7 +529,7 @@ func TestIntegration_SegmentRepository_Delete_ReturnsErrNotFound(t *testing.T) {
 
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 

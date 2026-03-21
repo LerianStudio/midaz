@@ -1,10 +1,17 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
 )
 
@@ -25,14 +32,23 @@ import (
 func main() {
 	libCommons.InitLocalEnvConfig()
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{
+		Environment:     libZap.EnvironmentDevelopment,
+		Level:           "info",
+		OTelLibraryName: "midaz-transaction",
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+
+		os.Exit(1)
+	}
 
 	service, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
 		Logger: logger,
 	})
 	if err != nil {
-		logger.Errorf("Failed to initialize transaction service: %v", err)
-		_ = logger.Sync()
+		logger.Log(context.Background(), libLog.LevelError, fmt.Sprintf("Failed to initialize transaction service: %v", err))
+		_ = logger.Sync(context.Background())
 
 		os.Exit(1)
 	}

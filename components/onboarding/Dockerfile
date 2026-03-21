@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25.8-alpine AS builder
 
 WORKDIR /onboarding-app
 
@@ -21,6 +21,8 @@ COPY --from=builder /app /app
 COPY --from=builder /onboarding-app/components/onboarding/migrations /components/onboarding/migrations
 
 EXPOSE 3000
+
+USER nonroot:nonroot
 
 # Set entrypoint to the compiled binary
 ENTRYPOINT ["/app"]

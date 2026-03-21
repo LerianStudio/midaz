@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package mmodel
 
 import "time"
@@ -5,6 +9,7 @@ import "time"
 // CreateOrganizationInput is a struct designed to encapsulate request create payload data.
 //
 // swagger:model CreateOrganizationInput
+//
 //	@Description	Request payload for creating a new organization. Contains all the necessary fields for organization creation, with required fields marked as such. Organizations are the top-level entities in the hierarchy and contain ledgers, which in turn contain accounts and assets.
 //
 //	@example		{
@@ -66,6 +71,7 @@ type CreateOrganizationInput struct {
 // UpdateOrganizationInput is a struct designed to encapsulate request update payload data.
 //
 // swagger:model UpdateOrganizationInput
+//
 //	@Description	Request payload for updating an existing organization. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
 //
 //	@example		{
@@ -124,6 +130,7 @@ type UpdateOrganizationInput struct {
 // Organization is a struct designed to encapsulate response payload data.
 //
 // swagger:model Organization
+//
 //	@Description	Complete organization entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for organization operations. Organizations are the top-level entities in the Midaz platform hierarchy.
 //
 //	@example		{
@@ -205,6 +212,7 @@ type Organization struct {
 // Address structure for marshaling/unmarshalling JSON.
 //
 // swagger:model Address
+//
 //	@Description	Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes). Used for organization physical locations and other address needs.
 type Address struct {
 	// Primary address line (street address or PO Box)
@@ -237,18 +245,24 @@ type Address struct {
 	// minLength: 2
 	// maxLength: 2
 	Country string `json:"country" example:"US" minLength:"2" maxLength:"2"` // According to ISO 3166-1 alpha-2
+
+	// A descriptive label for the address (e.g., "Home", "Office", "Billing")
+	// example: Home
+	// maxLength: 100
+	Description *string `json:"description,omitempty" validate:"omitempty,max=100" example:"Home" maxLength:"100"`
 } //	@name	Address
 
 // IsEmpty method determines if an Address is empty or nil in all fields
 //
 // Returns true if all fields of the address are empty or nil, false otherwise
 func (a Address) IsEmpty() bool {
-	return a.Line1 == "" && a.Line2 == nil && a.ZipCode == "" && a.City == "" && a.State == "" && a.Country == ""
+	return a.Line1 == "" && a.Line2 == nil && a.ZipCode == "" && a.City == "" && a.State == "" && a.Country == "" && a.Description == nil
 }
 
 // Organizations struct to return paginated list of organizations.
 //
 // swagger:model Organizations
+//
 //	@Description	Paginated list of organizations with metadata about the current page, limit, and the organization items themselves. Used for list operations.
 //
 //	@example		{
@@ -299,6 +313,7 @@ type Organizations struct {
 // OrganizationResponse represents a success response containing a single organization.
 //
 // swagger:response OrganizationResponse
+//
 //	@Description	Successful response containing a single organization entity.
 type OrganizationResponse struct {
 	// in: body
@@ -308,6 +323,7 @@ type OrganizationResponse struct {
 // OrganizationsResponse represents a success response containing a paginated list of organizations.
 //
 // swagger:response OrganizationsResponse
+//
 //	@Description	Successful response containing a paginated list of organizations.
 type OrganizationsResponse struct {
 	// in: body
@@ -317,6 +333,7 @@ type OrganizationsResponse struct {
 // OrganizationErrorResponse represents an error response for organization operations.
 //
 // swagger:response OrganizationErrorResponse
+//
 //	@Description	Error response for organization operations with error code and message.
 //
 //	@example		{

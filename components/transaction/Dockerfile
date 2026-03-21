@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25.8-alpine AS builder
 
 WORKDIR /transaction-app
 
@@ -17,8 +17,12 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
 FROM gcr.io/distroless/static-debian12
 
 COPY --from=builder /app /app
+
 COPY --from=builder /transaction-app/components/transaction/migrations /components/transaction/migrations
 
 EXPOSE 3001 3011
 
+USER nonroot:nonroot
+
+# Run the application
 ENTRYPOINT ["/app"]

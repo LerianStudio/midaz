@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package http
 
 import (
@@ -263,6 +267,59 @@ func TestFindUnknownFields(t *testing.T) {
 			},
 			expected: map[string]any{
 				"amount": "200.45",
+			},
+		},
+		{
+			name: "null value in original is not an unknown field",
+			original: map[string]any{
+				"name":  "John",
+				"email": nil,
+			},
+			marshaled: map[string]any{
+				"name": "John",
+			},
+			expected: map[string]any{},
+		},
+		{
+			name: "nested null value in original is not an unknown field",
+			original: map[string]any{
+				"accountingEntries": map[string]any{
+					"direct": map[string]any{"code": "1001"},
+					"hold":   nil,
+				},
+			},
+			marshaled: map[string]any{
+				"accountingEntries": map[string]any{
+					"direct": map[string]any{"code": "1001"},
+				},
+			},
+			expected: map[string]any{},
+		},
+		{
+			name: "non-null missing field is still unknown",
+			original: map[string]any{
+				"name":    "John",
+				"unknown": "value",
+			},
+			marshaled: map[string]any{
+				"name": "John",
+			},
+			expected: map[string]any{
+				"unknown": "value",
+			},
+		},
+		{
+			name: "mixed null and non-null unknown fields",
+			original: map[string]any{
+				"name":       "John",
+				"nullField":  nil,
+				"extraField": "not allowed",
+			},
+			marshaled: map[string]any{
+				"name": "John",
+			},
+			expected: map[string]any{
+				"extraField": "not allowed",
 			},
 		},
 	}
@@ -601,232 +658,6 @@ func TestMetadataValidation_Combined(t *testing.T) {
 	}
 }
 
-func TestValidateCPF(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		cpf      string
-		expected bool
-	}{
-		{
-			name:     "valid CPF",
-			cpf:      "52998224725",
-			expected: true,
-		},
-		{
-			name:     "valid CPF 2",
-			cpf:      "11144477735",
-			expected: true,
-		},
-		{
-			name:     "valid CPF 3",
-			cpf:      "91315026015",
-			expected: true,
-		},
-		{
-			name:     "invalid CPF - wrong check digits",
-			cpf:      "52998224700",
-			expected: false,
-		},
-		{
-			name:     "invalid CPF - all same digits 1",
-			cpf:      "11111111111",
-			expected: false,
-		},
-		{
-			name:     "invalid CPF - all same digits 0",
-			cpf:      "00000000000",
-			expected: false,
-		},
-		{
-			name:     "invalid CPF - all same digits 9",
-			cpf:      "99999999999",
-			expected: false,
-		},
-		{
-			name:     "invalid CPF - wrong length short",
-			cpf:      "1234567890",
-			expected: false,
-		},
-		{
-			name:     "invalid CPF - wrong length long",
-			cpf:      "123456789012",
-			expected: false,
-		},
-		{
-			name:     "invalid CPF - contains letters",
-			cpf:      "5299822472a",
-			expected: false,
-		},
-		{
-			name:     "empty CPF",
-			cpf:      "",
-			expected: true,
-		},
-	}
-
-	v, _ := newValidator()
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			type testStruct struct {
-				CPF string `validate:"cpf"`
-			}
-			s := testStruct{CPF: tc.cpf}
-			err := v.Struct(s)
-			if tc.expected {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-			}
-		})
-	}
-}
-
-func TestValidateCNPJ(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		cnpj     string
-		expected bool
-	}{
-		{
-			name:     "valid CNPJ",
-			cnpj:     "11222333000181",
-			expected: true,
-		},
-		{
-			name:     "valid CNPJ 2",
-			cnpj:     "11444777000161",
-			expected: true,
-		},
-		{
-			name:     "valid CNPJ 3",
-			cnpj:     "45997418000153",
-			expected: true,
-		},
-		{
-			name:     "invalid CNPJ - wrong check digits",
-			cnpj:     "11222333000100",
-			expected: false,
-		},
-		{
-			name:     "invalid CNPJ - all same digits 1",
-			cnpj:     "11111111111111",
-			expected: false,
-		},
-		{
-			name:     "invalid CNPJ - all same digits 0",
-			cnpj:     "00000000000000",
-			expected: false,
-		},
-		{
-			name:     "invalid CNPJ - all same digits 9",
-			cnpj:     "99999999999999",
-			expected: false,
-		},
-		{
-			name:     "invalid CNPJ - wrong length short",
-			cnpj:     "1122233300018",
-			expected: false,
-		},
-		{
-			name:     "invalid CNPJ - wrong length long",
-			cnpj:     "112223330001811",
-			expected: false,
-		},
-		{
-			name:     "invalid CNPJ - contains letters",
-			cnpj:     "1122233300018a",
-			expected: false,
-		},
-		{
-			name:     "empty CNPJ",
-			cnpj:     "",
-			expected: true,
-		},
-	}
-
-	v, _ := newValidator()
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			type testStruct struct {
-				CNPJ string `validate:"cnpj"`
-			}
-			s := testStruct{CNPJ: tc.cnpj}
-			err := v.Struct(s)
-			if tc.expected {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-			}
-		})
-	}
-}
-
-func TestValidateCPFCNPJ(t *testing.T) {
-	t.Parallel()
-
-	// Tests cpfcnpj combined validator - only length edge cases not covered by individual validators
-	tests := []struct {
-		name     string
-		document string
-		expected bool
-	}{
-		{
-			name:     "invalid - wrong length 10 digits",
-			document: "1234567890",
-			expected: false,
-		},
-		{
-			name:     "invalid - wrong length 12 digits",
-			document: "123456789012",
-			expected: false,
-		},
-		{
-			name:     "invalid - wrong length 13 digits",
-			document: "1234567890123",
-			expected: false,
-		},
-		{
-			name:     "invalid - wrong length 15 digits",
-			document: "123456789012345",
-			expected: false,
-		},
-		{
-			name:     "empty document",
-			document: "",
-			expected: true,
-		},
-	}
-
-	v, _ := newValidator()
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			type testStruct struct {
-				Document string `validate:"cpfcnpj"`
-			}
-			s := testStruct{Document: tc.document}
-			err := v.Struct(s)
-			if tc.expected {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-			}
-		})
-	}
-}
-
 func TestAreDatesEqual(t *testing.T) {
 	t.Parallel()
 
@@ -1083,4 +914,91 @@ func TestFindUnknownFields_DateComparison(t *testing.T) {
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+// Test struct with NullFields for populateNullFields tests
+type StructWithNullFields struct {
+	Name       string   `json:"name"`
+	SegmentID  *string  `json:"segmentId"`
+	EntityID   *string  `json:"entityId"`
+	NullFields []string `json:"-"`
+}
+
+// Test struct without NullFields field
+type StructWithoutNullFields struct {
+	Name      string  `json:"name"`
+	SegmentID *string `json:"segmentId"`
+}
+
+func TestPopulateNullFields_SetsNullFieldsFromOriginalMap(t *testing.T) {
+	s := &StructWithNullFields{}
+	originalMap := map[string]any{
+		"name":      "Test Account",
+		"segmentId": nil,
+		"entityId":  nil,
+	}
+
+	populateNullFields(s, originalMap)
+
+	assert.Len(t, s.NullFields, 2)
+	assert.Contains(t, s.NullFields, "segmentId")
+	assert.Contains(t, s.NullFields, "entityId")
+}
+
+func TestPopulateNullFields_IgnoresNonNilValues(t *testing.T) {
+	s := &StructWithNullFields{}
+	originalMap := map[string]any{
+		"name":      "Test Account",
+		"segmentId": "some-uuid-value",
+		"entityId":  nil,
+	}
+
+	populateNullFields(s, originalMap)
+
+	assert.Len(t, s.NullFields, 1)
+	assert.Contains(t, s.NullFields, "entityId")
+	assert.NotContains(t, s.NullFields, "segmentId")
+}
+
+func TestPopulateNullFields_NoOpWithoutNullFieldsField(t *testing.T) {
+	s := &StructWithoutNullFields{}
+	originalMap := map[string]any{
+		"name":      "Test Account",
+		"segmentId": nil,
+	}
+
+	// Should not panic or error
+	populateNullFields(s, originalMap)
+
+	// No assertion needed - just verify no panic
+}
+
+func TestPopulateNullFields_EmptyMapProducesEmptySlice(t *testing.T) {
+	s := &StructWithNullFields{}
+	originalMap := map[string]any{
+		"name": "Test Account",
+	}
+
+	populateNullFields(s, originalMap)
+
+	assert.Empty(t, s.NullFields)
+}
+
+func TestPopulateNullFields_NonPointerInputNoOp(t *testing.T) {
+	s := StructWithNullFields{}
+	originalMap := map[string]any{
+		"segmentId": nil,
+	}
+
+	// Should not panic - just no-op for non-pointer
+	populateNullFields(s, originalMap)
+}
+
+func TestPopulateNullFields_NilInputNoOp(t *testing.T) {
+	originalMap := map[string]any{
+		"segmentId": nil,
+	}
+
+	// Should not panic - just no-op for nil input
+	populateNullFields(nil, originalMap)
 }

@@ -1,5 +1,9 @@
 //go:build integration
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package in
 
 import (
@@ -13,8 +17,7 @@ import (
 	"sync"
 	"testing"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
@@ -43,7 +46,7 @@ var testRand = rand.New(rand.NewSource(42))
 type assetTestInfra struct {
 	pgContainer    *postgrestestutil.ContainerResult
 	mongoContainer *mongotestutil.ContainerResult
-	pgConn         *libPostgres.PostgresConnection
+	pgConn         *libPostgres.Client
 	app            *fiber.App
 	orgHandler     *OrganizationHandler
 	ledgerHandler  *LedgerHandler
@@ -74,18 +77,10 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 	wg.Wait()
 
 	// Create PostgreSQL connection following lib-commons pattern
-	logger := libZap.InitializeLogger()
 	migrationsPath := postgrestestutil.FindMigrationsPath(t, "onboarding")
 	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
 
-	infra.pgConn = &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           infra.pgContainer.Config.DBName,
-		ReplicaDBName:           infra.pgContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	infra.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, infra.pgContainer.Config.DBName, migrationsPath)
 
 	// Create MongoDB connection
 	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package in
 
 import (
@@ -8,8 +12,7 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
@@ -147,11 +150,8 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 				assert.Contains(t, result, "account", "response should contain account")
 			},
 		},
-		// NOTE: The following two tests document ACTUAL behavior where ErrMissingFieldsInRequest
-		// is NOT mapped in ValidateBusinessError, causing the handler to return 500 instead of 400.
-		// This is a known limitation in the current error handling implementation.
 		{
-			name: "validation error - ruleType without validIf returns 500 (unmapped error)",
+			name: "validation error - ruleType without validIf returns 400",
 			payload: &mmodel.CreateOperationRouteInput{
 				Title:         "Invalid Route",
 				OperationType: "source",
@@ -163,14 +163,18 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			setupMocks: func(operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				// No repository calls expected - validation fails first
 			},
-			expectedStatus: 500,
+			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
-				// Response contains error text (unmapped error returns raw text)
-				assert.NotEmpty(t, body, "error response should not be empty")
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+				assert.Equal(t, constant.ErrMissingFieldsInRequest.Error(), errResp["code"], "should return missing fields error code")
 			},
 		},
 		{
-			name: "validation error - validIf without ruleType returns 500 (unmapped error)",
+			name: "validation error - validIf without ruleType returns 400",
 			payload: &mmodel.CreateOperationRouteInput{
 				Title:         "Invalid Route",
 				OperationType: "source",
@@ -182,10 +186,14 @@ func TestOperationRouteHandler_CreateOperationRoute(t *testing.T) {
 			setupMocks: func(operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				// No repository calls expected - validation fails first
 			},
-			expectedStatus: 500,
+			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
-				// Response contains error text (unmapped error returns raw text)
-				assert.NotEmpty(t, body, "error response should not be empty")
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+				assert.Equal(t, constant.ErrMissingFieldsInRequest.Error(), errResp["code"], "should return missing fields error code")
 			},
 		},
 		{
@@ -710,10 +718,8 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 				assert.Equal(t, constant.ErrOperationRouteNotFound.Error(), errResp["code"], "should return operation route not found error code")
 			},
 		},
-		// NOTE: This test documents ACTUAL behavior where ErrMissingFieldsInRequest
-		// is NOT mapped in ValidateBusinessError, causing the handler to return 500 instead of 400.
 		{
-			name: "validation error - ruleType without validIf returns 500 (unmapped error)",
+			name: "validation error - ruleType without validIf returns 400",
 			payload: &mmodel.UpdateOperationRouteInput{
 				Title: "Invalid Update",
 				Account: &mmodel.AccountRule{
@@ -724,10 +730,14 @@ func TestOperationRouteHandler_UpdateOperationRoute(t *testing.T) {
 			setupMocks: func(operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID, operationRouteID uuid.UUID) {
 				// No repository calls expected - validation fails first
 			},
-			expectedStatus: 500,
+			expectedStatus: 400,
 			validateBody: func(t *testing.T, body []byte) {
-				// Response contains error text (unmapped error returns raw text)
-				assert.NotEmpty(t, body, "error response should not be empty")
+				var errResp map[string]any
+				err := json.Unmarshal(body, &errResp)
+				require.NoError(t, err, "error response should be valid JSON")
+
+				assert.Contains(t, errResp, "code", "error response should contain code field")
+				assert.Equal(t, constant.ErrMissingFieldsInRequest.Error(), errResp["code"], "should return missing fields error code")
 			},
 		},
 		{
@@ -1272,6 +1282,3 @@ func TestOperationRouteHandler_GetAllOperationRoutes(t *testing.T) {
 		})
 	}
 }
-
-// Ensure libPostgres.Pagination is used (referenced in handler)
-var _ = libPostgres.Pagination{}

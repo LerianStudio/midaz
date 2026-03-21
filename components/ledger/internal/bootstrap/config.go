@@ -1,16 +1,32 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package bootstrap
 
 import (
+	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
+	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
+	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
@@ -18,9 +34,10 @@ const ApplicationName = "ledger"
 
 // Config is the top level configuration struct for the unified ledger component.
 type Config struct {
-	EnvName  string `env:"ENV_NAME"`
-	LogLevel string `env:"LOG_LEVEL"`
-	Version  string `env:"VERSION"`
+	ApplicationName string `env:"APPLICATION_NAME"`
+	EnvName         string `env:"ENV_NAME"`
+	LogLevel        string `env:"LOG_LEVEL"`
+	Version         string `env:"VERSION"`
 
 	// Server configuration - unified port for all APIs
 	ServerAddress string `env:"SERVER_ADDRESS" envDefault:":3002"`
@@ -36,6 +53,17 @@ type Config struct {
 	// Auth configuration
 	AuthEnabled bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost    string `env:"PLUGIN_AUTH_HOST"`
+
+	// Multi-tenant configuration
+	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED"`
+	MultiTenantURL                      string `env:"MULTI_TENANT_URL"`
+	MultiTenantEnvironment              string `env:"MULTI_TENANT_ENVIRONMENT"`
+	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`
+	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"`
+	MultiTenantMaxTenantPools               int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
+	MultiTenantIdleTimeoutSec               int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
+	MultiTenantServiceAPIKey                string `env:"MULTI_TENANT_SERVICE_API_KEY"`
+	MultiTenantSettingsCheckIntervalSec     int    `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"` // seconds between tenant config revalidation checks
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -43,6 +71,14 @@ type Options struct {
 	// Logger allows callers to provide a pre-configured logger, avoiding multiple
 	// initializations when composing components (e.g. unified ledger).
 	Logger libLog.Logger
+
+	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
+	// This is optional - pass nil if you don't need state change notifications.
+	CircuitBreakerStateListener libCircuitBreaker.StateChangeListener
+
+	// TenantClient is the tenant manager client for multi-tenant mode.
+	// Nil when multi-tenant is disabled.
+	TenantClient *tmclient.Client
 }
 
 // InitServers initializes the unified ledger service that composes
@@ -61,14 +97,28 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
+	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
+		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
+			"running multi-tenant mode without authentication allows cross-tenant data access")
+	}
+
 	var baseLogger libLog.Logger
 	if opts != nil && opts.Logger != nil {
 		baseLogger = opts.Logger
 	} else {
-		baseLogger = libZap.InitializeLogger()
+		var err error
+
+		baseLogger, err = libZap.New(libZap.Config{
+			Environment:     libZap.EnvironmentDevelopment,
+			Level:           cfg.LogLevel,
+			OTelLibraryName: cfg.OtelLibraryName,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize logger: %w", err)
+		}
 	}
 
-	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
+	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -77,34 +127,69 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		EnableTelemetry:           cfg.EnableTelemetry,
 		Logger:                    baseLogger,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
+	}
 
 	// Generate startup ID for tracing initialization issues
 	startupID := uuid.New().String()
 
-	ledgerLogger := baseLogger.WithFields(
-		"component", "ledger",
-		"startup_id", startupID,
+	ledgerLogger := baseLogger.With(
+		libLog.String("component", "ledger"),
+		libLog.String("startup_id", startupID),
 	)
-	transactionLogger := baseLogger.WithFields(
-		"component", "transaction",
-		"startup_id", startupID,
+	transactionLogger := baseLogger.With(
+		libLog.String("component", "transaction"),
+		libLog.String("startup_id", startupID),
 	)
-	onboardingLogger := baseLogger.WithFields(
-		"component", "onboarding",
-		"startup_id", startupID,
+	onboardingLogger := baseLogger.With(
+		libLog.String("component", "onboarding"),
+		libLog.String("startup_id", startupID),
 	)
 
-	ledgerLogger.WithFields(
-		"version", cfg.Version,
-		"env", cfg.EnvName,
-	).Info("Starting unified ledger component")
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Starting unified ledger component",
+		libLog.String("version", cfg.Version),
+		libLog.String("env", cfg.EnvName),
+	)
 
-	ledgerLogger.Info("Initializing transaction module...")
+	// Multi-tenant setup: prefer injected client from Options, fall back to config-based creation.
+	var tenantClient *tmclient.Client
+
+	var tenantServiceName string
+
+	if opts != nil && opts.TenantClient != nil {
+		tenantClient = opts.TenantClient
+		tenantServiceName = strings.TrimSpace(cfg.ApplicationName)
+	} else {
+		var err error
+
+		tenantClient, tenantServiceName, err = initTenantClient(cfg, ledgerLogger)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Initializing transaction module...")
+
+	var stateListener libCircuitBreaker.StateChangeListener
+
+	if opts != nil {
+		stateListener = opts.CircuitBreakerStateListener
+	}
+
+	transactionOpts := &transaction.Options{
+		Logger:                      transactionLogger,
+		CircuitBreakerStateListener: stateListener,
+		MultiTenantEnabled:          cfg.MultiTenantEnabled,
+		TenantClient:                tenantClient,
+		TenantServiceName:           tenantServiceName,
+		TenantEnvironment:           cfg.MultiTenantEnvironment,
+		TenantManagerURL:            strings.TrimSpace(cfg.MultiTenantURL),
+		MultiTenantServiceAPIKey:    strings.TrimSpace(cfg.MultiTenantServiceAPIKey),
+	}
 
 	// Initialize transaction module first to get the BalancePort
-	transactionService, err := transaction.InitServiceWithOptionsOrError(&transaction.Options{
-		Logger: transactionLogger,
-	})
+	transactionService, err := transaction.InitServiceWithOptionsOrError(transactionOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize transaction module: %w", err)
 	}
@@ -119,22 +204,26 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to get MetadataIndexPort from transaction module")
 	}
 
-	ledgerLogger.Info("Transaction module initialized, BalancePort and MetadataIndexPort available for in-process calls")
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Transaction module initialized, BalancePort and MetadataIndexPort available for in-process calls")
 
-	ledgerLogger.Info("Initializing onboarding module in UNIFIED MODE...")
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Initializing onboarding module in UNIFIED MODE...")
 
 	// Initialize onboarding module in unified mode with the BalancePort for direct calls
 	// No intermediate adapter needed - the transaction.UseCase is passed directly
 	onboardingService, err := onboarding.InitServiceWithOptionsOrError(&onboarding.Options{
-		Logger:      onboardingLogger,
-		UnifiedMode: true,
-		BalancePort: balancePort,
+		Logger:             onboardingLogger,
+		UnifiedMode:        true,
+		BalancePort:        balancePort,
+		MultiTenantEnabled: cfg.MultiTenantEnabled,
+		TenantClient:       tenantClient,
+		TenantServiceName:  tenantServiceName,
+		TenantEnvironment:  cfg.MultiTenantEnvironment,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize onboarding module: %w", err)
 	}
 
-	ledgerLogger.Info("Onboarding module initialized")
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Onboarding module initialized")
 
 	// Get the metadata port from onboarding for metadata index operations
 	onboardingMetadataRepo := onboardingService.GetMetadataIndexPort()
@@ -142,37 +231,56 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to get MetadataIndexPort from onboarding module")
 	}
 
-	ledgerLogger.Info("Both metadata index repositories available for settings routes")
+	// Wire the SettingsPort from onboarding to transaction for ledger settings queries
+	// This resolves the circular dependency: transaction is initialized first (for BalancePort),
+	// then onboarding (with BalancePort), then SettingsPort is wired back to transaction.
+	settingsPort := onboardingService.GetSettingsPort()
+	if settingsPort == nil {
+		return nil, fmt.Errorf("failed to get SettingsPort from onboarding module")
+	}
+
+	transactionService.SetSettingsPort(settingsPort)
+
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "SettingsPort wired from onboarding to transaction for in-process settings queries")
+
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Both metadata index repositories available for settings routes")
+
+	routeSetup, err := buildUnifiedRouteSetup(cfg, ledgerLogger, onboardingService, transactionService)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create auth client for metadata index routes
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &ledgerLogger)
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
 
 	// Create metadata index handler with both repositories
 	metadataIndexHandler := &httpin.MetadataIndexHandler{
 		OnboardingMetadataRepo:  onboardingMetadataRepo,
 		TransactionMetadataRepo: transactionMetadataRepo,
+		OnboardingMongoManager:  routeSetup.onboardingMongoManager,
+		TransactionMongoManager: routeSetup.transactionMongoManager,
 	}
 
 	// Create route registrar for ledger-specific routes (metadata indexes)
-	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler)
+	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
 
-	ledgerLogger.Info("Creating unified HTTP server on " + cfg.ServerAddress)
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
 	// Create the unified server that consolidates all routes on a single port
 	unifiedServer := NewUnifiedServer(
 		cfg.ServerAddress,
 		ledgerLogger,
 		telemetry,
-		onboardingService.GetRouteRegistrar(),
-		transactionService.GetRouteRegistrar(),
+		onboardingService.GetRouteRegistrar(routeSetup.onboardingRouteOptions),
+		transactionService.GetRouteRegistrar(routeSetup.transactionRouteOptions),
 		ledgerRouteRegistrar,
 	)
 
-	ledgerLogger.WithFields(
-		"version", cfg.Version,
-		"env", cfg.EnvName,
-		"server_address", cfg.ServerAddress,
-	).Info("Unified ledger component started successfully with single-port mode")
+	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
+		libLog.String("version", cfg.Version),
+		libLog.String("env", cfg.EnvName),
+		libLog.String("server_address", cfg.ServerAddress),
+	)
 
 	return &Service{
 		OnboardingService:  onboardingService,
@@ -181,4 +289,213 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Logger:             ledgerLogger,
 		Telemetry:          telemetry,
 	}, nil
+}
+
+type unifiedRouteSetup struct {
+	onboardingRouteOptions  *midazhttp.ProtectedRouteOptions
+	transactionRouteOptions *midazhttp.ProtectedRouteOptions
+	ledgerRouteOptions      *midazhttp.ProtectedRouteOptions
+	onboardingMongoManager  *tmmongo.Manager
+	transactionMongoManager *tmmongo.Manager
+}
+
+func buildUnifiedRouteSetup(
+	cfg *Config,
+	logger libLog.Logger,
+	onboardingService onboarding.OnboardingService,
+	transactionService transaction.TransactionService,
+) (*unifiedRouteSetup, error) {
+	setup := &unifiedRouteSetup{}
+	if !cfg.MultiTenantEnabled {
+		return setup, nil
+	}
+
+	onboardingPGManager, ok := onboardingService.GetPGManager().(*tmpostgres.Manager)
+	if !ok || onboardingPGManager == nil {
+		return nil, fmt.Errorf("onboarding multi-tenant PostgreSQL manager not available")
+	}
+
+	onboardingMongoManager, ok := onboardingService.GetMongoManager().(*tmmongo.Manager)
+	if !ok || onboardingMongoManager == nil {
+		return nil, fmt.Errorf("onboarding multi-tenant MongoDB manager not available")
+	}
+
+	transactionPGManager, ok := transactionService.GetPGManager().(*tmpostgres.Manager)
+	if !ok || transactionPGManager == nil {
+		return nil, fmt.Errorf("transaction multi-tenant PostgreSQL manager not available")
+	}
+
+	// Build onboarding middleware with cross-module injection so that
+	// in-process calls from onboarding into the transaction module
+	// (e.g. CreateAccount → CreateBalanceSync) find the "transaction"
+	// PG connection already present in the request context.
+	onboardingMiddleware := tmmiddleware.NewMultiPoolMiddleware(
+		tmmiddleware.WithDefaultRoute("onboarding", onboardingPGManager, onboardingMongoManager),
+		tmmiddleware.WithRoute(nil, "transaction", transactionPGManager, nil),
+		tmmiddleware.WithCrossModuleInjection(),
+		tmmiddleware.WithMultiPoolLogger(logger),
+		tmmiddleware.WithErrorMapper(midazErrorMapper),
+	)
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
+		libLog.String("module", "onboarding"),
+		libLog.Bool("cross_module_injection", true),
+	)
+
+	transactionMongoManager, ok := transactionService.GetMongoManager().(*tmmongo.Manager)
+	if !ok || transactionMongoManager == nil {
+		return nil, fmt.Errorf("transaction multi-tenant MongoDB manager not available")
+	}
+
+	// Build transaction middleware with cross-module injection so that
+	// in-process calls from transaction into the onboarding module
+	// (e.g. GetLedgerSettings → SettingsPort → LedgerRepo) find the "onboarding"
+	// PG connection already present in the request context.
+	transactionMiddleware := tmmiddleware.NewMultiPoolMiddleware(
+		tmmiddleware.WithDefaultRoute("transaction", transactionPGManager, transactionMongoManager),
+		tmmiddleware.WithRoute(nil, "onboarding", onboardingPGManager, nil),
+		tmmiddleware.WithCrossModuleInjection(),
+		tmmiddleware.WithMultiPoolLogger(logger),
+		tmmiddleware.WithErrorMapper(midazErrorMapper),
+	)
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
+		libLog.String("module", "transaction"),
+		libLog.Bool("cross_module_injection", true),
+	)
+
+	var err error
+
+	setup.onboardingMongoManager, err = requireMongoManager("onboarding", onboardingService.GetMongoManager())
+	if err != nil {
+		return nil, err
+	}
+
+	setup.transactionMongoManager, err = requireMongoManager("transaction", transactionService.GetMongoManager())
+	if err != nil {
+		return nil, err
+	}
+
+	authAssertion := midazhttp.MarkTrustedAuthAssertion()
+
+	setup.onboardingRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, onboardingMiddleware.WithTenantDB},
+	}
+
+	setup.transactionRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, transactionMiddleware.WithTenantDB},
+	}
+
+	setup.ledgerRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion},
+	}
+
+	return setup, nil
+}
+
+// initTenantClient creates the multi-tenant client when multi-tenant mode is enabled.
+// Returns the client, the resolved tenantServiceName, and error.
+// Returns (nil, serviceName, nil) when multi-tenant is disabled.
+func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, string, error) {
+	tenantServiceName := cfg.ApplicationName
+
+	if !cfg.MultiTenantEnabled {
+		return nil, tenantServiceName, nil
+	}
+
+	tenantManagerURL := strings.TrimSpace(cfg.MultiTenantURL)
+	if tenantManagerURL == "" {
+		return nil, "", fmt.Errorf("MULTI_TENANT_URL is required when MULTI_TENANT_ENABLED=true")
+	}
+
+	tenantServiceName = strings.TrimSpace(cfg.ApplicationName)
+	if tenantServiceName == "" {
+		return nil, "", fmt.Errorf("APPLICATION_NAME is required when MULTI_TENANT_ENABLED=true")
+	}
+
+	tenantManagerAPIKey := strings.TrimSpace(cfg.MultiTenantServiceAPIKey)
+	if tenantManagerAPIKey == "" {
+		return nil, "", fmt.Errorf("MULTI_TENANT_SERVICE_API_KEY is required when MULTI_TENANT_ENABLED=true")
+	}
+
+	// Apply safe defaults for circuit breaker when not configured
+	cbThreshold := cfg.MultiTenantCircuitBreakerThreshold
+	if cbThreshold <= 0 {
+		cbThreshold = 5
+	}
+
+	cbTimeoutSec := cfg.MultiTenantCircuitBreakerTimeoutSec
+	if cbTimeoutSec <= 0 {
+		cbTimeoutSec = 30
+	}
+
+	tenantClient, err := tmclient.NewClient(
+		tenantManagerURL,
+		logger,
+		tmclient.WithServiceAPIKey(tenantManagerAPIKey),
+		tmclient.WithCircuitBreaker(cbThreshold, time.Duration(cbTimeoutSec)*time.Second),
+	)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to initialize tenant manager client: %w", err)
+	}
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Multi-tenant mode enabled",
+		libLog.String("service", tenantServiceName),
+		libLog.String("environment", cfg.MultiTenantEnvironment),
+		libLog.Bool("tenant_manager_configured", true),
+	)
+
+	return tenantClient, tenantServiceName, nil
+}
+
+func buildModuleTenantMiddleware(moduleName string, logger libLog.Logger, rawPGManager, rawMongoManager any) (*tmmiddleware.MultiPoolMiddleware, error) {
+	pgManager, ok := rawPGManager.(*tmpostgres.Manager)
+	if !ok || pgManager == nil {
+		return nil, fmt.Errorf("%s multi-tenant PostgreSQL manager not available", moduleName)
+	}
+
+	mongoManager, ok := rawMongoManager.(*tmmongo.Manager)
+	if !ok || mongoManager == nil {
+		return nil, fmt.Errorf("%s multi-tenant MongoDB manager not available", moduleName)
+	}
+
+	options := []tmmiddleware.MultiPoolOption{
+		tmmiddleware.WithDefaultRoute(moduleName, pgManager, mongoManager),
+		tmmiddleware.WithMultiPoolLogger(logger),
+		tmmiddleware.WithErrorMapper(midazErrorMapper),
+	}
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
+		libLog.String("module", moduleName),
+	)
+
+	return tmmiddleware.NewMultiPoolMiddleware(options...), nil
+}
+
+func requireMongoManager(moduleName string, rawMongoManager any) (*tmmongo.Manager, error) {
+	mongoManager, ok := rawMongoManager.(*tmmongo.Manager)
+	if !ok || mongoManager == nil {
+		return nil, fmt.Errorf("%s multi-tenant MongoDB manager not available", moduleName)
+	}
+
+	return mongoManager, nil
+}
+
+// midazErrorMapper converts tenant-manager errors into Midaz-specific HTTP responses.
+// It handles the TenantNotProvisionedError case with a 422 status code.
+// For all other errors, it returns the error to let the default error handler process it.
+func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
+	if err == nil {
+		return nil
+	}
+
+	if tmcore.IsTenantNotProvisionedError(err) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"code":    constant.ErrTenantNotProvisioned.Error(),
+			"title":   "Tenant Not Provisioned",
+			"message": "Database schema not initialized for this tenant. Contact your administrator.",
+		})
+	}
+
+	return err
 }

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
@@ -6,11 +10,12 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,9 +29,9 @@ func TestUpdateBalance(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	allowSending := false
 
@@ -80,9 +85,9 @@ func TestUpdateBalance_RepoError(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	errMSG := "errDatabaseItemNotFound"
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	allowSending := true
 	allowReceiving := false
@@ -118,9 +123,9 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	allowSending := false
 
@@ -188,161 +193,191 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 	assert.True(t, result.AllowReceiving)
 }
 
-func TestFilterStaleBalances(t *testing.T) {
+func TestUpdateBalances_PrimaryPath_UsesAfterDirectly(t *testing.T) {
 	t.Parallel()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
 
-	tests := []struct {
-		name           string
-		balances       []*mmodel.Balance
-		setupMocks     func(mockRedis *redis.MockRedisRepository)
-		expectedCount  int
-		expectedIDs    []string
-	}{
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	balancesBefore := []*mmodel.Balance{
 		{
-			name: "cache_newer_version_filters_balance",
-			balances: []*mmodel.Balance{
-				{ID: "balance-1", Alias: "0#@account1#default", Version: 5},
-			},
-			setupMocks: func(mockRedis *redis.MockRedisRepository) {
-				mockRedis.EXPECT().
-					ListBalanceByKey(gomock.Any(), orgID, ledgerID, "@account1#default").
-					Return(&mmodel.Balance{Version: 10}, nil)
-			},
-			expectedCount: 0,
-			expectedIDs:   []string{},
+			ID:        "bal-1",
+			Alias:     "@alice",
+			Available: decimal.NewFromInt(1000),
+			OnHold:    decimal.NewFromInt(0),
+			Version:   1,
 		},
 		{
-			name: "cache_older_version_includes_balance",
-			balances: []*mmodel.Balance{
-				{ID: "balance-1", Alias: "0#@account1#default", Version: 5},
-			},
-			setupMocks: func(mockRedis *redis.MockRedisRepository) {
-				mockRedis.EXPECT().
-					ListBalanceByKey(gomock.Any(), orgID, ledgerID, "@account1#default").
-					Return(&mmodel.Balance{Version: 3}, nil)
-			},
-			expectedCount: 1,
-			expectedIDs:   []string{"balance-1"},
-		},
-		{
-			name: "cache_equal_version_includes_balance",
-			balances: []*mmodel.Balance{
-				{ID: "balance-1", Alias: "0#@account1#default", Version: 5},
-			},
-			setupMocks: func(mockRedis *redis.MockRedisRepository) {
-				mockRedis.EXPECT().
-					ListBalanceByKey(gomock.Any(), orgID, ledgerID, "@account1#default").
-					Return(&mmodel.Balance{Version: 5}, nil)
-			},
-			expectedCount: 1,
-			expectedIDs:   []string{"balance-1"},
-		},
-		{
-			name: "cache_error_fail_open_includes_balance",
-			balances: []*mmodel.Balance{
-				{ID: "balance-1", Alias: "0#@account1#default", Version: 5},
-			},
-			setupMocks: func(mockRedis *redis.MockRedisRepository) {
-				mockRedis.EXPECT().
-					ListBalanceByKey(gomock.Any(), orgID, ledgerID, "@account1#default").
-					Return(nil, errors.New("redis connection error"))
-			},
-			expectedCount: 1,
-			expectedIDs:   []string{"balance-1"},
-		},
-		{
-			name: "cache_returns_nil_includes_balance",
-			balances: []*mmodel.Balance{
-				{ID: "balance-1", Alias: "0#@account1#default", Version: 5},
-			},
-			setupMocks: func(mockRedis *redis.MockRedisRepository) {
-				mockRedis.EXPECT().
-					ListBalanceByKey(gomock.Any(), orgID, ledgerID, "@account1#default").
-					Return(nil, nil)
-			},
-			expectedCount: 1,
-			expectedIDs:   []string{"balance-1"},
-		},
-		{
-			name: "multiple_balances_filters_only_stale",
-			balances: []*mmodel.Balance{
-				{ID: "balance-1", Alias: "0#@account1#default", Version: 5},
-				{ID: "balance-2", Alias: "1#@account2#default", Version: 8},
-				{ID: "balance-3", Alias: "2#@account3#default", Version: 3},
-			},
-			setupMocks: func(mockRedis *redis.MockRedisRepository) {
-				// balance-1: cache version 10 > update version 5 → filtered
-				mockRedis.EXPECT().
-					ListBalanceByKey(gomock.Any(), orgID, ledgerID, "@account1#default").
-					Return(&mmodel.Balance{Version: 10}, nil)
-				// balance-2: cache version 5 < update version 8 → included
-				mockRedis.EXPECT().
-					ListBalanceByKey(gomock.Any(), orgID, ledgerID, "@account2#default").
-					Return(&mmodel.Balance{Version: 5}, nil)
-				// balance-3: cache error → included (fail-open)
-				mockRedis.EXPECT().
-					ListBalanceByKey(gomock.Any(), orgID, ledgerID, "@account3#default").
-					Return(nil, errors.New("timeout"))
-			},
-			expectedCount: 2,
-			expectedIDs:   []string{"balance-2", "balance-3"},
-		},
-		{
-			name:     "empty_balances_returns_empty",
-			balances: []*mmodel.Balance{},
-			setupMocks: func(mockRedis *redis.MockRedisRepository) {
-				// No calls expected
-			},
-			expectedCount: 0,
-			expectedIDs:   []string{},
-		},
-		{
-			name: "alias_without_index_prefix",
-			balances: []*mmodel.Balance{
-				// Alias without index prefix: "@account1#default" → SplitAliasWithKey returns "default"
-				{ID: "balance-1", Alias: "@account1#default", Version: 5},
-			},
-			setupMocks: func(mockRedis *redis.MockRedisRepository) {
-				// SplitAliasWithKey("@account1#default") returns "default" (after first #)
-				mockRedis.EXPECT().
-					ListBalanceByKey(gomock.Any(), orgID, ledgerID, "default").
-					Return(&mmodel.Balance{Version: 3}, nil)
-			},
-			expectedCount: 1,
-			expectedIDs:   []string{"balance-1"},
+			ID:        "bal-2",
+			Alias:     "@bob",
+			Available: decimal.NewFromInt(500),
+			OnHold:    decimal.NewFromInt(0),
+			Version:   3,
 		},
 	}
 
-	for _, tt := range tests {
-		tt := tt // capture loop variable
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctrl := gomock.NewController(t)
-			t.Cleanup(ctrl.Finish)
-
-			mockRedis := redis.NewMockRedisRepository(ctrl)
-			tt.setupMocks(mockRedis)
-
-			uc := &UseCase{
-				RedisRepo: mockRedis,
-			}
-
-			logger := &libLog.GoLogger{Level: libLog.InfoLevel}
-			ctx := context.Background()
-
-			result := uc.filterStaleBalances(ctx, orgID, ledgerID, tt.balances, logger)
-
-			require.Len(t, result, tt.expectedCount)
-
-			resultIDs := make([]string, len(result))
-			for i, b := range result {
-				resultIDs[i] = b.ID
-			}
-			assert.ElementsMatch(t, tt.expectedIDs, resultIDs)
-		})
+	balancesAfter := []*mmodel.Balance{
+		{
+			Alias:     "@alice",
+			Available: decimal.NewFromInt(900),
+			OnHold:    decimal.NewFromInt(0),
+			Version:   2,
+		},
+		{
+			Alias:     "@bob",
+			Available: decimal.NewFromInt(600),
+			OnHold:    decimal.NewFromInt(0),
+			Version:   4,
+		},
 	}
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []*mmodel.Balance) error {
+			require.Len(t, balances, 2)
+
+			// Verify ID comes from BEFORE, values from AFTER
+			assert.Equal(t, "bal-1", balances[0].ID)
+			assert.Equal(t, "@alice", balances[0].Alias)
+			assert.True(t, balances[0].Available.Equal(decimal.NewFromInt(900)))
+			assert.Equal(t, int64(2), balances[0].Version)
+
+			assert.Equal(t, "bal-2", balances[1].ID)
+			assert.Equal(t, "@bob", balances[1].Alias)
+			assert.True(t, balances[1].Available.Equal(decimal.NewFromInt(600)))
+			assert.Equal(t, int64(4), balances[1].Version)
+
+			return nil
+		}).Times(1)
+
+	uc := UseCase{
+		BalanceRepo: mockBalanceRepo,
+	}
+
+	validate := pkgTransaction.Responses{}
+
+	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, validate, balancesBefore, balancesAfter)
+
+	assert.NoError(t, err)
+}
+
+func TestUpdateBalances_FallbackPath_NilAfter(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	balancesBefore := []*mmodel.Balance{
+		{
+			ID:          "bal-1",
+			Alias:       "@alice",
+			Available:   decimal.NewFromInt(1000),
+			OnHold:      decimal.NewFromInt(0),
+			Version:     1,
+			AccountType: "deposit",
+		},
+	}
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []*mmodel.Balance) error {
+			require.Len(t, balances, 1)
+
+			// Fallback: OperateBalances recalculates, version is BEFORE+1
+			assert.Equal(t, "bal-1", balances[0].ID)
+			assert.True(t, balances[0].Available.Equal(decimal.NewFromInt(900)))
+			assert.Equal(t, int64(2), balances[0].Version)
+
+			return nil
+		}).Times(1)
+
+	uc := UseCase{
+		BalanceRepo: mockBalanceRepo,
+	}
+
+	validate := pkgTransaction.Responses{
+		From: map[string]pkgTransaction.Amount{
+			"@alice": {
+				Value:           decimal.NewFromInt(100),
+				Operation:       "DEBIT",
+				TransactionType: "CREATED",
+			},
+		},
+	}
+
+	// nil balancesAfter triggers fallback
+	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, validate, balancesBefore, nil)
+
+	assert.NoError(t, err)
+}
+
+func TestUpdateBalances_PrimaryPath_FailsOnMissingAlias(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	balancesBefore := []*mmodel.Balance{
+		{ID: "bal-1", Alias: "@alice"},
+		{ID: "bal-2", Alias: "@bob"},
+	}
+
+	// Only @alice has AFTER state; incomplete payload must fail closed.
+	balancesAfter := []*mmodel.Balance{
+		{Alias: "@alice", Available: decimal.NewFromInt(900), OnHold: decimal.NewFromInt(0), Version: 2},
+	}
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	uc := UseCase{BalanceRepo: mockBalanceRepo}
+
+	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, pkgTransaction.Responses{}, balancesBefore, balancesAfter)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing AFTER state for alias @bob")
+}
+
+func TestUpdateBalances_BalancesUpdateError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	balancesBefore := []*mmodel.Balance{
+		{ID: "bal-1", Alias: "@alice"},
+	}
+	balancesAfter := []*mmodel.Balance{
+		{Alias: "@alice", Available: decimal.NewFromInt(900), Version: 2},
+	}
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Return(errors.New("database connection error")).
+		Times(1)
+
+	uc := UseCase{BalanceRepo: mockBalanceRepo}
+
+	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, pkgTransaction.Responses{}, balancesBefore, balancesAfter)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "database connection error")
 }

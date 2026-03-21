@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package constant
 
 import (
@@ -146,6 +150,26 @@ var (
 	ErrMetadataIndexCreationFailed              = errors.New("0136")
 	ErrMetadataIndexDeletionForbidden           = errors.New("0137")
 	ErrInvalidEntityName                        = errors.New("0138")
+	ErrTransactionBackupCacheRetrievalFailed    = errors.New("0139")
+	ErrInvalidTimestamp                         = errors.New("0140")
+	ErrNoBalanceDataAtTimestamp                 = errors.New("0141")
+	ErrMissingRequiredQueryParameter            = errors.New("0142")
+	ErrPayloadTooLarge                          = errors.New("0143")
+	ErrJSONNestingDepthExceeded                 = errors.New("0144")
+	ErrJSONKeyCountExceeded                     = errors.New("0145")
+	ErrTenantNotProvisioned                     = errors.New("0146")
+	ErrUnknownSettingsField                     = errors.New("0147")
+	ErrInvalidSettingsFieldType                 = errors.New("0148")
+	ErrSettingsRootLevelField                   = errors.New("0149")
+	ErrRouteNotBidirectional                    = errors.New("0150")
+	ErrMissingCounterpart                       = errors.New("0151")
+	ErrDirectionRouteMismatch                   = errors.New("0152")
+	ErrNoSourceForAction                        = errors.New("0153")
+	ErrNoDestinationForAction                   = errors.New("0154")
+	ErrInvalidRouteAction                       = errors.New("0155")
+	ErrDuplicateActionRoute                     = errors.New("0156")
+	ErrNoRoutesForAction                        = errors.New("0157")
+	ErrTooManyOperationRoutes                   = errors.New("0158")
 )
 
 // List of CRM errors.

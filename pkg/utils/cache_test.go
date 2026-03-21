@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package utils
 
 import (
@@ -288,6 +292,40 @@ func TestRedisConsumerLockKey(t *testing.T) {
 			t.Parallel()
 
 			result := RedisConsumerLockKey(tt.organizationID, tt.ledgerID, tt.transactionID)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestLedgerSettingsInternalKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		expected       string
+	}{
+		{
+			name:           "standard ledger settings key",
+			organizationID: uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+			ledgerID:       uuid.MustParse("22222222-2222-2222-2222-222222222222"),
+			expected:       "ledger_settings:{11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222}",
+		},
+		{
+			name:           "nil UUID (zero value)",
+			organizationID: uuid.Nil,
+			ledgerID:       uuid.Nil,
+			expected:       "ledger_settings:{00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000}",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := LedgerSettingsInternalKey(tt.organizationID, tt.ledgerID)
 
 			assert.Equal(t, tt.expected, result)
 		})

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
@@ -6,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -34,7 +38,6 @@ func TestCreateLedger(t *testing.T) {
 		expectedErr error
 		expectedRes *mmodel.Ledger
 	}{
-
 		{
 			name: "success - ledger created",
 			input: &mmodel.CreateLedgerInput{

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 // Package transaction provides the public API for initializing the transaction component.
 // This package exposes factory functions that allow other components to instantiate
 // the transaction service while keeping internal implementation details private.
@@ -6,9 +10,12 @@ package transaction
 import (
 	"fmt"
 
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -28,7 +35,23 @@ type TransactionService interface {
 
 	// GetRouteRegistrar returns a function that registers transaction routes to a Fiber app.
 	// This is used by the unified ledger server to consolidate all routes on a single port.
-	GetRouteRegistrar() func(*fiber.App)
+	GetRouteRegistrar(routeOptions *midazhttp.ProtectedRouteOptions) func(fiber.Router)
+
+	// SetSettingsPort sets the settings port for querying ledger settings.
+	// This is called after initialization in unified ledger mode to wire the onboarding
+	// SettingsPort to transaction, resolving the circular dependency between components.
+	SetSettingsPort(port mbootstrap.SettingsPort)
+
+	// GetPGManager returns the multi-tenant PostgreSQL manager as an opaque handle.
+	// Returns nil in single-tenant mode. The caller (ledger bootstrap) performs
+	// type assertion to *tmpostgres.Manager internally.
+	GetPGManager() any
+
+	// GetMongoManager returns the multi-tenant MongoDB manager as an opaque handle.
+	// Returns nil in single-tenant mode. The caller (ledger bootstrap) performs
+	// type assertion to *tmmongo.Manager internally.
+	GetMongoManager() any
+
 }
 
 // Options configures the transaction service initialization behavior.
@@ -36,6 +59,23 @@ type Options struct {
 	// Logger allows callers to provide a pre-configured logger, avoiding multiple
 	// initializations when composing components (e.g. unified ledger).
 	Logger libLog.Logger
+
+	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
+	// This is optional - pass nil if you don't need state change notifications.
+	CircuitBreakerStateListener libCircuitBreaker.StateChangeListener
+
+	// SettingsPort enables direct in-process communication with the onboarding module
+	// for querying ledger settings. Optional - if not provided, settings functionality
+	// will not be available.
+	SettingsPort mbootstrap.SettingsPort
+
+	// Multi-tenant configuration (only used in unified mode)
+	MultiTenantEnabled       bool
+	TenantClient             *tmclient.Client
+	TenantServiceName        string
+	TenantEnvironment        string
+	TenantManagerURL         string
+	MultiTenantServiceAPIKey string
 }
 
 // InitService initializes the transaction service.
@@ -66,6 +106,14 @@ func InitServiceWithOptionsOrError(opts *Options) (TransactionService, error) {
 	}
 
 	return bootstrap.InitServersWithOptions(&bootstrap.Options{
-		Logger: opts.Logger,
+		Logger:                      opts.Logger,
+		CircuitBreakerStateListener: opts.CircuitBreakerStateListener,
+		SettingsPort:                opts.SettingsPort,
+		MultiTenantEnabled:          opts.MultiTenantEnabled,
+		TenantClient:                opts.TenantClient,
+		TenantServiceName:           opts.TenantServiceName,
+		TenantEnvironment:           opts.TenantEnvironment,
+		TenantManagerURL:            opts.TenantManagerURL,
+		MultiTenantServiceAPIKey:    opts.MultiTenantServiceAPIKey,
 	})
 }

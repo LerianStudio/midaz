@@ -1,25 +1,35 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package account
 
 import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/Masterminds/squirrel"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
 )
 
 var accountColumnList = []string{
@@ -62,23 +72,37 @@ type Repository interface {
 
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
 type AccountPostgreSQLRepository struct {
-	connection *libPostgres.PostgresConnection
-	tableName  string
+	connection    *libPostgres.Client
+	tableName     string
+	requireTenant bool
 }
 
 // NewAccountPostgreSQLRepository returns a new instance of AccountPostgreSQLRepository using the given Postgres connection.
-func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *AccountPostgreSQLRepository {
+func NewAccountPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *AccountPostgreSQLRepository {
 	c := &AccountPostgreSQLRepository{
 		connection: pc,
 		tableName:  "account",
 	}
-
-	_, err := c.connection.GetDB()
-	if err != nil {
-		panic("Failed to connect database")
+	if len(requireTenant) > 0 {
+		c.requireTenant = requireTenant[0]
 	}
 
 	return c
+}
+
+// getDB resolves the PostgreSQL database connection for the current request.
+// In multi-tenant mode, the middleware injects a tenant-specific dbresolver.DB into context.
+// In single-tenant mode (or when no tenant context exists), falls back to the static connection.
+func (r *AccountPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
+	if db, err := tmcore.GetModulePostgresForTenant(ctx, "onboarding"); err == nil {
+		return db, nil
+	}
+
+	if r.requireTenant {
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
+	}
+
+	return r.connection.Resolver(ctx)
 }
 
 // Create a new account entity into Postgresql and returns it.
@@ -88,11 +112,11 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	ctx, span := tracer.Start(ctx, "postgres.create_account")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -143,9 +167,9 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 	query, args, err := builder.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -158,16 +182,16 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute query", err)
 
-			logger.Errorf("Failed to execute query: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -176,9 +200,9 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
 
-		logger.Errorf("Failed to get rows affected: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
 
 		return nil, err
 	}
@@ -186,9 +210,9 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create account", err)
 
-		logger.Warnf("Failed to create account: %v", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to create account: %v", err))
 
 		return nil, err
 	}
@@ -203,11 +227,11 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "postgres.find_all_accounts")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -234,9 +258,9 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -245,9 +269,9 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -276,7 +300,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 			&acc.DeletedAt,
 			&acc.Blocked,
 		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
 			return nil, err
 		}
@@ -285,9 +309,9 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
 
-		logger.Errorf("Failed to iterate rows: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to iterate rows: %v", err))
 
 		return nil, err
 	}
@@ -302,34 +326,34 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "postgres.find_account")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
 
-	builder := squirrel.Select(accountColumnList...).
+	findOne := squirrel.Select(accountColumnList...).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"id": id}).
-		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ?", id)).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		Limit(1).
 		PlaceholderFormat(squirrel.Dollar)
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
-		builder = builder.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
+		findOne = findOne.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
 	}
 
-	query, args, err := builder.ToSql()
+	query, args, err := findOne.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -364,16 +388,16 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
-			logger.Warnf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-		logger.Errorf("Failed to scan row: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 		return nil, err
 	}
@@ -388,33 +412,33 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 	ctx, span := tracer.Start(ctx, "postgres.find_with_deleted_account")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
 
-	builder := squirrel.Select(accountColumnList...).
+	findOne := squirrel.Select(accountColumnList...).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ?", id)).
 		OrderBy("created_at DESC").
 		Limit(1).
 		PlaceholderFormat(squirrel.Dollar)
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
-		builder = builder.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
+		findOne = findOne.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
 	}
 
-	query, args, err := builder.ToSql()
+	query, args, err := findOne.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -449,16 +473,16 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
-			logger.Warnf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-		logger.Errorf("Failed to scan row: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 		return nil, err
 	}
@@ -473,34 +497,34 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "postgres.find_alias")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
 
-	builder := squirrel.Select(accountColumnList...).
+	findOne := squirrel.Select(accountColumnList...).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"alias": alias}).
-		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("alias = ?", alias)).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		Limit(1).
 		PlaceholderFormat(squirrel.Dollar)
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
-		builder = builder.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
+		findOne = findOne.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
 	}
 
-	query, args, err := builder.ToSql()
+	query, args, err := findOne.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -535,16 +559,16 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan row", err)
 
-			logger.Warnf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-		logger.Errorf("Failed to scan row: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 		return nil, err
 	}
@@ -559,11 +583,11 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 	ctx, span := tracer.Start(ctx, "postgres.find_account_by_alias")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return false, err
 	}
@@ -580,9 +604,9 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 	query, args, err := builder.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return false, err
 	}
@@ -598,9 +622,9 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 			return false, nil
 		}
 
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return false, err
 	}
@@ -609,9 +633,9 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 	err = pkg.ValidateBusinessError(constant.ErrAliasUnavailability, reflect.TypeOf(mmodel.Account{}).Name(), alias)
 
-	libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Alias is already taken", err)
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Alias is already taken", err)
 
-	logger.Warnf("Alias is already taken: %v", alias)
+	logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Alias is already taken: %v", alias))
 
 	return true, err
 }
@@ -623,35 +647,35 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
 
 	var accounts []*mmodel.Account
 
-	builder := squirrel.Select(accountColumnList...).
+	findAll := squirrel.Select(accountColumnList...).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"id": ids}).
-		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
-		builder = builder.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
+		findAll = findAll.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
 	}
 
-	query, args, err := builder.ToSql()
+	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -660,9 +684,9 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -691,9 +715,9 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 			&acc.DeletedAt,
 			&acc.Blocked,
 		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-			logger.Errorf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
@@ -702,9 +726,9 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
 
-		logger.Errorf("Failed to iterate rows: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to iterate rows: %v", err))
 
 		return nil, err
 	}
@@ -719,32 +743,32 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
 
 	var accounts []*mmodel.Account
 
-	builder := squirrel.Select(accountColumnList...).
+	findAll := squirrel.Select(accountColumnList...).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"portfolio_id": portfolioID}).
-		Where(squirrel.Eq{"alias": alias}).
-		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("portfolio_id = ?", portfolioID)).
+		Where(squirrel.Expr("alias = ANY(?)", pq.Array(alias))).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
-	query, args, err := builder.ToSql()
+	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -753,9 +777,9 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -784,9 +808,9 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 			&acc.DeletedAt,
 			&acc.Blocked,
 		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-			logger.Errorf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
@@ -795,14 +819,38 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
 
-		logger.Errorf("Failed to iterate rows: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to iterate rows: %v", err))
 
 		return nil, err
 	}
 
 	return accounts, nil
+}
+
+// applyNullableFields applies nullable field updates (segmentId, entityId, portfolioId)
+// supporting RFC 7396 JSON Merge Patch null semantics.
+func applyNullableFields(builder squirrel.UpdateBuilder, acc *mmodel.Account, record *AccountPostgreSQLModel) squirrel.UpdateBuilder {
+	if !libCommons.IsNilOrEmpty(acc.SegmentID) {
+		builder = builder.Set("segment_id", record.SegmentID)
+	} else if slices.Contains(acc.NullFields, "segmentId") {
+		builder = builder.Set("segment_id", nil)
+	}
+
+	if !libCommons.IsNilOrEmpty(acc.EntityID) {
+		builder = builder.Set("entity_id", record.EntityID)
+	} else if slices.Contains(acc.NullFields, "entityId") {
+		builder = builder.Set("entity_id", nil)
+	}
+
+	if !libCommons.IsNilOrEmpty(acc.PortfolioID) {
+		builder = builder.Set("portfolio_id", record.PortfolioID)
+	} else if slices.Contains(acc.NullFields, "portfolioId") {
+		builder = builder.Set("portfolio_id", nil)
+	}
+
+	return builder
 }
 
 // Update an Account entity into Postgresql and returns the Account updated.
@@ -812,11 +860,11 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "postgres.update_account")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
@@ -843,17 +891,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		builder = builder.Set("blocked", *acc.Blocked)
 	}
 
-	if !libCommons.IsNilOrEmpty(acc.SegmentID) {
-		builder = builder.Set("segment_id", record.SegmentID)
-	}
-
-	if !libCommons.IsNilOrEmpty(acc.EntityID) {
-		builder = builder.Set("entity_id", record.EntityID)
-	}
-
-	if !libCommons.IsNilOrEmpty(acc.PortfolioID) {
-		builder = builder.Set("portfolio_id", record.PortfolioID)
-	}
+	builder = applyNullableFields(builder, acc, record)
 
 	record.UpdatedAt = time.Now()
 	builder = builder.Set("updated_at", record.UpdatedAt)
@@ -871,9 +909,9 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	query, args, err := builder.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -886,16 +924,16 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
 
-			logger.Errorf("Failed to execute update query: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
 
-		logger.Errorf("Failed to execute update query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
 
 		return nil, err
 	}
@@ -904,7 +942,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
 
 		return nil, err
 	}
@@ -912,9 +950,9 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update account", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account", err)
 
-		logger.Warnf("Failed to update account: %v", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to update account: %v", err))
 
 		return nil, err
 	}
@@ -929,11 +967,11 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "postgres.delete_account")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return err
 	}
@@ -952,9 +990,9 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 	query, args, err := builder.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return err
 	}
@@ -962,9 +1000,9 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 
 	if _, err := db.ExecContext(ctx, query, args...); err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
@@ -981,31 +1019,31 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
 
 	var accounts []*mmodel.Account
 
-	builder := squirrel.Select(accountColumnList...).
+	findAll := squirrel.Select(accountColumnList...).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"id": ids}).
-		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
-	query, args, err := builder.ToSql()
+	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -1014,9 +1052,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -1045,9 +1083,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 			&acc.DeletedAt,
 			&acc.Blocked,
 		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-			logger.Errorf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
@@ -1056,9 +1094,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
 
-		logger.Errorf("Failed to iterate rows: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to iterate rows: %v", err))
 
 		return nil, err
 	}
@@ -1073,31 +1111,31 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
 	defer span.End()
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return nil, err
 	}
 
 	var accounts []*mmodel.Account
 
-	builder := squirrel.Select(accountColumnList...).
+	findAll := squirrel.Select(accountColumnList...).
 		From(r.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Eq{"alias": aliases}).
-		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("alias = ANY(?)", pq.Array(aliases))).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
-	query, args, err := builder.ToSql()
+	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return nil, err
 	}
@@ -1106,9 +1144,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return nil, err
 	}
@@ -1137,9 +1175,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 			&acc.DeletedAt,
 			&acc.Blocked,
 		); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-			logger.Errorf("Failed to scan row: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan row: %v", err))
 
 			return nil, err
 		}
@@ -1148,9 +1186,9 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
 
-		logger.Errorf("Failed to iterate rows: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to iterate rows: %v", err))
 
 		return nil, err
 	}
@@ -1165,13 +1203,13 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 	ctx, span := tracer.Start(ctx, "postgres.count_accounts")
 	defer span.End()
 
-	var count = int64(0)
+	count := int64(0)
 
-	db, err := r.connection.GetDB()
+	db, err := r.getDB(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Errorf("Failed to get database connection: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
 
 		return count, err
 	}
@@ -1185,9 +1223,9 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 	query, args, err := builder.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Errorf("Failed to build query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
 
 		return count, err
 	}
@@ -1196,9 +1234,9 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 
 	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
 
-		logger.Errorf("Failed to execute query: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
 
 		return count, err
 	}

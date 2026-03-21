@@ -75,7 +75,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -85,15 +85,6 @@ const docTemplatetransaction = `{
                                             "items": {
                                                 "$ref": "#/definitions/mmodel.Balance"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -179,7 +170,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -189,15 +180,6 @@ const docTemplatetransaction = `{
                                             "items": {
                                                 "$ref": "#/definitions/mmodel.Balance"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -296,6 +278,10 @@ const docTemplatetransaction = `{
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
                         "type": "string",
                         "description": "Sort Order",
                         "name": "sort_order",
@@ -314,7 +300,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -324,15 +310,6 @@ const docTemplatetransaction = `{
                                             "items": {
                                                 "$ref": "#/definitions/mmodel.Balance"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -468,6 +445,102 @@ const docTemplatetransaction = `{
                 }
             }
         },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history": {
+            "get": {
+                "description": "Get the historical state of all Balances for an account at a specific point in time (yyyy-mm-dd hh:mm:ss format)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Balances"
+                ],
+                "summary": "Get Account Balances history at date",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account ID",
+                        "name": "account_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)",
+                        "name": "date",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/BalanceHistory"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid date format or date in the future",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Account not found or no data available at date",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
             "get": {
                 "description": "Get all Operations with the input ID",
@@ -533,6 +606,10 @@ const docTemplatetransaction = `{
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
                         "type": "string",
                         "description": "Sort Order",
                         "name": "sort_order",
@@ -549,6 +626,23 @@ const docTemplatetransaction = `{
                         "description": "DEBIT, CREDIT",
                         "name": "type",
                         "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "debit",
+                            "credit"
+                        ],
+                        "type": "string",
+                        "description": "Filter by direction",
+                        "name": "direction",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter by operation route ID",
+                        "name": "route_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -557,7 +651,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -567,15 +661,6 @@ const docTemplatetransaction = `{
                                             "items": {
                                                 "$ref": "#/definitions/Operation"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -890,7 +975,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -900,15 +985,6 @@ const docTemplatetransaction = `{
                                             "items": {
                                                 "$ref": "#/definitions/AssetRate"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -1086,6 +1162,10 @@ const docTemplatetransaction = `{
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
                         "type": "string",
                         "description": "Sort Order",
                         "name": "sort_order",
@@ -1104,7 +1184,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1114,15 +1194,6 @@ const docTemplatetransaction = `{
                                             "items": {
                                                 "$ref": "#/definitions/mmodel.Balance"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -1413,6 +1484,99 @@ const docTemplatetransaction = `{
                 }
             }
         },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history": {
+            "get": {
+                "description": "Get the historical state of a Balance at a specific point in time (yyyy-mm-dd hh:mm:ss format)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Balances"
+                ],
+                "summary": "Get Balance history at date",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Balance ID",
+                        "name": "balance_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15 10:30:00)",
+                        "name": "date",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/BalanceHistory"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid date format or date in the future",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Balance not found or no data available at date",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes": {
             "get": {
                 "description": "Returns a list of all operation routes within the specified ledger with cursor-based pagination",
@@ -1493,7 +1657,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1503,18 +1667,6 @@ const docTemplatetransaction = `{
                                             "items": {
                                                 "$ref": "#/definitions/OperationRoute"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "page": {
-                                            "type": "object"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -1955,7 +2107,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -1965,18 +2117,6 @@ const docTemplatetransaction = `{
                                             "items": {
                                                 "$ref": "#/definitions/TransactionRoute"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "page": {
-                                            "type": "object"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -2436,7 +2576,7 @@ const docTemplatetransaction = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/Pagination"
+                                    "$ref": "#/definitions/http.Pagination"
                                 },
                                 {
                                     "type": "object",
@@ -2446,18 +2586,6 @@ const docTemplatetransaction = `{
                                             "items": {
                                                 "$ref": "#/definitions/Transaction"
                                             }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "page": {
-                                            "type": "object"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
                                         }
                                     }
                                 }
@@ -3538,6 +3666,100 @@ const docTemplatetransaction = `{
                 }
             }
         },
+        "AccountingEntries": {
+            "description": "AccountingEntries object containing optional accounting entries for each action type (direct, hold, commit, cancel, revert).",
+            "type": "object",
+            "properties": {
+                "cancel": {
+                    "description": "The accounting entry for the cancel action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
+                "commit": {
+                    "description": "The accounting entry for the commit action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
+                "direct": {
+                    "description": "The accounting entry for the direct action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
+                "hold": {
+                    "description": "The accounting entry for the hold action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                },
+                "revert": {
+                    "description": "The accounting entry for the revert action.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntry"
+                        }
+                    ]
+                }
+            }
+        },
+        "AccountingEntry": {
+            "description": "AccountingEntry object containing debit and credit rubrics for a specific action.",
+            "type": "object",
+            "required": [
+                "credit",
+                "debit"
+            ],
+            "properties": {
+                "credit": {
+                    "description": "The credit rubric for this entry.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingRubric"
+                        }
+                    ]
+                },
+                "debit": {
+                    "description": "The debit rubric for this entry.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingRubric"
+                        }
+                    ]
+                }
+            }
+        },
+        "AccountingRubric": {
+            "description": "AccountingRubric object containing the code and description for a debit or credit entry.",
+            "type": "object",
+            "required": [
+                "code",
+                "description"
+            ],
+            "properties": {
+                "code": {
+                    "description": "The accounting rubric code.",
+                    "type": "string",
+                    "maxLength": 50,
+                    "example": "1001"
+                },
+                "description": {
+                    "description": "The accounting rubric description.",
+                    "type": "string",
+                    "maxLength": 250,
+                    "example": "Cash"
+                }
+            }
+        },
         "Amount": {
             "description": "Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.",
             "type": "object",
@@ -3658,6 +3880,91 @@ const docTemplatetransaction = `{
                 }
             }
         },
+        "BalanceHistory": {
+            "description": "Historical balance snapshot at a specific point in time. Does not include permission flags (allowSending/allowReceiving) as these are not tracked historically.",
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "description": "Account that holds this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "accountType": {
+                    "description": "Type of account holding this balance\nexample: creditCard\nmaxLength: 50",
+                    "type": "string",
+                    "maxLength": 50,
+                    "example": "creditCard"
+                },
+                "alias": {
+                    "description": "Alias for the account, used for easy identification or tagging\nexample: @person1\nmaxLength: 256",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "@person1"
+                },
+                "assetCode": {
+                    "description": "Asset code identifying the currency or asset type of this balance\nexample: USD\nminLength: 2\nmaxLength: 10",
+                    "type": "string",
+                    "maxLength": 10,
+                    "minLength": 2,
+                    "example": "USD"
+                },
+                "available": {
+                    "description": "Amount available for transactions (in the smallest unit of the asset, e.g. cents)\nexample: 1500\nminimum: 0",
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 1500
+                },
+                "createdAt": {
+                    "description": "Timestamp when the balance was created (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "id": {
+                    "description": "Unique identifier for the balance (UUID format)\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "key": {
+                    "description": "Unique key for the balance\nexample: asset-freeze\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "asset-freeze"
+                },
+                "ledgerId": {
+                    "description": "Ledger containing the account this balance belongs to\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "onHold": {
+                    "description": "Amount currently on hold and unavailable for transactions\nexample: 500\nminimum: 0",
+                    "type": "number",
+                    "minimum": 0,
+                    "example": 500
+                },
+                "organizationId": {
+                    "description": "Organization that owns this balance\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "updatedAt": {
+                    "description": "Timestamp when the balance was last updated (RFC3339 format)\nexample: 2021-01-01T00:00:00Z\nformat: date-time",
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "version": {
+                    "description": "Optimistic concurrency control version\nexample: 1\nminimum: 1",
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 1
+                }
+            }
+        },
         "CreateAdditionalBalance": {
             "description": "Request payload for creating a new balance with specified permissions and custom key.",
             "type": "object",
@@ -3755,6 +4062,14 @@ const docTemplatetransaction = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/AccountRule"
+                        }
+                    ]
+                },
+                "accountingEntries": {
+                    "description": "Optional accounting entries for each action type associated with this operation route.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntries"
                         }
                     ]
                 },
@@ -3871,7 +4186,9 @@ const docTemplatetransaction = `{
                 },
                 "transactionDate": {
                     "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
@@ -3964,7 +4281,9 @@ const docTemplatetransaction = `{
                 },
                 "transactionDate": {
                     "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
@@ -3988,10 +4307,11 @@ const docTemplatetransaction = `{
                     "additionalProperties": {}
                 },
                 "operationRoutes": {
-                    "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
+                    "description": "A list of Operation Route IDs associated with the Transaction Route.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "type": "string",
+                        "format": "uuid"
                     }
                 },
                 "title": {
@@ -4128,6 +4448,16 @@ const docTemplatetransaction = `{
                     "maxLength": 256,
                     "example": "Credit card operation"
                 },
+                "direction": {
+                    "description": "Direction of the operation (debit, credit)\nexample: debit\nmaxLength: 50",
+                    "type": "string",
+                    "maxLength": 50,
+                    "enum": [
+                        "debit",
+                        "credit"
+                    ],
+                    "example": "debit"
+                },
                 "id": {
                     "description": "Unique identifier for the operation\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
                     "type": "string",
@@ -4152,9 +4482,27 @@ const docTemplatetransaction = `{
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "route": {
-                    "description": "Route\nexample: 00000000-0000-0000-0000-000000000000\nformat: string",
+                    "description": "Deprecated: passive field kept for backward compatibility. Not used in validation or business logic. Use routeId instead.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
                     "type": "string",
-                    "format": "string",
+                    "maxLength": 250,
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "routeCode": {
+                    "description": "Human-readable code of the operation route for accounting traceability\nexample: ROUTE-001\nmaxLength: 100",
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "ROUTE-001"
+                },
+                "routeDescription": {
+                    "description": "Human-readable description of the operation route for accounting traceability\nexample: Settlement route for service charges\nmaxLength: 250",
+                    "type": "string",
+                    "maxLength": 250,
+                    "example": "Settlement route for service charges"
+                },
+                "routeId": {
+                    "description": "UUID of the operation route that generated this operation. Primary field for route identification, validation, and accounting.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
@@ -4197,6 +4545,26 @@ const docTemplatetransaction = `{
                         }
                     ]
                 },
+                "accountingEntries": {
+                    "description": "Optional accounting entries for each action type associated with this operation route.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntries"
+                        }
+                    ]
+                },
+                "action": {
+                    "description": "The action associated with this operation route in the context of a transaction route.",
+                    "type": "string",
+                    "enum": [
+                        "direct",
+                        "hold",
+                        "commit",
+                        "cancel",
+                        "revert"
+                    ],
+                    "example": "direct"
+                },
                 "code": {
                     "description": "External reference of the operation route.",
                     "type": "string",
@@ -4237,6 +4605,11 @@ const docTemplatetransaction = `{
                 "operationType": {
                     "description": "The type of the operation route.",
                     "type": "string",
+                    "enum": [
+                        "source",
+                        "destination",
+                        "bidirectional"
+                    ],
                     "example": "source"
                 },
                 "organizationId": {
@@ -4254,31 +4627,6 @@ const docTemplatetransaction = `{
                     "type": "string",
                     "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
-                }
-            }
-        },
-        "Pagination": {
-            "description": "Pagination is the struct designed to store the pagination data of an entity list.",
-            "type": "object",
-            "properties": {
-                "items": {},
-                "limit": {
-                    "type": "integer",
-                    "example": 10
-                },
-                "next_cursor": {
-                    "type": "string",
-                    "x-omitempty": true,
-                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
-                },
-                "page": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "prev_cursor": {
-                    "type": "string",
-                    "x-omitempty": true,
-                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
                 }
             }
         },
@@ -4388,9 +4736,15 @@ const docTemplatetransaction = `{
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "route": {
-                    "description": "Route\nexample: 00000000-0000-0000-0000-000000000000\nformat: string",
+                    "description": "Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.\nexample: 00000000-0000-0000-0000-000000000000\nmaxLength: 250\ndeprecated: true",
                     "type": "string",
-                    "format": "string",
+                    "maxLength": 250,
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "routeId": {
+                    "description": "UUID of the transaction route. Primary field for route identification, validation, and accounting.\nexample: 00000000-0000-0000-0000-000000000000\nformat: uuid",
+                    "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "source": {
@@ -4522,6 +4876,14 @@ const docTemplatetransaction = `{
                         }
                     ]
                 },
+                "accountingEntries": {
+                    "description": "Optional accounting entries for each action type associated with this operation route.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/AccountingEntries"
+                        }
+                    ]
+                },
                 "code": {
                     "description": "External reference of the operation route.",
                     "type": "string",
@@ -4580,10 +4942,11 @@ const docTemplatetransaction = `{
                     "additionalProperties": {}
                 },
                 "operationRoutes": {
-                    "description": "An object containing accounting data of Operation Routes from the Transaction Route.",
+                    "description": "A list of Operation Route IDs associated with the Transaction Route. Omit to leave existing associations unchanged. When provided, replaces all current associations with the supplied UUIDs.",
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "type": "string",
+                        "format": "uuid"
                     }
                 },
                 "title": {
@@ -4591,6 +4954,24 @@ const docTemplatetransaction = `{
                     "type": "string",
                     "maxLength": 50,
                     "example": "Charge Settlement"
+                }
+            }
+        },
+        "http.Pagination": {
+            "type": "object",
+            "properties": {
+                "items": {},
+                "limit": {
+                    "type": "integer"
+                },
+                "next_cursor": {
+                    "type": "string"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "prev_cursor": {
+                    "type": "string"
                 }
             }
         },
@@ -4835,7 +5216,9 @@ const docTemplatetransaction = `{
                 },
                 "transactionDate": {
                     "description": "TransactionDate Period from transaction creation date until now\nExample \"2021-01-01T00:00:00Z\"\nswagger: type string\nrequired: false",
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         }

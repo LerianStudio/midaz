@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package in
 
 import (
@@ -9,8 +13,7 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
@@ -41,7 +44,10 @@ func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
 			jsonBody: `{
 				"title": "Payment Settlement",
 				"description": "Route for payment settlement transactions",
-				"operationRoutes": ["01965ed9-7fa4-75b2-8872-fc9e8509ab0a", "01965ed9-7fa4-75b2-8872-fc9e8509ab0b"],
+				"operationRoutes": [
+					"01965ed9-7fa4-75b2-8872-fc9e8509ab0a",
+					"01965ed9-7fa4-75b2-8872-fc9e8509ab0b"
+				],
 				"metadata": {"category": "settlement"}
 			}`,
 			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID uuid.UUID) {
@@ -105,7 +111,10 @@ func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
 			jsonBody: `{
 				"title": "Payment Settlement",
 				"description": "Route for payment settlement transactions",
-				"operationRoutes": ["01965ed9-7fa4-75b2-8872-fc9e8509ab0a", "01965ed9-7fa4-75b2-8872-fc9e8509ab0b"]
+				"operationRoutes": [
+					"01965ed9-7fa4-75b2-8872-fc9e8509ab0a",
+					"01965ed9-7fa4-75b2-8872-fc9e8509ab0b"
+				]
 			}`,
 			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, redisRepo *redis.MockRedisRepository, orgID, ledgerID uuid.UUID) {
 				opRoute1ID := uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0a")
@@ -866,6 +875,3 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 		})
 	}
 }
-
-// Ensure libPostgres.Pagination is used (referenced in handler)
-var _ = libPostgres.Pagination{}

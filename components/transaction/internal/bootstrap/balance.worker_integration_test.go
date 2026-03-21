@@ -1,5 +1,9 @@
 //go:build integration
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package bootstrap
 
 import (
@@ -8,11 +12,12 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -36,12 +41,12 @@ func TestIntegration_BalanceSyncSchedule_FullFlow(t *testing.T) {
 	container := redistestutil.SetupContainer(t)
 	conn := redistestutil.CreateConnection(t, container.Addr)
 
-	repo, err := redis.NewConsumerRedis(conn, true)
+	repo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "should create Redis repository")
 
 	ctx := context.Background()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create a balance key following the pattern used by the worker
 	balanceKey := utils.BalanceInternalKey(orgID, ledgerID, "default")
@@ -49,9 +54,9 @@ func TestIntegration_BalanceSyncSchedule_FullFlow(t *testing.T) {
 	// Step 1: Store balance data in Redis
 	t.Log("Step 1: Storing balance data in Redis")
 	balanceData := mmodel.BalanceRedis{
-		ID:        libCommons.GenerateUUIDv7().String(),
+		ID:        uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:     "@test-sync",
-		AccountID: libCommons.GenerateUUIDv7().String(),
+		AccountID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		AssetCode: "USD",
 		Available: decimal.NewFromInt(1000),
 		OnHold:    decimal.Zero,
@@ -107,7 +112,7 @@ func TestIntegration_BalanceSyncWorker_TTLBehavior(t *testing.T) {
 	container := redistestutil.SetupContainer(t)
 
 	ctx := context.Background()
-	testKey := "test:ttl:behavior:" + libCommons.GenerateUUIDv7().String()
+	testKey := "test:ttl:behavior:" + uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	// Step 1: Set key with 2 second TTL
 	t.Log("Step 1: Setting key with 2 second TTL")
@@ -154,12 +159,12 @@ func TestIntegration_BalanceSyncSchedule_FutureKeys(t *testing.T) {
 	container := redistestutil.SetupContainer(t)
 	conn := redistestutil.CreateConnection(t, container.Addr)
 
-	repo, err := redis.NewConsumerRedis(conn, true)
+	repo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "should create Redis repository")
 
 	ctx := context.Background()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create keys: one due now, one due in the future
 	dueNowKey := utils.BalanceInternalKey(orgID, ledgerID, "due-now")

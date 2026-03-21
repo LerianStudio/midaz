@@ -1,0 +1,90 @@
+#!/bin/bash
+
+# Get the commit message from the file
+commit_msg_file=$1
+commit_msg=$(cat "$commit_msg_file")
+
+# Get the first line of the commit message
+first_line=$(echo "$commit_msg" | head -n 1)
+
+# Define the conventional commit format regex
+# Format: type(scope): description
+# Where type is one of: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+conventional_format='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_.-]*\))?: .+'
+
+if ! [[ "$first_line" =~ $conventional_format ]]; then
+    echo "[ERROR] Commit message does not follow conventional format."
+    echo "Format should be: type(scope): description"
+    echo "Where type is one of: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+    echo "Example: feat(auth): add login functionality"
+    exit 1
+fi
+
+# Extract commit type for emoji (e.g., "feat" from "feat(scope): description")
+if [[ "$first_line" =~ ^([a-z]+) ]]; then
+    KEYWORD="${BASH_REMATCH[1]}"
+else
+    KEYWORD=""
+fi
+
+# Restrict commit types on hotfix branches (must generate patch release only)
+# See .releaserc.yml for release rules: feat/perf/build/refactor generate minor versions
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+if [[ "$branch" =~ ^hotfix/ ]]; then
+    patch_types="^(fix|docs|chore|ci|test|style)$"
+    if ! [[ "$KEYWORD" =~ $patch_types ]]; then
+        echo "[ERROR] Hotfix branches only allow patch-generating commit types."
+        echo ""
+        echo "Allowed types on hotfix/*:"
+        echo "  fix    - Bug fixes (generates patch)"
+        echo "  docs   - Documentation changes (generates patch)"
+        echo "  chore  - Maintenance tasks (generates patch)"
+        echo "  ci     - CI/CD changes (generates patch)"
+        echo "  test   - Test additions/changes (generates patch)"
+        echo "  style  - Code style changes (no release)"
+        echo ""
+        echo "Your commit type: '$KEYWORD'"
+        echo ""
+        echo "Why? Hotfixes must only increment patch version (e.g., 1.2.3 -> 1.2.4)."
+        echo "Types like 'feat', 'perf', 'refactor' generate minor versions."
+        echo ""
+        echo "See: .releaserc.yml for semantic-release configuration."
+        exit 1
+    fi
+fi
+
+# Add emoji based on commit type
+case $KEYWORD in
+    feat)    EMOJI=":sparkles:" ;;
+    fix)     EMOJI=":bug:" ;;
+    docs)    EMOJI=":books:" ;;
+    style)   EMOJI=":gem:" ;;
+    refactor) EMOJI=":hammer:" ;;
+    perf)    EMOJI=":rocket:" ;;
+    test)    EMOJI=":test_tube:" ;;
+    build)   EMOJI=":package:" ;;
+    ci)      EMOJI=":construction_worker:" ;;
+    chore)   EMOJI=":wrench:" ;;
+    revert)  EMOJI=":rewind:" ;;
+    *)       EMOJI="" ;;
+esac
+
+# Only add emoji if one was selected and not already present
+if [ -n "$EMOJI" ]; then
+    # Skip if first line already ends with an emoji (prevents duplication on amend)
+    if [[ "$first_line" =~ :[a-z_]+:$ ]]; then
+        exit 0
+    fi
+    # Build new first line with emoji (avoids sed escaping issues with special chars)
+    new_first_line="$first_line $EMOJI"
+    # Get the rest of the message (lines 2+)
+    rest_of_msg=$(echo "$commit_msg" | tail -n +2)
+    # Write the new commit message back to the file
+    if [ -n "$rest_of_msg" ]; then
+        printf '%s\n%s\n' "$new_first_line" "$rest_of_msg" > "$commit_msg_file"
+    else
+        printf '%s\n' "$new_first_line" > "$commit_msg_file"
+    fi
+fi
+
+exit 0

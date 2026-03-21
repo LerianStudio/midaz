@@ -1,16 +1,21 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package http
 
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -95,6 +100,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	c.Locals("patchRemove", findNilFields(originalMap, ""))
 
 	parseMetadata(s, originalMap)
+	populateNullFields(s, originalMap)
 
 	return d.handler(s, c)
 }
@@ -119,6 +125,31 @@ func WithBody(s any, h DecodeHandlerFunc) fiber.Handler {
 	return d.FiberHandlerFunc
 }
 
+// WithBodyLimit returns a middleware that limits the request body size.
+// If the body exceeds the limit, it returns a 400 Bad Request error.
+//
+// NOTE: For a true hard limit that rejects oversized payloads before buffering,
+// configure fiber.Config{BodyLimit: <bytes>} at app construction. This middleware
+// serves as a secondary guard and checks Content-Length first to avoid buffering
+// oversized requests when the header is present.
+func WithBodyLimit(maxBytes int) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// Check Content-Length header first to avoid buffering oversized requests
+		contentLength := c.Request().Header.ContentLength()
+		if contentLength > maxBytes {
+			return BadRequest(c, pkg.ValidateBusinessError(cn.ErrPayloadTooLarge, "request"))
+		}
+
+		// Fallback: check actual body size for requests without Content-Length
+		// (e.g., chunked transfer encoding)
+		if contentLength <= 0 && len(c.Body()) > maxBytes {
+			return BadRequest(c, pkg.ValidateBusinessError(cn.ErrPayloadTooLarge, "request"))
+		}
+
+		return c.Next()
+	}
+}
+
 // SetBodyInContext is a higher-order function that wraps a Fiber handler, injecting the decoded body into the request context.
 func SetBodyInContext(handler fiber.Handler) DecodeHandlerFunc {
 	return func(s any, c *fiber.Ctx) error {
@@ -133,7 +164,24 @@ func GetPayloadFromContext(c *fiber.Ctx) any {
 }
 
 // ValidateStruct validates a struct against defined validation rules, using the validator package.
+// Also validates null bytes in string fields for all types (structs and maps).
 func ValidateStruct(s any) error {
+	// Generic null-byte validation across all string fields in the payload
+	// This runs for all types including maps and structs
+	if violations := validateNoNullBytes(s); len(violations) > 0 {
+		// Check for JSON structure violations first (return specific business errors)
+		if _, hasDepthViolation := violations["_depth"]; hasDepthViolation {
+			return pkg.ValidateBusinessError(cn.ErrJSONNestingDepthExceeded, "request")
+		}
+
+		if _, hasKeyCountViolation := violations["_keyCount"]; hasKeyCountViolation {
+			return pkg.ValidateBusinessError(cn.ErrJSONKeyCountExceeded, "request")
+		}
+
+		// For other violations (null bytes), return field validation error
+		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
+	}
+
 	v, trans := newValidator()
 
 	k := reflect.ValueOf(s).Kind()
@@ -141,6 +189,7 @@ func ValidateStruct(s any) error {
 		k = reflect.ValueOf(s).Elem().Kind()
 	}
 
+	// Struct-specific validation using go-playground/validator
 	if k != reflect.Struct {
 		return nil
 	}
@@ -169,11 +218,6 @@ func ValidateStruct(s any) error {
 		errPtr := malformedRequestErr(err.(validator.ValidationErrors), trans)
 
 		return &errPtr
-	}
-
-	// Generic null-byte validation across all string fields in the payload
-	if violations := validateNoNullBytes(s); len(violations) > 0 {
-		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
 	}
 
 	return nil
@@ -236,9 +280,6 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterValidation("invalidaliascharacters", validateInvalidAliasCharacters)
 	_ = v.RegisterValidation("invalidaccounttype", validateAccountType)
 	_ = v.RegisterValidation("nowhitespaces", validateNoWhitespaces)
-	_ = v.RegisterValidation("cpfcnpj", validateCPFCNPJ)
-	_ = v.RegisterValidation("cpf", validateCPF)
-	_ = v.RegisterValidation("cnpj", validateCNPJ)
 	_ = v.RegisterValidation("metadatakeyformat", validateMetadataKeyFormat)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
@@ -246,28 +287,6 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("required", formatErrorFieldName(fe.Namespace()))
 
-		return t
-	})
-
-	_ = v.RegisterTranslation("cpfcnpj", trans, func(ut ut.Translator) error {
-		return ut.Add("cpfcnpj", "{0} must be a valid CPF or CNPJ", true)
-	}, func(ut ut.Translator, fe validator.FieldError) string {
-		t, _ := ut.T("cpfcnpj", formatErrorFieldName(fe.Namespace()))
-
-		return t
-	})
-
-	_ = v.RegisterTranslation("cpf", trans, func(ut ut.Translator) error {
-		return ut.Add("cpf", "{0} must be a valid CPF", true)
-	}, func(ut ut.Translator, fe validator.FieldError) string {
-		t, _ := ut.T("cpf", formatErrorFieldName(fe.Namespace()))
-		return t
-	})
-
-	_ = v.RegisterTranslation("cnpj", trans, func(ut ut.Translator) error {
-		return ut.Add("cnpj", "{0} must be a valid CNPJ", true)
-	}, func(ut ut.Translator, fe validator.FieldError) string {
-		t, _ := ut.T("cnpj", formatErrorFieldName(fe.Namespace()))
 		return t
 	})
 
@@ -456,7 +475,7 @@ func validateProhibitedExternalAccountPrefix(fl validator.FieldLevel) bool {
 func validateInvalidAliasCharacters(fl validator.FieldLevel) bool {
 	f := fl.Field().Interface().(string)
 
-	var validChars = regexp.MustCompile(cn.AccountAliasAcceptedChars)
+	validChars := regexp.MustCompile(cn.AccountAliasAcceptedChars)
 
 	return validChars.MatchString(f)
 }
@@ -563,14 +582,33 @@ func fieldsRequired(myMap pkg.FieldValidations) pkg.FieldValidations {
 	return result
 }
 
+// JSON validation limits to prevent DoS attacks via deeply nested or large payloads.
+const (
+	// MaxJSONNestingDepth is the maximum allowed nesting depth for JSON payloads.
+	// Prevents stack overflow from deeply nested structures.
+	MaxJSONNestingDepth = 10
+
+	// MaxJSONKeyCount is the maximum allowed total number of keys in a JSON payload.
+	// Prevents resource exhaustion from payloads with many small keys.
+	MaxJSONKeyCount = 100
+)
+
+// validationState tracks the current state during recursive JSON validation.
+type validationState struct {
+	depth    int
+	keyCount int
+}
+
 // validateNoNullBytes walks through the struct payload and ensures no string value contains a null byte (\x00).
+// Also enforces nesting depth and key count limits to prevent DoS attacks.
 // Returns a map of invalid field names to error messages when violations are found.
 func validateNoNullBytes(s any) pkg.FieldValidations {
 	out := make(pkg.FieldValidations)
+	state := &validationState{}
 
 	rv := reflect.ValueOf(s)
 
-	collectNullByteViolations(rv, "", out)
+	collectNullByteViolations(rv, "", out, state)
 
 	if len(out) == 0 {
 		return nil
@@ -580,51 +618,141 @@ func validateNoNullBytes(s any) pkg.FieldValidations {
 }
 
 // collectNullByteViolations recursively traverses values and records fields that contain null bytes.
-func collectNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+// Also checks for nesting depth and key count limits.
+func collectNullByteViolations(rv reflect.Value, jsonPath string, out pkg.FieldValidations, state *validationState) {
 	if !rv.IsValid() {
+		return
+	}
+
+	// Check nesting depth limit
+	if state.depth > MaxJSONNestingDepth {
+		out["_depth"] = fmt.Sprintf("JSON nesting depth exceeds maximum allowed (%d levels)", MaxJSONNestingDepth)
+		return
+	}
+
+	// Check key count limit
+	if state.keyCount > MaxJSONKeyCount {
+		out["_keyCount"] = fmt.Sprintf("JSON key count exceeds maximum allowed (%d keys)", MaxJSONKeyCount)
 		return
 	}
 
 	switch rv.Kind() {
 	case reflect.Ptr:
-		if rv.IsNil() {
-			return
-		}
-
-		collectNullByteViolations(rv.Elem(), jsonPath, out)
+		collectNullBytesFromPtr(rv, jsonPath, out, state)
 	case reflect.Struct:
-		rt := rv.Type()
-		for i := 0; i < rv.NumField(); i++ {
-			f := rt.Field(i)
-
-			// Skip unexported fields
-			if f.PkgPath != "" {
-				continue
-			}
-
-			name := jsonFieldName(f)
-			if name == "-" {
-				continue
-			}
-
-			collectNullByteViolations(rv.Field(i), name, out)
-		}
+		collectNullBytesFromStruct(rv, out, state)
 	case reflect.Slice, reflect.Array:
-		for i := 0; i < rv.Len(); i++ {
-			collectNullByteViolations(rv.Index(i), jsonPath, out)
-		}
+		collectNullBytesFromSliceOrArray(rv, jsonPath, out, state)
+	case reflect.Map:
+		collectNullBytesFromMap(rv, jsonPath, out, state)
+	case reflect.Interface:
+		collectNullBytesFromInterface(rv, jsonPath, out, state)
 	case reflect.String:
-		if strings.ContainsRune(rv.String(), '\x00') {
-			key := jsonPath
-			if key == "" {
-				key = "value"
-			}
-
-			out[key] = key + " cannot contain null byte (\\x00)"
-		}
+		collectNullBytesFromString(rv, jsonPath, out)
 	default:
 		// primitives: no-op
 	}
+}
+
+// collectNullBytesFromPtr handles pointer values by dereferencing and recursing.
+func collectNullBytesFromPtr(rv reflect.Value, jsonPath string, out pkg.FieldValidations, state *validationState) {
+	if rv.IsNil() {
+		return
+	}
+
+	collectNullByteViolations(rv.Elem(), jsonPath, out, state)
+}
+
+// collectNullBytesFromStruct iterates over exported struct fields and recurses into each.
+func collectNullBytesFromStruct(rv reflect.Value, out pkg.FieldValidations, state *validationState) {
+	rt := rv.Type()
+
+	for i := 0; i < rv.NumField(); i++ {
+		f := rt.Field(i)
+
+		// Skip unexported fields
+		if f.PkgPath != "" {
+			continue
+		}
+
+		name := jsonFieldName(f)
+		if name == "-" {
+			continue
+		}
+
+		collectNullByteViolations(rv.Field(i), name, out, state)
+	}
+}
+
+// collectNullBytesFromSliceOrArray iterates over slice/array elements and recurses into each.
+func collectNullBytesFromSliceOrArray(rv reflect.Value, jsonPath string, out pkg.FieldValidations, state *validationState) {
+	for i := 0; i < rv.Len(); i++ {
+		collectNullByteViolations(rv.Index(i), jsonPath, out, state)
+	}
+}
+
+// collectNullBytesFromMap iterates over map entries, building key paths for string keys.
+// Increments depth and key count for DoS protection.
+func collectNullBytesFromMap(rv reflect.Value, jsonPath string, out pkg.FieldValidations, state *validationState) {
+	// Increment depth when entering a map (nested object)
+	state.depth++
+
+	defer func() { state.depth-- }()
+
+	iter := rv.MapRange()
+
+	for iter.Next() {
+		// Increment key count for each key in the map
+		state.keyCount++
+
+		// Early exit if key count exceeded
+		if state.keyCount > MaxJSONKeyCount {
+			out["_keyCount"] = fmt.Sprintf("JSON key count exceeds maximum allowed (%d keys)", MaxJSONKeyCount)
+			return
+		}
+
+		k := iter.Key()
+		v := iter.Value()
+		keyPath := buildMapKeyPath(k, jsonPath)
+
+		collectNullByteViolations(v, keyPath, out, state)
+	}
+}
+
+// buildMapKeyPath constructs the JSON path for a map entry key.
+func buildMapKeyPath(k reflect.Value, jsonPath string) string {
+	if k.Kind() != reflect.String {
+		return jsonPath
+	}
+
+	if jsonPath != "" {
+		return jsonPath + "." + k.String()
+	}
+
+	return k.String()
+}
+
+// collectNullBytesFromInterface handles interface values by unwrapping and recursing.
+func collectNullBytesFromInterface(rv reflect.Value, jsonPath string, out pkg.FieldValidations, state *validationState) {
+	if rv.IsNil() {
+		return
+	}
+
+	collectNullByteViolations(rv.Elem(), jsonPath, out, state)
+}
+
+// collectNullBytesFromString checks if a string contains a null byte and records the violation.
+func collectNullBytesFromString(rv reflect.Value, jsonPath string, out pkg.FieldValidations) {
+	if !strings.ContainsRune(rv.String(), '\x00') {
+		return
+	}
+
+	key := jsonPath
+	if key == "" {
+		key = "value"
+	}
+
+	out[key] = key + " cannot contain null byte (\\x00)"
 }
 
 // jsonFieldName returns the effective JSON field name for a struct field.
@@ -659,6 +787,44 @@ func parseMetadata(s any, originalMap map[string]any) {
 	}
 }
 
+// populateNullFields detects fields explicitly sent as null in the JSON request
+// and populates the NullFields slice for downstream processing.
+// This enables RFC 7396 JSON Merge Patch semantics for nullable fields.
+//
+// TODO(review): Consider adding allowlist validation for NullFields to enforce
+// defense-in-depth. Currently, the repository layer provides protection by only
+// processing specific fields (segmentId, entityId, portfolioId). (security-reviewer, 2026-02-11, Low)
+func populateNullFields(s any, originalMap map[string]any) {
+	if s == nil {
+		return
+	}
+
+	val := reflect.ValueOf(s)
+	if val.Kind() != reflect.Ptr || val.IsNil() {
+		return
+	}
+
+	val = val.Elem()
+	if val.Kind() != reflect.Struct {
+		return
+	}
+
+	nullFieldsField := val.FieldByName("NullFields")
+	if !nullFieldsField.IsValid() || !nullFieldsField.CanSet() {
+		return
+	}
+
+	var nullFields []string
+
+	for key, value := range originalMap {
+		if value == nil {
+			nullFields = append(nullFields, key)
+		}
+	}
+
+	nullFieldsField.Set(reflect.ValueOf(nullFields))
+}
+
 // FindUnknownFields finds fields that are present in the original map but not in the marshaled map.
 //
 //nolint:gocognit,gocyclo
@@ -674,7 +840,16 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 
 		marshaledValue, ok := marshaled[key]
 		if !ok {
+			// A nil value in the original means the client explicitly sent "field": null.
+			// When the struct uses omitempty, json.Marshal omits nil pointer fields, so
+			// the key disappears from the marshaled map. This is not an unknown field —
+			// it is a valid RFC 7396 JSON Merge Patch request to remove/null-out the field.
+			if value == nil {
+				continue
+			}
+
 			diffFields[key] = value
+
 			continue
 		}
 
@@ -854,7 +1029,7 @@ func validateInvalidStrings(fl validator.FieldLevel) bool {
 // of the fields whose value is nil.
 // The prefix parameter is used to build the complete path (e.g., "object.field").
 func findNilFields(data map[string]any, prefix string) []string {
-	var nilFields []string
+	nilFields := []string{}
 
 	for key, value := range data {
 		var fullPath string
@@ -874,155 +1049,4 @@ func findNilFields(data map[string]any, prefix string) []string {
 	}
 
 	return nilFields
-}
-
-func validateCPFCNPJ(fl validator.FieldLevel) bool {
-	value := fl.Field().Interface().(string)
-	if value == "" {
-		return true
-	}
-
-	if len(value) != 11 && len(value) != 14 {
-		return false
-	}
-
-	if len(value) == 11 {
-		return validateCPF(fl)
-	}
-
-	return validateCNPJ(fl)
-}
-
-func validateCPF(fl validator.FieldLevel) bool {
-	cpf := fl.Field().Interface().(string)
-	if cpf == "" {
-		return true
-	}
-
-	if len(cpf) != 11 {
-		return false
-	}
-
-	// Check if all digits are the same (invalid CPF)
-	allEqual := true
-
-	for i := 1; i < len(cpf); i++ {
-		if cpf[i] != cpf[0] {
-			allEqual = false
-			break
-		}
-	}
-
-	if allEqual {
-		return false
-	}
-
-	// Validate first check digit
-	sum := 0
-
-	for i := 0; i < 9; i++ {
-		digit := int(cpf[i] - '0')
-		if digit < 0 || digit > 9 {
-			return false
-		}
-
-		sum += digit * (10 - i)
-	}
-
-	remainder := (sum * 10) % 11
-	if remainder == 10 {
-		remainder = 0
-	}
-
-	if remainder != int(cpf[9]-'0') {
-		return false
-	}
-
-	// Validate second check digit
-	sum = 0
-
-	for i := 0; i < 10; i++ {
-		digit := int(cpf[i] - '0')
-		sum += digit * (11 - i)
-	}
-
-	remainder = (sum * 10) % 11
-
-	if remainder == 10 {
-		remainder = 0
-	}
-
-	return remainder == int(cpf[10]-'0')
-}
-
-func validateCNPJ(fl validator.FieldLevel) bool {
-	cnpj := fl.Field().Interface().(string)
-	if cnpj == "" {
-		return true
-	}
-
-	if len(cnpj) != 14 {
-		return false
-	}
-
-	// Check if all digits are the same (invalid CNPJ)
-	allEqual := true
-
-	for i := 1; i < len(cnpj); i++ {
-		if cnpj[i] != cnpj[0] {
-			allEqual = false
-			break
-		}
-	}
-
-	if allEqual {
-		return false
-	}
-
-	// Weights for first check digit
-	weights1 := []int{5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
-	// Weights for second check digit
-	weights2 := []int{6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
-
-	// Validate first check digit
-	sum := 0
-
-	for i := 0; i < 12; i++ {
-		digit := int(cnpj[i] - '0')
-		if digit < 0 || digit > 9 {
-			return false
-		}
-
-		sum += digit * weights1[i]
-	}
-
-	remainder := sum % 11
-
-	firstDigit := 0
-
-	if remainder >= 2 {
-		firstDigit = 11 - remainder
-	}
-
-	if firstDigit != int(cnpj[12]-'0') {
-		return false
-	}
-
-	// Validate second check digit
-	sum = 0
-
-	for i := 0; i < 13; i++ {
-		digit := int(cnpj[i] - '0')
-		sum += digit * weights2[i]
-	}
-
-	remainder = sum % 11
-
-	secondDigit := 0
-
-	if remainder >= 2 {
-		secondDigit = 11 - remainder
-	}
-
-	return secondDigit == int(cnpj[13]-'0')
 }

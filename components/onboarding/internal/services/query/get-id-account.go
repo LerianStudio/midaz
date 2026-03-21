@@ -1,32 +1,39 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package query
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+
+	// GetAccountByID get an Account from the repository by given id.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// GetAccountByID get an Account from the repository by given id.
 func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_account_by_id")
 	defer span.End()
 
-	logger.Infof("Retrieving account for id: %s", id)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving account for id: %s", id))
 
 	account, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, portfolioID, id)
 	if err != nil {
-		logger.Errorf("Error getting account on repo by id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting account on repo by id: %v", err))
 
-		logger.Errorf("Error getting account on repo by id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting account on repo by id: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return nil, pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
@@ -38,9 +45,9 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 	if account != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String())
 		if err != nil {
-			logger.Errorf("Error get metadata on mongodb account: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb account: %v", err))
 
-			logger.Errorf("Error get metadata on mongodb account: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb account: %v", err))
 
 			return nil, err
 		}

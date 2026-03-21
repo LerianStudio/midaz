@@ -103,18 +103,18 @@ func (mr *MockRepositoryMockRecorder) Find(ctx, id any) *gomock.Call {
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(ctx context.Context, filter http.Pagination) ([]*mmodel.Organization, error) {
+func (m *MockRepository) FindAll(ctx context.Context, filter http.Pagination, legalName, doingBusinessAs *string) ([]*mmodel.Organization, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindAll", ctx, filter)
+	ret := m.ctrl.Call(m, "FindAll", ctx, filter, legalName, doingBusinessAs)
 	ret0, _ := ret[0].([]*mmodel.Organization)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindAll indicates an expected call of FindAll.
-func (mr *MockRepositoryMockRecorder) FindAll(ctx, filter any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindAll(ctx, filter, legalName, doingBusinessAs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, filter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, filter, legalName, doingBusinessAs)
 }
 
 // ListByIDs mocks base method.

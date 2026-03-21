@@ -1,11 +1,16 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package segment
 
 import (
 	"database/sql"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 )
 
 // SegmentPostgreSQLModel represents the entity Segment into SQL context in Database
@@ -51,7 +56,7 @@ func (t *SegmentPostgreSQLModel) ToEntity() *mmodel.Segment {
 // FromEntity converts an entity.Segment to SegmentPostgreSQLModel
 func (t *SegmentPostgreSQLModel) FromEntity(segment *mmodel.Segment) {
 	*t = SegmentPostgreSQLModel{
-		ID:                libCommons.GenerateUUIDv7().String(),
+		ID:                uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Name:              segment.Name,
 		LedgerID:          segment.LedgerID,
 		OrganizationID:    segment.OrganizationID,

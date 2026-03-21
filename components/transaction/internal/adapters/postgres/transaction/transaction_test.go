@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package transaction
 
 import (
@@ -5,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -531,22 +535,22 @@ func TestTransaction_IDtoUUID(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
+		name          string
 		transactionID string
 		expectedUUID  uuid.UUID
 	}{
 		{
-			name:         "valid UUID",
+			name:          "valid UUID",
 			transactionID: "550e8400-e29b-41d4-a716-446655440000",
 			expectedUUID:  uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
 		},
 		{
-			name:         "another valid UUID",
+			name:          "another valid UUID",
 			transactionID: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
 			expectedUUID:  uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
 		},
 		{
-			name:         "nil UUID",
+			name:          "nil UUID",
 			transactionID: "00000000-0000-0000-0000-000000000000",
 			expectedUUID:  uuid.Nil,
 		},
@@ -564,7 +568,7 @@ func TestTransaction_IDtoUUID(t *testing.T) {
 	}
 }
 
-func TestCreateTransactionInput_FromDSL(t *testing.T) {
+func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 	t.Parallel()
 
 	transactionDate := &pkgTransaction.TransactionDate{}
@@ -681,7 +685,7 @@ func TestCreateTransactionInput_FromDSL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := tt.input.FromDSL()
+			result := tt.input.BuildTransaction()
 
 			require.NotNil(t, result)
 			tt.validate(t, result)
@@ -871,7 +875,229 @@ func TestTransaction_TransactionRevert(t *testing.T) {
 	}
 }
 
-func TestCreateTransactionInflowInput_InflowFromDSL(t *testing.T) {
+func TestTransactionRevert_NilAmount(t *testing.T) {
+	t.Parallel()
+
+	txn := Transaction{
+		Description: "Transaction with nil amount",
+		AssetCode:   "BRL",
+		Amount:      nil,
+		Operations: []*operation.Operation{
+			{
+				Type:         constant.CREDIT,
+				AccountAlias: "@receiver",
+				AssetCode:    "BRL",
+			},
+		},
+	}
+
+	result := txn.TransactionRevert()
+
+	assert.Empty(t, result.Send.Asset, "should return empty transaction when Amount is nil")
+	assert.Empty(t, result.Send.Source.From, "should return empty froms when Amount is nil")
+	assert.Empty(t, result.Send.Distribute.To, "should return empty tos when Amount is nil")
+}
+
+func TestTransactionRevert_DirectionNotSet(t *testing.T) {
+	t.Parallel()
+
+	// TransactionRevert intentionally omits Direction because CalculateTotal
+	// re-derives it via DetermineOperation based on IsFrom.
+	amount100 := decimal.NewFromInt(100)
+	amount200 := decimal.NewFromInt(200)
+
+	txn := Transaction{
+		Description: "Mixed transaction",
+		AssetCode:   "BRL",
+		Amount:      &amount200,
+		Operations: []*operation.Operation{
+			{
+				Type:         constant.CREDIT,
+				AccountAlias: "@receiver",
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount100},
+			},
+			{
+				Type:         constant.DEBIT,
+				AccountAlias: "@sender",
+				AssetCode:    "BRL",
+				Amount:       operation.Amount{Value: &amount200},
+			},
+		},
+	}
+
+	result := txn.TransactionRevert()
+
+	require.Len(t, result.Send.Source.From, 1)
+	from := result.Send.Source.From[0]
+	require.NotNil(t, from.Amount)
+	assert.Empty(t, from.Amount.Direction, "Direction should be empty — derived downstream by DetermineOperation")
+
+	require.Len(t, result.Send.Distribute.To, 1)
+	to := result.Send.Distribute.To[0]
+	require.NotNil(t, to.Amount)
+	assert.Empty(t, to.Amount.Direction, "Direction should be empty — derived downstream by DetermineOperation")
+}
+
+func TestTransactionRevert_RoutePreservation(t *testing.T) {
+	t.Parallel()
+
+	amount100 := decimal.NewFromInt(100)
+	routeID := "route-" + uuid.New().String()
+
+	tests := []struct {
+		name        string
+		transaction Transaction
+		validate    func(t *testing.T, result pkgTransaction.Transaction)
+	}{
+		{
+			name: "route from CREDIT operation preserved in reversed FromTo",
+			transaction: Transaction{
+				Description: "Transaction with route on credit",
+				AssetCode:   "USD",
+				Amount:      &amount100,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.CREDIT,
+						AccountAlias: "@receiver",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+						Route:        routeID,
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Source.From, 1)
+				assert.Equal(t, routeID, result.Send.Source.From[0].Route,
+					"Route should be preserved in reversed FromTo")
+			},
+		},
+		{
+			name: "route from DEBIT operation preserved in reversed FromTo",
+			transaction: Transaction{
+				Description: "Transaction with route on debit",
+				AssetCode:   "USD",
+				Amount:      &amount100,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.DEBIT,
+						AccountAlias: "@sender",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+						Route:        routeID,
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Distribute.To, 1)
+				assert.Equal(t, routeID, result.Send.Distribute.To[0].Route,
+					"Route should be preserved in reversed FromTo")
+			},
+		},
+		{
+			name: "operations without route revert normally",
+			transaction: Transaction{
+				Description: "Transaction without routes",
+				AssetCode:   "USD",
+				Amount:      &amount100,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.CREDIT,
+						AccountAlias: "@receiver",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Source.From, 1)
+				assert.Empty(t, result.Send.Source.From[0].Route,
+					"Route should be empty when not set on original operation")
+			},
+		},
+		{
+			name: "RouteID from CREDIT operation preserved in reversed FromTo",
+			transaction: Transaction{
+				Description: "Transaction with RouteID on credit",
+				AssetCode:   "USD",
+				Amount:      &amount100,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.CREDIT,
+						AccountAlias: "@receiver",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+						RouteID:      &routeID,
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Source.From, 1)
+				require.NotNil(t, result.Send.Source.From[0].RouteID,
+					"RouteID should not be nil")
+				assert.Equal(t, routeID, *result.Send.Source.From[0].RouteID,
+					"RouteID should be preserved in reversed FromTo")
+			},
+		},
+		{
+			name: "RouteID from DEBIT operation preserved in reversed FromTo",
+			transaction: Transaction{
+				Description: "Transaction with RouteID on debit",
+				AssetCode:   "USD",
+				Amount:      &amount100,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.DEBIT,
+						AccountAlias: "@sender",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+						RouteID:      &routeID,
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Distribute.To, 1)
+				require.NotNil(t, result.Send.Distribute.To[0].RouteID,
+					"RouteID should not be nil")
+				assert.Equal(t, routeID, *result.Send.Distribute.To[0].RouteID,
+					"RouteID should be preserved in reversed FromTo")
+			},
+		},
+		{
+			name: "operations without RouteID have nil RouteID in result",
+			transaction: Transaction{
+				Description: "Transaction without RouteID",
+				AssetCode:   "USD",
+				Amount:      &amount100,
+				Operations: []*operation.Operation{
+					{
+						Type:         constant.CREDIT,
+						AccountAlias: "@receiver",
+						AssetCode:    "USD",
+						Amount:       operation.Amount{Value: &amount100},
+					},
+				},
+			},
+			validate: func(t *testing.T, result pkgTransaction.Transaction) {
+				require.Len(t, result.Send.Source.From, 1)
+				assert.Nil(t, result.Send.Source.From[0].RouteID,
+					"RouteID should be nil when not set on original operation")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := tt.transaction.TransactionRevert()
+
+			tt.validate(t, result)
+		})
+	}
+}
+
+func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 	t.Parallel()
 
 	transactionDate := &pkgTransaction.TransactionDate{}
@@ -1005,7 +1231,7 @@ func TestCreateTransactionInflowInput_InflowFromDSL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := tt.input.InflowFromDSL()
+			result := tt.input.BuildInflowEntry()
 
 			require.NotNil(t, result)
 			tt.validate(t, result)
@@ -1013,7 +1239,7 @@ func TestCreateTransactionInflowInput_InflowFromDSL(t *testing.T) {
 	}
 }
 
-func TestCreateTransactionOutflowInput_OutflowFromDSL(t *testing.T) {
+func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 	t.Parallel()
 
 	transactionDate := &pkgTransaction.TransactionDate{}
@@ -1177,7 +1403,7 @@ func TestCreateTransactionOutflowInput_OutflowFromDSL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := tt.input.OutflowFromDSL()
+			result := tt.input.BuildOutflowEntry()
 
 			require.NotNil(t, result)
 			tt.validate(t, result)

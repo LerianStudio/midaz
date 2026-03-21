@@ -1,9 +1,15 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package bootstrap
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	"context"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
@@ -22,7 +28,7 @@ type Service struct {
 // The UnifiedServer consolidates all HTTP routes from onboarding and transaction.
 // Non-HTTP runnables (RabbitMQ, Redis consumers, workers) are started separately.
 func (s *Service) Run() {
-	s.Logger.Info("Running unified ledger service with single-port mode")
+	s.Logger.Log(context.Background(), libLog.LevelInfo, "Running unified ledger service with single-port mode")
 
 	// Build launcher options with unified HTTP server
 	launcherOpts := []libCommons.LauncherOption{

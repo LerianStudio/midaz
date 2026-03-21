@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package mmodel
 
 import (
@@ -18,12 +22,13 @@ func TestAddress_IsEmpty(t *testing.T) {
 		{
 			name: "completely empty address",
 			address: Address{
-				Line1:   "",
-				Line2:   nil,
-				ZipCode: "",
-				City:    "",
-				State:   "",
-				Country: "",
+				Line1:       "",
+				Line2:       nil,
+				ZipCode:     "",
+				City:        "",
+				State:       "",
+				Country:     "",
+				Description: nil,
 			},
 			want: true,
 		},
@@ -108,6 +113,32 @@ func TestAddress_IsEmpty(t *testing.T) {
 				City:    "New York",
 				State:   "NY",
 				Country: "US",
+			},
+			want: false,
+		},
+		{
+			name: "address with only Description",
+			address: Address{
+				Line1:       "",
+				Line2:       nil,
+				ZipCode:     "",
+				City:        "",
+				State:       "",
+				Country:     "",
+				Description: utils.StringPtr("Home"),
+			},
+			want: false,
+		},
+		{
+			name: "complete address with Description",
+			address: Address{
+				Line1:       "123 Main St",
+				Line2:       utils.StringPtr("Apt 4B"),
+				ZipCode:     "12345",
+				City:        "New York",
+				State:       "NY",
+				Country:     "US",
+				Description: utils.StringPtr("Primary Residence"),
 			},
 			want: false,
 		},

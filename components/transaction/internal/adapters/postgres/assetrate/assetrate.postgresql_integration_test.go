@@ -1,5 +1,9 @@
 //go:build integration
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package assetrate
 
 import (
@@ -7,13 +11,12 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,19 +25,11 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *AssetRatePostgreSQLRepository {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           container.Config.DBName,
-		ReplicaDBName:           container.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
 	return NewAssetRatePostgreSQLRepository(conn)
 }
@@ -47,8 +42,8 @@ func TestIntegration_AssetRateRepository_Create(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	source := "Central Bank"
 	scale := 2.0
@@ -56,7 +51,7 @@ func TestIntegration_AssetRateRepository_Create(t *testing.T) {
 	assetRate := &AssetRate{
 		OrganizationID: orgID.String(),
 		LedgerID:       ledgerID.String(),
-		ExternalID:     libCommons.GenerateUUIDv7().String(),
+		ExternalID:     uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		From:           "USD",
 		To:             "BRL",
 		Rate:           5.25,
@@ -93,8 +88,8 @@ func TestIntegration_AssetRateRepository_Create_WithoutOptionalFields(t *testing
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	scale := 0.0
 
@@ -103,7 +98,7 @@ func TestIntegration_AssetRateRepository_Create_WithoutOptionalFields(t *testing
 	assetRate := &AssetRate{
 		OrganizationID: orgID.String(),
 		LedgerID:       ledgerID.String(),
-		ExternalID:     libCommons.GenerateUUIDv7().String(),
+		ExternalID:     uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		From:           "EUR",
 		To:             "USD",
 		Rate:           1.08,
@@ -136,9 +131,9 @@ func TestIntegration_AssetRateRepository_FindByExternalID(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	externalID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	externalID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert test asset rate
 	// Note: rate is stored as BIGINT in DB, so use integer values
@@ -170,9 +165,9 @@ func TestIntegration_AssetRateRepository_FindByExternalID_NotFound(t *testing.T)
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistentID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -193,10 +188,10 @@ func TestIntegration_AssetRateRepository_FindByExternalID_WrongOrganization(t *t
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	otherOrgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	externalID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	otherOrgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	externalID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert test asset rate in orgID
 	params := pgtestutil.DefaultAssetRateParams()
@@ -221,8 +216,8 @@ func TestIntegration_AssetRateRepository_FindByCurrencyPair(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert test asset rate
 	// Note: rate is stored as BIGINT in DB, so use integer values
@@ -252,8 +247,8 @@ func TestIntegration_AssetRateRepository_FindByCurrencyPair_NotFound(t *testing.
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -269,8 +264,8 @@ func TestIntegration_AssetRateRepository_FindByCurrencyPair_ReturnsLatest(t *tes
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert older rate (BIGINT values)
 	params1 := pgtestutil.DefaultAssetRateParams()
@@ -308,8 +303,8 @@ func TestIntegration_AssetRateRepository_FindAllByAssetCodes(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert multiple asset rates with same "from" (BIGINT rates)
 	pgtestutil.CreateTestAssetRateSimple(t, container.DB, orgID, ledgerID, "USD", "EUR", 92)
@@ -349,8 +344,8 @@ func TestIntegration_AssetRateRepository_FindAllByAssetCodes_WithToFilter(t *tes
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert multiple asset rates (BIGINT rates)
 	pgtestutil.CreateTestAssetRateSimple(t, container.DB, orgID, ledgerID, "USD", "EUR", 92)
@@ -385,8 +380,8 @@ func TestIntegration_AssetRateRepository_FindAllByAssetCodes_Empty(t *testing.T)
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -412,8 +407,8 @@ func TestIntegration_AssetRateRepository_FindAllByAssetCodes_Pagination(t *testi
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert more rates than page size (BIGINT rates)
 	currencies := []string{"EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR"}
@@ -452,8 +447,8 @@ func TestIntegration_AssetRateRepository_Update(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert initial asset rate (BIGINT rate)
 	params := pgtestutil.DefaultAssetRateParams()
@@ -467,7 +462,7 @@ func TestIntegration_AssetRateRepository_Update(t *testing.T) {
 	// Prepare update (BIGINT rate)
 	newSource := "Updated Source"
 	newScale := 3.0
-	newExternalID := libCommons.GenerateUUIDv7()
+	newExternalID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	updateData := &AssetRate{
 		Rate:       1825, // Integer representation
@@ -496,9 +491,9 @@ func TestIntegration_AssetRateRepository_Update_NotFound(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	nonExistentID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -507,7 +502,7 @@ func TestIntegration_AssetRateRepository_Update_NotFound(t *testing.T) {
 		Rate:       10.0,
 		Scale:      &scale,
 		TTL:        3600,
-		ExternalID: libCommons.GenerateUUIDv7().String(), // Must provide valid UUID
+		ExternalID: uuid.Must(libCommons.GenerateUUIDv7()).String(), // Must provide valid UUID
 	}
 
 	// Act
@@ -526,9 +521,9 @@ func TestIntegration_AssetRateRepository_Update_WrongOrganization(t *testing.T) 
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 
-	orgID := libCommons.GenerateUUIDv7()
-	otherOrgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	otherOrgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Insert asset rate in orgID
 	params := pgtestutil.DefaultAssetRateParams()
@@ -541,7 +536,7 @@ func TestIntegration_AssetRateRepository_Update_WrongOrganization(t *testing.T) 
 		Rate:       10.0,
 		Scale:      &scale,
 		TTL:        3600,
-		ExternalID: libCommons.GenerateUUIDv7().String(), // Must provide valid UUID
+		ExternalID: uuid.Must(libCommons.GenerateUUIDv7()).String(), // Must provide valid UUID
 	}
 
 	// Act - try to update with wrong org

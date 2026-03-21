@@ -1,5 +1,9 @@
 //go:build integration
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package organization
 
 import (
@@ -7,14 +11,14 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,19 +28,11 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *OrganizationPostgreSQLRepository {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           container.Config.DBName,
-		ReplicaDBName:           container.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
 	return NewOrganizationPostgreSQLRepository(conn)
 }
@@ -98,7 +94,7 @@ func TestIntegration_OrganizationRepository_Find_NotFound(t *testing.T) {
 	repo := createRepository(t, container)
 	ctx := context.Background()
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	found, err := repo.Find(ctx, nonExistentID)
 
@@ -164,7 +160,7 @@ func TestIntegration_OrganizationRepository_Update_NotFound(t *testing.T) {
 	repo := createRepository(t, container)
 	ctx := context.Background()
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	updated, err := repo.Update(ctx, nonExistentID, &mmodel.Organization{
 		LegalName: "Does Not Matter",
@@ -220,7 +216,7 @@ func TestIntegration_OrganizationRepository_Delete_NotFound(t *testing.T) {
 	repo := createRepository(t, container)
 	ctx := context.Background()
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	err := repo.Delete(ctx, nonExistentID)
 
@@ -409,13 +405,13 @@ func TestIntegration_OrganizationRepository_ListByIDs_EdgeCases(t *testing.T) {
 		},
 		{
 			name:        "non-matching ID returns empty",
-			inputIDs:    []uuid.UUID{libCommons.GenerateUUIDv7()},
+			inputIDs:    []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())},
 			expectedLen: 0,
 			expectedIDs: nil,
 		},
 		{
 			name:        "partial match returns only existing",
-			inputIDs:    []uuid.UUID{existingID, libCommons.GenerateUUIDv7()},
+			inputIDs:    []uuid.UUID{existingID, uuid.Must(libCommons.GenerateUUIDv7())},
 			expectedLen: 1,
 			expectedIDs: []uuid.UUID{existingID},
 		},
@@ -508,7 +504,7 @@ func TestIntegration_OrganizationRepository_FindAll_Pagination(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			orgs, err := repo.FindAll(ctx, tc.filter)
+			orgs, err := repo.FindAll(ctx, tc.filter, nil, nil)
 
 			require.NoError(t, err)
 			assert.Len(t, orgs, tc.expectCount)
@@ -531,10 +527,10 @@ func TestIntegration_OrganizationRepository_FindAll_NoDuplicatesAcrossPages(t *t
 	}
 
 	// Fetch page 1 and page 2 with limit 2
-	page1, err := repo.FindAll(ctx, defaultPagination(1, 2))
+	page1, err := repo.FindAll(ctx, defaultPagination(1, 2), nil, nil)
 	require.NoError(t, err)
 
-	page2, err := repo.FindAll(ctx, defaultPagination(2, 2))
+	page2, err := repo.FindAll(ctx, defaultPagination(2, 2), nil, nil)
 	require.NoError(t, err)
 
 	// Collect all IDs and ensure no duplicates
@@ -574,7 +570,7 @@ func TestIntegration_OrganizationRepository_FindAll_ExcludesSoftDeleted(t *testi
 	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, deletedParams)
 
 	// FindAll should only return active organizations
-	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10))
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), nil, nil)
 
 	require.NoError(t, err)
 	assert.Len(t, orgs, 2, "should only return active organizations")
@@ -582,4 +578,679 @@ func TestIntegration_OrganizationRepository_FindAll_ExcludesSoftDeleted(t *testi
 	for _, org := range orgs {
 		assert.NotEqual(t, "Deleted Org", org.LegalName)
 	}
+}
+
+// ============================================================================
+// FindAll Name Filter Tests
+// ============================================================================
+
+func TestIntegration_OrganizationRepository_FindAll_FilterByLegalName(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	// Create organizations with distinct legal names
+	params1 := pgtestutil.DefaultOrganizationParams()
+	params1.LegalName = "Acme Corporation"
+	params1.LegalDocument = "60000000000001"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params1)
+
+	params2 := pgtestutil.DefaultOrganizationParams()
+	params2.LegalName = "Acme Industries"
+	params2.LegalDocument = "60000000000002"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params2)
+
+	params3 := pgtestutil.DefaultOrganizationParams()
+	params3.LegalName = "Beta Holdings"
+	params3.LegalDocument = "60000000000003"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params3)
+
+	// Filter by "Acme" prefix - should return 2
+	legalName := "Acme"
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, nil)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 2, "should return organizations matching 'Acme' prefix")
+
+	for _, org := range orgs {
+		assert.Contains(t, org.LegalName, "Acme")
+	}
+}
+
+func TestIntegration_OrganizationRepository_FindAll_FilterByLegalName_CaseInsensitive(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	params := pgtestutil.DefaultOrganizationParams()
+	params.LegalName = "Acme Corporation"
+	params.LegalDocument = "61000000000001"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params)
+
+	// Search with lowercase
+	legalName := "acme"
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, nil)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 1, "ILIKE should match case-insensitively")
+	assert.Equal(t, "Acme Corporation", orgs[0].LegalName)
+}
+
+func TestIntegration_OrganizationRepository_FindAll_FilterByDoingBusinessAs(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	dba1 := "TechShop"
+	params1 := pgtestutil.DefaultOrganizationParams()
+	params1.LegalName = "Tech Store LLC"
+	params1.LegalDocument = "62000000000001"
+	params1.DoingBusinessAs = &dba1
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params1)
+
+	dba2 := "TechMart"
+	params2 := pgtestutil.DefaultOrganizationParams()
+	params2.LegalName = "Digital Retail Inc"
+	params2.LegalDocument = "62000000000002"
+	params2.DoingBusinessAs = &dba2
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params2)
+
+	params3 := pgtestutil.DefaultOrganizationParams()
+	params3.LegalName = "Other Corp"
+	params3.LegalDocument = "62000000000003"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params3)
+
+	// Filter by "Tech" prefix in doing_business_as
+	dba := "Tech"
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), nil, &dba)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 2, "should return organizations with DBA matching 'Tech' prefix")
+}
+
+func TestIntegration_OrganizationRepository_FindAll_FilterByBothNames(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	dba1 := "AcmeShop"
+	params1 := pgtestutil.DefaultOrganizationParams()
+	params1.LegalName = "Acme Corporation"
+	params1.LegalDocument = "63000000000001"
+	params1.DoingBusinessAs = &dba1
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params1)
+
+	dba2 := "BetaShop"
+	params2 := pgtestutil.DefaultOrganizationParams()
+	params2.LegalName = "Acme Industries"
+	params2.LegalDocument = "63000000000002"
+	params2.DoingBusinessAs = &dba2
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params2)
+
+	// Filter by legal_name "Acme" AND doing_business_as "Acme" - only first matches both
+	legalName := "Acme"
+	dba := "Acme"
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, &dba)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 1, "should return only organization matching both filters")
+	assert.Equal(t, "Acme Corporation", orgs[0].LegalName)
+}
+
+func TestIntegration_OrganizationRepository_FindAll_NilFiltersReturnsAll(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	// Create 3 organizations
+	for i := 0; i < 3; i++ {
+		params := pgtestutil.DefaultOrganizationParams()
+		params.LegalName = "NilFilter-" + string(rune('A'+i))
+		params.LegalDocument = "6400000000000" + string(rune('0'+i))
+		pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params)
+	}
+
+	// Nil filters should return all
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), nil, nil)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 3, "nil filters should return all organizations")
+}
+
+func TestIntegration_OrganizationRepository_FindAll_PrefixMatchOnly(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	params := pgtestutil.DefaultOrganizationParams()
+	params.LegalName = "MyAcmeCorp"
+	params.LegalDocument = "65000000000001"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params)
+
+	// "Acme" should NOT match "MyAcmeCorp" because we use prefix match (term%)
+	legalName := "Acme"
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, nil)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 0, "prefix match should not find 'Acme' inside 'MyAcmeCorp'")
+}
+
+// ============================================================================
+// FindAll Wildcard Injection Tests
+// ============================================================================
+
+func TestIntegration_OrganizationRepository_FindAll_WildcardInjection(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	// Create organizations to verify wildcards don't match
+	params1 := pgtestutil.DefaultOrganizationParams()
+	params1.LegalName = "Acme Corporation"
+	params1.LegalDocument = "66000000000001"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params1)
+
+	params2 := pgtestutil.DefaultOrganizationParams()
+	params2.LegalName = "Beta Holdings"
+	params2.LegalDocument = "66000000000002"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params2)
+
+	cases := []struct {
+		name      string
+		legalName string
+		expectLen int
+		reason    string
+	}{
+		{
+			name:      "percent wildcard should not match all",
+			legalName: "%",
+			expectLen: 0,
+			reason:    "'%' should be escaped and treated as literal, not SQL wildcard",
+		},
+		{
+			name:      "underscore wildcard should not match single char",
+			legalName: "Acm_",
+			expectLen: 0,
+			reason:    "'_' should be escaped and treated as literal, not SQL single-char wildcard",
+		},
+		{
+			name:      "backslash should not cause escape issues",
+			legalName: `Acme\`,
+			expectLen: 0,
+			reason:    "backslash should be escaped and treated as literal",
+		},
+		{
+			name:      "percent mid-string should not match",
+			legalName: "A%e",
+			expectLen: 0,
+			reason:    "'%' inside search term should be escaped, not act as wildcard",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			filter := tc.legalName
+			orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &filter, nil)
+
+			require.NoError(t, err)
+			assert.Len(t, orgs, tc.expectLen, tc.reason)
+		})
+	}
+}
+
+func TestIntegration_OrganizationRepository_FindAll_LiteralSpecialCharsInName(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	// Create org with literal % in legal name
+	params := pgtestutil.DefaultOrganizationParams()
+	params.LegalName = "100% Organic Corp"
+	params.LegalDocument = "67000000000001"
+	pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params)
+
+	// Searching for "100%" should find it (literal match)
+	legalName := "100%"
+	orgs, err := repo.FindAll(ctx, defaultPagination(1, 10), &legalName, nil)
+
+	require.NoError(t, err)
+	assert.Len(t, orgs, 1, "should find organization with literal '%' in name")
+	assert.Equal(t, "100% Organic Corp", orgs[0].LegalName)
+}
+
+// ============================================================================
+// IS-1: getDB returns valid DB handle from real PostgreSQL (static fallback)
+// ============================================================================
+
+func TestIntegration_GetDB_StaticFallback_ReturnsValidHandle(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	// Arrange -- no tenant context, so getDB should use the static connection.
+	// Act
+	db, err := repo.getDB(ctx)
+
+	// Assert
+	require.NoError(t, err, "getDB with plain context should return no error")
+	require.NotNil(t, db, "getDB should return a non-nil DB handle")
+}
+
+func TestIntegration_GetDB_StaticFallback_CanExecuteQueries(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	// Arrange -- no tenant context, so getDB returns the static DB.
+	db, err := repo.getDB(ctx)
+	require.NoError(t, err)
+
+	// Act -- execute a simple query to verify the handle is functional.
+	var result int
+	err = db.QueryRowContext(ctx, "SELECT 1").Scan(&result)
+
+	// Assert
+	require.NoError(t, err, "static DB handle should execute queries successfully")
+	assert.Equal(t, 1, result, "query should return 1")
+}
+
+func TestIntegration_GetDB_StaticFallback_SupportsRepositoryOperations(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	// Arrange -- insert directly, then use repo (which calls getDB internally).
+	params := pgtestutil.DefaultOrganizationParams()
+	params.LegalName = "GetDB Static Test Org"
+	params.LegalDocument = "70000000000001"
+	id := pgtestutil.CreateTestOrganizationWithParams(t, container.DB, params)
+
+	// Act -- repo.Find calls getDB(ctx) with plain context (static fallback).
+	found, err := repo.Find(ctx, id)
+
+	// Assert
+	require.NoError(t, err, "Find should succeed through getDB static path")
+	require.NotNil(t, found)
+	assert.Equal(t, "GetDB Static Test Org", found.LegalName)
+}
+
+// ============================================================================
+// IS-2: Repository operations work correctly through getDB path
+// ============================================================================
+// NOTE: IS-2 is extensively covered by the existing Create, Find, Update,
+// Delete, Count, ListByIDs, and FindAll tests above. All those tests exercise
+// the getDB(ctx) static fallback path with a real PostgreSQL container.
+//
+// The tests below add explicit verification that the full Create-then-Find
+// round-trip works through getDB for both static and tenant paths.
+
+func TestIntegration_GetDB_CreateAndFindRoundTrip(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	// Arrange + Act -- create via repository (uses getDB internally).
+	org := &mmodel.Organization{
+		LegalName:     "Roundtrip Org",
+		LegalDocument: "70000000000002",
+		Status:        mmodel.Status{Code: "ACTIVE"},
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	created, err := repo.Create(ctx, org)
+	require.NoError(t, err, "Create should succeed through getDB")
+	require.NotNil(t, created)
+
+	// Act -- find the same record (also uses getDB).
+	createdID, err := uuid.Parse(created.ID)
+	require.NoError(t, err)
+
+	found, err := repo.Find(ctx, createdID)
+
+	// Assert
+	require.NoError(t, err, "Find should succeed through getDB")
+	require.NotNil(t, found)
+	assert.Equal(t, created.ID, found.ID)
+	assert.Equal(t, "Roundtrip Org", found.LegalName)
+	assert.Equal(t, "70000000000002", found.LegalDocument)
+}
+
+// ============================================================================
+// IS-3: getDB with tenant module in context returns tenant DB
+// ============================================================================
+//
+// These tests verify that when a tenant-specific dbresolver.DB is injected into
+// context via tmcore.ContextWithModulePGConnection("onboarding", tenantDB),
+// the getDB method returns that tenant DB instead of the static connection.
+//
+// Strategy: Two separate PostgreSQL containers.
+//   - Container A (static): used to satisfy the constructor (NewOrganizationPostgreSQLRepository).
+//   - Container B (tenant): wrapped in dbresolver.DB, injected into context.
+//   - Data is inserted only into Container B, then retrieved through the repo.
+//   - If getDB correctly returns the tenant DB, the data is found.
+//   - If getDB incorrectly falls back to static, the data is NOT found (test fails).
+
+// setupTenantContainer starts a second PostgreSQL container with migrations applied
+// and returns both the raw *sql.DB and a dbresolver.DB wrapper suitable for injection
+// into tenant context.
+func setupTenantContainer(t *testing.T) (*pgtestutil.ContainerResult, dbresolver.DB) {
+	t.Helper()
+
+	tenantContainer := pgtestutil.SetupContainer(t)
+
+	// Run migrations on the tenant container by creating a temporary
+	// PostgresConnection and letting NewOrganizationPostgreSQLRepository
+	// trigger migration. Instead, we can just open the DB through
+	// lib-commons the same way createRepository does.
+	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
+	connStr := pgtestutil.BuildConnectionString(tenantContainer.Host, tenantContainer.Port, tenantContainer.Config)
+
+	// Create a temporary connection to apply migrations (the constructor runs them).
+	tempConn := pgtestutil.CreatePostgresClient(t, connStr, connStr, tenantContainer.Config.DBName, migrationsPath)
+
+	// Trigger migration by calling GetDB (same as constructor does).
+	db, err := tempConn.Resolver(context.Background())
+	require.NoError(t, err, "failed to initialize tenant container database with migrations")
+
+	// Close the temporary connection pool so it does not leak.
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	// Wrap the raw *sql.DB in a dbresolver.DB for injection into tenant context.
+	tenantDB := dbresolver.New(
+		dbresolver.WithPrimaryDBs(tenantContainer.DB),
+		dbresolver.WithReplicaDBs(tenantContainer.DB),
+	)
+
+	return tenantContainer, tenantDB
+}
+
+func TestIntegration_GetDB_TenantContext_ReturnsValidHandle(t *testing.T) {
+	// Arrange -- static container for constructor, tenant container for context.
+	staticContainer := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, staticContainer)
+
+	_, tenantDB := setupTenantContainer(t)
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+
+	// Act
+	db, err := repo.getDB(ctx)
+
+	// Assert
+	require.NoError(t, err, "getDB with tenant context should return no error")
+	require.NotNil(t, db, "getDB should return a non-nil tenant DB handle")
+}
+
+func TestIntegration_GetDB_TenantContext_CanExecuteQueries(t *testing.T) {
+	// Arrange
+	staticContainer := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, staticContainer)
+
+	_, tenantDB := setupTenantContainer(t)
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+
+	// Act -- getDB should return the tenant DB, which should support queries.
+	db, err := repo.getDB(ctx)
+	require.NoError(t, err)
+
+	var result int
+	err = db.QueryRowContext(ctx, "SELECT 1").Scan(&result)
+
+	// Assert
+	require.NoError(t, err, "tenant DB handle should execute queries successfully")
+	assert.Equal(t, 1, result, "query through tenant DB should return 1")
+}
+
+func TestIntegration_GetDB_TenantContext_RoutesToTenantDatabase(t *testing.T) {
+	// Arrange -- two separate containers with different data.
+	staticContainer := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, staticContainer)
+
+	tenantContainer, tenantDB := setupTenantContainer(t)
+
+	// Insert data ONLY into the tenant container's database.
+	params := pgtestutil.DefaultOrganizationParams()
+	params.LegalName = "Tenant-Only Org"
+	params.LegalDocument = "80000000000001"
+	tenantOrgID := pgtestutil.CreateTestOrganizationWithParams(t, tenantContainer.DB, params)
+
+	// Act -- use tenant context: getDB should route to the tenant database.
+	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+	found, err := repo.Find(tenantCtx, tenantOrgID)
+
+	// Assert -- data exists only in tenant container, so Find succeeds only
+	// if getDB correctly returned the tenant DB.
+	require.NoError(t, err, "Find should succeed through tenant DB path")
+	require.NotNil(t, found)
+	assert.Equal(t, "Tenant-Only Org", found.LegalName)
+	assert.Equal(t, "80000000000001", found.LegalDocument)
+
+	// Verify the same ID is NOT found through the static path (no tenant context).
+	staticCtx := context.Background()
+	staticFound, staticErr := repo.Find(staticCtx, tenantOrgID)
+
+	// Assert -- static container does not have this record.
+	require.Error(t, staticErr, "Find should fail through static path for tenant-only data")
+	assert.Nil(t, staticFound, "static path should not return tenant-only data")
+}
+
+func TestIntegration_GetDB_TenantContext_CreateAndFind(t *testing.T) {
+	// Arrange
+	staticContainer := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, staticContainer)
+
+	_, tenantDB := setupTenantContainer(t)
+	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+
+	// Act -- Create through tenant context.
+	org := &mmodel.Organization{
+		LegalName:     "Tenant Created Org",
+		LegalDocument: "80000000000002",
+		Status:        mmodel.Status{Code: "ACTIVE"},
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	created, err := repo.Create(tenantCtx, org)
+	require.NoError(t, err, "Create should succeed through tenant DB")
+	require.NotNil(t, created)
+
+	// Act -- Find through tenant context.
+	createdID, err := uuid.Parse(created.ID)
+	require.NoError(t, err)
+
+	found, err := repo.Find(tenantCtx, createdID)
+
+	// Assert
+	require.NoError(t, err, "Find through tenant context should succeed")
+	require.NotNil(t, found)
+	assert.Equal(t, "Tenant Created Org", found.LegalName)
+
+	// Verify the same record is NOT found through the static path.
+	staticFound, staticErr := repo.Find(context.Background(), createdID)
+	require.Error(t, staticErr, "static path should not find tenant-created record")
+	assert.Nil(t, staticFound)
+}
+
+func TestIntegration_GetDB_TenantContext_CountIsolation(t *testing.T) {
+	// Arrange
+	staticContainer := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, staticContainer)
+
+	tenantContainer, tenantDB := setupTenantContainer(t)
+	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+
+	// Get initial counts.
+	staticCount, err := repo.Count(context.Background())
+	require.NoError(t, err)
+
+	tenantCount, err := repo.Count(tenantCtx)
+	require.NoError(t, err)
+
+	// Insert 2 organizations into the tenant container only.
+	for i := 0; i < 2; i++ {
+		params := pgtestutil.DefaultOrganizationParams()
+		params.LegalName = "TenantCount-" + string(rune('A'+i))
+		params.LegalDocument = "8100000000000" + string(rune('0'+i))
+		pgtestutil.CreateTestOrganizationWithParams(t, tenantContainer.DB, params)
+	}
+
+	// Act
+	newStaticCount, err := repo.Count(context.Background())
+	require.NoError(t, err)
+
+	newTenantCount, err := repo.Count(tenantCtx)
+	require.NoError(t, err)
+
+	// Assert -- static count should not change; tenant count should increase by 2.
+	assert.Equal(t, staticCount, newStaticCount, "static count should be unchanged")
+	assert.Equal(t, tenantCount+2, newTenantCount, "tenant count should increase by 2")
+}
+
+func TestIntegration_GetDB_TenantContext_DifferentModuleIgnored(t *testing.T) {
+	// Arrange -- inject tenant DB for a DIFFERENT module ("transaction").
+	// getDB for "onboarding" should ignore it and fall back to static.
+	staticContainer := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, staticContainer)
+
+	_, tenantDB := setupTenantContainer(t)
+
+	// Inject tenant DB under "transaction" module -- not "onboarding".
+	wrongModuleCtx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+
+	// Insert data into static container so we can verify the static path is used.
+	params := pgtestutil.DefaultOrganizationParams()
+	params.LegalName = "StaticOnly Org"
+	params.LegalDocument = "82000000000001"
+	staticOrgID := pgtestutil.CreateTestOrganizationWithParams(t, staticContainer.DB, params)
+
+	// Act -- with wrong module context, getDB should fall back to static.
+	found, err := repo.Find(wrongModuleCtx, staticOrgID)
+
+	// Assert
+	require.NoError(t, err, "Find should succeed through static fallback when module name mismatches")
+	require.NotNil(t, found)
+	assert.Equal(t, "StaticOnly Org", found.LegalName)
+}
+
+func TestIntegration_GetDB_TenantContext_UpdateAndDeleteThroughTenantPath(t *testing.T) {
+	// Arrange
+	staticContainer := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, staticContainer)
+
+	tenantContainer, tenantDB := setupTenantContainer(t)
+	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+
+	// Insert directly into tenant container.
+	params := pgtestutil.DefaultOrganizationParams()
+	params.LegalName = "Tenant Update Target"
+	params.LegalDocument = "83000000000001"
+	id := pgtestutil.CreateTestOrganizationWithParams(t, tenantContainer.DB, params)
+
+	// Act -- Update through tenant context.
+	dba := "Tenant DBA"
+	updated, err := repo.Update(tenantCtx, id, &mmodel.Organization{
+		LegalName:       "Tenant Updated Name",
+		DoingBusinessAs: &dba,
+		UpdatedAt:       time.Now(),
+	})
+
+	// Assert update.
+	require.NoError(t, err, "Update through tenant context should succeed")
+	require.NotNil(t, updated)
+	assert.Equal(t, "Tenant Updated Name", updated.LegalName)
+	assert.Equal(t, "Tenant DBA", *updated.DoingBusinessAs)
+
+	// Act -- Delete through tenant context.
+	err = repo.Delete(tenantCtx, id)
+	require.NoError(t, err, "Delete through tenant context should succeed")
+
+	// Verify soft-deleted in tenant DB.
+	var deletedAt *time.Time
+	err = tenantContainer.DB.QueryRow(
+		"SELECT deleted_at FROM organization WHERE id = $1",
+		id,
+	).Scan(&deletedAt)
+	require.NoError(t, err, "record should still exist in tenant database")
+	require.NotNil(t, deletedAt, "deleted_at should be set (soft delete)")
+
+	// Verify Find excludes soft-deleted through tenant path.
+	found, err := repo.Find(tenantCtx, id)
+	require.Error(t, err, "Find should not return soft-deleted record")
+	assert.Nil(t, found)
+}
+
+func TestIntegration_GetDB_TenantContext_FindAllThroughTenantPath(t *testing.T) {
+	// Arrange
+	staticContainer := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, staticContainer)
+
+	tenantContainer, tenantDB := setupTenantContainer(t)
+	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+
+	// Insert 3 organizations into tenant container only.
+	for i := 0; i < 3; i++ {
+		params := pgtestutil.DefaultOrganizationParams()
+		params.LegalName = "TenantFindAll-" + string(rune('A'+i))
+		params.LegalDocument = "8400000000000" + string(rune('0'+i))
+		pgtestutil.CreateTestOrganizationWithParams(t, tenantContainer.DB, params)
+	}
+
+	// Act -- FindAll through tenant context.
+	orgs, err := repo.FindAll(tenantCtx, defaultPagination(1, 10), nil, nil)
+
+	// Assert
+	require.NoError(t, err, "FindAll through tenant context should succeed")
+	assert.Len(t, orgs, 3, "tenant context should return tenant organizations")
+
+	// Verify static path returns 0 (no data in static container).
+	staticOrgs, err := repo.FindAll(context.Background(), defaultPagination(1, 10), nil, nil)
+	require.NoError(t, err)
+	assert.Len(t, staticOrgs, 0, "static path should return no organizations")
+}
+
+func TestIntegration_GetDB_TenantContext_ListByIDsThroughTenantPath(t *testing.T) {
+	// Arrange
+	staticContainer := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, staticContainer)
+
+	tenantContainer, tenantDB := setupTenantContainer(t)
+	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+
+	// Insert 2 organizations into tenant container.
+	params1 := pgtestutil.DefaultOrganizationParams()
+	params1.LegalName = "TenantListByIDs Alpha"
+	params1.LegalDocument = "85000000000001"
+	id1 := pgtestutil.CreateTestOrganizationWithParams(t, tenantContainer.DB, params1)
+
+	params2 := pgtestutil.DefaultOrganizationParams()
+	params2.LegalName = "TenantListByIDs Beta"
+	params2.LegalDocument = "85000000000002"
+	id2 := pgtestutil.CreateTestOrganizationWithParams(t, tenantContainer.DB, params2)
+
+	// Act -- ListByIDs through tenant context.
+	orgs, err := repo.ListByIDs(tenantCtx, []uuid.UUID{id1, id2})
+
+	// Assert
+	require.NoError(t, err, "ListByIDs through tenant context should succeed")
+	assert.Len(t, orgs, 2, "should return both organizations from tenant DB")
+
+	// Verify static path returns 0 for the same IDs.
+	staticOrgs, err := repo.ListByIDs(context.Background(), []uuid.UUID{id1, id2})
+	require.NoError(t, err)
+	assert.Empty(t, staticOrgs, "static path should not find tenant-only records")
 }

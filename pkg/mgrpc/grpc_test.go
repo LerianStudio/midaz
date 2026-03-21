@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package mgrpc
 
 import (
@@ -156,3 +160,14 @@ func TestContextMetadataInjection(t *testing.T) {
 	}
 }
 
+func TestConnect_DoesNotPanicWithoutLogger(t *testing.T) {
+	t.Parallel()
+
+	conn := &GRPCConnection{Addr: "passthrough:///midaz-transaction"}
+
+	require.NotPanics(t, func() {
+		require.NoError(t, conn.Connect())
+	})
+	require.NotNil(t, conn.Conn)
+	_ = conn.Conn.Close()
+}

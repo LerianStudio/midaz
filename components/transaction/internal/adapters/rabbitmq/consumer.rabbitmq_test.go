@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package rabbitmq
 
 import (
@@ -5,10 +9,11 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +24,15 @@ import (
 var testLogger libLog.Logger
 
 func init() {
-	testLogger = libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{
+		Environment:     libZap.EnvironmentLocal,
+		OTelLibraryName: "midaz-tests",
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	testLogger = logger
 }
 
 // =============================================================================
@@ -357,7 +370,8 @@ func TestStartWorker_HeaderIDExtraction(t *testing.T) {
 			}
 
 			if !found {
-				midazID = libCommons.GenerateUUIDv7().String()
+				uid := uuid.Must(libCommons.GenerateUUIDv7())
+				midazID = uid.String()
 			}
 
 			// Verify result

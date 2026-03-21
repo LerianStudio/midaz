@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
@@ -5,8 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -27,13 +32,13 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		attribute.String("app.request.request_id", requestID),
 	)
 
-	logger.Infof("Trying to delete all balances by account id: %s", accountID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to delete all balances by account id: %s", accountID.String()))
 
 	balances, err := uc.BalanceRepo.ListByAccountID(ctx, organizationID, ledgerID, accountID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balances by account id on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances by account id on repo", err)
 
-		logger.Errorf("Error getting balances by account id on repo: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balances by account id on repo: %v", err))
 
 		return err
 	}
@@ -48,9 +53,9 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 			if errors.Is(err, redis.Nil) {
 				continue
 			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get balance by key on redis", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance by key on redis", err)
 
-				logger.Errorf("Error getting balance by key on redis: %v", err)
+				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting balance by key on redis: %v", err))
 
 				return err
 			}
@@ -59,9 +64,9 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		if cacheBalance != nil {
 			err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "ListBalanceByAccountIDAndKey")
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance cannot be deleted because there is transactions happening.", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because there is transactions happening.", err)
 
-			logger.Warnf("Balance cannot be deleted because there is transactions happening: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Balance cannot be deleted because there is transactions happening: %v", err))
 
 			return err
 		}
@@ -69,18 +74,18 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		if !balance.Available.IsZero() || !balance.OnHold.IsZero() {
 			err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "DeleteAllBalancesByAccountID")
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Balance cannot be deleted because it still has funds in it.", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in it.", err)
 
-			logger.Warnf("Error deleting balances: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error deleting balances: %v", err))
 
 			return err
 		}
 	}
 
 	if err := uc.toggleBalanceTransfers(ctx, organizationID, ledgerID, accountID, false); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to toggle balance transfers for account on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to toggle balance transfers for account on repo", err)
 
-		logger.Errorf("Error toggling balance transfers for account on repo: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error toggling balance transfers for account on repo: %v", err))
 
 		return err
 	}
@@ -92,13 +97,13 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 
 	err = uc.BalanceRepo.DeleteAllByIDs(ctx, organizationID, ledgerID, balanceIDs)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to delete balance on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete balance on repo", err)
 
-		logger.Errorf("Error delete balance: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error delete balance: %v", err))
 
 		toggleErr := uc.toggleBalanceTransfers(ctx, organizationID, ledgerID, accountID, true)
 		if toggleErr != nil {
-			logger.Errorf("Error toggling balance transfers for account %s: %v", accountID.String(), toggleErr)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error toggling balance transfers for account %s: %v", accountID.String(), toggleErr))
 		}
 
 		return err
@@ -113,7 +118,7 @@ func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, l
 	ctx, span := tracer.Start(ctx, "exec.toggle_balance_transfers")
 	defer span.End()
 
-	logger.Infof("Trying to toggle balance transfers")
+	logger.Log(ctx, libLog.LevelInfo, "Trying to toggle balance transfers")
 
 	allowTransfer := utils.BoolPtr(allow)
 
@@ -123,9 +128,9 @@ func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, l
 		}
 
 		if rollbackErr := uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, accountID, utils.BoolPtr(!allow)); rollbackErr != nil {
-			logger.Errorf("Failed to rollback transfer permissions for account %s: %v", accountID.String(), rollbackErr)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to rollback transfer permissions for account %s: %v", accountID.String(), rollbackErr))
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to rollback balance transfer permission", rollbackErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to rollback balance transfer permission", rollbackErr)
 		}
 	}()
 
@@ -142,16 +147,16 @@ func (uc *UseCase) updateBalanceTransferPermissions(ctx context.Context, organiz
 	ctx, span := tracer.Start(ctx, "exec.update_balance_transfer_permissions_for_account")
 	defer span.End()
 
-	logger.Infof("Trying to update balance transfer permissions for account %s", accountID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update balance transfer permissions for account %s", accountID.String()))
 
 	err := uc.BalanceRepo.UpdateAllByAccountID(ctx, organizationID, ledgerID, accountID, mmodel.UpdateBalance{
 		AllowReceiving: allowTransfer,
 		AllowSending:   allowTransfer,
 	})
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update balance transfer permissions for account on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balance transfer permissions for account on repo", err)
 
-		logger.Errorf("Error update balance transfer permissions for account: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error update balance transfer permissions for account: %v", err))
 
 		return err
 	}

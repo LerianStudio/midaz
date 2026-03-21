@@ -1,81 +1,213 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package query
 
 import (
 	"context"
-	"os"
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
+
+	// ValidateAccountingRules validates the accounting rules for the given operations.
+	// Validation is controlled by ledger settings:
+	//   - validateRoutes: enables route validation (transaction route must be specified and valid)
+	//   - validateAccountType: enables account type validation (accounts must match route rules)
+	//
+	// Returns nil if validation is disabled or passes.
+	// Returns an error if validation fails.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// ValidateAccountingRules validates the accounting rules for the given operations
-func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *pkgTransaction.Responses) error {
+func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *pkgTransaction.Responses, action string) (*mmodel.TransactionRouteCache, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	accountingValidation := os.Getenv("TRANSACTION_ROUTE_VALIDATION")
-	if !strings.Contains(accountingValidation, organizationID.String()+":"+ledgerID.String()) {
-		return nil
-	}
 
 	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
 	defer span.End()
 
-	if libCommons.IsNilOrEmpty(&validate.TransactionRoute) {
-		err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotInformed, "")
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Transaction route is empty", err)
+	// Get ledger settings for this ledger
+	ledgerSettings := uc.GetLedgerSettings(ctx, organizationID, ledgerID)
 
-		logger.Warnf("Transaction route is empty")
+	// If route validation is disabled, skip all route-related validation
+	if !ledgerSettings.Accounting.ValidateRoutes {
+		logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Route validation disabled for ledger %s, skipping accounting rules validation", ledgerID.String()))
 
-		return err
+		return nil, nil
 	}
 
-	transactionRouteID, err := uuid.Parse(validate.TransactionRoute)
-	if err != nil {
-		validationErr := pkg.ValidateBusinessError(constant.ErrInvalidTransactionRouteID, "")
+	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Route validation enabled for ledger %s, validating accounting rules", ledgerID.String()))
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Invalid transaction route ID format", validationErr)
+	// Resolve the transaction route UUID: prefer the new routeId field, fall back to the deprecated route string.
+	var (
+		transactionRouteID uuid.UUID
+		err                error
+	)
 
-		logger.Warnf("Invalid transaction route ID format: %v", err)
+	if !libCommons.IsNilOrEmpty(validate.TransactionRouteID) {
+		transactionRouteID, err = uuid.Parse(*validate.TransactionRouteID)
+		if err != nil {
+			validationErr := pkg.ValidateBusinessError(constant.ErrInvalidTransactionRouteID, "")
 
-		return validationErr
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction route ID format", validationErr)
+
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid transaction route ID format: %v", err))
+
+			return nil, validationErr
+		}
+	} else if !libCommons.IsNilOrEmpty(&validate.TransactionRoute) {
+		transactionRouteID, err = uuid.Parse(validate.TransactionRoute)
+		if err != nil {
+			validationErr := pkg.ValidateBusinessError(constant.ErrInvalidTransactionRouteID, "")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction route ID format", validationErr)
+
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Invalid transaction route ID format: %v", err))
+
+			return nil, validationErr
+		}
+	} else {
+		err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotInformed, "")
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route is empty", err)
+
+		logger.Log(ctx, libLog.LevelWarn, "Transaction route is empty")
+
+		return nil, err
 	}
 
 	transactionRouteCache, err := uc.GetOrCreateTransactionRouteCache(ctx, organizationID, ledgerID, transactionRouteID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to load transaction route cache", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to load transaction route cache", err)
 
-		logger.Errorf("Failed to load transaction route cache: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to load transaction route cache: %v", err))
 
-		return err
+		return nil, err
+	}
+
+	actionCache, found := transactionRouteCache.Actions[action]
+	if !found {
+		err := pkg.ValidateBusinessError(constant.ErrNoRoutesForAction, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), action)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No routes found for action", err)
+
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("No routes found for action '%s' in transaction route cache", action))
+
+		return nil, err
+	}
+
+	sourceRoutes := actionCache.Source
+	destinationRoutes := actionCache.Destination
+	bidirectionalRoutes := actionCache.Bidirectional
+
+	// Reject operations missing a per-operation route ID.
+	// When validateRoutes is active, each operation must explicitly specify
+	// which operation route it belongs to.
+	for alias, routeID := range validate.OperationRoutesFrom {
+		if routeID == "" {
+			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), routeID, alias)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing operation route ID", err)
+
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Operation '%s' (source) has no route ID — each operation must specify its operation route when route validation is enabled", alias))
+
+			return nil, err
+		}
+	}
+
+	for alias, routeID := range validate.OperationRoutesTo {
+		if routeID == "" {
+			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), routeID, alias)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing operation route ID", err)
+
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Operation '%s' (destination) has no route ID — each operation must specify its operation route when route validation is enabled", alias))
+
+			return nil, err
+		}
 	}
 
 	uniqueFromCount := uniqueValues(validate.OperationRoutesFrom)
 	uniqueToCount := uniqueValues(validate.OperationRoutesTo)
-	sourceRoutesCount := len(transactionRouteCache.Source)
-	destinationRoutesCount := len(transactionRouteCache.Destination)
+	sourceRoutesCount := len(sourceRoutes)
+	destinationRoutesCount := len(destinationRoutes)
+	bidirectionalRoutesCount := len(bidirectionalRoutes)
 
-	if uniqueFromCount != sourceRoutesCount || uniqueToCount != destinationRoutesCount {
-		err := pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting route count mismatch", err)
+	// Build shared bidirectional route set first — needed both for count
+	// validation and for counterpart validation below.
+	// A bidirectional route appearing on BOTH from and to sides is counted
+	// once in uniqueFrom and once in uniqueTo, so we must subtract the shared
+	// count to avoid double-counting.
+	bidirectionalFromRoutes := make(map[string]bool)
 
-		logger.Warnf("Route count mismatch: expected %d source, %d destination; got %d source, %d destination", sourceRoutesCount, destinationRoutesCount, uniqueFromCount, uniqueToCount)
-
-		return err
+	for _, routeID := range validate.OperationRoutesFrom {
+		if _, isBidirectional := bidirectionalRoutes[routeID]; isBidirectional {
+			bidirectionalFromRoutes[routeID] = true
+		}
 	}
 
-	return validateAccountRules(ctx, transactionRouteCache, validate, operations)
+	sharedBidirectionalRoutes := make(map[string]bool)
+
+	for _, routeID := range validate.OperationRoutesTo {
+		if bidirectionalFromRoutes[routeID] {
+			sharedBidirectionalRoutes[routeID] = true
+		}
+	}
+
+	totalCacheRoutes := sourceRoutesCount + destinationRoutesCount + bidirectionalRoutesCount
+	totalUsedRoutes := uniqueFromCount + uniqueToCount - len(sharedBidirectionalRoutes)
+
+	if totalUsedRoutes != totalCacheRoutes || uniqueFromCount < sourceRoutesCount || uniqueToCount < destinationRoutesCount {
+		err := pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, reflect.TypeOf(mmodel.TransactionRoute{}).Name(), uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting route count mismatch", err)
+
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Route count mismatch: from=%d to=%d, cache has source=%d destination=%d bidirectional=%d shared=%d", uniqueFromCount, uniqueToCount, sourceRoutesCount, destinationRoutesCount, bidirectionalRoutesCount, len(sharedBidirectionalRoutes)))
+
+		return nil, err
+	}
+
+	mergedRouteMap := make(map[string]string)
+
+	for alias, routeID := range validate.OperationRoutesFrom {
+		if sharedBidirectionalRoutes[routeID] {
+			mergedRouteMap[alias] = routeID
+		}
+	}
+
+	for alias, routeID := range validate.OperationRoutesTo {
+		if sharedBidirectionalRoutes[routeID] {
+			mergedRouteMap[alias] = routeID
+		}
+	}
+
+	if len(mergedRouteMap) > 0 {
+		if err := validateCounterparts(operations, mergedRouteMap); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Route missing counterpart", err)
+
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Route counterpart validation failed: %v", err))
+
+			return nil, err
+		}
+	}
+
+	// Pass ledgerSettings and action-filtered routes to validateAccountRules for account type validation control
+	err = validateAccountRules(ctx, sourceRoutes, destinationRoutes, bidirectionalRoutes, validate, operations, ledgerSettings)
+	if err != nil {
+		return nil, err
+	}
+
+	return &transactionRouteCache, nil
 }
 
-// validateAccountRules validates each operation against its corresponding route rule
-func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.TransactionRouteCache, validate *pkgTransaction.Responses, operations []mmodel.BalanceOperation) error {
+// validateAccountRules validates each operation against its corresponding route rule.
+// Route existence and direction matching are always enforced when validateRoutes is active.
+// Account type checks (alias/account_type rules) are only enforced when validateAccountType is also active.
+func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, bidirectionalRoutes map[string]mmodel.OperationRouteCache, validate *pkgTransaction.Responses, operations []mmodel.BalanceOperation, ledgerSettings mmodel.LedgerSettings) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "usecase.validate_account_rules")
@@ -102,25 +234,38 @@ func validateAccountRules(ctx context.Context, transactionRouteCache mmodel.Tran
 		var found bool
 
 		if isSource {
-			cacheRule, found = transactionRouteCache.Source[routeID]
+			cacheRule, found = sourceRoutes[routeID]
 		} else {
-			cacheRule, found = transactionRouteCache.Destination[routeID]
+			cacheRule, found = destinationRoutes[routeID]
+		}
+
+		if !found {
+			cacheRule, found = bidirectionalRoutes[routeID]
 		}
 
 		if !found {
 			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, reflect.TypeOf(mmodel.OperationRoute{}).Name(), routeID, operation.Alias)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Accounting route not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting route not found", err)
 
-			logger.Warnf("Route ID '%s' not found in cache for operation '%s'", routeID, operation.Alias)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Route ID '%s' not found in cache for operation '%s'", routeID, operation.Alias))
 
 			return err
 		}
 
-		if cacheRule.Account != nil {
-			if err := validateSingleOperationRule(operation, cacheRule.Account); err != nil {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation failed validation against route rules", err)
+		if err := validateDirectionRouteMatch(operation, cacheRule); err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Direction does not match route operation type", err)
 
-				logger.Warnf("Operation '%s' failed validation against route rules: %v", operation.Alias, err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Operation '%s' direction '%s' does not match route operation type '%s'", operation.Alias, operation.Amount.Direction, cacheRule.OperationType))
+
+			return err
+		}
+
+		// Account type rules only apply when validateAccountType is enabled
+		if ledgerSettings.Accounting.ValidateAccountType && cacheRule.Account != nil {
+			if err := validateSingleOperationRule(operation, cacheRule.Account); err != nil {
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation failed validation against route rules", err)
+
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Operation '%s' failed validation against route rules: %v", operation.Alias, err))
 
 				return err
 			}
@@ -190,6 +335,95 @@ func uniqueValues(m map[string]string) int {
 	}
 
 	return len(seen)
+}
+
+// validateDirectionRouteMatch validates that an operation's direction is compatible with the route's operation type.
+// Source routes only accept debit, destination routes only accept credit, bidirectional routes accept both.
+func validateDirectionRouteMatch(operation mmodel.BalanceOperation, routeCache mmodel.OperationRouteCache) error {
+	// PENDING transactions use ON_HOLD and RELEASE which invert the normal
+	// direction-route mapping, so skip validation for these operation types.
+	opAmount := strings.ToUpper(operation.Amount.Operation)
+	if opAmount == constant.ONHOLD || opAmount == constant.RELEASE {
+		return nil
+	}
+
+	direction := strings.ToLower(operation.Amount.Direction)
+	opType := strings.ToLower(routeCache.OperationType)
+
+	switch opType {
+	case "source":
+		if direction != constant.DirectionDebit {
+			return pkg.ValidateBusinessError(
+				constant.ErrDirectionRouteMismatch,
+				reflect.TypeOf(mmodel.OperationRoute{}).Name(),
+				operation.Amount.Direction,
+				routeCache.OperationType,
+				operation.Alias,
+			)
+		}
+	case "destination":
+		if direction != constant.DirectionCredit {
+			return pkg.ValidateBusinessError(
+				constant.ErrDirectionRouteMismatch,
+				reflect.TypeOf(mmodel.OperationRoute{}).Name(),
+				operation.Amount.Direction,
+				routeCache.OperationType,
+				operation.Alias,
+			)
+		}
+	case "bidirectional":
+		// Accepts both debit and credit
+	default:
+		return pkg.ValidateBusinessError(
+			constant.ErrInvalidOperationRouteType,
+			reflect.TypeOf(mmodel.OperationRoute{}).Name(),
+		)
+	}
+
+	return nil
+}
+
+// validateCounterparts validates that each route has at least one debit and one credit operation.
+// The routeMap maps operation alias to route ID.
+func validateCounterparts(operations []mmodel.BalanceOperation, routeMap map[string]string) error {
+	type directionFlags struct {
+		hasDebit  bool
+		hasCredit bool
+	}
+
+	routeDirections := make(map[string]*directionFlags)
+
+	for _, op := range operations {
+		routeID, exists := routeMap[op.Alias]
+		if !exists {
+			continue
+		}
+
+		if _, ok := routeDirections[routeID]; !ok {
+			routeDirections[routeID] = &directionFlags{}
+		}
+
+		direction := strings.ToLower(op.Amount.Direction)
+
+		switch direction {
+		case constant.DirectionDebit:
+			routeDirections[routeID].hasDebit = true
+		case constant.DirectionCredit:
+			routeDirections[routeID].hasCredit = true
+		}
+	}
+
+	for routeID, flags := range routeDirections {
+		if !flags.hasDebit || !flags.hasCredit {
+			return pkg.ValidateBusinessError(
+				constant.ErrMissingCounterpart,
+				reflect.TypeOf(mmodel.OperationRoute{}).Name(),
+				routeID,
+			)
+		}
+	}
+
+	return nil
 }
 
 // extractStringSlice helper function to handle []string and []any conversion

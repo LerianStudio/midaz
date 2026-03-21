@@ -203,6 +203,14 @@ definitions:
         maxLength: 2
         minLength: 2
         type: string
+      description:
+        description: |-
+          A descriptive label for the address (e.g., "Home", "Office", "Billing")
+          example: Home
+          maxLength: 100
+        example: Home
+        maxLength: 100
+        type: string
       line1:
         description: |-
           Primary address line (street address or PO Box)
@@ -472,6 +480,12 @@ definitions:
           maxLength: 256
         maxLength: 256
         type: string
+      settings:
+        allOf:
+        - $ref: '#/definitions/mmodel.LedgerSettings'
+        description: |-
+          Dynamic configuration settings for this ledger. When nil, no settings are persisted (optional).
+          example: {"accounting": {"validateAccountType": true}}
       status:
         allOf:
         - $ref: '#/definitions/Status'
@@ -692,6 +706,12 @@ definitions:
         example: 00000000-0000-0000-0000-000000000000
         format: uuid
         type: string
+      settings:
+        allOf:
+        - $ref: '#/definitions/mmodel.LedgerSettings'
+        description: |-
+          Dynamic configuration settings for this ledger
+          example: {"accounting": {"validateAccountType": true}}
       status:
         allOf:
         - $ref: '#/definitions/Status'
@@ -788,26 +808,6 @@ definitions:
         example: "2021-01-01T00:00:00Z"
         format: date-time
         type: string
-    type: object
-  Pagination:
-    description: Pagination is the struct designed to store the pagination data of
-      an entity list.
-    properties:
-      items: {}
-      limit:
-        example: 10
-        type: integer
-      next_cursor:
-        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        type: string
-        x-omitempty: true
-      page:
-        example: 1
-        type: integer
-      prev_cursor:
-        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        type: string
-        x-omitempty: true
     type: object
   Portfolio:
     description: Portfolio represents a collection of accounts grouped for specific
@@ -1148,6 +1148,40 @@ definitions:
         - $ref: '#/definitions/Status'
         description: Updated status of the segment (active, inactive, pending)
     type: object
+  http.Pagination:
+    properties:
+      items: {}
+      limit:
+        type: integer
+      next_cursor:
+        type: string
+      page:
+        type: integer
+      prev_cursor:
+        type: string
+    type: object
+  mmodel.AccountingValidation:
+    properties:
+      validateAccountType:
+        description: |-
+          ValidateAccountType enables validation of account types during transaction processing.
+          When true, accounts must have types that match the operation route rules.
+          Default: false (permissive - no validation)
+        type: boolean
+      validateRoutes:
+        description: |-
+          ValidateRoutes enables validation of transaction routes during processing.
+          When true, transactions must specify valid route IDs that exist in the ledger.
+          Default: false (permissive - no validation)
+        type: boolean
+    type: object
+  mmodel.LedgerSettings:
+    properties:
+      accounting:
+        allOf:
+        - $ref: '#/definitions/mmodel.AccountingValidation'
+        description: Accounting contains validation settings for accounting operations.
+    type: object
 host: localhost:3000
 info:
   contact:
@@ -1209,6 +1243,18 @@ paths:
         in: query
         name: sort_order
         type: string
+      - description: Filter organizations by legal name (case-insensitive, prefix
+          match)
+        in: query
+        maxLength: 256
+        name: legal_name
+        type: string
+      - description: Filter organizations by doing business as name (case-insensitive,
+          prefix match)
+        in: query
+        maxLength: 256
+        name: doing_business_as
+        type: string
       produces:
       - application/json
       responses:
@@ -1216,16 +1262,12 @@ paths:
           description: Successfully retrieved organizations list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/Organization'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Invalid query parameters
@@ -1490,6 +1532,11 @@ paths:
         in: query
         name: sort_order
         type: string
+      - description: Filter ledgers by name (case-insensitive, prefix match)
+        in: query
+        maxLength: 256
+        name: name
+        type: string
       produces:
       - application/json
       responses:
@@ -1497,16 +1544,12 @@ paths:
           description: Successfully retrieved ledgers list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/Ledger'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Invalid query parameters
@@ -1747,6 +1790,126 @@ paths:
       summary: Update an existing ledger
       tags:
       - Ledgers
+  /v1/organizations/{organization_id}/ledgers/{id}/settings:
+    get:
+      description: Returns the current configuration settings for a specific ledger.
+        If no settings have been persisted, returns the default settings object.
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved ledger settings
+          schema:
+            $ref: '#/definitions/mmodel.LedgerSettings'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Get ledger settings
+      tags:
+      - Ledgers
+    patch:
+      consumes:
+      - application/json
+      description: 'Updates the configuration settings for a specific ledger using
+        schema-aware deep merge. Only known settings fields are allowed - unknown
+        fields return error 0147 (ErrUnknownSettingsField). Type validation is enforced
+        - incorrect types return error 0148 (ErrInvalidSettingsFieldType). Nested
+        objects (like ''accounting'') are deep-merged, preserving existing properties
+        not specified in the update. Example: updating only ''accounting.validateRoutes''
+        preserves the existing ''accounting.validateAccountType'' value. Allowed fields:
+        accounting.validateAccountType (boolean), accounting.validateRoutes (boolean).'
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 'Settings to merge with existing settings. Only known fields
+          allowed: accounting.validateAccountType (bool), accounting.validateRoutes
+          (bool)'
+        in: body
+        name: settings
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated ledger settings
+          schema:
+            $ref: '#/definitions/mmodel.LedgerSettings'
+        "400":
+          description: Invalid request body, unknown field (0147), or invalid field
+            type (0148)
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update ledger settings
+      tags:
+      - Ledgers
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/account-types:
     get:
       description: Returns a paginated list of all account types for the specified
@@ -1806,20 +1969,12 @@ paths:
           description: Successfully retrieved account types
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/AccountType'
                   type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                page:
-                  type: integer
-                prev_cursor:
-                  type: string
               type: object
         "400":
           description: Invalid query parameters
@@ -2135,16 +2290,12 @@ paths:
           description: Successfully retrieved accounts list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/Account'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Invalid query parameters
@@ -2638,16 +2789,12 @@ paths:
           description: Successfully retrieved assets list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/Asset'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Invalid query parameters
@@ -3028,16 +3175,12 @@ paths:
           description: Successfully retrieved portfolios list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/Portfolio'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Invalid query parameters
@@ -3423,16 +3566,12 @@ paths:
           description: Successfully retrieved segments list
           schema:
             allOf:
-            - $ref: '#/definitions/Pagination'
+            - $ref: '#/definitions/http.Pagination'
             - properties:
                 items:
                   items:
                     $ref: '#/definitions/Segment'
                   type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
               type: object
         "400":
           description: Invalid query parameters

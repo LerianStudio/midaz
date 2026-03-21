@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
@@ -6,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -19,10 +23,10 @@ func TestCreateAccountingRouteCache_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -32,10 +36,11 @@ func TestCreateAccountingRouteCache_Success(t *testing.T) {
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:             operationRouteID,
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "source",
+				ID:                operationRouteID,
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",
@@ -64,10 +69,10 @@ func TestCreateAccountingRouteCache_SuccessWithoutAccountRule(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -77,11 +82,12 @@ func TestCreateAccountingRouteCache_SuccessWithoutAccountRule(t *testing.T) {
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:             operationRouteID,
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "source",
-				Account:        nil, // No account rule
+				ID:                operationRouteID,
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
+				Account:           nil, // No account rule
 			},
 		},
 	}
@@ -106,9 +112,9 @@ func TestCreateAccountingRouteCache_SuccessWithEmptyOperationRoutes(t *testing.T
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:              routeID,
@@ -139,11 +145,11 @@ func TestCreateAccountingRouteCache_SuccessWithMultipleOperationRoutes(t *testin
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID1 := libCommons.GenerateUUIDv7()
-	operationRouteID2 := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID1 := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -153,20 +159,22 @@ func TestCreateAccountingRouteCache_SuccessWithMultipleOperationRoutes(t *testin
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:             operationRouteID1,
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "source",
+				ID:                operationRouteID1,
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",
 				},
 			},
 			{
-				ID:             operationRouteID2,
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "destination",
+				ID:                operationRouteID2,
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "destination",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "account_type",
 					ValidIf:  []string{"liability", "asset"},
@@ -195,9 +203,9 @@ func TestCreateAccountingRouteCache_ToMsgpackError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -207,10 +215,11 @@ func TestCreateAccountingRouteCache_ToMsgpackError(t *testing.T) {
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:             uuid.UUID{}, // Invalid UUID
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "source",
+				ID:                uuid.UUID{}, // Invalid UUID
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  make(chan int), // Invalid data type that will cause msgpack encode error
@@ -234,10 +243,10 @@ func TestCreateAccountingRouteCache_RedisSetError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -247,10 +256,11 @@ func TestCreateAccountingRouteCache_RedisSetError(t *testing.T) {
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:             operationRouteID,
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "source",
+				ID:                operationRouteID,
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",
@@ -281,10 +291,10 @@ func TestCreateAccountingRouteCache_ContextCancelled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	routeID := libCommons.GenerateUUIDv7()
-	operationRouteID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	routeID := uuid.Must(libCommons.GenerateUUIDv7())
+	operationRouteID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	route := &mmodel.TransactionRoute{
 		ID:             routeID,
@@ -294,10 +304,11 @@ func TestCreateAccountingRouteCache_ContextCancelled(t *testing.T) {
 		Description:    "Test transaction route",
 		OperationRoutes: []mmodel.OperationRoute{
 			{
-				ID:             operationRouteID,
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				OperationType:  "source",
+				ID:                operationRouteID,
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				OperationType:     "source",
+				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
 					ValidIf:  "@cash_account",

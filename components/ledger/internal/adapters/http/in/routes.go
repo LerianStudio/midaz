@@ -1,10 +1,14 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package in
 
 import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -18,7 +22,7 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.HandleFiberError(ctx, err)
+			return libHTTP.FiberErrorHandler(ctx, err)
 		},
 	})
 
@@ -27,9 +31,8 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
 	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
-
 	// Register metadata index routes
-	RegisterRoutesToApp(f, auth, mdi)
+	RegisterRoutesToApp(f, auth, mdi, nil)
 
 	// Health
 	f.Get("/health", libHTTP.Ping)
@@ -44,25 +47,34 @@ func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middlewar
 
 // RegisterRoutesToApp registers ledger routes (metadata indexes) to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
-func RegisterRoutesToApp(f *fiber.App, auth *middleware.AuthClient, mdi *MetadataIndexHandler) {
+func RegisterRoutesToApp(f fiber.Router, auth *middleware.AuthClient, mdi *MetadataIndexHandler, routeOptions *http.ProtectedRouteOptions) {
 	// Metadata Indexes
 	f.Post("/v1/settings/metadata-indexes/entities/:entity_name",
-		auth.Authorize(midazName, "settings", "post"),
-		http.WithBody(new(mmodel.CreateMetadataIndexInput), mdi.CreateMetadataIndex))
+		http.ProtectedRouteChain(
+			auth.Authorize(midazName, "settings", "post"),
+			routeOptions,
+			http.WithBody(new(mmodel.CreateMetadataIndexInput), mdi.CreateMetadataIndex),
+		)...)
 
 	f.Get("/v1/settings/metadata-indexes",
-		auth.Authorize(midazName, "settings", "get"),
-		mdi.GetAllMetadataIndexes)
+		http.ProtectedRouteChain(
+			auth.Authorize(midazName, "settings", "get"),
+			routeOptions,
+			mdi.GetAllMetadataIndexes,
+		)...)
 
 	f.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key",
-		auth.Authorize(midazName, "settings", "delete"),
-		mdi.DeleteMetadataIndex)
+		http.ProtectedRouteChain(
+			auth.Authorize(midazName, "settings", "delete"),
+			routeOptions,
+			mdi.DeleteMetadataIndex,
+		)...)
 }
 
 // CreateRouteRegistrar returns a function that registers ledger routes to an existing Fiber app.
 // This is used by the unified ledger server to consolidate all routes in a single port.
-func CreateRouteRegistrar(auth *middleware.AuthClient, mdi *MetadataIndexHandler) func(*fiber.App) {
-	return func(fiberApp *fiber.App) {
-		RegisterRoutesToApp(fiberApp, auth, mdi)
+func CreateRouteRegistrar(auth *middleware.AuthClient, mdi *MetadataIndexHandler, routeOptions *http.ProtectedRouteOptions) func(fiber.Router) {
+	return func(fiberRouter fiber.Router) {
+		RegisterRoutesToApp(fiberRouter, auth, mdi, routeOptions)
 	}
 }

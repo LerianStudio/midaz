@@ -1,14 +1,20 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
@@ -22,7 +28,7 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	if !isTransactionEventEnabled() {
-		logger.Infof("Transaction event not enabled. RABBITMQ_TRANSACTION_EVENTS_ENABLED='%s'", os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED"))
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction event not enabled. RABBITMQ_TRANSACTION_EVENTS_ENABLED='%s'", os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")))
 		return
 	}
 
@@ -31,9 +37,9 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 
 	payload, err := json.Marshal(tran)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanTransactionEvents, "Failed to marshal transaction to JSON string", err)
+		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to marshal transaction to JSON string", err)
 
-		logger.Errorf("Failed to marshal transaction to JSON string: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to marshal transaction to JSON string: %s", err.Error()))
 	}
 
 	event := mmodel.Event{
@@ -55,13 +61,13 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 	key.WriteString(".")
 	key.WriteString(tran.Status.Code)
 
-	logger.Infof("Sending transaction events to key: %s", key)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Sending transaction events to key: %s", key.String()))
 
 	message, err := json.Marshal(event)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanTransactionEvents, "Failed to marshal exchange message struct", err)
+		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to marshal exchange message struct", err)
 
-		logger.Errorf("Failed to marshal exchange message struct")
+		logger.Log(ctx, libLog.LevelError, "Failed to marshal exchange message struct")
 	}
 
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
@@ -70,9 +76,9 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 		key.String(),
 		message,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(&spanTransactionEvents, "Failed to send transaction events to exchange", err)
+		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to send transaction events to exchange", err)
 
-		logger.Errorf("Failed to send message: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to send message: %s", err.Error()))
 	}
 }
 

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package out
 
 import (
@@ -6,7 +10,7 @@ import (
 	"fmt"
 	"testing"
 
-	libConstant "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	libConstant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	proto "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"

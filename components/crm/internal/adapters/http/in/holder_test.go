@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package in
 
 import (
@@ -195,66 +199,6 @@ func TestHolderHandler_CreateHolder(t *testing.T) {
 			jsonBody: `{
 				"type": "NATURAL_PERSON",
 				"name": "John Doe"
-			}`,
-			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
-				// No mock expectations - validation should fail before reaching repository
-			},
-			expectedStatus: 400,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
-			},
-		},
-		{
-			name: "invalid document checksum returns 400",
-			jsonBody: `{
-				"type": "NATURAL_PERSON",
-				"name": "John Doe",
-				"document": "12345678901"
-			}`,
-			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
-				// No mock expectations - validation should fail before reaching repository
-			},
-			expectedStatus: 400,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
-			},
-		},
-		{
-			name: "invalid document wrong length returns 400",
-			jsonBody: `{
-				"type": "NATURAL_PERSON",
-				"name": "John Doe",
-				"document": "123"
-			}`,
-			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
-				// No mock expectations - validation should fail before reaching repository
-			},
-			expectedStatus: 400,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
-				assert.Contains(t, errResp, "message", "error response should contain message")
-			},
-		},
-		{
-			name: "invalid document non-numeric returns 400",
-			jsonBody: `{
-				"type": "NATURAL_PERSON",
-				"name": "John Doe",
-				"document": "abc12345678"
 			}`,
 			setupMocks: func(holderRepo *holder.MockRepository, orgID string) {
 				// No mock expectations - validation should fail before reaching repository
@@ -1207,4 +1151,3 @@ func TestHolderHandler_GetAllHolders(t *testing.T) {
 		})
 	}
 }
-

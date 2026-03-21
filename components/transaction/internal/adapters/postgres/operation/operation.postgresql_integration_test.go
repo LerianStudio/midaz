@@ -1,5 +1,9 @@
 //go:build integration
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package operation
 
 import (
@@ -8,9 +12,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -25,19 +27,11 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *OperationPostgreSQLRepository {
 	t.Helper()
 
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           container.Config.DBName,
-		ReplicaDBName:           container.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
 	return NewOperationPostgreSQLRepository(conn)
 }
@@ -59,9 +53,9 @@ func createTestDependencies(t *testing.T, container *pgtestutil.ContainerResult)
 	t.Helper()
 
 	// These entities exist only in onboarding DB - use random UUIDs
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Balance exists in transaction DB
 	balanceParams := pgtestutil.DefaultBalanceParams()
@@ -103,7 +97,7 @@ func TestIntegration_OperationRepository_Create_Success(t *testing.T) {
 	statusDesc := "Operation approved"
 
 	operation := &Operation{
-		ID:              libCommons.GenerateUUIDv7().String(),
+		ID:              uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		TransactionID:   ids.TransactionID.String(),
 		Description:     "Test debit operation",
 		Type:            "DEBIT",
@@ -169,11 +163,11 @@ func TestIntegration_OperationRepository_Create_GeneratesIDWhenEmpty(t *testing.
 	versionAfter := int64(2)
 
 	operation := &Operation{
-		ID:              "", // Empty ID - should be generated
-		TransactionID:   ids.TransactionID.String(),
-		Type:            "CREDIT",
-		AssetCode:       "USD",
-		Amount:          Amount{Value: &amount},
+		ID:            "", // Empty ID - should be generated
+		TransactionID: ids.TransactionID.String(),
+		Type:          "CREDIT",
+		AssetCode:     "USD",
+		Amount:        Amount{Value: &amount},
 		Balance: Balance{
 			Available: &availableBefore,
 			OnHold:    &onHoldBefore,
@@ -261,7 +255,7 @@ func TestIntegration_OperationRepository_Find_ReturnsEntityNotFoundError(t *test
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -286,16 +280,16 @@ func TestIntegration_OperationRepository_Find_IgnoresDeletedOperation(t *testing
 	// Create deleted operation
 	deletedAt := time.Now().Add(-1 * time.Hour)
 	opParams := pgtestutil.OperationParams{
-		TransactionID:    ids.TransactionID,
-		Type:             "DEBIT",
-		AccountID:        ids.AccountID,
-		AccountAlias:     "@test-account",
-		BalanceID:        ids.BalanceID,
-		AssetCode:        "USD",
-		Amount:           decimal.NewFromInt(100),
-		Status:           "APPROVED",
-		BalanceAffected:  true,
-		DeletedAt:        &deletedAt,
+		TransactionID:   ids.TransactionID,
+		Type:            "DEBIT",
+		AccountID:       ids.AccountID,
+		AccountAlias:    "@test-account",
+		BalanceID:       ids.BalanceID,
+		AssetCode:       "USD",
+		Amount:          decimal.NewFromInt(100),
+		Status:          "APPROVED",
+		BalanceAffected: true,
+		DeletedAt:       &deletedAt,
 	}
 	opID := pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 
@@ -319,16 +313,16 @@ func TestIntegration_OperationRepository_FindByAccount_ReturnsOperation(t *testi
 	ids := createTestDependencies(t, container)
 
 	opParams := pgtestutil.OperationParams{
-		TransactionID:    ids.TransactionID,
-		Description:      "FindByAccount test",
-		Type:             "CREDIT",
-		AccountID:        ids.AccountID,
-		AccountAlias:     "@test-account",
-		BalanceID:        ids.BalanceID,
-		AssetCode:        "USD",
-		Amount:           decimal.NewFromInt(200),
-		Status:           "APPROVED",
-		BalanceAffected:  true,
+		TransactionID:   ids.TransactionID,
+		Description:     "FindByAccount test",
+		Type:            "CREDIT",
+		AccountID:       ids.AccountID,
+		AccountAlias:    "@test-account",
+		BalanceID:       ids.BalanceID,
+		AssetCode:       "USD",
+		Amount:          decimal.NewFromInt(200),
+		Status:          "APPROVED",
+		BalanceAffected: true,
 	}
 	opID := pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 
@@ -351,7 +345,7 @@ func TestIntegration_OperationRepository_FindByAccount_ReturnsEntityNotFoundErro
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -373,20 +367,20 @@ func TestIntegration_OperationRepository_FindByAccount_WrongAccountReturnsError(
 
 	// Create operation for ids.AccountID
 	opParams := pgtestutil.OperationParams{
-		TransactionID:    ids.TransactionID,
-		Type:             "DEBIT",
-		AccountID:        ids.AccountID,
-		AccountAlias:     "@test-account",
-		BalanceID:        ids.BalanceID,
-		AssetCode:        "USD",
-		Amount:           decimal.NewFromInt(100),
-		Status:           "APPROVED",
-		BalanceAffected:  true,
+		TransactionID:   ids.TransactionID,
+		Type:            "DEBIT",
+		AccountID:       ids.AccountID,
+		AccountAlias:    "@test-account",
+		BalanceID:       ids.BalanceID,
+		AssetCode:       "USD",
+		Amount:          decimal.NewFromInt(100),
+		Status:          "APPROVED",
+		BalanceAffected: true,
 	}
 	opID := pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 
 	// Try to find with different account
-	differentAccountID := libCommons.GenerateUUIDv7()
+	differentAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -410,16 +404,16 @@ func TestIntegration_OperationRepository_FindAll_ReturnsOperations(t *testing.T)
 	// Create multiple operations for the same transaction
 	for i := 0; i < 3; i++ {
 		opParams := pgtestutil.OperationParams{
-			TransactionID:    ids.TransactionID,
-			Description:      fmt.Sprintf("FindAll test %d", i),
-			Type:             "DEBIT",
-			AccountID:        ids.AccountID,
-			AccountAlias:     "@test-account",
-			BalanceID:        ids.BalanceID,
-			AssetCode:        "USD",
-			Amount:           decimal.NewFromInt(int64(100 + i*10)),
-			Status:           "APPROVED",
-			BalanceAffected:  true,
+			TransactionID:   ids.TransactionID,
+			Description:     fmt.Sprintf("FindAll test %d", i),
+			Type:            "DEBIT",
+			AccountID:       ids.AccountID,
+			AccountAlias:    "@test-account",
+			BalanceID:       ids.BalanceID,
+			AssetCode:       "USD",
+			Amount:          decimal.NewFromInt(int64(100 + i*10)),
+			Status:          "APPROVED",
+			BalanceAffected: true,
 		}
 		pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 	}
@@ -440,7 +434,7 @@ func TestIntegration_OperationRepository_FindAll_EmptyForNonExistentTransaction(
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentTxID := libCommons.GenerateUUIDv7()
+	nonExistentTxID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -460,16 +454,16 @@ func TestIntegration_OperationRepository_FindAll_Pagination(t *testing.T) {
 	// Create 7 operations
 	for i := 0; i < 7; i++ {
 		opParams := pgtestutil.OperationParams{
-			TransactionID:    ids.TransactionID,
-			Description:      fmt.Sprintf("Pagination test %d", i),
-			Type:             "DEBIT",
-			AccountID:        ids.AccountID,
-			AccountAlias:     "@test-account",
-			BalanceID:        ids.BalanceID,
-			AssetCode:        "USD",
-			Amount:           decimal.NewFromInt(int64(100 + i*10)),
-			Status:           "APPROVED",
-			BalanceAffected:  true,
+			TransactionID:   ids.TransactionID,
+			Description:     fmt.Sprintf("Pagination test %d", i),
+			Type:            "DEBIT",
+			AccountID:       ids.AccountID,
+			AccountAlias:    "@test-account",
+			BalanceID:       ids.BalanceID,
+			AssetCode:       "USD",
+			Amount:          decimal.NewFromInt(int64(100 + i*10)),
+			Status:          "APPROVED",
+			BalanceAffected: true,
 		}
 		pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 	}
@@ -526,15 +520,15 @@ func TestIntegration_OperationRepository_FindAll_FiltersByDateRange(t *testing.T
 
 	// Create an operation (created today)
 	opParams := pgtestutil.OperationParams{
-		TransactionID:    ids.TransactionID,
-		Type:             "DEBIT",
-		AccountID:        ids.AccountID,
-		AccountAlias:     "@test-account",
-		BalanceID:        ids.BalanceID,
-		AssetCode:        "USD",
-		Amount:           decimal.NewFromInt(100),
-		Status:           "APPROVED",
-		BalanceAffected:  true,
+		TransactionID:   ids.TransactionID,
+		Type:            "DEBIT",
+		AccountID:       ids.AccountID,
+		AccountAlias:    "@test-account",
+		BalanceID:       ids.BalanceID,
+		AssetCode:       "USD",
+		Amount:          decimal.NewFromInt(100),
+		Status:          "APPROVED",
+		BalanceAffected: true,
 	}
 	pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 
@@ -577,16 +571,16 @@ func TestIntegration_OperationRepository_FindAllByAccount_ReturnsOperations(t *t
 		// Create a new transaction for each operation
 		txID := pgtestutil.CreateTestTransactionWithStatus(t, container.DB, ids.OrgID, ids.LedgerID, "APPROVED", decimal.NewFromInt(100), "USD")
 		opParams := pgtestutil.OperationParams{
-			TransactionID:    txID,
-			Description:      fmt.Sprintf("FindAllByAccount test %d", i),
-			Type:             "DEBIT",
-			AccountID:        ids.AccountID,
-			AccountAlias:     "@test-account",
-			BalanceID:        ids.BalanceID,
-			AssetCode:        "USD",
-			Amount:           decimal.NewFromInt(int64(100 + i*10)),
-			Status:           "APPROVED",
-			BalanceAffected:  true,
+			TransactionID:   txID,
+			Description:     fmt.Sprintf("FindAllByAccount test %d", i),
+			Type:            "DEBIT",
+			AccountID:       ids.AccountID,
+			AccountAlias:    "@test-account",
+			BalanceID:       ids.BalanceID,
+			AssetCode:       "USD",
+			Amount:          decimal.NewFromInt(int64(100 + i*10)),
+			Status:          "APPROVED",
+			BalanceAffected: true,
 		}
 		pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 	}
@@ -594,7 +588,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_ReturnsOperations(t *t
 	ctx := context.Background()
 
 	// Act
-	operations, cur, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, nil, defaultPagination())
+	operations, cur, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, OperationFilter{}, defaultPagination())
 
 	// Assert
 	require.NoError(t, err, "FindAllByAccount should not return error")
@@ -611,15 +605,15 @@ func TestIntegration_OperationRepository_FindAllByAccount_FiltersByOperationType
 	for i := 0; i < 2; i++ {
 		txID := pgtestutil.CreateTestTransactionWithStatus(t, container.DB, ids.OrgID, ids.LedgerID, "APPROVED", decimal.NewFromInt(100), "USD")
 		opParams := pgtestutil.OperationParams{
-			TransactionID:    txID,
-			Type:             "DEBIT",
-			AccountID:        ids.AccountID,
-			AccountAlias:     "@test-account",
-			BalanceID:        ids.BalanceID,
-			AssetCode:        "USD",
-			Amount:           decimal.NewFromInt(100),
-			Status:           "APPROVED",
-			BalanceAffected:  true,
+			TransactionID:   txID,
+			Type:            "DEBIT",
+			AccountID:       ids.AccountID,
+			AccountAlias:    "@test-account",
+			BalanceID:       ids.BalanceID,
+			AssetCode:       "USD",
+			Amount:          decimal.NewFromInt(100),
+			Status:          "APPROVED",
+			BalanceAffected: true,
 		}
 		pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 	}
@@ -628,15 +622,15 @@ func TestIntegration_OperationRepository_FindAllByAccount_FiltersByOperationType
 	for i := 0; i < 3; i++ {
 		txID := pgtestutil.CreateTestTransactionWithStatus(t, container.DB, ids.OrgID, ids.LedgerID, "APPROVED", decimal.NewFromInt(100), "USD")
 		opParams := pgtestutil.OperationParams{
-			TransactionID:    txID,
-			Type:             "CREDIT",
-			AccountID:        ids.AccountID,
-			AccountAlias:     "@test-account",
-			BalanceID:        ids.BalanceID,
-			AssetCode:        "USD",
-			Amount:           decimal.NewFromInt(100),
-			Status:           "APPROVED",
-			BalanceAffected:  true,
+			TransactionID:   txID,
+			Type:            "CREDIT",
+			AccountID:       ids.AccountID,
+			AccountAlias:    "@test-account",
+			BalanceID:       ids.BalanceID,
+			AssetCode:       "USD",
+			Amount:          decimal.NewFromInt(100),
+			Status:          "APPROVED",
+			BalanceAffected: true,
 		}
 		pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 	}
@@ -645,7 +639,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_FiltersByOperationType
 
 	// Act - filter by DEBIT type
 	debitType := "DEBIT"
-	debitOps, _, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, &debitType, defaultPagination())
+	debitOps, _, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, OperationFilter{OperationType: &debitType}, defaultPagination())
 
 	require.NoError(t, err)
 	assert.Len(t, debitOps, 2, "should return only DEBIT operations")
@@ -655,7 +649,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_FiltersByOperationType
 
 	// Act - filter by CREDIT type
 	creditType := "CREDIT"
-	creditOps, _, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, &creditType, defaultPagination())
+	creditOps, _, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, OperationFilter{OperationType: &creditType}, defaultPagination())
 
 	require.NoError(t, err)
 	assert.Len(t, creditOps, 3, "should return only CREDIT operations")
@@ -669,12 +663,12 @@ func TestIntegration_OperationRepository_FindAllByAccount_EmptyForNonExistentAcc
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentAccountID := libCommons.GenerateUUIDv7()
+	nonExistentAccountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
 	// Act
-	operations, _, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, nonExistentAccountID, nil, defaultPagination())
+	operations, _, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, nonExistentAccountID, OperationFilter{}, defaultPagination())
 
 	// Assert
 	require.NoError(t, err, "should not error for empty result")
@@ -690,16 +684,16 @@ func TestIntegration_OperationRepository_FindAllByAccount_Pagination(t *testing.
 	for i := 0; i < 7; i++ {
 		txID := pgtestutil.CreateTestTransactionWithStatus(t, container.DB, ids.OrgID, ids.LedgerID, "APPROVED", decimal.NewFromInt(100), "USD")
 		opParams := pgtestutil.OperationParams{
-			TransactionID:    txID,
-			Description:      fmt.Sprintf("Pagination test %d", i),
-			Type:             "DEBIT",
-			AccountID:        ids.AccountID,
-			AccountAlias:     "@test-account",
-			BalanceID:        ids.BalanceID,
-			AssetCode:        "USD",
-			Amount:           decimal.NewFromInt(int64(100 + i*10)),
-			Status:           "APPROVED",
-			BalanceAffected:  true,
+			TransactionID:   txID,
+			Description:     fmt.Sprintf("Pagination test %d", i),
+			Type:            "DEBIT",
+			AccountID:       ids.AccountID,
+			AccountAlias:    "@test-account",
+			BalanceID:       ids.BalanceID,
+			AssetCode:       "USD",
+			Amount:          decimal.NewFromInt(int64(100 + i*10)),
+			Status:          "APPROVED",
+			BalanceAffected: true,
 		}
 		pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 	}
@@ -713,7 +707,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_Pagination(t *testing.
 		StartDate: time.Now().AddDate(-1, 0, 0),
 		EndDate:   time.Now().AddDate(0, 0, 1),
 	}
-	page1, cur1, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, nil, page1Filter)
+	page1, cur1, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, OperationFilter{}, page1Filter)
 
 	require.NoError(t, err)
 	assert.Len(t, page1, 3)
@@ -727,7 +721,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_Pagination(t *testing.
 		StartDate: time.Now().AddDate(-1, 0, 0),
 		EndDate:   time.Now().AddDate(0, 0, 1),
 	}
-	page2, cur2, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, nil, page2Filter)
+	page2, cur2, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, OperationFilter{}, page2Filter)
 
 	require.NoError(t, err)
 	assert.Len(t, page2, 3)
@@ -741,7 +735,7 @@ func TestIntegration_OperationRepository_FindAllByAccount_Pagination(t *testing.
 		StartDate: time.Now().AddDate(-1, 0, 0),
 		EndDate:   time.Now().AddDate(0, 0, 1),
 	}
-	page3, cur3, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, nil, page3Filter)
+	page3, cur3, err := repo.FindAllByAccount(ctx, ids.OrgID, ids.LedgerID, ids.AccountID, OperationFilter{}, page3Filter)
 
 	require.NoError(t, err)
 	assert.Len(t, page3, 1)
@@ -761,16 +755,16 @@ func TestIntegration_OperationRepository_ListByIDs_ReturnsMatchingOperations(t *
 	opIDs := make([]uuid.UUID, 5)
 	for i := 0; i < 5; i++ {
 		opParams := pgtestutil.OperationParams{
-			TransactionID:    ids.TransactionID,
-			Description:      fmt.Sprintf("ListByIDs test %d", i),
-			Type:             "DEBIT",
-			AccountID:        ids.AccountID,
-			AccountAlias:     "@test-account",
-			BalanceID:        ids.BalanceID,
-			AssetCode:        "USD",
-			Amount:           decimal.NewFromInt(int64(100 + i*10)),
-			Status:           "APPROVED",
-			BalanceAffected:  true,
+			TransactionID:   ids.TransactionID,
+			Description:     fmt.Sprintf("ListByIDs test %d", i),
+			Type:            "DEBIT",
+			AccountID:       ids.AccountID,
+			AccountAlias:    "@test-account",
+			BalanceID:       ids.BalanceID,
+			AssetCode:       "USD",
+			Amount:          decimal.NewFromInt(int64(100 + i*10)),
+			Status:          "APPROVED",
+			BalanceAffected: true,
 		}
 		opIDs[i] = pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 	}
@@ -802,10 +796,7 @@ func TestIntegration_OperationRepository_ListByIDs_EmptyForNonExistentIDs(t *tes
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentIDs := []uuid.UUID{
-		libCommons.GenerateUUIDv7(),
-		libCommons.GenerateUUIDv7(),
-	}
+	nonExistentIDs := []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7()), uuid.Must(libCommons.GenerateUUIDv7())}
 
 	ctx := context.Background()
 
@@ -826,15 +817,15 @@ func TestIntegration_OperationRepository_ListByIDs_IgnoresDeletedOperations(t *t
 	activeIDs := make([]uuid.UUID, 2)
 	for i := 0; i < 2; i++ {
 		opParams := pgtestutil.OperationParams{
-			TransactionID:    ids.TransactionID,
-			Type:             "DEBIT",
-			AccountID:        ids.AccountID,
-			AccountAlias:     "@test-account",
-			BalanceID:        ids.BalanceID,
-			AssetCode:        "USD",
-			Amount:           decimal.NewFromInt(100),
-			Status:           "APPROVED",
-			BalanceAffected:  true,
+			TransactionID:   ids.TransactionID,
+			Type:            "DEBIT",
+			AccountID:       ids.AccountID,
+			AccountAlias:    "@test-account",
+			BalanceID:       ids.BalanceID,
+			AssetCode:       "USD",
+			Amount:          decimal.NewFromInt(100),
+			Status:          "APPROVED",
+			BalanceAffected: true,
 		}
 		activeIDs[i] = pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 	}
@@ -842,16 +833,16 @@ func TestIntegration_OperationRepository_ListByIDs_IgnoresDeletedOperations(t *t
 	// Create 1 deleted operation
 	deletedAt := time.Now().Add(-1 * time.Hour)
 	deletedParams := pgtestutil.OperationParams{
-		TransactionID:    ids.TransactionID,
-		Type:             "DEBIT",
-		AccountID:        ids.AccountID,
-		AccountAlias:     "@test-account",
-		BalanceID:        ids.BalanceID,
-		AssetCode:        "USD",
-		Amount:           decimal.NewFromInt(100),
-		Status:           "APPROVED",
-		BalanceAffected:  true,
-		DeletedAt:        &deletedAt,
+		TransactionID:   ids.TransactionID,
+		Type:            "DEBIT",
+		AccountID:       ids.AccountID,
+		AccountAlias:    "@test-account",
+		BalanceID:       ids.BalanceID,
+		AssetCode:       "USD",
+		Amount:          decimal.NewFromInt(100),
+		Status:          "APPROVED",
+		BalanceAffected: true,
+		DeletedAt:       &deletedAt,
 	}
 	deletedID := pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, deletedParams)
 
@@ -878,16 +869,16 @@ func TestIntegration_OperationRepository_Update_Success(t *testing.T) {
 	ids := createTestDependencies(t, container)
 
 	opParams := pgtestutil.OperationParams{
-		TransactionID:    ids.TransactionID,
-		Description:      "Original description",
-		Type:             "DEBIT",
-		AccountID:        ids.AccountID,
-		AccountAlias:     "@test-account",
-		BalanceID:        ids.BalanceID,
-		AssetCode:        "USD",
-		Amount:           decimal.NewFromInt(100),
-		Status:           "APPROVED",
-		BalanceAffected:  true,
+		TransactionID:   ids.TransactionID,
+		Description:     "Original description",
+		Type:            "DEBIT",
+		AccountID:       ids.AccountID,
+		AccountAlias:    "@test-account",
+		BalanceID:       ids.BalanceID,
+		AssetCode:       "USD",
+		Amount:          decimal.NewFromInt(100),
+		Status:          "APPROVED",
+		BalanceAffected: true,
 	}
 	opID := pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 
@@ -922,7 +913,7 @@ func TestIntegration_OperationRepository_Update_ReturnsEntityNotFoundError(t *te
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -949,17 +940,17 @@ func TestIntegration_OperationRepository_Update_IgnoresDeletedOperation(t *testi
 
 	deletedAt := time.Now().Add(-1 * time.Hour)
 	opParams := pgtestutil.OperationParams{
-		TransactionID:    ids.TransactionID,
-		Description:      "Deleted operation",
-		Type:             "DEBIT",
-		AccountID:        ids.AccountID,
-		AccountAlias:     "@test-account",
-		BalanceID:        ids.BalanceID,
-		AssetCode:        "USD",
-		Amount:           decimal.NewFromInt(100),
-		Status:           "APPROVED",
-		BalanceAffected:  true,
-		DeletedAt:        &deletedAt,
+		TransactionID:   ids.TransactionID,
+		Description:     "Deleted operation",
+		Type:            "DEBIT",
+		AccountID:       ids.AccountID,
+		AccountAlias:    "@test-account",
+		BalanceID:       ids.BalanceID,
+		AssetCode:       "USD",
+		Amount:          decimal.NewFromInt(100),
+		Status:          "APPROVED",
+		BalanceAffected: true,
+		DeletedAt:       &deletedAt,
 	}
 	opID := pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 
@@ -986,16 +977,16 @@ func TestIntegration_OperationRepository_Delete_SoftDeletesOperation(t *testing.
 	ids := createTestDependencies(t, container)
 
 	opParams := pgtestutil.OperationParams{
-		TransactionID:    ids.TransactionID,
-		Description:      "To be deleted",
-		Type:             "DEBIT",
-		AccountID:        ids.AccountID,
-		AccountAlias:     "@test-account",
-		BalanceID:        ids.BalanceID,
-		AssetCode:        "USD",
-		Amount:           decimal.NewFromInt(100),
-		Status:           "APPROVED",
-		BalanceAffected:  true,
+		TransactionID:   ids.TransactionID,
+		Description:     "To be deleted",
+		Type:            "DEBIT",
+		AccountID:       ids.AccountID,
+		AccountAlias:    "@test-account",
+		BalanceID:       ids.BalanceID,
+		AssetCode:       "USD",
+		Amount:          decimal.NewFromInt(100),
+		Status:          "APPROVED",
+		BalanceAffected: true,
 	}
 	opID := pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 
@@ -1024,7 +1015,7 @@ func TestIntegration_OperationRepository_Delete_ReturnsEntityNotFoundError(t *te
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
 
-	nonExistentID := libCommons.GenerateUUIDv7()
+	nonExistentID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ctx := context.Background()
 
@@ -1045,16 +1036,16 @@ func TestIntegration_OperationRepository_Delete_AlreadyDeletedReturnsError(t *te
 
 	deletedAt := time.Now().Add(-1 * time.Hour)
 	opParams := pgtestutil.OperationParams{
-		TransactionID:    ids.TransactionID,
-		Type:             "DEBIT",
-		AccountID:        ids.AccountID,
-		AccountAlias:     "@test-account",
-		BalanceID:        ids.BalanceID,
-		AssetCode:        "USD",
-		Amount:           decimal.NewFromInt(100),
-		Status:           "APPROVED",
-		BalanceAffected:  true,
-		DeletedAt:        &deletedAt,
+		TransactionID:   ids.TransactionID,
+		Type:            "DEBIT",
+		AccountID:       ids.AccountID,
+		AccountAlias:    "@test-account",
+		BalanceID:       ids.BalanceID,
+		AssetCode:       "USD",
+		Amount:          decimal.NewFromInt(100),
+		Status:          "APPROVED",
+		BalanceAffected: true,
+		DeletedAt:       &deletedAt,
 	}
 	opID := pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 
@@ -1171,7 +1162,7 @@ func TestIntegration_OperationRepository_SchemaDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			opID := libCommons.GenerateUUIDv7()
+			opID := uuid.Must(libCommons.GenerateUUIDv7())
 			now := time.Now().Truncate(time.Microsecond)
 
 			args := tt.argsFunc(opID, now)
@@ -1197,7 +1188,7 @@ func TestIntegration_OperationRepository_NewColumnMigration_BackwardsCompatible(
 
 	// Insert operation with only the minimum required columns
 	// This simulates a row that existed before a new column was added
-	opID := libCommons.GenerateUUIDv7()
+	opID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := container.DB.Exec(`
@@ -1253,7 +1244,7 @@ func TestIntegration_OperationRepository_DecimalPrecision_Preserved(t *testing.T
 	largeAmount, _ := decimal.NewFromString("123456789012345678901234567890.123456789012345678901234567890")
 	largeAvailable, _ := decimal.NewFromString("987654321098765432109876543210.987654321098765432109876543210")
 
-	opID := libCommons.GenerateUUIDv7()
+	opID := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 
 	_, err := container.DB.Exec(`

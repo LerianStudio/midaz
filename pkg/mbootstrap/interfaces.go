@@ -1,10 +1,14 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 // Package mbootstrap provides shared interfaces for bootstrapping Midaz components.
 // This package enables composition of multiple components (onboarding, transaction)
 // into a unified service (ledger) while maintaining encapsulation of internal implementations.
 package mbootstrap
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 )
 
 // Runnable represents a component that can be run by the launcher.

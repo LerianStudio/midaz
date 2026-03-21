@@ -1,12 +1,18 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -15,14 +21,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateOrganizationByID update an organization from the repository.
+// UpdateOrganizationByID updates an organization from the repository.
 func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi *mmodel.UpdateOrganizationInput) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_organization_by_id")
 	defer span.End()
 
-	logger.Infof("Trying to update organization: %v", uoi)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update organization %s", id.String()))
 
 	if libCommons.IsNilOrEmpty(uoi.ParentOrganizationID) {
 		uoi.ParentOrganizationID = nil
@@ -31,9 +37,9 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 	if uoi.ParentOrganizationID != nil && *uoi.ParentOrganizationID == id.String() {
 		err := pkg.ValidateBusinessError(constant.ErrParentIDSameID, "UpdateOrganizationByID")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "ID cannot be used as the parent ID.", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "ID cannot be used as the parent ID.", err)
 
-		logger.Errorf("Error ID cannot be used as the parent ID: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error ID cannot be used as the parent ID: %v", err))
 
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
@@ -42,7 +48,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 		if err := utils.ValidateCountryAddress(uoi.Address.Country); err != nil {
 			err = pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to validate address country", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate address country", err)
 
 			return nil, err
 		}
@@ -58,28 +64,28 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 	organizationUpdated, err := uc.OrganizationRepo.Update(ctx, id, organization)
 	if err != nil {
-		logger.Errorf("Error updating organization on repo by id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating organization on repo by id: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
-			logger.Warnf("Organization ID not found: %s", id.String())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Organization ID not found: %s", id.String()))
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update organization on repo by id", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization on repo by id", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update organization on repo by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization on repo by id", err)
 
 		return nil, err
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), id.String(), uoi.Metadata)
 	if err != nil {
-		logger.Errorf("Error updating metadata: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating metadata: %v", err))
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
 
 		return nil, err
 	}

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package utils
 
 import (
@@ -6,12 +10,16 @@ import (
 	"github.com/google/uuid"
 )
 
-const BalanceSyncScheduleKey = "schedule:{transactions}:balance-sync"
-const BalanceSyncLockPrefix = "lock:{transactions}:balance-sync:"
+const (
+	BalanceSyncScheduleKey = "schedule:{transactions}:balance-sync"
+	BalanceSyncLockPrefix  = "lock:{transactions}:balance-sync:"
+)
 
-const beginningKey = "{"
-const keySeparator = ":"
-const endKey = "}"
+const (
+	beginningKey = "{"
+	keySeparator = ":"
+	endKey       = "}"
+)
 
 // TransactionInternalKey returns a key with the following format to be used on redis cluster:
 // "transaction:{transactions}:organizationID:ledgerID:key"
@@ -144,6 +152,44 @@ func RedisConsumerLockKey(organizationID, ledgerID uuid.UUID, transactionID stri
 	builder.WriteString(endKey)
 	builder.WriteString(keySeparator)
 	builder.WriteString(transactionID)
+
+	return builder.String()
+}
+
+// LedgerSettingsInternalKey returns a key with the following format to be used on redis cluster:
+// "ledger_settings:{organizationID:ledgerID}"
+func LedgerSettingsInternalKey(organizationID, ledgerID uuid.UUID) string {
+	var builder strings.Builder
+
+	builder.WriteString("ledger_settings")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(endKey)
+
+	return builder.String()
+}
+
+// WriteBehindTransactionKey returns a key with the following format to be used on redis cluster:
+// "wb_transaction:{organizationID:ledgerID:transactionID}"
+// This key is used to store transaction data in the write-behind cache before persistence.
+// The transactionID is included inside the hash tag so keys distribute evenly across Redis Cluster
+// slots. Co-location via {orgID:ledgerID} is not needed here because write-behind keys are always
+// accessed individually (SET/GET/DEL), never in multi-key operations.
+func WriteBehindTransactionKey(organizationID, ledgerID uuid.UUID, transactionID string) string {
+	var builder strings.Builder
+
+	builder.WriteString("wb_transaction")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(transactionID)
+	builder.WriteString(endKey)
 
 	return builder.String()
 }

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package operationroute
 
 import (
@@ -90,15 +94,15 @@ func TestOperationRoutePostgreSQLModel_ToEntity(t *testing.T) {
 		ledgerID := uuid.New()
 
 		model := &OperationRoutePostgreSQLModel{
-			ID:              id,
-			OrganizationID:  orgID,
-			LedgerID:        ledgerID,
-			Title:           "No Code Route",
-			Description:     "Route without code",
-			Code:            sql.NullString{Valid: false},
-			OperationType:   "source",
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
+			ID:             id,
+			OrganizationID: orgID,
+			LedgerID:       ledgerID,
+			Title:          "No Code Route",
+			Description:    "Route without code",
+			Code:           sql.NullString{Valid: false},
+			OperationType:  "source",
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
 		}
 
 		entity := model.ToEntity()

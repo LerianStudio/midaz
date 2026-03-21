@@ -1,57 +1,76 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package bootstrap
 
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libMongo "github.com/LerianStudio/lib-commons/v2/commons/mongo"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
-	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
+	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 )
 
 const ApplicationName = "transaction"
 
-// envFallback returns the prefixed value if not empty, otherwise returns the fallback value.
-func envFallback(prefixed, fallback string) string {
-	if prefixed != "" {
-		return prefixed
+// initLogger initializes the logger from options or creates a new one.
+func initLogger(opts *Options, cfg *Config) (libLog.Logger, error) {
+	if opts != nil && opts.Logger != nil {
+		return opts.Logger, nil
 	}
 
-	return fallback
+	return libZap.New(libZap.Config{
+		Environment:     resolveLoggerEnvironment(cfg.EnvName),
+		Level:           cfg.LogLevel,
+		OTelLibraryName: ApplicationName,
+	})
 }
 
-// envFallbackInt returns the prefixed value if not zero, otherwise returns the fallback value.
-func envFallbackInt(prefixed, fallback int) int {
-	if prefixed != 0 {
-		return prefixed
+func resolveLoggerEnvironment(env string) libZap.Environment {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case string(libZap.EnvironmentProduction):
+		return libZap.EnvironmentProduction
+	case string(libZap.EnvironmentStaging):
+		return libZap.EnvironmentStaging
+	case string(libZap.EnvironmentUAT):
+		return libZap.EnvironmentUAT
+	case string(libZap.EnvironmentDevelopment):
+		return libZap.EnvironmentDevelopment
+	default:
+		return libZap.EnvironmentLocal
+	}
+}
+
+// buildRabbitMQConnectionString constructs an AMQP connection string with optional vhost.
+func buildRabbitMQConnectionString(uri, user, pass, host, port, vhost string) string {
+	u := &url.URL{
+		Scheme: uri,
+		User:   url.UserPassword(user, pass),
+		Host:   fmt.Sprintf("%s:%s", host, port),
+	}
+	if vhost != "" {
+		u.RawPath = "/" + url.PathEscape(vhost)
+		u.Path = "/" + vhost
 	}
 
-	return fallback
+	return u.String()
 }
 
 // Config is the top level configuration struct for the entire application.
@@ -113,65 +132,85 @@ type Config struct {
 	PrefixedMaxPoolSize       int    `env:"MONGO_TRANSACTION_MAX_POOL_SIZE"`
 
 	// MongoDB - fallback vars for standalone deployment
-	MongoURI                     string `env:"MONGO_URI"`
-	MongoDBHost                  string `env:"MONGO_HOST"`
-	MongoDBName                  string `env:"MONGO_NAME"`
-	MongoDBUser                  string `env:"MONGO_USER"`
-	MongoDBPassword              string `env:"MONGO_PASSWORD"`
-	MongoDBPort                  string `env:"MONGO_PORT"`
-	MongoDBParameters            string `env:"MONGO_PARAMETERS"`
-	MaxPoolSize                  int    `env:"MONGO_MAX_POOL_SIZE"`
-	CasdoorAddress               string `env:"CASDOOR_ADDRESS"`
-	CasdoorClientID              string `env:"CASDOOR_CLIENT_ID"`
-	CasdoorClientSecret          string `env:"CASDOOR_CLIENT_SECRET"`
-	CasdoorOrganizationName      string `env:"CASDOOR_ORGANIZATION_NAME"`
-	CasdoorApplicationName       string `env:"CASDOOR_APPLICATION_NAME"`
-	CasdoorModelName             string `env:"CASDOOR_MODEL_NAME"`
-	JWKAddress                   string `env:"CASDOOR_JWK_ADDRESS"`
-	RabbitURI                    string `env:"RABBITMQ_URI"`
-	RabbitMQHost                 string `env:"RABBITMQ_HOST"`
-	RabbitMQPortHost             string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP             string `env:"RABBITMQ_PORT_AMQP"`
-	RabbitMQUser                 string `env:"RABBITMQ_DEFAULT_USER"`
-	RabbitMQPass                 string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQConsumerUser         string `env:"RABBITMQ_CONSUMER_USER"`
-	RabbitMQConsumerPass         string `env:"RABBITMQ_CONSUMER_PASS"`
-	RabbitMQBalanceCreateQueue   string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
-	RabbitMQNumbersOfWorkers     int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
-	RabbitMQNumbersOfPrefetch    int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
-	RabbitMQHealthCheckURL       string `env:"RABBITMQ_HEALTH_CHECK_URL"`
-	OtelServiceName              string `env:"OTEL_RESOURCE_SERVICE_NAME"`
-	OtelLibraryName              string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion           string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
-	OtelDeploymentEnv            string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
-	OtelColExporterEndpoint      string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	EnableTelemetry              bool   `env:"ENABLE_TELEMETRY"`
-	RedisHost                    string `env:"REDIS_HOST"`
-	RedisMasterName              string `env:"REDIS_MASTER_NAME" default:""`
-	RedisPassword                string `env:"REDIS_PASSWORD"`
-	RedisDB                      int    `env:"REDIS_DB" default:"0"`
-	RedisProtocol                int    `env:"REDIS_DB" default:"3"`
-	RedisTLS                     bool   `env:"REDIS_TLS" default:"false"`
-	RedisCACert                  string `env:"REDIS_CA_CERT"`
-	RedisUseGCPIAM               bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
-	RedisServiceAccount          string `env:"REDIS_SERVICE_ACCOUNT" default:""`
-	GoogleApplicationCredentials string `env:"GOOGLE_APPLICATION_CREDENTIALS" default:""`
-	RedisTokenLifeTime           int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
-	RedisTokenRefreshDuration    int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
-	RedisPoolSize                int    `env:"REDIS_POOL_SIZE" default:"10"`
-	RedisMinIdleConns            int    `env:"REDIS_MIN_IDLE_CONNS" default:"0"`
-	RedisReadTimeout             int    `env:"REDIS_READ_TIMEOUT" default:"3"`
-	RedisWriteTimeout            int    `env:"REDIS_WRITE_TIMEOUT" default:"3"`
-	RedisDialTimeout             int    `env:"REDIS_DIAL_TIMEOUT" default:"5"`
-	RedisPoolTimeout             int    `env:"REDIS_POOL_TIMEOUT" default:"2"`
-	RedisMaxRetries              int    `env:"REDIS_MAX_RETRIES" default:"3"`
-	RedisMinRetryBackoff         int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
-	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
-	AuthEnabled                  bool   `env:"PLUGIN_AUTH_ENABLED"`
-	AuthHost                     string `env:"PLUGIN_AUTH_HOST"`
-	ProtoAddress                 string `env:"PROTO_ADDRESS"`
-	BalanceSyncWorkerEnabled     bool   `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
-	BalanceSyncMaxWorkers        int    `env:"BALANCE_SYNC_MAX_WORKERS"`
+	MongoURI                                 string `env:"MONGO_URI"`
+	MongoDBHost                              string `env:"MONGO_HOST"`
+	MongoDBName                              string `env:"MONGO_NAME"`
+	MongoDBUser                              string `env:"MONGO_USER"`
+	MongoDBPassword                          string `env:"MONGO_PASSWORD"`
+	MongoDBPort                              string `env:"MONGO_PORT"`
+	MongoDBParameters                        string `env:"MONGO_PARAMETERS"`
+	MaxPoolSize                              int    `env:"MONGO_MAX_POOL_SIZE"`
+	CasdoorAddress                           string `env:"CASDOOR_ADDRESS"`
+	CasdoorClientID                          string `env:"CASDOOR_CLIENT_ID"`
+	CasdoorClientSecret                      string `env:"CASDOOR_CLIENT_SECRET"`
+	CasdoorOrganizationName                  string `env:"CASDOOR_ORGANIZATION_NAME"`
+	CasdoorApplicationName                   string `env:"CASDOOR_APPLICATION_NAME"`
+	CasdoorModelName                         string `env:"CASDOOR_MODEL_NAME"`
+	JWKAddress                               string `env:"CASDOOR_JWK_ADDRESS"`
+	RabbitURI                                string `env:"RABBITMQ_URI"`
+	RabbitMQHost                             string `env:"RABBITMQ_HOST"`
+	RabbitMQPortHost                         string `env:"RABBITMQ_PORT_HOST"`
+	RabbitMQPortAMQP                         string `env:"RABBITMQ_PORT_AMQP"`
+	RabbitMQUser                             string `env:"RABBITMQ_DEFAULT_USER"`
+	RabbitMQPass                             string `env:"RABBITMQ_DEFAULT_PASS"`
+	RabbitMQConsumerUser                     string `env:"RABBITMQ_CONSUMER_USER"`
+	RabbitMQConsumerPass                     string `env:"RABBITMQ_CONSUMER_PASS"`
+	RabbitMQVHost                            string `env:"RABBITMQ_VHOST"`
+	RabbitMQNumbersOfWorkers                 int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
+	RabbitMQNumbersOfPrefetch                int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
+	RabbitMQHealthCheckURL                   string `env:"RABBITMQ_HEALTH_CHECK_URL"`
+	RabbitMQTransactionBalanceOperationQueue string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"`
+	OtelServiceName                          string `env:"OTEL_RESOURCE_SERVICE_NAME"`
+	OtelLibraryName                          string `env:"OTEL_LIBRARY_NAME"`
+	OtelServiceVersion                       string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
+	OtelDeploymentEnv                        string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
+	OtelColExporterEndpoint                  string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	EnableTelemetry                          bool   `env:"ENABLE_TELEMETRY"`
+	RedisHost                                string `env:"REDIS_HOST"`
+	RedisMasterName                          string `env:"REDIS_MASTER_NAME" default:""`
+	RedisPassword                            string `env:"REDIS_PASSWORD"`
+	RedisDB                                  int    `env:"REDIS_DB" default:"0"`
+	RedisProtocol                            int    `env:"REDIS_PROTOCOL" default:"3"`
+	RedisTLS                                 bool   `env:"REDIS_TLS" default:"false"`
+	RedisCACert                              string `env:"REDIS_CA_CERT"`
+	RedisUseGCPIAM                           bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
+	RedisServiceAccount                      string `env:"REDIS_SERVICE_ACCOUNT" default:""`
+	GoogleApplicationCredentials             string `env:"GOOGLE_APPLICATION_CREDENTIALS" default:""`
+	RedisTokenLifeTime                       int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
+	RedisTokenRefreshDuration                int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
+	RedisPoolSize                            int    `env:"REDIS_POOL_SIZE" default:"10"`
+	RedisMinIdleConns                        int    `env:"REDIS_MIN_IDLE_CONNS" default:"0"`
+	RedisReadTimeout                         int    `env:"REDIS_READ_TIMEOUT" default:"3"`
+	RedisWriteTimeout                        int    `env:"REDIS_WRITE_TIMEOUT" default:"3"`
+	RedisDialTimeout                         int    `env:"REDIS_DIAL_TIMEOUT" default:"5"`
+	RedisPoolTimeout                         int    `env:"REDIS_POOL_TIMEOUT" default:"2"`
+	RedisMaxRetries                          int    `env:"REDIS_MAX_RETRIES" default:"3"`
+	RedisMinRetryBackoff                     int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
+	RedisMaxRetryBackoff                     int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
+	AuthEnabled                              bool   `env:"PLUGIN_AUTH_ENABLED"`
+	AuthHost                                 string `env:"PLUGIN_AUTH_HOST"`
+	ProtoAddress                             string `env:"PROTO_ADDRESS"`
+	BalanceSyncWorkerEnabled                 bool   `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
+	BalanceSyncMaxWorkers                    int    `env:"BALANCE_SYNC_MAX_WORKERS"`
+
+	// Circuit Breaker configuration for RabbitMQ
+	// Protects against RabbitMQ outages by failing fast when broker is unavailable
+	RabbitMQCircuitBreakerConsecutiveFailures int `env:"RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES"`
+	RabbitMQCircuitBreakerFailureRatio        int `env:"RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO"` // Stored as percentage (e.g., 50 for 0.5)
+	RabbitMQCircuitBreakerInterval            int `env:"RABBITMQ_CIRCUIT_BREAKER_INTERVAL"`      // Stored in seconds
+	RabbitMQCircuitBreakerMaxRequests         int `env:"RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS"`
+	RabbitMQCircuitBreakerMinRequests         int `env:"RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS"`
+	RabbitMQCircuitBreakerTimeout             int `env:"RABBITMQ_CIRCUIT_BREAKER_TIMEOUT"` // Stored in seconds
+	// Health Check configuration for circuit breaker recovery
+	RabbitMQCircuitBreakerHealthCheckInterval int `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_INTERVAL"` // Stored in seconds
+	RabbitMQCircuitBreakerHealthCheckTimeout  int `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_TIMEOUT"`  // Stored in seconds
+	// Operation timeout for RabbitMQ connection and publish operations (e.g., "5s", "3s")
+	RabbitMQOperationTimeout string `env:"RABBITMQ_OPERATION_TIMEOUT"`
+	// Multi-tenant consumer configuration
+	RabbitMQMultiTenantSyncInterval     int `env:"RABBITMQ_MULTI_TENANT_SYNC_INTERVAL"`     // Stored in seconds
+	RabbitMQMultiTenantDiscoveryTimeout int `env:"RABBITMQ_MULTI_TENANT_DISCOVERY_TIMEOUT"` // Stored in milliseconds
+
+	MultiTenantSettingsCheckIntervalSec int `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"` // seconds between tenant config revalidation checks
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -179,11 +218,168 @@ type Options struct {
 	// Logger allows callers to provide a pre-configured logger, avoiding double
 	// initialization when the cmd/app wants to handle bootstrap errors.
 	Logger libLog.Logger
+
+	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
+	// This is optional - pass nil if you don't need state change notifications.
+	CircuitBreakerStateListener libCircuitBreaker.StateChangeListener
+
+	// SettingsPort enables direct in-process communication with the onboarding module
+	// for querying ledger settings. Optional - if not provided, settings functionality
+	// will not be available.
+	SettingsPort mbootstrap.SettingsPort
+
+	// Multi-tenant configuration (only used in unified ledger mode).
+	MultiTenantEnabled       bool
+	TenantClient             *tmclient.Client
+	TenantServiceName        string
+	TenantEnvironment        string
+	TenantManagerURL         string
+	MultiTenantServiceAPIKey string
 }
 
 // InitServers initiate http and grpc servers.
 func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
+}
+
+// handlers groups all HTTP handler instances for cleaner initialization.
+type handlers struct {
+	transaction      *in.TransactionHandler
+	operation        *in.OperationHandler
+	assetRate        *in.AssetRateHandler
+	balance          *in.BalanceHandler
+	operationRoute   *in.OperationRouteHandler
+	transactionRoute *in.TransactionRouteHandler
+}
+
+func buildRedisConfig(cfg *Config, logger libLog.Logger) (libRedis.Config, error) {
+	redisAddresses := strings.Split(cfg.RedisHost, ",")
+
+	if len(redisAddresses) == 0 || strings.TrimSpace(redisAddresses[0]) == "" {
+		return libRedis.Config{}, fmt.Errorf("redis host is required")
+	}
+
+	topology := libRedis.Topology{}
+	if cfg.RedisMasterName != "" {
+		topology.Sentinel = &libRedis.SentinelTopology{Addresses: redisAddresses, MasterName: cfg.RedisMasterName}
+	} else if len(redisAddresses) > 1 {
+		topology.Cluster = &libRedis.ClusterTopology{Addresses: redisAddresses}
+	} else {
+		topology.Standalone = &libRedis.StandaloneTopology{Address: redisAddresses[0]}
+	}
+
+	var tlsCfg *libRedis.TLSConfig
+	if cfg.RedisTLS {
+		tlsCfg = &libRedis.TLSConfig{CACertBase64: cfg.RedisCACert}
+	}
+
+	auth := libRedis.Auth{}
+	if cfg.RedisUseGCPIAM {
+		auth = libRedis.Auth{GCPIAM: &libRedis.GCPIAMAuth{
+			CredentialsBase64: cfg.GoogleApplicationCredentials,
+			ServiceAccount:    cfg.RedisServiceAccount,
+			TokenLifetime:     time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
+			RefreshEvery:      time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
+		}}
+	} else if cfg.RedisPassword != "" {
+		auth = libRedis.Auth{StaticPassword: &libRedis.StaticPasswordAuth{Password: cfg.RedisPassword}}
+	}
+
+	return libRedis.Config{
+		Topology: topology,
+		TLS:      tlsCfg,
+		Auth:     auth,
+		Options: libRedis.ConnectionOptions{
+			DB:              cfg.RedisDB,
+			Protocol:        cfg.RedisProtocol,
+			PoolSize:        cfg.RedisPoolSize,
+			MinIdleConns:    cfg.RedisMinIdleConns,
+			ReadTimeout:     time.Duration(cfg.RedisReadTimeout) * time.Second,
+			WriteTimeout:    time.Duration(cfg.RedisWriteTimeout) * time.Second,
+			DialTimeout:     time.Duration(cfg.RedisDialTimeout) * time.Second,
+			PoolTimeout:     time.Duration(cfg.RedisPoolTimeout) * time.Second,
+			MaxRetries:      cfg.RedisMaxRetries,
+			MinRetryBackoff: time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
+			MaxRetryBackoff: time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
+		},
+		Logger: logger,
+	}, nil
+}
+
+// initRedis creates the Redis connection and consumer repository.
+func initRedis(cfg *Config, logger libLog.Logger) (*redis.RedisConsumerRepository, *libRedis.Client, error) {
+	redisConfig, err := buildRedisConfig(cfg, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	redisConnection, err := libRedis.New(context.Background(), redisConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize redis client: %w", err)
+	}
+
+	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize redis: %w", err)
+	}
+
+	return redisConsumerRepository, redisConnection, nil
+}
+
+// initHandlers constructs all HTTP handler instances from the given use cases.
+func initHandlers(commandUC *command.UseCase, queryUC *query.UseCase) *handlers {
+	return &handlers{
+		transaction: &in.TransactionHandler{
+			Command: commandUC,
+			Query:   queryUC,
+		},
+		operation: &in.OperationHandler{
+			Command: commandUC,
+			Query:   queryUC,
+		},
+		assetRate: &in.AssetRateHandler{
+			Command: commandUC,
+			Query:   queryUC,
+		},
+		balance: &in.BalanceHandler{
+			Command: commandUC,
+			Query:   queryUC,
+		},
+		operationRoute: &in.OperationRouteHandler{
+			Command: commandUC,
+			Query:   queryUC,
+		},
+		transactionRoute: &in.TransactionRouteHandler{
+			Command: commandUC,
+			Query:   queryUC,
+		},
+	}
+}
+
+// initBalanceSyncWorker creates the balance sync worker (multi-tenant or single-tenant).
+// tenantServiceName is the pre-validated service identifier for the Tenant Manager;
+// it is only used when multi-tenant mode is active.
+func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, redisConn *libRedis.Client, pgManager *tmpostgres.Manager, tenantServiceName string) *BalanceSyncWorker {
+	const defaultBalanceSyncMaxWorkers = 5
+
+	balanceSyncMaxWorkers := cfg.BalanceSyncMaxWorkers
+
+	if balanceSyncMaxWorkers <= 0 {
+		balanceSyncMaxWorkers = defaultBalanceSyncMaxWorkers
+		logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers))
+	}
+
+	var balanceSyncWorker *BalanceSyncWorker
+
+	if opts != nil && opts.MultiTenantEnabled {
+		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, true, opts.TenantClient, pgManager, tenantServiceName)
+	} else {
+		balanceSyncWorker = NewBalanceSyncWorker(redisConn, logger, commandUC, balanceSyncMaxWorkers)
+	}
+
+	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers))
+
+	return balanceSyncWorker
 }
 
 // InitServersWithOptions initiates http and grpc servers with optional dependency injection.
@@ -194,18 +390,25 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
-	var logger libLog.Logger
-	if opts != nil && opts.Logger != nil {
-		logger = opts.Logger
-	} else {
-		logger = libZap.InitializeLogger()
+	logger, err := initLogger(opts, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
-	// BalanceSyncWorkerEnabled defaults to true via struct tag
-	balanceSyncWorkerEnabled := cfg.BalanceSyncWorkerEnabled
-	logger.Infof("BalanceSyncWorker: BALANCE_SYNC_WORKER_ENABLED=%v", balanceSyncWorkerEnabled)
+	// BALANCE_SYNC_WORKER_ENABLED is deprecated - balance sync is always enabled
+	logger.Log(context.Background(), libLog.LevelInfo, "BalanceSyncWorker: always enabled (BALANCE_SYNC_WORKER_ENABLED env var is deprecated)")
 
-	telemetry := libOpentelemetry.InitializeTelemetry(&libOpentelemetry.TelemetryConfig{
+	// Validate TenantServiceName early so that workers fail fast on misconfiguration
+	// instead of silently backing off when the Tenant Manager returns no tenants.
+	var tenantServiceName string
+	if opts != nil && opts.MultiTenantEnabled {
+		tenantServiceName = strings.TrimSpace(opts.TenantServiceName)
+		if tenantServiceName == "" {
+			return nil, fmt.Errorf("TenantServiceName must not be empty when multi-tenant is enabled")
+		}
+	}
+
+	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -214,271 +417,131 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		EnableTelemetry:           cfg.EnableTelemetry,
 		Logger:                    logger,
 	})
-
-	// Apply fallback for prefixed env vars (unified ledger) to non-prefixed (standalone)
-	dbHost := envFallback(cfg.PrefixedPrimaryDBHost, cfg.PrimaryDBHost)
-	dbUser := envFallback(cfg.PrefixedPrimaryDBUser, cfg.PrimaryDBUser)
-	dbPassword := envFallback(cfg.PrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
-	dbName := envFallback(cfg.PrefixedPrimaryDBName, cfg.PrimaryDBName)
-	dbPort := envFallback(cfg.PrefixedPrimaryDBPort, cfg.PrimaryDBPort)
-	dbSSLMode := envFallback(cfg.PrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
-
-	dbReplicaHost := envFallback(cfg.PrefixedReplicaDBHost, cfg.ReplicaDBHost)
-	dbReplicaUser := envFallback(cfg.PrefixedReplicaDBUser, cfg.ReplicaDBUser)
-	dbReplicaPassword := envFallback(cfg.PrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
-	dbReplicaName := envFallback(cfg.PrefixedReplicaDBName, cfg.ReplicaDBName)
-	dbReplicaPort := envFallback(cfg.PrefixedReplicaDBPort, cfg.ReplicaDBPort)
-	dbReplicaSSLMode := envFallback(cfg.PrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
-
-	maxOpenConns := envFallbackInt(cfg.PrefixedMaxOpenConnections, cfg.MaxOpenConnections)
-	maxIdleConns := envFallbackInt(cfg.PrefixedMaxIdleConnections, cfg.MaxIdleConnections)
-
-	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
-
-	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbReplicaHost, dbReplicaUser, dbReplicaPassword, dbReplicaName, dbReplicaPort, dbReplicaSSLMode)
-
-	postgresConnection := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: postgreSourcePrimary,
-		ConnectionStringReplica: postgreSourceReplica,
-		PrimaryDBName:           dbName,
-		ReplicaDBName:           dbReplicaName,
-		Component:               ApplicationName,
-		Logger:                  logger,
-		MaxOpenConnections:      maxOpenConns,
-		MaxIdleConnections:      maxIdleConns,
-	}
-
-	// Apply fallback for MongoDB prefixed env vars
-	mongoURI := envFallback(cfg.PrefixedMongoURI, cfg.MongoURI)
-	mongoHost := envFallback(cfg.PrefixedMongoDBHost, cfg.MongoDBHost)
-	mongoName := envFallback(cfg.PrefixedMongoDBName, cfg.MongoDBName)
-	mongoUser := envFallback(cfg.PrefixedMongoDBUser, cfg.MongoDBUser)
-	mongoPassword := envFallback(cfg.PrefixedMongoDBPassword, cfg.MongoDBPassword)
-	mongoPortRaw := envFallback(cfg.PrefixedMongoDBPort, cfg.MongoDBPort)
-	mongoParametersRaw := envFallback(cfg.PrefixedMongoDBParameters, cfg.MongoDBParameters)
-	mongoPoolSize := envFallbackInt(cfg.PrefixedMaxPoolSize, cfg.MaxPoolSize)
-
-	// Extract port and parameters for MongoDB connection (handles backward compatibility)
-	mongoPort, mongoParameters := utils.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
-
-	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
-		mongoURI, mongoUser, mongoPassword, mongoHost, mongoPort)
-
-	// Safe conversion: use uint64 with default, only assign if positive
-	var mongoMaxPoolSize uint64 = 100
-	if mongoPoolSize > 0 {
-		mongoMaxPoolSize = uint64(mongoPoolSize)
-	}
-
-	if mongoParameters != "" {
-		mongoSource += "?" + mongoParameters
-	}
-
-	mongoConnection := &libMongo.MongoConnection{
-		ConnectionStringSource: mongoSource,
-		Database:               mongoName,
-		Logger:                 logger,
-		MaxPoolSize:            mongoMaxPoolSize,
-	}
-
-	redisConnection := &libRedis.RedisConnection{
-		Address:                      strings.Split(cfg.RedisHost, ","),
-		Password:                     cfg.RedisPassword,
-		DB:                           cfg.RedisDB,
-		Protocol:                     cfg.RedisProtocol,
-		MasterName:                   cfg.RedisMasterName,
-		UseTLS:                       cfg.RedisTLS,
-		CACert:                       cfg.RedisCACert,
-		UseGCPIAMAuth:                cfg.RedisUseGCPIAM,
-		ServiceAccount:               cfg.RedisServiceAccount,
-		GoogleApplicationCredentials: cfg.GoogleApplicationCredentials,
-		TokenLifeTime:                time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
-		RefreshDuration:              time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
-		Logger:                       logger,
-		PoolSize:                     cfg.RedisPoolSize,
-		MinIdleConns:                 cfg.RedisMinIdleConns,
-		ReadTimeout:                  time.Duration(cfg.RedisReadTimeout) * time.Second,
-		WriteTimeout:                 time.Duration(cfg.RedisWriteTimeout) * time.Second,
-		DialTimeout:                  time.Duration(cfg.RedisDialTimeout) * time.Second,
-		PoolTimeout:                  time.Duration(cfg.RedisPoolTimeout) * time.Second,
-		MaxRetries:                   cfg.RedisMaxRetries,
-		MinRetryBackoff:              time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
-		MaxRetryBackoff:              time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
-	}
-
-	redisConsumerRepository, err := redis.NewConsumerRedis(redisConnection, balanceSyncWorkerEnabled)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize redis: %w", err)
+		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
 
-	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
-	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnection)
-	assetRatePostgreSQLRepository := assetrate.NewAssetRatePostgreSQLRepository(postgresConnection)
-	balancePostgreSQLRepository := balance.NewBalancePostgreSQLRepository(postgresConnection)
-	operationRoutePostgreSQLRepository := operationroute.NewOperationRoutePostgreSQLRepository(postgresConnection)
-	transactionRoutePostgreSQLRepository := transactionroute.NewTransactionRoutePostgreSQLRepository(postgresConnection)
-
-	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
-
-	// Ensure indexes also for known base collections on fresh installs
-	ctxEnsureIndexes, cancelEnsureIndexes := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancelEnsureIndexes()
-
-	indexModel := mongo.IndexModel{
-		Keys: bson.D{{Key: "entity_id", Value: 1}},
-		Options: options.Index().
-			SetUnique(false),
+	// PostgreSQL: single-tenant or multi-tenant (decided internally)
+	pg, err := initPostgres(opts, cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize PostgreSQL: %w", err)
 	}
 
-	collections := []string{"operation", "transaction", "operation_route", "transaction_route"}
-	for _, collection := range collections {
-		if err := mongoConnection.EnsureIndexes(ctxEnsureIndexes, collection, indexModel); err != nil {
-			logger.Warnf("Failed to ensure indexes for collection %s: %v", collection, err)
-		}
+	// MongoDB: single-tenant or multi-tenant (decided internally)
+	mgo, err := initMongo(opts, cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MongoDB: %w", err)
 	}
 
-	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
-
-	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQUser,
-		Pass:                   cfg.RabbitMQPass,
-		Queue:                  cfg.RabbitMQBalanceCreateQueue,
-		Logger:                 logger,
+	redisConsumerRepository, redisConnection, err := initRedis(cfg, logger)
+	if err != nil {
+		return nil, err
 	}
 
-	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	// RabbitMQ: producer + consumer (multi-tenant or single-tenant, decided internally)
+	rmq, err := initRabbitMQ(opts, cfg, logger, telemetry, redisConnection)
+	if err != nil {
+		return nil, err
+	}
 
-	useCase := &command.UseCase{
-		TransactionRepo:      transactionPostgreSQLRepository,
-		OperationRepo:        operationPostgreSQLRepository,
-		AssetRateRepo:        assetRatePostgreSQLRepository,
-		BalanceRepo:          balancePostgreSQLRepository,
-		OperationRouteRepo:   operationRoutePostgreSQLRepository,
-		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
-		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
+	// Pass PG and Mongo managers to RabbitMQ components for per-message tenant resolution
+	if rmq != nil {
+		rmq.pgManager = pg.pgManager
+		rmq.mongoManager = mgo.mongoManager
+	}
+
+	// UseCases are created without SettingsPort initially.
+	// The Lazy Initialization pattern is used: SetSettingsPort is called after
+	// both transaction and onboarding modules exist, resolving the circular dependency.
+	// If opts.SettingsPort is provided (e.g., in tests), it's set immediately.
+	commandUseCase := &command.UseCase{
+		TransactionRepo:      pg.transactionRepo,
+		OperationRepo:        pg.operationRepo,
+		AssetRateRepo:        pg.assetRateRepo,
+		BalanceRepo:          pg.balanceRepo,
+		OperationRouteRepo:   pg.operationRouteRepo,
+		TransactionRouteRepo: pg.transactionRouteRepo,
+		MetadataRepo:         mgo.metadataRepo,
+		RabbitMQRepo:         rmq.producerRepo,
 		RedisRepo:            redisConsumerRepository,
 	}
 
 	queryUseCase := &query.UseCase{
-		TransactionRepo:      transactionPostgreSQLRepository,
-		OperationRepo:        operationPostgreSQLRepository,
-		AssetRateRepo:        assetRatePostgreSQLRepository,
-		BalanceRepo:          balancePostgreSQLRepository,
-		OperationRouteRepo:   operationRoutePostgreSQLRepository,
-		TransactionRouteRepo: transactionRoutePostgreSQLRepository,
-		MetadataRepo:         metadataMongoDBRepository,
-		RabbitMQRepo:         producerRabbitMQRepository,
+		TransactionRepo:      pg.transactionRepo,
+		OperationRepo:        pg.operationRepo,
+		AssetRateRepo:        pg.assetRateRepo,
+		BalanceRepo:          pg.balanceRepo,
+		OperationRouteRepo:   pg.operationRouteRepo,
+		TransactionRouteRepo: pg.transactionRouteRepo,
+		MetadataRepo:         mgo.metadataRepo,
+		RabbitMQRepo:         rmq.producerRepo,
 		RedisRepo:            redisConsumerRepository,
 	}
 
-	transactionHandler := &in.TransactionHandler{
-		Command: useCase,
-		Query:   queryUseCase,
+	// If SettingsPort is provided via options (e.g., tests), set it immediately
+	if opts != nil && opts.SettingsPort != nil {
+		commandUseCase.SettingsPort = opts.SettingsPort
+		queryUseCase.SettingsPort = opts.SettingsPort
 	}
 
-	operationHandler := &in.OperationHandler{
-		Command: useCase,
-		Query:   queryUseCase,
+	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
+	if err := rmq.wireConsumer(commandUseCase); err != nil {
+		return nil, err
 	}
 
-	assetRateHandler := &in.AssetRateHandler{
-		Command: useCase,
-		Query:   queryUseCase,
-	}
+	h := initHandlers(commandUseCase, queryUseCase)
 
-	balanceHandler := &in.BalanceHandler{
-		Command: useCase,
-		Query:   queryUseCase,
-	}
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
 
-	operationRouteHandler := &in.OperationRouteHandler{
-		Command: useCase,
-		Query:   queryUseCase,
-	}
-
-	transactionRouteHandler := &in.TransactionRouteHandler{
-		Command: useCase,
-		Query:   queryUseCase,
-	}
-
-	rabbitConsumerSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-		cfg.RabbitURI, cfg.RabbitMQConsumerUser, cfg.RabbitMQConsumerPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
-
-	rabbitMQConsumerConnection := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitConsumerSource,
-		HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQConsumerUser,
-		Pass:                   cfg.RabbitMQConsumerPass,
-		Queue:                  cfg.RabbitMQBalanceCreateQueue,
-		Logger:                 logger,
-	}
-
-	routes := rabbitmq.NewConsumerRoutes(rabbitMQConsumerConnection, cfg.RabbitMQNumbersOfWorkers, cfg.RabbitMQNumbersOfPrefetch, logger, telemetry)
-
-	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
-
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
-
-	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler)
+	app := in.NewRouter(logger, telemetry, auth, h.transaction, h.operation, h.assetRate, h.balance, h.operationRoute, h.transactionRoute)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
 	if cfg.ProtoAddress == "" || cfg.ProtoAddress == ":" {
 		cfg.ProtoAddress = ":3011"
 
-		logger.Warn("PROTO_ADDRESS not set or invalid, using default: :3011")
+		logger.Log(context.Background(), libLog.LevelWarn, "PROTO_ADDRESS not set or invalid, using default: :3011")
 	}
 
-	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, useCase, queryUseCase)
+	grpcApp := grpcIn.NewRouterGRPC(logger, telemetry, auth, commandUseCase, queryUseCase)
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
 
-	redisConsumer := NewRedisQueueConsumer(logger, *transactionHandler)
-
-	const defaultBalanceSyncMaxWorkers = 5
-
-	balanceSyncMaxWorkers := cfg.BalanceSyncMaxWorkers
-
-	if balanceSyncMaxWorkers <= 0 {
-		balanceSyncMaxWorkers = defaultBalanceSyncMaxWorkers
-		logger.Infof("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers)
-	}
-
-	var balanceSyncWorker *BalanceSyncWorker
-	if balanceSyncWorkerEnabled {
-		balanceSyncWorker = NewBalanceSyncWorker(redisConnection, logger, useCase, balanceSyncMaxWorkers)
-		logger.Infof("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers)
+	// RedisQueueConsumer: multi-tenant or single-tenant
+	var redisConsumer *RedisQueueConsumer
+	if opts != nil && opts.MultiTenantEnabled {
+		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *h.transaction, true, opts.TenantClient, pg.pgManager, tenantServiceName)
 	} else {
-		logger.Info("BalanceSyncWorker disabled.")
+		redisConsumer = NewRedisQueueConsumer(logger, *h.transaction)
 	}
+
+	// BalanceSyncWorker: multi-tenant or single-tenant
+	balanceSyncWorker := initBalanceSyncWorker(opts, cfg, logger, commandUseCase, redisConnection, pg.pgManager, tenantServiceName)
 
 	return &Service{
 		Server:                   server,
 		ServerGRPC:               serverGRPC,
-		MultiQueueConsumer:       multiQueueConsumer,
+		MultiQueueConsumer:       rmq.multiQueueConsumer,
+		MultiTenantConsumer:      rmq.multiTenantConsumer,
 		RedisQueueConsumer:       redisConsumer,
 		BalanceSyncWorker:        balanceSyncWorker,
-		BalanceSyncWorkerEnabled: balanceSyncWorkerEnabled,
+		BalanceSyncWorkerEnabled: true, // Always enabled (env var is deprecated)
+		CircuitBreakerManager:    rmq.circuitBreakerManager,
 		Logger:                   logger,
 		Ports: Ports{
-			BalancePort:  useCase,
-			MetadataPort: metadataMongoDBRepository,
+			BalancePort:  commandUseCase,
+			MetadataPort: mgo.metadataRepo,
 		},
+		pgManager:               pg.pgManager,
+		mongoManager:            mgo.mongoManager,
+		commandUseCase:          commandUseCase,
+		queryUseCase:            queryUseCase,
+		metricsFactory: rmq.metricsFactory,
 		auth:                    auth,
-		transactionHandler:      transactionHandler,
-		operationHandler:        operationHandler,
-		assetRateHandler:        assetRateHandler,
-		balanceHandler:          balanceHandler,
-		operationRouteHandler:   operationRouteHandler,
-		transactionRouteHandler: transactionRouteHandler,
+		transactionHandler:      h.transaction,
+		operationHandler:        h.operation,
+		assetRateHandler:        h.assetRate,
+		balanceHandler:          h.balance,
+		operationRouteHandler:   h.operationRoute,
+		transactionRouteHandler: h.transactionRoute,
 	}, nil
 }

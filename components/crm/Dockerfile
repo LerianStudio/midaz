@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.4
+# ci: force rebuild to sync crm image with lib-commons beta.10
 
-FROM --platform=$BUILDPLATFORM golang:1.25.1-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.25.8-alpine AS builder
 
 WORKDIR /crm-app
 
@@ -21,5 +22,7 @@ FROM gcr.io/distroless/static-debian12
 COPY --from=builder /app /app
 
 EXPOSE 4003
+
+USER nonroot:nonroot
 
 ENTRYPOINT ["/app"]

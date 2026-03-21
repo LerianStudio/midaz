@@ -1,14 +1,19 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
 	"context"
+	"os"
+	"testing"
+
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
-	"os"
-	"testing"
 )
 
 func TestSendLogTransactionAuditQueue(t *testing.T) {
@@ -47,7 +52,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 	transactionID := uuid.New()
 
 	// Create int64 values for Amount and Scale
-	var amountValue = decimal.NewFromInt(50)
+	amountValue := decimal.NewFromInt(50)
 
 	// Create operations
 	operations := []*operation.Operation{

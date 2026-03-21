@@ -1,14 +1,19 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package query
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
@@ -16,30 +21,32 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"
+
+	// GetAllMetadataTransactions fetch all Transactions from the repository
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// GetAllMetadataTransactions fetch all Transactions from the repository
 func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_transactions")
 	defer span.End()
 
-	logger.Infof("Retrieving transactions")
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving transactions")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), filter)
 	if err != nil || metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo by metadata", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo by metadata", err)
 
-		logger.Warnf("Error getting transactions on repo by metadata: %v", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting transactions on repo by metadata: %v", err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	if len(metadata) == 0 {
-		logger.Infof("No metadata found")
+		logger.Log(ctx, libLog.LevelInfo, "No metadata found")
 
 		return nil, libHTTP.CursorPagination{}, nil
 	}
@@ -54,19 +61,19 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 
 	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, uuids, filter.ToCursorPagination())
 	if err != nil {
-		logger.Errorf("Error getting transactions on repo: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting transactions on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
 
-			logger.Warnf("Error getting transactions on repo: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting transactions on repo: %v", err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get transactions on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -125,9 +132,9 @@ func (uc *UseCase) enrichTransactionsWithOperationMetadata(ctx context.Context, 
 
 	operationMetadata, err := uc.MetadataRepo.FindByEntityIDs(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationIDsAll)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get operation metadata", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation metadata", err)
 
-		logger.Warnf("Error getting operation metadata: %v", err)
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting operation metadata: %v", err))
 
 		return err
 	}

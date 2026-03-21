@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
@@ -6,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -168,10 +172,10 @@ func TestCreatePortfolio(t *testing.T) {
 // TestCreatePortfolioSuccess is responsible to test CreatePortfolio with success
 func TestCreatePortfolioSuccess(t *testing.T) {
 	p := &mmodel.Portfolio{
-		ID:             libCommons.GenerateUUIDv7().String(),
-		OrganizationID: libCommons.GenerateUUIDv7().String(),
-		EntityID:       libCommons.GenerateUUIDv7().String(),
-		LedgerID:       libCommons.GenerateUUIDv7().String(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		EntityID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 	}
 
 	uc := UseCase{
@@ -193,10 +197,10 @@ func TestCreatePortfolioSuccess(t *testing.T) {
 func TestCreatePortfolioError(t *testing.T) {
 	errMSG := "err to create portfolio on database"
 	p := &mmodel.Portfolio{
-		ID:             libCommons.GenerateUUIDv7().String(),
-		OrganizationID: libCommons.GenerateUUIDv7().String(),
-		EntityID:       libCommons.GenerateUUIDv7().String(),
-		LedgerID:       libCommons.GenerateUUIDv7().String(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		EntityID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()).String(),
 	}
 
 	uc := UseCase{
@@ -214,4 +218,3 @@ func TestCreatePortfolioError(t *testing.T) {
 	assert.Equal(t, err.Error(), errMSG)
 	assert.Nil(t, res)
 }
-

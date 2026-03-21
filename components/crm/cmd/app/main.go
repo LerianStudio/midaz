@@ -1,7 +1,17 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package main
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	"context"
+	"fmt"
+	"os"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/bootstrap"
 )
 
@@ -17,5 +27,44 @@ import (
 // @Security					BearerAuth
 func main() {
 	libCommons.InitLocalEnvConfig()
-	bootstrap.InitServers().Run()
+
+	logger, err := libZap.New(libZap.Config{
+		Environment:     resolveLoggerEnvironment(os.Getenv("ENV_NAME")),
+		Level:           "info",
+		OTelLibraryName: "midaz-crm",
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+
+		os.Exit(1)
+	}
+
+	service, err := bootstrap.InitServersWithOptions(&bootstrap.Options{
+		Logger: logger,
+	})
+	if err != nil {
+		logger.Log(context.Background(), libLog.LevelError, fmt.Sprintf("Failed to initialize CRM service: %v", err))
+		_ = logger.Sync(context.Background())
+
+		os.Exit(1)
+	}
+
+	service.Run()
+
+	_ = logger.Sync(context.Background())
+}
+
+func resolveLoggerEnvironment(env string) libZap.Environment {
+	switch env {
+	case string(libZap.EnvironmentProduction):
+		return libZap.EnvironmentProduction
+	case string(libZap.EnvironmentStaging):
+		return libZap.EnvironmentStaging
+	case string(libZap.EnvironmentUAT):
+		return libZap.EnvironmentUAT
+	case string(libZap.EnvironmentLocal):
+		return libZap.EnvironmentLocal
+	default:
+		return libZap.EnvironmentDevelopment
+	}
 }

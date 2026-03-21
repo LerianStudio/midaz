@@ -103,18 +103,18 @@ func (mr *MockRepositoryMockRecorder) Find(ctx, organizationID, id any) *gomock.
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination) ([]*mmodel.Ledger, error) {
+func (m *MockRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination, name *string) ([]*mmodel.Ledger, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindAll", ctx, organizationID, filter)
+	ret := m.ctrl.Call(m, "FindAll", ctx, organizationID, filter, name)
 	ret0, _ := ret[0].([]*mmodel.Ledger)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindAll indicates an expected call of FindAll.
-func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, filter any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, filter, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, organizationID, filter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, organizationID, filter, name)
 }
 
 // FindByName mocks base method.
@@ -132,6 +132,21 @@ func (mr *MockRepositoryMockRecorder) FindByName(ctx, organizationID, name any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByName", reflect.TypeOf((*MockRepository)(nil).FindByName), ctx, organizationID, name)
 }
 
+// GetSettings mocks base method.
+func (m *MockRepository) GetSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSettings", ctx, organizationID, ledgerID)
+	ret0, _ := ret[0].(map[string]any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSettings indicates an expected call of GetSettings.
+func (mr *MockRepositoryMockRecorder) GetSettings(ctx, organizationID, ledgerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSettings", reflect.TypeOf((*MockRepository)(nil).GetSettings), ctx, organizationID, ledgerID)
+}
+
 // ListByIDs mocks base method.
 func (m *MockRepository) ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error) {
 	m.ctrl.T.Helper()
@@ -147,6 +162,21 @@ func (mr *MockRepositoryMockRecorder) ListByIDs(ctx, organizationID, ids any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByIDs", reflect.TypeOf((*MockRepository)(nil).ListByIDs), ctx, organizationID, ids)
 }
 
+// ReplaceSettings mocks base method.
+func (m *MockRepository) ReplaceSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplaceSettings", ctx, organizationID, ledgerID, settings)
+	ret0, _ := ret[0].(map[string]any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReplaceSettings indicates an expected call of ReplaceSettings.
+func (mr *MockRepositoryMockRecorder) ReplaceSettings(ctx, organizationID, ledgerID, settings any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceSettings", reflect.TypeOf((*MockRepository)(nil).ReplaceSettings), ctx, organizationID, ledgerID, settings)
+}
+
 // Update mocks base method.
 func (m *MockRepository) Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error) {
 	m.ctrl.T.Helper()
@@ -160,4 +190,34 @@ func (m *MockRepository) Update(ctx context.Context, organizationID, id uuid.UUI
 func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, id, ledger any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, id, ledger)
+}
+
+// UpdateSettings mocks base method.
+func (m *MockRepository) UpdateSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, settings map[string]any) (map[string]any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSettings", ctx, organizationID, ledgerID, settings)
+	ret0, _ := ret[0].(map[string]any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateSettings indicates an expected call of UpdateSettings.
+func (mr *MockRepositoryMockRecorder) UpdateSettings(ctx, organizationID, ledgerID, settings any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSettings", reflect.TypeOf((*MockRepository)(nil).UpdateSettings), ctx, organizationID, ledgerID, settings)
+}
+
+// UpdateSettingsAtomic mocks base method.
+func (m *MockRepository) UpdateSettingsAtomic(ctx context.Context, organizationID, ledgerID uuid.UUID, mergeFn func(existing map[string]any) (map[string]any, error)) (map[string]any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSettingsAtomic", ctx, organizationID, ledgerID, mergeFn)
+	ret0, _ := ret[0].(map[string]any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateSettingsAtomic indicates an expected call of UpdateSettingsAtomic.
+func (mr *MockRepositoryMockRecorder) UpdateSettingsAtomic(ctx, organizationID, ledgerID, mergeFn any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSettingsAtomic", reflect.TypeOf((*MockRepository)(nil).UpdateSettingsAtomic), ctx, organizationID, ledgerID, mergeFn)
 }

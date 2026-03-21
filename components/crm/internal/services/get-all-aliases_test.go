@@ -1,10 +1,15 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/alias"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -19,12 +24,12 @@ func TestGetAllAliases(t *testing.T) {
 
 	mockAliasRepo := alias.NewMockRepository(ctrl)
 
-	holderID := libCommons.GenerateUUIDv7()
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	id1 := libCommons.GenerateUUIDv7()
-	id2 := libCommons.GenerateUUIDv7()
-	accountId := libCommons.GenerateUUIDv7().String()
-	ledgerId := libCommons.GenerateUUIDv7().String()
+	id1 := uuid.Must(libCommons.GenerateUUIDv7())
+	id2 := uuid.Must(libCommons.GenerateUUIDv7())
+	accountId := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	ledgerId := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	document := "98765432109"
 	account := "123450"
 	iban := "US12345678901234567810"
@@ -56,7 +61,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   query,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, query, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1},
 						{ID: &id2},
@@ -74,7 +79,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   queryWithDocument,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithDocument, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1, Document: &document},
 					}, nil)
@@ -90,7 +95,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   queryWithAccountId,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithAccountId, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1, AccountID: &accountId},
 					}, nil)
@@ -106,7 +111,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   queryWithLedgerId,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithLedgerId, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1, LedgerID: &ledgerId},
 					}, nil)
@@ -122,7 +127,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   queryWithbankingDetailsAccount,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithbankingDetailsAccount, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1, BankingDetails: &mmodel.BankingDetails{Account: &account}},
 					}, nil)
@@ -138,7 +143,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   queryWithbankingDetailsIban,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithbankingDetailsIban, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1, BankingDetails: &mmodel.BankingDetails{IBAN: &iban}},
 					}, nil)
@@ -154,7 +159,7 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   queryWithbankingDetailsBranch,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, queryWithbankingDetailsBranch, false).
 					Return([]*mmodel.Alias{
 						{ID: &id1, BankingDetails: &mmodel.BankingDetails{Branch: &branch}},
 					}, nil)
@@ -170,11 +175,23 @@ func TestGetAllAliases(t *testing.T) {
 			filter:   query,
 			mockSetup: func() {
 				mockAliasRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), false).
+					FindAll(gomock.Any(), gomock.Any(), holderID, query, false).
 					Return([]*mmodel.Alias{}, nil)
 			},
 			expectedErr:    nil,
 			expectedResult: []*mmodel.Alias{},
+		},
+		{
+			name:     "Error when repository fails to find all aliases",
+			holderId: holderID,
+			filter:   query,
+			mockSetup: func() {
+				mockAliasRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), holderID, query, false).
+					Return(nil, errors.New("database error"))
+			},
+			expectedErr:    errors.New("database error"),
+			expectedResult: nil,
 		},
 	}
 
@@ -183,7 +200,7 @@ func TestGetAllAliases(t *testing.T) {
 			testCase.mockSetup()
 
 			ctx := context.Background()
-			accounts, err := uc.GetAllAliases(ctx, uuid.New().String(), testCase.holderId, query, false)
+			accounts, err := uc.GetAllAliases(ctx, uuid.New().String(), testCase.holderId, testCase.filter, false)
 
 			if testCase.expectedErr != nil {
 				assert.NotNil(t, err)

@@ -1,27 +1,34 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
+
+	// UpdateTransaction update a transaction from the repository by given id.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// UpdateTransaction update a transaction from the repository by given id.
 func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *transaction.UpdateTransactionInput) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction")
 	defer span.End()
 
-	logger.Infof("Trying to update transaction: %v", uti)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update transaction: %v", uti))
 
 	trans := &transaction.Transaction{
 		Description: uti.Description,
@@ -29,26 +36,26 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 
 	transUpdated, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, trans)
 	if err != nil {
-		logger.Errorf("Error updating transaction on repo by id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating transaction on repo by id: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction on repo by id", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction on repo by id", err)
 
-			logger.Warnf("Error updating transaction on repo by id: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error updating transaction on repo by id: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update transaction on repo by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction on repo by id", err)
 
 		return nil, err
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String(), uti.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update metadata on repo by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
 
 		return nil, err
 	}
@@ -69,23 +76,23 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transactio
 	ledgerID := uuid.MustParse(tran.LedgerID)
 	transactionID := uuid.MustParse(tran.ID)
 
-	logger.Infof("Trying to update transaction using status: : %v", tran.Status.Description)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to update transaction using status: : %v", tran.Status.Description))
 
 	updateTran, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, tran)
 	if err != nil {
-		logger.Errorf("Error updating status transaction on repo by id: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error updating status transaction on repo by id: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update status transaction on repo by id", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update status transaction on repo by id", err)
 
-			logger.Warnf("Error updating status transaction on repo by id: %v", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error updating status transaction on repo by id: %v", err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to update status transaction on repo by id", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update status transaction on repo by id", err)
 
 		return nil, err
 	}

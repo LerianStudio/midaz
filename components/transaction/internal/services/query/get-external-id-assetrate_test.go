@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package query
 
 import (
@@ -7,20 +11,21 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetAssetRateByID(t *testing.T) {
-	id := libCommons.GenerateUUIDv7()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	exID := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	exID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRate := &assetrate.AssetRate{
 		ID:             id.String(),
@@ -52,9 +57,9 @@ func TestGetAssetRateByID(t *testing.T) {
 
 // TestGetAssetRateByIDError is responsible to test GetAssetRateByExternalID with error
 func TestGetAssetRateByIDError(t *testing.T) {
-	id := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
@@ -77,10 +82,10 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	id := libCommons.GenerateUUIDv7()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	exID := libCommons.GenerateUUIDv7()
+	id := uuid.Must(libCommons.GenerateUUIDv7())
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	exID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	assetRate := &assetrate.AssetRate{
 		ID:             id.String(),

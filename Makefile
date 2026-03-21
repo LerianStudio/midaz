@@ -74,12 +74,25 @@ define check_env_files
 	fi
 endef
 
+define check_env_files_backend
+	@missing=false; \
+	if [ ! -f "$(INFRA_DIR)/.env" ]; then missing=true; fi; \
+	if [ ! -f "$(ONBOARDING_DIR)/.env" ]; then missing=true; fi; \
+	if [ ! -f "$(TRANSACTION_DIR)/.env" ]; then missing=true; fi; \
+	if [ "$$missing" = "true" ]; then \
+		echo "Environment files are missing. Running set-env command first..."; \
+		$(MAKE) UNIFIED=false set-env; \
+	fi
+endef
+
 # Choose docker compose command depending on installed version
 DOCKER_CMD := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
 export DOCKER_CMD
 
 MK_DIR := $(abspath mk)
 
+COVERAGE_PACKAGES := ./...
+include $(MK_DIR)/coverage-unit.mk
 include $(MK_DIR)/tests.mk
 
 #-------------------------------------------------------
@@ -107,7 +120,8 @@ help:
 	@echo "  make tidy                        - Clean dependencies in root directory"
 	@echo "  make check-logs                  - Verify error logging in usecases"
 	@echo "  make check-tests                 - Verify test coverage for components"
-	@echo "  make sec                         - Run security checks using gosec"
+	@echo "  make sec                         - Run security checks (gosec + govulncheck)"
+	@echo "  make sec SARIF=1                 - Run security checks with SARIF output"
 	@echo ""
 	@echo ""
 	@echo "Git Hook Commands:"
@@ -159,8 +173,8 @@ help:
 	@echo "  make test-chaos-system           - Run chaos tests with full Docker stack"
 	@echo ""
 	@echo "Coverage Commands:"
-	@echo "  make coverage-unit               - Run unit tests with coverage report"
-	@echo "  make coverage-integration        - Run integration tests with coverage report"
+	@echo "  make coverage-unit               - Run unit tests with coverage report (PKG=./path, uses .ignorecoverunit)"
+	@echo "  make coverage-integration        - Run integration tests with coverage report (PKG=./path)"
 	@echo "  make coverage                    - Run all coverage targets (unit + integration)"
 	@echo ""
 	@echo "Test Tooling:"
@@ -314,20 +328,48 @@ check-tests:
 	@sh ./scripts/check-tests.sh
 	@echo "[ok] Test coverage verification completed"
 
-.PHONY: sec
-sec:
-	$(call print_title,Running security checks using gosec)
+# SARIF output for GitHub Security tab integration (optional)
+# Usage: make sec SARIF=1
+SARIF ?= 0
+
+.PHONY: sec-gosec
+sec-gosec:
 	@if ! command -v gosec >/dev/null 2>&1; then \
 		echo "Installing gosec..."; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
 	fi
 	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
-		echo "Running security checks on components/ and pkg/ folders..."; \
-		gosec ./components/... ./pkg/...; \
-		echo "[ok] Security checks completed"; \
+		echo "Running gosec on components/ and pkg/ folders..."; \
+		if [ "$(SARIF)" = "1" ]; then \
+			echo "Generating SARIF output: gosec-report.sarif"; \
+			gosec -fmt sarif -out gosec-report.sarif ./components/... ./pkg/...; \
+			echo "[ok] SARIF report generated: gosec-report.sarif"; \
+		else \
+			gosec ./components/... ./pkg/...; \
+		fi; \
 	else \
-		echo "No Go files found, skipping security checks"; \
+		echo "No Go files found, skipping gosec"; \
 	fi
+
+.PHONY: sec-govulncheck
+sec-govulncheck:
+	@if ! command -v govulncheck >/dev/null 2>&1; then \
+		echo "Installing govulncheck..."; \
+		go install golang.org/x/vuln/cmd/govulncheck@latest; \
+	fi
+	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
+		echo "Running govulncheck on components/ and pkg/ folders..."; \
+		govulncheck ./components/... ./pkg/...; \
+	else \
+		echo "No Go files found, skipping govulncheck"; \
+	fi
+
+.PHONY: sec
+sec:
+	$(call print_title,Running security checks)
+	@$(MAKE) sec-gosec SARIF=$(SARIF)
+	@$(MAKE) sec-govulncheck
+	@echo "[ok] Security checks completed"
 
 #-------------------------------------------------------
 # Git Hook Commands
@@ -336,26 +378,23 @@ sec:
 .PHONY: setup-git-hooks
 setup-git-hooks:
 	$(call print_title,Installing and configuring git hooks)
-	@sh ./scripts/setup-git-hooks.sh
-	@echo "[ok] Git hooks installed successfully"
+	@git config core.hooksPath .githooks
+	@echo "[ok] Git hooks configured (using .githooks/)"
 
 .PHONY: check-hooks
 check-hooks:
 	$(call print_title,Verifying git hooks installation status)
-	@err=0; \
-	for hook_dir in .githooks/*; do \
-		hook_name=$$(basename $$hook_dir); \
-		if [ ! -f ".git/hooks/$$hook_name" ]; then \
-			echo "Git hook $$hook_name is not installed"; \
-			err=1; \
-		else \
-			echo "Git hook $$hook_name is installed"; \
-		fi; \
-	done; \
-	if [ $$err -eq 0 ]; then \
-		echo "[ok] All git hooks are properly installed"; \
+	@HOOKS_PATH=$$(git config --get core.hooksPath); \
+	if [ "$$HOOKS_PATH" = ".githooks" ]; then \
+		echo "[ok] Git hooks are configured (core.hooksPath = .githooks)"; \
+		echo "Available hooks:"; \
+		for hook in .githooks/*; do \
+			if [ -x "$$hook" ]; then \
+				echo "  - $$(basename $$hook)"; \
+			fi; \
+		done; \
 	else \
-		echo "[error] Some git hooks are missing. Run 'make setup-git-hooks' to fix."; \
+		echo "[error] Git hooks not configured. Run 'make setup-git-hooks' to fix."; \
 		exit 1; \
 	fi
 
@@ -390,6 +429,10 @@ set-env:
 	else \
 		echo ".env already exists in $(LEDGER_DIR)"; \
 	fi
+	@# Generate crypto keys for CRM component if .env exists
+	@if [ -f "$(CRM_DIR)/.env" ]; then \
+		$(MAKE) -C $(CRM_DIR) generate-keys; \
+	fi
 	@echo "[ok] Environment files set up successfully"
 
 .PHONY: clear-envs
@@ -414,6 +457,36 @@ clear-envs:
 #-------------------------------------------------------
 # Service Commands
 #-------------------------------------------------------
+
+.PHONY: up-backend
+up-backend:
+	$(call print_title,Starting backend services for system chaos tests)
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_env_files_backend)
+	@echo "Starting infrastructure services..."
+	@cd $(INFRA_DIR) && $(MAKE) up
+	@echo "Starting onboarding service..."
+	@cd $(ONBOARDING_DIR) && $(MAKE) up
+	@echo "Starting transaction service..."
+	@cd $(TRANSACTION_DIR) && $(MAKE) up
+	@echo "[ok] Backend services started successfully"
+
+.PHONY: down-backend
+down-backend:
+	$(call print_title,Stopping backend services for system chaos tests)
+	@echo "Stopping transaction service..."
+	@if [ -f "$(TRANSACTION_DIR)/docker-compose.yml" ]; then \
+		(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+	fi
+	@echo "Stopping onboarding service..."
+	@if [ -f "$(ONBOARDING_DIR)/docker-compose.yml" ]; then \
+		(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+	fi
+	@echo "Stopping infrastructure services..."
+	@if [ -f "$(INFRA_DIR)/docker-compose.yml" ]; then \
+		(cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
+	fi
+	@echo "[ok] Backend services stopped successfully"
 
 .PHONY: up
 up:
@@ -620,6 +693,10 @@ generate-docs:
 .PHONY: dev-setup
 dev-setup:
 	$(call print_title,"Setting up development environment for all components")
+	@echo "Installing development tools..."
+	@command -v gitleaks >/dev/null 2>&1 || (echo "Installing gitleaks..." && go install github.com/zricethezav/gitleaks/v8@latest) || echo "⚠️  Failed to install gitleaks"
+	@command -v gofumpt >/dev/null 2>&1 || (echo "Installing gofumpt..." && go install mvdan.cc/gofumpt@latest) || echo "⚠️  Failed to install gofumpt"
+	@command -v goimports >/dev/null 2>&1 || (echo "Installing goimports..." && go install golang.org/x/tools/cmd/goimports@latest) || echo "⚠️  Failed to install goimports"
 	@echo "Setting up git hooks..."
 	@$(MAKE) setup-git-hooks
 	@for dir in $(COMPONENTS); do \
@@ -672,3 +749,4 @@ migrate-create:
 	@echo "  2. Edit the .down.sql file with the rollback"
 	@echo "  3. Run 'make migrate-lint' to validate"
 	@echo "  4. Follow the guidelines in scripts/migration_linter/docs/MIGRATION_GUIDELINES.md"
+

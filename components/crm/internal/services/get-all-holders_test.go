@@ -1,10 +1,15 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/mongodb/holder"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -19,15 +24,15 @@ func TestGetAllHolders(t *testing.T) {
 
 	mockRepo := holder.NewMockRepository(ctrl)
 
-	holderID1 := libCommons.GenerateUUIDv7()
+	holderID1 := uuid.Must(libCommons.GenerateUUIDv7())
 	name1 := "John Smith"
 	document1 := "90217469051"
 
-	holderID2 := libCommons.GenerateUUIDv7()
+	holderID2 := uuid.Must(libCommons.GenerateUUIDv7())
 	name2 := "Alice Johnson"
 	document2 := "12345678901"
 
-	holderID3 := libCommons.GenerateUUIDv7()
+	holderID3 := uuid.Must(libCommons.GenerateUUIDv7())
 	name3 := "Bob Martin"
 	document3 := "98765432109"
 	externalID3 := "G4K7N8M"
@@ -106,6 +111,17 @@ func TestGetAllHolders(t *testing.T) {
 			},
 			expectErr:      false,
 			expectedResult: []*mmodel.Holder{},
+		},
+		{
+			name:   "Error when repository fails to find all holders",
+			filter: query,
+			mockSetup: func() {
+				mockRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), query, false).
+					Return(nil, errors.New("database error"))
+			},
+			expectErr:      true,
+			expectedResult: nil,
 		},
 	}
 

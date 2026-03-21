@@ -768,6 +768,7 @@ components:
         country: US
         zipCode: "10001"
         city: New York
+        description: Home
         state: NY
         line2: Suite 1500
         line1: 123 Financial Avenue
@@ -789,6 +790,14 @@ components:
           example: US
           maxLength: 2
           minLength: 2
+          type: string
+        description:
+          description: |-
+            A descriptive label for the address (e.g., "Home", "Office", "Billing")
+            example: Home
+            maxLength: 100
+          example: Home
+          maxLength: 100
           type: string
         line1:
           description: |-
@@ -830,6 +839,7 @@ components:
           country: US
           zipCode: "10001"
           city: New York
+          description: Home
           state: NY
           line2: Suite 1500
           line1: 123 Financial Avenue
@@ -837,6 +847,7 @@ components:
           country: US
           zipCode: "10001"
           city: New York
+          description: Home
           state: NY
           line2: Suite 1500
           line1: 123 Financial Avenue
@@ -844,6 +855,7 @@ components:
           country: US
           zipCode: "10001"
           city: New York
+          description: Home
           state: NY
           line2: Suite 1500
           line1: 123 Financial Avenue
@@ -1086,7 +1098,7 @@ components:
           description: Object with contact information.
           type: object
         document:
-          description: The holder’s identification document.
+          description: The holder's identification document.
           example: "91315026015"
           type: string
         externalId:
@@ -1139,6 +1151,7 @@ components:
             country: US
             zipCode: "10001"
             city: New York
+            description: Home
             state: NY
             line2: Suite 1500
             line1: 123 Financial Avenue
@@ -1146,6 +1159,7 @@ components:
             country: US
             zipCode: "10001"
             city: New York
+            description: Home
             state: NY
             line2: Suite 1500
             line1: 123 Financial Avenue
@@ -1153,6 +1167,7 @@ components:
             country: US
             zipCode: "10001"
             city: New York
+            description: Home
             state: NY
             line2: Suite 1500
             line1: 123 Financial Avenue
@@ -1323,33 +1338,6 @@ components:
           example: Active
           type: string
       type: object
-    Pagination:
-      description: Pagination is the struct designed to store the pagination data
-        of an entity list.
-      example:
-        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        limit: 10
-        page: 1
-        items: '{}'
-      properties:
-        items:
-          type: object
-        limit:
-          example: 10
-          type: integer
-        next_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
-        page:
-          example: 1
-          type: integer
-        prev_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
-      type: object
     RegulatoryFields:
       description: RegulatoryFields object
       example:
@@ -1519,6 +1507,25 @@ components:
           description: Object with natural person information.
           type: object
       type: object
+    http.Pagination:
+      example:
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        page: 6
+        items: '{}'
+      properties:
+        items:
+          type: object
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        page:
+          type: integer
+        prev_cursor:
+          type: string
+      type: object
     pkg.HTTPError:
       properties:
         code:
@@ -1534,14 +1541,12 @@ components:
       type: object
     inline_response_200:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - metadata:
             key: '{}'
@@ -1614,33 +1619,28 @@ components:
           id: 00000000-0000-0000-0000-000000000000
           updatedAt: 2025-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/AliasResponse'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
     inline_response_200_1:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        limit: 0
-        page: 6
         items:
         - addresses:
             additional1:
               country: US
               zipCode: "10001"
               city: New York
+              description: Home
               state: NY
               line2: Suite 1500
               line1: 123 Financial Avenue
@@ -1648,6 +1648,7 @@ components:
               country: US
               zipCode: "10001"
               city: New York
+              description: Home
               state: NY
               line2: Suite 1500
               line1: 123 Financial Avenue
@@ -1655,6 +1656,7 @@ components:
               country: US
               zipCode: "10001"
               city: New York
+              description: Home
               state: NY
               line2: Suite 1500
               line1: 123 Financial Avenue
@@ -1696,6 +1698,7 @@ components:
               country: US
               zipCode: "10001"
               city: New York
+              description: Home
               state: NY
               line2: Suite 1500
               line1: 123 Financial Avenue
@@ -1703,6 +1706,7 @@ components:
               country: US
               zipCode: "10001"
               city: New York
+              description: Home
               state: NY
               line2: Suite 1500
               line1: 123 Financial Avenue
@@ -1710,6 +1714,7 @@ components:
               country: US
               zipCode: "10001"
               city: New York
+              description: Home
               state: NY
               line2: Suite 1500
               line1: 123 Financial Avenue
@@ -1747,16 +1752,12 @@ components:
             status: Active
           updatedAt: 2025-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/HolderResponse'
           type: array
-        limit:
-          type: integer
-        page:
-          type: integer
       type: object
   securitySchemes:
     BearerAuth:

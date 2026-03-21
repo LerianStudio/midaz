@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package ledger
 
 import (
@@ -14,6 +18,11 @@ func TestLedgerPostgreSQLModel_ToEntity(t *testing.T) {
 	t.Run("with_all_fields_populated", func(t *testing.T) {
 		statusDesc := "Active and operational"
 		deletedAt := time.Now().Add(-24 * time.Hour)
+		settings := map[string]any{
+			"accounting": map[string]any{
+				"validateAccountType": true,
+			},
+		}
 
 		model := &LedgerPostgreSQLModel{
 			ID:                "ledger-123",
@@ -24,6 +33,7 @@ func TestLedgerPostgreSQLModel_ToEntity(t *testing.T) {
 			CreatedAt:         time.Now().Add(-48 * time.Hour),
 			UpdatedAt:         time.Now().Add(-1 * time.Hour),
 			DeletedAt:         sql.NullTime{Time: deletedAt, Valid: true},
+			Settings:          settings,
 		}
 
 		entity := model.ToEntity()
@@ -38,6 +48,8 @@ func TestLedgerPostgreSQLModel_ToEntity(t *testing.T) {
 		assert.Equal(t, model.UpdatedAt, entity.UpdatedAt)
 		require.NotNil(t, entity.DeletedAt)
 		assert.Equal(t, deletedAt, *entity.DeletedAt)
+		require.NotNil(t, entity.Settings)
+		assert.True(t, entity.Settings.Accounting.ValidateAccountType)
 	})
 
 	t.Run("with_optional_fields_nil", func(t *testing.T) {
@@ -59,6 +71,7 @@ func TestLedgerPostgreSQLModel_ToEntity(t *testing.T) {
 		assert.Equal(t, model.Status, entity.Status.Code)
 		assert.Nil(t, entity.Status.Description)
 		assert.Nil(t, entity.DeletedAt)
+		assert.Nil(t, entity.Settings)
 	})
 
 	t.Run("with_deleted_at_valid_but_zero_time", func(t *testing.T) {
@@ -84,6 +97,11 @@ func TestLedgerPostgreSQLModel_FromEntity(t *testing.T) {
 	t.Run("with_all_fields_populated", func(t *testing.T) {
 		statusDesc := "Active and operational"
 		deletedAt := time.Now().Add(-24 * time.Hour)
+		settings := &mmodel.LedgerSettings{
+			Accounting: mmodel.AccountingValidation{
+				ValidateAccountType: true,
+			},
+		}
 
 		entity := &mmodel.Ledger{
 			ID:             "should-be-overwritten",
@@ -96,6 +114,7 @@ func TestLedgerPostgreSQLModel_FromEntity(t *testing.T) {
 			CreatedAt: time.Now().Add(-48 * time.Hour),
 			UpdatedAt: time.Now().Add(-1 * time.Hour),
 			DeletedAt: &deletedAt,
+			Settings:  settings,
 		}
 
 		var model LedgerPostgreSQLModel
@@ -112,6 +131,7 @@ func TestLedgerPostgreSQLModel_FromEntity(t *testing.T) {
 		assert.True(t, model.DeletedAt.Valid, "DeletedAt should be valid")
 		assert.Equal(t, deletedAt, model.DeletedAt.Time)
 		assert.Nil(t, model.Metadata, "Metadata is not mapped by FromEntity")
+		assert.Equal(t, true, model.Settings["accounting"].(map[string]any)["validateAccountType"])
 	})
 
 	t.Run("with_optional_fields_nil", func(t *testing.T) {
@@ -134,6 +154,7 @@ func TestLedgerPostgreSQLModel_FromEntity(t *testing.T) {
 		assert.Equal(t, entity.Status.Code, model.Status)
 		assert.Nil(t, model.StatusDescription)
 		assert.False(t, model.DeletedAt.Valid, "DeletedAt should not be valid when entity.DeletedAt is nil")
+		assert.Nil(t, model.Settings, "Settings should be nil when entity.Settings is nil")
 	})
 
 	t.Run("generates_uuid_v7", func(t *testing.T) {

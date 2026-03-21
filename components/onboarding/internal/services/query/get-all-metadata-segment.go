@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package query
 
 import (
@@ -5,8 +9,9 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -15,22 +20,29 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataSegments fetch all Segments from the repository
+// GetAllMetadataSegments fetches all segments from the repository.
 func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Segment, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_segments")
 	defer span.End()
 
-	logger.Infof("Retrieving segments")
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving segments")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), filter)
-	if err != nil || metadata == nil {
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo by query params", err)
+		logger.Log(ctx, libLog.LevelError, "Error getting metadata on repo")
+
+		return nil, err
+	}
+
+	if metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo by query params", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No metadata found", err)
 
-		logger.Warn("No metadata found")
+		logger.Log(ctx, libLog.LevelWarn, "No metadata found")
 
 		return nil, err
 	}
@@ -45,19 +57,19 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 
 	segments, err := uc.SegmentRepo.FindByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
-		logger.Errorf("Error getting segments on repo by query params: %v", err)
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get segments on repo by query params", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get segments on repo by query params", err)
 
-			logger.Warn("No segments found")
+			logger.Log(ctx, libLog.LevelWarn, "No segments found")
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get segments on repo by query params", err)
+		logger.Log(ctx, libLog.LevelError, "Error getting segments on repo")
+
+		libOpentelemetry.HandleSpanError(span, "Failed to get segments on repo by query params", err)
 
 		return nil, err
 	}

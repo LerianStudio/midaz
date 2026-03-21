@@ -1,10 +1,15 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package bootstrap
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libLog "github.com/LerianStudio/lib-commons/v2/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v2/commons/server"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v4/commons/server"
+	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -24,7 +29,7 @@ func (s *Server) ServerAddress() string {
 // NewServer creates an instance of Server.
 func NewServer(cfg *Config, app *fiber.App, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) *Server {
 	// Use prefixed server address if available, otherwise fallback to non-prefixed
-	serverAddress := envFallback(cfg.PrefixedServerAddress, cfg.ServerAddress)
+	serverAddress := utils.EnvFallback(cfg.PrefixedServerAddress, cfg.ServerAddress)
 
 	return &Server{
 		app:           app,

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package query
 
 import (
@@ -5,8 +9,9 @@ import (
 	"errors"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -15,22 +20,29 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAllMetadataOrganizations fetch all Organizations from the repository
+// GetAllMetadataOrganizations fetches all organizations from the repository.
 func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_organizations")
 	defer span.End()
 
-	logger.Infof("Retrieving organizations")
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving organizations")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), filter)
-	if err != nil || metadata == nil {
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo", err)
+		logger.Log(ctx, libLog.LevelError, "Error getting metadata on repo")
+
+		return nil, err
+	}
+
+	if metadata == nil {
 		err := pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get metadata on repo", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No metadata found", err)
 
-		logger.Warn("No metadata found")
+		logger.Log(ctx, libLog.LevelWarn, "No metadata found")
 
 		return nil, err
 	}
@@ -45,19 +57,19 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter http.
 
 	organizations, err := uc.OrganizationRepo.ListByIDs(ctx, uuids)
 	if err != nil {
-		logger.Errorf("Error getting organizations on repo by query params: %v", err)
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get organizations on repo", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get organizations on repo", err)
 
-			logger.Warn("No organizations found")
+			logger.Log(ctx, libLog.LevelWarn, "No organizations found")
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to get organizations on repo", err)
+		logger.Log(ctx, libLog.LevelError, "Error getting organizations on repo")
+
+		libOpentelemetry.HandleSpanError(span, "Failed to get organizations on repo", err)
 
 		return nil, err
 	}

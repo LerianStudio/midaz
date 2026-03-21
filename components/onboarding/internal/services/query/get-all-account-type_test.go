@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package query
 
 import (
@@ -6,8 +10,8 @@ import (
 	"reflect"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
@@ -15,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.uber.org/mock/gomock"
@@ -25,10 +30,10 @@ func TestGetAllAccountTypeSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountTypeID1 := libCommons.GenerateUUIDv7()
-	accountTypeID2 := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID1 := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID2 := uuid.Must(libCommons.GenerateUUIDv7())
 
 	filter := http.QueryHeader{
 		Limit:     10,
@@ -118,8 +123,8 @@ func TestGetAllAccountTypeSuccessWithoutMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	filter := http.QueryHeader{
 		Limit:     10,
@@ -128,7 +133,7 @@ func TestGetAllAccountTypeSuccessWithoutMetadata(t *testing.T) {
 
 	expectedAccountTypes := []*mmodel.AccountType{
 		{
-			ID:             libCommons.GenerateUUIDv7(),
+			ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Name:           "Revenue Account",
@@ -177,8 +182,8 @@ func TestGetAllAccountTypeNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	filter := http.QueryHeader{
 		Limit:     10,
@@ -211,8 +216,8 @@ func TestGetAllAccountTypeRepoError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	expectedError := errors.New("database connection error")
 
 	filter := http.QueryHeader{
@@ -243,8 +248,8 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	filter := http.QueryHeader{
 		Limit:     10,
@@ -253,7 +258,7 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 
 	expectedAccountTypes := []*mmodel.AccountType{
 		{
-			ID:             libCommons.GenerateUUIDv7(),
+			ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Name:           "Test Account",
@@ -304,8 +309,8 @@ func TestGetAllAccountTypeEmpty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	filter := http.QueryHeader{
 		Limit:     10,
@@ -349,9 +354,9 @@ func TestGetAllAccountTypeWithDifferentPagination(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountTypeID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	filter := http.QueryHeader{
 		Limit:     5,
@@ -419,9 +424,9 @@ func TestGetAllAccountTypeWithMetadataFilter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountTypeID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountTypeID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	metadataFilter := &bson.M{
 		"category": "current",

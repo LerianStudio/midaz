@@ -1,14 +1,18 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package transaction
 
 import (
 	"database/sql"
 	"time"
 
-	constant "github.com/LerianStudio/lib-commons/v2/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -33,7 +37,8 @@ type TransactionPostgreSQLModel struct {
 	CreatedAt                time.Time                   // Creation timestamp
 	UpdatedAt                time.Time                   // Last update timestamp
 	DeletedAt                sql.NullTime                // Deletion timestamp (if soft-deleted)
-	Route                    *string                     // Route
+	Route                    *string                     // Deprecated: legacy route identifier. Use RouteID instead.
+	RouteID                  *string                     // UUID of the transaction route (FK to transaction_route.id)
 	Metadata                 map[string]any              // Additional custom attributes
 }
 
@@ -88,10 +93,15 @@ type CreateTransactionInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	//Route
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: "00000000-0000-0000-0000-000000000000"
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
+
+	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
@@ -183,11 +193,22 @@ type CreateTransactionSwaggerModel struct {
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	Metadata map[string]any `json:"metadata,omitempty"`
 
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
+	// example: 00000000-0000-0000-0000-000000000000
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route,omitempty" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
+
+	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
 	// swagger: type string
 	// required: false
-	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty"`
+	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
 	// Send operation details including source and distribution
 	// required: true
@@ -377,10 +398,16 @@ type Transaction struct {
 	// Transaction body containing detailed operation data (not exposed in JSON)
 	Body pkgTransaction.Transaction `json:"-"`
 
-	//Route
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
-	// format: string
-	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
+
+	// UUID of the transaction route. Primary field for route identification, validation, and accounting.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// Timestamp when the transaction was created
 	// example: 2021-01-01T00:00:00Z
@@ -439,6 +466,10 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		transaction.Route = *t.Route
 	}
 
+	if t.RouteID != nil {
+		transaction.RouteID = t.RouteID
+	}
+
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
 		transaction.DeletedAt = &deletedAtCopy
@@ -449,7 +480,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 
 // FromEntity converts an entity Transaction to TransactionPostgreSQLModel
 func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
-	ID := libCommons.GenerateUUIDv7().String()
+	ID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 	if transaction.ID != "" {
 		ID = transaction.ID
 	}
@@ -477,14 +508,18 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		t.Route = &transaction.Route
 	}
 
+	if transaction.RouteID != nil {
+		t.RouteID = transaction.RouteID
+	}
+
 	if transaction.DeletedAt != nil {
 		deletedAtCopy := *transaction.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }
 
-// FromDSL converts an entity FromDSL to goldModel.Transaction
-func (cti *CreateTransactionInput) FromDSL() *pkgTransaction.Transaction {
+// BuildTransaction converts a CreateTransactionInput to a pkgTransaction.Transaction
+func (cti *CreateTransactionInput) BuildTransaction() *pkgTransaction.Transaction {
 	dsl := &pkgTransaction.Transaction{
 		ChartOfAccountsGroupName: cti.ChartOfAccountsGroupName,
 		Description:              cti.Description,
@@ -493,6 +528,7 @@ func (cti *CreateTransactionInput) FromDSL() *pkgTransaction.Transaction {
 		Metadata:                 cti.Metadata,
 		TransactionDate:          cti.TransactionDate,
 		Route:                    cti.Route,
+		RouteID:                  cti.RouteID,
 	}
 
 	if cti.Send != nil {
@@ -506,43 +542,49 @@ func (cti *CreateTransactionInput) FromDSL() *pkgTransaction.Transaction {
 	return dsl
 }
 
-// TransactionRevert is a func that revert transaction
+// TransactionRevert builds a reversed transaction by swapping from/to sides.
+// Original CREDIT operations become sources (from) and original DEBIT operations
+// become destinations (to). Direction is intentionally omitted because
+// CalculateTotal re-derives it via DetermineOperation based on IsFrom.
 func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
+	if t.Amount == nil {
+		return pkgTransaction.Transaction{}
+	}
+
 	froms := make([]pkgTransaction.FromTo, 0)
 	tos := make([]pkgTransaction.FromTo, 0)
 
 	for _, op := range t.Operations {
+		if op.Amount.Value == nil {
+			continue
+		}
+
 		switch op.Type {
+		// Only CREDIT and DEBIT appear in APPROVED transactions, which is the
+		// only status eligible for revert (guarded upstream).  ONHOLD and
+		// RELEASE are excluded because they belong to PENDING flows.
 		case constant.CREDIT:
-			from := pkgTransaction.FromTo{
-				IsFrom:       true,
-				AccountAlias: op.AccountAlias,
-				Amount: &pkgTransaction.Amount{
-					Asset: op.AssetCode,
-					Value: *op.Amount.Value,
-				},
+			froms = append(froms, pkgTransaction.FromTo{
+				IsFrom:          true,
+				AccountAlias:    op.AccountAlias,
+				Amount:          &pkgTransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
 				Route:           op.Route,
-			}
-
-			froms = append(froms, from)
+				RouteID:         op.RouteID,
+			})
 		case constant.DEBIT:
-			to := pkgTransaction.FromTo{
-				IsFrom:       false,
-				AccountAlias: op.AccountAlias,
-				Amount: &pkgTransaction.Amount{
-					Asset: op.AssetCode,
-					Value: *op.Amount.Value,
-				},
+			tos = append(tos, pkgTransaction.FromTo{
+				IsFrom:          false,
+				AccountAlias:    op.AccountAlias,
+				Amount:          &pkgTransaction.Amount{Asset: op.AssetCode, Value: *op.Amount.Value},
 				Description:     op.Description,
 				ChartOfAccounts: op.ChartOfAccounts,
 				Metadata:        op.Metadata,
 				Route:           op.Route,
-			}
-
-			tos = append(tos, to)
+				RouteID:         op.RouteID,
+			})
 		}
 	}
 
@@ -563,27 +605,38 @@ func (t Transaction) TransactionRevert() pkgTransaction.Transaction {
 		Pending:                  false,
 		Metadata:                 t.Metadata,
 		Route:                    t.Route,
+		RouteID:                  t.RouteID,
 		Send:                     send,
 	}
 
 	return transaction
 }
 
-// TransactionQueue this is a struct that is responsible to send and receive from queue.
+// TransactionProcessingPayload contains all data needed to process a transaction
+// via message queue (create balances, transaction record, and operations).
 //
-// @Description Container for transaction data exchanged via message queues, including validation responses, balances, and transaction details.
-type TransactionQueue struct {
+// This struct is serialized via msgpack to RabbitMQ. The msgpack tags preserve
+// backward compatibility with messages serialized before the rename.
+//
+// @Description Container for transaction data exchanged via message queues.
+type TransactionProcessingPayload struct {
 	// Validation responses from the transaction processing
-	Validate *pkgTransaction.Responses `json:"validate"`
+	Validate *pkgTransaction.Responses `json:"validate" msgpack:"Validate"`
 
-	// Account balances affected by the transaction
-	Balances []*mmodel.Balance `json:"balances"`
+	// Account balances affected by the transaction (BEFORE state)
+	Balances []*mmodel.Balance `json:"balances" msgpack:"Balances"`
+
+	// Account balances post-mutation from the Lua atomic script (AFTER state).
+	// When present, UpdateBalances persists these directly without recalculating.
+	// When nil (legacy payloads from rolling update), UpdateBalances falls back
+	// to OperateBalances for backward compatibility.
+	BalancesAfter []*mmodel.Balance `json:"balancesAfter,omitempty" msgpack:"BalancesAfter,omitempty"`
 
 	// The transaction being processed
-	Transaction *Transaction `json:"transaction"`
+	Transaction *Transaction `json:"transaction" msgpack:"Transaction"`
 
-	// Parsed transaction DSL
-	ParseDSL *pkgTransaction.Transaction `json:"parseDSL"`
+	// Input transaction data (renamed from ParseDSL for clarity)
+	Input *pkgTransaction.Transaction `json:"input" msgpack:"ParseDSL"`
 }
 
 // TransactionResponse represents a success response containing a single transaction.
@@ -636,10 +689,15 @@ type CreateTransactionInflowInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Transaction route
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
+
+	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
@@ -719,11 +777,22 @@ type CreateTransactionInflowSwaggerModel struct {
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	Metadata map[string]any `json:"metadata,omitempty"`
 
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
+	// example: 00000000-0000-0000-0000-000000000000
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route,omitempty" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
+
+	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
 	// swagger: type string
 	// required: false
-	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty"`
+	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
 	// Send operation details including distribution only
 	// required: true
@@ -779,9 +848,9 @@ type CreateTransactionInflowSwaggerModel struct {
 	} `json:"send"`
 } // @name CreateTransactionInflowSwaggerModel
 
-// InflowFromDSL converts an entity InflowFromDSL to a pkgTransaction.Transaction
-func (c *CreateTransactionInflowInput) InflowFromDSL() *pkgTransaction.Transaction {
-	listFrom := make([]pkgTransaction.FromTo, 0)
+// BuildInflowEntry converts a CreateTransactionInflowInput to a pkgTransaction.Transaction
+func (c *CreateTransactionInflowInput) BuildInflowEntry() *pkgTransaction.Transaction {
+	listFrom := make([]pkgTransaction.FromTo, 0, 1)
 
 	from := pkgTransaction.FromTo{
 		IsFrom:       true,
@@ -801,6 +870,7 @@ func (c *CreateTransactionInflowInput) InflowFromDSL() *pkgTransaction.Transacti
 		Metadata:                 c.Metadata,
 		TransactionDate:          c.TransactionDate,
 		Route:                    c.Route,
+		RouteID:                  c.RouteID,
 		Send: pkgTransaction.Send{
 			Asset:      c.Send.Asset,
 			Value:      c.Send.Value,
@@ -842,10 +912,15 @@ type CreateTransactionOutflowInput struct {
 	// swagger:type object
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 
-	// Transaction route
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
 	// maxLength: 250
 	Route string `json:"route,omitempty" validate:"omitempty,valuemax=250" example:"00000000-0000-0000-0000-000000000000"`
+
+	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
@@ -930,11 +1005,22 @@ type CreateTransactionOutflowSwaggerModel struct {
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
 	Metadata map[string]any `json:"metadata,omitempty"`
 
+	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
+	// example: 00000000-0000-0000-0000-000000000000
+	// maxLength: 250
+	// deprecated: true
+	Route string `json:"route,omitempty" example:"00000000-0000-0000-0000-000000000000" maxLength:"250"`
+
+	// UUID of the transaction route. Used instead of route for proper UUID validation and referential integrity.
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	RouteID *string `json:"routeId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
 	// swagger: type string
 	// required: false
-	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty"`
+	TransactionDate *pkgTransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
 	// Send operation details including source only
 	// required: true
@@ -990,9 +1076,9 @@ type CreateTransactionOutflowSwaggerModel struct {
 	} `json:"send"`
 } // @name CreateTransactionOutflowSwaggerModel
 
-// OutflowFromDSL converts an entity OutflowFromDSL to a pkgTransaction.Transaction
-func (c *CreateTransactionOutflowInput) OutflowFromDSL() *pkgTransaction.Transaction {
-	listTo := make([]pkgTransaction.FromTo, 0)
+// BuildOutflowEntry converts a CreateTransactionOutflowInput to a pkgTransaction.Transaction
+func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *pkgTransaction.Transaction {
+	listTo := make([]pkgTransaction.FromTo, 0, 1)
 
 	to := pkgTransaction.FromTo{
 		IsFrom:       false,
@@ -1013,6 +1099,7 @@ func (c *CreateTransactionOutflowInput) OutflowFromDSL() *pkgTransaction.Transac
 		Metadata:                 c.Metadata,
 		TransactionDate:          c.TransactionDate,
 		Route:                    c.Route,
+		RouteID:                  c.RouteID,
 		Send: pkgTransaction.Send{
 			Asset: c.Send.Asset,
 			Value: c.Send.Value,

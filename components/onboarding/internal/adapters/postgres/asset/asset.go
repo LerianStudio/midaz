@@ -1,11 +1,16 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package asset
 
 import (
 	"database/sql"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 )
 
 // AssetPostgreSQLModel represents the entity Asset into SQL context in Database
@@ -54,7 +59,7 @@ func (t *AssetPostgreSQLModel) ToEntity() *mmodel.Asset {
 // FromEntity converts a request entity Asset to AssetPostgreSQLModel
 func (t *AssetPostgreSQLModel) FromEntity(asset *mmodel.Asset) {
 	*t = AssetPostgreSQLModel{
-		ID:                libCommons.GenerateUUIDv7().String(),
+		ID:                uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Name:              asset.Name,
 		Type:              asset.Type,
 		Code:              asset.Code,

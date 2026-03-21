@@ -1,5 +1,9 @@
 //go:build integration
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package transaction
 
 import (
@@ -9,12 +13,13 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	"github.com/bxcodec/dbresolver/v2"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -59,7 +64,7 @@ func parseID(t *testing.T, id string) uuid.UUID {
 // integrationTestInfra holds the infrastructure needed for basic integration tests.
 type integrationTestInfra struct {
 	pgContainer *pgtestutil.ContainerResult
-	conn        *libPostgres.PostgresConnection
+	conn        *libPostgres.Client
 	repo        *TransactionPostgreSQLRepository
 	orgID       uuid.UUID
 	ledgerID    uuid.UUID
@@ -70,7 +75,7 @@ type integrationTestInfra struct {
 // chaosTestInfra holds the infrastructure needed for chaos tests (container restart, etc.).
 type chaosTestInfra struct {
 	pgContainer *pgtestutil.ContainerResult
-	conn        *libPostgres.PostgresConnection
+	conn        *libPostgres.Client
 	repo        *TransactionPostgreSQLRepository
 	orgID       uuid.UUID
 	ledgerID    uuid.UUID
@@ -83,7 +88,7 @@ type chaosTestInfra struct {
 type networkChaosTestInfra struct {
 	chaosInfra *chaos.Infrastructure
 	pgResult   *pgtestutil.ContainerResult
-	conn       *libPostgres.PostgresConnection
+	conn       *libPostgres.Client
 	repo       *TransactionPostgreSQLRepository
 	orgID      uuid.UUID
 	ledgerID   uuid.UUID
@@ -98,27 +103,19 @@ func setupIntegrationInfra(t *testing.T) *integrationTestInfra {
 	pgContainer := pgtestutil.SetupContainer(t)
 
 	// Create lib-commons PostgreSQL connection
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           pgContainer.Config.DBName,
-		ReplicaDBName:           pgContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
 
 	// Create repository
 	repo := NewTransactionPostgreSQLRepository(conn)
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	return &integrationTestInfra{
 		pgContainer: pgContainer,
@@ -139,27 +136,19 @@ func setupChaosInfra(t *testing.T) *chaosTestInfra {
 	pgContainer := pgtestutil.SetupContainer(t)
 
 	// Create lib-commons PostgreSQL connection
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: connStr,
-		ConnectionStringReplica: connStr,
-		PrimaryDBName:           pgContainer.Config.DBName,
-		ReplicaDBName:           pgContainer.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
 
 	// Create repository
 	repo := NewTransactionPostgreSQLRepository(conn)
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	// Create chaos orchestrator
 	chaosOrch := chaos.NewOrchestrator(t)
@@ -200,27 +189,19 @@ func setupNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	require.NotEmpty(t, containerInfo.ProxyListen, "proxy address should be set")
 
 	// Create lib-commons PostgreSQL connection through proxy
-	logger := libZap.InitializeLogger()
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 
 	// Build connection string using proxy address
 	proxyConnStr := pgtestutil.BuildConnectionStringWithHost(containerInfo.ProxyListen, pgResult.Config)
 
-	conn := &libPostgres.PostgresConnection{
-		ConnectionStringPrimary: proxyConnStr,
-		ConnectionStringReplica: proxyConnStr,
-		PrimaryDBName:           pgResult.Config.DBName,
-		ReplicaDBName:           pgResult.Config.DBName,
-		MigrationsPath:          migrationsPath,
-		Logger:                  logger,
-	}
+	conn := pgtestutil.CreatePostgresClient(t, proxyConnStr, proxyConnStr, pgResult.Config.DBName, migrationsPath)
 
 	// Create repository
 	repo := NewTransactionPostgreSQLRepository(conn)
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	return &networkChaosTestInfra{
 		chaosInfra: chaosInfra,
@@ -1382,4 +1363,438 @@ func TestIntegration_Transaction_SoftDelete_Excluded(t *testing.T) {
 	})
 
 	t.Log("Integration test passed: soft delete exclusion verified")
+}
+
+// =============================================================================
+// IS-1: getDB returns valid DB handle from real PostgreSQL (static fallback)
+// =============================================================================
+
+// TestIntegration_GetDB_StaticFallback_ReturnsValidHandle verifies that getDB
+// with a plain context (no tenant) returns a non-nil, functional DB handle.
+func TestIntegration_GetDB_StaticFallback_ReturnsValidHandle(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupIntegrationInfra(t)
+	ctx := context.Background()
+
+	// Act -- no tenant context, so getDB should use the static connection.
+	db, err := infra.repo.getDB(ctx)
+
+	// Assert
+	require.NoError(t, err, "getDB with plain context should return no error")
+	require.NotNil(t, db, "getDB should return a non-nil DB handle")
+}
+
+// TestIntegration_GetDB_StaticFallback_CanExecuteQueries verifies the static DB
+// handle can execute queries against the real PostgreSQL container.
+func TestIntegration_GetDB_StaticFallback_CanExecuteQueries(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupIntegrationInfra(t)
+	ctx := context.Background()
+
+	// Arrange -- no tenant context, so getDB returns the static DB.
+	db, err := infra.repo.getDB(ctx)
+	require.NoError(t, err)
+
+	// Act -- execute a simple query to verify the handle is functional.
+	var result int
+	err = db.QueryRowContext(ctx, "SELECT 1").Scan(&result)
+
+	// Assert
+	require.NoError(t, err, "static DB handle should execute queries successfully")
+	assert.Equal(t, 1, result, "query should return 1")
+}
+
+// TestIntegration_GetDB_StaticFallback_SupportsRepositoryOperations verifies
+// that repository CRUD methods work through the getDB static path.
+func TestIntegration_GetDB_StaticFallback_SupportsRepositoryOperations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupIntegrationInfra(t)
+	ctx := context.Background()
+
+	// Arrange + Act -- create via repository (uses getDB internally).
+	created := infra.createTestTransaction(t, "GetDB Static Operations Test")
+
+	// Act -- repo.Find calls getDB(ctx) with plain context (static fallback).
+	found, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, created.ID))
+
+	// Assert
+	require.NoError(t, err, "Find should succeed through getDB static path")
+	require.NotNil(t, found)
+	assert.Equal(t, created.ID, found.ID)
+	assert.Equal(t, "GetDB Static Operations Test", found.Description)
+}
+
+// =============================================================================
+// IS-2: Create-then-Find round-trip through getDB
+// =============================================================================
+// NOTE: IS-2 is extensively covered by the existing Create, Find, Update,
+// Delete tests above. All those tests exercise the getDB(ctx) static fallback
+// path with a real PostgreSQL container.
+//
+// The test below adds explicit round-trip verification through getDB.
+
+// TestIntegration_GetDB_CreateAndFindRoundTrip verifies a full Create-then-Find
+// round-trip works correctly through the getDB path.
+func TestIntegration_GetDB_CreateAndFindRoundTrip(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupIntegrationInfra(t)
+	ctx := context.Background()
+
+	// Arrange + Act -- create via repository (uses getDB internally).
+	tx := &Transaction{
+		ID:             uuid.New().String(),
+		Description:    "Roundtrip Transaction",
+		Status:         Status{Code: "ACTIVE"},
+		Amount:         decimalPtr(2500),
+		AssetCode:      "BRL",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+	}
+
+	created, err := infra.repo.Create(ctx, tx)
+	require.NoError(t, err, "Create should succeed through getDB")
+	require.NotNil(t, created)
+
+	// Act -- find the same record (also uses getDB).
+	found, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, created.ID))
+
+	// Assert
+	require.NoError(t, err, "Find should succeed through getDB")
+	require.NotNil(t, found)
+	assert.Equal(t, created.ID, found.ID)
+	assert.Equal(t, "Roundtrip Transaction", found.Description)
+	assert.Equal(t, "BRL", found.AssetCode)
+}
+
+// =============================================================================
+// IS-3: getDB with tenant module in context returns tenant DB
+// =============================================================================
+//
+// These tests verify that when a tenant-specific dbresolver.DB is injected into
+// context via tmcore.ContextWithModulePGConnection("transaction", tenantDB),
+// the getDB method returns that tenant DB instead of the static connection.
+//
+// Strategy: Two separate PostgreSQL containers.
+//   - Container A (static): used to satisfy the constructor (NewTransactionPostgreSQLRepository).
+//   - Container B (tenant): wrapped in dbresolver.DB, injected into context.
+//   - Data is inserted only into Container B, then retrieved through the repo.
+//   - If getDB correctly returns the tenant DB, the data is found.
+//   - If getDB incorrectly falls back to static, the data is NOT found (test fails).
+
+// setupTenantContainer starts a second PostgreSQL container with migrations applied
+// and returns both the ContainerResult and a dbresolver.DB wrapper suitable for
+// injection into tenant context.
+func setupTenantContainer(t *testing.T) (*pgtestutil.ContainerResult, dbresolver.DB) {
+	t.Helper()
+
+	tenantContainer := pgtestutil.SetupContainer(t)
+
+	// Run migrations on the tenant container by creating a temporary
+	// PostgresConnection and letting the constructor trigger migration.
+	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
+	connStr := pgtestutil.BuildConnectionString(tenantContainer.Host, tenantContainer.Port, tenantContainer.Config)
+
+	// Create a temporary connection to apply migrations (the constructor runs them).
+	tempConn := pgtestutil.CreatePostgresClient(t, connStr, connStr, tenantContainer.Config.DBName, migrationsPath)
+
+	// Trigger migration by calling GetDB (same as constructor does).
+	db, err := tempConn.Resolver(context.Background())
+	require.NoError(t, err, "failed to initialize tenant container database with migrations")
+
+	// Close the temporary connection pool so it does not leak.
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	// Wrap the raw *sql.DB in a dbresolver.DB for injection into tenant context.
+	tenantDB := dbresolver.New(
+		dbresolver.WithPrimaryDBs(tenantContainer.DB),
+		dbresolver.WithReplicaDBs(tenantContainer.DB),
+	)
+
+	return tenantContainer, tenantDB
+}
+
+// TestIntegration_GetDB_TenantContext_ReturnsValidHandle verifies that getDB
+// with a tenant context returns a non-nil, functional DB handle.
+func TestIntegration_GetDB_TenantContext_ReturnsValidHandle(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Arrange -- static container for constructor, tenant container for context.
+	infra := setupIntegrationInfra(t)
+	_, tenantDB := setupTenantContainer(t)
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+
+	// Act
+	db, err := infra.repo.getDB(ctx)
+
+	// Assert
+	require.NoError(t, err, "getDB with tenant context should return no error")
+	require.NotNil(t, db, "getDB should return a non-nil tenant DB handle")
+}
+
+// TestIntegration_GetDB_TenantContext_CanExecuteQueries verifies the tenant DB
+// handle can execute queries against the tenant PostgreSQL container.
+func TestIntegration_GetDB_TenantContext_CanExecuteQueries(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Arrange
+	infra := setupIntegrationInfra(t)
+	_, tenantDB := setupTenantContainer(t)
+	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+
+	// Act -- getDB should return the tenant DB, which should support queries.
+	db, err := infra.repo.getDB(ctx)
+	require.NoError(t, err)
+
+	var result int
+	err = db.QueryRowContext(ctx, "SELECT 1").Scan(&result)
+
+	// Assert
+	require.NoError(t, err, "tenant DB handle should execute queries successfully")
+	assert.Equal(t, 1, result, "query through tenant DB should return 1")
+}
+
+// TestIntegration_GetDB_TenantContext_RoutesToTenantDatabase verifies that getDB
+// routes queries to the tenant-specific database when the tenant module is in
+// the context, proving two-container isolation.
+func TestIntegration_GetDB_TenantContext_RoutesToTenantDatabase(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Arrange -- two separate containers with different data.
+	infra := setupIntegrationInfra(t)
+	_, tenantDB := setupTenantContainer(t)
+
+	orgID := infra.orgID
+	ledgerID := infra.ledgerID
+
+	// Create a transaction ONLY in the tenant database via tenant context.
+	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+
+	tx := &Transaction{
+		ID:             uuid.New().String(),
+		Description:    "Tenant-Only Transaction",
+		Status:         Status{Code: "ACTIVE"},
+		Amount:         decimalPtr(9999),
+		AssetCode:      "EUR",
+		LedgerID:       ledgerID.String(),
+		OrganizationID: orgID.String(),
+	}
+
+	created, err := infra.repo.Create(tenantCtx, tx)
+	require.NoError(t, err, "Create should succeed through tenant DB path")
+	require.NotNil(t, created)
+
+	// Act -- Find through tenant context: should succeed because data is in tenant DB.
+	found, err := infra.repo.Find(tenantCtx, orgID, ledgerID, parseID(t, created.ID))
+
+	// Assert -- data exists only in tenant container, so Find succeeds only
+	// if getDB correctly returned the tenant DB.
+	require.NoError(t, err, "Find should succeed through tenant DB path")
+	require.NotNil(t, found)
+	assert.Equal(t, "Tenant-Only Transaction", found.Description)
+	assert.Equal(t, "EUR", found.AssetCode)
+
+	// Verify the same ID is NOT found through the static path (no tenant context).
+	staticCtx := context.Background()
+	_, staticErr := infra.repo.Find(staticCtx, orgID, ledgerID, parseID(t, created.ID))
+
+	// Assert -- static container does not have this record.
+	require.Error(t, staticErr, "Find should fail through static path for tenant-only data")
+}
+
+// TestIntegration_GetDB_TenantContext_CreateAndFind verifies the full
+// Create-then-Find round-trip through the tenant DB path.
+func TestIntegration_GetDB_TenantContext_CreateAndFind(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Arrange
+	infra := setupIntegrationInfra(t)
+	_, tenantDB := setupTenantContainer(t)
+	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+
+	orgID := infra.orgID
+	ledgerID := infra.ledgerID
+
+	// Act -- Create through tenant context.
+	tx := &Transaction{
+		ID:             uuid.New().String(),
+		Description:    "Tenant Created Transaction",
+		Status:         Status{Code: "PENDING"},
+		Amount:         decimalPtr(4200),
+		AssetCode:      "USD",
+		LedgerID:       ledgerID.String(),
+		OrganizationID: orgID.String(),
+	}
+
+	created, err := infra.repo.Create(tenantCtx, tx)
+	require.NoError(t, err, "Create should succeed through tenant DB")
+	require.NotNil(t, created)
+
+	// Act -- Find through tenant context.
+	found, err := infra.repo.Find(tenantCtx, orgID, ledgerID, parseID(t, created.ID))
+
+	// Assert
+	require.NoError(t, err, "Find through tenant context should succeed")
+	require.NotNil(t, found)
+	assert.Equal(t, "Tenant Created Transaction", found.Description)
+	assert.Equal(t, "PENDING", found.Status.Code)
+
+	// Verify the same record is NOT found through the static path.
+	_, staticErr := infra.repo.Find(context.Background(), orgID, ledgerID, parseID(t, created.ID))
+	require.Error(t, staticErr, "static path should not find tenant-created record")
+}
+
+// TestIntegration_GetDB_TenantContext_FindAllIsolation verifies that FindAll
+// through the tenant path returns only tenant data, not static data.
+func TestIntegration_GetDB_TenantContext_FindAllIsolation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Arrange
+	infra := setupIntegrationInfra(t)
+	_, tenantDB := setupTenantContainer(t)
+	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+
+	orgID := infra.orgID
+	ledgerID := infra.ledgerID
+
+	// Create 2 transactions in static DB.
+	for i := 0; i < 2; i++ {
+		infra.createTestTransaction(t, "Static FindAll Isolation")
+	}
+
+	// Create 3 transactions in tenant DB.
+	for i := 0; i < 3; i++ {
+		tx := &Transaction{
+			ID:             uuid.New().String(),
+			Description:    "Tenant FindAll Isolation",
+			Status:         Status{Code: "ACTIVE"},
+			Amount:         decimalPtr(int64(100 * (i + 1))),
+			AssetCode:      "USD",
+			LedgerID:       ledgerID.String(),
+			OrganizationID: orgID.String(),
+		}
+		_, err := infra.repo.Create(tenantCtx, tx)
+		require.NoError(t, err)
+	}
+
+	// Act -- FindAll through tenant context.
+	tenantTxs, _, err := infra.repo.FindAll(tenantCtx, orgID, ledgerID, http.Pagination{Limit: 100})
+	require.NoError(t, err)
+
+	// Assert -- tenant path should return only tenant transactions.
+	assert.Equal(t, 3, len(tenantTxs), "tenant FindAll should return only tenant transactions")
+	for _, tx := range tenantTxs {
+		assert.Equal(t, "Tenant FindAll Isolation", tx.Description)
+	}
+
+	// Verify static path returns only static transactions.
+	staticTxs, _, err := infra.repo.FindAll(context.Background(), orgID, ledgerID, http.Pagination{Limit: 100})
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(staticTxs), "static FindAll should return only static transactions")
+}
+
+// TestIntegration_GetDB_TenantContext_DifferentModuleIgnored verifies that
+// injecting a tenant DB for a different module ("onboarding") is ignored by
+// getDB for "transaction", which falls back to the static connection.
+func TestIntegration_GetDB_TenantContext_DifferentModuleIgnored(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Arrange -- inject tenant DB for "onboarding" module, not "transaction".
+	infra := setupIntegrationInfra(t)
+	_, tenantDB := setupTenantContainer(t)
+
+	// Inject tenant DB under "onboarding" module -- not "transaction".
+	wrongModuleCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+
+	// Create a transaction in the static DB so we can verify static path is used.
+	created := infra.createTestTransaction(t, "StaticOnly Transaction")
+
+	// Act -- with wrong module context, getDB should fall back to static.
+	found, err := infra.repo.Find(wrongModuleCtx, infra.orgID, infra.ledgerID, parseID(t, created.ID))
+
+	// Assert
+	require.NoError(t, err, "Find should succeed through static fallback when module name mismatches")
+	require.NotNil(t, found)
+	assert.Equal(t, "StaticOnly Transaction", found.Description)
+}
+
+// TestIntegration_GetDB_TenantContext_UpdateAndDeleteThroughTenantPath verifies
+// that Update and Delete operations work correctly through the tenant DB path.
+func TestIntegration_GetDB_TenantContext_UpdateAndDeleteThroughTenantPath(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	// Arrange
+	infra := setupIntegrationInfra(t)
+	_, tenantDB := setupTenantContainer(t)
+	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+
+	orgID := infra.orgID
+	ledgerID := infra.ledgerID
+
+	// Create a transaction through the tenant path.
+	tx := &Transaction{
+		ID:             uuid.New().String(),
+		Description:    "Tenant Update Target",
+		Status:         Status{Code: "ACTIVE"},
+		Amount:         decimalPtr(3000),
+		AssetCode:      "USD",
+		LedgerID:       ledgerID.String(),
+		OrganizationID: orgID.String(),
+	}
+
+	created, err := infra.repo.Create(tenantCtx, tx)
+	require.NoError(t, err)
+
+	// Act -- Update through tenant context.
+	updateTx := &Transaction{
+		Description: "Tenant Updated Description",
+	}
+	updated, err := infra.repo.Update(tenantCtx, orgID, ledgerID, parseID(t, created.ID), updateTx)
+
+	// Assert update.
+	require.NoError(t, err, "Update through tenant context should succeed")
+	require.NotNil(t, updated)
+	assert.Equal(t, "Tenant Updated Description", updated.Description)
+
+	// Verify update persisted through tenant path.
+	found, err := infra.repo.Find(tenantCtx, orgID, ledgerID, parseID(t, created.ID))
+	require.NoError(t, err)
+	assert.Equal(t, "Tenant Updated Description", found.Description)
+
+	// Act -- Delete through tenant context.
+	err = infra.repo.Delete(tenantCtx, orgID, ledgerID, parseID(t, created.ID))
+
+	// Assert delete.
+	require.NoError(t, err, "Delete through tenant context should succeed")
+
+	// Verify soft-deleted through tenant path.
+	_, findErr := infra.repo.Find(tenantCtx, orgID, ledgerID, parseID(t, created.ID))
+	require.Error(t, findErr, "soft-deleted transaction should not be found through tenant path")
 }

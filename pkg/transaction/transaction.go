@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package transaction
 
 import (
@@ -42,6 +46,7 @@ type Responses struct {
 	Aliases             []string
 	Pending             bool
 	TransactionRoute    string
+	TransactionRouteID  *string
 	OperationRoutesFrom map[string]string
 	OperationRoutesTo   map[string]string
 }
@@ -60,10 +65,12 @@ type Metadata struct {
 // swagger:model Amount
 // @Description Amount is the struct designed to represent the amount of an operation.
 type Amount struct {
-	Asset           string          `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value           decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
-	Operation       string          `json:"operation,omitempty"`
-	TransactionType string          `json:"transactionType,omitempty"`
+	Asset                  string          `json:"asset,omitempty" validate:"required" example:"BRL"`
+	Value                  decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
+	Operation              string          `json:"operation,omitempty"`
+	TransactionType        string          `json:"transactionType,omitempty"`
+	Direction              string          `json:"direction,omitempty"`
+	RouteValidationEnabled bool            `json:"routeValidationEnabled,omitempty"`
 } // @name Amount
 
 // Share structure for marshaling/unmarshalling JSON.
@@ -126,7 +133,10 @@ type FromTo struct {
 	ChartOfAccounts string         `json:"chartOfAccounts" example:"1000"`
 	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 	IsFrom          bool           `json:"isFrom,omitempty" example:"true"`
-	Route           string         `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
+	// Deprecated: passive field kept for backward compatibility. Accepted from client and persisted, but not used in any validation or business logic. Use routeId instead.
+	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
+	// UUID of the operation route. Primary field used for route validation and accounting rules.
+	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 } // @name FromTo
 
 // SplitAlias function to split alias with index.
@@ -163,18 +173,21 @@ type Distribute struct {
 
 // Transaction structure for marshaling/unmarshalling JSON.
 //
-// swagger:model Transaction
-// @Description Transaction is a struct designed to store transaction data.
+// swagger:model TransactionInput
+// @Description TransactionInput is the request payload for creating a transaction.
 type Transaction struct {
-	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"1000"`
+	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"FUNDING"`
 	Description              string         `json:"description,omitempty" example:"Description"`
 	Code                     string         `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
 	Pending                  bool           `json:"pending,omitempty" example:"false"`
 	Metadata                 map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-	Route                    string         `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
-	TransactionDate          *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
-	Send                     Send           `json:"send" validate:"required"`
-} // @name Transaction
+	// Deprecated: legacy route identifier, contains the transaction route UUID as a string. Use routeId instead.
+	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
+	// UUID of the transaction route. Primary field replacing the deprecated Route string.
+	RouteID         *string          `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z"`
+	Send            Send             `json:"send" validate:"required"`
+} // @name TransactionInput
 
 // IsEmpty is a func that validate if transaction is Empty.
 func (t Transaction) IsEmpty() bool {

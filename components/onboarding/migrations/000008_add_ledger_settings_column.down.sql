@@ -1,0 +1,1 @@
+ALTER TABLE ledger DROP COLUMN IF EXISTS settings;

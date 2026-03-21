@@ -1,14 +1,20 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package in
 
 import (
+	"fmt"
+
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/services"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpenTelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -42,7 +48,10 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.create_alias")
 	defer span.End()
 
-	payload := p.(*mmodel.CreateAliasInput)
+	payload, ok := p.(*mmodel.CreateAliasInput)
+	if !ok || payload == nil {
+		return http.WithError(c, cn.ErrInternalServer)
+	}
 
 	holderID, err := http.GetUUIDFromLocals(c, "holder_id")
 	if err != nil {
@@ -59,9 +68,9 @@ func (handler *AliasHandler) CreateAlias(p any, c *fiber.Ctx) error {
 
 	out, err := handler.Service.CreateAlias(ctx, organizationID, holderID, payload)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to create alias", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to create alias", err)
 
-		logger.Errorf("Failed to create alias: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create alias: %v", err))
 
 		return http.WithError(c, err)
 	}
@@ -114,13 +123,13 @@ func (handler *AliasHandler) GetAliasByID(c *fiber.Ctx) error {
 		attribute.Bool("app.request.include_deleted", includeDeleted),
 	)
 
-	logger.Infof("Initiating retrieval of Alias with ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating retrieval of Alias with ID: %s", id.String()))
 
 	alias, err := handler.Service.GetAliasByID(ctx, organizationID, holderID, id, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to retrieve alias", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to retrieve alias", err)
 
-		logger.Errorf("Failed to retrieve Alias with ID: %s from Holder %s, Error: %s", id.String(), holderID.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Alias with ID: %s from Holder %s, Error: %s", id.String(), holderID.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -164,13 +173,17 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 	}
 
 	organizationID := c.Get("X-Organization-Id")
-	payload := p.(*mmodel.UpdateAliasInput)
+
+	payload, ok := p.(*mmodel.UpdateAliasInput)
+	if !ok || payload == nil {
+		return http.WithError(c, cn.ErrInternalServer)
+	}
 
 	fieldsToRemove, ok := c.Locals("patchRemove").([]string)
 	if !ok {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get fields to remove", cn.ErrInternalServer)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get fields to remove", cn.ErrInternalServer)
 
-		logger.Errorf("Failed to get fields to remove")
+		logger.Log(ctx, libLog.LevelError, "Failed to get fields to remove")
 
 		return http.WithError(c, cn.ErrInternalServer)
 	}
@@ -182,18 +195,18 @@ func (handler *AliasHandler) UpdateAlias(p any, c *fiber.Ctx) error {
 		attribute.String("app.request.alias_id", id.String()),
 	)
 
-	err = libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.fields_to_remove", fieldsToRemove)
+	err = libOpenTelemetry.SetSpanAttributesFromValue(span, "app.request.fields_to_remove", fieldsToRemove, nil)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert fields_to_remove to JSON string", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to convert fields_to_remove to JSON string", err)
 	}
 
-	logger.Infof("Request to update alias %s from holder %s", id.String(), holderID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Request to update alias %s from holder %s", id.String(), holderID.String()))
 
 	alias, err := handler.Service.UpdateAliasByID(ctx, organizationID, holderID, id, payload, fieldsToRemove)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to update alias", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to update alias", err)
 
-		logger.Errorf("Failed to update alias %s from holder %s, Error: %s", id.String(), holderID.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update alias %s from holder %s, Error: %s", id.String(), holderID.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -245,13 +258,13 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 		attribute.Bool("app.request.hard_delete", hardDelete),
 	)
 
-	logger.Infof("Initiating removal of alias with ID: %s", id.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of alias with ID: %s", id.String()))
 
 	err = handler.Service.DeleteAliasByID(ctx, organizationID, holderID, id, hardDelete)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to delete alias", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to delete alias", err)
 
-		logger.Errorf("Failed to delete alias with ID: %s, Error: %s", id.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete alias with ID: %s, Error: %s", id.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -282,7 +295,7 @@ func (handler *AliasHandler) DeleteAliasByID(c *fiber.Ctx) error {
 //	@Param			regulatory_fields_participant_document	query		string	false	"Filter alias by regulatory fields participant document"
 //	@Param			related_party_document					query		string	false	"Filter alias by related party document"
 //	@Param			related_party_role						query		string	false	"Filter alias by related party role"
-//	@Success		200										{object}	libPostgres.Pagination{items=[]mmodel.Alias,page=int,limit=int}
+//	@Success		200										{object}	http.Pagination{items=[]mmodel.Alias}
 //	@Failure		400						{object}	pkg.HTTPError
 //	@Failure		404						{object}	pkg.HTTPError
 //	@Failure		500						{object}	pkg.HTTPError
@@ -297,9 +310,9 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to validate query parameters", err)
 
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate query parameters, Error: %s", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -308,15 +321,15 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 	if !libCommons.IsNilOrEmpty(headerParams.HolderID) {
 		holderID, err = uuid.Parse(*headerParams.HolderID)
 		if err != nil {
-			libOpenTelemetry.HandleSpanError(&span, "Failed to parse holder ID", err)
+			libOpenTelemetry.HandleSpanError(span, "Failed to parse holder ID", err)
 
-			logger.Errorf("Failed to parse holder ID, Error: %s", err.Error())
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to parse holder ID, Error: %s", err.Error()))
 
 			return http.WithError(c, err)
 		}
 	}
 
-	pagination := libPostgres.Pagination{
+	pagination := http.Pagination{
 		Limit:     headerParams.Limit,
 		Page:      headerParams.Page,
 		SortOrder: headerParams.SortOrder,
@@ -337,16 +350,13 @@ func (handler *AliasHandler) GetAllAliases(c *fiber.Ctx) error {
 		)
 	}
 
-	err = libOpenTelemetry.SetSpanAttributesFromStruct(&span, "app.request.query_params", headerParams)
-	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to convert query_params to JSON string", err)
-	}
+	recordSafeQueryAttributes(span, headerParams)
 
 	aliases, err := handler.Service.GetAllAliases(ctx, organizationID, holderID, *headerParams, includeDeleted)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to get all aliases", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to get all aliases", err)
 
-		logger.Errorf("Failed to get all aliases, Error: %v", err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get all aliases, Error: %v", err.Error()))
 
 		return http.WithError(c, err)
 	}
@@ -404,13 +414,13 @@ func (handler *AliasHandler) DeleteRelatedParty(c *fiber.Ctx) error {
 		attribute.String("app.request.related_party_id", relatedPartyID.String()),
 	)
 
-	logger.Infof("Initiating removal of related party with ID: %s from alias: %s", relatedPartyID.String(), aliasID.String())
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating removal of related party with ID: %s from alias: %s", relatedPartyID.String(), aliasID.String()))
 
 	err = handler.Service.DeleteRelatedPartyByID(ctx, organizationID, holderID, aliasID, relatedPartyID)
 	if err != nil {
-		libOpenTelemetry.HandleSpanError(&span, "Failed to delete related party", err)
+		libOpenTelemetry.HandleSpanError(span, "Failed to delete related party", err)
 
-		logger.Errorf("Failed to delete related party with ID: %s, Error: %s", relatedPartyID.String(), err.Error())
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete related party with ID: %s, Error: %s", relatedPartyID.String(), err.Error()))
 
 		return http.WithError(c, err)
 	}

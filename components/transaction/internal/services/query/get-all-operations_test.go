@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package query
 
 import (
@@ -7,21 +11,22 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetAllOperations(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.Must(libCommons.GenerateUUIDv7())
 	filter := http.QueryHeader{
 		Limit:        10,
 		Page:         1,
@@ -49,8 +54,8 @@ func TestGetAllOperations(t *testing.T) {
 	}
 
 	t.Run("Success with metadata", func(t *testing.T) {
-		op1ID := libCommons.GenerateUUIDv7().String()
-		op2ID := libCommons.GenerateUUIDv7().String()
+		op1ID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+		op2ID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 		operations := []*operation.Operation{
 			{ID: op1ID},
 			{ID: op2ID},
@@ -122,7 +127,7 @@ func TestGetAllOperations(t *testing.T) {
 	})
 
 	t.Run("Error in FindList metadata", func(t *testing.T) {
-		operations := []*operation.Operation{{ID: libCommons.GenerateUUIDv7().String()}}
+		operations := []*operation.Operation{{ID: uuid.Must(libCommons.GenerateUUIDv7()).String()}}
 
 		mockOperationRepo.
 			EXPECT().

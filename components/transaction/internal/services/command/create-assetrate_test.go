@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
@@ -5,8 +9,8 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/google/uuid"
@@ -18,8 +22,8 @@ import (
 func TestCreateOrUpdateAssetRate(t *testing.T) {
 	t.Parallel()
 
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	tests := []struct {
 		name           string
@@ -118,12 +122,12 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 				Metadata: map[string]any{"updated": true},
 			},
 			setupMocks: func(ctrl *gomock.Controller, uc *UseCase) {
-				existingID := libCommons.GenerateUUIDv7().String()
+				existingID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 				existingRate := &assetrate.AssetRate{
 					ID:             existingID,
 					OrganizationID: orgID.String(),
 					LedgerID:       ledgerID.String(),
-					ExternalID:     libCommons.GenerateUUIDv7().String(),
+					ExternalID:     uuid.Must(libCommons.GenerateUUIDv7()).String(),
 					From:           "USD",
 					To:             "BRL",
 					Rate:           500,
@@ -180,16 +184,16 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 				Rate:       110,
 				Scale:      2,
 				TTL:        libPointers.Int(3600),
-				ExternalID: libPointers.String(libCommons.GenerateUUIDv7().String()),
+				ExternalID: libPointers.String(uuid.Must(libCommons.GenerateUUIDv7()).String()),
 				// No Metadata - so UpdateMetadata skips FindByEntity, only calls Update
 			},
 			setupMocks: func(ctrl *gomock.Controller, uc *UseCase) {
-				existingID := libCommons.GenerateUUIDv7().String()
+				existingID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 				existingRate := &assetrate.AssetRate{
 					ID:             existingID,
 					OrganizationID: orgID.String(),
 					LedgerID:       ledgerID.String(),
-					ExternalID:     libCommons.GenerateUUIDv7().String(),
+					ExternalID:     uuid.Must(libCommons.GenerateUUIDv7()).String(),
 					From:           "EUR",
 					To:             "USD",
 					Rate:           100,
@@ -237,7 +241,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 				TTL:   libPointers.Int(3600),
 			},
 			setupMocks: func(ctrl *gomock.Controller, uc *UseCase) {
-				existingID := libCommons.GenerateUUIDv7().String()
+				existingID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 				existingRate := &assetrate.AssetRate{
 					ID:             existingID,
 					OrganizationID: orgID.String(),
@@ -279,7 +283,7 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 				Metadata: map[string]any{"key": "value"},
 			},
 			setupMocks: func(ctrl *gomock.Controller, uc *UseCase) {
-				existingID := libCommons.GenerateUUIDv7().String()
+				existingID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 				existingRate := &assetrate.AssetRate{
 					ID:             existingID,
 					OrganizationID: orgID.String(),

@@ -1,18 +1,25 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+
+	// CreateAccountType creates a new account type.
+	// It returns the created account type and an error if the operation fails.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// CreateAccountType creates a new account type.
-// It returns the created account type and an error if the operation fails.
 func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateAccountTypeInput) (*mmodel.AccountType, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -22,7 +29,7 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 	now := time.Now()
 
 	accountType := &mmodel.AccountType{
-		ID:             libCommons.GenerateUUIDv7(),
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		Name:           payload.Name,
@@ -34,25 +41,25 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 
 	createdAccountType, err := uc.AccountTypeRepo.Create(ctx, organizationID, ledgerID, accountType)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create account type", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create account type", err)
 
-		logger.Errorf("Failed to create account type: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create account type: %v", err))
 
 		return nil, err
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.AccountType{}).Name(), createdAccountType.ID.String(), payload.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create metadata", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create metadata", err)
 
-		logger.Errorf("Failed to create metadata: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create metadata: %v", err))
 
 		return nil, err
 	}
 
 	createdAccountType.Metadata = metadata
 
-	logger.Infof("Successfully created account type with key value: %s", createdAccountType.KeyValue)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully created account type with key value: %s", createdAccountType.KeyValue))
 
 	return createdAccountType, nil
 }

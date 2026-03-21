@@ -1,5 +1,9 @@
 //go:build integration
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package rabbitmq
 
 import (
@@ -11,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v2/commons/rabbitmq"
-	libZap "github.com/LerianStudio/lib-commons/v2/commons/zap"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
+	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
 
@@ -159,16 +163,18 @@ func setupConsumerInfra(t *testing.T, numWorkers, prefetch int) *consumerTestInf
 	rmqtestutil.SetupQueue(t, rmqContainer.Channel, queue, exchange, routingKey)
 
 	// Create lib-commons RabbitMQ connection
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 	healthCheckURL := "http://" + rmqContainer.Host + ":" + rmqContainer.MgmtPort
 	conn := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rmqContainer.URI,
-		HealthCheckURL:         healthCheckURL,
-		Host:                   rmqContainer.Host,
-		Port:                   rmqContainer.AMQPPort,
-		User:                   rmqtestutil.DefaultUser,
-		Pass:                   rmqtestutil.DefaultPassword,
-		Logger:                 logger,
+		ConnectionStringSource:   rmqContainer.URI,
+		HealthCheckURL:           healthCheckURL,
+		AllowInsecureHealthCheck: true,
+		Host:                     rmqContainer.Host,
+		Port:                     rmqContainer.AMQPPort,
+		User:                     rmqtestutil.DefaultUser,
+		Pass:                     rmqtestutil.DefaultPassword,
+		Logger:                   logger,
 	}
 
 	// Create telemetry for consumer (empty struct is sufficient for tests)
@@ -178,7 +184,8 @@ func setupConsumerInfra(t *testing.T, numWorkers, prefetch int) *consumerTestInf
 	consumer := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
 
 	// Create producer for publishing test messages
-	producer := NewProducerRabbitMQ(conn)
+	producer, err := NewProducerRabbitMQ(conn)
+	require.NoError(t, err, "failed to create producer")
 
 	return &consumerTestInfra{
 		rmqContainer: rmqContainer,
@@ -208,16 +215,18 @@ func setupConsumerChaosInfra(t *testing.T, numWorkers, prefetch int) *consumerCh
 	rmqtestutil.SetupQueue(t, rmqContainer.Channel, queue, exchange, routingKey)
 
 	// Create lib-commons RabbitMQ connection
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 	healthCheckURL := "http://" + rmqContainer.Host + ":" + rmqContainer.MgmtPort
 	conn := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rmqContainer.URI,
-		HealthCheckURL:         healthCheckURL,
-		Host:                   rmqContainer.Host,
-		Port:                   rmqContainer.AMQPPort,
-		User:                   rmqtestutil.DefaultUser,
-		Pass:                   rmqtestutil.DefaultPassword,
-		Logger:                 logger,
+		ConnectionStringSource:   rmqContainer.URI,
+		HealthCheckURL:           healthCheckURL,
+		AllowInsecureHealthCheck: true,
+		Host:                     rmqContainer.Host,
+		Port:                     rmqContainer.AMQPPort,
+		User:                     rmqtestutil.DefaultUser,
+		Pass:                     rmqtestutil.DefaultPassword,
+		Logger:                   logger,
 	}
 
 	// Create telemetry for consumer (empty struct is sufficient for tests)
@@ -227,7 +236,8 @@ func setupConsumerChaosInfra(t *testing.T, numWorkers, prefetch int) *consumerCh
 	consumer := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
 
 	// Create producer for publishing test messages
-	producer := NewProducerRabbitMQ(conn)
+	producer, err := NewProducerRabbitMQ(conn)
+	require.NoError(t, err, "failed to create producer")
 
 	// Create chaos orchestrator
 	chaosOrch := chaos.NewOrchestrator(t)
@@ -285,16 +295,18 @@ func setupConsumerNetworkChaosInfra(t *testing.T, numWorkers, prefetch int) *con
 		proxyAddr,
 	)
 
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 	healthCheckURL := "http://" + rmqContainer.Host + ":" + rmqContainer.MgmtPort
 	proxyConn := &libRabbitmq.RabbitMQConnection{
-		ConnectionStringSource: proxyURI,
-		HealthCheckURL:         healthCheckURL,
-		Host:                   chaosInfra.ToxiproxyHost(),
-		Port:                   "15672",
-		User:                   rmqtestutil.DefaultUser,
-		Pass:                   rmqtestutil.DefaultPassword,
-		Logger:                 logger,
+		ConnectionStringSource:   proxyURI,
+		HealthCheckURL:           healthCheckURL,
+		AllowInsecureHealthCheck: true,
+		Host:                     chaosInfra.ToxiproxyHost(),
+		Port:                     "15672",
+		User:                     rmqtestutil.DefaultUser,
+		Pass:                     rmqtestutil.DefaultPassword,
+		Logger:                   logger,
 	}
 
 	// Create telemetry for consumer (empty struct is sufficient for tests)
@@ -304,7 +316,8 @@ func setupConsumerNetworkChaosInfra(t *testing.T, numWorkers, prefetch int) *con
 	proxyConsumer := NewConsumerRoutes(proxyConn, numWorkers, prefetch, logger, telemetry)
 
 	// Create producer through proxy
-	proxyProducer := NewProducerRabbitMQ(proxyConn)
+	proxyProducer, err := NewProducerRabbitMQ(proxyConn)
+	require.NoError(t, err, "failed to create proxy producer")
 
 	return &consumerNetworkChaosTestInfra{
 		rmqContainer:  rmqContainer,
@@ -422,7 +435,8 @@ func TestIntegration_NewConsumerRoutes_PanicOnConnectionFailure(t *testing.T) {
 	}
 
 	// Create an invalid connection that will fail
-	logger := libZap.InitializeLogger()
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
+	require.NoError(t, err)
 	conn := &libRabbitmq.RabbitMQConnection{
 		ConnectionStringSource: "amqp://invalid:invalid@localhost:99999/",
 		Logger:                 logger,

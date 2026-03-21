@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package query
 
 import (
@@ -6,19 +10,20 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libPointers "github.com/LerianStudio/lib-commons/v2/commons/pointers"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetAllAssetRatesByAssetCode(t *testing.T) {
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	fromAssetCode := "USD"
 	filter := http.QueryHeader{
 		Limit:        10,
@@ -45,14 +50,14 @@ func TestGetAllAssetRatesByAssetCode(t *testing.T) {
 	}
 
 	t.Run("returns_asset_rates_with_metadata", func(t *testing.T) {
-		assetRateID := libCommons.GenerateUUIDv7().String()
+		assetRateID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 		assetRates := []*assetrate.AssetRate{
 			{
 				ID:             assetRateID,
 				OrganizationID: orgID.String(),
 				LedgerID:       ledgerID.String(),
-				ExternalID:     libCommons.GenerateUUIDv7().String(),
+				ExternalID:     uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				From:           fromAssetCode,
 				To:             filter.ToAssetCodes[0],
 				Rate:           100,
@@ -91,7 +96,7 @@ func TestGetAllAssetRatesByAssetCode(t *testing.T) {
 	})
 
 	t.Run("returns_asset_rates_without_metadata", func(t *testing.T) {
-		assetRateID := libCommons.GenerateUUIDv7().String()
+		assetRateID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 		assetRates := []*assetrate.AssetRate{
 			{
@@ -208,7 +213,7 @@ func TestGetAllAssetRatesByAssetCode(t *testing.T) {
 	})
 
 	t.Run("error_metadata_repo_failure", func(t *testing.T) {
-		assetRateID := libCommons.GenerateUUIDv7().String()
+		assetRateID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 		assetRates := []*assetrate.AssetRate{
 			{

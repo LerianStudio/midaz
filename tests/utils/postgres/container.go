@@ -1,5 +1,9 @@
 //go:build integration
 
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package postgres
 
 import (
@@ -10,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/tests/utils"
+	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/require"
@@ -80,10 +84,9 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 			"POSTGRES_USER":     cfg.DBUser,
 			"POSTGRES_PASSWORD": cfg.DBPassword,
 		},
-		WaitingFor: wait.ForAll(
-			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
-			wait.ForListeningPort("5432/tcp"),
-		).WithDeadline(120 * time.Second),
+		WaitingFor: wait.ForLog("database system is ready to accept connections").
+			WithOccurrence(2).
+			WithStartupTimeout(180 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
 		},
@@ -98,16 +101,50 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	host, err := ctr.Host(ctx)
 	require.NoError(t, err, "failed to get container host")
 
-	port, err := ctr.MappedPort(ctx, "5432")
-	require.NoError(t, err, "failed to get container port")
+	var mappedPort string
+
+	mappedPortDeadline := time.Now().Add(30 * time.Second)
+
+	for {
+		port, portErr := ctr.MappedPort(ctx, "5432")
+
+		err = portErr
+		if portErr == nil {
+			mappedPort = port.Port()
+		}
+
+		if err == nil && mappedPort != "" {
+			break
+		}
+
+		if time.Now().After(mappedPortDeadline) {
+			require.NoError(t, err, "failed to get container port")
+			require.NotEmpty(t, mappedPort, "failed to resolve mapped container port")
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
 
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		host, port.Port(), cfg.DBUser, cfg.DBPassword, cfg.DBName)
+		host, mappedPort, cfg.DBUser, cfg.DBPassword, cfg.DBName)
 
 	db, err := sql.Open("pgx", dsn)
 	require.NoError(t, err, "failed to open database connection")
 
-	require.NoError(t, db.Ping(), "failed to ping database")
+	pingDeadline := time.Now().Add(30 * time.Second)
+
+	for {
+		err = db.PingContext(ctx)
+		if err == nil {
+			break
+		}
+
+		if time.Now().After(pingDeadline) {
+			require.NoError(t, err, "failed to ping database")
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
 
 	t.Cleanup(func() {
 		db.Close()
@@ -121,7 +158,7 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		Container: ctr,
 		DB:        db,
 		Host:      host,
-		Port:      port.Port(),
+		Port:      mappedPort,
 		DSN:       dsn,
 		Config:    cfg,
 	}

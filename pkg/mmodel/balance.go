@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package mmodel
 
 import (
@@ -7,8 +11,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
-	"github.com/shopspring/decimal"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 // Balance is a struct designed to encapsulate response payload data.
@@ -98,6 +102,98 @@ type Balance struct {
 	// Custom key-value pairs for extending the balance information
 	// example: {"purpose": "Main savings", "category": "Personal"}
 	Metadata map[string]any `json:"metadata,omitempty"`
+}
+
+// BalanceHistory represents a historical balance snapshot without permission flags.
+// Permission flags (AllowSending/AllowReceiving) are not tracked historically.
+//
+// swagger:model BalanceHistory
+// @Description Historical balance snapshot at a specific point in time. Does not include permission flags (allowSending/allowReceiving) as these are not tracked historically.
+type BalanceHistory struct {
+	// Unique identifier for the balance (UUID format)
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Organization that owns this balance
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Ledger containing the account this balance belongs to
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Account that holds this balance
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	AccountID string `json:"accountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Alias for the account, used for easy identification or tagging
+	// example: @person1
+	// maxLength: 256
+	Alias string `json:"alias" example:"@person1" maxLength:"256"`
+
+	// Unique key for the balance
+	// example: asset-freeze
+	// maxLength: 100
+	Key string `json:"key" example:"asset-freeze" maxLength:"100"`
+
+	// Asset code identifying the currency or asset type of this balance
+	// example: USD
+	// minLength: 2
+	// maxLength: 10
+	AssetCode string `json:"assetCode" example:"USD" minLength:"2" maxLength:"10"`
+
+	// Amount available for transactions (in the smallest unit of the asset, e.g. cents)
+	// example: 1500
+	// minimum: 0
+	Available decimal.Decimal `json:"available" example:"1500" minimum:"0"`
+
+	// Amount currently on hold and unavailable for transactions
+	// example: 500
+	// minimum: 0
+	OnHold decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
+
+	// Optimistic concurrency control version
+	// example: 1
+	// minimum: 1
+	Version int64 `json:"version" example:"1" minimum:"1"`
+
+	// Type of account holding this balance
+	// example: creditCard
+	// maxLength: 50
+	AccountType string `json:"accountType" example:"creditCard" maxLength:"50"`
+
+	// Timestamp when the balance was created (RFC3339 format)
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
+	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+
+	// Timestamp when the balance was last updated (RFC3339 format)
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
+	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+} // @name BalanceHistory
+
+// ToHistoryResponse converts a Balance to BalanceHistory (without permission flags)
+func (b *Balance) ToHistoryResponse() *BalanceHistory {
+	return &BalanceHistory{
+		ID:             b.ID,
+		OrganizationID: b.OrganizationID,
+		LedgerID:       b.LedgerID,
+		AccountID:      b.AccountID,
+		Alias:          b.Alias,
+		Key:            b.Key,
+		AssetCode:      b.AssetCode,
+		Available:      b.Available,
+		OnHold:         b.OnHold,
+		Version:        b.Version,
+		AccountType:    b.AccountType,
+		CreatedAt:      b.CreatedAt,
+		UpdatedAt:      b.UpdatedAt,
+	}
 }
 
 // ToTransactionBalance converts mmodel.Balance to pkgTransaction.Balance
@@ -253,6 +349,11 @@ type BalanceRedis struct {
 	// maxLength: 256
 	Alias string `json:"alias" example:"@person1" maxLength:"256"`
 
+	// Unique key for the balance (defaults to "default" if not provided)
+	// example: default
+	// maxLength: 100
+	Key string `json:"key" example:"default" maxLength:"100"`
+
 	// Account that holds this balance
 	AccountID string `json:"accountId"`
 
@@ -276,9 +377,6 @@ type BalanceRedis struct {
 
 	// Whether the account can receive funds (1=true, 0=false)
 	AllowReceiving int `json:"allowReceiving"`
-
-	// Unique key for the balance
-	Key string `json:"key"`
 }
 
 // UnmarshalJSON is a custom unmarshal function for BalanceRedis
@@ -396,6 +494,15 @@ type BalanceOperation struct {
 	InternalKey string
 }
 
+// BalanceAtomicResult holds the before and after states returned by the
+// Lua atomic balance operation script. Before contains pre-mutation snapshots
+// (used by BuildOperations for operation records). After contains post-mutation
+// states (used by UpdateBalances for PostgreSQL persistence).
+type BalanceAtomicResult struct {
+	Before []*Balance
+	After  []*Balance
+}
+
 // TransactionRedisQueue represents a transaction queue for cache-aside
 type TransactionRedisQueue struct {
 	HeaderID          string                     `json:"header_id"`
@@ -403,9 +510,11 @@ type TransactionRedisQueue struct {
 	OrganizationID    uuid.UUID                  `json:"organization_id"`
 	LedgerID          uuid.UUID                  `json:"ledger_id"`
 	Balances          []BalanceRedis             `json:"balances"`
-	ParserDSL         pkgTransaction.Transaction `json:"parserDSL"`
+	BalancesAfter     []BalanceRedis             `json:"balancesAfter,omitempty"`
+	TransactionInput  pkgTransaction.Transaction `json:"parserDSL"`
 	TTL               time.Time                  `json:"ttl"`
 	Validate          *pkgTransaction.Responses  `json:"validate"`
 	TransactionStatus string                     `json:"transaction_status"`
 	TransactionDate   time.Time                  `json:"transaction_date"`
+	Operations        []OperationRedis           `json:"operations,omitempty"`
 }

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package command
 
 import (
@@ -49,6 +53,19 @@ type UseCase struct {
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
+
+	// SettingsPort provides an abstraction for querying ledger settings.
+	// This is a transport-agnostic "port" that can be implemented by either:
+	//   - onboarding query.UseCase: Direct in-process calls (unified ledger mode)
+	//   - GRPCSettingsAdapter: Network calls via gRPC (separate services mode, future)
+	// Uses the Lazy Initialization pattern: this field is nil at construction,
+	// then set via Service.SetSettingsPort after both modules are initialized.
+	// Optional - may be nil if settings functionality is not enabled.
+	//
+	// Thread-safety: This field MUST be set at initialization time only (before Run).
+	// It is not protected by synchronization primitives. Concurrent modification
+	// after request processing begins would cause data races.
+	SettingsPort mbootstrap.SettingsPort
 }
 
 // CheckHealth returns nil for unified mode (in-process calls don't need health checks).

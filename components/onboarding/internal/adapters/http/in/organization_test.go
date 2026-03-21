@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package in
 
 import (
@@ -11,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v2/commons/postgres"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
@@ -498,7 +501,7 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			queryParams: "",
 			setupMocks: func(orgRepo *organization.MockRepository, metadataRepo *mongodb.MockRepository) {
 				orgRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Organization{}, nil).
 					Times(1)
 			},
@@ -526,7 +529,7 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 				org2ID := uuid.New().String()
 
 				orgRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Organization{
 						{
 							ID:            org1ID,
@@ -687,7 +690,7 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			queryParams: "",
 			setupMocks: func(orgRepo *organization.MockRepository, metadataRepo *mongodb.MockRepository) {
 				orgRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
@@ -998,9 +1001,6 @@ func TestHandler_GetOrganizationByID_InvalidUUID(t *testing.T) {
 	}
 }
 
-// Ensure libPostgres.Pagination is used (referenced in handler)
-var _ = libPostgres.Pagination{}
-
 // TestProperty_Organization_FieldLengths tests that various field lengths don't cause 5xx errors.
 // This is a property-based test with randomized field lengths.
 func TestProperty_Organization_FieldLengths(t *testing.T) {
@@ -1095,7 +1095,7 @@ func TestProperty_Headers_InvalidFormats(t *testing.T) {
 
 	// Mock repo to return empty list (we're testing HTTP layer, not business logic)
 	mockOrgRepo.EXPECT().
-		FindAll(gomock.Any(), gomock.Any()).
+		FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return([]*mmodel.Organization{}, nil).
 		AnyTimes()
 
@@ -1332,13 +1332,13 @@ func TestProperty_Headers_DuplicateXRequestId(t *testing.T) {
 // Run with: go test -fuzz=FuzzCreateOrganization_LegalName ./components/onboarding/internal/adapters/http/in/
 func FuzzCreateOrganization_LegalName(f *testing.F) {
 	// Seed corpus with edge cases
-	f.Add("Acme, Inc.")           // valid name
-	f.Add("")                     // empty string
-	f.Add("a")                    // single char
-	f.Add("Αθήνα")                // non-ASCII (Greek)
-	f.Add("日本語テスト")         // Japanese
-	f.Add("Test\x00Name")         // null byte
-	f.Add("Test\nName")           // newline
+	f.Add("Acme, Inc.")                // valid name
+	f.Add("")                          // empty string
+	f.Add("a")                         // single char
+	f.Add("Αθήνα")                     // non-ASCII (Greek)
+	f.Add("日本語テスト")                    // Japanese
+	f.Add("Test\x00Name")              // null byte
+	f.Add("Test\nName")                // newline
 	f.Add("<script>alert(1)</script>") // XSS attempt
 
 	f.Fuzz(func(t *testing.T, name string) {

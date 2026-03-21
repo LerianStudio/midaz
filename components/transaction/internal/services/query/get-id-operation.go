@@ -1,29 +1,36 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package query
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/google/uuid"
+
+	// GetOperationByID gets data in the repository.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// GetOperationByID gets data in the repository.
 func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID) (*operation.Operation, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_operation_by_id")
 	defer span.End()
 
-	logger.Infof("Trying to get operation")
+	logger.Log(ctx, libLog.LevelInfo, "Trying to get operation")
 
 	o, err := uc.OperationRepo.Find(ctx, organizationID, ledgerID, transactionID, operationID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get operation on repo by id", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get operation on repo by id", err)
 
-		logger.Errorf("Error getting operation: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting operation: %v", err))
 
 		return nil, err
 	}
@@ -31,9 +38,9 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 	if o != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb operation", err)
 
-			logger.Errorf("Error get metadata on mongodb operation: %v", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb operation: %v", err))
 
 			return nil, err
 		}

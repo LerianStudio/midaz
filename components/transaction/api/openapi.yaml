@@ -200,6 +200,9 @@ paths:
         in: query
         name: sort_order
         schema:
+          enum:
+          - asc
+          - desc
           type: string
       - description: Cursor
         in: query
@@ -326,6 +329,89 @@ paths:
       tags:
       - Balances
       x-codegen-request-body-name: balance
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
+    get:
+      description: Get the historical state of all Balances for an account at a specific
+        point in time (yyyy-mm-dd hh:mm:ss format)
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        schema:
+          type: string
+      - description: 'Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15
+          10:30:00)'
+        in: query
+        name: date
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/BalanceHistory'
+                type: array
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid date format or date in the future
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Account not found or no data available at date
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Get Account Balances history at date
+      tags:
+      - Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       description: Get all Operations with the input ID
@@ -379,6 +465,9 @@ paths:
         in: query
         name: sort_order
         schema:
+          enum:
+          - asc
+          - desc
           type: string
       - description: Cursor
         in: query
@@ -389,6 +478,20 @@ paths:
         in: query
         name: type
         schema:
+          type: string
+      - description: Filter by direction
+        in: query
+        name: direction
+        schema:
+          enum:
+          - debit
+          - credit
+          type: string
+      - description: Filter by operation route ID
+        in: query
+        name: route_id
+        schema:
+          format: uuid
           type: string
       responses:
         "200":
@@ -803,6 +906,9 @@ paths:
         in: query
         name: sort_order
         schema:
+          enum:
+          - asc
+          - desc
           type: string
       - description: Cursor
         in: query
@@ -1059,6 +1165,87 @@ paths:
       tags:
       - Balances
       x-codegen-request-body-name: balance
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
+    get:
+      description: Get the historical state of a Balance at a specific point in time
+        (yyyy-mm-dd hh:mm:ss format)
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Balance ID
+        in: path
+        name: balance_id
+        required: true
+        schema:
+          type: string
+      - description: 'Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15
+          10:30:00)'
+        in: query
+        name: date
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceHistory'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid date format or date in the future
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized access
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden access
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Balance not found or no data available at date
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal server error
+      summary: Get Balance history at date
+      tags:
+      - Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
     get:
       description: Returns a list of all operation routes within the specified ledger
@@ -2761,6 +2948,72 @@ components:
             type (e.g. "@cash_account"), array for account_type.
           type: object
       type: object
+    AccountingEntries:
+      description: AccountingEntries object containing optional accounting entries
+        for each action type (direct, hold, commit, cancel, revert).
+      properties:
+        cancel:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntry'
+          description: The accounting entry for the cancel action.
+          type: object
+        commit:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntry'
+          description: The accounting entry for the commit action.
+          type: object
+        direct:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntry'
+          description: The accounting entry for the direct action.
+          type: object
+        hold:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntry'
+          description: The accounting entry for the hold action.
+          type: object
+        revert:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntry'
+          description: The accounting entry for the revert action.
+          type: object
+      type: object
+    AccountingEntry:
+      description: AccountingEntry object containing debit and credit rubrics for
+        a specific action.
+      properties:
+        credit:
+          allOf:
+          - $ref: '#/components/schemas/AccountingRubric'
+          description: The credit rubric for this entry.
+          type: object
+        debit:
+          allOf:
+          - $ref: '#/components/schemas/AccountingRubric'
+          description: The debit rubric for this entry.
+          type: object
+      required:
+      - credit
+      - debit
+      type: object
+    AccountingRubric:
+      description: AccountingRubric object containing the code and description for
+        a debit or credit entry.
+      properties:
+        code:
+          description: The accounting rubric code.
+          example: "1001"
+          maxLength: 50
+          type: string
+        description:
+          description: The accounting rubric description.
+          example: Cash
+          maxLength: 250
+          type: string
+      required:
+      - code
+      - description
+      type: object
     Amount:
       description: Amount is the struct designed to represent the amount of an operation.
         Contains the value and scale (decimal places) of an operation amount.
@@ -2929,6 +3182,132 @@ components:
           minimum: 0
           type: integer
       type: object
+    BalanceHistory:
+      description: Historical balance snapshot at a specific point in time. Does not
+        include permission flags (allowSending/allowReceiving) as these are not tracked
+        historically.
+      example:
+        assetCode: USD
+        onHold: 500.0
+        accountType: creditCard
+        available: 1500.0
+        version: 1
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
+        accountId: 00000000-0000-0000-0000-000000000000
+        createdAt: 2021-01-01T00:00:00Z
+        alias: '@person1'
+        id: 00000000-0000-0000-0000-000000000000
+        key: asset-freeze
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        accountId:
+          description: |-
+            Account that holds this balance
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        accountType:
+          description: |-
+            Type of account holding this balance
+            example: creditCard
+            maxLength: 50
+          example: creditCard
+          maxLength: 50
+          type: string
+        alias:
+          description: |-
+            Alias for the account, used for easy identification or tagging
+            example: @person1
+            maxLength: 256
+          example: '@person1'
+          maxLength: 256
+          type: string
+        assetCode:
+          description: |-
+            Asset code identifying the currency or asset type of this balance
+            example: USD
+            minLength: 2
+            maxLength: 10
+          example: USD
+          maxLength: 10
+          minLength: 2
+          type: string
+        available:
+          description: |-
+            Amount available for transactions (in the smallest unit of the asset, e.g. cents)
+            example: 1500
+            minimum: 0
+          example: 1500.0
+          minimum: 0
+          type: number
+        createdAt:
+          description: |-
+            Timestamp when the balance was created (RFC3339 format)
+            example: 2021-01-01T00:00:00Z
+            format: date-time
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+        id:
+          description: |-
+            Unique identifier for the balance (UUID format)
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        key:
+          description: |-
+            Unique key for the balance
+            example: asset-freeze
+            maxLength: 100
+          example: asset-freeze
+          maxLength: 100
+          type: string
+        ledgerId:
+          description: |-
+            Ledger containing the account this balance belongs to
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        onHold:
+          description: |-
+            Amount currently on hold and unavailable for transactions
+            example: 500
+            minimum: 0
+          example: 500.0
+          minimum: 0
+          type: number
+        organizationId:
+          description: |-
+            Organization that owns this balance
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        updatedAt:
+          description: |-
+            Timestamp when the balance was last updated (RFC3339 format)
+            example: 2021-01-01T00:00:00Z
+            format: date-time
+          example: 2021-01-01T00:00:00Z
+          format: date-time
+          type: string
+        version:
+          description: |-
+            Optimistic concurrency control version
+            example: 1
+            minimum: 1
+          example: 1
+          minimum: 1
+          type: integer
+      type: object
     CreateAdditionalBalance:
       description: Request payload for creating a new balance with specified permissions
         and custom key.
@@ -3058,6 +3437,7 @@ components:
         metadata:
           key: '{}'
         code: EXT-001
+        accountingEntries: '{}'
         description: This operation route handles cash-in transactions from service
           charge collections
         operationType: source
@@ -3068,6 +3448,12 @@ components:
           allOf:
           - $ref: '#/components/schemas/AccountRule'
           description: The account selection rule configuration.
+          type: object
+        accountingEntries:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntries'
+          description: Optional accounting entries for each action type associated
+            with this operation route.
           type: object
         code:
           description: External reference of the operation route.
@@ -3107,7 +3493,7 @@ components:
           key: '{}'
         code: code
         description: description
-        transactionDate: transactionDate
+        transactionDate: 2021-01-01T00:00:00Z
         chartOfAccountsGroupName: chartOfAccountsGroupName
         send:
           distribute:
@@ -3164,6 +3550,8 @@ components:
             Example "2021-01-01T00:00:00Z"
             swagger: type string
             required: false
+          example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
       type: object
     CreateTransactionOutflowSwaggerModel:
@@ -3175,7 +3563,7 @@ components:
         code: code
         pending: true
         description: description
-        transactionDate: transactionDate
+        transactionDate: 2021-01-01T00:00:00Z
         chartOfAccountsGroupName: chartOfAccountsGroupName
         send:
           source:
@@ -3240,6 +3628,8 @@ components:
             Example "2021-01-01T00:00:00Z"
             swagger: type string
             required: false
+          example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
       type: object
     CreateTransactionRouteInput:
@@ -3248,8 +3638,8 @@ components:
         metadata:
           key: '{}'
         operationRoutes:
-        - operationRoutes
-        - operationRoutes
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         description: Settlement route for service charges
         title: Charge Settlement
       properties:
@@ -3264,9 +3654,10 @@ components:
           description: Additional metadata stored as JSON
           type: object
         operationRoutes:
-          description: An object containing accounting data of Operation Routes from
-            the Transaction Route.
+          description: A list of Operation Route IDs associated with the Transaction
+            Route.
           items:
+            format: uuid
             type: string
           type: array
         title:
@@ -3331,28 +3722,32 @@ components:
         as amount, balance before and after, transaction association, and metadata.
       example:
         accountAlias: '@person1'
-        amount: '{}'
         metadata:
           key: '{}'
-        assetCode: BRL
-        chartOfAccounts: "1000"
         description: Credit card operation
         type: DEBIT
         balanceAffected: true
-        transactionId: 00000000-0000-0000-0000-000000000000
-        ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
-        accountId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
-        deletedAt: 2021-01-01T00:00:00Z
-        route: 00000000-0000-0000-0000-000000000000
+        routeId: 00000000-0000-0000-0000-000000000000
         balance: '{}'
         balanceAfter: '{}'
         id: 00000000-0000-0000-0000-000000000000
+        direction: debit
+        updatedAt: 2021-01-01T00:00:00Z
+        routeCode: ROUTE-001
+        amount: '{}'
+        assetCode: BRL
+        chartOfAccounts: "1000"
+        transactionId: 00000000-0000-0000-0000-000000000000
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        accountId: 00000000-0000-0000-0000-000000000000
+        deletedAt: 2021-01-01T00:00:00Z
+        route: 00000000-0000-0000-0000-000000000000
+        routeDescription: Settlement route for service charges
         balanceKey: asset-freeze
         balanceId: 00000000-0000-0000-0000-000000000000
         status: '{}'
-        updatedAt: 2021-01-01T00:00:00Z
       properties:
         accountAlias:
           description: |-
@@ -3450,6 +3845,17 @@ components:
           example: Credit card operation
           maxLength: 256
           type: string
+        direction:
+          description: |-
+            Direction of the operation (debit, credit)
+            example: debit
+            maxLength: 50
+          enum:
+          - debit
+          - credit
+          example: debit
+          maxLength: 50
+          type: string
         id:
           description: |-
             Unique identifier for the operation
@@ -3483,11 +3889,36 @@ components:
           type: string
         route:
           description: |-
-            Route
+            Deprecated: passive field kept for backward compatibility. Not used in validation or business logic. Use routeId instead.
             example: 00000000-0000-0000-0000-000000000000
-            format: string
+            maxLength: 250
+            deprecated: true
           example: 00000000-0000-0000-0000-000000000000
-          format: string
+          maxLength: 250
+          type: string
+        routeCode:
+          description: |-
+            Human-readable code of the operation route for accounting traceability
+            example: ROUTE-001
+            maxLength: 100
+          example: ROUTE-001
+          maxLength: 100
+          type: string
+        routeDescription:
+          description: |-
+            Human-readable description of the operation route for accounting traceability
+            example: Settlement route for service charges
+            maxLength: 250
+          example: Settlement route for service charges
+          maxLength: 250
+          type: string
+        routeId:
+          description: |-
+            UUID of the operation route that generated this operation. Primary field for route identification, validation, and accounting.
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         status:
           allOf:
@@ -3522,18 +3953,20 @@ components:
     OperationRoute:
       description: OperationRoute object
       example:
+        metadata:
+          key: '{}'
+        code: EXT-001
+        accountingEntries: '{}'
+        description: This operation route handles cash-in transactions from service
+          charge collections
+        title: Cashin from service charge
         ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
-        metadata:
-          key: '{}'
-        code: EXT-001
-        description: This operation route handles cash-in transactions from service
-          charge collections
+        action: direct
         operationType: source
         id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-        title: Cashin from service charge
         account: '{}'
         updatedAt: 2021-01-01T00:00:00Z
       properties:
@@ -3542,6 +3975,23 @@ components:
           - $ref: '#/components/schemas/AccountRule'
           description: The account selection rule configuration.
           type: object
+        accountingEntries:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntries'
+          description: Optional accounting entries for each action type associated
+            with this operation route.
+          type: object
+        action:
+          description: The action associated with this operation route in the context
+            of a transaction route.
+          enum:
+          - direct
+          - hold
+          - commit
+          - cancel
+          - revert
+          example: direct
+          type: string
         code:
           description: External reference of the operation route.
           example: EXT-001
@@ -3576,6 +4026,10 @@ components:
           type: object
         operationType:
           description: The type of the operation route.
+          enum:
+          - source
+          - destination
+          - bidirectional
           example: source
           type: string
         organizationId:
@@ -3592,33 +4046,6 @@ components:
           example: 2021-01-01T00:00:00Z
           format: date-time
           type: string
-      type: object
-    Pagination:
-      description: Pagination is the struct designed to store the pagination data
-        of an entity list.
-      example:
-        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-        limit: 10
-        page: 1
-        items: '{}'
-      properties:
-        items:
-          type: object
-        limit:
-          example: 10
-          type: integer
-        next_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
-        page:
-          example: 1
-          type: integer
-        prev_cursor:
-          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          type: string
-          x-omitempty: true
       type: object
     Status:
       description: Status is the struct designed to represent the status of a transaction.
@@ -3664,52 +4091,61 @@ components:
         deletedAt: 2021-01-01T00:00:00Z
         operations:
         - accountAlias: '@person1'
-          amount: '{}'
           metadata:
             key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
           description: Credit card operation
           type: DEBIT
           balanceAffected: true
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
+          direction: debit
+          updatedAt: 2021-01-01T00:00:00Z
+          routeCode: ROUTE-001
+          amount: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          deletedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
+          routeDescription: Settlement route for service charges
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
           status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
         - accountAlias: '@person1'
-          amount: '{}'
           metadata:
             key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
           description: Credit card operation
           type: DEBIT
           balanceAffected: true
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
+          direction: debit
+          updatedAt: 2021-01-01T00:00:00Z
+          routeCode: ROUTE-001
+          amount: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          deletedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
+          routeDescription: Settlement route for service charges
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
           status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
         route: 00000000-0000-0000-0000-000000000000
+        routeId: 00000000-0000-0000-0000-000000000000
         id: 00000000-0000-0000-0000-000000000000
         status: '{}'
         updatedAt: 2021-01-01T00:00:00Z
@@ -3819,11 +4255,20 @@ components:
           type: string
         route:
           description: |-
-            Route
+            Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
             example: 00000000-0000-0000-0000-000000000000
-            format: string
+            maxLength: 250
+            deprecated: true
           example: 00000000-0000-0000-0000-000000000000
-          format: string
+          maxLength: 250
+          type: string
+        routeId:
+          description: |-
+            UUID of the transaction route. Primary field for route identification, validation, and accounting.
+            example: 00000000-0000-0000-0000-000000000000
+            format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         source:
           description: |-
@@ -3858,32 +4303,36 @@ components:
         metadata:
           key: '{}'
         operationRoutes:
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - metadata:
+            key: '{}'
+          code: EXT-001
+          accountingEntries: '{}'
+          description: This operation route handles cash-in transactions from service
+            charge collections
+          title: Cashin from service charge
+          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: '{}'
-          code: EXT-001
-          description: This operation route handles cash-in transactions from service
-            charge collections
+          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          title: Cashin from service charge
           account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - metadata:
+            key: '{}'
+          code: EXT-001
+          accountingEntries: '{}'
+          description: This operation route handles cash-in transactions from service
+            charge collections
+          title: Cashin from service charge
+          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: '{}'
-          code: EXT-001
-          description: This operation route handles cash-in transactions from service
-            charge collections
+          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          title: Cashin from service charge
           account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
         description: Settlement route for service charges
@@ -3989,6 +4438,7 @@ components:
         metadata:
           key: '{}'
         code: EXT-001
+        accountingEntries: '{}'
         description: This operation route handles cash-in transactions from service
           charge collections
         title: Cashin from service charge
@@ -3998,6 +4448,12 @@ components:
           allOf:
           - $ref: '#/components/schemas/AccountRule'
           description: The account selection rule configuration.
+          type: object
+        accountingEntries:
+          allOf:
+          - $ref: '#/components/schemas/AccountingEntries'
+          description: Optional accounting entries for each action type associated
+            with this operation route.
           type: object
         code:
           description: External reference of the operation route.
@@ -4052,8 +4508,8 @@ components:
         metadata:
           key: '{}'
         operationRoutes:
-        - operationRoutes
-        - operationRoutes
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        - 046b6c7f-0b8a-43b9-b35d-6489e6daee91
         description: Settlement route for service charges
         title: Charge Settlement
       properties:
@@ -4068,9 +4524,11 @@ components:
           description: Additional metadata stored as JSON
           type: object
         operationRoutes:
-          description: An object containing accounting data of Operation Routes from
-            the Transaction Route.
+          description: A list of Operation Route IDs associated with the Transaction
+            Route. Omit to leave existing associations unchanged. When provided, replaces
+            all current associations with the supplied UUIDs.
           items:
+            format: uuid
             type: string
           type: array
         title:
@@ -4078,6 +4536,25 @@ components:
             as an entry note for identification.
           example: Charge Settlement
           maxLength: 50
+          type: string
+      type: object
+    http.Pagination:
+      example:
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        page: 6
+        items: '{}'
+      properties:
+        items:
+          type: object
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        page:
+          type: integer
+        prev_cursor:
           type: string
       type: object
     mmodel.Balance:
@@ -4284,19 +4761,18 @@ components:
             Example "2021-01-01T00:00:00Z"
             swagger: type string
             required: false
+          example: 2021-01-01T00:00:00Z
+          format: date-time
           type: string
       type: object
     inline_response_200:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
         items:
         - metadata:
             key: '{}'
@@ -4335,102 +4811,92 @@ components:
           key: asset-freeze
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/mmodel.Balance'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        prev_cursor:
-          type: string
       type: object
     inline_response_200_1:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
         items:
         - accountAlias: '@person1'
-          amount: '{}'
           metadata:
             key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
           description: Credit card operation
           type: DEBIT
           balanceAffected: true
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
+          direction: debit
+          updatedAt: 2021-01-01T00:00:00Z
+          routeCode: ROUTE-001
+          amount: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          deletedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
+          routeDescription: Settlement route for service charges
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
           status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
         - accountAlias: '@person1'
-          amount: '{}'
           metadata:
             key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
           description: Credit card operation
           type: DEBIT
           balanceAffected: true
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
           balance: '{}'
           balanceAfter: '{}'
           id: 00000000-0000-0000-0000-000000000000
+          direction: debit
+          updatedAt: 2021-01-01T00:00:00Z
+          routeCode: ROUTE-001
+          amount: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          deletedAt: 2021-01-01T00:00:00Z
+          route: 00000000-0000-0000-0000-000000000000
+          routeDescription: Settlement route for service charges
           balanceKey: asset-freeze
           balanceId: 00000000-0000-0000-0000-000000000000
           status: '{}'
-          updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Operation'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        prev_cursor:
-          type: string
       type: object
     inline_response_200_2:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
         items:
         - metadata:
             key: '{}'
@@ -4461,89 +4927,70 @@ components:
           to: BRL
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/AssetRate'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        prev_cursor:
-          type: string
       type: object
     inline_response_200_3:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: '{}'
         items:
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - metadata:
+            key: '{}'
+          code: EXT-001
+          accountingEntries: '{}'
+          description: This operation route handles cash-in transactions from service
+            charge collections
+          title: Cashin from service charge
+          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: '{}'
-          code: EXT-001
-          description: This operation route handles cash-in transactions from service
-            charge collections
+          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          title: Cashin from service charge
           account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
-        - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+        - metadata:
+            key: '{}'
+          code: EXT-001
+          accountingEntries: '{}'
+          description: This operation route handles cash-in transactions from service
+            charge collections
+          title: Cashin from service charge
+          ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: '{}'
-          code: EXT-001
-          description: This operation route handles cash-in transactions from service
-            charge collections
+          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-          title: Cashin from service charge
           account: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/OperationRoute'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        page:
-          properties: {}
-          type: object
-        prev_cursor:
-          type: string
       type: object
     inline_response_200_4:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: '{}'
         items:
         - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
@@ -4552,32 +4999,36 @@ components:
           metadata:
             key: '{}'
           operationRoutes:
-          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - metadata:
+              key: '{}'
+            code: EXT-001
+            accountingEntries: '{}'
+            description: This operation route handles cash-in transactions from service
+              charge collections
+            title: Cashin from service charge
+            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            metadata:
-              key: '{}'
-            code: EXT-001
-            description: This operation route handles cash-in transactions from service
-              charge collections
+            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            title: Cashin from service charge
             account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
-          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - metadata:
+              key: '{}'
+            code: EXT-001
+            accountingEntries: '{}'
+            description: This operation route handles cash-in transactions from service
+              charge collections
+            title: Cashin from service charge
+            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            metadata:
-              key: '{}'
-            code: EXT-001
-            description: This operation route handles cash-in transactions from service
-              charge collections
+            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            title: Cashin from service charge
             account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           description: Settlement route for service charges
@@ -4591,32 +5042,36 @@ components:
           metadata:
             key: '{}'
           operationRoutes:
-          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - metadata:
+              key: '{}'
+            code: EXT-001
+            accountingEntries: '{}'
+            description: This operation route handles cash-in transactions from service
+              charge collections
+            title: Cashin from service charge
+            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            metadata:
-              key: '{}'
-            code: EXT-001
-            description: This operation route handles cash-in transactions from service
-              charge collections
+            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            title: Cashin from service charge
             account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
-          - ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          - metadata:
+              key: '{}'
+            code: EXT-001
+            accountingEntries: '{}'
+            description: This operation route handles cash-in transactions from service
+              charge collections
+            title: Cashin from service charge
+            ledgerId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            metadata:
-              key: '{}'
-            code: EXT-001
-            description: This operation route handles cash-in transactions from service
-              charge collections
+            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
-            title: Cashin from service charge
             account: '{}'
             updatedAt: 2021-01-01T00:00:00Z
           description: Settlement route for service charges
@@ -4624,34 +5079,21 @@ components:
           title: Charge Settlement
           updatedAt: 2025-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/TransactionRoute'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        page:
-          properties: {}
-          type: object
-        prev_cursor:
-          type: string
       type: object
     inline_response_200_5:
       example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
+        http.Pagination:
+          prev_cursor: prev_cursor
+          next_cursor: next_cursor
+          limit: 0
+          page: 6
           items: '{}'
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        page: '{}'
         items:
         - amount: 1500.0
           metadata:
@@ -4670,52 +5112,61 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           operations:
           - accountAlias: '@person1'
-            amount: '{}'
             metadata:
               key: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
             description: Credit card operation
             type: DEBIT
             balanceAffected: true
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
+            direction: debit
+            updatedAt: 2021-01-01T00:00:00Z
+            routeCode: ROUTE-001
+            amount: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
+            routeDescription: Settlement route for service charges
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
             status: '{}'
-            updatedAt: 2021-01-01T00:00:00Z
           - accountAlias: '@person1'
-            amount: '{}'
             metadata:
               key: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
             description: Credit card operation
             type: DEBIT
             balanceAffected: true
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
+            direction: debit
+            updatedAt: 2021-01-01T00:00:00Z
+            routeCode: ROUTE-001
+            amount: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
+            routeDescription: Settlement route for service charges
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
             status: '{}'
-            updatedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
           id: 00000000-0000-0000-0000-000000000000
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
@@ -4736,71 +5187,71 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           operations:
           - accountAlias: '@person1'
-            amount: '{}'
             metadata:
               key: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
             description: Credit card operation
             type: DEBIT
             balanceAffected: true
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
+            direction: debit
+            updatedAt: 2021-01-01T00:00:00Z
+            routeCode: ROUTE-001
+            amount: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
+            routeDescription: Settlement route for service charges
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
             status: '{}'
-            updatedAt: 2021-01-01T00:00:00Z
           - accountAlias: '@person1'
-            amount: '{}'
             metadata:
               key: '{}'
-            assetCode: BRL
-            chartOfAccounts: "1000"
             description: Credit card operation
             type: DEBIT
             balanceAffected: true
-            transactionId: 00000000-0000-0000-0000-000000000000
-            ledgerId: 00000000-0000-0000-0000-000000000000
             organizationId: 00000000-0000-0000-0000-000000000000
-            accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
-            deletedAt: 2021-01-01T00:00:00Z
-            route: 00000000-0000-0000-0000-000000000000
+            routeId: 00000000-0000-0000-0000-000000000000
             balance: '{}'
             balanceAfter: '{}'
             id: 00000000-0000-0000-0000-000000000000
+            direction: debit
+            updatedAt: 2021-01-01T00:00:00Z
+            routeCode: ROUTE-001
+            amount: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            deletedAt: 2021-01-01T00:00:00Z
+            route: 00000000-0000-0000-0000-000000000000
+            routeDescription: Settlement route for service charges
             balanceKey: asset-freeze
             balanceId: 00000000-0000-0000-0000-000000000000
             status: '{}'
-            updatedAt: 2021-01-01T00:00:00Z
           route: 00000000-0000-0000-0000-000000000000
+          routeId: 00000000-0000-0000-0000-000000000000
           id: 00000000-0000-0000-0000-000000000000
           status: '{}'
           updatedAt: 2021-01-01T00:00:00Z
       properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
+        http.Pagination:
+          $ref: '#/components/schemas/http.Pagination'
         items:
           items:
             $ref: '#/components/schemas/Transaction'
           type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        page:
-          properties: {}
-          type: object
-        prev_cursor:
-          type: string
       type: object
     CreateTransactionInflowSwaggerModel_send_distribute_amount:
       description: |-

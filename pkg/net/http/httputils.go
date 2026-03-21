@@ -1,17 +1,23 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package http
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"io"
 	"mime/multipart"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v2/commons/constants"
-	libHTTP "github.com/LerianStudio/lib-commons/v2/commons/net/http"
-	libRedis "github.com/LerianStudio/lib-commons/v2/commons/redis"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/gofiber/fiber/v2"
@@ -21,39 +27,66 @@ import (
 
 // QueryHeader entity from query parameter from get apis
 type QueryHeader struct {
-	Metadata                             *bson.M
-	Limit                                int
-	Page                                 int
-	Cursor                               string
-	SortOrder                            string
-	StartDate                            time.Time
-	EndDate                              time.Time
-	UseMetadata                          bool
-	PortfolioID                          string
-	OperationType                        string
-	ToAssetCodes                         []string
-	HolderID                             *string
-	ExternalID                           *string
-	Document                             *string
-	AccountID                            *string
-	LedgerID                             *string
-	BankingDetailsBranch                 *string
-	BankingDetailsAccount                *string
-	BankingDetailsIban                   *string
-	EntityName                           *string
-	RegulatoryFieldsParticipantDocument  *string
-	RelatedPartyDocument                 *string
-	RelatedPartyRole                     *string
+	Metadata                            *bson.M
+	Limit                               int
+	Page                                int
+	Cursor                              string
+	SortOrder                           string
+	StartDate                           time.Time
+	EndDate                             time.Time
+	UseMetadata                         bool
+	PortfolioID                         string
+	OperationType                       string
+	Direction                           *string
+	RouteID                             *string
+	ToAssetCodes                        []string
+	HolderID                            *string
+	ExternalID                          *string
+	Document                            *string
+	AccountID                           *string
+	LedgerID                            *string
+	BankingDetailsBranch                *string
+	BankingDetailsAccount               *string
+	BankingDetailsIban                  *string
+	EntityName                          *string
+	RegulatoryFieldsParticipantDocument *string
+	RelatedPartyDocument                *string
+	RelatedPartyRole                    *string
+	Name                                *string
+	LegalName                           *string
+	DoingBusinessAs                     *string
 }
 
 // Pagination entity from query parameter from get apis
 type Pagination struct {
-	Limit     int
-	Page      int
-	Cursor    string
-	SortOrder string
-	StartDate time.Time
-	EndDate   time.Time
+	Items      any       `json:"items"`
+	Limit      int       `json:"limit"`
+	Page       int       `json:"page,omitempty"`
+	Cursor     string    `json:"-"`
+	SortOrder  string    `json:"-"`
+	StartDate  time.Time `json:"-"`
+	EndDate    time.Time `json:"-"`
+	NextCursor string    `json:"next_cursor,omitempty"`
+	PrevCursor string    `json:"prev_cursor,omitempty"`
+}
+
+// SetItems sets the pagination items payload.
+func (p *Pagination) SetItems(items any) {
+	if p == nil {
+		return
+	}
+
+	p.Items = items
+}
+
+// SetCursor sets forward and backward cursor values.
+func (p *Pagination) SetCursor(next, prev string) {
+	if p == nil {
+		return
+	}
+
+	p.NextCursor = next
+	p.PrevCursor = prev
 }
 
 // ValidateParameters validate and return struct of default parameters
@@ -64,6 +97,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		metadata                            *bson.M
 		portfolioID                         string
 		operationType                       string
+		direction                           *string
+		routeID                             *string
 		toAssetCodes                        []string
 		startDate                           time.Time
 		endDate                             time.Time
@@ -84,6 +119,9 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		regulatoryFieldsParticipantDocument *string
 		relatedPartyDocument                *string
 		relatedPartyRole                    *string
+		name                                *string
+		legalName                           *string
+		doingBusinessAs                     *string
 	)
 
 	for key, value := range params {
@@ -102,14 +140,14 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		case strings.Contains(key, "start_date"):
 			parsedDate, _, err := libCommons.ParseDateTime(value, false)
 			if err != nil {
-				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", "start_date", "yyyy-mm-dd or yyyy-mm-dd hh:mm:ss")
 			}
 
 			startDate = parsedDate
 		case strings.Contains(key, "end_date"):
 			parsedDate, _, err := libCommons.ParseDateTime(value, true)
 			if err != nil {
-				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", value)
+				return nil, pkg.ValidateBusinessError(constant.ErrInvalidDatetimeFormat, "", "end_date", "yyyy-mm-dd or yyyy-mm-dd hh:mm:ss")
 			}
 
 			endDate = parsedDate
@@ -117,6 +155,11 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			portfolioID = value
 		case strings.Contains(strings.ToLower(key), "type"):
 			operationType = strings.ToUpper(value)
+		case key == "direction":
+			v := strings.ToLower(value)
+			direction = &v
+		case key == "route_id":
+			routeID = &value
 		case strings.Contains(key, "to"):
 			toAssetCodes = strings.Split(value, ",")
 		case strings.Contains(key, "holder_id"):
@@ -143,7 +186,25 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			relatedPartyDocument = &value
 		case strings.Contains(key, "related_party_role"):
 			relatedPartyRole = &value
+		case key == "name":
+			name = &value
+		case key == "legal_name":
+			legalName = &value
+		case key == "doing_business_as":
+			doingBusinessAs = &value
 		}
+	}
+
+	if err := validateSearchTermLength(&name, "name"); err != nil {
+		return nil, err
+	}
+
+	if err := validateSearchTermLength(&legalName, "legal_name"); err != nil {
+		return nil, err
+	}
+
+	if err := validateSearchTermLength(&doingBusinessAs, "doing_business_as"); err != nil {
+		return nil, err
 	}
 
 	err := validateDates(&startDate, &endDate)
@@ -151,7 +212,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		return nil, err
 	}
 
-	err = validatePagination(cursor, sortOrder, limit)
+	cursor, err = validatePagination(cursor, sortOrder, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -160,6 +221,16 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		_, err := uuid.Parse(portfolioID)
 		if err != nil {
 			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "portfolio_id")
+		}
+	}
+
+	if direction != nil && *direction != constant.DirectionDebit && *direction != constant.DirectionCredit {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "direction")
+	}
+
+	if routeID != nil {
+		if _, err := uuid.Parse(*routeID); err != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "route_id")
 		}
 	}
 
@@ -174,6 +245,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		UseMetadata:                         useMetadata,
 		PortfolioID:                         portfolioID,
 		OperationType:                       operationType,
+		Direction:                           direction,
+		RouteID:                             routeID,
 		ToAssetCodes:                        toAssetCodes,
 		HolderID:                            holderID,
 		ExternalID:                          externalID,
@@ -187,6 +260,9 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		RegulatoryFieldsParticipantDocument: regulatoryFieldsParticipantDocument,
 		RelatedPartyDocument:                relatedPartyDocument,
 		RelatedPartyRole:                    relatedPartyRole,
+		Name:                                name,
+		LegalName:                           legalName,
+		DoingBusinessAs:                     doingBusinessAs,
 	}
 
 	return query, nil
@@ -233,37 +309,84 @@ func validateDates(startDate, endDate *time.Time) error {
 	return nil
 }
 
+type legacyCursor struct {
+	ID         string `json:"id"`
+	PointsNext bool   `json:"points_next"`
+}
+
 // ValidatePagination validate pagination parameters
-func validatePagination(cursor, sortOrder string, limit int) error {
+func validatePagination(cursor, sortOrder string, limit int) (string, error) {
 	maxPaginationLimit := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
 
 	if limit > maxPaginationLimit {
-		return pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
+		return "", pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
 	}
 
 	if (sortOrder != string(constant.Asc)) && (sortOrder != string(constant.Desc)) {
-		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
 	}
 
-	if !libCommons.IsNilOrEmpty(&cursor) {
-		_, err := libHTTP.DecodeCursor(cursor)
+	if libCommons.IsNilOrEmpty(&cursor) {
+		return "", nil
+	}
+
+	if _, err := libHTTP.DecodeCursor(cursor); err == nil {
+		return cursor, nil
+	}
+
+	normalizedCursor, err := normalizeLegacyCursor(cursor)
+	if err != nil {
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
+	}
+
+	return normalizedCursor, nil
+}
+
+func normalizeLegacyCursor(cursor string) (string, error) {
+	candidates := []string{cursor}
+
+	if missing := len(cursor) % 4; missing != 0 {
+		candidates = append(candidates, cursor+strings.Repeat("=", 4-missing))
+	}
+
+	for _, candidate := range candidates {
+		decoded, err := base64.StdEncoding.DecodeString(candidate)
 		if err != nil {
-			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
+			decoded, err = base64.RawStdEncoding.DecodeString(candidate)
+			if err != nil {
+				continue
+			}
 		}
+
+		var payload legacyCursor
+		if err := json.Unmarshal(decoded, &payload); err != nil {
+			continue
+		}
+
+		if payload.ID == "" {
+			continue
+		}
+
+		direction := libHTTP.CursorDirectionPrev
+		if payload.PointsNext {
+			direction = libHTTP.CursorDirectionNext
+		}
+
+		return libHTTP.EncodeCursor(libHTTP.Cursor{ID: payload.ID, Direction: direction})
 	}
 
-	return nil
+	return "", libHTTP.ErrInvalidCursor
 }
 
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
 func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
-	ikey := c.Get(libConstants.IdempotencyKey)
+	ikey := strings.Clone(c.Get(libConstants.IdempotencyKey))
 	iTTL := c.Get(libConstants.IdempotencyTTL)
 
 	// Interpret TTL as seconds count. Downstream Redis helpers multiply by time.Second.
 	t, err := strconv.Atoi(iTTL)
 	if err != nil || t <= 0 {
-		t = libRedis.TTL
+		t = 300
 	}
 
 	ttl := time.Duration(t)
@@ -292,10 +415,7 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	}
 
 	defer func(file multipart.File) {
-		err := file.Close()
-		if err != nil {
-			panic(0)
-		}
+		_ = file.Close()
 	}(file)
 
 	buf := new(bytes.Buffer)
@@ -316,6 +436,11 @@ func (qh *QueryHeader) ToOffsetPagination() Pagination {
 		StartDate: qh.StartDate,
 		EndDate:   qh.EndDate,
 	}
+}
+
+// HasNameFilters returns true if any name-based search filter is set.
+func (qh *QueryHeader) HasNameFilters() bool {
+	return qh.Name != nil || qh.LegalName != nil || qh.DoingBusinessAs != nil
 }
 
 func (qh *QueryHeader) ToCursorPagination() Pagination {
@@ -352,6 +477,39 @@ func GetUUIDFromLocals(c *fiber.Ctx, key string) (uuid.UUID, error) {
 // It supports strings, numbers, booleans, nil, and arrays without nested maps or overly long strings.
 func ValidateMetadataValue(value any) (any, error) {
 	return validateMetadataValueWithDepth(value, 0)
+}
+
+// EscapeSearchMetacharacters escapes SQL pattern matching metacharacters (%, _, \)
+// to prevent wildcard injection in LIKE/ILIKE queries.
+func EscapeSearchMetacharacters(input string) string {
+	result := strings.ReplaceAll(input, `\`, `\\`)
+	result = strings.ReplaceAll(result, `%`, `\%`)
+	result = strings.ReplaceAll(result, `_`, `\_`)
+
+	return result
+}
+
+// validateSearchTermLength validates that a search term is within the allowed length range (1-256 chars).
+// Nil or empty values are silently ignored (filter not applied).
+// When the trimmed value is empty, the pointer is set to nil so the filter is not applied.
+func validateSearchTermLength(term **string, fieldName string) error {
+	if *term == nil {
+		return nil
+	}
+
+	trimmed := strings.TrimSpace(**term)
+	if trimmed == "" {
+		*term = nil
+		return nil
+	}
+
+	if utf8.RuneCountInString(trimmed) > 256 {
+		return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", fieldName)
+	}
+
+	**term = trimmed
+
+	return nil
 }
 
 func validateMetadataValueWithDepth(value any, depth int) (any, error) {

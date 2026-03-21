@@ -1,0 +1,410 @@
+local function split_decimal(s)
+    local sign = ""
+
+    if s:sub(1, 1) == "-" then
+        sign = "-"
+        s = s:sub(2)
+    end
+
+    local intp, fracp = s:match("^(%d+)%.(%d+)$")
+    if intp then
+        return sign .. intp, fracp, sign ~= ""
+    else
+        return sign .. s, "", sign ~= ""
+    end
+end
+
+local function rtrim_zeros(frac)
+    frac = frac:gsub("0+$", "")
+    return (frac == "" and "0") or frac
+end
+
+local sub_decimal
+
+local function add_decimal(a, b)
+    a = tostring(a)
+    b = tostring(b)
+    local ai, af, a_negative = split_decimal(a)
+    local bi, bf, b_negative = split_decimal(b)
+
+    if a_negative and b_negative then
+        local result = add_decimal(a:sub(2), b:sub(2))
+        return "-" .. result
+    end
+
+    if a_negative then
+        return sub_decimal(b, a:sub(2))
+    end
+
+    if b_negative then
+        return sub_decimal(a, b:sub(2))
+    end
+
+    if ai:sub(1, 1) == "-" then ai = ai:sub(2) end
+    if bi:sub(1, 1) == "-" then bi = bi:sub(2) end
+
+    if #af < #bf then
+        af = af .. string.rep("0", #bf - #af)
+    elseif #bf < #af then
+        bf = bf .. string.rep("0", #af - #bf)
+    end
+
+    local carry = 0
+    local frac_sum = {}
+    for i = #af, 1, -1 do
+        local da = tonumber(af:sub(i, i))
+        local db = tonumber(bf:sub(i, i))
+        local s = da + db + carry
+        carry = math.floor(s / 10)
+        frac_sum[#af - i + 1] = tostring(s % 10)
+    end
+
+    local rii = ai:reverse()
+    local rbi = bi:reverse()
+    local max_i = math.max(#rii, #rbi)
+    local int_sum = {}
+    for i = 1, max_i do
+        local da = tonumber(rii:sub(i, i)) or 0
+        local db = tonumber(rbi:sub(i, i)) or 0
+        local s = da + db + carry
+        carry = math.floor(s / 10)
+        int_sum[i] = tostring(s % 10)
+    end
+    if carry > 0 then
+        int_sum[#int_sum + 1] = tostring(carry)
+    end
+
+    local int_res = table.concat(int_sum):reverse()
+    local frac_res = table.concat(frac_sum):reverse()
+    frac_res = rtrim_zeros(frac_res)
+
+    if frac_res == "0" then
+        return int_res
+    end
+    return int_res .. "." .. frac_res
+end
+
+sub_decimal = function(a, b)
+    a = tostring(a)
+    b = tostring(b)
+    local ai, af, a_negative = split_decimal(a)
+    local bi, bf, b_negative = split_decimal(b)
+
+    if a_negative and b_negative then
+        return sub_decimal(b:sub(2), a:sub(2))
+    end
+
+    if a_negative then
+        local result = add_decimal(a:sub(2), b)
+        return "-" .. result
+    end
+
+    if b_negative then
+        return add_decimal(a, b:sub(2))
+    end
+
+    local a_num = tonumber(a)
+    local b_num = tonumber(b)
+    if a_num < b_num then
+        local result = sub_decimal(b, a)
+        return "-" .. result
+    end
+
+    if ai:sub(1, 1) == "-" then ai = ai:sub(2) end
+    if bi:sub(1, 1) == "-" then bi = bi:sub(2) end
+
+    if #af < #bf then
+        af = af .. string.rep("0", #bf - #af)
+    elseif #bf < #af then
+        bf = bf .. string.rep("0", #af - #bf)
+    end
+
+    local borrow = 0
+    local frac_res_tbl = {}
+    for i = #af, 1, -1 do
+        local da = tonumber(af:sub(i, i))
+        local db = tonumber(bf:sub(i, i))
+        local diff = da - db - borrow
+        if diff < 0 then
+            diff = diff + 10
+            borrow = 1
+        else
+            borrow = 0
+        end
+        frac_res_tbl[#af - i + 1] = tostring(diff)
+    end
+
+    local rii = ai:reverse()
+    local rbi = bi:reverse()
+    local max_i = math.max(#rii, #rbi)
+    local int_res_tbl = {}
+    for i = 1, max_i do
+        local da = tonumber(rii:sub(i, i)) or 0
+        local db = tonumber(rbi:sub(i, i)) or 0
+        local diff = da - db - borrow
+        if diff < 0 then
+            diff = diff + 10
+            borrow = 1
+        else
+            borrow = 0
+        end
+        int_res_tbl[i] = tostring(diff)
+    end
+
+    local res_int_rev = table.concat(int_res_tbl)
+    local res_int = res_int_rev:reverse():gsub("^0+", "")
+    if res_int == "" then
+        res_int = "0"
+    end
+
+    local frac_normal = table.concat(frac_res_tbl):reverse()
+    frac_normal = rtrim_zeros(frac_normal)
+
+    if frac_normal == "0" then
+        return res_int
+    end
+    return res_int .. "." .. frac_normal
+end
+
+local function startsWithMinus(s)
+    return s:sub(1, 1) == "-"
+end
+
+-- isPositive checks if a decimal string represents a value greater than zero
+-- Returns true if the value is positive (not negative and not zero)
+local function isPositive(s)
+    if startsWithMinus(s) then
+        return false
+    end
+    -- Check if it's zero (could be "0", "0.0", "0.00", etc.)
+    local normalized = s:gsub("%.?0+$", ""):gsub("^0+", "")
+    return normalized ~= "" and normalized ~= "."
+end
+
+local function cloneBalance(tbl)
+    local copy = {}
+    for k, v in pairs(tbl) do
+        copy[k] = v
+    end
+    return copy
+end
+
+local function updateTransactionHash(transactionBackupQueue, transactionKey, balances, balancesAfter)
+    local transaction
+
+    local raw = redis.call("HGET", transactionBackupQueue, transactionKey)
+    if not raw then
+        transaction = { balances = balances, balancesAfter = balancesAfter }
+    else
+        local ok, decoded = pcall(cjson.decode, raw)
+        if ok and type(decoded) == "table" then
+            transaction = decoded
+            transaction.balances = balances
+            transaction.balancesAfter = balancesAfter
+        else
+            transaction = { balances = balances, balancesAfter = balancesAfter }
+        end
+    end
+
+    local updated = cjson.encode(transaction)
+    redis.call("HSET", transactionBackupQueue, transactionKey, updated)
+
+    return updated
+end
+
+local function rollback(rollbackBalances, ttl)
+  if next(rollbackBalances) then
+      local msetArgs = {}
+      for key, value in pairs(rollbackBalances) do
+          table.insert(msetArgs, key)
+          table.insert(msetArgs, value)
+      end
+      redis.call("MSET", unpack(msetArgs))
+
+      for key, _ in pairs(rollbackBalances) do
+          redis.call("EXPIRE", key, ttl)
+      end
+  end
+end
+
+local function main()
+    local ttl = 3600 -- 1 hour
+
+    local groupSize = 17
+    local returnBalances = {}
+    local returnBalancesAfter = {}
+    local rollbackBalances = {}
+
+    local transactionBackupQueue = KEYS[1]
+    local transactionKey = KEYS[2]
+    local scheduleKey = KEYS[3]
+
+    -- First argument: whether to schedule balance sync (1 = enabled, 0 = disabled)
+    local scheduleSync = tonumber(ARGV[1]) or 1
+
+    -- schedule a pre-expire warning 10 minutes before the TTL
+    local warnBefore = 600 -- 10 minutes
+    local timeNow = redis.call("TIME")
+    local nowSec = tonumber(timeNow[1])
+    local dueAt = nowSec + (ttl - warnBefore)
+
+    -- Start from index 2 since ARGV[1] is the scheduleSync flag
+    for i = 2, #ARGV, groupSize do
+        local redisBalanceKey = ARGV[i]
+        local isPending = tonumber(ARGV[i + 1])
+        local transactionStatus = ARGV[i + 2]
+        local operation = ARGV[i + 3]
+
+        local amount = ARGV[i + 4]
+
+        local alias = ARGV[i + 5]
+
+        local routeValidationEnabled = tonumber(ARGV[i + 6])
+
+        -- Balance object stored in Redis cache.
+        --
+        -- FIELD USAGE:
+        -- Fields used by THIS Lua script for atomic operations:
+        --   - ID:          Returned to Go for operation tracking
+        --   - Available:   Balance calculations (DEBIT/CREDIT)
+        --   - OnHold:      Balance calculations (ON_HOLD/RELEASE)
+        --   - Version:     Optimistic concurrency control
+        --   - AccountType: Validation 0018 (external account cannot have positive balance)
+        --   - AccountID:   Returned to Go for operation tracking
+        --
+        -- Fields NOT used by Lua, but required in cache for Go pre-validation:
+        --   - AssetCode:      Used by ValidateIfBalanceExistsOnRedis for validation 0034
+        --   - AllowSending:   Used by ValidateIfBalanceExistsOnRedis for validation 0024
+        --   - AllowReceiving: Used by ValidateIfBalanceExistsOnRedis for validation 0024
+        --   - Key:            Used by ValidateIfBalanceExistsOnRedis for balance identification
+        --
+        -- WARNING: Do NOT remove the "cache-only" fields. They are essential for the
+        -- transaction validation flow that reads balances from cache before calling Lua.
+        -- See: get-balances.go ValidateIfBalanceExistsOnRedis()
+        local balance = {
+            -- Fields used by Lua
+            ID = ARGV[i + 7],
+            Available = ARGV[i + 8],
+            OnHold = ARGV[i + 9],
+            Version = tonumber(ARGV[i + 10]),
+            AccountType = ARGV[i + 11],
+            AccountID = ARGV[i + 12],
+            -- Fields for cache only (used by Go pre-validation, not by Lua)
+            AssetCode = ARGV[i + 13],
+            AllowSending = tonumber(ARGV[i + 14]),
+            AllowReceiving = tonumber(ARGV[i + 15]),
+            Key = ARGV[i + 16],
+        }
+
+        local redisBalance = cjson.encode(balance)
+        local ok = redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl, "NX")
+        if not ok then
+            local currentBalance = redis.call("GET", redisBalanceKey)
+            if not currentBalance then
+                return redis.error_reply("0061")
+            end
+            balance = cjson.decode(currentBalance)
+        end
+
+        if not rollbackBalances[redisBalanceKey] then
+            rollbackBalances[redisBalanceKey] = cjson.encode(balance)
+        end
+
+        local result = balance.Available
+        local resultOnHold = balance.OnHold
+
+        if isPending == 1 then
+            if operation == "DEBIT" and transactionStatus == "PENDING" and routeValidationEnabled == 1 then
+                -- Double-entry: DEBIT only decrements Available.
+                -- The OnHold++ will be a separate ON_HOLD operation.
+                result = sub_decimal(balance.Available, amount)
+            elseif operation == "ON_HOLD" and transactionStatus == "PENDING" and routeValidationEnabled == 1 then
+                -- Double-entry: ON_HOLD only increments OnHold.
+                -- The Available-- was already done by the separate DEBIT operation.
+                resultOnHold = add_decimal(balance.OnHold, amount)
+            elseif operation == "ON_HOLD" and transactionStatus == "PENDING" then
+                result = sub_decimal(balance.Available, amount)
+                resultOnHold = add_decimal(balance.OnHold, amount)
+            elseif operation == "RELEASE" and transactionStatus == "CANCELED" and routeValidationEnabled == 1 then
+                -- Double-entry: RELEASE only decrements OnHold.
+                -- The Available++ will be a separate CREDIT operation.
+                resultOnHold = sub_decimal(balance.OnHold, amount)
+            elseif operation == "RELEASE" and transactionStatus == "CANCELED" then
+                resultOnHold = sub_decimal(balance.OnHold, amount)
+                result = add_decimal(balance.Available, amount)
+            elseif operation == "CREDIT" and transactionStatus == "CANCELED" and routeValidationEnabled == 1 then
+                -- Double-entry: CREDIT adds to Available only.
+                result = add_decimal(balance.Available, amount)
+            elseif operation == "ON_HOLD" and transactionStatus == "APPROVED" and routeValidationEnabled == 1 then
+                -- Double-entry: ON_HOLD in APPROVED only decrements OnHold.
+                -- The Available++ will be a separate CREDIT operation.
+                resultOnHold = sub_decimal(balance.OnHold, amount)
+            elseif transactionStatus == "APPROVED" then
+                if operation == "DEBIT" then
+                    resultOnHold = sub_decimal(balance.OnHold, amount)
+                else
+                    result = add_decimal(balance.Available, amount)
+                end
+            end
+        else
+            if operation == "DEBIT" then
+                result = sub_decimal(balance.Available, amount)
+            else
+                result = add_decimal(balance.Available, amount)
+            end
+        end
+
+
+        if startsWithMinus(result) and balance.AccountType ~= "external" then
+            rollback(rollbackBalances, ttl)
+            return redis.error_reply("0018")
+        end
+
+        -- External accounts cannot have positive balance (they represent debt to external entities)
+        -- This validation MUST be atomic to prevent race conditions where two concurrent
+        -- transactions both credit an external account
+        if operation == "CREDIT" and balance.AccountType == "external" and isPositive(result) then
+            rollback(rollbackBalances, ttl)
+            return redis.error_reply("0018")
+        end
+
+        -- Only update balance and increment version if there was an actual change.
+        -- This prevents version gaps when destinations are processed during PENDING
+        -- transactions (CREDIT + PENDING has no effect, so no version increment).
+        local hasChange = (result ~= balance.Available) or (resultOnHold ~= balance.OnHold)
+
+        if hasChange then
+            balance.Alias = alias
+            table.insert(returnBalances, cloneBalance(balance))
+
+            balance.Available = result
+            balance.OnHold = resultOnHold
+            balance.Version = balance.Version + 1
+
+            table.insert(returnBalancesAfter, cloneBalance(balance))
+
+            redisBalance = cjson.encode(balance)
+            redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
+
+            -- Only schedule balance sync if enabled (scheduleSync == 1)
+            if scheduleSync == 1 then
+                redis.call("ZADD", scheduleKey, dueAt, redisBalanceKey)
+            end
+        end
+    end
+
+    -- Handle empty array case: cjson encodes {} as object, but Go expects array
+    -- When no changes occurred, use cjson.decode("[]") to get proper array type
+    -- for both the transaction hash and the return value
+    if #returnBalances == 0 then
+        local emptyArray = cjson.decode("[]")
+        updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray, emptyArray)
+        return cjson.encode({ before = cjson.decode("[]"), after = cjson.decode("[]") })
+    end
+
+    updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances, returnBalancesAfter)
+
+    return cjson.encode({ before = returnBalances, after = returnBalancesAfter })
+end
+
+return main()

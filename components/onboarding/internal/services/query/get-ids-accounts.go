@@ -1,43 +1,50 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 package query
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
-	libCommons "github.com/LerianStudio/lib-commons/v2/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v2/commons/opentelemetry"
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
+
+	// ListAccountsByIDs get Accounts from the repository by given ids.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 )
 
-// ListAccountsByIDs get Accounts from the repository by given ids.
 func (uc *UseCase) ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.ListAccountsByIDs")
 	defer span.End()
 
-	logger.Infof("Retrieving account for id: %s", ids)
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving account for id: %s", ids))
 
 	accounts, err := uc.AccountRepo.ListAccountsByIDs(ctx, organizationID, ledgerID, ids)
 	if err != nil {
-		logger.Errorf("Error getting accounts on repo: %v", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting accounts on repo: %v", err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrIDsNotFoundForAccounts, reflect.TypeOf(mmodel.Account{}).Name())
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Accounts by ids", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Accounts by ids", err)
 
-			logger.Warn("No accounts found")
+			logger.Log(ctx, libLog.LevelWarn, "No accounts found")
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to retrieve Accounts by ids", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Accounts by ids", err)
 
 		return nil, err
 	}
