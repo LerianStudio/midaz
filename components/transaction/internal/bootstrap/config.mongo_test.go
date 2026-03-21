@@ -100,7 +100,9 @@ func TestInitMultiTenantMongo_Success(t *testing.T) {
 		TenantServiceName:  "transaction",
 	}
 
-	result, err := initMultiTenantMongo(opts, logger)
+	cfg := &Config{}
+
+	result, err := initMultiTenantMongo(opts, cfg, logger)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -120,7 +122,9 @@ func TestInitMultiTenantMongo_NilTenantClient_ReturnsError(t *testing.T) {
 		TenantServiceName:  "transaction",
 	}
 
-	result, err := initMultiTenantMongo(opts, logger)
+	cfg := &Config{}
+
+	result, err := initMultiTenantMongo(opts, cfg, logger)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "TenantClient is required")
