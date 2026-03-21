@@ -50,14 +50,14 @@ func initTenantMiddleware(cfg *Config, logger libLog.Logger, telemetry *libOpent
 
 	mongoOpts := buildMongoManagerOptions(cfg, logger)
 
-	mongoManager := tmmongo.NewManager(tmClient, in.ApplicationName, mongoOpts...)
+	mongoManager := tmmongo.NewManager(tmClient, cfg.ApplicationName, mongoOpts...)
 
 	tenantMid := tmmiddleware.NewTenantMiddleware(
 		tmmiddleware.WithMongoManager(mongoManager),
 	)
 
 	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Multi-tenant middleware initialized: target=%s service=%s",
-		redactedTenantManagerURL(mtURL), in.ApplicationName))
+		redactedTenantManagerURL(mtURL), cfg.ApplicationName))
 
 	return wrapTenantMiddlewareWithMetrics(tenantMid.WithTenantDB, telemetry, logger), nil
 }
