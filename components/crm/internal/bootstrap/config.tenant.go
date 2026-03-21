@@ -23,6 +23,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+const moduleName = "crm"
+
 // initTenantMiddleware creates the tenant middleware for multi-tenant mode.
 // Returns nil when multi-tenant is disabled or the URL is not configured.
 // The middleware extracts tenantId from JWT, resolves the tenant-specific
@@ -129,7 +131,7 @@ func redactedTenantManagerURL(raw string) string {
 
 func buildMongoManagerOptions(cfg *Config, logger libLog.Logger) []tmmongo.Option {
 	mongoOpts := []tmmongo.Option{
-		tmmongo.WithModule(in.ModuleName),
+		tmmongo.WithModule(moduleName),
 		tmmongo.WithLogger(logger),
 	}
 

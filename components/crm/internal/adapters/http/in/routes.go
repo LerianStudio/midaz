@@ -18,7 +18,6 @@ import (
 )
 
 const ApplicationName = "plugin-crm"
-const ModuleName = "crm"
 
 func NewRouter(lg libLog.Logger, tl *libOpenTelemetry.Telemetry, auth *middleware.AuthClient, tenantMw fiber.Handler, hh *HolderHandler, ah *AliasHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
