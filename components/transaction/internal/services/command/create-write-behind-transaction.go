@@ -11,6 +11,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -29,7 +30,9 @@ func (uc *UseCase) CreateWriteBehindTransaction(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "command.create_write_behind_transaction")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, "Storing transaction in write-behind cache")
+	tenantID := tmcore.GetTenantIDFromContext(ctx)
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("[DEBUG] CreateWriteBehindTransaction: tenantID=%q", tenantID))
 
 	tran.Body = parserDSL
 
@@ -42,6 +45,8 @@ func (uc *UseCase) CreateWriteBehindTransaction(ctx context.Context, organizatio
 	}
 
 	key := utils.WriteBehindTransactionKey(organizationID, ledgerID, tran.ID)
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("[DEBUG] CreateWriteBehindTransaction: raw_key=%s", key))
 
 	// 86400 seconds = 24 hours (SetBytes multiplies by time.Second internally)
 	if err := uc.RedisRepo.SetBytes(ctx, key, data, time.Duration(86400)); err != nil {
