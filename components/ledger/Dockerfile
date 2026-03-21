@@ -1,6 +1,5 @@
 FROM --platform=$BUILDPLATFORM golang:1.25.8-alpine AS builder
-# ci: force rebuild
-# Force rebuild for develop branch - 2026-03-20
+# Force rebuild for develop branch - 2026-03-21
 
 
 WORKDIR /ledger-app
@@ -28,7 +27,3 @@ EXPOSE 3002
 USER nonroot:nonroot
 
 ENTRYPOINT ["/app"]
-
-# trigger build
-
-# trigger build
