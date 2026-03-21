@@ -209,6 +209,8 @@ type Config struct {
 	// Multi-tenant consumer configuration
 	RabbitMQMultiTenantSyncInterval     int `env:"RABBITMQ_MULTI_TENANT_SYNC_INTERVAL"`     // Stored in seconds
 	RabbitMQMultiTenantDiscoveryTimeout int `env:"RABBITMQ_MULTI_TENANT_DISCOVERY_TIMEOUT"` // Stored in milliseconds
+
+	MultiTenantSettingsCheckIntervalSec int `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
