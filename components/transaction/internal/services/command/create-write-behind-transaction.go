@@ -32,7 +32,7 @@ func (uc *UseCase) CreateWriteBehindTransaction(ctx context.Context, organizatio
 
 	tenantID := tmcore.GetTenantIDFromContext(ctx)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("[DEBUG] CreateWriteBehindTransaction: tenantID=%q", tenantID))
+	logger.Log(ctx, libLog.LevelError, fmt.Sprintf("[DEBUG] CreateWriteBehindTransaction: tenantID=%q", tenantID))
 
 	tran.Body = parserDSL
 
@@ -46,7 +46,7 @@ func (uc *UseCase) CreateWriteBehindTransaction(ctx context.Context, organizatio
 
 	key := utils.WriteBehindTransactionKey(organizationID, ledgerID, tran.ID)
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("[DEBUG] CreateWriteBehindTransaction: raw_key=%s", key))
+	logger.Log(ctx, libLog.LevelError, fmt.Sprintf("[DEBUG] CreateWriteBehindTransaction: raw_key=%s", key))
 
 	// 86400 seconds = 24 hours (SetBytes multiplies by time.Second internally)
 	if err := uc.RedisRepo.SetBytes(ctx, key, data, time.Duration(86400)); err != nil {
