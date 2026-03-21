@@ -72,6 +72,13 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transactio
 	ctx, span := tracer.Start(ctx, "command.update_transaction_status")
 	defer span.End()
 
+	if tran == nil {
+		err := errors.New("transaction cannot be nil")
+		libOpentelemetry.HandleSpanError(span, "Nil transaction provided", err)
+
+		return nil, err
+	}
+
 	organizationID := uuid.MustParse(tran.OrganizationID)
 	ledgerID := uuid.MustParse(tran.LedgerID)
 	transactionID := uuid.MustParse(tran.ID)
