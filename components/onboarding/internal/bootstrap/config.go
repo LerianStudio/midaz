@@ -153,7 +153,7 @@ type Config struct {
 	// Format: Go duration string (e.g., "5m", "1h", "30s"). Default: 5m.
 	SettingsCacheTTL string `env:"SETTINGS_CACHE_TTL"`
 
-	MultiTenantSettingsCheckIntervalSec int `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"`
+	MultiTenantSettingsCheckIntervalSec int `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"` // seconds between tenant config revalidation checks
 }
 
 // Options contains optional dependencies that can be injected when running

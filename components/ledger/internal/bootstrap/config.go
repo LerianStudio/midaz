@@ -63,7 +63,7 @@ type Config struct {
 	MultiTenantMaxTenantPools               int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
 	MultiTenantIdleTimeoutSec               int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
 	MultiTenantServiceAPIKey                string `env:"MULTI_TENANT_SERVICE_API_KEY"`
-	MultiTenantSettingsCheckIntervalSec     int    `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"`
+	MultiTenantSettingsCheckIntervalSec     int    `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"` // seconds between tenant config revalidation checks
 }
 
 // Options contains optional dependencies that can be injected by callers.

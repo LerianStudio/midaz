@@ -31,7 +31,7 @@ type mongoComponents struct {
 // Dispatches to single-tenant or multi-tenant initialization based on Options.
 func initMongo(opts *Options, cfg *Config, logger libLog.Logger) (*mongoComponents, error) {
 	if opts != nil && opts.MultiTenantEnabled {
-		return initMultiTenantMongo(opts, logger)
+		return initMultiTenantMongo(opts, cfg, logger)
 	}
 
 	return initSingleTenantMongo(cfg, logger)
@@ -41,18 +41,28 @@ func initMongo(opts *Options, cfg *Config, logger libLog.Logger) (*mongoComponen
 // Creates a tmmongo.Manager that resolves per-tenant databases via Tenant Manager.
 // The Manager is NOT injected into the repository — the middleware (PR 5) uses it
 // to inject *mongo.Database into context, and the repository reads from context.
-func initMultiTenantMongo(opts *Options, logger libLog.Logger) (*mongoComponents, error) {
+func initMultiTenantMongo(opts *Options, cfg *Config, logger libLog.Logger) (*mongoComponents, error) {
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing multi-tenant MongoDB for onboarding")
 
 	if opts.TenantClient == nil {
 		return nil, fmt.Errorf("TenantClient is required for multi-tenant MongoDB initialization")
 	}
 
+	mongoOpts := []tmmongo.Option{
+		tmmongo.WithModule(ApplicationName),
+		tmmongo.WithLogger(logger),
+	}
+
+	if cfg.MultiTenantSettingsCheckIntervalSec > 0 {
+		mongoOpts = append(mongoOpts, tmmongo.WithSettingsCheckInterval(
+			time.Duration(cfg.MultiTenantSettingsCheckIntervalSec)*time.Second,
+		))
+	}
+
 	mongoMgr := tmmongo.NewManager(
 		opts.TenantClient,
 		opts.TenantServiceName,
-		tmmongo.WithModule(ApplicationName),
-		tmmongo.WithLogger(logger),
+		mongoOpts...,
 	)
 
 	return &mongoComponents{
