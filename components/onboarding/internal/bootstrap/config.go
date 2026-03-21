@@ -152,6 +152,8 @@ type Config struct {
 	// SettingsCacheTTL is the TTL for cached ledger settings.
 	// Format: Go duration string (e.g., "5m", "1h", "30s"). Default: 5m.
 	SettingsCacheTTL string `env:"SETTINGS_CACHE_TTL"`
+
+	MultiTenantSettingsCheckIntervalSec int `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"`
 }
 
 // Options contains optional dependencies that can be injected when running
