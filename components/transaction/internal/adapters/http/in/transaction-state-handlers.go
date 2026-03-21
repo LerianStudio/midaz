@@ -489,7 +489,13 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	tran.Source = getAliasWithoutKey(validate.Sources)
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
-	tran.Operations = operations
+
+	// Preserve pending-phase operations (e.g. ON_HOLD) so the write-behind cache
+	// and the HTTP response contain the complete set of operations. BuildOperations
+	// returns only the commit/cancel-phase operations; without merging, the earlier
+	// pending operations would be lost from the cache entry.
+	pendingOps := tran.Operations
+	tran.Operations = append(pendingOps, operations...)
 
 	ctxBackup, spanBackup := tracer.Start(ctx, "handler.commit_or_cancel_transaction.send_to_redis_queue")
 
