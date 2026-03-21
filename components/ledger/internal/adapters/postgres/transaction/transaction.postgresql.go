@@ -522,7 +522,8 @@ func (r *TransactionPostgreSQLRepository) updateBulkInternal(
 	return result, nil
 }
 
-// updateTransactionChunk updates a chunk of transactions using individual UPDATE statements.
+// updateTransactionChunk updates a chunk of transactions using a single batched UPDATE statement.
+// Uses UPDATE...FROM (VALUES...) to update all rows in one database round-trip.
 // Each transaction is updated only if its status differs from the new status.
 // Uses repository.DBExecutor to work with both dbresolver.DB and dbresolver.Tx.
 func (r *TransactionPostgreSQLRepository) updateTransactionChunk(ctx context.Context, db repository.DBExecutor, transactions []*Transaction) (int64, error) {
@@ -533,41 +534,56 @@ func (r *TransactionPostgreSQLRepository) updateTransactionChunk(ctx context.Con
 
 	logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Updating chunk of %d transactions", len(transactions)))
 
-	var totalUpdated int64
+	if len(transactions) == 0 {
+		return 0, nil
+	}
 
-	for _, tx := range transactions {
+	// Build parameterized VALUES list for the batched update
+	// Each row has 4 values: id, status, status_description, updated_at
+	updatedAt := time.Now()
+	args := make([]any, 0, len(transactions)*4)
+	valuesClauses := make([]string, 0, len(transactions))
+
+	for i, tx := range transactions {
 		record := &TransactionPostgreSQLModel{}
 		record.FromEntity(tx)
 
-		// Update only status-related fields and updated_at
-		// Only update if the current status differs from the new status
-		query := `UPDATE transaction
-			SET status = $1, status_description = $2, updated_at = $3
-			WHERE id = $4 AND status != $1 AND deleted_at IS NULL`
+		// Calculate parameter positions (1-indexed for PostgreSQL)
+		baseIdx := i * 4
+		valuesClauses = append(valuesClauses, fmt.Sprintf("($%d::uuid, $%d, $%d, $%d::timestamp)",
+			baseIdx+1, baseIdx+2, baseIdx+3, baseIdx+4))
 
-		execResult, err := db.ExecContext(ctx, query,
-			record.Status,
-			record.StatusDescription,
-			time.Now(),
-			record.ID,
-		)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to execute update", err)
-
-			return totalUpdated, err
-		}
-
-		rowsAffected, err := execResult.RowsAffected()
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-			return totalUpdated, err
-		}
-
-		totalUpdated += rowsAffected
+		args = append(args, record.ID, record.Status, record.StatusDescription, updatedAt)
 	}
 
-	return totalUpdated, nil
+	// Build the batched UPDATE query using UPDATE...FROM (VALUES...)
+	// This performs all updates in a single database round-trip
+	query := fmt.Sprintf(`UPDATE %s t
+		SET status = v.new_status,
+		    status_description = v.new_status_description,
+		    updated_at = v.new_updated_at
+		FROM (VALUES %s) AS v(id, new_status, new_status_description, new_updated_at)
+		WHERE t.id = v.id
+		  AND t.status != v.new_status
+		  AND t.deleted_at IS NULL`,
+		r.tableName,
+		strings.Join(valuesClauses, ", "))
+
+	execResult, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to execute batched update", err)
+
+		return 0, err
+	}
+
+	rowsAffected, err := execResult.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
+
+		return 0, err
+	}
+
+	return rowsAffected, nil
 }
 
 // FindAll retrieves Transactions entities from the database.
