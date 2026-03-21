@@ -28,3 +28,5 @@ EXPOSE 3002
 USER nonroot:nonroot
 
 ENTRYPOINT ["/app"]
+
+# trigger build
