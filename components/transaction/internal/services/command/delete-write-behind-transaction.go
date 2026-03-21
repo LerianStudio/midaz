@@ -10,6 +10,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
 
@@ -25,9 +26,11 @@ func (uc *UseCase) DeleteWriteBehindTransaction(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "command.delete_write_behind_transaction")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, "Removing transaction from write-behind cache")
+	tenantID := tmcore.GetTenantIDFromContext(ctx)
 
 	key := utils.WriteBehindTransactionKey(organizationID, ledgerID, transactionID)
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("[DEBUG] DeleteWriteBehindTransaction: tenantID=%q raw_key=%s", tenantID, key))
 
 	if err := uc.RedisRepo.Del(ctx, key); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to remove transaction from write-behind cache", err)
