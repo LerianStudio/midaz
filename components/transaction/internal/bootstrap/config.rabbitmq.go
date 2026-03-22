@@ -79,11 +79,19 @@ func initMultiTenantRabbitMQ(
 		return nil, fmt.Errorf("TenantClient is required for multi-tenant RabbitMQ initialization")
 	}
 
+	rmqOpts := []tmrabbitmq.Option{
+		tmrabbitmq.WithLogger(logger),
+		tmrabbitmq.WithModule(ApplicationName),
+	}
+
+	if cfg.RabbitMQTLS {
+		rmqOpts = append(rmqOpts, tmrabbitmq.WithTLS())
+	}
+
 	tenantRabbitMQ := tmrabbitmq.NewManager(
 		opts.TenantClient,
 		opts.TenantServiceName,
-		tmrabbitmq.WithLogger(logger),
-		tmrabbitmq.WithModule(ApplicationName),
+		rmqOpts...,
 	)
 
 	// Get Redis UniversalClient for tenant discovery cache (SMEMBERS on active tenants key)
