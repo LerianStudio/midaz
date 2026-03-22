@@ -6727,6 +6727,103 @@
         }
       }
     },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/count": {
+      "get": {
+        "description": "Count transactions matching optional filters. Defaults to today's date range (UTC) when start_date/end_date are omitted.",
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "Count Transactions",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Transaction route UUID (optional filter)",
+            "name": "route",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Transaction status, e.g. APPROVED (optional filter)",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Start date in RFC3339 format. Defaults to start of today UTC",
+            "name": "start_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "End date in RFC3339 format. Defaults to end of today UTC",
+            "name": "end_date",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/CountResponse"
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden access",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl": {
       "post": {
         "description": "Create a Transaction with the input DSL file",
@@ -9411,6 +9508,48 @@
           "type": "integer",
           "minimum": 1,
           "example": 1
+        }
+      }
+    },
+    "Period": {
+      "description": "Period represents a date range for filtering queries.",
+      "type": "object",
+      "properties": {
+        "from": {
+          "description": "Start of the period (inclusive) in RFC3339 format\nexample: 2024-01-01T00:00:00Z",
+          "type": "string",
+          "format": "date-time"
+        },
+        "to": {
+          "description": "End of the period (inclusive) in RFC3339 format\nexample: 2024-12-31T23:59:59Z",
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "CountResponse": {
+      "description": "CountResponse contains the total count of transactions matching the specified filters.",
+      "type": "object",
+      "properties": {
+        "period": {
+          "description": "Period range for the query",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Period"
+            }
+          ]
+        },
+        "route": {
+          "description": "Route UUID used as filter\nexample: 550e8400-e29b-41d4-a716-446655440010",
+          "type": "string"
+        },
+        "status": {
+          "description": "Transaction status used as filter\nexample: APPROVED",
+          "type": "string"
+        },
+        "totalCount": {
+          "description": "Total number of matching transactions\nexample: 773",
+          "type": "integer"
         }
       }
     },

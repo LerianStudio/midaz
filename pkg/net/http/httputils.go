@@ -35,7 +35,8 @@ type QueryHeader struct {
 	StartDate                           time.Time
 	EndDate                             time.Time
 	UseMetadata                         bool
-	PortfolioID                         string
+	PortfolioID                         *string
+	SegmentID                           *string
 	OperationType                       string
 	Direction                           *string
 	RouteID                             *string
@@ -95,7 +96,8 @@ func (p *Pagination) SetCursor(next, prev string) {
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
 		metadata                            *bson.M
-		portfolioID                         string
+		portfolioID                         *string
+		segmentID                           *string
 		operationType                       string
 		direction                           *string
 		routeID                             *string
@@ -152,7 +154,9 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 
 			endDate = parsedDate
 		case strings.Contains(key, "portfolio_id"):
-			portfolioID = value
+			portfolioID = &value
+		case key == "segment_id":
+			segmentID = &value
 		case strings.Contains(strings.ToLower(key), "type"):
 			operationType = strings.ToUpper(value)
 		case key == "direction":
@@ -217,8 +221,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		return nil, err
 	}
 
-	if !libCommons.IsNilOrEmpty(&portfolioID) {
-		_, err := uuid.Parse(portfolioID)
+	if portfolioID != nil {
+		_, err := uuid.Parse(*portfolioID)
 		if err != nil {
 			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "portfolio_id")
 		}
@@ -234,6 +238,13 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		}
 	}
 
+	if segmentID != nil {
+		_, err := uuid.Parse(*segmentID)
+		if err != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "segment_id")
+		}
+	}
+
 	query := &QueryHeader{
 		Metadata:                            metadata,
 		Limit:                               limit,
@@ -244,6 +255,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		EndDate:                             endDate,
 		UseMetadata:                         useMetadata,
 		PortfolioID:                         portfolioID,
+		SegmentID:                           segmentID,
 		OperationType:                       operationType,
 		Direction:                           direction,
 		RouteID:                             routeID,

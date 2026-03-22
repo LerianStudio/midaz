@@ -117,7 +117,7 @@ func TestSafeQueryAttributes(t *testing.T) {
 		Cursor:       "secret-cursor-token",
 		SortOrder:    "desc",
 		Metadata:     &bson.M{"private": "value"},
-		PortfolioID:  "portfolio-id",
+		PortfolioID:  ptr("portfolio-id"),
 		HolderID:     ptr("holder-id"),
 		Document:     ptr("1234567890"),
 		ToAssetCodes: []string{"USD", "BRL"},

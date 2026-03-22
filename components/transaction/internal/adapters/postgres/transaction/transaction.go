@@ -1117,3 +1117,11 @@ func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *pkgTransaction.Tran
 
 	return dsl
 }
+
+// CountFilter holds optional filters for counting transactions.
+type CountFilter struct {
+	Route  string
+	Status string
+	From   time.Time
+	To     time.Time
+}
