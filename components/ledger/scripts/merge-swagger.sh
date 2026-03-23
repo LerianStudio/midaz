@@ -4,19 +4,19 @@
 # Use of this source code is governed by the Elastic License 2.0
 # that can be found in the LICENSE file.
 
-# merge-swagger.sh - Merges onboarding and transaction swagger specs into a unified ledger spec
+# merge-swagger.sh - Generates the unified ledger swagger docs.go from the swag-generated spec
 #
-# This script combines the Swagger/OpenAPI specs from onboarding and transaction
-# into a single unified spec for the ledger component.
+# After `swag init` generates ledger_swagger.json, this script:
+# 1. Reads VERSION from .env
+# 2. Patches the spec with unified metadata (title, description, version)
+# 3. Generates docs.go with the embedded spec
+# 4. Converts to YAML
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LEDGER_DIR="$(dirname "$SCRIPT_DIR")"
-MIDAZ_ROOT="$(dirname "$(dirname "$LEDGER_DIR")")"
 
-ONBOARDING_SWAGGER="$MIDAZ_ROOT/components/onboarding/api/onboarding_swagger.json"
-TRANSACTION_SWAGGER="$MIDAZ_ROOT/components/transaction/api/transaction_swagger.json"
 LEDGER_SWAGGER="$LEDGER_DIR/api/ledger_swagger.json"
 OUTPUT_DIR="$LEDGER_DIR/api"
 OUTPUT_FILE="$OUTPUT_DIR/swagger.json"
@@ -43,84 +43,51 @@ if [ -z "$VERSION" ]; then
     echo "Warning: VERSION not found in .env/.env.example or environment. Falling back to $VERSION"
 fi
 
-# Check if source files exist
-if [ ! -f "$ONBOARDING_SWAGGER" ]; then
-    echo "Error: Onboarding swagger not found at $ONBOARDING_SWAGGER"
-    echo "Run 'make generate-docs' in components/onboarding first"
-    exit 1
-fi
-
-if [ ! -f "$TRANSACTION_SWAGGER" ]; then
-    echo "Error: Transaction swagger not found at $TRANSACTION_SWAGGER"
-    echo "Run 'make generate-docs' in components/transaction first"
-    exit 1
-fi
-
-# Generate ledger-specific swagger (metadata indexes)
-echo "Generating ledger-specific swagger (metadata indexes)..."
-(cd "$LEDGER_DIR" && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal --instanceName "ledger" 2>/dev/null) || {
-    echo "Warning: Failed to generate ledger swagger, continuing without it"
-}
-
+# Check if the swag-generated spec exists
 if [ ! -f "$LEDGER_SWAGGER" ]; then
-    echo "Warning: Ledger swagger not found at $LEDGER_SWAGGER"
-    echo "Metadata index endpoints will not be included"
-    LEDGER_SWAGGER=""
+    echo "Error: Ledger swagger not found at $LEDGER_SWAGGER"
+    echo "Run 'swag init' in components/ledger first (or 'make generate-docs')"
+    exit 1
 fi
 
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
 
-# Merge using jq
-echo "Merging swagger specs..."
-
-# Build the list of swagger files to merge
-SWAGGER_FILES=("$ONBOARDING_SWAGGER" "$TRANSACTION_SWAGGER")
-if [ -n "$LEDGER_SWAGGER" ] && [ -f "$LEDGER_SWAGGER" ]; then
-    SWAGGER_FILES+=("$LEDGER_SWAGGER")
-    echo "Including ledger swagger (metadata indexes)"
-fi
-
-jq -s --arg version "$VERSION" '
-# Merge all paths and definitions from all input specs
-{
-    "swagger": "2.0",
-    "info": {
-        "title": "Midaz Ledger API (Unified)",
-        "description": "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), and Metadata Index endpoints in a single service.",
-        "termsOfService": "http://swagger.io/terms/",
-        "contact": {
-            "name": "Discord community",
-            "url": "https://discord.gg/DnhqKwkGv3"
-        },
-        "license": {
-            "name": "Apache 2.0",
-            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
-        },
-        "version": $version
+# Patch the spec with unified metadata
+echo "Patching swagger spec with unified metadata..."
+jq --arg version "$VERSION" '
+.info = {
+    "title": "Midaz Ledger API (Unified)",
+    "description": "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments), Transaction endpoints (transactions, balances, operations, asset-rates), and Metadata Index endpoints in a single service.",
+    "termsOfService": "http://swagger.io/terms/",
+    "contact": {
+        "name": "Discord community",
+        "url": "https://discord.gg/DnhqKwkGv3"
     },
-    "host": "localhost:3002",
-    "basePath": "/",
-    "paths": (reduce .[] as $item ({}; . + $item.paths)),
-    "definitions": (reduce .[] as $item ({}; . + $item.definitions)),
-    "securityDefinitions": {
-        "BearerAuth": {
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header",
-            "description": "Bearer token authentication. Format: '\''Bearer {access_token}'\''. Only required when auth plugin is enabled."
-        }
+    "license": {
+        "name": "Apache 2.0",
+        "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "tags": (reduce .[] as $item ([]; . + ($item.tags // [])) | unique_by(.name))
+    "version": $version
+} |
+.host = "localhost:3002" |
+.basePath = "/" |
+.securityDefinitions = {
+    "BearerAuth": {
+        "type": "apiKey",
+        "name": "Authorization",
+        "in": "header",
+        "description": "Bearer token authentication. Format: '\''Bearer {access_token}'\''. Only required when auth plugin is enabled."
+    }
 }
-' "${SWAGGER_FILES[@]}" > "$OUTPUT_FILE"
+' "$LEDGER_SWAGGER" > "$OUTPUT_FILE"
 
-echo "Merged swagger written to $OUTPUT_FILE"
+echo "Unified swagger written to $OUTPUT_FILE"
 
-# Count merged paths
+# Count paths
 PATHS_COUNT=$(jq '.paths | keys | length' "$OUTPUT_FILE")
 DEFINITIONS_COUNT=$(jq '.definitions | keys | length' "$OUTPUT_FILE")
-echo "Merged $PATHS_COUNT paths and $DEFINITIONS_COUNT definitions"
+echo "Spec has $PATHS_COUNT paths and $DEFINITIONS_COUNT definitions"
 
 # Generate docs.go
 echo "Generating docs.go..."
@@ -138,7 +105,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
 	Title:            "Midaz Ledger API (Unified)",
-	Description:      "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments) and Transaction endpoints (transactions, balances, operations, asset-rates),  and Metadata Index endpoints in a single service.",
+	Description:      "This is a swagger documentation for the Midaz Unified Ledger API. This API combines all Onboarding endpoints (organizations, ledgers, accounts, assets, portfolios, segments) and Transaction endpoints (transactions, balances, operations, asset-rates), and Metadata Index endpoints in a single service.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
@@ -169,9 +136,9 @@ else
     echo "Neither yq nor python3 found, skipping YAML generation"
 fi
 
-# Clean up intermediate ledger-specific files
+# Clean up intermediate swag-generated files
 echo "Cleaning up intermediate files..."
 rm -f "$LEDGER_SWAGGER" "$OUTPUT_DIR/ledger_docs.go" "$OUTPUT_DIR/ledger_swagger.yaml"
-echo "Removed: ledger_swagger.json, ledger_docs.go, ledger_swagger.yaml"
+echo "Removed intermediate ledger_swagger.json, ledger_docs.go, ledger_swagger.yaml"
 
 echo "Done!"
