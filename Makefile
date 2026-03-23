@@ -7,18 +7,13 @@ MIDAZ_ROOT := $(shell pwd)
 
 # Component directories
 INFRA_DIR := ./components/infra
-ONBOARDING_DIR := ./components/onboarding
-TRANSACTION_DIR := ./components/transaction
 LEDGER_DIR := ./components/ledger
 CRM_DIR := ./components/crm
 TESTS_DIR := ./tests
 PKG_DIR := ./pkg
 
 # Define a list of all component directories for easier iteration
-COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CRM_DIR)
-
-# Unified mode: true = ledger (combined), false = separate onboarding+transaction
-UNIFIED ?= true
+COMPONENTS := $(INFRA_DIR) $(CRM_DIR)
 
 # Include shared utility functions
 # Define common utility functions
@@ -61,27 +56,11 @@ endef
 define check_env_files
 	@missing=false; \
 	if [ ! -f "$(INFRA_DIR)/.env" ]; then missing=true; fi; \
+	if [ ! -f "$(LEDGER_DIR)/.env" ]; then missing=true; fi; \
 	if [ ! -f "$(CRM_DIR)/.env" ]; then missing=true; fi; \
-	if [ "$(UNIFIED)" = "true" ]; then \
-		if [ ! -f "$(LEDGER_DIR)/.env" ]; then missing=true; fi; \
-	else \
-		if [ ! -f "$(ONBOARDING_DIR)/.env" ]; then missing=true; fi; \
-		if [ ! -f "$(TRANSACTION_DIR)/.env" ]; then missing=true; fi; \
-	fi; \
 	if [ "$$missing" = "true" ]; then \
 		echo "Environment files are missing. Running set-env command first..."; \
 		$(MAKE) set-env; \
-	fi
-endef
-
-define check_env_files_backend
-	@missing=false; \
-	if [ ! -f "$(INFRA_DIR)/.env" ]; then missing=true; fi; \
-	if [ ! -f "$(ONBOARDING_DIR)/.env" ]; then missing=true; fi; \
-	if [ ! -f "$(TRANSACTION_DIR)/.env" ]; then missing=true; fi; \
-	if [ "$$missing" = "true" ]; then \
-		echo "Environment files are missing. Running set-env command first..."; \
-		$(MAKE) UNIFIED=false set-env; \
 	fi
 endef
 
@@ -137,7 +116,7 @@ help:
 	@echo ""
 	@echo ""
 	@echo "Service Commands:"
-	@echo "  make up                           - Start all services (UNIFIED=true by default, use UNIFIED=false for separate mode)"
+	@echo "  make up                           - Start all services"
 	@echo "  make down                         - Stop all services"
 	@echo "  make start                        - Start all containers"
 	@echo "  make stop                         - Stop all containers"
@@ -146,13 +125,8 @@ help:
 	@echo "  make clean-docker                 - Clean all Docker resources (containers, networks, volumes)"
 	@echo "  make logs                         - Show logs for all services"
 	@echo "  make infra COMMAND=<cmd>          - Run command in infra component"
-	@echo "  make onboarding COMMAND=<cmd>     - Run command in onboarding component"
-	@echo "  make transaction COMMAND=<cmd>    - Run command in transaction component"
-	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo "  make ledger COMMAND=<cmd>         - Run command in ledger component"
-	@echo ""
-	@echo "  UNIFIED=true (default): Uses unified ledger service (onboarding + transaction in one process)"
-	@echo "  UNIFIED=false: Starts onboarding and transaction as separate services"
+	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
 	@echo ""
 	@echo ""
 	@echo "Documentation Commands:"
@@ -183,8 +157,7 @@ help:
 	@echo ""
 	@echo ""
 	@echo "Test Parameters (env vars for test-* targets):"
-	@echo "  TEST_ONBOARDING_URL           - default: $(TEST_ONBOARDING_URL)"
-	@echo "  TEST_TRANSACTION_URL          - default: $(TEST_TRANSACTION_URL)"
+	@echo "  TEST_LEDGER_URL               - default: $(TEST_LEDGER_URL)"
 	@echo "  TEST_HEALTH_WAIT              - default: $(TEST_HEALTH_WAIT)"
 	@echo "  TEST_AUTH_URL                 - default: $(TEST_AUTH_URL)"
 	@echo "  TEST_AUTH_USERNAME            - default: $(TEST_AUTH_USERNAME)"
@@ -194,7 +167,7 @@ help:
 	@echo ""
 	@echo "Target usage (which vars each target honors):"
 	@echo "  test-integration:  PKG, RUN, CHAOS=1, LOW_RESOURCE (testcontainers-based, no external services needed)"
-	@echo "  test-chaos-system: TEST_ONBOARDING_URL, TEST_TRANSACTION_URL, TEST_AUTH_* (starts full stack)"
+	@echo "  test-chaos-system: TEST_LEDGER_URL, TEST_AUTH_* (starts full stack)"
 	@echo "  test-fuzz:         FUZZ, FUZZTIME (native Go fuzz testing)"
 	@echo "  test-bench:        BENCH, BENCH_PKG (benchmark pattern and package filter)"
 
@@ -203,14 +176,8 @@ help:
 .PHONY: build
 build:
 	$(call print_title,Building all components)
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Building unified backend (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) build) || exit 1; \
-	else \
-		echo "Building separate backend services..."; \
-		(cd $(ONBOARDING_DIR) && $(MAKE) build) || exit 1; \
-		(cd $(TRANSACTION_DIR) && $(MAKE) build) || exit 1; \
-	fi
+	@echo "Building ledger..."
+	@(cd $(LEDGER_DIR) && $(MAKE) build) || exit 1
 	@echo "Building CRM..."
 	@(cd $(CRM_DIR) && $(MAKE) build) || exit 1
 	@echo "[ok] All components built successfully"
@@ -458,36 +425,6 @@ clear-envs:
 # Service Commands
 #-------------------------------------------------------
 
-.PHONY: up-backend
-up-backend:
-	$(call print_title,Starting backend services for system chaos tests)
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	$(call check_env_files_backend)
-	@echo "Starting infrastructure services..."
-	@cd $(INFRA_DIR) && $(MAKE) up
-	@echo "Starting onboarding service..."
-	@cd $(ONBOARDING_DIR) && $(MAKE) up
-	@echo "Starting transaction service..."
-	@cd $(TRANSACTION_DIR) && $(MAKE) up
-	@echo "[ok] Backend services started successfully"
-
-.PHONY: down-backend
-down-backend:
-	$(call print_title,Stopping backend services for system chaos tests)
-	@echo "Stopping transaction service..."
-	@if [ -f "$(TRANSACTION_DIR)/docker-compose.yml" ]; then \
-		(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
-	fi
-	@echo "Stopping onboarding service..."
-	@if [ -f "$(ONBOARDING_DIR)/docker-compose.yml" ]; then \
-		(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
-	fi
-	@echo "Stopping infrastructure services..."
-	@if [ -f "$(INFRA_DIR)/docker-compose.yml" ]; then \
-		(cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
-	fi
-	@echo "[ok] Backend services stopped successfully"
-
 .PHONY: up
 up:
 	$(call print_title,Starting all services with Docker Compose)
@@ -495,14 +432,8 @@ up:
 	$(call check_env_files)
 	@echo "Starting infrastructure services..."
 	@cd $(INFRA_DIR) && $(MAKE) up
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Starting unified backend (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) up); \
-	else \
-		echo "Starting separate backend services..."; \
-		(cd $(ONBOARDING_DIR) && $(MAKE) up); \
-		(cd $(TRANSACTION_DIR) && $(MAKE) up); \
-	fi
+	@echo "Starting ledger service..."
+	@cd $(LEDGER_DIR) && $(MAKE) up
 	@echo "Starting CRM service..."
 	@cd $(CRM_DIR) && $(MAKE) up
 	@echo "[ok] All services started successfully"
@@ -514,19 +445,9 @@ down:
 	@if [ -f "$(CRM_DIR)/docker-compose.yml" ]; then \
 		(cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
 	fi
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Stopping unified backend (ledger)..."; \
-		if [ -f "$(LEDGER_DIR)/docker-compose.yml" ]; then \
-			(cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
-		fi; \
-	else \
-		echo "Stopping separate backend services..."; \
-		if [ -f "$(TRANSACTION_DIR)/docker-compose.yml" ]; then \
-			(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
-		fi; \
-		if [ -f "$(ONBOARDING_DIR)/docker-compose.yml" ]; then \
-			(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
-		fi; \
+	@echo "Stopping ledger service..."
+	@if [ -f "$(LEDGER_DIR)/docker-compose.yml" ]; then \
+		(cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down 2>/dev/null) || (cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml down); \
 	fi
 	@echo "Stopping infrastructure services..."
 	@if [ -f "$(INFRA_DIR)/docker-compose.yml" ]; then \
@@ -539,14 +460,8 @@ start:
 	$(call print_title,Starting all containers)
 	@echo "Starting infrastructure containers..."
 	@cd $(INFRA_DIR) && $(MAKE) start
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Starting unified backend containers (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) start); \
-	else \
-		echo "Starting separate backend containers..."; \
-		(cd $(ONBOARDING_DIR) && $(MAKE) start); \
-		(cd $(TRANSACTION_DIR) && $(MAKE) start); \
-	fi
+	@echo "Starting ledger containers..."
+	@cd $(LEDGER_DIR) && $(MAKE) start
 	@echo "Starting CRM containers..."
 	@cd $(CRM_DIR) && $(MAKE) start
 	@echo "[ok] All containers started successfully"
@@ -556,21 +471,15 @@ stop:
 	$(call print_title,Stopping all containers)
 	@echo "Stopping CRM containers..."
 	@cd $(CRM_DIR) && $(MAKE) stop 2>/dev/null || true
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Stopping unified backend containers (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) stop 2>/dev/null || true); \
-	else \
-		echo "Stopping separate backend containers..."; \
-		(cd $(TRANSACTION_DIR) && $(MAKE) stop 2>/dev/null || true); \
-		(cd $(ONBOARDING_DIR) && $(MAKE) stop 2>/dev/null || true); \
-	fi
+	@echo "Stopping ledger containers..."
+	@cd $(LEDGER_DIR) && $(MAKE) stop 2>/dev/null || true
 	@echo "Stopping infrastructure containers..."
 	@cd $(INFRA_DIR) && $(MAKE) stop 2>/dev/null || true
 	@echo "[ok] All containers stopped successfully"
 
 .PHONY: restart
 restart:
-	@$(MAKE) down UNIFIED=$(UNIFIED) && $(MAKE) up UNIFIED=$(UNIFIED)
+	@$(MAKE) down && $(MAKE) up
 	@echo "[ok] All containers restarted successfully"
 
 .PHONY: rebuild-up
@@ -578,14 +487,8 @@ rebuild-up:
 	$(call print_title,Rebuilding and restarting all services)
 	@echo "Rebuilding infrastructure..."
 	@cd $(INFRA_DIR) && $(MAKE) rebuild-up
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Rebuilding unified backend (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) rebuild-up); \
-	else \
-		echo "Rebuilding separate backend services..."; \
-		(cd $(ONBOARDING_DIR) && $(MAKE) rebuild-up); \
-		(cd $(TRANSACTION_DIR) && $(MAKE) rebuild-up); \
-	fi
+	@echo "Rebuilding ledger..."
+	@cd $(LEDGER_DIR) && $(MAKE) rebuild-up
 	@echo "Rebuilding CRM..."
 	@cd $(CRM_DIR) && $(MAKE) rebuild-up
 	@echo "[ok] All services rebuilt and restarted successfully"
@@ -595,14 +498,8 @@ clean-docker:
 	$(call print_title,"Cleaning all Docker resources")
 	@echo "Cleaning CRM Docker resources..."
 	@cd $(CRM_DIR) && $(MAKE) clean-docker 2>/dev/null || true
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo "Cleaning unified backend Docker resources (ledger)..."; \
-		(cd $(LEDGER_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
-	else \
-		echo "Cleaning separate backend Docker resources..."; \
-		(cd $(TRANSACTION_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
-		(cd $(ONBOARDING_DIR) && $(MAKE) clean-docker 2>/dev/null || true); \
-	fi
+	@echo "Cleaning ledger Docker resources..."
+	@cd $(LEDGER_DIR) && $(MAKE) clean-docker 2>/dev/null || true
 	@echo "Cleaning infrastructure Docker resources..."
 	@cd $(INFRA_DIR) && $(MAKE) clean-docker 2>/dev/null || true
 	@echo "Pruning system-wide Docker resources..."
@@ -616,24 +513,15 @@ logs:
 	$(call print_title,"Showing logs for all services")
 	@echo "=== Infrastructure logs ==="
 	@cd $(INFRA_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
-	@if [ "$(UNIFIED)" = "true" ]; then \
-		echo ""; \
-		echo "=== Ledger (unified backend) logs ==="; \
-		(cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
-	else \
-		echo ""; \
-		echo "=== Onboarding logs ==="; \
-		(cd $(ONBOARDING_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
-		echo ""; \
-		echo "=== Transaction logs ==="; \
-		(cd $(TRANSACTION_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true); \
-	fi
+	@echo ""
+	@echo "=== Ledger logs ==="
+	@cd $(LEDGER_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
 	@echo ""
 	@echo "=== CRM logs ==="
 	@cd $(CRM_DIR) && $(DOCKER_CMD) -f docker-compose.yml logs --tail=50 2>/dev/null || true
 
 # Component-specific command execution
-.PHONY: infra onboarding transaction ledger all-components
+.PHONY: infra ledger all-components
 infra:
 	$(call print_title,"Running command in infra component")
 	@if [ -z "$(COMMAND)" ]; then \
@@ -641,22 +529,6 @@ infra:
 		exit 1; \
 	fi
 	@cd $(INFRA_DIR) && $(MAKE) $(COMMAND)
-
-onboarding:
-	$(call print_title,"Running command in onboarding component")
-	@if [ -z "$(COMMAND)" ]; then \
-		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
-		exit 1; \
-	fi
-	@cd $(ONBOARDING_DIR) && $(MAKE) $(COMMAND)
-
-transaction:
-	$(call print_title,"Running command in transaction component")
-	@if [ -z "$(COMMAND)" ]; then \
-		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
-		exit 1; \
-	fi
-	@cd $(TRANSACTION_DIR) && $(MAKE) $(COMMAND)
 
 ledger:
 	$(call print_title,"Running command in ledger component")
@@ -708,10 +580,6 @@ dev-setup:
 	@echo "[ok] Development environment set up successfully for all components"
 
 
-.PHONY: grpc-gen
-grpc-gen:
-	@protoc --proto_path=./pkg/mgrpc --go-grpc_out=./pkg/mgrpc --go_out=./pkg/mgrpc ./pkg/mgrpc/balance/balance.proto
-
 #-------------------------------------------------------
 # Migration Commands
 #-------------------------------------------------------
@@ -741,7 +609,7 @@ migrate-create:
 		exit 1; \
 	fi
 	$(call check_command,migrate,"Install from https://github.com/golang-migrate/migrate")
-	@migrate create -ext sql -dir ./components/$(COMPONENT)/migrations -seq $(NAME)
+	@migrate create -ext sql -dir ./components/ledger/migrations/$(COMPONENT) -seq $(NAME)
 	@echo "[ok] Migration files created"
 	@echo ""
 	@echo "Next steps:"
