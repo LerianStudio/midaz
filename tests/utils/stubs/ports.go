@@ -19,7 +19,7 @@ import (
 	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	http "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/google/uuid"

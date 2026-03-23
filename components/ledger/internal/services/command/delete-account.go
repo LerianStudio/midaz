@@ -1,0 +1,101 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"reflect"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libConstant "github.com/LerianStudio/lib-commons/v4/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
+	"google.golang.org/grpc/metadata"
+)
+
+// DeleteAccountByID deletes an account from the repository by IDs.
+// It first deletes all balances associated with the account via the BalancePort interface,
+// which can be either local (in-process) or remote (gRPC) depending on the deployment mode.
+func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, token string) error {
+	logger, tracer, requestID, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.delete_account_by_id")
+	defer span.End()
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Remove account for id: %s", id.String()))
+
+	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find account by id", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error finding account by id: %v", err))
+
+		return err
+	}
+
+	if accFound != nil && accFound.ID == id.String() && accFound.Type == "external" {
+		return pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
+	}
+
+	if accFound == nil {
+		return pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+	}
+
+	// Inject authorization token into context metadata for downstream gRPC calls
+	ctx = metadata.AppendToOutgoingContext(ctx, libConstant.MetadataAuthorization, token)
+
+	accountID, err := uuid.Parse(accFound.ID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to parse account id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to parse account id from repository data")
+
+		return err
+	}
+
+	err = uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete all balances by account id", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete all balances by account id: %v", err))
+
+		var (
+			unauthorized pkg.UnauthorizedError
+			forbidden    pkg.ForbiddenError
+		)
+
+		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
+			return err
+		}
+
+		return pkg.ValidateBusinessError(constant.ErrAccountBalanceDeletion, reflect.TypeOf(mmodel.Account{}).Name())
+	}
+
+	if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
+		if errors.Is(err, services.ErrDatabaseItemNotFound) {
+			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Account ID not found: %s", id.String()))
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete account on repo by id", err)
+
+			return err
+		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete account on repo by id", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error deleting account: %v", err))
+
+		return err
+	}
+
+	return nil
+}

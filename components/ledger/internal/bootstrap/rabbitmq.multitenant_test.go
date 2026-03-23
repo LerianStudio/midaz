@@ -29,7 +29,7 @@ func goleakIgnores() []goleak.Option {
 		goleak.IgnoreAnyFunction("go.uber.org/goleak.(*opts).retry"),
 		goleak.IgnoreAnyFunction("go.uber.org/goleak.Find"),
 		goleak.IgnoreAnyFunction("github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/cache.(*InMemoryCache).cleanupLoop"),
-		goleak.IgnoreAnyFunction("github.com/LerianStudio/midaz/v3/components/ledger/adapters/rabbitmq.(*ConsumerRoutes).RunConsumers.func1"),
+		goleak.IgnoreAnyFunction("github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq.(*ConsumerRoutes).RunConsumers.func1"),
 		goleak.IgnoreAnyFunction("github.com/valyala/fasthttp.updateServerDate.func1"),
 	}
 }

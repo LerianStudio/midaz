@@ -13,8 +13,8 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
