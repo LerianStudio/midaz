@@ -13,7 +13,7 @@ import (
 	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -26,12 +26,12 @@ func TestCreateAsset(t *testing.T) {
 
 	mockAssetRepo := asset.NewMockRepository(ctrl)
 	mockAccountRepo := account.NewMockRepository(ctrl)
-	mockBalanceGRPC := mbootstrap.NewMockBalancePort(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
 
 	uc := &UseCase{
 		AssetRepo:   mockAssetRepo,
 		AccountRepo: mockAccountRepo,
-		BalancePort: mockBalanceGRPC,
+		BalanceRepo: mockBalanceRepo,
 	}
 
 	ctx := context.Background()
@@ -63,10 +63,6 @@ func TestCreateAsset(t *testing.T) {
 				Metadata: nil,
 			},
 			mockSetup: func() {
-				mockBalanceGRPC.EXPECT().
-					CheckHealth(gomock.Any()).
-					Return(nil).Times(1)
-
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), organizationID, ledgerID, "USD Dollar", "USD").
 					Return(false, nil).
@@ -102,9 +98,13 @@ func TestCreateAsset(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				mockBalanceGRPC.EXPECT().
-					CreateBalanceSync(gomock.Any(), gomock.Any()).
-					Return(nil, nil).
+				mockBalanceRepo.EXPECT().
+					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				mockBalanceRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(nil).
 					Times(1)
 			},
 			expectedErr: nil,
@@ -124,11 +124,7 @@ func TestCreateAsset(t *testing.T) {
 				Type: "invalidType",
 				Code: "INV",
 			},
-			mockSetup: func() {
-				mockBalanceGRPC.EXPECT().
-					CheckHealth(gomock.Any()).
-					Return(nil).Times(1)
-			},
+			mockSetup: func() {},
 
 			expectedErr: errors.New("0040 - The provided 'type' is not valid. Accepted types are currency, crypto, commodities, or others. Please provide a valid type."),
 			expectedRes: nil,
@@ -141,10 +137,6 @@ func TestCreateAsset(t *testing.T) {
 				Code: "USD",
 			},
 			mockSetup: func() {
-				mockBalanceGRPC.EXPECT().
-					CheckHealth(gomock.Any()).
-					Return(nil).Times(1)
-
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), organizationID, ledgerID, "USD Dollar", "USD").
 					Return(false, nil).
@@ -166,10 +158,6 @@ func TestCreateAsset(t *testing.T) {
 				Code: "USD",
 			},
 			mockSetup: func() {
-				mockBalanceGRPC.EXPECT().
-					CheckHealth(gomock.Any()).
-					Return(nil).Times(1)
-
 				mockAssetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), organizationID, ledgerID, "USD Dollar", "USD").
 					Return(false, nil).
@@ -203,9 +191,13 @@ func TestCreateAsset(t *testing.T) {
 					}).
 					Times(1)
 
-				mockBalanceGRPC.EXPECT().
-					CreateBalanceSync(gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("grpc create balance error")).
+				mockBalanceRepo.EXPECT().
+					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				mockBalanceRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(errors.New("grpc create balance error")).
 					Times(1)
 			},
 			expectedErr: errors.New("default balance could not be created"),

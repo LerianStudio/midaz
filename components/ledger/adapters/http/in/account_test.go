@@ -15,11 +15,11 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
 	"github.com/gofiber/fiber/v2"
@@ -33,7 +33,7 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 	tests := []struct {
 		name           string
 		payload        *mmodel.CreateAccountInput
-		setupMocks     func(accountRepo *account.MockRepository, assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID)
+		setupMocks     func(accountRepo *account.MockRepository, assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, balancePort *balance.MockRepository, orgID, ledgerID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
@@ -47,13 +47,7 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 					Code: "ACTIVE",
 				},
 			},
-			setupMocks: func(accountRepo *account.MockRepository, assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID) {
-				// CheckHealth is called first to verify balance service availability
-				balancePort.EXPECT().
-					CheckHealth(gomock.Any()).
-					Return(nil).
-					Times(1)
-
+			setupMocks: func(accountRepo *account.MockRepository, assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, balanceRepo *balance.MockRepository, orgID, ledgerID uuid.UUID) {
 				// FindByNameOrCode to check if asset exists
 				assetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "", "USD").
@@ -73,10 +67,14 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 					}).
 					Times(1)
 
-				// CreateBalanceSync for the account
-				balancePort.EXPECT().
-					CreateBalanceSync(gomock.Any(), gomock.Any()).
-					Return(&mmodel.Balance{}, nil).
+				// CreateBalanceSync uses BalanceRepo internally
+				balanceRepo.EXPECT().
+					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				balanceRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(nil).
 					Times(1)
 
 				// No metadata in request, so MetadataRepo.Create won't be called
@@ -101,13 +99,7 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 				AssetCode: "UNKNOWN",
 				Type:      "deposit",
 			},
-			setupMocks: func(accountRepo *account.MockRepository, assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID) {
-				// CheckHealth is called first to verify balance service availability
-				balancePort.EXPECT().
-					CheckHealth(gomock.Any()).
-					Return(nil).
-					Times(1)
-
+			setupMocks: func(accountRepo *account.MockRepository, assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, balanceRepo *balance.MockRepository, orgID, ledgerID uuid.UUID) {
 				// FindByNameOrCode returns false - asset not found
 				assetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "", "UNKNOWN").
@@ -131,13 +123,7 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 				AssetCode: "USD",
 				Type:      "deposit",
 			},
-			setupMocks: func(accountRepo *account.MockRepository, assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID) {
-				// CheckHealth is called first to verify balance service availability
-				balancePort.EXPECT().
-					CheckHealth(gomock.Any()).
-					Return(nil).
-					Times(1)
-
+			setupMocks: func(accountRepo *account.MockRepository, assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, balanceRepo *balance.MockRepository, orgID, ledgerID uuid.UUID) {
 				// Asset exists
 				assetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "", "USD").
@@ -178,14 +164,14 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 			mockAccountRepo := account.NewMockRepository(ctrl)
 			mockAssetRepo := asset.NewMockRepository(ctrl)
 			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-			mockBalancePort := mbootstrap.NewMockBalancePort(ctrl)
-			tt.setupMocks(mockAccountRepo, mockAssetRepo, mockMetadataRepo, mockBalancePort, orgID, ledgerID)
+			mockBalanceRepo := balance.NewMockRepository(ctrl)
+			tt.setupMocks(mockAccountRepo, mockAssetRepo, mockMetadataRepo, mockBalanceRepo, orgID, ledgerID)
 
 			cmdUC := &command.UseCase{
 				AccountRepo:            mockAccountRepo,
 				AssetRepo:              mockAssetRepo,
 				OnboardingMetadataRepo: mockMetadataRepo,
-				BalancePort:            mockBalancePort,
+				BalanceRepo:            mockBalanceRepo,
 			}
 			handler := &AccountHandler{Command: cmdUC}
 
@@ -1152,13 +1138,13 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 	tests := []struct {
 		name           string
-		setupMocks     func(accountRepo *account.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID, accountID uuid.UUID)
+		setupMocks     func(accountRepo *account.MockRepository, balancePort *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name: "success returns 204 no content",
-			setupMocks: func(accountRepo *account.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID, accountID uuid.UUID) {
+			setupMocks: func(accountRepo *account.MockRepository, balancePort *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID) {
 				// Find account first
 				accountRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
@@ -1172,10 +1158,10 @@ func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 					}, nil).
 					Times(1)
 
-				// Delete all balances for the account
+				// DeleteAllBalancesByAccountID calls BalanceRepo.ListByAccountID internally
 				balancePort.EXPECT().
-					DeleteAllBalancesByAccountID(gomock.Any(), orgID, ledgerID, accountID, gomock.Any()).
-					Return(nil).
+					ListByAccountID(gomock.Any(), orgID, ledgerID, accountID).
+					Return([]*mmodel.Balance{}, nil).
 					Times(1)
 
 				// Delete account
@@ -1189,7 +1175,7 @@ func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 		},
 		{
 			name: "not found returns 404",
-			setupMocks: func(accountRepo *account.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID, accountID uuid.UUID) {
+			setupMocks: func(accountRepo *account.MockRepository, balancePort *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID) {
 				accountRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())).
@@ -1207,7 +1193,7 @@ func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 		},
 		{
 			name: "repository error returns 500",
-			setupMocks: func(accountRepo *account.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID, accountID uuid.UUID) {
+			setupMocks: func(accountRepo *account.MockRepository, balancePort *balance.MockRepository, orgID, ledgerID, accountID uuid.UUID) {
 				accountRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
 					Return(nil, pkg.InternalServerError{
@@ -1240,12 +1226,12 @@ func TestAccountHandler_DeleteAccountByID(t *testing.T) {
 			accountID := uuid.New()
 
 			mockAccountRepo := account.NewMockRepository(ctrl)
-			mockBalancePort := mbootstrap.NewMockBalancePort(ctrl)
-			tt.setupMocks(mockAccountRepo, mockBalancePort, orgID, ledgerID, accountID)
+			mockBalanceRepo := balance.NewMockRepository(ctrl)
+			tt.setupMocks(mockAccountRepo, mockBalanceRepo, orgID, ledgerID, accountID)
 
 			cmdUC := &command.UseCase{
 				AccountRepo: mockAccountRepo,
-				BalancePort: mockBalancePort,
+				BalanceRepo: mockBalanceRepo,
 			}
 			handler := &AccountHandler{Command: cmdUC}
 

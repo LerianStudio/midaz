@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
@@ -31,11 +32,20 @@ func TestGetBalances(t *testing.T) {
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+
+	// LedgerRepo.GetSettings is called by GetParsedLedgerSettings (via ValidateAccountingRules).
+	// Return empty settings (routes validation disabled) so tests focus on balance logic.
+	mockLedgerRepo.EXPECT().
+		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]any{}, nil).
+		AnyTimes()
 
 	uc := &UseCase{
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedisRepo,
 		RabbitMQRepo:         mockRabbitMQRepo,
+		LedgerRepo:           mockLedgerRepo,
 	}
 
 	ctx := context.Background()
@@ -322,11 +332,20 @@ func TestGetAccountAndLock(t *testing.T) {
 	ctx := context.Background()
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+
+	// LedgerRepo.GetSettings is called by GetParsedLedgerSettings (via ValidateAccountingRules).
+	// Return empty settings (routes validation disabled) so tests focus on lock logic.
+	mockLedgerRepo.EXPECT().
+		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]any{}, nil).
+		AnyTimes()
 
 	organizationID := uuid.MustParse("ad0032e5-ccf5-45f4-a3b2-12045e71b38a")
 	ledgerID := uuid.MustParse("5d8ac48a-af68-4544-9bf8-80c3cc0715f4")
 	uc := UseCase{
 		TransactionRedisRepo: mockRedisRepo,
+		LedgerRepo:           mockLedgerRepo,
 	}
 
 	t.Run("lock balances successfully", func(t *testing.T) {
@@ -460,9 +479,15 @@ func TestGetAccountAndLock_DoubleEntrySplitting(t *testing.T) {
 
 			ctx := context.Background()
 			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+			mockLedgerRepo := ledger.NewMockRepository(ctrl)
+			mockLedgerRepo.EXPECT().
+				GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(map[string]any{}, nil).
+				AnyTimes()
 
 			uc := UseCase{
 				TransactionRedisRepo: mockRedisRepo,
+				LedgerRepo:           mockLedgerRepo,
 			}
 
 			balanceID := uuid.New().String()
@@ -545,9 +570,15 @@ func TestGetAccountAndLock_DoubleEntry_SeenDeduplication(t *testing.T) {
 	ledgerID := uuid.MustParse("5d8ac48a-af68-4544-9bf8-80c3cc0715f4")
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+	mockLedgerRepo.EXPECT().
+		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]any{}, nil).
+		AnyTimes()
 
 	uc := UseCase{
 		TransactionRedisRepo: mockRedisRepo,
+		LedgerRepo:           mockLedgerRepo,
 	}
 
 	balanceID := uuid.New().String()

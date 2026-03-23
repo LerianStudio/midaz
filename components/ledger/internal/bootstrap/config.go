@@ -21,7 +21,7 @@ import (
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
-	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
+	httpin "github.com/LerianStudio/midaz/v3/components/ledger/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"

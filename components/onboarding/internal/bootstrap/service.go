@@ -8,7 +8,7 @@ import (
 	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
+	httpin "github.com/LerianStudio/midaz/v3/components/ledger/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -74,7 +74,7 @@ func (app *Service) GetRouteRegistrar(routeOptions *midazhttp.ProtectedRouteOpti
 	return func(fiberRouter fiber.Router) {
 		group := fiberRouter.Group("", httpin.LegacyErrorBoundary())
 
-		httpin.RegisterRoutesToApp(
+		httpin.RegisterOnboardingRoutesToApp(
 			group,
 			app.auth,
 			app.accountHandler,

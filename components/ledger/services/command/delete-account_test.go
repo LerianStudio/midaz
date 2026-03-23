@@ -11,8 +11,8 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/ledger/services"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -25,11 +25,11 @@ func TestDeleteAccountByID(t *testing.T) {
 
 	// Mocks
 	mockAccountRepo := account.NewMockRepository(ctrl)
-	mockBalanceGRPCRepo := mbootstrap.NewMockBalancePort(ctrl)
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
 
 	uc := &UseCase{
 		AccountRepo: mockAccountRepo,
-		BalancePort: mockBalanceGRPCRepo,
+		BalanceRepo: mockBalanceRepo,
 	}
 
 	ctx := context.Background()
@@ -53,9 +53,10 @@ func TestDeleteAccountByID(t *testing.T) {
 					Return(&mmodel.Account{ID: accountID.String()}, nil).
 					Times(1)
 
-				mockBalanceGRPCRepo.EXPECT().
-					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
-					Return(nil).
+				// DeleteAllBalancesByAccountID calls BalanceRepo.ListByAccountID internally
+				mockBalanceRepo.EXPECT().
+					ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+					Return([]*mmodel.Balance{}, nil).
 					Times(1)
 
 				mockAccountRepo.EXPECT().
@@ -96,9 +97,10 @@ func TestDeleteAccountByID(t *testing.T) {
 					Return(&mmodel.Account{ID: accountID.String()}, nil).
 					Times(1)
 
-				mockBalanceGRPCRepo.EXPECT().
-					DeleteAllBalancesByAccountID(gomock.Any(), organizationID, ledgerID, accountID, gomock.Any()).
-					Return(nil).
+				// DeleteAllBalancesByAccountID calls BalanceRepo.ListByAccountID internally
+				mockBalanceRepo.EXPECT().
+					ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+					Return([]*mmodel.Balance{}, nil).
 					Times(1)
 
 				mockAccountRepo.EXPECT().

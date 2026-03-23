@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 //go:build integration
 
 // Copyright (c) 2026 Lerian Studio. All rights reserved.
@@ -103,7 +107,7 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 		PortfolioRepo:          portfolioRepo,
 		SegmentRepo:            segmentRepo,
 		OnboardingMetadataRepo: metadataRepo,
-		BalancePort:            &stubs.BalancePortStub{},
+		BalanceRepo:            stubs.NewBalanceRepoStub(),
 	}
 	queryUC := &query.UseCase{
 		OrganizationRepo:       orgRepo,

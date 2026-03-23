@@ -30,15 +30,8 @@ func (uc *UseCase) GetParsedLedgerSettings(ctx context.Context, organizationID, 
 	ctx, span := tracer.Start(ctx, "query.get_ledger_settings")
 	defer span.End()
 
-	// If SettingsPort is not configured, return defaults (permissive)
-	if uc.SettingsPort == nil {
-		logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("SettingsPort not configured, using default ledger settings for ledger: %s", ledgerID.String()))
-
-		return mmodel.DefaultLedgerSettings()
-	}
-
-	// Fetch settings from SettingsPort (which uses cache internally)
-	settings, err := uc.SettingsPort.GetLedgerSettings(ctx, organizationID, ledgerID)
+	// Fetch settings directly (uses cache internally)
+	settings, err := uc.GetLedgerSettings(ctx, organizationID, ledgerID)
 	if err != nil {
 		// Log error but don't fail - use defaults for graceful degradation
 		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings, using defaults", err)

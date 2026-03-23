@@ -47,8 +47,17 @@ func safePayloadSummary(payload any) string {
 		name  string
 		label string
 	}{
+		// Common
 		{name: "Metadata", label: "hasMetadata"},
 		{name: "Alias", label: "hasAlias"},
+		// Onboarding entities
+		{name: "ParentAccountID", label: "hasParentAccountID"},
+		{name: "ParentOrganizationID", label: "hasParentOrganizationID"},
+		{name: "PortfolioID", label: "hasPortfolioID"},
+		{name: "SegmentID", label: "hasSegmentID"},
+		{name: "EntityID", label: "hasEntityID"},
+		{name: "LegalDocument", label: "hasLegalDocument"},
+		// Transaction entities
 		{name: "Key", label: "hasKey"},
 		{name: "AccountID", label: "hasAccountID"},
 		{name: "AccountId", label: "hasAccountID"},
@@ -80,6 +89,14 @@ func safePayloadAttributes(payload any) []attribute.KeyValue {
 		attribute.String("app.request.payload.type", payloadTypeName(payload)),
 		attribute.Bool("app.request.payload.has_metadata", payloadFieldPresent(payload, "Metadata")),
 		attribute.Bool("app.request.payload.has_alias", payloadFieldPresent(payload, "Alias")),
+		// Onboarding entities
+		attribute.Bool("app.request.payload.has_parent_account_id", payloadFieldPresent(payload, "ParentAccountID")),
+		attribute.Bool("app.request.payload.has_parent_organization_id", payloadFieldPresent(payload, "ParentOrganizationID")),
+		attribute.Bool("app.request.payload.has_portfolio_id", payloadFieldPresent(payload, "PortfolioID")),
+		attribute.Bool("app.request.payload.has_segment_id", payloadFieldPresent(payload, "SegmentID")),
+		attribute.Bool("app.request.payload.has_entity_id", payloadFieldPresent(payload, "EntityID")),
+		attribute.Bool("app.request.payload.has_legal_document", payloadFieldPresent(payload, "LegalDocument")),
+		// Transaction entities
 		attribute.Bool("app.request.payload.has_key", payloadFieldPresent(payload, "Key")),
 		attribute.Bool("app.request.payload.has_account_id", payloadFieldPresent(payload, "AccountID") || payloadFieldPresent(payload, "AccountId")),
 		attribute.Bool("app.request.payload.has_ledger_id", payloadFieldPresent(payload, "LedgerID") || payloadFieldPresent(payload, "LedgerId")),
@@ -108,6 +125,11 @@ func safeQueryAttributes(query *midazhttp.QueryHeader) []attribute.KeyValue {
 		attribute.Bool("app.request.query.has_cursor", query.Cursor != ""),
 		attribute.Bool("app.request.query.has_metadata", query.Metadata != nil),
 		attribute.Bool("app.request.query.has_date_range", !query.StartDate.IsZero() || !query.EndDate.IsZero()),
+		// Onboarding queries
+		attribute.Bool("app.request.query.has_portfolio_id", query.PortfolioID != ""),
+		attribute.Bool("app.request.query.has_name_filters", query.HasNameFilters()),
+		attribute.Bool("app.request.query.has_holder_id", query.HolderID != nil),
+		// Shared queries
 		attribute.Bool("app.request.query.has_document", query.Document != nil),
 		attribute.Bool("app.request.query.has_account_id", query.AccountID != nil),
 		attribute.Bool("app.request.query.has_ledger_id", query.LedgerID != nil),

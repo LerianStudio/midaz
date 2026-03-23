@@ -15,11 +15,11 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -32,7 +32,7 @@ func TestHandler_CreateAsset(t *testing.T) {
 	tests := []struct {
 		name           string
 		payload        *mmodel.CreateAssetInput
-		setupMocks     func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, accountRepo *account.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID)
+		setupMocks     func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, accountRepo *account.MockRepository, balancePort *balance.MockRepository, orgID, ledgerID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
@@ -46,13 +46,7 @@ func TestHandler_CreateAsset(t *testing.T) {
 					Code: "ACTIVE",
 				},
 			},
-			setupMocks: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, accountRepo *account.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID) {
-				// CheckHealth is called first to verify balance service availability
-				balancePort.EXPECT().
-					CheckHealth(gomock.Any()).
-					Return(nil).
-					Times(1)
-
+			setupMocks: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, accountRepo *account.MockRepository, balanceRepo *balance.MockRepository, orgID, ledgerID uuid.UUID) {
 				// FindByNameOrCode check for duplicate names/codes (returns false = name/code available)
 				assetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "Test Asset", "TST").
@@ -85,10 +79,14 @@ func TestHandler_CreateAsset(t *testing.T) {
 					}).
 					Times(1)
 
-				// CreateBalanceSync for external account
-				balancePort.EXPECT().
-					CreateBalanceSync(gomock.Any(), gomock.Any()).
-					Return(&mmodel.Balance{}, nil).
+				// CreateBalanceSync uses BalanceRepo internally
+				balanceRepo.EXPECT().
+					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+
+				balanceRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(nil).
 					Times(1)
 			},
 			expectedStatus: 201,
@@ -110,13 +108,7 @@ func TestHandler_CreateAsset(t *testing.T) {
 				Code: "EXS",
 				Type: "commodity",
 			},
-			setupMocks: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, accountRepo *account.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID) {
-				// CheckHealth is called first to verify balance service availability
-				balancePort.EXPECT().
-					CheckHealth(gomock.Any()).
-					Return(nil).
-					Times(1)
-
+			setupMocks: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, accountRepo *account.MockRepository, balanceRepo *balance.MockRepository, orgID, ledgerID uuid.UUID) {
 				// FindByNameOrCode returns error for duplicate
 				assetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "Existing Asset", "EXS").
@@ -140,13 +132,7 @@ func TestHandler_CreateAsset(t *testing.T) {
 				Code: "TST",
 				Type: "commodity",
 			},
-			setupMocks: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, accountRepo *account.MockRepository, balancePort *mbootstrap.MockBalancePort, orgID, ledgerID uuid.UUID) {
-				// CheckHealth is called first to verify balance service availability
-				balancePort.EXPECT().
-					CheckHealth(gomock.Any()).
-					Return(nil).
-					Times(1)
-
+			setupMocks: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository, accountRepo *account.MockRepository, balanceRepo *balance.MockRepository, orgID, ledgerID uuid.UUID) {
 				assetRepo.EXPECT().
 					FindByNameOrCode(gomock.Any(), orgID, ledgerID, "Test Asset", "TST").
 					Return(false, nil).
@@ -185,14 +171,14 @@ func TestHandler_CreateAsset(t *testing.T) {
 			mockAssetRepo := asset.NewMockRepository(ctrl)
 			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 			mockAccountRepo := account.NewMockRepository(ctrl)
-			mockBalancePort := mbootstrap.NewMockBalancePort(ctrl)
-			tt.setupMocks(mockAssetRepo, mockMetadataRepo, mockAccountRepo, mockBalancePort, orgID, ledgerID)
+			mockBalanceRepo := balance.NewMockRepository(ctrl)
+			tt.setupMocks(mockAssetRepo, mockMetadataRepo, mockAccountRepo, mockBalanceRepo, orgID, ledgerID)
 
 			cmdUC := &command.UseCase{
 				AssetRepo:              mockAssetRepo,
 				OnboardingMetadataRepo: mockMetadataRepo,
 				AccountRepo:            mockAccountRepo,
-				BalancePort:            mockBalancePort,
+				BalanceRepo:            mockBalanceRepo,
 			}
 			handler := &AssetHandler{Command: cmdUC}
 

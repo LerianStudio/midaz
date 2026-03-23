@@ -23,7 +23,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operation"
 	operationroute "github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
@@ -1905,10 +1904,7 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 	}
 }
 
-// ptr is a helper function to create a pointer to a string.
-func ptr(s string) *string {
-	return &s
-}
+// ptr is defined in observability_test.go as a generic helper.
 
 // TestTransactionHandler_GetAllTransactions tests the GetAllTransactions handler
 func TestTransactionHandler_GetAllTransactions(t *testing.T) {

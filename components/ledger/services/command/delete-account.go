@@ -61,7 +61,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		return err
 	}
 
-	err = uc.BalancePort.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID)
+	err = uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete all balances by account id", err)
 

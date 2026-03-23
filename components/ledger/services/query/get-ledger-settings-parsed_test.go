@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -25,24 +25,14 @@ func TestGetParsedLedgerSettings(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	ctx := context.Background()
 
-	t.Run("returns defaults when SettingsPort is nil", func(t *testing.T) {
-		uc := &UseCase{
-			SettingsPort: nil,
-		}
-
-		result := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
-
-		assert.Equal(t, mmodel.DefaultLedgerSettings(), result)
-	})
-
 	t.Run("returns defaults when GetLedgerSettings fails", func(t *testing.T) {
-		mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
-		mockSettingsPort.EXPECT().
-			GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+		mockLedgerRepo := ledger.NewMockRepository(ctrl)
+		mockLedgerRepo.EXPECT().
+			GetSettings(gomock.Any(), organizationID, ledgerID).
 			Return(nil, errors.New("connection error"))
 
 		uc := &UseCase{
-			SettingsPort: mockSettingsPort,
+			LedgerRepo: mockLedgerRepo,
 		}
 
 		result := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
@@ -51,13 +41,13 @@ func TestGetParsedLedgerSettings(t *testing.T) {
 	})
 
 	t.Run("returns defaults when settings are empty", func(t *testing.T) {
-		mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
-		mockSettingsPort.EXPECT().
-			GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+		mockLedgerRepo := ledger.NewMockRepository(ctrl)
+		mockLedgerRepo.EXPECT().
+			GetSettings(gomock.Any(), organizationID, ledgerID).
 			Return(map[string]any{}, nil)
 
 		uc := &UseCase{
-			SettingsPort: mockSettingsPort,
+			LedgerRepo: mockLedgerRepo,
 		}
 
 		result := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
@@ -66,9 +56,9 @@ func TestGetParsedLedgerSettings(t *testing.T) {
 	})
 
 	t.Run("returns parsed settings when accounting settings exist", func(t *testing.T) {
-		mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
-		mockSettingsPort.EXPECT().
-			GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+		mockLedgerRepo := ledger.NewMockRepository(ctrl)
+		mockLedgerRepo.EXPECT().
+			GetSettings(gomock.Any(), organizationID, ledgerID).
 			Return(map[string]any{
 				"accounting": map[string]any{
 					"validateAccountType": true,
@@ -77,7 +67,7 @@ func TestGetParsedLedgerSettings(t *testing.T) {
 			}, nil)
 
 		uc := &UseCase{
-			SettingsPort: mockSettingsPort,
+			LedgerRepo: mockLedgerRepo,
 		}
 
 		result := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
@@ -87,9 +77,9 @@ func TestGetParsedLedgerSettings(t *testing.T) {
 	})
 
 	t.Run("returns partial settings when only some flags are set", func(t *testing.T) {
-		mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
-		mockSettingsPort.EXPECT().
-			GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+		mockLedgerRepo := ledger.NewMockRepository(ctrl)
+		mockLedgerRepo.EXPECT().
+			GetSettings(gomock.Any(), organizationID, ledgerID).
 			Return(map[string]any{
 				"accounting": map[string]any{
 					"validateAccountType": true,
@@ -97,7 +87,7 @@ func TestGetParsedLedgerSettings(t *testing.T) {
 			}, nil)
 
 		uc := &UseCase{
-			SettingsPort: mockSettingsPort,
+			LedgerRepo: mockLedgerRepo,
 		}
 
 		result := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)

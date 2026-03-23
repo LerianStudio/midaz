@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/ledger"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
@@ -253,9 +253,9 @@ func TestValidateAccountingRules_ActionParam(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
-			mockSettingsPort.EXPECT().
-				GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+			mockLedgerRepo := ledger.NewMockRepository(ctrl)
+			mockLedgerRepo.EXPECT().
+				GetSettings(gomock.Any(), organizationID, ledgerID).
 				Return(map[string]any{
 					"accounting": map[string]any{
 						"validateRoutes": true,
@@ -271,7 +271,7 @@ func TestValidateAccountingRules_ActionParam(t *testing.T) {
 
 			uc := &UseCase{
 				TransactionRedisRepo: mockRedisRepo,
-				SettingsPort:         mockSettingsPort,
+				LedgerRepo:           mockLedgerRepo,
 			}
 
 			// This call must include the action parameter.
@@ -333,9 +333,9 @@ func TestValidateAccountingRules_ActionFilteredRouteCount(t *testing.T) {
 		},
 	}
 
-	mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
-	mockSettingsPort.EXPECT().
-		GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+	mockLedgerRepo.EXPECT().
+		GetSettings(gomock.Any(), organizationID, ledgerID).
 		Return(map[string]any{
 			"accounting": map[string]any{
 				"validateRoutes": true,
@@ -350,7 +350,7 @@ func TestValidateAccountingRules_ActionFilteredRouteCount(t *testing.T) {
 
 	uc := &UseCase{
 		TransactionRedisRepo: mockRedisRepo,
-		SettingsPort:         mockSettingsPort,
+		LedgerRepo:           mockLedgerRepo,
 	}
 
 	validate := &pkgTransaction.Responses{
@@ -429,9 +429,9 @@ func TestValidateAccountingRules_ActionFilteredAccountRules(t *testing.T) {
 		},
 	}
 
-	mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
-	mockSettingsPort.EXPECT().
-		GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+	mockLedgerRepo.EXPECT().
+		GetSettings(gomock.Any(), organizationID, ledgerID).
 		Return(map[string]any{
 			"accounting": map[string]any{
 				"validateRoutes":      true,
@@ -447,7 +447,7 @@ func TestValidateAccountingRules_ActionFilteredAccountRules(t *testing.T) {
 
 	uc := &UseCase{
 		TransactionRedisRepo: mockRedisRepo,
-		SettingsPort:         mockSettingsPort,
+		LedgerRepo:           mockLedgerRepo,
 	}
 
 	validate := &pkgTransaction.Responses{
@@ -508,9 +508,9 @@ func TestValidateAccountingRules_ActionAccountTypeMismatch(t *testing.T) {
 		},
 	}
 
-	mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
-	mockSettingsPort.EXPECT().
-		GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
+	mockLedgerRepo.EXPECT().
+		GetSettings(gomock.Any(), organizationID, ledgerID).
 		Return(map[string]any{
 			"accounting": map[string]any{
 				"validateRoutes":      true,
@@ -526,7 +526,7 @@ func TestValidateAccountingRules_ActionAccountTypeMismatch(t *testing.T) {
 
 	uc := &UseCase{
 		TransactionRedisRepo: mockRedisRepo,
-		SettingsPort:         mockSettingsPort,
+		LedgerRepo:           mockLedgerRepo,
 	}
 
 	validate := &pkgTransaction.Responses{

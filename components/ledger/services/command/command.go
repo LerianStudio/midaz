@@ -101,14 +101,6 @@ type UseCase struct {
 	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
 	RabbitMQRepo rabbitmq.ProducerRepository
 
-	// --- Cross-domain ports (temporary, will be eliminated) ---
-
-	// BalancePort provides an abstraction for balance operations.
-	BalancePort mbootstrap.BalancePort
-
-	// SettingsPort provides an abstraction for querying ledger settings.
-	SettingsPort mbootstrap.SettingsPort
-
 	// --- Settings ---
 
 	// SettingsCacheTTL is the cache TTL for ledger settings.

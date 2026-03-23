@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/ledger"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
@@ -218,9 +218,9 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Returns nil when validateRoutes is false (default)", func(t *testing.T) {
-		mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
-		mockSettingsPort.EXPECT().
-			GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+		mockLedgerRepo := ledger.NewMockRepository(ctrl)
+		mockLedgerRepo.EXPECT().
+			GetSettings(gomock.Any(), organizationID, ledgerID).
 			Return(map[string]any{
 				"accounting": map[string]any{
 					"validateRoutes": false,
@@ -229,7 +229,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 
 		uc := &UseCase{
 			TransactionRedisRepo: mockRedisRepo,
-			SettingsPort:         mockSettingsPort,
+			LedgerRepo:           mockLedgerRepo,
 		}
 
 		operations := []mmodel.BalanceOperation{
@@ -250,10 +250,15 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("Returns nil when SettingsPort is nil (backwards compatible)", func(t *testing.T) {
+	t.Run("Returns nil when LedgerRepo returns error (graceful degradation)", func(t *testing.T) {
+		mockLedgerRepo := ledger.NewMockRepository(ctrl)
+		mockLedgerRepo.EXPECT().
+			GetSettings(gomock.Any(), organizationID, ledgerID).
+			Return(nil, errors.New("connection error"))
+
 		uc := &UseCase{
 			TransactionRedisRepo: mockRedisRepo,
-			SettingsPort:         nil,
+			LedgerRepo:           mockLedgerRepo,
 		}
 
 		operations := []mmodel.BalanceOperation{
@@ -275,9 +280,9 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 	})
 
 	t.Run("Returns error when validateRoutes is true and transaction route is empty", func(t *testing.T) {
-		mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
-		mockSettingsPort.EXPECT().
-			GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+		mockLedgerRepo := ledger.NewMockRepository(ctrl)
+		mockLedgerRepo.EXPECT().
+			GetSettings(gomock.Any(), organizationID, ledgerID).
 			Return(map[string]any{
 				"accounting": map[string]any{
 					"validateRoutes": true,
@@ -286,7 +291,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 
 		uc := &UseCase{
 			TransactionRedisRepo: mockRedisRepo,
-			SettingsPort:         mockSettingsPort,
+			LedgerRepo:           mockLedgerRepo,
 		}
 
 		operations := []mmodel.BalanceOperation{
@@ -309,9 +314,9 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 	})
 
 	t.Run("Returns error when validateRoutes is true and transaction route ID is invalid", func(t *testing.T) {
-		mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
-		mockSettingsPort.EXPECT().
-			GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+		mockLedgerRepo := ledger.NewMockRepository(ctrl)
+		mockLedgerRepo.EXPECT().
+			GetSettings(gomock.Any(), organizationID, ledgerID).
 			Return(map[string]any{
 				"accounting": map[string]any{
 					"validateRoutes": true,
@@ -320,7 +325,7 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 
 		uc := &UseCase{
 			TransactionRedisRepo: mockRedisRepo,
-			SettingsPort:         mockSettingsPort,
+			LedgerRepo:           mockLedgerRepo,
 		}
 
 		operations := []mmodel.BalanceOperation{
@@ -343,14 +348,14 @@ func TestValidateAccountingRules_WithSettings(t *testing.T) {
 	})
 
 	t.Run("Returns nil when settings fetch fails (graceful degradation)", func(t *testing.T) {
-		mockSettingsPort := mbootstrap.NewMockSettingsPort(ctrl)
-		mockSettingsPort.EXPECT().
-			GetLedgerSettings(gomock.Any(), organizationID, ledgerID).
+		mockLedgerRepo := ledger.NewMockRepository(ctrl)
+		mockLedgerRepo.EXPECT().
+			GetSettings(gomock.Any(), organizationID, ledgerID).
 			Return(nil, errors.New("connection error"))
 
 		uc := &UseCase{
 			TransactionRedisRepo: mockRedisRepo,
-			SettingsPort:         mockSettingsPort,
+			LedgerRepo:           mockLedgerRepo,
 		}
 
 		operations := []mmodel.BalanceOperation{

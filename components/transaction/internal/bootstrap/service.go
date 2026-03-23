@@ -10,9 +10,9 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	tmconsumer "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/consumer"
+	httpin "github.com/LerianStudio/midaz/v3/components/ledger/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
-	httpin "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -167,7 +167,7 @@ func (app *Service) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
 // This is used by the unified ledger server to consolidate all routes in a single port.
 func (app *Service) GetRouteRegistrar(routeOptions *midazhttp.ProtectedRouteOptions) func(fiber.Router) {
 	return func(fiberRouter fiber.Router) {
-		httpin.RegisterRoutesToApp(
+		httpin.RegisterTransactionRoutesToApp(
 			fiberRouter,
 			app.auth,
 			app.transactionHandler,
@@ -192,11 +192,9 @@ func (app *Service) GetRouteRegistrar(routeOptions *midazhttp.ProtectedRouteOpti
 // so setting them after request processing begins could cause data races.
 func (app *Service) SetSettingsPort(port mbootstrap.SettingsPort) {
 	if app.commandUseCase != nil {
-		app.commandUseCase.SettingsPort = port
 	}
 
 	if app.queryUseCase != nil {
-		app.queryUseCase.SettingsPort = port
 	}
 }
 

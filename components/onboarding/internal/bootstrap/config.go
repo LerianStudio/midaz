@@ -20,11 +20,12 @@ import (
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	httpin "github.com/LerianStudio/midaz/v3/components/ledger/adapters/http/in"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
-	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
+	onboardingin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
 )
@@ -310,11 +311,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	assetPostgreSQLRepository := pg.assetRepo
 	accountTypePostgreSQLRepository := pg.accountTypeRepo
 
-	balancePort, err := resolveBalancePort(opts, cfg, logger)
-	if err != nil {
-		return nil, err
-	}
-
 	settingsCacheTTL := resolveSettingsCacheTTL(cfg, logger)
 
 	queryUseCase := &query.UseCase{
@@ -340,7 +336,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		AccountTypeRepo:        accountTypePostgreSQLRepository,
 		OnboardingMetadataRepo: mgo.metadataRepo,
 		OnboardingRedisRepo:    redisConsumerRepository,
-		BalancePort:            balancePort,
 	}
 
 	accountHandler := &httpin.AccountHandler{
@@ -380,7 +375,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
 
-	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler)
+	httpApp := onboardingin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 	serverAPI.shutdownHooks = buildShutdownHooks(pg.connection, mgo.connection, redisConnection)

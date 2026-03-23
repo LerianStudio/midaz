@@ -20,11 +20,12 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/http/in"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
+	transactionin "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 )
 
@@ -481,8 +482,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// If SettingsPort is provided via options (e.g., tests), set it immediately
 	if opts != nil && opts.SettingsPort != nil {
-		commandUseCase.SettingsPort = opts.SettingsPort
-		queryUseCase.SettingsPort = opts.SettingsPort
 	}
 
 	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
@@ -494,7 +493,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
 
-	app := in.NewRouter(logger, telemetry, auth, h.transaction, h.operation, h.assetRate, h.balance, h.operationRoute, h.transactionRoute)
+	app := transactionin.NewRouter(logger, telemetry, auth, h.transaction, h.operation, h.assetRate, h.balance, h.operationRoute, h.transactionRoute)
 
 	server := NewServer(cfg, app, logger, telemetry)
 

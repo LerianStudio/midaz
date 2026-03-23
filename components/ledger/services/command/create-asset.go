@@ -36,14 +36,6 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Trying to create asset organizationID=%s ledgerID=%s code=%s", organizationID.String(), ledgerID.String(), cii.Code))
 
-	// Fail-fast: Check balance service health before proceeding
-	if err := uc.BalancePort.CheckHealth(ctx); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance service health check failed", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Balance service is unavailable: %v", err))
-
-		return nil, pkg.ValidateBusinessError(constant.ErrGRPCServiceUnavailable, reflect.TypeOf(mmodel.Asset{}).Name())
-	}
-
 	var status mmodel.Status
 	if cii.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cii.Status.Code) {
 		status = mmodel.Status{
@@ -187,7 +179,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		// Inject authorization token into context metadata for downstream gRPC calls
 		ctxWithAuth := grpcMetadata.AppendToOutgoingContext(ctx, libConstant.MetadataAuthorization, token)
 
-		_, err = uc.BalancePort.CreateBalanceSync(ctxWithAuth, balanceInput)
+		_, err = uc.CreateBalanceSync(ctxWithAuth, balanceInput)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance", err)
 
