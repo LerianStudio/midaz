@@ -44,6 +44,21 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 	return m.recorder
 }
 
+// BeginTx mocks base method.
+func (m *MockRepository) BeginTx(ctx context.Context) (repository.DBTransaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BeginTx", ctx)
+	ret0, _ := ret[0].(repository.DBTransaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BeginTx indicates an expected call of BeginTx.
+func (mr *MockRepositoryMockRecorder) BeginTx(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BeginTx", reflect.TypeOf((*MockRepository)(nil).BeginTx), ctx)
+}
+
 // Create mocks base method.
 func (m *MockRepository) Create(ctx context.Context, transaction *Transaction) (*Transaction, error) {
 	m.ctrl.T.Helper()
@@ -87,36 +102,6 @@ func (m *MockRepository) CreateBulkTx(ctx context.Context, tx repository.DBExecu
 func (mr *MockRepositoryMockRecorder) CreateBulkTx(ctx, tx, transactions any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBulkTx", reflect.TypeOf((*MockRepository)(nil).CreateBulkTx), ctx, tx, transactions)
-}
-
-// UpdateBulk mocks base method.
-func (m *MockRepository) UpdateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkUpdateResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateBulk", ctx, transactions)
-	ret0, _ := ret[0].(*repository.BulkUpdateResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateBulk indicates an expected call of UpdateBulk.
-func (mr *MockRepositoryMockRecorder) UpdateBulk(ctx, transactions any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBulk", reflect.TypeOf((*MockRepository)(nil).UpdateBulk), ctx, transactions)
-}
-
-// UpdateBulkTx mocks base method.
-func (m *MockRepository) UpdateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkUpdateResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateBulkTx", ctx, tx, transactions)
-	ret0, _ := ret[0].(*repository.BulkUpdateResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateBulkTx indicates an expected call of UpdateBulkTx.
-func (mr *MockRepositoryMockRecorder) UpdateBulkTx(ctx, tx, transactions any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBulkTx", reflect.TypeOf((*MockRepository)(nil).UpdateBulkTx), ctx, tx, transactions)
 }
 
 // Delete mocks base method.
@@ -238,4 +223,34 @@ func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID, i
 func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, ledgerID, id, transaction any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, ledgerID, id, transaction)
+}
+
+// UpdateBulk mocks base method.
+func (m *MockRepository) UpdateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkUpdateResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateBulk", ctx, transactions)
+	ret0, _ := ret[0].(*repository.BulkUpdateResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateBulk indicates an expected call of UpdateBulk.
+func (mr *MockRepositoryMockRecorder) UpdateBulk(ctx, transactions any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBulk", reflect.TypeOf((*MockRepository)(nil).UpdateBulk), ctx, transactions)
+}
+
+// UpdateBulkTx mocks base method.
+func (m *MockRepository) UpdateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkUpdateResult, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateBulkTx", ctx, tx, transactions)
+	ret0, _ := ret[0].(*repository.BulkUpdateResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateBulkTx indicates an expected call of UpdateBulkTx.
+func (mr *MockRepositoryMockRecorder) UpdateBulkTx(ctx, tx, transactions any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBulkTx", reflect.TypeOf((*MockRepository)(nil).UpdateBulkTx), ctx, tx, transactions)
 }

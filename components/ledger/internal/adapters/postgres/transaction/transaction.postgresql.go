@@ -82,6 +82,7 @@ type Repository interface {
 	CreateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkInsertResult, error)
 	UpdateBulk(ctx context.Context, transactions []*Transaction) (*repository.BulkUpdateResult, error)
 	UpdateBulkTx(ctx context.Context, tx repository.DBExecutor, transactions []*Transaction) (*repository.BulkUpdateResult, error)
+	BeginTx(ctx context.Context) (repository.DBTransaction, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
@@ -128,6 +129,23 @@ func (r *TransactionPostgreSQLRepository) getDB(ctx context.Context) (dbresolver
 	}
 
 	return r.connection.Resolver(ctx)
+}
+
+// BeginTx starts a new database transaction for atomic multi-table operations.
+// The caller is responsible for calling Commit() or Rollback() on the returned transaction.
+// This enables atomic bulk inserts across transactions and operations tables.
+func (r *TransactionPostgreSQLRepository) BeginTx(ctx context.Context) (repository.DBTransaction, error) {
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database connection: %w", err)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	return tx, nil
 }
 
 // Create a new Transaction entity into Postgresql and returns it.

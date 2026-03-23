@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 
@@ -25,6 +26,28 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
+
+// mockDBTransaction is a test double for repository.DBTransaction.
+type mockDBTransaction struct {
+	commitCalled   bool
+	rollbackCalled bool
+	commitErr      error
+	rollbackErr    error
+}
+
+func (m *mockDBTransaction) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+	return nil, nil
+}
+
+func (m *mockDBTransaction) Commit() error {
+	m.commitCalled = true
+	return m.commitErr
+}
+
+func (m *mockDBTransaction) Rollback() error {
+	m.rollbackCalled = true
+	return m.rollbackErr
+}
 
 func TestCreateBulkTransactionOperationsAsync_EmptyPayloads(t *testing.T) {
 	t.Parallel()
@@ -113,30 +136,37 @@ func TestCreateBulkTransactionOperationsAsync_SingleTransaction_Success(t *testi
 		},
 	}
 
+	// Mock DB transaction for atomic inserts
+	mockTx := &mockDBTransaction{}
+	mockTransactionRepo.EXPECT().
+		BeginTx(gomock.Any()).
+		Return(mockTx, nil).
+		Times(1)
+
+	// Mock bulk insert transactions (using Tx variant)
+	mockTransactionRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), mockTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 1,
+			Inserted:  1,
+			Ignored:   0,
+		}, nil).
+		Times(1)
+
+	// Mock bulk insert operations (using Tx variant)
+	mockOperationRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), mockTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted: 1,
+			Inserted:  1,
+			Ignored:   0,
+		}, nil).
+		Times(1)
+
 	// Mock balance update (BalancesUpdate is what UpdateBalances calls internally)
 	mockBalanceRepo.EXPECT().
 		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).
-		Times(1)
-
-	// Mock bulk insert transactions
-	mockTransactionRepo.EXPECT().
-		CreateBulk(gomock.Any(), gomock.Any()).
-		Return(&repository.BulkInsertResult{
-			Attempted: 1,
-			Inserted:  1,
-			Ignored:   0,
-		}, nil).
-		Times(1)
-
-	// Mock bulk insert operations
-	mockOperationRepo.EXPECT().
-		CreateBulk(gomock.Any(), gomock.Any()).
-		Return(&repository.BulkInsertResult{
-			Attempted: 1,
-			Inserted:  1,
-			Ignored:   0,
-		}, nil).
 		Times(1)
 
 	// Mock metadata creation (may be called)
@@ -226,15 +256,16 @@ func TestCreateBulkTransactionOperationsAsync_MultipleTransactions_Success(t *te
 		}
 	}
 
-	// Mock balance updates (3 times)
-	mockBalanceRepo.EXPECT().
-		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil).
-		Times(3)
-
-	// Mock bulk insert transactions (3 transactions)
+	// Mock DB transaction for atomic inserts
+	mockTx := &mockDBTransaction{}
 	mockTransactionRepo.EXPECT().
-		CreateBulk(gomock.Any(), gomock.Any()).
+		BeginTx(gomock.Any()).
+		Return(mockTx, nil).
+		Times(1)
+
+	// Mock bulk insert transactions (3 transactions, using Tx variant)
+	mockTransactionRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), mockTx, gomock.Any()).
 		Return(&repository.BulkInsertResult{
 			Attempted: 3,
 			Inserted:  3,
@@ -242,15 +273,21 @@ func TestCreateBulkTransactionOperationsAsync_MultipleTransactions_Success(t *te
 		}, nil).
 		Times(1)
 
-	// Mock bulk insert operations (6 operations total)
+	// Mock bulk insert operations (6 operations total, using Tx variant)
 	mockOperationRepo.EXPECT().
-		CreateBulk(gomock.Any(), gomock.Any()).
+		CreateBulkTx(gomock.Any(), mockTx, gomock.Any()).
 		Return(&repository.BulkInsertResult{
 			Attempted: 6,
 			Inserted:  6,
 			Ignored:   0,
 		}, nil).
 		Times(1)
+
+	// Mock balance updates (3 times)
+	mockBalanceRepo.EXPECT().
+		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(3)
 
 	// Mock metadata and events
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -308,11 +345,16 @@ func TestCreateBulkTransactionOperationsAsync_WithDuplicates(t *testing.T) {
 		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
 	}
 
-	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	// Mock DB transaction for atomic inserts
+	mockTx := &mockDBTransaction{}
+	mockTransactionRepo.EXPECT().
+		BeginTx(gomock.Any()).
+		Return(mockTx, nil).
+		Times(1)
 
 	// Mock bulk insert with 1 ignored (duplicate)
 	mockTransactionRepo.EXPECT().
-		CreateBulk(gomock.Any(), gomock.Any()).
+		CreateBulkTx(gomock.Any(), mockTx, gomock.Any()).
 		Return(&repository.BulkInsertResult{
 			Attempted: 1,
 			Inserted:  0,
@@ -321,13 +363,16 @@ func TestCreateBulkTransactionOperationsAsync_WithDuplicates(t *testing.T) {
 		Times(1)
 
 	mockOperationRepo.EXPECT().
-		CreateBulk(gomock.Any(), gomock.Any()).
+		CreateBulkTx(gomock.Any(), mockTx, gomock.Any()).
 		Return(&repository.BulkInsertResult{
 			Attempted: 1,
 			Inserted:  0,
 			Ignored:   1,
 		}, nil).
 		Times(1)
+
+	// Mock balance update
+	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
@@ -465,12 +510,16 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
 	}
 
-	// Balance update only happens in fallback now (bulk path updates balance AFTER success)
-	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
-
-	// Bulk insert fails
+	// Mock DB transaction for atomic inserts - will fail and rollback
+	mockTx := &mockDBTransaction{}
 	mockTransactionRepo.EXPECT().
-		CreateBulk(gomock.Any(), gomock.Any()).
+		BeginTx(gomock.Any()).
+		Return(mockTx, nil).
+		Times(1)
+
+	// Bulk insert fails - should trigger rollback and fallback
+	mockTransactionRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), mockTx, gomock.Any()).
 		Return(nil, errors.New("bulk insert failed")).
 		Times(1)
 
@@ -486,6 +535,9 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 		Create(gomock.Any(), gomock.Any()).
 		Return(&operation.Operation{ID: operationID}, nil).
 		Times(1)
+
+	// Balance update happens in fallback processing
+	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	// Metadata creation and events
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -807,9 +859,16 @@ func TestCreateBulkTransactionOperationsAsync_BalanceUpdateFails_UsesFallback(t 
 		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
 	}
 
-	// Bulk insert succeeds
+	// Mock DB transaction for atomic inserts
+	mockTx := &mockDBTransaction{}
 	mockTransactionRepo.EXPECT().
-		CreateBulk(gomock.Any(), gomock.Any()).
+		BeginTx(gomock.Any()).
+		Return(mockTx, nil).
+		Times(1)
+
+	// Bulk insert succeeds (using Tx variant)
+	mockTransactionRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), mockTx, gomock.Any()).
 		Return(&repository.BulkInsertResult{
 			Attempted: 1,
 			Inserted:  1,
@@ -818,7 +877,7 @@ func TestCreateBulkTransactionOperationsAsync_BalanceUpdateFails_UsesFallback(t 
 		Times(1)
 
 	mockOperationRepo.EXPECT().
-		CreateBulk(gomock.Any(), gomock.Any()).
+		CreateBulkTx(gomock.Any(), mockTx, gomock.Any()).
 		Return(&repository.BulkInsertResult{
 			Attempted: 1,
 			Inserted:  1,

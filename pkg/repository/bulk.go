@@ -36,3 +36,12 @@ type BulkUpdateResult struct {
 	Updated   int64 // Rows actually updated (status changed)
 	Unchanged int64 // Rows skipped (status already matches)
 }
+
+// DBTransaction extends DBExecutor with commit/rollback capabilities.
+// This interface is satisfied by database transaction types (e.g., dbresolver.Tx, sql.Tx)
+// and enables atomic multi-table operations controlled by the caller.
+type DBTransaction interface {
+	DBExecutor
+	Commit() error
+	Rollback() error
+}

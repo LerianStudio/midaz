@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/repository"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -183,14 +184,15 @@ func (uc *UseCase) classifyAndExtractEntities(
 		// Create a shallow copy to avoid mutating the original payload
 		// The original is needed intact for fallbackToIndividualProcessing
 		txCopy := *payload.Transaction
-		txCopy.Body = pkgTransaction.Transaction{}
 
 		// Determine if this is an insert or an update
 		if uc.isStatusTransition(payload) {
 			// Status transition: PENDING -> APPROVED/CANCELED
+			// Clear body for status updates - not needed for UPDATE query
+			txCopy.Body = pkgTransaction.Transaction{}
 			toUpdate.transactions = append(toUpdate.transactions, &txCopy)
 		} else {
-			// Normal insert
+			// Normal insert - prepareTransactionForInsert handles body based on status
 			uc.prepareTransactionForInsert(&txCopy)
 			toInsert.transactions = append(toInsert.transactions, &txCopy)
 
@@ -237,9 +239,12 @@ func (uc *UseCase) isStatusTransition(payload transaction.TransactionProcessingP
 }
 
 // prepareTransactionForInsert prepares a transaction for bulk insert.
+// Handles status transitions and body clearing based on transaction status.
 func (uc *UseCase) prepareTransactionForInsert(tx *transaction.Transaction) {
 	switch tx.Status.Code {
 	case constant.CREATED:
+		// CREATED transactions are auto-approved and body is not needed
+		tx.Body = pkgTransaction.Transaction{}
 		description := constant.APPROVED
 		tx.Status = transaction.Status{
 			Code:        description,
@@ -247,10 +252,16 @@ func (uc *UseCase) prepareTransactionForInsert(tx *transaction.Transaction) {
 		}
 	case constant.PENDING:
 		// Keep PENDING status and body for pending transactions
+		// Body is required for later approval/cancellation processing
+	default:
+		// Clear body for other statuses (e.g., NOTED)
+		tx.Body = pkgTransaction.Transaction{}
 	}
 }
 
 // performBulkInsertAndUpdate performs bulk insert for new entities and bulk update for status transitions.
+// Inserts (transactions + operations) are wrapped in a single DB transaction for atomicity.
+// Status updates are performed separately as they operate on existing rows.
 func (uc *UseCase) performBulkInsertAndUpdate(
 	ctx context.Context,
 	logger libLog.Logger,
@@ -258,21 +269,15 @@ func (uc *UseCase) performBulkInsertAndUpdate(
 	toUpdate *bulkUpdateEntities,
 	result *BulkResult,
 ) error {
-	// Bulk insert transactions
-	if len(toInsert.transactions) > 0 {
-		if err := uc.bulkInsertTransactions(ctx, logger, toInsert.transactions, result); err != nil {
+	// Atomic bulk insert for transactions and operations
+	if len(toInsert.transactions) > 0 || len(toInsert.operations) > 0 {
+		if err := uc.atomicBulkInsert(ctx, logger, toInsert, result); err != nil {
 			return err
 		}
 	}
 
-	// Bulk insert operations
-	if len(toInsert.operations) > 0 {
-		if err := uc.bulkInsertOperations(ctx, logger, toInsert.operations, result); err != nil {
-			return err
-		}
-	}
-
-	// Bulk update transactions (status transitions)
+	// Bulk update transactions (status transitions) - separate from inserts
+	// These operate on existing rows and don't need to be atomic with inserts
 	if len(toUpdate.transactions) > 0 {
 		if err := uc.performBulkStatusUpdate(ctx, logger, toUpdate.transactions, result); err != nil {
 			return err
@@ -282,16 +287,67 @@ func (uc *UseCase) performBulkInsertAndUpdate(
 	return nil
 }
 
-// bulkInsertTransactions inserts transactions in bulk.
-func (uc *UseCase) bulkInsertTransactions(
+// atomicBulkInsert inserts transactions and operations in a single database transaction.
+// If either insert fails, the entire operation is rolled back to prevent partial state.
+func (uc *UseCase) atomicBulkInsert(
 	ctx context.Context,
 	logger libLog.Logger,
+	toInsert *bulkInsertEntities,
+	result *BulkResult,
+) error {
+	// Begin database transaction
+	dbTx, err := uc.TransactionRepo.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin database transaction: %w", err)
+	}
+
+	// Ensure rollback on panic or error
+	committed := false
+
+	defer func() {
+		if !committed {
+			if rbErr := dbTx.Rollback(); rbErr != nil {
+				logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to rollback transaction: %v", rbErr))
+			}
+		}
+	}()
+
+	// Bulk insert transactions within the DB transaction
+	if len(toInsert.transactions) > 0 {
+		if err := uc.bulkInsertTransactionsTx(ctx, logger, dbTx, toInsert.transactions, result); err != nil {
+			return err
+		}
+	}
+
+	// Bulk insert operations within the same DB transaction
+	if len(toInsert.operations) > 0 {
+		if err := uc.bulkInsertOperationsTx(ctx, logger, dbTx, toInsert.operations, result); err != nil {
+			return err
+		}
+	}
+
+	// Commit the transaction
+	if err := dbTx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit database transaction: %w", err)
+	}
+
+	committed = true
+
+	return nil
+}
+
+// bulkInsertTransactionsTx inserts transactions in bulk using a provided database transaction.
+// This enables atomic multi-table operations with operations insert.
+func (uc *UseCase) bulkInsertTransactionsTx(
+	ctx context.Context,
+	logger libLog.Logger,
+	dbTx repository.DBExecutor,
 	transactions []*transaction.Transaction,
 	result *BulkResult,
 ) error {
 	result.TransactionsAttempted = int64(len(transactions))
 
-	insertResult, err := uc.TransactionRepo.CreateBulk(ctx, transactions)
+	insertResult, err := uc.TransactionRepo.CreateBulkTx(ctx, dbTx, transactions)
 	if err != nil {
 		return fmt.Errorf("bulk insert transactions: %w", err)
 	}
@@ -300,23 +356,25 @@ func (uc *UseCase) bulkInsertTransactions(
 	result.TransactionsIgnored = insertResult.Ignored
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-		"Bulk inserted transactions: attempted=%d, inserted=%d, ignored=%d",
+		"Bulk inserted transactions (tx): attempted=%d, inserted=%d, ignored=%d",
 		result.TransactionsAttempted, result.TransactionsInserted, result.TransactionsIgnored,
 	))
 
 	return nil
 }
 
-// bulkInsertOperations inserts operations in bulk.
-func (uc *UseCase) bulkInsertOperations(
+// bulkInsertOperationsTx inserts operations in bulk using a provided database transaction.
+// This enables atomic multi-table operations with transactions insert.
+func (uc *UseCase) bulkInsertOperationsTx(
 	ctx context.Context,
 	logger libLog.Logger,
+	dbTx repository.DBExecutor,
 	operations []*operation.Operation,
 	result *BulkResult,
 ) error {
 	result.OperationsAttempted = int64(len(operations))
 
-	insertResult, err := uc.OperationRepo.CreateBulk(ctx, operations)
+	insertResult, err := uc.OperationRepo.CreateBulkTx(ctx, dbTx, operations)
 	if err != nil {
 		return fmt.Errorf("bulk insert operations: %w", err)
 	}
@@ -325,7 +383,7 @@ func (uc *UseCase) bulkInsertOperations(
 	result.OperationsIgnored = insertResult.Ignored
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-		"Bulk inserted operations: attempted=%d, inserted=%d, ignored=%d",
+		"Bulk inserted operations (tx): attempted=%d, inserted=%d, ignored=%d",
 		result.OperationsAttempted, result.OperationsInserted, result.OperationsIgnored,
 	))
 
