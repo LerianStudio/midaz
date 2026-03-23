@@ -343,6 +343,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// 1. Onboarding PostgreSQL → 7 repos
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing onboarding PostgreSQL...")
+
 	onbPG, err := initOnboardingPostgres(internalOpts, cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize onboarding PostgreSQL: %w", err)
@@ -350,6 +351,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// 2. Transaction PostgreSQL → 6 repos
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing transaction PostgreSQL...")
+
 	txnPG, err := initTransactionPostgres(internalOpts, cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize transaction PostgreSQL: %w", err)
@@ -357,6 +359,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// 3. Onboarding MongoDB → metadata repo
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing onboarding MongoDB...")
+
 	onbMgo, err := initOnboardingMongo(internalOpts, cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize onboarding MongoDB: %w", err)
@@ -364,6 +367,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// 4. Transaction MongoDB → metadata repo
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing transaction MongoDB...")
+
 	txnMgo, err := initTransactionMongo(internalOpts, cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize transaction MongoDB: %w", err)
@@ -371,6 +375,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// 5. Redis (shared connection, two consumer repos)
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing Redis...")
+
 	redisConnection, err := initRedisConnection(cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Redis: %w", err)
@@ -388,6 +393,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// 6. RabbitMQ → producer + consumer
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing RabbitMQ...")
+
 	rmq, err := initRabbitMQ(internalOpts, cfg, logger, telemetry, redisConnection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize RabbitMQ: %w", err)
