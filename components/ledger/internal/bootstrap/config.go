@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -183,7 +184,7 @@ type Config struct {
 	RabbitMQMultiTenantDiscoveryTimeout       int    `env:"RABBITMQ_MULTI_TENANT_DISCOVERY_TIMEOUT"`
 
 	// --- Balance/Worker fields ---
-	BalanceSyncWorkerEnabled bool `env:"BALANCE_SYNC_WORKER_ENABLED" default:"true"`
+	BalanceSyncWorkerEnabled bool `env:"BALANCE_SYNC_WORKER_ENABLED"`
 	BalanceSyncMaxWorkers    int  `env:"BALANCE_SYNC_MAX_WORKERS"`
 
 	// --- Settings ---
@@ -403,6 +404,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if err != nil {
 		doCleanup()
 		return nil, fmt.Errorf("failed to initialize RabbitMQ: %w", err)
+	}
+
+	if rmq != nil && rmq.producerRepo != nil {
+		addCleanup(func() { _ = rmq.producerRepo.Close() })
 	}
 
 	// Pass PG and Mongo managers to RabbitMQ components for per-message tenant resolution
@@ -889,4 +894,9 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.RedisMaxRetries, 3)
 	intDefault(&cfg.RedisMinRetryBackoff, 8)
 	intDefault(&cfg.RedisMaxRetryBackoff, 1)
+
+	// BalanceSyncWorkerEnabled defaults to true (enabled) when the env var is not set.
+	if os.Getenv("BALANCE_SYNC_WORKER_ENABLED") == "" {
+		cfg.BalanceSyncWorkerEnabled = true
+	}
 }
