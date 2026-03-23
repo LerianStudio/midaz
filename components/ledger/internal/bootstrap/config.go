@@ -97,6 +97,7 @@ type Config struct {
 	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
 	MultiTenantServiceAPIKey            string `env:"MULTI_TENANT_SERVICE_API_KEY"`
 	MultiTenantSettingsCheckIntervalSec int    `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"`
+	MultiTenantCacheTTLSec              int    `env:"MULTI_TENANT_CACHE_TTL_SEC" default:"120"` // seconds for tenant config cache TTL (0 = disabled)
 
 	// --- Onboarding PostgreSQL fields (DB_ONBOARDING_* env tags) ---
 	OnbPrefixedPrimaryDBHost     string `env:"DB_ONBOARDING_HOST"`
@@ -757,11 +758,19 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 		cbTimeoutSec = 30
 	}
 
+	clientOpts := []tmclient.ClientOption{
+		tmclient.WithServiceAPIKey(tenantManagerAPIKey),
+		tmclient.WithCircuitBreaker(cbThreshold, time.Duration(cbTimeoutSec)*time.Second),
+	}
+
+	if cfg.MultiTenantCacheTTLSec >= 0 {
+		clientOpts = append(clientOpts, tmclient.WithCacheTTL(time.Duration(cfg.MultiTenantCacheTTLSec)*time.Second))
+	}
+
 	tenantClient, err := tmclient.NewClient(
 		tenantManagerURL,
 		logger,
-		tmclient.WithServiceAPIKey(tenantManagerAPIKey),
-		tmclient.WithCircuitBreaker(cbThreshold, time.Duration(cbTimeoutSec)*time.Second),
+		clientOpts...,
 	)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to initialize tenant manager client: %w", err)

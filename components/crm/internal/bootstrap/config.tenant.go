@@ -69,6 +69,10 @@ func buildTenantClientOptions(cfg *Config, mtURL string) ([]tmclient.ClientOptio
 
 	clientOpts = append(clientOpts, tmclient.WithServiceAPIKey(cfg.MultiTenantServiceAPIKey))
 
+	if cfg.MultiTenantCacheTTLSec >= 0 {
+		clientOpts = append(clientOpts, tmclient.WithCacheTTL(time.Duration(cfg.MultiTenantCacheTTLSec)*time.Second))
+	}
+
 	if cfg.MultiTenantTimeout > 0 {
 		clientOpts = append(clientOpts, tmclient.WithTimeout(time.Duration(cfg.MultiTenantTimeout)*time.Second))
 	}
