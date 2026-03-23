@@ -158,7 +158,7 @@ ALTER TABLE account DROP COLUMN IF EXISTS preferences;
 ### Linter Validation
 
 ```bash
-migration-lint ./components/onboarding/migrations
+migration-lint ./components/ledger/migrations/onboarding
 ```
 
 - [x] Linter passed with no errors

@@ -186,10 +186,11 @@ func defaultTransactionPostgresMigrator(cfg *Config, logger libLog.Logger) error
 		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
 
 	migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
-		PrimaryDSN:   primaryDSN,
-		DatabaseName: dbName,
-		Component:    "transaction",
-		Logger:       logger,
+		PrimaryDSN:     primaryDSN,
+		DatabaseName:   dbName,
+		Component:      "ledger",
+		MigrationsPath: "components/ledger/migrations/transaction",
+		Logger:         logger,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create migrator: %w", err)

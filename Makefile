@@ -722,10 +722,10 @@ migrate-lint:
 	$(call print_title,"Linting database migrations")
 	@go build -o ./bin/migration-lint ./scripts/migration_linter
 	@echo "Checking onboarding migrations..."
-	@./bin/migration-lint ./components/onboarding/migrations
+	@./bin/migration-lint ./components/ledger/migrations/onboarding
 	@echo ""
 	@echo "Checking transaction migrations..."
-	@./bin/migration-lint ./components/transaction/migrations
+	@./bin/migration-lint ./components/ledger/migrations/transaction
 	@echo "[ok] All migrations passed validation"
 
 migrate-create:

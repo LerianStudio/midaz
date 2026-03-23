@@ -20,7 +20,7 @@ func readTransactionMigrationFile(t *testing.T, fileName string) string {
 	_, currentFile, _, ok := runtime.Caller(0)
 	require.True(t, ok, "runtime caller must resolve current test file")
 
-	path := filepath.Join(filepath.Dir(currentFile), "..", "..", "..", "..", "transaction", "migrations", fileName)
+	path := filepath.Join(filepath.Dir(currentFile), "..", "..", "..", "migrations", "transaction", fileName)
 	contents, err := os.ReadFile(path)
 	require.NoError(t, err)
 
