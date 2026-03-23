@@ -48,6 +48,10 @@ type BulkResult struct {
 	// Fallback tracking
 	FallbackUsed  bool
 	FallbackCount int64
+
+	// InsertedTransactionIDs tracks which transactions were actually inserted (not duplicates).
+	// Used to filter downstream operations like metadata creation and event publishing.
+	InsertedTransactionIDs map[string]struct{}
 }
 
 // BulkMessageResult tracks the result for a single message in bulk processing.
@@ -72,7 +76,9 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 	ctx, span := tracer.Start(ctx, "command.create_bulk_transaction_operations_async")
 	defer span.End()
 
-	result := &BulkResult{}
+	result := &BulkResult{
+		InsertedTransactionIDs: make(map[string]struct{}),
+	}
 
 	if len(payloads) == 0 {
 		return result, nil
@@ -101,8 +107,9 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 		// The balance sync worker will reconcile eventually
 	}
 
-	// Process metadata and send events
-	uc.processMetadataAndEvents(ctx, logger, payloads)
+	// Process metadata and send events only for actually-inserted transactions
+	// This ensures idempotency by skipping duplicates that were ignored during bulk insert
+	uc.processMetadataAndEvents(ctx, logger, payloads, result.InsertedTransactionIDs)
 
 	return result, nil
 }
@@ -338,6 +345,7 @@ func (uc *UseCase) atomicBulkInsert(
 
 // bulkInsertTransactionsTx inserts transactions in bulk using a provided database transaction.
 // This enables atomic multi-table operations with operations insert.
+// Populates result.InsertedTransactionIDs with IDs of actually-inserted transactions.
 func (uc *UseCase) bulkInsertTransactionsTx(
 	ctx context.Context,
 	logger libLog.Logger,
@@ -354,6 +362,11 @@ func (uc *UseCase) bulkInsertTransactionsTx(
 
 	result.TransactionsInserted = insertResult.Inserted
 	result.TransactionsIgnored = insertResult.Ignored
+
+	// Populate inserted IDs for downstream filtering (metadata, events)
+	for _, id := range insertResult.InsertedIDs {
+		result.InsertedTransactionIDs[id] = struct{}{}
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
 		"Bulk inserted transactions (tx): attempted=%d, inserted=%d, ignored=%d",
@@ -470,11 +483,14 @@ func (uc *UseCase) individualUpdateTransactionStatus(
 	return nil
 }
 
-// processMetadataAndEvents creates metadata and sends events for all payloads.
+// processMetadataAndEvents creates metadata and sends events for payloads that were actually inserted.
+// Skips duplicate transactions (those not in insertedTxIDs) to ensure idempotency.
+// If insertedTxIDs is nil or empty, processes all payloads (fallback behavior).
 func (uc *UseCase) processMetadataAndEvents(
 	ctx context.Context,
 	logger libLog.Logger,
 	payloads []transaction.TransactionProcessingPayload,
+	insertedTxIDs map[string]struct{},
 ) {
 	for _, payload := range payloads {
 		if payload.Transaction == nil {
@@ -482,6 +498,17 @@ func (uc *UseCase) processMetadataAndEvents(
 		}
 
 		tx := payload.Transaction
+
+		// Skip if this transaction was not actually inserted (duplicate)
+		// If insertedTxIDs is empty, process all (fallback or status-update scenarios)
+		if len(insertedTxIDs) > 0 {
+			if _, wasInserted := insertedTxIDs[tx.ID]; !wasInserted {
+				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf(
+					"Skipping metadata/events for duplicate transaction %s", tx.ID))
+
+				continue
+			}
+		}
 
 		// Create transaction metadata
 		if err := uc.CreateMetadataAsync(ctx, logger, tx.Metadata, tx.ID, reflect.TypeOf(transaction.Transaction{}).Name()); err != nil {

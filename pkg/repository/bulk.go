@@ -14,6 +14,9 @@ import (
 // ErrNilDBExecutor is returned when a nil database executor is provided to bulk operations.
 var ErrNilDBExecutor = errors.New("nil database executor provided")
 
+// ErrQueryContextNotSupported is returned when the DBExecutor does not support QueryContext.
+var ErrQueryContextNotSupported = errors.New("DBExecutor does not support QueryContext")
+
 // DBExecutor is a minimal interface satisfied by both dbresolver.DB and dbresolver.Tx.
 // This allows bulk insert operations to work with either a direct database connection
 // or within an external transaction controlled by the caller.
@@ -21,12 +24,20 @@ type DBExecutor interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
+// DBQuerier extends DBExecutor with query capabilities for operations that need
+// to retrieve results (e.g., RETURNING clause in bulk inserts).
+type DBQuerier interface {
+	DBExecutor
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
 // BulkInsertResult contains the counts from a bulk insert operation.
 // It tracks how many rows were attempted, actually inserted, and ignored (duplicates).
 type BulkInsertResult struct {
-	Attempted int64 // Rows sent to INSERT
-	Inserted  int64 // Rows actually inserted
-	Ignored   int64 // Rows skipped (duplicates via ON CONFLICT DO NOTHING)
+	Attempted   int64    // Rows sent to INSERT
+	Inserted    int64    // Rows actually inserted
+	Ignored     int64    // Rows skipped (duplicates via ON CONFLICT DO NOTHING)
+	InsertedIDs []string // IDs of rows that were actually inserted (for filtering downstream operations)
 }
 
 // BulkUpdateResult contains the counts from a bulk update operation.

@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -285,6 +286,7 @@ type mockOperationDB struct {
 	execErr         error
 	rowsAffected    int64
 	rowsAffectedErr error
+	queryErr        error
 }
 
 func (m *mockOperationDB) Begin() (dbresolver.Tx, error) {
@@ -336,11 +338,16 @@ func (m *mockOperationDB) PrepareContext(ctx context.Context, query string) (dbr
 }
 
 func (m *mockOperationDB) Query(query string, args ...any) (*sql.Rows, error) {
-	return nil, errors.New("not implemented")
+	return m.QueryContext(context.Background(), query, args...)
 }
 
 func (m *mockOperationDB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
-	return nil, errors.New("not implemented")
+	if m.queryErr != nil {
+		return nil, m.queryErr
+	}
+
+	// Return mock rows using the test driver
+	return createMockRows(m.rowsAffected)
 }
 
 func (m *mockOperationDB) QueryRow(query string, args ...any) *sql.Row {
@@ -386,6 +393,110 @@ func (m *mockOperationResult) RowsAffected() (int64, error) {
 	}
 
 	return m.rowsAffected, nil
+}
+
+// createMockRows creates mock *sql.Rows with the specified number of ID rows.
+// Uses a minimal in-memory approach with the fakedriver.
+func createMockRows(count int64) (*sql.Rows, error) {
+	// Generate IDs to return
+	ids := make([]string, count)
+	for i := int64(0); i < count; i++ {
+		ids[i] = uuid.NewString()
+	}
+
+	return createMockRowsWithIDs(ids)
+}
+
+// createMockRowsWithIDs creates mock *sql.Rows with specific IDs.
+func createMockRowsWithIDs(ids []string) (*sql.Rows, error) {
+	// Use the fakeRows driver connector to create valid *sql.Rows
+	connector := &fakeRowsConnector{ids: ids}
+	db := sql.OpenDB(connector)
+
+	return db.Query("SELECT id")
+}
+
+// fakeRowsConnector implements driver.Connector for creating mock rows.
+type fakeRowsConnector struct {
+	ids []string
+}
+
+func (c *fakeRowsConnector) Connect(ctx context.Context) (driver.Conn, error) {
+	return &fakeRowsConn{ids: c.ids}, nil
+}
+
+func (c *fakeRowsConnector) Driver() driver.Driver {
+	return &fakeRowsDriver{}
+}
+
+// fakeRowsDriver implements driver.Driver.
+type fakeRowsDriver struct{}
+
+func (d *fakeRowsDriver) Open(name string) (driver.Conn, error) {
+	return &fakeRowsConn{}, nil
+}
+
+// fakeRowsConn implements driver.Conn.
+type fakeRowsConn struct {
+	ids []string
+}
+
+func (c *fakeRowsConn) Prepare(query string) (driver.Stmt, error) {
+	return &fakeRowsStmt{ids: c.ids}, nil
+}
+
+func (c *fakeRowsConn) Close() error {
+	return nil
+}
+
+func (c *fakeRowsConn) Begin() (driver.Tx, error) {
+	return nil, errors.New("not implemented")
+}
+
+// fakeRowsStmt implements driver.Stmt.
+type fakeRowsStmt struct {
+	ids []string
+}
+
+func (s *fakeRowsStmt) Close() error {
+	return nil
+}
+
+func (s *fakeRowsStmt) NumInput() int {
+	return 0
+}
+
+func (s *fakeRowsStmt) Exec(args []driver.Value) (driver.Result, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *fakeRowsStmt) Query(args []driver.Value) (driver.Rows, error) {
+	return &fakeRows{ids: s.ids, index: 0}, nil
+}
+
+// fakeRows implements driver.Rows.
+type fakeRows struct {
+	ids   []string
+	index int
+}
+
+func (r *fakeRows) Columns() []string {
+	return []string{"id"}
+}
+
+func (r *fakeRows) Close() error {
+	return nil
+}
+
+func (r *fakeRows) Next(dest []driver.Value) error {
+	if r.index >= len(r.ids) {
+		return io.EOF
+	}
+
+	dest[0] = r.ids[r.index]
+	r.index++
+
+	return nil
 }
 
 func TestInsertOperationChunk_ColumnCount(t *testing.T) {
@@ -487,6 +598,24 @@ func (m *mockOperationDBSequence) ExecContext(ctx context.Context, query string,
 	m.callCount++
 
 	return &mockOperationResult{rowsAffected: 0}, nil
+}
+
+func (m *mockOperationDBSequence) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	if m.callCount < len(m.resultsPerCall) {
+		result := m.resultsPerCall[m.callCount]
+		m.callCount++
+
+		if result.err != nil {
+			return nil, result.err
+		}
+
+		return createMockRows(result.rowsAffected)
+	}
+
+	m.callCount++
+
+	// Return empty rows
+	return createMockRows(0)
 }
 
 func TestOperationCreateBulk_ChunkFailure_PartialResult(t *testing.T) {

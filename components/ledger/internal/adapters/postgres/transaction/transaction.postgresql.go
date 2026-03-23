@@ -312,7 +312,10 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 		return transactions[i].ID < transactions[j].ID
 	})
 
-	result := &repository.BulkInsertResult{Attempted: int64(len(transactions))}
+	result := &repository.BulkInsertResult{
+		Attempted:   int64(len(transactions)),
+		InsertedIDs: make([]string, 0, len(transactions)),
+	}
 
 	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
 	// Transaction has 15 columns, so 1000 rows = 15,000 parameters (under 65,535 limit)
@@ -332,7 +335,7 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 
 		end := min(i+chunkSize, len(transactions))
 
-		chunkInserted, err := r.insertTransactionChunk(ctx, db, transactions[i:end])
+		chunkResult, err := r.insertTransactionChunk(ctx, db, transactions[i:end])
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to insert transaction chunk", err)
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to insert transaction chunk: %v", err))
@@ -341,7 +344,8 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 			return result, err
 		}
 
-		result.Inserted += chunkInserted
+		result.Inserted += chunkResult.inserted
+		result.InsertedIDs = append(result.InsertedIDs, chunkResult.insertedIDs...)
 	}
 
 	result.Ignored = result.Attempted - result.Inserted
@@ -352,9 +356,16 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 	return result, nil
 }
 
+// chunkInsertResult holds the result of inserting a chunk of rows.
+type chunkInsertResult struct {
+	inserted    int64
+	insertedIDs []string
+}
+
 // insertTransactionChunk inserts a chunk of transactions using multi-row INSERT.
 // Uses repository.DBExecutor to work with both dbresolver.DB and dbresolver.Tx.
-func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Context, db repository.DBExecutor, transactions []*Transaction) (int64, error) {
+// Returns the count of inserted rows and their IDs for downstream filtering.
+func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Context, db repository.DBExecutor, transactions []*Transaction) (*chunkInsertResult, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.insert_transaction_chunk")
@@ -390,30 +401,55 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 		)
 	}
 
-	builder = builder.Suffix("ON CONFLICT (id) DO NOTHING")
+	builder = builder.Suffix("ON CONFLICT (id) DO NOTHING RETURNING id")
 
 	query, args, err := builder.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build bulk insert query", err)
 
-		return 0, err
+		return nil, err
 	}
 
-	execResult, err := db.ExecContext(ctx, query, args...)
+	// Use QueryContext to retrieve the RETURNING clause results
+	querier, ok := db.(repository.DBQuerier)
+	if !ok {
+		libOpentelemetry.HandleSpanError(span, "DBExecutor does not support QueryContext", repository.ErrQueryContextNotSupported)
+
+		return nil, repository.ErrQueryContextNotSupported
+	}
+
+	rows, err := querier.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to execute bulk insert", err)
 
-		return 0, err
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := &chunkInsertResult{
+		insertedIDs: make([]string, 0, len(transactions)),
 	}
 
-	rowsAffected, err := execResult.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to scan inserted ID", err)
 
-		return 0, err
+			return nil, err
+		}
+
+		result.insertedIDs = append(result.insertedIDs, id)
 	}
 
-	return rowsAffected, nil
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Error iterating inserted IDs", err)
+
+		return nil, err
+	}
+
+	result.inserted = int64(len(result.insertedIDs))
+
+	return result, nil
 }
 
 // UpdateBulk updates multiple transactions in bulk using multi-row UPDATE with ON CONFLICT.
