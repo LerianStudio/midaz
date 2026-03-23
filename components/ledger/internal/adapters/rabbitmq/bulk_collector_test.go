@@ -368,9 +368,9 @@ func TestBulkCollector_AddAfterStop(t *testing.T) {
 	msg := amqp.Delivery{Body: []byte("test")}
 	err := bc.Add(msg)
 
-	// Should return ErrCollectorNotStarted since collector has stopped
+	// Should return ErrCollectorStopped since collector has been stopped
 	assert.Error(t, err)
-	assert.Equal(t, ErrCollectorNotStarted, err)
+	assert.Equal(t, ErrCollectorStopped, err)
 }
 
 func TestBulkCollector_ManualFlush(t *testing.T) {

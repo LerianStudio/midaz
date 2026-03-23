@@ -31,6 +31,7 @@ var (
 // BulkCollector accumulates RabbitMQ messages for bulk processing.
 // It triggers a flush when the bulk size is reached or a timeout elapses.
 // Thread-safe for single goroutine use (designed for worker pattern).
+// The collector is single-use: once Stop() is called, it cannot be restarted.
 type BulkCollector struct {
 	mu                sync.Mutex
 	messages          []amqp.Delivery
@@ -42,6 +43,7 @@ type BulkCollector struct {
 	inputChan         chan amqp.Delivery
 	done              chan struct{}
 	started           bool
+	stopped           bool // terminal state, set by Stop()
 }
 
 // FlushCallbackFunc is called when the collector flushes accumulated messages.
@@ -96,6 +98,11 @@ func (bc *BulkCollector) SetFlushErrorHandler(handler FlushErrorHandler) {
 // Returns ErrCollectorStopped if the collector has been stopped.
 func (bc *BulkCollector) Add(msg amqp.Delivery) error {
 	bc.mu.Lock()
+	if bc.stopped {
+		bc.mu.Unlock()
+		return ErrCollectorStopped
+	}
+
 	if !bc.started {
 		bc.mu.Unlock()
 		return ErrCollectorNotStarted
@@ -122,9 +129,14 @@ func (bc *BulkCollector) Start(ctx context.Context) error {
 }
 
 // initStart validates and initializes the collector for starting.
+// Returns ErrCollectorStopped if the collector was previously stopped.
 func (bc *BulkCollector) initStart() error {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
+
+	if bc.stopped {
+		return ErrCollectorStopped
+	}
 
 	if bc.started {
 		return ErrCollectorAlreadyStarted
@@ -241,12 +253,16 @@ func (bc *BulkCollector) handleTimeout(ctx context.Context) {
 }
 
 // cleanupOnExit performs final flush and cleanup when the loop exits.
+// Drains any remaining messages from inputChan before performing the final flush.
 // Uses a fresh context with timeout for the final flush to ensure messages
 // are not dropped even if the original context was cancelled.
 func (bc *BulkCollector) cleanupOnExit(_ context.Context, timer *time.Timer) {
 	if timer != nil {
 		timer.Stop()
 	}
+
+	// Drain any remaining messages from inputChan to prevent message loss
+	bc.drainInputChan()
 
 	bc.mu.Lock()
 	if len(bc.messages) > 0 {
@@ -271,6 +287,26 @@ func (bc *BulkCollector) cleanupOnExit(_ context.Context, timer *time.Timer) {
 	bc.mu.Unlock()
 }
 
+// drainInputChan reads all remaining messages from inputChan and appends them to bc.messages.
+// This ensures no messages are lost when the collector shuts down.
+func (bc *BulkCollector) drainInputChan() {
+	for {
+		select {
+		case msg, ok := <-bc.inputChan:
+			if !ok {
+				return
+			}
+
+			bc.mu.Lock()
+			bc.messages = append(bc.messages, msg)
+			bc.mu.Unlock()
+		default:
+			// Channel is empty
+			return
+		}
+	}
+}
+
 // executeFlush invokes the flush callback with the given messages.
 // If the flush fails and an error handler is set, it will be called.
 func (bc *BulkCollector) executeFlush(ctx context.Context, messages []amqp.Delivery) {
@@ -285,17 +321,20 @@ func (bc *BulkCollector) executeFlush(ctx context.Context, messages []amqp.Deliv
 
 // Stop signals the collector to stop processing.
 // Any remaining messages will be flushed before returning.
+// Once stopped, the collector cannot be restarted.
 func (bc *BulkCollector) Stop() {
 	bc.mu.Lock()
-	if !bc.started {
+	if bc.stopped || !bc.started {
 		bc.mu.Unlock()
 		return
 	}
+
+	bc.stopped = true
 	bc.mu.Unlock()
 
 	select {
 	case <-bc.done:
-		// Already stopped
+		// Already closed
 	default:
 		close(bc.done)
 	}
