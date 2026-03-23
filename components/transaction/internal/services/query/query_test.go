@@ -7,11 +7,12 @@ package query
 import (
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/transaction"
+	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"

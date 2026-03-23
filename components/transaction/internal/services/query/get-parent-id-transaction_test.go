@@ -10,8 +10,9 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/transaction"
+	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"

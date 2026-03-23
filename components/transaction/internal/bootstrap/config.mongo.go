@@ -13,7 +13,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
+	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/transaction"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.mongodb.org/mongo-driver/bson"

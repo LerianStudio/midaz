@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
+	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/onboarding"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )

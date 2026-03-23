@@ -7,13 +7,13 @@ package query
 import (
 	"testing"
 
+	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
