@@ -17,8 +17,8 @@ import (
 // onboarding and transaction components, allowing direct access in unified ledger mode.
 //
 // Implementations:
-//   - onboarding/internal/adapters/mongodb.MetadataMongoDBRepository
-//   - transaction/internal/adapters/mongodb.MetadataMongoDBRepository
+//   - ledger/adapters/mongodb/onboarding.MetadataMongoDBRepository
+//   - ledger/adapters/mongodb/transaction.MetadataMongoDBRepository
 type MetadataIndexRepository interface {
 	// CreateIndex creates a new index on a metadata field in the specified collection.
 	// The collection parameter is the entity name (e.g., "transaction", "account").

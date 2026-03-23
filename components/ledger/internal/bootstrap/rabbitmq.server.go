@@ -1,0 +1,86 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package bootstrap
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/vmihailenco/msgpack/v5"
+
+	// MultiQueueConsumer represents a multi-queue consumer.
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+)
+
+type MultiQueueConsumer struct {
+	consumerRoutes *rabbitmq.ConsumerRoutes
+	UseCase        *command.UseCase
+}
+
+// NewMultiQueueConsumer create a new instance of MultiQueueConsumer.
+func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *command.UseCase) *MultiQueueConsumer {
+	consumer := &MultiQueueConsumer{
+		consumerRoutes: routes,
+		UseCase:        useCase,
+	}
+
+	// Registry handlers for each queue
+	routes.Register(os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"), consumer.handlerBTOQueue)
+
+	return consumer
+}
+
+// Run starts consumers for all registered queues.
+func (mq *MultiQueueConsumer) Run(l *libCommons.Launcher) error {
+	return mq.consumerRoutes.RunConsumers()
+}
+
+// handlerBTOQueue processes messages from the balance fifo queue, unmarshal the JSON, and update balances on database.
+func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) error {
+	return handlerBTO(ctx, body, mq.UseCase)
+}
+
+// handlerBTO is the standalone balance-transaction-operation handler.
+// It unmarshals the message and delegates to the use case for async processing.
+// Extracted as a package-level function so both the single-tenant MultiQueueConsumer
+// and the multi-tenant consumer can reuse the same logic.
+func handlerBTO(ctx context.Context, body []byte, useCase *command.UseCase) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update")
+	defer span.End()
+
+	logger.Log(ctx, libLog.LevelInfo, "Processing message from balance_retry_queue_fifo")
+
+	var message mmodel.Queue
+
+	err := msgpack.Unmarshal(body, &message)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Error unmarshalling message JSON", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error unmarshalling balance message JSON: %v", err))
+
+		return err
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction message consumed: %s", message.QueueData[0].ID))
+
+	err = useCase.CreateBalanceTransactionOperationsAsync(ctx, message)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Error creating transaction", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating transaction: %v", err))
+
+		return err
+	}
+
+	return nil
+}

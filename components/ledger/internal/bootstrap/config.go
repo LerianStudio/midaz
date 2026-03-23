@@ -7,6 +7,8 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
@@ -22,8 +25,10 @@ import (
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/transaction"
+	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
+	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -32,8 +37,11 @@ import (
 
 const ApplicationName = "ledger"
 
-// Config is the top level configuration struct for the unified ledger component.
+// Config is the unified configuration struct for the ledger component.
+// It merges all fields previously spread across onboarding, transaction, and ledger configs.
+// Prefixed fields (Onb*/Txn*) map to domain-specific env vars; shared fields use common env vars.
 type Config struct {
+	// --- Shared fields ---
 	ApplicationName string `env:"APPLICATION_NAME"`
 	EnvName         string `env:"ENV_NAME"`
 	LogLevel        string `env:"LOG_LEVEL"`
@@ -53,6 +61,31 @@ type Config struct {
 	// Auth configuration
 	AuthEnabled bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost    string `env:"PLUGIN_AUTH_HOST"`
+	JWKAddress  string `env:"CASDOOR_JWK_ADDRESS"`
+
+	// Redis configuration (shared across domains)
+	// Defaults are applied programmatically by applyConfigDefaults after env loading.
+	RedisHost                    string `env:"REDIS_HOST"`
+	RedisMasterName              string `env:"REDIS_MASTER_NAME"`
+	RedisPassword                string `env:"REDIS_PASSWORD"`
+	RedisDB                      int    `env:"REDIS_DB"`
+	RedisProtocol                int    `env:"REDIS_PROTOCOL"`
+	RedisTLS                     bool   `env:"REDIS_TLS"`
+	RedisCACert                  string `env:"REDIS_CA_CERT"`
+	RedisUseGCPIAM               bool   `env:"REDIS_USE_GCP_IAM"`
+	RedisServiceAccount          string `env:"REDIS_SERVICE_ACCOUNT"`
+	GoogleApplicationCredentials string `env:"GOOGLE_APPLICATION_CREDENTIALS"`
+	RedisTokenLifeTime           int    `env:"REDIS_TOKEN_LIFETIME"`
+	RedisTokenRefreshDuration    int    `env:"REDIS_TOKEN_REFRESH_DURATION"`
+	RedisPoolSize                int    `env:"REDIS_POOL_SIZE"`
+	RedisMinIdleConns            int    `env:"REDIS_MIN_IDLE_CONNS"`
+	RedisReadTimeout             int    `env:"REDIS_READ_TIMEOUT"`
+	RedisWriteTimeout            int    `env:"REDIS_WRITE_TIMEOUT"`
+	RedisDialTimeout             int    `env:"REDIS_DIAL_TIMEOUT"`
+	RedisPoolTimeout             int    `env:"REDIS_POOL_TIMEOUT"`
+	RedisMaxRetries              int    `env:"REDIS_MAX_RETRIES"`
+	RedisMinRetryBackoff         int    `env:"REDIS_MIN_RETRY_BACKOFF"`
+	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF"`
 
 	// Multi-tenant configuration
 	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED"`
@@ -60,36 +93,131 @@ type Config struct {
 	MultiTenantEnvironment              string `env:"MULTI_TENANT_ENVIRONMENT"`
 	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`
 	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"`
-	MultiTenantMaxTenantPools               int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
-	MultiTenantIdleTimeoutSec               int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
-	MultiTenantServiceAPIKey                string `env:"MULTI_TENANT_SERVICE_API_KEY"`
-	MultiTenantSettingsCheckIntervalSec     int    `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"` // seconds between tenant config revalidation checks
+	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
+	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
+	MultiTenantServiceAPIKey            string `env:"MULTI_TENANT_SERVICE_API_KEY"`
+	MultiTenantSettingsCheckIntervalSec int    `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"`
+
+	// --- Onboarding PostgreSQL fields (DB_ONBOARDING_* env tags) ---
+	OnbPrefixedPrimaryDBHost     string `env:"DB_ONBOARDING_HOST"`
+	OnbPrefixedPrimaryDBUser     string `env:"DB_ONBOARDING_USER"`
+	OnbPrefixedPrimaryDBPassword string `env:"DB_ONBOARDING_PASSWORD"`
+	OnbPrefixedPrimaryDBName     string `env:"DB_ONBOARDING_NAME"`
+	OnbPrefixedPrimaryDBPort     string `env:"DB_ONBOARDING_PORT"`
+	OnbPrefixedPrimaryDBSSLMode  string `env:"DB_ONBOARDING_SSLMODE"`
+
+	OnbPrefixedReplicaDBHost     string `env:"DB_ONBOARDING_REPLICA_HOST"`
+	OnbPrefixedReplicaDBUser     string `env:"DB_ONBOARDING_REPLICA_USER"`
+	OnbPrefixedReplicaDBPassword string `env:"DB_ONBOARDING_REPLICA_PASSWORD"`
+	OnbPrefixedReplicaDBName     string `env:"DB_ONBOARDING_REPLICA_NAME"`
+	OnbPrefixedReplicaDBPort     string `env:"DB_ONBOARDING_REPLICA_PORT"`
+	OnbPrefixedReplicaDBSSLMode  string `env:"DB_ONBOARDING_REPLICA_SSLMODE"`
+
+	OnbPrefixedMaxOpenConnections int `env:"DB_ONBOARDING_MAX_OPEN_CONNS"`
+	OnbPrefixedMaxIdleConnections int `env:"DB_ONBOARDING_MAX_IDLE_CONNS"`
+
+	// --- Transaction PostgreSQL fields (DB_TRANSACTION_* env tags) ---
+	TxnPrefixedPrimaryDBHost     string `env:"DB_TRANSACTION_HOST"`
+	TxnPrefixedPrimaryDBUser     string `env:"DB_TRANSACTION_USER"`
+	TxnPrefixedPrimaryDBPassword string `env:"DB_TRANSACTION_PASSWORD"`
+	TxnPrefixedPrimaryDBName     string `env:"DB_TRANSACTION_NAME"`
+	TxnPrefixedPrimaryDBPort     string `env:"DB_TRANSACTION_PORT"`
+	TxnPrefixedPrimaryDBSSLMode  string `env:"DB_TRANSACTION_SSLMODE"`
+
+	TxnPrefixedReplicaDBHost     string `env:"DB_TRANSACTION_REPLICA_HOST"`
+	TxnPrefixedReplicaDBUser     string `env:"DB_TRANSACTION_REPLICA_USER"`
+	TxnPrefixedReplicaDBPassword string `env:"DB_TRANSACTION_REPLICA_PASSWORD"`
+	TxnPrefixedReplicaDBName     string `env:"DB_TRANSACTION_REPLICA_NAME"`
+	TxnPrefixedReplicaDBPort     string `env:"DB_TRANSACTION_REPLICA_PORT"`
+	TxnPrefixedReplicaDBSSLMode  string `env:"DB_TRANSACTION_REPLICA_SSLMODE"`
+
+	TxnPrefixedMaxOpenConnections int `env:"DB_TRANSACTION_MAX_OPEN_CONNS"`
+	TxnPrefixedMaxIdleConnections int `env:"DB_TRANSACTION_MAX_IDLE_CONNS"`
+
+	// --- Onboarding MongoDB fields (MONGO_ONBOARDING_* env tags) ---
+	OnbPrefixedMongoURI          string `env:"MONGO_ONBOARDING_URI"`
+	OnbPrefixedMongoDBHost       string `env:"MONGO_ONBOARDING_HOST"`
+	OnbPrefixedMongoDBName       string `env:"MONGO_ONBOARDING_NAME"`
+	OnbPrefixedMongoDBUser       string `env:"MONGO_ONBOARDING_USER"`
+	OnbPrefixedMongoDBPassword   string `env:"MONGO_ONBOARDING_PASSWORD"`
+	OnbPrefixedMongoDBPort       string `env:"MONGO_ONBOARDING_PORT"`
+	OnbPrefixedMongoDBParameters string `env:"MONGO_ONBOARDING_PARAMETERS"`
+	OnbPrefixedMaxPoolSize       int    `env:"MONGO_ONBOARDING_MAX_POOL_SIZE"`
+
+	// --- Transaction MongoDB fields (MONGO_TRANSACTION_* env tags) ---
+	TxnPrefixedMongoURI          string `env:"MONGO_TRANSACTION_URI"`
+	TxnPrefixedMongoDBHost       string `env:"MONGO_TRANSACTION_HOST"`
+	TxnPrefixedMongoDBName       string `env:"MONGO_TRANSACTION_NAME"`
+	TxnPrefixedMongoDBUser       string `env:"MONGO_TRANSACTION_USER"`
+	TxnPrefixedMongoDBPassword   string `env:"MONGO_TRANSACTION_PASSWORD"`
+	TxnPrefixedMongoDBPort       string `env:"MONGO_TRANSACTION_PORT"`
+	TxnPrefixedMongoDBParameters string `env:"MONGO_TRANSACTION_PARAMETERS"`
+	TxnPrefixedMaxPoolSize       int    `env:"MONGO_TRANSACTION_MAX_POOL_SIZE"`
+
+	// --- RabbitMQ (transaction domain only) ---
+	RabbitURI                                string `env:"RABBITMQ_URI"`
+	RabbitMQHost                             string `env:"RABBITMQ_HOST"`
+	RabbitMQPortHost                         string `env:"RABBITMQ_PORT_HOST"`
+	RabbitMQPortAMQP                         string `env:"RABBITMQ_PORT_AMQP"`
+	RabbitMQUser                             string `env:"RABBITMQ_DEFAULT_USER"`
+	RabbitMQPass                             string `env:"RABBITMQ_DEFAULT_PASS"`
+	RabbitMQConsumerUser                     string `env:"RABBITMQ_CONSUMER_USER"`
+	RabbitMQConsumerPass                     string `env:"RABBITMQ_CONSUMER_PASS"`
+	RabbitMQVHost                            string `env:"RABBITMQ_VHOST"`
+	RabbitMQNumbersOfWorkers                 int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
+	RabbitMQNumbersOfPrefetch                int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
+	RabbitMQHealthCheckURL                   string `env:"RABBITMQ_HEALTH_CHECK_URL"`
+	RabbitMQTLS                              bool   `env:"RABBITMQ_TLS"`
+	RabbitMQTransactionBalanceOperationQueue string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"`
+
+	// Circuit Breaker configuration for RabbitMQ
+	RabbitMQCircuitBreakerConsecutiveFailures int    `env:"RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES"`
+	RabbitMQCircuitBreakerFailureRatio        int    `env:"RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO"`
+	RabbitMQCircuitBreakerInterval            int    `env:"RABBITMQ_CIRCUIT_BREAKER_INTERVAL"`
+	RabbitMQCircuitBreakerMaxRequests         int    `env:"RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS"`
+	RabbitMQCircuitBreakerMinRequests         int    `env:"RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS"`
+	RabbitMQCircuitBreakerTimeout             int    `env:"RABBITMQ_CIRCUIT_BREAKER_TIMEOUT"`
+	RabbitMQCircuitBreakerHealthCheckInterval int    `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_INTERVAL"`
+	RabbitMQCircuitBreakerHealthCheckTimeout  int    `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_TIMEOUT"`
+	RabbitMQOperationTimeout                  string `env:"RABBITMQ_OPERATION_TIMEOUT"`
+	RabbitMQMultiTenantSyncInterval           int    `env:"RABBITMQ_MULTI_TENANT_SYNC_INTERVAL"`
+	RabbitMQMultiTenantDiscoveryTimeout       int    `env:"RABBITMQ_MULTI_TENANT_DISCOVERY_TIMEOUT"`
+
+	// --- Balance/Worker fields ---
+	BalanceSyncWorkerEnabled bool `env:"BALANCE_SYNC_WORKER_ENABLED"`
+	BalanceSyncMaxWorkers    int  `env:"BALANCE_SYNC_MAX_WORKERS"`
+
+	// --- Settings ---
+	SettingsCacheTTL string `env:"SETTINGS_CACHE_TTL"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
 type Options struct {
-	// Logger allows callers to provide a pre-configured logger, avoiding multiple
-	// initializations when composing components (e.g. unified ledger).
+	// Logger allows callers to provide a pre-configured logger.
 	Logger libLog.Logger
 
 	// CircuitBreakerStateListener receives notifications when circuit breaker state changes.
-	// This is optional - pass nil if you don't need state change notifications.
 	CircuitBreakerStateListener libCircuitBreaker.StateChangeListener
 
 	// TenantClient is the tenant manager client for multi-tenant mode.
-	// Nil when multi-tenant is disabled.
 	TenantClient *tmclient.Client
+
+	// Multi-tenant configuration (resolved from Config during init).
+	MultiTenantEnabled       bool
+	TenantServiceName        string
+	TenantEnvironment        string
+	TenantManagerURL         string
+	MultiTenantServiceAPIKey string
 }
 
-// InitServers initializes the unified ledger service that composes
-// both onboarding and transaction modules in a single process.
-// The transaction module is initialized first so its BalancePort (the UseCase)
-// can be passed directly to onboarding for in-process calls.
+// InitServers initializes the unified ledger service.
 func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
 }
 
 // InitServersWithOptions initializes the unified ledger service with optional dependency injection.
+// It directly initializes all infrastructure (PG, Mongo, Redis, RabbitMQ) instead of delegating
+// to onboarding/transaction sub-modules.
 func InitServersWithOptions(opts *Options) (*Service, error) {
 	cfg := &Config{}
 
@@ -97,11 +225,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
 
+	applyConfigDefaults(cfg)
+
 	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
 		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
 			"running multi-tenant mode without authentication allows cross-tenant data access")
 	}
 
+	// Logger: use injected or create fresh
 	var baseLogger libLog.Logger
 	if opts != nil && opts.Logger != nil {
 		baseLogger = opts.Logger
@@ -109,7 +240,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		var err error
 
 		baseLogger, err = libZap.New(libZap.Config{
-			Environment:     libZap.EnvironmentDevelopment,
+			Environment:     resolveLoggerEnvironment(cfg.EnvName),
 			Level:           cfg.LogLevel,
 			OTelLibraryName: cfg.OtelLibraryName,
 		})
@@ -118,6 +249,20 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		}
 	}
 
+	// Generate startup ID for tracing initialization issues
+	startupID := uuid.New().String()
+
+	logger := baseLogger.With(
+		libLog.String("component", ApplicationName),
+		libLog.String("startup_id", startupID),
+	)
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Starting unified ledger component",
+		libLog.String("version", cfg.Version),
+		libLog.String("env", cfg.EnvName),
+	)
+
+	// Telemetry
 	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
@@ -131,28 +276,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
 
-	// Generate startup ID for tracing initialization issues
-	startupID := uuid.New().String()
-
-	ledgerLogger := baseLogger.With(
-		libLog.String("component", "ledger"),
-		libLog.String("startup_id", startupID),
-	)
-	transactionLogger := baseLogger.With(
-		libLog.String("component", "transaction"),
-		libLog.String("startup_id", startupID),
-	)
-	onboardingLogger := baseLogger.With(
-		libLog.String("component", "onboarding"),
-		libLog.String("startup_id", startupID),
-	)
-
-	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Starting unified ledger component",
-		libLog.String("version", cfg.Version),
-		libLog.String("env", cfg.EnvName),
-	)
-
-	// Multi-tenant setup: prefer injected client from Options, fall back to config-based creation.
+	// Multi-tenant client setup
 	var tenantClient *tmclient.Client
 
 	var tenantServiceName string
@@ -163,234 +287,438 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	} else {
 		var err error
 
-		tenantClient, tenantServiceName, err = initTenantClient(cfg, ledgerLogger)
+		tenantClient, tenantServiceName, err = initTenantClient(cfg, logger)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Initializing transaction module...")
-
-	var stateListener libCircuitBreaker.StateChangeListener
-
-	if opts != nil {
-		stateListener = opts.CircuitBreakerStateListener
+	// Validate TenantServiceName early so that workers fail fast on misconfiguration
+	if cfg.MultiTenantEnabled {
+		tenantServiceName = strings.TrimSpace(tenantServiceName)
+		if tenantServiceName == "" {
+			return nil, fmt.Errorf("TenantServiceName must not be empty when multi-tenant is enabled")
+		}
 	}
 
-	transactionOpts := &transaction.Options{
-		Logger:                      transactionLogger,
-		CircuitBreakerStateListener: stateListener,
+	// Build internal options struct used by init functions
+	internalOpts := &Options{
 		MultiTenantEnabled:          cfg.MultiTenantEnabled,
 		TenantClient:                tenantClient,
 		TenantServiceName:           tenantServiceName,
 		TenantEnvironment:           cfg.MultiTenantEnvironment,
 		TenantManagerURL:            strings.TrimSpace(cfg.MultiTenantURL),
 		MultiTenantServiceAPIKey:    strings.TrimSpace(cfg.MultiTenantServiceAPIKey),
+		CircuitBreakerStateListener: nil,
+	}
+	if opts != nil {
+		internalOpts.CircuitBreakerStateListener = opts.CircuitBreakerStateListener
 	}
 
-	// Initialize transaction module first to get the BalancePort
-	transactionService, err := transaction.InitServiceWithOptionsOrError(transactionOpts)
+	// === Infrastructure initialization ===
+
+	// Cleanup helper: on error, close resources in reverse order of creation.
+	var cleanups []func()
+
+	addCleanup := func(fn func()) { cleanups = append(cleanups, fn) }
+	doCleanup := func() {
+		for i := len(cleanups) - 1; i >= 0; i-- {
+			cleanups[i]()
+		}
+	}
+
+	// 1. Onboarding PostgreSQL → 7 repos
+	logger.Log(context.Background(), libLog.LevelInfo, "Initializing onboarding PostgreSQL...")
+
+	onbPG, err := initOnboardingPostgres(internalOpts, cfg, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize transaction module: %w", err)
+		return nil, fmt.Errorf("failed to initialize onboarding PostgreSQL: %w", err)
 	}
 
-	// Get the BalancePort from transaction for in-process communication
-	// This is the transaction.UseCase itself which implements BalancePort directly
-	balancePort := transactionService.GetBalancePort()
+	addCleanup(func() { _ = onbPG.connection.Close() })
 
-	// Get the metadata port from transaction for metadata index operations
-	transactionMetadataRepo := transactionService.GetMetadataIndexPort()
-	if transactionMetadataRepo == nil {
-		return nil, fmt.Errorf("failed to get MetadataIndexPort from transaction module")
-	}
+	// 2. Transaction PostgreSQL → 6 repos
+	logger.Log(context.Background(), libLog.LevelInfo, "Initializing transaction PostgreSQL...")
 
-	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Transaction module initialized, BalancePort and MetadataIndexPort available for in-process calls")
-
-	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Initializing onboarding module in UNIFIED MODE...")
-
-	// Initialize onboarding module in unified mode with the BalancePort for direct calls
-	// No intermediate adapter needed - the transaction.UseCase is passed directly
-	onboardingService, err := onboarding.InitServiceWithOptionsOrError(&onboarding.Options{
-		Logger:             onboardingLogger,
-		UnifiedMode:        true,
-		BalancePort:        balancePort,
-		MultiTenantEnabled: cfg.MultiTenantEnabled,
-		TenantClient:       tenantClient,
-		TenantServiceName:  tenantServiceName,
-		TenantEnvironment:  cfg.MultiTenantEnvironment,
-	})
+	txnPG, err := initTransactionPostgres(internalOpts, cfg, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize onboarding module: %w", err)
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize transaction PostgreSQL: %w", err)
 	}
 
-	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Onboarding module initialized")
+	addCleanup(func() { _ = txnPG.connection.Close() })
 
-	// Get the metadata port from onboarding for metadata index operations
-	onboardingMetadataRepo := onboardingService.GetMetadataIndexPort()
-	if onboardingMetadataRepo == nil {
-		return nil, fmt.Errorf("failed to get MetadataIndexPort from onboarding module")
-	}
+	// 3. Onboarding MongoDB → metadata repo
+	logger.Log(context.Background(), libLog.LevelInfo, "Initializing onboarding MongoDB...")
 
-	// Wire the SettingsPort from onboarding to transaction for ledger settings queries
-	// This resolves the circular dependency: transaction is initialized first (for BalancePort),
-	// then onboarding (with BalancePort), then SettingsPort is wired back to transaction.
-	settingsPort := onboardingService.GetSettingsPort()
-	if settingsPort == nil {
-		return nil, fmt.Errorf("failed to get SettingsPort from onboarding module")
-	}
-
-	transactionService.SetSettingsPort(settingsPort)
-
-	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "SettingsPort wired from onboarding to transaction for in-process settings queries")
-
-	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Both metadata index repositories available for settings routes")
-
-	routeSetup, err := buildUnifiedRouteSetup(cfg, ledgerLogger, onboardingService, transactionService)
+	onbMgo, err := initOnboardingMongo(internalOpts, cfg, logger)
 	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize onboarding MongoDB: %w", err)
+	}
+
+	if onbMgo.connection != nil {
+		addCleanup(func() { _ = onbMgo.connection.Close(context.Background()) })
+	}
+
+	// 4. Transaction MongoDB → metadata repo
+	logger.Log(context.Background(), libLog.LevelInfo, "Initializing transaction MongoDB...")
+
+	txnMgo, err := initTransactionMongo(internalOpts, cfg, logger)
+	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize transaction MongoDB: %w", err)
+	}
+
+	if txnMgo.connection != nil {
+		addCleanup(func() { _ = txnMgo.connection.Close(context.Background()) })
+	}
+
+	// 5. Redis (shared connection, two consumer repos)
+	logger.Log(context.Background(), libLog.LevelInfo, "Initializing Redis...")
+
+	redisConnection, err := initRedisConnection(cfg, logger)
+	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize Redis: %w", err)
+	}
+
+	addCleanup(func() { _ = redisConnection.Close() })
+
+	onbRedisRepo, err := onbRedis.NewConsumerRedis(redisConnection)
+	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize onboarding redis consumer: %w", err)
+	}
+
+	txnRedisRepo, err := txRedis.NewConsumerRedis(redisConnection)
+	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize transaction redis consumer: %w", err)
+	}
+
+	// 6. RabbitMQ → producer + consumer
+	logger.Log(context.Background(), libLog.LevelInfo, "Initializing RabbitMQ...")
+
+	rmq, err := initRabbitMQ(internalOpts, cfg, logger, telemetry, redisConnection)
+	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize RabbitMQ: %w", err)
+	}
+
+	if rmq != nil && rmq.producerRepo != nil {
+		addCleanup(func() { _ = rmq.producerRepo.Close() })
+	}
+
+	// Pass PG and Mongo managers to RabbitMQ components for per-message tenant resolution
+	if rmq != nil {
+		rmq.pgManager = txnPG.pgManager
+		rmq.mongoManager = txnMgo.mongoManager
+	}
+
+	// === Use cases ===
+
+	settingsCacheTTL := resolveSettingsCacheTTL(cfg, logger)
+
+	commandUseCase := &command.UseCase{
+		// Onboarding domain
+		OrganizationRepo:       onbPG.organizationRepo,
+		LedgerRepo:             onbPG.ledgerRepo,
+		SegmentRepo:            onbPG.segmentRepo,
+		PortfolioRepo:          onbPG.portfolioRepo,
+		AccountRepo:            onbPG.accountRepo,
+		AssetRepo:              onbPG.assetRepo,
+		AccountTypeRepo:        onbPG.accountTypeRepo,
+		OnboardingMetadataRepo: onbMgo.metadataRepo,
+		OnboardingRedisRepo:    onbRedisRepo,
+		// Transaction domain
+		TransactionRepo:         txnPG.transactionRepo,
+		OperationRepo:           txnPG.operationRepo,
+		AssetRateRepo:           txnPG.assetRateRepo,
+		BalanceRepo:             txnPG.balanceRepo,
+		OperationRouteRepo:      txnPG.operationRouteRepo,
+		TransactionRouteRepo:    txnPG.transactionRouteRepo,
+		TransactionMetadataRepo: txnMgo.metadataRepo,
+		RabbitMQRepo:            rmq.producerRepo,
+		TransactionRedisRepo:    txnRedisRepo,
+		// Settings
+		SettingsCacheTTL: settingsCacheTTL,
+	}
+
+	queryUseCase := &query.UseCase{
+		// Onboarding domain
+		OrganizationRepo:       onbPG.organizationRepo,
+		LedgerRepo:             onbPG.ledgerRepo,
+		SegmentRepo:            onbPG.segmentRepo,
+		PortfolioRepo:          onbPG.portfolioRepo,
+		AccountRepo:            onbPG.accountRepo,
+		AssetRepo:              onbPG.assetRepo,
+		AccountTypeRepo:        onbPG.accountTypeRepo,
+		OnboardingMetadataRepo: onbMgo.metadataRepo,
+		OnboardingRedisRepo:    onbRedisRepo,
+		// Transaction domain
+		TransactionRepo:         txnPG.transactionRepo,
+		OperationRepo:           txnPG.operationRepo,
+		AssetRateRepo:           txnPG.assetRateRepo,
+		BalanceRepo:             txnPG.balanceRepo,
+		OperationRouteRepo:      txnPG.operationRouteRepo,
+		TransactionRouteRepo:    txnPG.transactionRouteRepo,
+		TransactionMetadataRepo: txnMgo.metadataRepo,
+		RabbitMQRepo:            rmq.producerRepo,
+		TransactionRedisRepo:    txnRedisRepo,
+		// Settings
+		SettingsCacheTTL: settingsCacheTTL,
+	}
+
+	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
+	if err := rmq.wireConsumer(commandUseCase); err != nil {
+		doCleanup()
 		return nil, err
 	}
 
-	// Create auth client for metadata index routes
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
+	// === Handlers ===
 
-	// Create metadata index handler with both repositories
+	// Onboarding handlers
+	accountHandler := &httpin.AccountHandler{Command: commandUseCase, Query: queryUseCase}
+	portfolioHandler := &httpin.PortfolioHandler{Command: commandUseCase, Query: queryUseCase}
+	ledgerHandler := &httpin.LedgerHandler{Command: commandUseCase, Query: queryUseCase}
+	assetHandler := &httpin.AssetHandler{Command: commandUseCase, Query: queryUseCase}
+	organizationHandler := &httpin.OrganizationHandler{Command: commandUseCase, Query: queryUseCase}
+	segmentHandler := &httpin.SegmentHandler{Command: commandUseCase, Query: queryUseCase}
+	accountTypeHandler := &httpin.AccountTypeHandler{Command: commandUseCase, Query: queryUseCase}
+
+	// Transaction handlers
+	transactionHandler := &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase}
+	operationHandler := &httpin.OperationHandler{Command: commandUseCase, Query: queryUseCase}
+	assetRateHandler := &httpin.AssetRateHandler{Command: commandUseCase, Query: queryUseCase}
+	balanceHandler := &httpin.BalanceHandler{Command: commandUseCase, Query: queryUseCase}
+	operationRouteHandler := &httpin.OperationRouteHandler{Command: commandUseCase, Query: queryUseCase}
+	transactionRouteHandler := &httpin.TransactionRouteHandler{Command: commandUseCase, Query: queryUseCase}
+
+	// Metadata index handler (ledger-specific)
 	metadataIndexHandler := &httpin.MetadataIndexHandler{
-		OnboardingMetadataRepo:  onboardingMetadataRepo,
-		TransactionMetadataRepo: transactionMetadataRepo,
-		OnboardingMongoManager:  routeSetup.onboardingMongoManager,
-		TransactionMongoManager: routeSetup.transactionMongoManager,
+		OnboardingMetadataRepo:  onbMgo.metadataRepo,
+		TransactionMetadataRepo: txnMgo.metadataRepo,
+		OnboardingMongoManager:  onbMgo.mongoManager,
+		TransactionMongoManager: txnMgo.mongoManager,
 	}
 
-	// Create route registrar for ledger-specific routes (metadata indexes)
+	// Auth
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, nil)
+
+	// === Multi-tenant middleware ===
+
+	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager)
+	if err != nil {
+		doCleanup()
+		return nil, err
+	}
+
+	// === Route registrars ===
+
+	onboardingRouteRegistrar := func(router fiber.Router) {
+		httpin.RegisterOnboardingRoutesToApp(router, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler, routeSetup.onboardingRouteOptions)
+	}
+
+	transactionRouteRegistrar := func(router fiber.Router) {
+		httpin.RegisterTransactionRoutesToApp(router, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler, routeSetup.transactionRouteOptions)
+	}
+
 	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
 
-	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
+	logger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
-	// Create the unified server that consolidates all routes on a single port
+	// === Unified server ===
+
 	unifiedServer := NewUnifiedServer(
 		cfg.ServerAddress,
-		ledgerLogger,
+		logger,
 		telemetry,
-		onboardingService.GetRouteRegistrar(routeSetup.onboardingRouteOptions),
-		transactionService.GetRouteRegistrar(routeSetup.transactionRouteOptions),
+		onboardingRouteRegistrar,
+		transactionRouteRegistrar,
 		ledgerRouteRegistrar,
 	)
 
-	ledgerLogger.Log(context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
+	// === Workers ===
+
+	// BALANCE_SYNC_WORKER_ENABLED is deprecated - balance sync is always enabled
+	logger.Log(context.Background(), libLog.LevelInfo, "BalanceSyncWorker: always enabled (BALANCE_SYNC_WORKER_ENABLED env var is deprecated)")
+
+	// RedisQueueConsumer: multi-tenant or single-tenant
+	var redisConsumer *RedisQueueConsumer
+	if cfg.MultiTenantEnabled {
+		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, tenantClient, txnPG.pgManager, tenantServiceName)
+	} else {
+		redisConsumer = NewRedisQueueConsumer(logger, *transactionHandler)
+	}
+
+	// BalanceSyncWorker: multi-tenant or single-tenant
+	balanceSyncWorker := initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, redisConnection, txnPG.pgManager, tenantServiceName)
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
 		libLog.String("version", cfg.Version),
 		libLog.String("env", cfg.EnvName),
 		libLog.String("server_address", cfg.ServerAddress),
 	)
 
 	return &Service{
-		OnboardingService:  onboardingService,
-		TransactionService: transactionService,
-		UnifiedServer:      unifiedServer,
-		Logger:             ledgerLogger,
-		Telemetry:          telemetry,
+		UnifiedServer:         unifiedServer,
+		MultiQueueConsumer:    rmq.multiQueueConsumer,
+		MultiTenantConsumer:   rmq.multiTenantConsumer,
+		RedisQueueConsumer:    redisConsumer,
+		BalanceSyncWorker:     balanceSyncWorker,
+		CircuitBreakerManager: rmq.circuitBreakerManager,
+		Logger:                logger,
+		Telemetry:             telemetry,
+		metricsFactory:        rmq.metricsFactory,
 	}, nil
 }
 
-type unifiedRouteSetup struct {
-	onboardingRouteOptions  *midazhttp.ProtectedRouteOptions
-	transactionRouteOptions *midazhttp.ProtectedRouteOptions
-	ledgerRouteOptions      *midazhttp.ProtectedRouteOptions
-	onboardingMongoManager  *tmmongo.Manager
-	transactionMongoManager *tmmongo.Manager
+// resolveLoggerEnvironment maps an env name to a libZap environment constant.
+func resolveLoggerEnvironment(env string) libZap.Environment {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case string(libZap.EnvironmentProduction):
+		return libZap.EnvironmentProduction
+	case string(libZap.EnvironmentStaging):
+		return libZap.EnvironmentStaging
+	case string(libZap.EnvironmentUAT):
+		return libZap.EnvironmentUAT
+	case string(libZap.EnvironmentLocal):
+		return libZap.EnvironmentLocal
+	default:
+		return libZap.EnvironmentDevelopment
+	}
 }
 
-func buildUnifiedRouteSetup(
-	cfg *Config,
-	logger libLog.Logger,
-	onboardingService onboarding.OnboardingService,
-	transactionService transaction.TransactionService,
-) (*unifiedRouteSetup, error) {
-	setup := &unifiedRouteSetup{}
-	if !cfg.MultiTenantEnabled {
-		return setup, nil
+// resolveSettingsCacheTTL parses the SETTINGS_CACHE_TTL configuration value.
+func resolveSettingsCacheTTL(cfg *Config, logger libLog.Logger) time.Duration {
+	const defaultSettingsCacheTTL = 5 * time.Minute
+
+	if cfg.SettingsCacheTTL == "" {
+		return defaultSettingsCacheTTL
 	}
 
-	onboardingPGManager, ok := onboardingService.GetPGManager().(*tmpostgres.Manager)
-	if !ok || onboardingPGManager == nil {
-		return nil, fmt.Errorf("onboarding multi-tenant PostgreSQL manager not available")
+	parsed, err := time.ParseDuration(cfg.SettingsCacheTTL)
+	if err != nil || parsed <= 0 {
+		logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("Invalid SETTINGS_CACHE_TTL value '%s', using default %v", cfg.SettingsCacheTTL, defaultSettingsCacheTTL))
+
+		return defaultSettingsCacheTTL
 	}
 
-	onboardingMongoManager, ok := onboardingService.GetMongoManager().(*tmmongo.Manager)
-	if !ok || onboardingMongoManager == nil {
-		return nil, fmt.Errorf("onboarding multi-tenant MongoDB manager not available")
+	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Settings cache TTL configured: %v", parsed))
+
+	return parsed
+}
+
+// buildRedisConfig creates a Redis configuration from Config fields.
+func buildRedisConfig(cfg *Config, logger libLog.Logger) (libRedis.Config, error) {
+	redisAddresses := strings.Split(cfg.RedisHost, ",")
+
+	if len(redisAddresses) == 0 || strings.TrimSpace(redisAddresses[0]) == "" {
+		return libRedis.Config{}, fmt.Errorf("redis host is required")
 	}
 
-	transactionPGManager, ok := transactionService.GetPGManager().(*tmpostgres.Manager)
-	if !ok || transactionPGManager == nil {
-		return nil, fmt.Errorf("transaction multi-tenant PostgreSQL manager not available")
+	topology := libRedis.Topology{}
+	if cfg.RedisMasterName != "" {
+		topology.Sentinel = &libRedis.SentinelTopology{Addresses: redisAddresses, MasterName: cfg.RedisMasterName}
+	} else if len(redisAddresses) > 1 {
+		topology.Cluster = &libRedis.ClusterTopology{Addresses: redisAddresses}
+	} else {
+		topology.Standalone = &libRedis.StandaloneTopology{Address: redisAddresses[0]}
 	}
 
-	// Build onboarding middleware with cross-module injection so that
-	// in-process calls from onboarding into the transaction module
-	// (e.g. CreateAccount → CreateBalanceSync) find the "transaction"
-	// PG connection already present in the request context.
-	onboardingMiddleware := tmmiddleware.NewMultiPoolMiddleware(
-		tmmiddleware.WithDefaultRoute("onboarding", onboardingPGManager, onboardingMongoManager),
-		tmmiddleware.WithRoute(nil, "transaction", transactionPGManager, nil),
-		tmmiddleware.WithCrossModuleInjection(),
-		tmmiddleware.WithMultiPoolLogger(logger),
-		tmmiddleware.WithErrorMapper(midazErrorMapper),
-	)
-
-	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
-		libLog.String("module", "onboarding"),
-		libLog.Bool("cross_module_injection", true),
-	)
-
-	transactionMongoManager, ok := transactionService.GetMongoManager().(*tmmongo.Manager)
-	if !ok || transactionMongoManager == nil {
-		return nil, fmt.Errorf("transaction multi-tenant MongoDB manager not available")
+	var tlsCfg *libRedis.TLSConfig
+	if cfg.RedisTLS {
+		tlsCfg = &libRedis.TLSConfig{CACertBase64: cfg.RedisCACert}
 	}
 
-	// Build transaction middleware with cross-module injection so that
-	// in-process calls from transaction into the onboarding module
-	// (e.g. GetLedgerSettings → SettingsPort → LedgerRepo) find the "onboarding"
-	// PG connection already present in the request context.
-	transactionMiddleware := tmmiddleware.NewMultiPoolMiddleware(
-		tmmiddleware.WithDefaultRoute("transaction", transactionPGManager, transactionMongoManager),
-		tmmiddleware.WithRoute(nil, "onboarding", onboardingPGManager, nil),
-		tmmiddleware.WithCrossModuleInjection(),
-		tmmiddleware.WithMultiPoolLogger(logger),
-		tmmiddleware.WithErrorMapper(midazErrorMapper),
-	)
+	auth := libRedis.Auth{}
+	if cfg.RedisUseGCPIAM {
+		auth = libRedis.Auth{GCPIAM: &libRedis.GCPIAMAuth{
+			CredentialsBase64: cfg.GoogleApplicationCredentials,
+			ServiceAccount:    cfg.RedisServiceAccount,
+			TokenLifetime:     time.Duration(cfg.RedisTokenLifeTime) * time.Minute,
+			RefreshEvery:      time.Duration(cfg.RedisTokenRefreshDuration) * time.Minute,
+		}}
+	} else if cfg.RedisPassword != "" {
+		auth = libRedis.Auth{StaticPassword: &libRedis.StaticPasswordAuth{Password: cfg.RedisPassword}}
+	}
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
-		libLog.String("module", "transaction"),
-		libLog.Bool("cross_module_injection", true),
-	)
+	return libRedis.Config{
+		Topology: topology,
+		TLS:      tlsCfg,
+		Auth:     auth,
+		Options: libRedis.ConnectionOptions{
+			DB:              cfg.RedisDB,
+			Protocol:        cfg.RedisProtocol,
+			PoolSize:        cfg.RedisPoolSize,
+			MinIdleConns:    cfg.RedisMinIdleConns,
+			ReadTimeout:     time.Duration(cfg.RedisReadTimeout) * time.Second,
+			WriteTimeout:    time.Duration(cfg.RedisWriteTimeout) * time.Second,
+			DialTimeout:     time.Duration(cfg.RedisDialTimeout) * time.Second,
+			PoolTimeout:     time.Duration(cfg.RedisPoolTimeout) * time.Second,
+			MaxRetries:      cfg.RedisMaxRetries,
+			MinRetryBackoff: time.Duration(cfg.RedisMinRetryBackoff) * time.Millisecond,
+			MaxRetryBackoff: time.Duration(cfg.RedisMaxRetryBackoff) * time.Second,
+		},
+		Logger: logger,
+	}, nil
+}
 
-	var err error
-
-	setup.onboardingMongoManager, err = requireMongoManager("onboarding", onboardingService.GetMongoManager())
+// initRedisConnection creates the shared Redis connection used by both onboarding and transaction.
+func initRedisConnection(cfg *Config, logger libLog.Logger) (*libRedis.Client, error) {
+	redisConfig, err := buildRedisConfig(cfg, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	setup.transactionMongoManager, err = requireMongoManager("transaction", transactionService.GetMongoManager())
+	redisConnection, err := libRedis.New(context.Background(), redisConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize redis client: %w", err)
 	}
 
-	authAssertion := midazhttp.MarkTrustedAuthAssertion()
+	return redisConnection, nil
+}
 
-	setup.onboardingRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, onboardingMiddleware.WithTenantDB},
+// initBalanceSyncWorker creates the balance sync worker (multi-tenant or single-tenant).
+func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, redisConn *libRedis.Client, pgManager *tmpostgres.Manager, tenantServiceName string) *BalanceSyncWorker {
+	const defaultBalanceSyncMaxWorkers = 5
+
+	balanceSyncMaxWorkers := cfg.BalanceSyncMaxWorkers
+
+	if balanceSyncMaxWorkers <= 0 {
+		balanceSyncMaxWorkers = defaultBalanceSyncMaxWorkers
+		logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers))
 	}
 
-	setup.transactionRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, transactionMiddleware.WithTenantDB},
+	var balanceSyncWorker *BalanceSyncWorker
+
+	if opts != nil && opts.MultiTenantEnabled {
+		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, true, opts.TenantClient, pgManager, tenantServiceName)
+	} else {
+		balanceSyncWorker = NewBalanceSyncWorker(redisConn, logger, commandUC, balanceSyncMaxWorkers)
 	}
 
-	setup.ledgerRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion},
+	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers))
+
+	return balanceSyncWorker
+}
+
+// buildRabbitMQConnectionString constructs an AMQP connection string with optional vhost.
+func buildRabbitMQConnectionString(uri, user, pass, host, port, vhost string) string {
+	u := &url.URL{
+		Scheme: uri,
+		User:   url.UserPassword(user, pass),
+		Host:   fmt.Sprintf("%s:%s", host, port),
+	}
+	if vhost != "" {
+		u.RawPath = "/" + url.PathEscape(vhost)
+		u.Path = "/" + vhost
+	} else {
+		u.Path = "/"
 	}
 
-	return setup, nil
+	return u.String()
 }
 
 // initTenantClient creates the multi-tenant client when multi-tenant mode is enabled.
@@ -448,42 +776,87 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 	return tenantClient, tenantServiceName, nil
 }
 
-func buildModuleTenantMiddleware(moduleName string, logger libLog.Logger, rawPGManager, rawMongoManager any) (*tmmiddleware.MultiPoolMiddleware, error) {
-	pgManager, ok := rawPGManager.(*tmpostgres.Manager)
-	if !ok || pgManager == nil {
-		return nil, fmt.Errorf("%s multi-tenant PostgreSQL manager not available", moduleName)
-	}
-
-	mongoManager, ok := rawMongoManager.(*tmmongo.Manager)
-	if !ok || mongoManager == nil {
-		return nil, fmt.Errorf("%s multi-tenant MongoDB manager not available", moduleName)
-	}
-
-	options := []tmmiddleware.MultiPoolOption{
-		tmmiddleware.WithDefaultRoute(moduleName, pgManager, mongoManager),
-		tmmiddleware.WithMultiPoolLogger(logger),
-		tmmiddleware.WithErrorMapper(midazErrorMapper),
-	}
-
-	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
-		libLog.String("module", moduleName),
-	)
-
-	return tmmiddleware.NewMultiPoolMiddleware(options...), nil
+type unifiedRouteSetup struct {
+	onboardingRouteOptions  *midazhttp.ProtectedRouteOptions
+	transactionRouteOptions *midazhttp.ProtectedRouteOptions
+	ledgerRouteOptions      *midazhttp.ProtectedRouteOptions
 }
 
-func requireMongoManager(moduleName string, rawMongoManager any) (*tmmongo.Manager, error) {
-	mongoManager, ok := rawMongoManager.(*tmmongo.Manager)
-	if !ok || mongoManager == nil {
-		return nil, fmt.Errorf("%s multi-tenant MongoDB manager not available", moduleName)
+func buildUnifiedRouteSetup(
+	cfg *Config,
+	logger libLog.Logger,
+	onboardingPGManager *tmpostgres.Manager,
+	transactionPGManager *tmpostgres.Manager,
+	onboardingMongoManager *tmmongo.Manager,
+	transactionMongoManager *tmmongo.Manager,
+) (*unifiedRouteSetup, error) {
+	setup := &unifiedRouteSetup{}
+	if !cfg.MultiTenantEnabled {
+		return setup, nil
 	}
 
-	return mongoManager, nil
+	if onboardingPGManager == nil {
+		return nil, fmt.Errorf("onboarding multi-tenant PostgreSQL manager not available")
+	}
+
+	if onboardingMongoManager == nil {
+		return nil, fmt.Errorf("onboarding multi-tenant MongoDB manager not available")
+	}
+
+	if transactionPGManager == nil {
+		return nil, fmt.Errorf("transaction multi-tenant PostgreSQL manager not available")
+	}
+
+	if transactionMongoManager == nil {
+		return nil, fmt.Errorf("transaction multi-tenant MongoDB manager not available")
+	}
+
+	// Build onboarding middleware with cross-module injection
+	onboardingMiddleware := tmmiddleware.NewMultiPoolMiddleware(
+		tmmiddleware.WithDefaultRoute("onboarding", onboardingPGManager, onboardingMongoManager),
+		tmmiddleware.WithRoute(nil, "transaction", transactionPGManager, nil),
+		tmmiddleware.WithCrossModuleInjection(),
+		tmmiddleware.WithMultiPoolLogger(logger),
+		tmmiddleware.WithErrorMapper(midazErrorMapper),
+	)
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
+		libLog.String("module", "onboarding"),
+		libLog.Bool("cross_module_injection", true),
+	)
+
+	// Build transaction middleware with cross-module injection
+	transactionMiddleware := tmmiddleware.NewMultiPoolMiddleware(
+		tmmiddleware.WithDefaultRoute("transaction", transactionPGManager, transactionMongoManager),
+		tmmiddleware.WithRoute(nil, "onboarding", onboardingPGManager, nil),
+		tmmiddleware.WithCrossModuleInjection(),
+		tmmiddleware.WithMultiPoolLogger(logger),
+		tmmiddleware.WithErrorMapper(midazErrorMapper),
+	)
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
+		libLog.String("module", "transaction"),
+		libLog.Bool("cross_module_injection", true),
+	)
+
+	authAssertion := midazhttp.MarkTrustedAuthAssertion()
+
+	setup.onboardingRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, onboardingMiddleware.WithTenantDB},
+	}
+
+	setup.transactionRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, transactionMiddleware.WithTenantDB},
+	}
+
+	setup.ledgerRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion},
+	}
+
+	return setup, nil
 }
 
 // midazErrorMapper converts tenant-manager errors into Midaz-specific HTTP responses.
-// It handles the TenantNotProvisionedError case with a 422 status code.
-// For all other errors, it returns the error to let the default error handler process it.
 func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	if err == nil {
 		return nil
@@ -498,4 +871,32 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	}
 
 	return err
+}
+
+// applyConfigDefaults sets sensible defaults for Config fields that remain at their
+// zero value after SetConfigFromEnvVars. This replaces the inert `default` struct tags
+// which are not interpreted by SetConfigFromEnvVars.
+func applyConfigDefaults(cfg *Config) {
+	intDefault := func(field *int, fallback int) {
+		if *field == 0 {
+			*field = fallback
+		}
+	}
+
+	intDefault(&cfg.RedisProtocol, 3)
+	intDefault(&cfg.RedisTokenLifeTime, 60)
+	intDefault(&cfg.RedisTokenRefreshDuration, 45)
+	intDefault(&cfg.RedisPoolSize, 10)
+	intDefault(&cfg.RedisReadTimeout, 3)
+	intDefault(&cfg.RedisWriteTimeout, 3)
+	intDefault(&cfg.RedisDialTimeout, 5)
+	intDefault(&cfg.RedisPoolTimeout, 2)
+	intDefault(&cfg.RedisMaxRetries, 3)
+	intDefault(&cfg.RedisMinRetryBackoff, 8)
+	intDefault(&cfg.RedisMaxRetryBackoff, 1)
+
+	// BalanceSyncWorkerEnabled defaults to true (enabled) when the env var is not set.
+	if os.Getenv("BALANCE_SYNC_WORKER_ENABLED") == "" {
+		cfg.BalanceSyncWorkerEnabled = true
+	}
 }

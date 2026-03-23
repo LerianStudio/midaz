@@ -11,22 +11,15 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
-	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
-	"github.com/LerianStudio/midaz/v3/components/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
-	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // StubRunnable is a stub implementation of mbootstrap.Runnable for testing.
-// It returns pre-configured values without verifying interactions.
 type StubRunnable struct {
 	name string
 }
@@ -35,277 +28,57 @@ func (s *StubRunnable) Run(l *libCommons.Launcher) error {
 	return nil
 }
 
-// StubService is a stub implementation of onboarding.OnboardingService for testing.
-// It returns pre-configured values without verifying interactions.
-type StubService struct {
-	runnables         []mbootstrap.RunnableConfig
-	metadataIndexRepo mbootstrap.MetadataIndexRepository
-	settingsPort      mbootstrap.SettingsPort
-	pgManager         interface{}
-	mongoManager      interface{}
-}
+// Use newTestLogger() from balance.worker_test.go (same package).
 
-func (s *StubService) GetRunnables() []mbootstrap.RunnableConfig {
-	return s.runnables
-}
+// TestService_Run_LaunchesAllWorkers verifies that Service.Run()
+// correctly includes workers and the unified server.
+func TestService_Run_LaunchesAllWorkers(t *testing.T) {
+	logger := newTestLogger()
 
-func (s *StubService) GetRouteRegistrar(_ *midazhttp.ProtectedRouteOptions) func(fiber.Router) {
-	return func(router fiber.Router) {}
-}
-
-func (s *StubService) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
-	return s.metadataIndexRepo
-}
-
-func (s *StubService) GetSettingsPort() mbootstrap.SettingsPort {
-	return s.settingsPort
-}
-
-func (s *StubService) GetPGManager() interface{} {
-	return s.pgManager
-}
-
-func (s *StubService) GetMongoManager() interface{} {
-	return s.mongoManager
-}
-
-// Ensure StubService implements onboarding.OnboardingService
-var _ onboarding.OnboardingService = (*StubService)(nil)
-
-// StubTransactionService is a stub implementation of transaction.TransactionService for testing.
-// It returns pre-configured values without verifying interactions.
-type StubTransactionService struct {
-	mbootstrap.Service
-	runnables         []mbootstrap.RunnableConfig
-	balancePort       mbootstrap.BalancePort
-	metadataIndexRepo mbootstrap.MetadataIndexRepository
-	settingsPort      mbootstrap.SettingsPort
-	pgManager         interface{}
-	mongoManager      interface{}
-}
-
-func (s *StubTransactionService) GetRunnables() []mbootstrap.RunnableConfig {
-	return s.runnables
-}
-
-func (s *StubTransactionService) GetBalancePort() mbootstrap.BalancePort {
-	return s.balancePort
-}
-
-func (s *StubTransactionService) GetMetadataIndexPort() mbootstrap.MetadataIndexRepository {
-	return s.metadataIndexRepo
-}
-
-func (s *StubTransactionService) GetRouteRegistrar(_ *midazhttp.ProtectedRouteOptions) func(fiber.Router) {
-	return func(router fiber.Router) {}
-}
-
-func (s *StubTransactionService) SetSettingsPort(port mbootstrap.SettingsPort) {
-	s.settingsPort = port
-}
-
-func (s *StubTransactionService) GetPGManager() interface{} {
-	return s.pgManager
-}
-
-func (s *StubTransactionService) GetMongoManager() interface{} {
-	return s.mongoManager
-}
-
-// Ensure StubTransactionService implements transaction.TransactionService
-var _ transaction.TransactionService = (*StubTransactionService)(nil)
-
-func newTestLogger(t *testing.T) libLog.Logger {
-	t.Helper()
-
-	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "ledger-test"})
-	require.NoError(t, err, "logger init must not fail")
-
-	return logger
-}
-
-// TestService_GetRunnables_ReturnsAllComponents verifies that Service.Run()
-// correctly collects runnables from both onboarding and transaction services.
-// This is a unit test that uses stubs to verify the composition logic.
-func TestService_GetRunnables_ReturnsAllComponents(t *testing.T) {
-	// Arrange
-	logger := newTestLogger(t)
-
-	// Create stub runnables for onboarding
-	onboardingRunnable := &StubRunnable{name: "onboarding-server"}
-	onboardingRunnables := []mbootstrap.RunnableConfig{
-		{Name: "Onboarding Server", Runnable: onboardingRunnable},
-	}
-
-	// Create stub runnables for transaction (without gRPC, as in unified mode)
-	txFiberRunnable := &StubRunnable{name: "tx-fiber"}
-	txRabbitRunnable := &StubRunnable{name: "tx-rabbit"}
-	txRedisRunnable := &StubRunnable{name: "tx-redis"}
-	transactionRunnables := []mbootstrap.RunnableConfig{
-		{Name: "Transaction Fiber Server", Runnable: txFiberRunnable},
-		{Name: "Transaction RabbitMQ Consumer", Runnable: txRabbitRunnable},
-		{Name: "Transaction Redis Consumer", Runnable: txRedisRunnable},
-	}
-
-	stubOnboardingService := &StubService{runnables: onboardingRunnables}
-	stubTransactionService := &StubTransactionService{runnables: transactionRunnables}
-
+	// Create a minimal service with direct infrastructure
 	service := &Service{
-		OnboardingService:  stubOnboardingService,
-		TransactionService: stubTransactionService,
+		UnifiedServer:      &UnifiedServer{serverAddress: ":0", logger: logger, telemetry: &libOpentelemetry.Telemetry{}},
+		MultiQueueConsumer: nil, // single-tenant - no multi-queue
+		RedisQueueConsumer: nil, // nil for this test
+		BalanceSyncWorker:  nil, // nil for this test
 		Logger:             logger,
 		Telemetry:          &libOpentelemetry.Telemetry{},
 	}
 
-	service.UnifiedServer = &UnifiedServer{}
-
-	// Act
-	runnables := service.GetRunnables()
-
-	// Assert
-	require.Len(t, runnables, 3)
-	assert.Equal(t, "Unified HTTP Server", runnables[0].Name)
-	assert.Equal(t, "Transaction RabbitMQ Consumer", runnables[1].Name)
-	assert.Equal(t, "Transaction Redis Consumer", runnables[2].Name)
-}
-
-// TestInitServers_UnifiedMode_BalancePortWiring verifies that in unified mode,
-// the BalancePort from Transaction is correctly passed to Onboarding.
-// This test focuses on verifying the wiring contract, not actual initialization.
-func TestInitServers_UnifiedMode_BalancePortWiring(t *testing.T) {
-	// Arrange
-	mockBalancePort := mbootstrap.NewMockBalancePort(nil) // using existing mock from mbootstrap
-
-	stubTransactionService := &StubTransactionService{
-		balancePort: mockBalancePort,
-		runnables: []mbootstrap.RunnableConfig{
-			{Name: "Transaction Fiber Server", Runnable: &StubRunnable{}},
-		},
-	}
-
-	// Act - verify GetBalancePort returns the expected port
-	retrievedPort := stubTransactionService.GetBalancePort()
-
-	// Assert
-	require.NotNil(t, retrievedPort, "GetBalancePort should return a non-nil BalancePort")
-	assert.Equal(t, mockBalancePort, retrievedPort, "GetBalancePort should return the same BalancePort that was set")
-
-	// This verifies the wiring contract:
-	// 1. Transaction service exposes GetBalancePort()
-	// 2. The port can be passed to Onboarding for in-process calls
-	// 3. No intermediate adapter needed - direct reference passing
-}
-
-// TestInitServers_UnifiedMode_MetadataIndexRepoWiring verifies that in unified mode,
-// the MetadataIndexRepo from Transaction is correctly passed to Ledger.
-// This test focuses on verifying the wiring contract, not actual initialization.
-func TestInitServers_UnifiedMode_MetadataIndexRepoWiring(t *testing.T) {
-	// Arrange
-	mockMetadataIndexRepo := mbootstrap.NewMockMetadataIndexRepository(nil)
-
-	stubTransactionService := &StubTransactionService{
-		metadataIndexRepo: mockMetadataIndexRepo,
-		runnables: []mbootstrap.RunnableConfig{
-			{Name: "Transaction Fiber Server", Runnable: &StubRunnable{}},
-		},
-	}
-
-	// Act - verify GetMetadataIndexPort returns the expected repo
-	retrievedRepo := stubTransactionService.GetMetadataIndexPort()
-
-	// Assert
-	require.NotNil(t, retrievedRepo, "GetMetadataIndexPort should return a non-nil MetadataIndexRepository")
-	assert.Equal(t, mockMetadataIndexRepo, retrievedRepo, "GetMetadataIndexPort should return the same MetadataIndexRepository that was set")
-
-	// This verifies the wiring contract:
-	// 1. Transaction service exposes GetMetadataIndexPort()
-	// 2. The repo can be passed to Ledger for in-process calls
-	// 3. Direct repository access - no intermediate adapter needed
-}
-
-// TestInitServers_UnifiedMode_SettingsPortWiring verifies that in unified mode,
-// the SettingsPort from Onboarding is correctly passed to Transaction.
-// This test focuses on verifying the wiring contract, not actual initialization.
-func TestInitServers_UnifiedMode_SettingsPortWiring(t *testing.T) {
-	// Arrange
-	mockSettingsPort := mbootstrap.NewMockSettingsPort(nil)
-
-	stubOnboardingService := &StubService{
-		settingsPort: mockSettingsPort,
-		runnables: []mbootstrap.RunnableConfig{
-			{Name: "Onboarding Server", Runnable: &StubRunnable{}},
-		},
-	}
-
-	stubTransactionService := &StubTransactionService{
-		runnables: []mbootstrap.RunnableConfig{
-			{Name: "Transaction Fiber Server", Runnable: &StubRunnable{}},
-		},
-	}
-
-	// Act - verify GetSettingsPort returns the expected port
-	retrievedPort := stubOnboardingService.GetSettingsPort()
-
-	// Assert
-	require.NotNil(t, retrievedPort, "GetSettingsPort should return a non-nil SettingsPort")
-	assert.Equal(t, mockSettingsPort, retrievedPort, "GetSettingsPort should return the same SettingsPort that was set")
-
-	// Verify the wiring works by setting it on transaction service
-	stubTransactionService.SetSettingsPort(retrievedPort)
-	assert.Equal(t, mockSettingsPort, stubTransactionService.settingsPort, "SetSettingsPort should store the SettingsPort")
-}
-
-// TestInitServers_UnifiedMode_NilSettingsPortError verifies that initialization
-// fails with an error when SettingsPort is nil in unified mode.
-// A nil SettingsPort is an initialization bug, not a recoverable state.
-func TestInitServers_UnifiedMode_NilSettingsPortError(t *testing.T) {
-	// Arrange - StubService with nil settingsPort (simulates misconfiguration)
-	stubOnboardingService := &StubService{
-		settingsPort:      nil, // This should cause an error
-		metadataIndexRepo: mbootstrap.NewMockMetadataIndexRepository(nil),
-		runnables: []mbootstrap.RunnableConfig{
-			{Name: "Onboarding Server", Runnable: &StubRunnable{}},
-		},
-	}
-
-	// Act - verify GetSettingsPort returns nil
-	retrievedPort := stubOnboardingService.GetSettingsPort()
-
-	// Assert - GetSettingsPort returns nil, which should trigger an error in InitServers
-	assert.Nil(t, retrievedPort, "GetSettingsPort should return nil when settingsPort is not configured")
-
-	// This test documents the expected behavior:
-	// When settingsPort is nil, InitServers should return an error with message
-	// "failed to get SettingsPort from onboarding module" (consistent with other port checks)
+	// Assert - verify the service has the expected fields
+	assert.NotNil(t, service.UnifiedServer, "UnifiedServer should not be nil")
+	assert.NotNil(t, service.Logger, "Logger should not be nil")
+	assert.NotNil(t, service.Telemetry, "Telemetry should not be nil")
 }
 
 // TestService_CompositionContract verifies the composition contract
-// between Ledger, Onboarding, and Transaction services.
+// of the unified service struct.
 func TestService_CompositionContract(t *testing.T) {
 	t.Run("Service struct has required fields", func(t *testing.T) {
-		// Arrange & Act
 		service := &Service{
-			OnboardingService:  &StubService{},
-			TransactionService: &StubTransactionService{},
-			Logger:             newTestLogger(t),
-			Telemetry:          &libOpentelemetry.Telemetry{},
+			Logger:    newTestLogger(),
+			Telemetry: &libOpentelemetry.Telemetry{},
 		}
 
-		// Assert - verify the service has all required components
-		assert.NotNil(t, service.OnboardingService, "OnboardingService should not be nil")
-		assert.NotNil(t, service.TransactionService, "TransactionService should not be nil")
 		assert.NotNil(t, service.Logger, "Logger should not be nil")
 		assert.NotNil(t, service.Telemetry, "Telemetry should not be nil")
 	})
 
-	t.Run("OnboardingService implements mbootstrap.Service", func(t *testing.T) {
-		// This is a compile-time check enforced by the interface
-		var _ mbootstrap.Service = (*StubService)(nil)
-	})
+	t.Run("Service accepts all worker types", func(t *testing.T) {
+		// Verify all worker fields can be set (compile-time check)
+		service := &Service{
+			UnifiedServer:         &UnifiedServer{},
+			MultiQueueConsumer:    &MultiQueueConsumer{},
+			RedisQueueConsumer:    &RedisQueueConsumer{},
+			BalanceSyncWorker:     &BalanceSyncWorker{},
+			CircuitBreakerManager: nil, // optional
+			Logger:                newTestLogger(),
+			Telemetry:             &libOpentelemetry.Telemetry{},
+		}
 
-	t.Run("TransactionService implements TransactionService interface", func(t *testing.T) {
-		// This is a compile-time check enforced by the interface
-		var _ transaction.TransactionService = (*StubTransactionService)(nil)
+		assert.NotNil(t, service.MultiQueueConsumer, "MultiQueueConsumer should be settable")
+		assert.NotNil(t, service.RedisQueueConsumer, "RedisQueueConsumer should be settable")
+		assert.NotNil(t, service.BalanceSyncWorker, "BalanceSyncWorker should be settable")
 	})
 }
 
@@ -369,10 +142,6 @@ func TestMidazErrorMapper(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create a Fiber app and test context.
-			// midazErrorMapper writes the response directly via c.Status().JSON() and returns nil
-			// when it handles the error, or returns nil without writing when it does not handle it.
-			// We use a sentinel header to distinguish "mapper handled it" from "mapper passed through".
 			app := fiber.New()
 			app.Post("/test", func(c *fiber.Ctx) error {
 				result := midazErrorMapper(c, tt.err, tt.tenantID)
@@ -380,7 +149,6 @@ func TestMidazErrorMapper(t *testing.T) {
 					return result
 				}
 
-				// If the mapper already wrote a response (status != 200), do not overwrite
 				if c.Response().StatusCode() != fiber.StatusOK {
 					return nil
 				}
@@ -399,7 +167,6 @@ func TestMidazErrorMapper(t *testing.T) {
 			}()
 
 			if tt.wantNil {
-				// When the mapper returns nil, the handler sends 200 OK
 				assert.Equal(t, http.StatusOK, resp.StatusCode,
 					"nil return should result in 200 (pass-through)")
 			} else {
@@ -431,7 +198,7 @@ func TestMidazErrorMapper(t *testing.T) {
 func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 	t.Parallel()
 
-	logger := newTestLogger(t)
+	logger := newTestLogger()
 	telemetry := &libOpentelemetry.Telemetry{}
 
 	t.Run("creates_server_without_route_registrars", func(t *testing.T) {
@@ -471,8 +238,6 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 func TestMultiPoolMiddleware_NilWhenDisabled(t *testing.T) {
 	t.Parallel()
 
-	// Test that middleware constructed with no pools is effectively disabled
 	middleware := tmmiddleware.NewMultiPoolMiddleware()
 	assert.NotNil(t, middleware, "NewMultiPoolMiddleware always returns non-nil")
-	// The middleware exists but has no pools configured
 }

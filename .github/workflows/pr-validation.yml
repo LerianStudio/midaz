@@ -28,8 +28,6 @@ jobs:
         build
         revert
       pr_title_scopes: |
-        onboarding
-        transaction
         crm
         ledger
         api
