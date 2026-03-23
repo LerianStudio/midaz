@@ -63,27 +63,28 @@ type Config struct {
 	JWKAddress  string `env:"CASDOOR_JWK_ADDRESS"`
 
 	// Redis configuration (shared across domains)
+	// Defaults are applied programmatically by applyConfigDefaults after env loading.
 	RedisHost                    string `env:"REDIS_HOST"`
-	RedisMasterName              string `env:"REDIS_MASTER_NAME" default:""`
+	RedisMasterName              string `env:"REDIS_MASTER_NAME"`
 	RedisPassword                string `env:"REDIS_PASSWORD"`
-	RedisDB                      int    `env:"REDIS_DB" default:"0"`
-	RedisProtocol                int    `env:"REDIS_PROTOCOL" default:"3"`
-	RedisTLS                     bool   `env:"REDIS_TLS" default:"false"`
+	RedisDB                      int    `env:"REDIS_DB"`
+	RedisProtocol                int    `env:"REDIS_PROTOCOL"`
+	RedisTLS                     bool   `env:"REDIS_TLS"`
 	RedisCACert                  string `env:"REDIS_CA_CERT"`
-	RedisUseGCPIAM               bool   `env:"REDIS_USE_GCP_IAM" default:"false"`
-	RedisServiceAccount          string `env:"REDIS_SERVICE_ACCOUNT" default:""`
-	GoogleApplicationCredentials string `env:"GOOGLE_APPLICATION_CREDENTIALS" default:""`
-	RedisTokenLifeTime           int    `env:"REDIS_TOKEN_LIFETIME" default:"60"`
-	RedisTokenRefreshDuration    int    `env:"REDIS_TOKEN_REFRESH_DURATION" default:"45"`
-	RedisPoolSize                int    `env:"REDIS_POOL_SIZE" default:"10"`
-	RedisMinIdleConns            int    `env:"REDIS_MIN_IDLE_CONNS" default:"0"`
-	RedisReadTimeout             int    `env:"REDIS_READ_TIMEOUT" default:"3"`
-	RedisWriteTimeout            int    `env:"REDIS_WRITE_TIMEOUT" default:"3"`
-	RedisDialTimeout             int    `env:"REDIS_DIAL_TIMEOUT" default:"5"`
-	RedisPoolTimeout             int    `env:"REDIS_POOL_TIMEOUT" default:"2"`
-	RedisMaxRetries              int    `env:"REDIS_MAX_RETRIES" default:"3"`
-	RedisMinRetryBackoff         int    `env:"REDIS_MIN_RETRY_BACKOFF" default:"8"`
-	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF" default:"1"`
+	RedisUseGCPIAM               bool   `env:"REDIS_USE_GCP_IAM"`
+	RedisServiceAccount          string `env:"REDIS_SERVICE_ACCOUNT"`
+	GoogleApplicationCredentials string `env:"GOOGLE_APPLICATION_CREDENTIALS"`
+	RedisTokenLifeTime           int    `env:"REDIS_TOKEN_LIFETIME"`
+	RedisTokenRefreshDuration    int    `env:"REDIS_TOKEN_REFRESH_DURATION"`
+	RedisPoolSize                int    `env:"REDIS_POOL_SIZE"`
+	RedisMinIdleConns            int    `env:"REDIS_MIN_IDLE_CONNS"`
+	RedisReadTimeout             int    `env:"REDIS_READ_TIMEOUT"`
+	RedisWriteTimeout            int    `env:"REDIS_WRITE_TIMEOUT"`
+	RedisDialTimeout             int    `env:"REDIS_DIAL_TIMEOUT"`
+	RedisPoolTimeout             int    `env:"REDIS_POOL_TIMEOUT"`
+	RedisMaxRetries              int    `env:"REDIS_MAX_RETRIES"`
+	RedisMinRetryBackoff         int    `env:"REDIS_MIN_RETRY_BACKOFF"`
+	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF"`
 
 	// Multi-tenant configuration
 	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED"`
@@ -222,6 +223,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
 		return nil, fmt.Errorf("failed to load config from environment variables: %w", err)
 	}
+
+	applyConfigDefaults(cfg)
 
 	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
 		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
@@ -863,4 +866,27 @@ func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	}
 
 	return err
+}
+
+// applyConfigDefaults sets sensible defaults for Config fields that remain at their
+// zero value after SetConfigFromEnvVars. This replaces the inert `default` struct tags
+// which are not interpreted by SetConfigFromEnvVars.
+func applyConfigDefaults(cfg *Config) {
+	intDefault := func(field *int, fallback int) {
+		if *field == 0 {
+			*field = fallback
+		}
+	}
+
+	intDefault(&cfg.RedisProtocol, 3)
+	intDefault(&cfg.RedisTokenLifeTime, 60)
+	intDefault(&cfg.RedisTokenRefreshDuration, 45)
+	intDefault(&cfg.RedisPoolSize, 10)
+	intDefault(&cfg.RedisReadTimeout, 3)
+	intDefault(&cfg.RedisWriteTimeout, 3)
+	intDefault(&cfg.RedisDialTimeout, 5)
+	intDefault(&cfg.RedisPoolTimeout, 2)
+	intDefault(&cfg.RedisMaxRetries, 3)
+	intDefault(&cfg.RedisMinRetryBackoff, 8)
+	intDefault(&cfg.RedisMaxRetryBackoff, 1)
 }
