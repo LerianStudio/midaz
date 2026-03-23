@@ -154,6 +154,7 @@ type Config struct {
 	SettingsCacheTTL string `env:"SETTINGS_CACHE_TTL"`
 
 	MultiTenantSettingsCheckIntervalSec int `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"` // seconds between tenant config revalidation checks
+	MultiTenantCacheTTLSec              int `env:"MULTI_TENANT_CACHE_TTL_SEC" default:"120"` // seconds for tenant config cache TTL (0 = disabled)
 }
 
 // Options contains optional dependencies that can be injected when running
