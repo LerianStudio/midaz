@@ -11,8 +11,8 @@ import (
 	"time"
 
 	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"

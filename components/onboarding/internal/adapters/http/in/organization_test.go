@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"

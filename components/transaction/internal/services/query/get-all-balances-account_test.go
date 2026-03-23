@@ -12,7 +12,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"

@@ -5,24 +5,16 @@
 package services
 
 import (
-	"errors"
-	"strings"
-
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	ledgerServices "github.com/LerianStudio/midaz/v3/components/ledger/services"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// ErrDatabaseItemNotFound is thrown a new item informed was not found
-var ErrDatabaseItemNotFound = errors.New("errDatabaseItemNotFound")
+// ErrDatabaseItemNotFound is thrown when an item informed was not found.
+// Re-exported from ledger/services to ensure sentinel identity across components.
+var ErrDatabaseItemNotFound = ledgerServices.ErrDatabaseItemNotFound
 
-// ValidatePGError validate pgError and return business error
+// ValidatePGError validates pgError and returns the appropriate business error.
+// Delegates to the unified implementation in ledger/services.
 func ValidatePGError(pgErr *pgconn.PgError, entityType string, args ...any) error {
-	switch {
-	case strings.Contains(pgErr.ConstraintName, "operation_route_type_check") ||
-		strings.Contains(pgErr.Message, "type") && strings.Contains(pgErr.Message, "debit") && strings.Contains(pgErr.Message, "credit"):
-		return pkg.ValidateBusinessError(constant.ErrInvalidOperationRouteType, entityType)
-	default:
-		return pgErr
-	}
+	return ledgerServices.ValidatePGError(pgErr, entityType, args...)
 }

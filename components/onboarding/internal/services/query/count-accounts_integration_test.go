@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

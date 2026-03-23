@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
 	midazpkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"

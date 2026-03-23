@@ -14,8 +14,8 @@ import (
 	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"

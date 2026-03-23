@@ -11,7 +11,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	goldTransaction "github.com/LerianStudio/midaz/v3/pkg/gold/transaction"

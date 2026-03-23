@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"

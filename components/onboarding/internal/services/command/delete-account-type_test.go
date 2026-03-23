@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"

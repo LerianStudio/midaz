@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"

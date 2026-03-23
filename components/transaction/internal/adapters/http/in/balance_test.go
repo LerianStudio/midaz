@@ -15,8 +15,8 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"

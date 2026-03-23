@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/shopspring/decimal"

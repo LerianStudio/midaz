@@ -12,13 +12,13 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/segment"
 )
 
 // postgresComponents holds PostgreSQL-related components initialized during bootstrap.

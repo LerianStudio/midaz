@@ -12,8 +12,8 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"

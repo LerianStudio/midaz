@@ -12,7 +12,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transaction"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"

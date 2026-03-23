@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/google/uuid"

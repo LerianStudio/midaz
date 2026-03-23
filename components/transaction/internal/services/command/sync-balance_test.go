@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

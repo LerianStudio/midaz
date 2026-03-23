@@ -12,7 +12,7 @@ import (
 	"testing/quick"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"

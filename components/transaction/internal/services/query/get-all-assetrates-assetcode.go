@@ -12,7 +12,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"

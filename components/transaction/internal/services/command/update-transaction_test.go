@@ -11,8 +11,8 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/google/uuid"

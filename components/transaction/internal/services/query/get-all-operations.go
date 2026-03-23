@@ -14,7 +14,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"

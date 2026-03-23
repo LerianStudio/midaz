@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"

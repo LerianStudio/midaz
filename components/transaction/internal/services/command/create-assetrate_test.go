@@ -11,8 +11,8 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libPointers "github.com/LerianStudio/lib-commons/v4/commons/pointers"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

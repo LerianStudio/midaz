@@ -12,8 +12,8 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"

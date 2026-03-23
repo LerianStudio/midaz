@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
