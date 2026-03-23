@@ -18,8 +18,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -158,10 +158,10 @@ func TestTransactionRouteHandler_CreateTransactionRoute(t *testing.T) {
 			tt.setupMocks(mockTransactionRouteRepo, mockOperationRouteRepo, mockMetadataRepo, mockRedisRepo, orgID, ledgerID)
 
 			cmdUC := &command.UseCase{
-				TransactionRouteRepo: mockTransactionRouteRepo,
-				OperationRouteRepo:   mockOperationRouteRepo,
-				MetadataRepo:         mockMetadataRepo,
-				RedisRepo:            mockRedisRepo,
+				TransactionRouteRepo:    mockTransactionRouteRepo,
+				OperationRouteRepo:      mockOperationRouteRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
+				TransactionRedisRepo:    mockRedisRepo,
 			}
 			handler := &TransactionRouteHandler{Command: cmdUC}
 
@@ -293,8 +293,8 @@ func TestTransactionRouteHandler_GetTransactionRouteByID(t *testing.T) {
 			tt.setupMocks(mockTransactionRouteRepo, mockMetadataRepo, orgID, ledgerID, transactionRouteID)
 
 			queryUC := &query.UseCase{
-				TransactionRouteRepo: mockTransactionRouteRepo,
-				MetadataRepo:         mockMetadataRepo,
+				TransactionRouteRepo:    mockTransactionRouteRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			handler := &TransactionRouteHandler{Query: queryUC}
 
@@ -473,14 +473,14 @@ func TestTransactionRouteHandler_UpdateTransactionRoute(t *testing.T) {
 			tt.setupMocks(mockTransactionRouteRepo, mockOperationRouteRepo, mockMetadataRepo, mockRedisRepo, orgID, ledgerID, transactionRouteID)
 
 			cmdUC := &command.UseCase{
-				TransactionRouteRepo: mockTransactionRouteRepo,
-				OperationRouteRepo:   mockOperationRouteRepo,
-				MetadataRepo:         mockMetadataRepo,
-				RedisRepo:            mockRedisRepo,
+				TransactionRouteRepo:    mockTransactionRouteRepo,
+				OperationRouteRepo:      mockOperationRouteRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
+				TransactionRedisRepo:    mockRedisRepo,
 			}
 			queryUC := &query.UseCase{
-				TransactionRouteRepo: mockTransactionRouteRepo,
-				MetadataRepo:         mockMetadataRepo,
+				TransactionRouteRepo:    mockTransactionRouteRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			handler := &TransactionRouteHandler{
 				Command: cmdUC,
@@ -610,7 +610,7 @@ func TestTransactionRouteHandler_DeleteTransactionRouteByID(t *testing.T) {
 
 			cmdUC := &command.UseCase{
 				TransactionRouteRepo: mockTransactionRouteRepo,
-				RedisRepo:            mockRedisRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 			handler := &TransactionRouteHandler{Command: cmdUC}
 
@@ -846,8 +846,8 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 			tt.setupMocks(mockTransactionRouteRepo, mockMetadataRepo, orgID, ledgerID)
 
 			queryUC := &query.UseCase{
-				TransactionRouteRepo: mockTransactionRouteRepo,
-				MetadataRepo:         mockMetadataRepo,
+				TransactionRouteRepo:    mockTransactionRouteRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			handler := &TransactionRouteHandler{Query: queryUC}
 

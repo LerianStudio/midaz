@@ -16,8 +16,8 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -191,8 +191,8 @@ func TestAssetRateHandler_CreateOrUpdateAssetRate(t *testing.T) {
 			tt.setupMocks(mockAssetRateRepo, mockMetadataRepo, orgID, ledgerID)
 
 			cmdUC := &command.UseCase{
-				AssetRateRepo: mockAssetRateRepo,
-				MetadataRepo:  mockMetadataRepo,
+				AssetRateRepo:           mockAssetRateRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AssetRateHandler{Command: cmdUC}
 
@@ -328,8 +328,8 @@ func TestAssetRateHandler_GetAssetRateByExternalID(t *testing.T) {
 			tt.setupMocks(mockAssetRateRepo, mockMetadataRepo, orgID, ledgerID, externalID)
 
 			queryUC := &query.UseCase{
-				AssetRateRepo: mockAssetRateRepo,
-				MetadataRepo:  mockMetadataRepo,
+				AssetRateRepo:           mockAssetRateRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AssetRateHandler{Query: queryUC}
 
@@ -514,8 +514,8 @@ func TestAssetRateHandler_GetAllAssetRatesByAssetCode(t *testing.T) {
 			tt.setupMocks(mockAssetRateRepo, mockMetadataRepo, orgID, ledgerID)
 
 			queryUC := &query.UseCase{
-				AssetRateRepo: mockAssetRateRepo,
-				MetadataRepo:  mockMetadataRepo,
+				AssetRateRepo:           mockAssetRateRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AssetRateHandler{Query: queryUC}
 

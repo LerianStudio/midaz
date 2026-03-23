@@ -23,7 +23,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
@@ -122,12 +122,12 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 
 		// Create UseCase with mocked repos
 		uc := &command.UseCase{
-			TransactionRepo: mockTransactionRepo,
-			OperationRepo:   mockOperationRepo,
-			MetadataRepo:    mockMetadataRepo,
-			BalanceRepo:     mockBalanceRepo,
-			RabbitMQRepo:    mockRabbitMQRepo,
-			RedisRepo:       mockRedisRepo,
+			TransactionRepo:         mockTransactionRepo,
+			OperationRepo:           mockOperationRepo,
+			TransactionMetadataRepo: mockMetadataRepo,
+			BalanceRepo:             mockBalanceRepo,
+			RabbitMQRepo:            mockRabbitMQRepo,
+			TransactionRedisRepo:    mockRedisRepo,
 		}
 
 		// Setup RabbitMQ testcontainer

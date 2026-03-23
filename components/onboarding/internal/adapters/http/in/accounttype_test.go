@@ -16,8 +16,8 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/accounttype"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -132,8 +132,8 @@ func TestHandler_CreateAccountType(t *testing.T) {
 			tt.setupMocks(mockAccountTypeRepo, mockMetadataRepo, orgID, ledgerID)
 
 			cmdUC := &command.UseCase{
-				AccountTypeRepo: mockAccountTypeRepo,
-				MetadataRepo:    mockMetadataRepo,
+				AccountTypeRepo:        mockAccountTypeRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AccountTypeHandler{Command: cmdUC}
 
@@ -329,12 +329,12 @@ func TestHandler_UpdateAccountType(t *testing.T) {
 			tt.setupMocks(mockAccountTypeRepo, mockMetadataRepo, orgID, ledgerID, accountTypeID)
 
 			cmdUC := &command.UseCase{
-				AccountTypeRepo: mockAccountTypeRepo,
-				MetadataRepo:    mockMetadataRepo,
+				AccountTypeRepo:        mockAccountTypeRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			queryUC := &query.UseCase{
-				AccountTypeRepo: mockAccountTypeRepo,
-				MetadataRepo:    mockMetadataRepo,
+				AccountTypeRepo:        mockAccountTypeRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AccountTypeHandler{
 				Command: cmdUC,
@@ -470,8 +470,8 @@ func TestHandler_GetAccountTypeByID(t *testing.T) {
 			tt.setupMocks(mockAccountTypeRepo, mockMetadataRepo, orgID, ledgerID, accountTypeID)
 
 			queryUC := &query.UseCase{
-				AccountTypeRepo: mockAccountTypeRepo,
-				MetadataRepo:    mockMetadataRepo,
+				AccountTypeRepo:        mockAccountTypeRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AccountTypeHandler{Query: queryUC}
 
@@ -744,8 +744,8 @@ func TestHandler_GetAllAccountTypes(t *testing.T) {
 			tt.setupMocks(mockAccountTypeRepo, mockMetadataRepo, orgID, ledgerID)
 
 			queryUC := &query.UseCase{
-				AccountTypeRepo: mockAccountTypeRepo,
-				MetadataRepo:    mockMetadataRepo,
+				AccountTypeRepo:        mockAccountTypeRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AccountTypeHandler{Query: queryUC}
 

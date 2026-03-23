@@ -31,8 +31,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/rabbitmq"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -104,18 +104,18 @@ func setupTestInfra(t *testing.T) *testInfra {
 
 	// Create use cases
 	queryUC := &query.UseCase{
-		TransactionRepo: transactionRepo,
-		OperationRepo:   operationRepo,
-		BalanceRepo:     balanceRepo,
-		MetadataRepo:    metadataRepo,
-		RedisRepo:       redisRepo,
+		TransactionRepo:         transactionRepo,
+		OperationRepo:           operationRepo,
+		BalanceRepo:             balanceRepo,
+		TransactionMetadataRepo: metadataRepo,
+		TransactionRedisRepo:    redisRepo,
 	}
 	commandUC := &command.UseCase{
-		TransactionRepo: transactionRepo,
-		OperationRepo:   operationRepo,
-		BalanceRepo:     balanceRepo,
-		MetadataRepo:    metadataRepo,
-		RedisRepo:       redisRepo,
+		TransactionRepo:         transactionRepo,
+		OperationRepo:           operationRepo,
+		BalanceRepo:             balanceRepo,
+		TransactionMetadataRepo: metadataRepo,
+		TransactionRedisRepo:    redisRepo,
 	}
 
 	// Create handler
@@ -613,19 +613,19 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 
 	// Create use cases with RabbitMQ producer
 	queryUC := &query.UseCase{
-		TransactionRepo: transactionRepo,
-		OperationRepo:   operationRepo,
-		BalanceRepo:     balanceRepo,
-		MetadataRepo:    metadataRepo,
-		RedisRepo:       redisRepo,
+		TransactionRepo:         transactionRepo,
+		OperationRepo:           operationRepo,
+		BalanceRepo:             balanceRepo,
+		TransactionMetadataRepo: metadataRepo,
+		TransactionRedisRepo:    redisRepo,
 	}
 	infra.commandUC = &command.UseCase{
-		TransactionRepo: transactionRepo,
-		OperationRepo:   operationRepo,
-		BalanceRepo:     balanceRepo,
-		MetadataRepo:    metadataRepo,
-		RedisRepo:       redisRepo,
-		RabbitMQRepo:    producerRepo,
+		TransactionRepo:         transactionRepo,
+		OperationRepo:           operationRepo,
+		BalanceRepo:             balanceRepo,
+		TransactionMetadataRepo: metadataRepo,
+		TransactionRedisRepo:    redisRepo,
+		RabbitMQRepo:            producerRepo,
 	}
 
 	// Create handler

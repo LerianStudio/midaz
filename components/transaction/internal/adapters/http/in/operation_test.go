@@ -16,8 +16,8 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
@@ -263,8 +263,8 @@ func TestOperationHandler_GetAllOperationsByAccount(t *testing.T) {
 			tt.setupMocks(mockOperationRepo, mockMetadataRepo, orgID, ledgerID, accountID)
 
 			queryUC := &query.UseCase{
-				OperationRepo: mockOperationRepo,
-				MetadataRepo:  mockMetadataRepo,
+				OperationRepo:           mockOperationRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			handler := &OperationHandler{Query: queryUC}
 
@@ -417,8 +417,8 @@ func TestOperationHandler_GetOperationByAccount(t *testing.T) {
 			tt.setupMocks(mockOperationRepo, mockMetadataRepo, orgID, ledgerID, accountID, operationID)
 
 			queryUC := &query.UseCase{
-				OperationRepo: mockOperationRepo,
-				MetadataRepo:  mockMetadataRepo,
+				OperationRepo:           mockOperationRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			handler := &OperationHandler{Query: queryUC}
 
@@ -616,12 +616,12 @@ func TestOperationHandler_UpdateOperation(t *testing.T) {
 			tt.setupMocks(mockOperationRepo, mockMetadataRepo, orgID, ledgerID, transactionID, operationID)
 
 			cmdUC := &command.UseCase{
-				OperationRepo: mockOperationRepo,
-				MetadataRepo:  mockMetadataRepo,
+				OperationRepo:           mockOperationRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			queryUC := &query.UseCase{
-				OperationRepo: mockOperationRepo,
-				MetadataRepo:  mockMetadataRepo,
+				OperationRepo:           mockOperationRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			handler := &OperationHandler{
 				Command: cmdUC,

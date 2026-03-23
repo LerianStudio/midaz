@@ -815,7 +815,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		return http.WithError(c, err)
 	}
 
-	ledgerSettings := handler.Query.GetLedgerSettings(ctx, scope.OrganizationID, scope.LedgerID)
+	ledgerSettings := handler.Query.GetParsedLedgerSettings(ctx, scope.OrganizationID, scope.LedgerID)
 	if ledgerSettings.Accounting.ValidateRoutes {
 		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
 	}
@@ -996,7 +996,7 @@ func (handler *TransactionHandler) sendTransactionToRedisQueue(
 
 func (handler *TransactionHandler) deleteIdempotencyKey(ctx context.Context, internalKey *string) {
 	if internalKey != nil {
-		_ = handler.Command.RedisRepo.Del(ctx, *internalKey)
+		_ = handler.Command.TransactionRedisRepo.Del(ctx, *internalKey)
 	}
 }
 

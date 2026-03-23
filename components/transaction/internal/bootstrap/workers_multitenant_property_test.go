@@ -37,8 +37,8 @@ import (
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/stretchr/testify/require"
 )
 

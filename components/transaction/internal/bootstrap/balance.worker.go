@@ -21,7 +21,7 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
@@ -257,7 +257,7 @@ func (w *BalanceSyncWorker) shouldShutdown(ctx context.Context) bool {
 }
 
 func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds redis.UniversalClient) bool {
-	members, err := w.useCase.RedisRepo.GetBalanceSyncKeys(ctx, w.batchSize)
+	members, err := w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(ctx, w.batchSize)
 	if err != nil {
 		if !errors.Is(err, redis.Nil) {
 			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: get balance sync keys error: %v", err))
@@ -451,7 +451,7 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 	if ttl == -2 || ttl == -2*time.Second {
 		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: already-gone key: %s, removing from schedule", member))
 
-		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
+		if remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
 			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove expired balance sync key %s: %v", member, remErr))
 		}
 
@@ -463,7 +463,7 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 		if errors.Is(err, redis.Nil) {
 			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: missing key on GET: %s, removing from schedule", member))
 
-			if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
+			if remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
 				w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove missing balance sync key %s: %v", member, remErr))
 			}
 		} else {
@@ -477,7 +477,7 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 	if err != nil {
 		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: extractIDsFromMember error for %s: %v", member, err))
 
-		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
+		if remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
 			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove unparsable balance sync key %s: %v", member, remErr))
 		}
 
@@ -488,7 +488,7 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 	if err := json.Unmarshal([]byte(val), &balance); err != nil {
 		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: Unmarshal error for %s: %v", member, err))
 
-		if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
+		if remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
 			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove unmarshalable balance sync key %s: %v", member, remErr))
 		}
 
@@ -519,7 +519,7 @@ func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redi
 		w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: Synced key %s", member))
 	}
 
-	if remErr := w.useCase.RedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
+	if remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
 		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove balance sync key %s: %v", member, remErr))
 	}
 }

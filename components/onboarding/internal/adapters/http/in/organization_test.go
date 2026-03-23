@@ -17,8 +17,8 @@ import (
 
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -137,8 +137,8 @@ func TestHandler_CreateOrganization(t *testing.T) {
 			tt.setupMocks(mockOrgRepo, mockMetadataRepo)
 
 			cmdUC := &command.UseCase{
-				OrganizationRepo: mockOrgRepo,
-				MetadataRepo:     mockMetadataRepo,
+				OrganizationRepo:       mockOrgRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &OrganizationHandler{Command: cmdUC}
 
@@ -322,12 +322,12 @@ func TestHandler_UpdateOrganization(t *testing.T) {
 			tt.setupMocks(mockOrgRepo, mockMetadataRepo, orgID)
 
 			cmdUC := &command.UseCase{
-				OrganizationRepo: mockOrgRepo,
-				MetadataRepo:     mockMetadataRepo,
+				OrganizationRepo:       mockOrgRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			queryUC := &query.UseCase{
-				OrganizationRepo: mockOrgRepo,
-				MetadataRepo:     mockMetadataRepo,
+				OrganizationRepo:       mockOrgRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &OrganizationHandler{
 				Command: cmdUC,
@@ -457,8 +457,8 @@ func TestHandler_GetOrganizationByID(t *testing.T) {
 			tt.setupMocks(mockOrgRepo, mockMetadataRepo, orgID)
 
 			queryUC := &query.UseCase{
-				OrganizationRepo: mockOrgRepo,
-				MetadataRepo:     mockMetadataRepo,
+				OrganizationRepo:       mockOrgRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &OrganizationHandler{Query: queryUC}
 
@@ -721,8 +721,8 @@ func TestHandler_GetAllOrganizations(t *testing.T) {
 			tt.setupMocks(mockOrgRepo, mockMetadataRepo)
 
 			queryUC := &query.UseCase{
-				OrganizationRepo: mockOrgRepo,
-				MetadataRepo:     mockMetadataRepo,
+				OrganizationRepo:       mockOrgRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &OrganizationHandler{Query: queryUC}
 
@@ -973,8 +973,8 @@ func TestHandler_GetOrganizationByID_InvalidUUID(t *testing.T) {
 			// No repo calls expected - validation fails before reaching handler
 
 			queryUC := &query.UseCase{
-				OrganizationRepo: mockOrgRepo,
-				MetadataRepo:     mockMetadataRepo,
+				OrganizationRepo:       mockOrgRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &OrganizationHandler{Query: queryUC}
 
@@ -1022,8 +1022,8 @@ func TestProperty_Organization_FieldLengths(t *testing.T) {
 		AnyTimes()
 
 	cmdUC := &command.UseCase{
-		OrganizationRepo: mockOrgRepo,
-		MetadataRepo:     mockMetadataRepo,
+		OrganizationRepo:       mockOrgRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
 	}
 	handler := &OrganizationHandler{Command: cmdUC}
 
@@ -1100,8 +1100,8 @@ func TestProperty_Headers_InvalidFormats(t *testing.T) {
 		AnyTimes()
 
 	queryUC := &query.UseCase{
-		OrganizationRepo: mockOrgRepo,
-		MetadataRepo:     mockMetadataRepo,
+		OrganizationRepo:       mockOrgRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
 	}
 	handler := &OrganizationHandler{Query: queryUC}
 
@@ -1157,8 +1157,8 @@ func TestProperty_ContentType_Variations(t *testing.T) {
 		AnyTimes()
 
 	cmdUC := &command.UseCase{
-		OrganizationRepo: mockOrgRepo,
-		MetadataRepo:     mockMetadataRepo,
+		OrganizationRepo:       mockOrgRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
 	}
 	handler := &OrganizationHandler{Command: cmdUC}
 
@@ -1222,8 +1222,8 @@ func TestProperty_Headers_MissingContentType(t *testing.T) {
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	cmdUC := &command.UseCase{
-		OrganizationRepo: mockOrgRepo,
-		MetadataRepo:     mockMetadataRepo,
+		OrganizationRepo:       mockOrgRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
 	}
 	handler := &OrganizationHandler{Command: cmdUC}
 
@@ -1263,8 +1263,8 @@ func TestProperty_Headers_DuplicateContentType(t *testing.T) {
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	cmdUC := &command.UseCase{
-		OrganizationRepo: mockOrgRepo,
-		MetadataRepo:     mockMetadataRepo,
+		OrganizationRepo:       mockOrgRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
 	}
 	handler := &OrganizationHandler{Command: cmdUC}
 
@@ -1305,8 +1305,8 @@ func TestProperty_Headers_DuplicateXRequestId(t *testing.T) {
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	cmdUC := &command.UseCase{
-		OrganizationRepo: mockOrgRepo,
-		MetadataRepo:     mockMetadataRepo,
+		OrganizationRepo:       mockOrgRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
 	}
 	handler := &OrganizationHandler{Command: cmdUC}
 
@@ -1365,8 +1365,8 @@ func FuzzCreateOrganization_LegalName(f *testing.F) {
 			AnyTimes()
 
 		cmdUC := &command.UseCase{
-			OrganizationRepo: mockOrgRepo,
-			MetadataRepo:     mockMetadataRepo,
+			OrganizationRepo:       mockOrgRepo,
+			OnboardingMetadataRepo: mockMetadataRepo,
 		}
 		handler := &OrganizationHandler{Command: cmdUC}
 

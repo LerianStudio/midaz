@@ -14,8 +14,8 @@ import (
 
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -124,8 +124,8 @@ func TestHandler_CreatePortfolio(t *testing.T) {
 			tt.setupMocks(mockPortfolioRepo, mockMetadataRepo, orgID, ledgerID)
 
 			cmdUC := &command.UseCase{
-				PortfolioRepo: mockPortfolioRepo,
-				MetadataRepo:  mockMetadataRepo,
+				PortfolioRepo:          mockPortfolioRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &PortfolioHandler{Command: cmdUC}
 
@@ -338,12 +338,12 @@ func TestHandler_UpdatePortfolio(t *testing.T) {
 			tt.setupMocks(mockPortfolioRepo, mockMetadataRepo, orgID, ledgerID, portfolioID)
 
 			cmdUC := &command.UseCase{
-				PortfolioRepo: mockPortfolioRepo,
-				MetadataRepo:  mockMetadataRepo,
+				PortfolioRepo:          mockPortfolioRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			queryUC := &query.UseCase{
-				PortfolioRepo: mockPortfolioRepo,
-				MetadataRepo:  mockMetadataRepo,
+				PortfolioRepo:          mockPortfolioRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &PortfolioHandler{
 				Command: cmdUC,
@@ -496,8 +496,8 @@ func TestHandler_GetPortfolioByID(t *testing.T) {
 			tt.setupMocks(mockPortfolioRepo, mockMetadataRepo, orgID, ledgerID, portfolioID)
 
 			queryUC := &query.UseCase{
-				PortfolioRepo: mockPortfolioRepo,
-				MetadataRepo:  mockMetadataRepo,
+				PortfolioRepo:          mockPortfolioRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &PortfolioHandler{Query: queryUC}
 
@@ -769,8 +769,8 @@ func TestHandler_GetAllPortfolios(t *testing.T) {
 			tt.setupMocks(mockPortfolioRepo, mockMetadataRepo, orgID, ledgerID)
 
 			queryUC := &query.UseCase{
-				PortfolioRepo: mockPortfolioRepo,
-				MetadataRepo:  mockMetadataRepo,
+				PortfolioRepo:          mockPortfolioRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &PortfolioHandler{Query: queryUC}
 

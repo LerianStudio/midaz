@@ -18,8 +18,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operation"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -161,8 +161,8 @@ func TestBalanceHandler_GetAllBalances(t *testing.T) {
 			tt.setupMocks(mockBalanceRepo, mockRedisRepo, orgID, ledgerID)
 
 			uc := &query.UseCase{
-				BalanceRepo: mockBalanceRepo,
-				RedisRepo:   mockRedisRepo,
+				BalanceRepo:          mockBalanceRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 			handler := &BalanceHandler{Query: uc}
 
@@ -321,8 +321,8 @@ func TestBalanceHandler_GetAllBalancesByAccountID(t *testing.T) {
 			tt.setupMocks(mockBalanceRepo, mockRedisRepo, orgID, ledgerID, accountID)
 
 			uc := &query.UseCase{
-				BalanceRepo: mockBalanceRepo,
-				RedisRepo:   mockRedisRepo,
+				BalanceRepo:          mockBalanceRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 			handler := &BalanceHandler{Query: uc}
 
@@ -470,8 +470,8 @@ func TestBalanceHandler_GetBalancesByAlias(t *testing.T) {
 			tt.setupMocks(mockBalanceRepo, mockRedisRepo, orgID, ledgerID, tt.alias)
 
 			uc := &query.UseCase{
-				BalanceRepo: mockBalanceRepo,
-				RedisRepo:   mockRedisRepo,
+				BalanceRepo:          mockBalanceRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 			handler := &BalanceHandler{Query: uc}
 
@@ -604,8 +604,8 @@ func TestBalanceHandler_GetBalanceByID(t *testing.T) {
 			tt.setupMocks(mockBalanceRepo, mockRedisRepo, orgID, ledgerID, balanceID)
 
 			uc := &query.UseCase{
-				BalanceRepo: mockBalanceRepo,
-				RedisRepo:   mockRedisRepo,
+				BalanceRepo:          mockBalanceRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 			handler := &BalanceHandler{Query: uc}
 
@@ -902,8 +902,8 @@ func TestBalanceHandler_GetBalancesExternalByCode(t *testing.T) {
 			tt.setupMocks(mockBalanceRepo, mockRedisRepo, orgID, ledgerID, tt.code)
 
 			uc := &query.UseCase{
-				BalanceRepo: mockBalanceRepo,
-				RedisRepo:   mockRedisRepo,
+				BalanceRepo:          mockBalanceRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 			handler := &BalanceHandler{Query: uc}
 
@@ -1056,12 +1056,12 @@ func TestBalanceHandler_UpdateBalance(t *testing.T) {
 			tt.setupMocks(mockBalanceRepo, mockRedisRepo, orgID, ledgerID, balanceID)
 
 			cmdUC := &command.UseCase{
-				BalanceRepo: mockBalanceRepo,
-				RedisRepo:   mockRedisRepo,
+				BalanceRepo:          mockBalanceRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 			queryUC := &query.UseCase{
-				BalanceRepo: mockBalanceRepo,
-				RedisRepo:   mockRedisRepo,
+				BalanceRepo:          mockBalanceRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 			handler := &BalanceHandler{
 				Command: cmdUC,

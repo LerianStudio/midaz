@@ -375,7 +375,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	ttl := time.Duration(300)
 
-	success, err := handler.Command.RedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
+	success, err := handler.Command.TransactionRedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to set on redis", err)
 
@@ -395,7 +395,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	}
 
 	deleteLockOnError := func() {
-		if delErr := handler.Command.RedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
+		if delErr := handler.Command.TransactionRedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete pending transaction lock", delErr)
 
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete pending transaction lock key: %v", delErr))
@@ -441,7 +441,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	ledgerSettings := handler.Query.GetLedgerSettings(ctx, organizationID, ledgerID)
+	ledgerSettings := handler.Query.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
 	if ledgerSettings.Accounting.ValidateRoutes {
 		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
 	}

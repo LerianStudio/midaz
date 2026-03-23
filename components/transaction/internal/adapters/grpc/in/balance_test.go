@@ -12,7 +12,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	balancepb "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -246,8 +246,8 @@ func TestBalanceProto_CreateBalance(t *testing.T) {
 			tt.setupMocks(mockBalanceRepo, mockRedisRepo)
 
 			uc := &command.UseCase{
-				BalanceRepo: mockBalanceRepo,
-				RedisRepo:   mockRedisRepo,
+				BalanceRepo:          mockBalanceRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 
 			handler := &BalanceProto{
@@ -490,8 +490,8 @@ func TestBalanceProto_DeleteAllBalancesByAccountID(t *testing.T) {
 			tt.setupMocks(mockBalanceRepo, mockRedisRepo, orgID, ledgerID, accountID)
 
 			uc := &command.UseCase{
-				BalanceRepo: mockBalanceRepo,
-				RedisRepo:   mockRedisRepo,
+				BalanceRepo:          mockBalanceRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 
 			handler := &BalanceProto{

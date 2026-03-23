@@ -1,0 +1,66 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package query
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"reflect"
+
+	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services"
+	"github.com/LerianStudio/midaz/v3/pkg"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/google/uuid"
+)
+
+func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, ledgerID, accountID, operationID uuid.UUID) (*operation.Operation, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_operation_by_account")
+	defer span.End()
+
+	logger.Log(ctx, libLog.LevelInfo, "Retrieving operation by account")
+
+	op, err := uc.OperationRepo.FindByAccount(ctx, organizationID, ledgerID, accountID, operationID)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting operation on repo: %v", err))
+
+		if errors.Is(err, services.ErrDatabaseItemNotFound) {
+			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation on repo by account", err)
+
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Error getting operation on repo: %v", err))
+
+			return nil, err
+		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation on repo by account", err)
+
+		return nil, err
+	}
+
+	if op != nil {
+		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String())
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb operation", err)
+
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb operation: %v", err))
+
+			return nil, err
+		}
+
+		if metadata != nil {
+			op.Metadata = metadata.Data
+		}
+	}
+
+	return op, nil
+}

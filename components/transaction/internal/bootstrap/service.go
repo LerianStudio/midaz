@@ -10,9 +10,9 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	tmconsumer "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/consumer"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	httpin "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
@@ -53,8 +53,8 @@ type Service struct {
 
 	// Multi-tenant manager handles (opaque any to avoid leaking lib-commons types).
 	// nil in single-tenant mode. Populated from pg.pgManager / mgo.mongoManager at construction.
-	pgManager               any
-	mongoManager            any
+	pgManager      any
+	mongoManager   any
 	metricsFactory *metrics.MetricsFactory // nil in single-tenant mode or when telemetry disabled; for tenant consumer gauge
 
 	// Route registration dependencies (for unified ledger mode)

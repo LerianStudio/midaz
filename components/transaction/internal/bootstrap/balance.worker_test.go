@@ -16,7 +16,7 @@ import (
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
@@ -377,7 +377,7 @@ func TestProcessBalancesToExpire_NoMembers(t *testing.T) {
 		Times(1)
 
 	useCase := &command.UseCase{
-		RedisRepo: mockRedisRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 
 	worker := &BalanceSyncWorker{
@@ -406,7 +406,7 @@ func TestProcessBalancesToExpire_ErrorGettingKeys(t *testing.T) {
 		Times(1)
 
 	useCase := &command.UseCase{
-		RedisRepo: mockRedisRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 
 	worker := &BalanceSyncWorker{
@@ -435,7 +435,7 @@ func TestProcessBalancesToExpire_RedisNilError(t *testing.T) {
 		Times(1)
 
 	useCase := &command.UseCase{
-		RedisRepo: mockRedisRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 
 	worker := &BalanceSyncWorker{
@@ -468,7 +468,7 @@ func TestProcessBalancesToExpire_ShutdownDuringProcessing(t *testing.T) {
 		Times(1)
 
 	useCase := &command.UseCase{
-		RedisRepo: mockRedisRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 
 	worker := &BalanceSyncWorker{
@@ -546,7 +546,7 @@ func TestProcessBalanceToExpire_TTLError(t *testing.T) {
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	useCase := &command.UseCase{
-		RedisRepo: mockRedisRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 
 	worker := &BalanceSyncWorker{
@@ -580,7 +580,7 @@ func TestProcessBalanceToExpire_KeyAlreadyGone(t *testing.T) {
 		Times(1)
 
 	useCase := &command.UseCase{
-		RedisRepo: mockRedisRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 
 	worker := &BalanceSyncWorker{
@@ -613,7 +613,7 @@ func TestProcessBalanceToExpire_GetNilError(t *testing.T) {
 		Times(1)
 
 	useCase := &command.UseCase{
-		RedisRepo: mockRedisRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 
 	worker := &BalanceSyncWorker{
@@ -640,7 +640,7 @@ func TestProcessBalanceToExpire_GetError(t *testing.T) {
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	useCase := &command.UseCase{
-		RedisRepo: mockRedisRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 
 	worker := &BalanceSyncWorker{
@@ -674,7 +674,7 @@ func TestProcessBalanceToExpire_InvalidMemberFormat(t *testing.T) {
 		Times(1)
 
 	useCase := &command.UseCase{
-		RedisRepo: mockRedisRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 
 	worker := &BalanceSyncWorker{
@@ -711,7 +711,7 @@ func TestProcessBalanceToExpire_InvalidJSON(t *testing.T) {
 		Times(1)
 
 	useCase := &command.UseCase{
-		RedisRepo: mockRedisRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 
 	worker := &BalanceSyncWorker{
@@ -757,8 +757,8 @@ func TestProcessBalanceToExpire_SyncError(t *testing.T) {
 		Times(1)
 
 	useCase := &command.UseCase{
-		RedisRepo:   mockRedisRepo,
-		BalanceRepo: mockBalanceRepo,
+		TransactionRedisRepo: mockRedisRepo,
+		BalanceRepo:          mockBalanceRepo,
 	}
 
 	worker := &BalanceSyncWorker{
@@ -810,8 +810,8 @@ func TestProcessBalanceToExpire_SyncSuccess(t *testing.T) {
 		Times(1)
 
 	useCase := &command.UseCase{
-		RedisRepo:   mockRedisRepo,
-		BalanceRepo: mockBalanceRepo,
+		TransactionRedisRepo: mockRedisRepo,
+		BalanceRepo:          mockBalanceRepo,
 	}
 
 	worker := &BalanceSyncWorker{
@@ -864,8 +864,8 @@ func TestProcessBalanceToExpire_SyncSkipped(t *testing.T) {
 		Times(1)
 
 	useCase := &command.UseCase{
-		RedisRepo:   mockRedisRepo,
-		BalanceRepo: mockBalanceRepo,
+		TransactionRedisRepo: mockRedisRepo,
+		BalanceRepo:          mockBalanceRepo,
 	}
 
 	worker := &BalanceSyncWorker{
@@ -901,7 +901,7 @@ func TestProcessBalanceToExpire_TTLSentinelNegativeTwo(t *testing.T) {
 		Times(1)
 
 	useCase := &command.UseCase{
-		RedisRepo: mockRedisRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 
 	worker := &BalanceSyncWorker{

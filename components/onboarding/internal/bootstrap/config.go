@@ -21,10 +21,10 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/onboarding"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	grpcout "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/grpc/out"
 	httpin "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 	"github.com/LerianStudio/midaz/v3/pkg/mgrpc"
 )
@@ -318,29 +318,29 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	settingsCacheTTL := resolveSettingsCacheTTL(cfg, logger)
 
 	queryUseCase := &query.UseCase{
-		OrganizationRepo: organizationPostgreSQLRepository,
-		LedgerRepo:       ledgerPostgreSQLRepository,
-		SegmentRepo:      segmentPostgreSQLRepository,
-		PortfolioRepo:    portfolioPostgreSQLRepository,
-		AccountRepo:      accountPostgreSQLRepository,
-		AssetRepo:        assetPostgreSQLRepository,
-		AccountTypeRepo:  accountTypePostgreSQLRepository,
-		MetadataRepo:     mgo.metadataRepo,
-		RedisRepo:        redisConsumerRepository,
-		SettingsCacheTTL: settingsCacheTTL,
+		OrganizationRepo:       organizationPostgreSQLRepository,
+		LedgerRepo:             ledgerPostgreSQLRepository,
+		SegmentRepo:            segmentPostgreSQLRepository,
+		PortfolioRepo:          portfolioPostgreSQLRepository,
+		AccountRepo:            accountPostgreSQLRepository,
+		AssetRepo:              assetPostgreSQLRepository,
+		AccountTypeRepo:        accountTypePostgreSQLRepository,
+		OnboardingMetadataRepo: mgo.metadataRepo,
+		OnboardingRedisRepo:    redisConsumerRepository,
+		SettingsCacheTTL:       settingsCacheTTL,
 	}
 
 	commandUseCase := &command.UseCase{
-		OrganizationRepo: organizationPostgreSQLRepository,
-		LedgerRepo:       ledgerPostgreSQLRepository,
-		SegmentRepo:      segmentPostgreSQLRepository,
-		PortfolioRepo:    portfolioPostgreSQLRepository,
-		AccountRepo:      accountPostgreSQLRepository,
-		AssetRepo:        assetPostgreSQLRepository,
-		AccountTypeRepo:  accountTypePostgreSQLRepository,
-		MetadataRepo:     mgo.metadataRepo,
-		RedisRepo:        redisConsumerRepository,
-		BalancePort:      balancePort,
+		OrganizationRepo:       organizationPostgreSQLRepository,
+		LedgerRepo:             ledgerPostgreSQLRepository,
+		SegmentRepo:            segmentPostgreSQLRepository,
+		PortfolioRepo:          portfolioPostgreSQLRepository,
+		AccountRepo:            accountPostgreSQLRepository,
+		AssetRepo:              assetPostgreSQLRepository,
+		AccountTypeRepo:        accountTypePostgreSQLRepository,
+		OnboardingMetadataRepo: mgo.metadataRepo,
+		OnboardingRedisRepo:    redisConsumerRepository,
+		BalancePort:            balancePort,
 	}
 
 	accountHandler := &httpin.AccountHandler{

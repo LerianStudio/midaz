@@ -21,10 +21,10 @@ import (
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 )
 
@@ -456,27 +456,27 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// both transaction and onboarding modules exist, resolving the circular dependency.
 	// If opts.SettingsPort is provided (e.g., in tests), it's set immediately.
 	commandUseCase := &command.UseCase{
-		TransactionRepo:      pg.transactionRepo,
-		OperationRepo:        pg.operationRepo,
-		AssetRateRepo:        pg.assetRateRepo,
-		BalanceRepo:          pg.balanceRepo,
-		OperationRouteRepo:   pg.operationRouteRepo,
-		TransactionRouteRepo: pg.transactionRouteRepo,
-		MetadataRepo:         mgo.metadataRepo,
-		RabbitMQRepo:         rmq.producerRepo,
-		RedisRepo:            redisConsumerRepository,
+		TransactionRepo:         pg.transactionRepo,
+		OperationRepo:           pg.operationRepo,
+		AssetRateRepo:           pg.assetRateRepo,
+		BalanceRepo:             pg.balanceRepo,
+		OperationRouteRepo:      pg.operationRouteRepo,
+		TransactionRouteRepo:    pg.transactionRouteRepo,
+		TransactionMetadataRepo: mgo.metadataRepo,
+		RabbitMQRepo:            rmq.producerRepo,
+		TransactionRedisRepo:    redisConsumerRepository,
 	}
 
 	queryUseCase := &query.UseCase{
-		TransactionRepo:      pg.transactionRepo,
-		OperationRepo:        pg.operationRepo,
-		AssetRateRepo:        pg.assetRateRepo,
-		BalanceRepo:          pg.balanceRepo,
-		OperationRouteRepo:   pg.operationRouteRepo,
-		TransactionRouteRepo: pg.transactionRouteRepo,
-		MetadataRepo:         mgo.metadataRepo,
-		RabbitMQRepo:         rmq.producerRepo,
-		RedisRepo:            redisConsumerRepository,
+		TransactionRepo:         pg.transactionRepo,
+		OperationRepo:           pg.operationRepo,
+		AssetRateRepo:           pg.assetRateRepo,
+		BalanceRepo:             pg.balanceRepo,
+		OperationRouteRepo:      pg.operationRouteRepo,
+		TransactionRouteRepo:    pg.transactionRouteRepo,
+		TransactionMetadataRepo: mgo.metadataRepo,
+		RabbitMQRepo:            rmq.producerRepo,
+		TransactionRedisRepo:    redisConsumerRepository,
 	}
 
 	// If SettingsPort is provided via options (e.g., tests), set it immediately

@@ -25,8 +25,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	nethttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
 	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
@@ -96,23 +96,23 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 
 	// Create use cases
 	commandUC := &command.UseCase{
-		OrganizationRepo: orgRepo,
-		LedgerRepo:       ledgerRepo,
-		AssetRepo:        assetRepo,
-		AccountRepo:      accountRepo,
-		PortfolioRepo:    portfolioRepo,
-		SegmentRepo:      segmentRepo,
-		MetadataRepo:     metadataRepo,
-		BalancePort:      &stubs.BalancePortStub{},
+		OrganizationRepo:       orgRepo,
+		LedgerRepo:             ledgerRepo,
+		AssetRepo:              assetRepo,
+		AccountRepo:            accountRepo,
+		PortfolioRepo:          portfolioRepo,
+		SegmentRepo:            segmentRepo,
+		OnboardingMetadataRepo: metadataRepo,
+		BalancePort:            &stubs.BalancePortStub{},
 	}
 	queryUC := &query.UseCase{
-		OrganizationRepo: orgRepo,
-		LedgerRepo:       ledgerRepo,
-		AssetRepo:        assetRepo,
-		AccountRepo:      accountRepo,
-		PortfolioRepo:    portfolioRepo,
-		SegmentRepo:      segmentRepo,
-		MetadataRepo:     metadataRepo,
+		OrganizationRepo:       orgRepo,
+		LedgerRepo:             ledgerRepo,
+		AssetRepo:              assetRepo,
+		AccountRepo:            accountRepo,
+		PortfolioRepo:          portfolioRepo,
+		SegmentRepo:            segmentRepo,
+		OnboardingMetadataRepo: metadataRepo,
 	}
 
 	// Create handlers

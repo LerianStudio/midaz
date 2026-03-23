@@ -25,8 +25,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -263,10 +263,10 @@ func TestTransactionHandler_GetTransaction(t *testing.T) {
 			tt.setupMocks(mockTransactionRepo, mockOperationRepo, mockMetadataRepo, mockRedisRepo, orgID, ledgerID, transactionID)
 
 			uc := &query.UseCase{
-				TransactionRepo: mockTransactionRepo,
-				OperationRepo:   mockOperationRepo,
-				MetadataRepo:    mockMetadataRepo,
-				RedisRepo:       mockRedisRepo,
+				TransactionRepo:         mockTransactionRepo,
+				OperationRepo:           mockOperationRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
+				TransactionRedisRepo:    mockRedisRepo,
 			}
 			handler := &TransactionHandler{Query: uc}
 
@@ -391,13 +391,13 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 				AnyTimes()
 
 			queryUC := &query.UseCase{
-				TransactionRepo: mockTransactionRepo,
-				OperationRepo:   mockOperationRepo,
-				MetadataRepo:    mockMetadataRepo,
-				RedisRepo:       mockRedisRepo,
+				TransactionRepo:         mockTransactionRepo,
+				OperationRepo:           mockOperationRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
+				TransactionRedisRepo:    mockRedisRepo,
 			}
 			commandUC := &command.UseCase{
-				RedisRepo: mockRedisRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
@@ -498,8 +498,8 @@ func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 				Times(1)
 
 			queryUC := &query.UseCase{
-				TransactionRepo: mockTransactionRepo,
-				MetadataRepo:    mockMetadataRepo,
+				TransactionRepo:         mockTransactionRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			handler := &TransactionHandler{Query: queryUC}
 
@@ -573,8 +573,8 @@ func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
 		Times(1)
 
 	queryUC := &query.UseCase{
-		TransactionRepo: mockTransactionRepo,
-		MetadataRepo:    mockMetadataRepo,
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
@@ -661,8 +661,8 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 		Times(1)
 
 	queryUC := &query.UseCase{
-		TransactionRepo: mockTransactionRepo,
-		MetadataRepo:    mockMetadataRepo,
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
@@ -799,8 +799,8 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 		AnyTimes()
 
 	queryUC := &query.UseCase{
-		TransactionRepo: mockTransactionRepo,
-		MetadataRepo:    mockMetadataRepo,
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
@@ -889,8 +889,8 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 		Times(1)
 
 	queryUC := &query.UseCase{
-		TransactionRepo: mockTransactionRepo,
-		MetadataRepo:    mockMetadataRepo,
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
@@ -1002,9 +1002,9 @@ func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
 		AnyTimes()
 
 	queryUC := &query.UseCase{
-		TransactionRepo:    mockTransactionRepo,
-		MetadataRepo:       mockMetadataRepo,
-		OperationRouteRepo: mockOperationRouteRepo,
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		OperationRouteRepo:      mockOperationRouteRepo,
 	}
 	// The handler needs Command for createTransaction; since we only test
 	// that the bidirectional check passes (not the full createTransaction flow),
@@ -1135,9 +1135,9 @@ func TestRevertTransaction_NonBidirectionalRouteRejects(t *testing.T) {
 		AnyTimes()
 
 	queryUC := &query.UseCase{
-		TransactionRepo:    mockTransactionRepo,
-		MetadataRepo:       mockMetadataRepo,
-		OperationRouteRepo: mockOperationRouteRepo,
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		OperationRouteRepo:      mockOperationRouteRepo,
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
@@ -1233,8 +1233,8 @@ func TestRevertTransaction_NoRouteRevertsNormally(t *testing.T) {
 	// No OperationRouteRepo mock needed -- no route to look up
 
 	queryUC := &query.UseCase{
-		TransactionRepo: mockTransactionRepo,
-		MetadataRepo:    mockMetadataRepo,
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
@@ -1353,9 +1353,9 @@ func TestRevertTransaction_RouteLookupError_ReturnsError(t *testing.T) {
 		Times(1)
 
 	queryUC := &query.UseCase{
-		TransactionRepo:    mockTransactionRepo,
-		MetadataRepo:       mockMetadataRepo,
-		OperationRouteRepo: mockOperationRouteRepo,
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		OperationRouteRepo:      mockOperationRouteRepo,
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
@@ -1416,8 +1416,8 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 		Times(1)
 
 	queryUC := &query.UseCase{
-		TransactionRepo: mockTransactionRepo,
-		RedisRepo:       mockRedisRepo,
+		TransactionRepo:      mockTransactionRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 	handler := &TransactionHandler{Query: queryUC}
 
@@ -1525,12 +1525,12 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 		Times(1)
 
 	queryUC := &query.UseCase{
-		TransactionRepo: mockTransactionRepo,
-		MetadataRepo:    mockMetadataRepo,
-		RedisRepo:       mockRedisRepo,
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		TransactionRedisRepo:    mockRedisRepo,
 	}
 	commandUC := &command.UseCase{
-		RedisRepo: mockRedisRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
@@ -1633,12 +1633,12 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 		Times(1)
 
 	queryUC := &query.UseCase{
-		TransactionRepo: mockTransactionRepo,
-		MetadataRepo:    mockMetadataRepo,
-		RedisRepo:       mockRedisRepo,
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		TransactionRedisRepo:    mockRedisRepo,
 	}
 	commandUC := &command.UseCase{
-		RedisRepo: mockRedisRepo,
+		TransactionRedisRepo: mockRedisRepo,
 	}
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
@@ -2108,9 +2108,9 @@ func TestTransactionHandler_GetAllTransactions(t *testing.T) {
 			tt.setupMocks(mockTransactionRepo, mockOperationRepo, mockMetadataRepo, orgID, ledgerID)
 
 			uc := &query.UseCase{
-				TransactionRepo: mockTransactionRepo,
-				OperationRepo:   mockOperationRepo,
-				MetadataRepo:    mockMetadataRepo,
+				TransactionRepo:         mockTransactionRepo,
+				OperationRepo:           mockOperationRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			handler := &TransactionHandler{Query: uc}
 
@@ -2338,13 +2338,13 @@ func TestTransactionHandler_UpdateTransaction(t *testing.T) {
 			tt.setupMocks(mockTransactionRepo, mockMetadataRepo, mockOperationRepo, orgID, ledgerID, transactionID)
 
 			queryUC := &query.UseCase{
-				TransactionRepo: mockTransactionRepo,
-				MetadataRepo:    mockMetadataRepo,
-				OperationRepo:   mockOperationRepo,
+				TransactionRepo:         mockTransactionRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
+				OperationRepo:           mockOperationRepo,
 			}
 			commandUC := &command.UseCase{
-				TransactionRepo: mockTransactionRepo,
-				MetadataRepo:    mockMetadataRepo,
+				TransactionRepo:         mockTransactionRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
@@ -2951,13 +2951,13 @@ func TestCancelTransaction(t *testing.T) {
 				AnyTimes()
 
 			queryUC := &query.UseCase{
-				TransactionRepo: mockTransactionRepo,
-				MetadataRepo:    mockMetadataRepo,
-				OperationRepo:   mockOperationRepo,
-				RedisRepo:       mockRedisRepo,
+				TransactionRepo:         mockTransactionRepo,
+				TransactionMetadataRepo: mockMetadataRepo,
+				OperationRepo:           mockOperationRepo,
+				TransactionRedisRepo:    mockRedisRepo,
 			}
 			commandUC := &command.UseCase{
-				RedisRepo: mockRedisRepo,
+				TransactionRedisRepo: mockRedisRepo,
 			}
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
@@ -3014,7 +3014,7 @@ func TestGetTransaction_WriteBehindHit(t *testing.T) {
 	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	queryUC := &query.UseCase{RedisRepo: mockRedisRepo}
+	queryUC := &query.UseCase{TransactionRedisRepo: mockRedisRepo}
 	handler := &TransactionHandler{
 		Command: &command.UseCase{},
 		Query:   queryUC,
@@ -3061,8 +3061,8 @@ func TestCancelTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	queryUC := &query.UseCase{
-		RedisRepo:       mockRedisRepo,
-		TransactionRepo: mockTransactionRepo,
+		TransactionRedisRepo: mockRedisRepo,
+		TransactionRepo:      mockTransactionRepo,
 	}
 	handler := &TransactionHandler{
 		Command: &command.UseCase{},
@@ -3109,12 +3109,12 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	queryUC := &query.UseCase{
-		RedisRepo:       mockRedisRepo,
-		TransactionRepo: mockTransactionRepo,
-		MetadataRepo:    mockMetadataRepo,
+		TransactionRedisRepo:    mockRedisRepo,
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
 	}
 	handler := &TransactionHandler{
-		Command: &command.UseCase{RedisRepo: mockRedisRepo},
+		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo},
 		Query:   queryUC,
 	}
 
@@ -3171,9 +3171,9 @@ func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	queryUC := &query.UseCase{RedisRepo: mockRedisRepo}
+	queryUC := &query.UseCase{TransactionRedisRepo: mockRedisRepo}
 	handler := &TransactionHandler{
-		Command: &command.UseCase{RedisRepo: mockRedisRepo},
+		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo},
 		Query:   queryUC,
 	}
 
@@ -3224,8 +3224,8 @@ func TestCommitTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	queryUC := &query.UseCase{
-		RedisRepo:       mockRedisRepo,
-		TransactionRepo: mockTransactionRepo,
+		TransactionRedisRepo: mockRedisRepo,
+		TransactionRepo:      mockTransactionRepo,
 	}
 	handler := &TransactionHandler{
 		Command: &command.UseCase{},
@@ -3272,12 +3272,12 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	queryUC := &query.UseCase{
-		RedisRepo:       mockRedisRepo,
-		TransactionRepo: mockTransactionRepo,
-		MetadataRepo:    mockMetadataRepo,
+		TransactionRedisRepo:    mockRedisRepo,
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
 	}
 	handler := &TransactionHandler{
-		Command: &command.UseCase{RedisRepo: mockRedisRepo},
+		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo},
 		Query:   queryUC,
 	}
 
@@ -3334,9 +3334,9 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	tranID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	queryUC := &query.UseCase{RedisRepo: mockRedisRepo}
+	queryUC := &query.UseCase{TransactionRedisRepo: mockRedisRepo}
 	handler := &TransactionHandler{
-		Command: &command.UseCase{RedisRepo: mockRedisRepo},
+		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo},
 		Query:   queryUC,
 	}
 

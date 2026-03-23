@@ -15,8 +15,8 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
@@ -189,10 +189,10 @@ func TestHandler_CreateAsset(t *testing.T) {
 			tt.setupMocks(mockAssetRepo, mockMetadataRepo, mockAccountRepo, mockBalancePort, orgID, ledgerID)
 
 			cmdUC := &command.UseCase{
-				AssetRepo:    mockAssetRepo,
-				MetadataRepo: mockMetadataRepo,
-				AccountRepo:  mockAccountRepo,
-				BalancePort:  mockBalancePort,
+				AssetRepo:              mockAssetRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
+				AccountRepo:            mockAccountRepo,
+				BalancePort:            mockBalancePort,
 			}
 			handler := &AssetHandler{Command: cmdUC}
 
@@ -392,12 +392,12 @@ func TestHandler_UpdateAsset(t *testing.T) {
 			tt.setupMocks(mockAssetRepo, mockMetadataRepo, orgID, ledgerID, assetID)
 
 			cmdUC := &command.UseCase{
-				AssetRepo:    mockAssetRepo,
-				MetadataRepo: mockMetadataRepo,
+				AssetRepo:              mockAssetRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			queryUC := &query.UseCase{
-				AssetRepo:    mockAssetRepo,
-				MetadataRepo: mockMetadataRepo,
+				AssetRepo:              mockAssetRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AssetHandler{
 				Command: cmdUC,
@@ -535,8 +535,8 @@ func TestHandler_GetAssetByID(t *testing.T) {
 			tt.setupMocks(mockAssetRepo, mockMetadataRepo, orgID, ledgerID, assetID)
 
 			queryUC := &query.UseCase{
-				AssetRepo:    mockAssetRepo,
-				MetadataRepo: mockMetadataRepo,
+				AssetRepo:              mockAssetRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AssetHandler{Query: queryUC}
 
@@ -817,8 +817,8 @@ func TestHandler_GetAllAssets(t *testing.T) {
 			tt.setupMocks(mockAssetRepo, mockMetadataRepo, orgID, ledgerID)
 
 			queryUC := &query.UseCase{
-				AssetRepo:    mockAssetRepo,
-				MetadataRepo: mockMetadataRepo,
+				AssetRepo:              mockAssetRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AssetHandler{Query: queryUC}
 

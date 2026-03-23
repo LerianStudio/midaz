@@ -181,7 +181,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 
 	r.Logger.Log(ctx, libLog.LevelInfo, "Init cron to read messages from redis...")
 
-	messages, err := r.TransactionHandler.Command.RedisRepo.ReadAllMessagesFromQueue(ctx)
+	messages, err := r.TransactionHandler.Command.TransactionRedisRepo.ReadAllMessagesFromQueue(ctx)
 	if err != nil {
 		r.Logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Err to read messages from redis: %v", err))
 		return
@@ -272,7 +272,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 
 	_, spanLock := tracer.Start(msgCtxWithSpan, "redis.consumer.acquire_lock")
 
-	success, err := r.TransactionHandler.Command.RedisRepo.SetNX(msgCtxWithSpan, lockKey, "", ConsumerLockTTL)
+	success, err := r.TransactionHandler.Command.TransactionRedisRepo.SetNX(msgCtxWithSpan, lockKey, "", ConsumerLockTTL)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanLock, "Failed to acquire lock", err)
 		spanLock.End()
@@ -394,7 +394,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 			fromTo = append(fromTo, to...)
 		}
 
-		ledgerSettings := r.TransactionHandler.Query.GetLedgerSettings(msgCtxWithSpan, m.OrganizationID, m.LedgerID)
+		ledgerSettings := r.TransactionHandler.Query.GetParsedLedgerSettings(msgCtxWithSpan, m.OrganizationID, m.LedgerID)
 
 		var routeCache *mmodel.TransactionRouteCache
 

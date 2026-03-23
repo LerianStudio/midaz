@@ -15,8 +15,8 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
@@ -182,10 +182,10 @@ func TestAccountHandler_CreateAccount(t *testing.T) {
 			tt.setupMocks(mockAccountRepo, mockAssetRepo, mockMetadataRepo, mockBalancePort, orgID, ledgerID)
 
 			cmdUC := &command.UseCase{
-				AccountRepo:  mockAccountRepo,
-				AssetRepo:    mockAssetRepo,
-				MetadataRepo: mockMetadataRepo,
-				BalancePort:  mockBalancePort,
+				AccountRepo:            mockAccountRepo,
+				AssetRepo:              mockAssetRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
+				BalancePort:            mockBalancePort,
 			}
 			handler := &AccountHandler{Command: cmdUC}
 
@@ -474,8 +474,8 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			tt.setupMocks(mockAccountRepo, mockMetadataRepo, orgID, ledgerID)
 
 			queryUC := &query.UseCase{
-				AccountRepo:  mockAccountRepo,
-				MetadataRepo: mockMetadataRepo,
+				AccountRepo:            mockAccountRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AccountHandler{Query: queryUC}
 
@@ -607,8 +607,8 @@ func TestAccountHandler_GetAccountByID(t *testing.T) {
 			tt.setupMocks(mockAccountRepo, mockMetadataRepo, orgID, ledgerID, accountID)
 
 			queryUC := &query.UseCase{
-				AccountRepo:  mockAccountRepo,
-				MetadataRepo: mockMetadataRepo,
+				AccountRepo:            mockAccountRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AccountHandler{Query: queryUC}
 
@@ -746,8 +746,8 @@ func TestAccountHandler_GetAccountExternalByCode(t *testing.T) {
 			tt.setupMocks(mockAccountRepo, mockMetadataRepo, orgID, ledgerID)
 
 			queryUC := &query.UseCase{
-				AccountRepo:  mockAccountRepo,
-				MetadataRepo: mockMetadataRepo,
+				AccountRepo:            mockAccountRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AccountHandler{Query: queryUC}
 
@@ -882,8 +882,8 @@ func TestAccountHandler_GetAccountByAlias(t *testing.T) {
 			tt.setupMocks(mockAccountRepo, mockMetadataRepo, orgID, ledgerID)
 
 			queryUC := &query.UseCase{
-				AccountRepo:  mockAccountRepo,
-				MetadataRepo: mockMetadataRepo,
+				AccountRepo:            mockAccountRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AccountHandler{Query: queryUC}
 
@@ -1106,12 +1106,12 @@ func TestAccountHandler_UpdateAccount(t *testing.T) {
 			tt.setupMocks(mockAccountRepo, mockMetadataRepo, orgID, ledgerID, accountID)
 
 			cmdUC := &command.UseCase{
-				AccountRepo:  mockAccountRepo,
-				MetadataRepo: mockMetadataRepo,
+				AccountRepo:            mockAccountRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			queryUC := &query.UseCase{
-				AccountRepo:  mockAccountRepo,
-				MetadataRepo: mockMetadataRepo,
+				AccountRepo:            mockAccountRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &AccountHandler{
 				Command: cmdUC,

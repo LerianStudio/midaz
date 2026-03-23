@@ -14,8 +14,8 @@ import (
 
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -157,8 +157,8 @@ func TestHandler_CreateSegment(t *testing.T) {
 			tt.setupMocks(mockSegmentRepo, mockMetadataRepo, orgID, ledgerID)
 
 			cmdUC := &command.UseCase{
-				SegmentRepo:  mockSegmentRepo,
-				MetadataRepo: mockMetadataRepo,
+				SegmentRepo:            mockSegmentRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &SegmentHandler{Command: cmdUC}
 
@@ -371,12 +371,12 @@ func TestHandler_UpdateSegment(t *testing.T) {
 			tt.setupMocks(mockSegmentRepo, mockMetadataRepo, orgID, ledgerID, segmentID)
 
 			cmdUC := &command.UseCase{
-				SegmentRepo:  mockSegmentRepo,
-				MetadataRepo: mockMetadataRepo,
+				SegmentRepo:            mockSegmentRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			queryUC := &query.UseCase{
-				SegmentRepo:  mockSegmentRepo,
-				MetadataRepo: mockMetadataRepo,
+				SegmentRepo:            mockSegmentRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &SegmentHandler{
 				Command: cmdUC,
@@ -529,8 +529,8 @@ func TestHandler_GetSegmentByID(t *testing.T) {
 			tt.setupMocks(mockSegmentRepo, mockMetadataRepo, orgID, ledgerID, segmentID)
 
 			queryUC := &query.UseCase{
-				SegmentRepo:  mockSegmentRepo,
-				MetadataRepo: mockMetadataRepo,
+				SegmentRepo:            mockSegmentRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &SegmentHandler{Query: queryUC}
 
@@ -802,8 +802,8 @@ func TestHandler_GetAllSegments(t *testing.T) {
 			tt.setupMocks(mockSegmentRepo, mockMetadataRepo, orgID, ledgerID)
 
 			queryUC := &query.UseCase{
-				SegmentRepo:  mockSegmentRepo,
-				MetadataRepo: mockMetadataRepo,
+				SegmentRepo:            mockSegmentRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &SegmentHandler{Query: queryUC}
 

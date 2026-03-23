@@ -17,8 +17,8 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/ledger"
 	redisAdapter "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/command"
+	"github.com/LerianStudio/midaz/v3/components/ledger/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"
 	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -142,8 +142,8 @@ func TestHandler_CreateLedger(t *testing.T) {
 			tt.setupMocks(mockLedgerRepo, mockMetadataRepo, orgID)
 
 			cmdUC := &command.UseCase{
-				LedgerRepo:   mockLedgerRepo,
-				MetadataRepo: mockMetadataRepo,
+				LedgerRepo:             mockLedgerRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &LedgerHandler{Command: cmdUC}
 
@@ -334,12 +334,12 @@ func TestHandler_UpdateLedger(t *testing.T) {
 			tt.setupMocks(mockLedgerRepo, mockMetadataRepo, orgID, ledgerID)
 
 			cmdUC := &command.UseCase{
-				LedgerRepo:   mockLedgerRepo,
-				MetadataRepo: mockMetadataRepo,
+				LedgerRepo:             mockLedgerRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			queryUC := &query.UseCase{
-				LedgerRepo:   mockLedgerRepo,
-				MetadataRepo: mockMetadataRepo,
+				LedgerRepo:             mockLedgerRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &LedgerHandler{
 				Command: cmdUC,
@@ -471,8 +471,8 @@ func TestHandler_GetLedgerByID(t *testing.T) {
 			tt.setupMocks(mockLedgerRepo, mockMetadataRepo, orgID, ledgerID)
 
 			queryUC := &query.UseCase{
-				LedgerRepo:   mockLedgerRepo,
-				MetadataRepo: mockMetadataRepo,
+				LedgerRepo:             mockLedgerRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &LedgerHandler{Query: queryUC}
 
@@ -738,8 +738,8 @@ func TestHandler_GetAllLedgers(t *testing.T) {
 			tt.setupMocks(mockLedgerRepo, mockMetadataRepo, orgID)
 
 			queryUC := &query.UseCase{
-				LedgerRepo:   mockLedgerRepo,
-				MetadataRepo: mockMetadataRepo,
+				LedgerRepo:             mockLedgerRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &LedgerHandler{Query: queryUC}
 
@@ -1012,8 +1012,8 @@ func TestHandler_CreateLedger_Validation(t *testing.T) {
 			// No repo calls expected - validation fails before reaching handler
 
 			cmdUC := &command.UseCase{
-				LedgerRepo:   mockLedgerRepo,
-				MetadataRepo: mockMetadataRepo,
+				LedgerRepo:             mockLedgerRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
 			handler := &LedgerHandler{Command: cmdUC}
 
@@ -1343,8 +1343,8 @@ func TestHandler_UpdateLedgerSettings(t *testing.T) {
 			tt.setupMocks(mockLedgerRepo, mockRedisRepo, orgID, ledgerID)
 
 			cmdUC := &command.UseCase{
-				LedgerRepo: mockLedgerRepo,
-				RedisRepo:  mockRedisRepo,
+				LedgerRepo:          mockLedgerRepo,
+				OnboardingRedisRepo: mockRedisRepo,
 			}
 			handler := &LedgerHandler{Command: cmdUC}
 
