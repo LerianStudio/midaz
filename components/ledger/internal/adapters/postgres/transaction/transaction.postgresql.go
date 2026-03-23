@@ -482,11 +482,12 @@ func (r *TransactionPostgreSQLRepository) updateBulkInternal(
 		return transactions[i].ID < transactions[j].ID
 	})
 
-	result := &repository.BulkUpdateResult{Attempted: int64(len(transactions))}
+	result := &repository.BulkUpdateResult{}
 
-	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
-	// Transaction update uses 4 columns (id, status, status_description, updated_at), so 1000 rows = 4,000 parameters
-	const chunkSize = 1000
+	// Chunk into bulks of ~500 rows to stay within PostgreSQL's parameter limit
+	// Transaction update uses 6 columns (id, organization_id, ledger_id, status, status_description, updated_at)
+	// so 500 rows = 3,000 parameters (well under PostgreSQL's 65535 limit)
+	const chunkSize = 500
 
 	for i := 0; i < len(transactions); i += chunkSize {
 		// Check for context cancellation between chunks
@@ -495,12 +496,16 @@ func (r *TransactionPostgreSQLRepository) updateBulkInternal(
 			libOpentelemetry.HandleSpanError(span, "Context cancelled during bulk update", ctx.Err())
 			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Context cancelled during bulk update: %v", ctx.Err()))
 
-			// Return partial result; Unchanged stays 0 since remaining items were not processed
+			// Return partial result with accurate Attempted count
 			return result, ctx.Err()
 		default:
 		}
 
 		end := min(i+chunkSize, len(transactions))
+		chunkSize64 := int64(end - i)
+
+		// Increment Attempted before executing to accurately reflect rows submitted
+		result.Attempted += chunkSize64
 
 		chunkUpdated, err := r.updateTransactionChunk(ctx, db, transactions[i:end])
 		if err != nil {
@@ -539,9 +544,10 @@ func (r *TransactionPostgreSQLRepository) updateTransactionChunk(ctx context.Con
 	}
 
 	// Build parameterized VALUES list for the batched update
-	// Each row has 4 values: id, status, status_description, updated_at
+	// Each row has 6 values: id, organization_id, ledger_id, status, status_description, updated_at
+	// This ensures updates are scoped to the correct organization and ledger
 	updatedAt := time.Now()
-	args := make([]any, 0, len(transactions)*4)
+	args := make([]any, 0, len(transactions)*6)
 	valuesClauses := make([]string, 0, len(transactions))
 
 	for i, tx := range transactions {
@@ -549,21 +555,24 @@ func (r *TransactionPostgreSQLRepository) updateTransactionChunk(ctx context.Con
 		record.FromEntity(tx)
 
 		// Calculate parameter positions (1-indexed for PostgreSQL)
-		baseIdx := i * 4
-		valuesClauses = append(valuesClauses, fmt.Sprintf("($%d::uuid, $%d, $%d, $%d::timestamp)",
-			baseIdx+1, baseIdx+2, baseIdx+3, baseIdx+4))
+		baseIdx := i * 6
+		valuesClauses = append(valuesClauses, fmt.Sprintf("($%d::uuid, $%d::uuid, $%d::uuid, $%d, $%d, $%d::timestamp)",
+			baseIdx+1, baseIdx+2, baseIdx+3, baseIdx+4, baseIdx+5, baseIdx+6))
 
-		args = append(args, record.ID, record.Status, record.StatusDescription, updatedAt)
+		args = append(args, record.ID, record.OrganizationID, record.LedgerID, record.Status, record.StatusDescription, updatedAt)
 	}
 
 	// Build the batched UPDATE query using UPDATE...FROM (VALUES...)
 	// This performs all updates in a single database round-trip
+	// The WHERE clause includes organization_id and ledger_id to prevent cross-tenant updates
 	query := fmt.Sprintf(`UPDATE %s t
 		SET status = v.new_status,
 		    status_description = v.new_status_description,
 		    updated_at = v.new_updated_at
-		FROM (VALUES %s) AS v(id, new_status, new_status_description, new_updated_at)
+		FROM (VALUES %s) AS v(id, organization_id, ledger_id, new_status, new_status_description, new_updated_at)
 		WHERE t.id = v.id
+		  AND t.organization_id = v.organization_id
+		  AND t.ledger_id = v.ledger_id
 		  AND t.status != v.new_status
 		  AND t.deleted_at IS NULL`,
 		r.tableName,

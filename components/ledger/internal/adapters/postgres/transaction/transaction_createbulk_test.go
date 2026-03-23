@@ -435,7 +435,8 @@ func (m *bulkMockDBSequence) ExecContext(ctx context.Context, query string, args
 func TestCreateBulk_ChunkFailure_PartialResult(t *testing.T) {
 	t.Parallel()
 
-	// Create 2001 transactions to trigger 3 chunks (1000 + 1000 + 1)
+	// Create 2001 transactions to trigger 3 chunks (1000 + 1000 + 1) for CreateBulk
+	// Note: CreateBulk uses chunk size 1000 (15 columns), UpdateBulk uses chunk size 500 (6 columns)
 	transactions := generateTestTransactions(2001)
 
 	// Mock: chunk 1 succeeds (1000 rows), chunk 2 fails

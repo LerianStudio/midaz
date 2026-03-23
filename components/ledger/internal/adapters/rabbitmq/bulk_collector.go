@@ -235,7 +235,9 @@ func (bc *BulkCollector) handleTimeout(ctx context.Context) {
 }
 
 // cleanupOnExit performs final flush and cleanup when the loop exits.
-func (bc *BulkCollector) cleanupOnExit(ctx context.Context, timer *time.Timer) {
+// Uses a fresh context with timeout for the final flush to ensure messages
+// are not dropped even if the original context was cancelled.
+func (bc *BulkCollector) cleanupOnExit(_ context.Context, timer *time.Timer) {
 	if timer != nil {
 		timer.Stop()
 	}
@@ -246,7 +248,14 @@ func (bc *BulkCollector) cleanupOnExit(ctx context.Context, timer *time.Timer) {
 		bc.messages = make([]amqp.Delivery, 0, bc.bulkSize)
 		bc.mu.Unlock()
 
-		bc.executeFlush(ctx, messages)
+		// Create a fresh context with timeout for the final flush
+		// This ensures the final batch is not dropped due to cancelled parent context
+		const finalFlushTimeout = 30 * time.Second
+
+		flushCtx, cancel := context.WithTimeout(context.Background(), finalFlushTimeout)
+		defer cancel()
+
+		bc.executeFlush(flushCtx, messages)
 	} else {
 		bc.mu.Unlock()
 	}

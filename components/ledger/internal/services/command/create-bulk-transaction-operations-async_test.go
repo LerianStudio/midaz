@@ -925,3 +925,117 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_AboveThreshold_Us
 	assert.Equal(t, int64(12), result.TransactionsUpdated)
 	assert.False(t, result.FallbackUsed)
 }
+
+func TestClassifyAndExtractEntities_DoesNotMutateOriginal(t *testing.T) {
+	t.Parallel()
+
+	// This test verifies that classifyAndExtractEntities creates a shallow copy
+	// of transactions, preserving the original payload for fallback processing.
+
+	uc := &UseCase{}
+
+	// Create payload with a populated Body field
+	originalBody := pkgTransaction.Transaction{
+		ChartOfAccountsGroupName: "test-chart-group",
+		Description:              "Original description that should be preserved",
+	}
+
+	originalPayload := transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			ID:             uuid.New().String(),
+			OrganizationID: uuid.New().String(),
+			LedgerID:       uuid.New().String(),
+			Status:         transaction.Status{Code: constant.CREATED},
+			Body:           originalBody,
+			Description:    "Test transaction",
+		},
+	}
+
+	// Store original values for comparison
+	originalBodyChartGroup := originalPayload.Transaction.Body.ChartOfAccountsGroupName
+	originalBodyDesc := originalPayload.Transaction.Body.Description
+
+	// Call classifyAndExtractEntities which should create copies
+	toInsert, _ := uc.classifyAndExtractEntities([]transaction.TransactionProcessingPayload{originalPayload})
+
+	// CRITICAL: Verify original payload Body is NOT mutated
+	assert.Equal(t, originalBodyChartGroup, originalPayload.Transaction.Body.ChartOfAccountsGroupName,
+		"Original payload Body.ChartOfAccountsGroupName should NOT be modified")
+	assert.Equal(t, originalBodyDesc, originalPayload.Transaction.Body.Description,
+		"Original payload Body.Description should NOT be modified")
+
+	// Verify extracted transaction has empty body (as expected for bulk insert)
+	require.Len(t, toInsert.transactions, 1)
+	assert.Empty(t, toInsert.transactions[0].Body.ChartOfAccountsGroupName,
+		"Extracted transaction should have empty Body")
+	assert.Empty(t, toInsert.transactions[0].Body.Description,
+		"Extracted transaction should have empty Body.Description")
+
+	// Verify original transaction ID is preserved (shallow copy of value fields)
+	assert.Equal(t, originalPayload.Transaction.ID, toInsert.transactions[0].ID,
+		"Transaction ID should be preserved in copy")
+}
+
+func TestIndividualUpdateTransactionStatus_PartialFailure(t *testing.T) {
+	t.Parallel()
+
+	// This test verifies that individualUpdateTransactionStatus returns an
+	// aggregated error when some updates fail, instead of swallowing errors.
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo: mockTransactionRepo,
+	}
+
+	// Create 5 transactions for update
+	transactions := make([]*transaction.Transaction, 5)
+	for i := range 5 {
+		transactions[i] = &transaction.Transaction{
+			ID:             uuid.New().String(),
+			OrganizationID: uuid.New().String(),
+			LedgerID:       uuid.New().String(),
+			Status:         transaction.Status{Code: constant.APPROVED},
+		}
+	}
+
+	// Mock: first 3 succeed, last 2 fail
+	// Update is called for each transaction
+	gomock.InOrder(
+		mockTransactionRepo.EXPECT().
+			Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(&transaction.Transaction{}, nil),
+		mockTransactionRepo.EXPECT().
+			Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(&transaction.Transaction{}, nil),
+		mockTransactionRepo.EXPECT().
+			Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(&transaction.Transaction{}, nil),
+		mockTransactionRepo.EXPECT().
+			Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil, errors.New("database connection lost")),
+		mockTransactionRepo.EXPECT().
+			Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil, errors.New("database timeout")),
+	)
+
+	result := &BulkResult{
+		TransactionsUpdateAttempted: int64(len(transactions)),
+	}
+
+	logger := &MockLogger{}
+
+	err := uc.individualUpdateTransactionStatus(context.Background(), logger, transactions, result)
+
+	// CRITICAL: Should return error indicating partial failure
+	require.Error(t, err, "Should return error when some updates fail")
+	assert.Contains(t, err.Error(), "failed to update 2 of 5 transactions",
+		"Error should contain accurate failure count")
+
+	// Verify result reflects only successful updates
+	assert.Equal(t, int64(3), result.TransactionsUpdated,
+		"TransactionsUpdated should reflect only successful updates")
+}

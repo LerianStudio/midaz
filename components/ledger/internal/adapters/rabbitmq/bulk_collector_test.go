@@ -580,3 +580,69 @@ func TestBulkCollector_ConcurrentAccess(t *testing.T) {
 	// Verify at least one flush happened (from shutdown with remaining messages)
 	assert.GreaterOrEqual(t, atomic.LoadInt32(&flushCount), int32(1))
 }
+
+func TestBulkCollector_FinalFlushWithCancelledContext(t *testing.T) {
+	t.Parallel()
+
+	// This test verifies that cleanupOnExit uses a fresh context.Background()
+	// instead of the cancelled parent context, ensuring the final batch is not dropped.
+
+	var flushedCount int32
+	var flushedMessages []amqp.Delivery
+	var flushCtxErr error
+	var mu sync.Mutex
+
+	bc := NewBulkCollector(100, 5*time.Second) // Large bulk size to avoid size-based flush
+	bc.SetFlushCallback(func(ctx context.Context, messages []amqp.Delivery) error {
+		atomic.AddInt32(&flushedCount, 1)
+		mu.Lock()
+		flushedMessages = append(flushedMessages, messages...)
+		flushCtxErr = ctx.Err() // Capture context state during flush
+		mu.Unlock()
+
+		return nil
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+
+	// Start collector in background
+	go func() {
+		_ = bc.Start(ctx)
+		close(done)
+	}()
+
+	// Wait for collector to start
+	time.Sleep(20 * time.Millisecond)
+
+	// Add some messages
+	for i := 0; i < 5; i++ {
+		msg := amqp.Delivery{Body: []byte{byte(i)}}
+		err := bc.Add(msg)
+		require.NoError(t, err)
+	}
+
+	// Wait for messages to be added
+	time.Sleep(50 * time.Millisecond)
+
+	// Cancel context - this triggers cleanupOnExit
+	cancel()
+
+	// Wait for collector to stop
+	select {
+	case <-done:
+		// Expected
+	case <-time.After(2 * time.Second):
+		t.Fatal("collector did not stop within timeout")
+	}
+
+	// CRITICAL: Verify final flush happened even though parent context was cancelled
+	assert.Equal(t, int32(1), atomic.LoadInt32(&flushedCount), "final flush should have occurred")
+
+	mu.Lock()
+	assert.Len(t, flushedMessages, 5, "all 5 messages should have been flushed")
+	// The flush context should NOT be cancelled (it uses context.Background())
+	assert.NoError(t, flushCtxErr, "flush context should NOT be cancelled - cleanupOnExit should use fresh context")
+	mu.Unlock()
+}

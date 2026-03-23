@@ -161,6 +161,8 @@ func (uc *UseCase) extractOrgLedgerIDs(payload transaction.TransactionProcessing
 
 // classifyAndExtractEntities separates payloads into transactions/operations to insert
 // and transactions to update (status transitions).
+// Creates copies of transactions to avoid mutating the original payloads,
+// which are needed intact for fallback processing.
 func (uc *UseCase) classifyAndExtractEntities(
 	payloads []transaction.TransactionProcessingPayload,
 ) (toInsert *bulkInsertEntities, toUpdate *bulkUpdateEntities) {
@@ -178,20 +180,22 @@ func (uc *UseCase) classifyAndExtractEntities(
 			continue
 		}
 
-		tx := payload.Transaction
-		tx.Body = pkgTransaction.Transaction{}
+		// Create a shallow copy to avoid mutating the original payload
+		// The original is needed intact for fallbackToIndividualProcessing
+		txCopy := *payload.Transaction
+		txCopy.Body = pkgTransaction.Transaction{}
 
 		// Determine if this is an insert or an update
 		if uc.isStatusTransition(payload) {
 			// Status transition: PENDING -> APPROVED/CANCELED
-			toUpdate.transactions = append(toUpdate.transactions, tx)
+			toUpdate.transactions = append(toUpdate.transactions, &txCopy)
 		} else {
 			// Normal insert
-			uc.prepareTransactionForInsert(tx)
-			toInsert.transactions = append(toInsert.transactions, tx)
+			uc.prepareTransactionForInsert(&txCopy)
+			toInsert.transactions = append(toInsert.transactions, &txCopy)
 
-			// Collect operations for this transaction
-			for _, op := range tx.Operations {
+			// Collect operations for this transaction (operations are not mutated)
+			for _, op := range payload.Transaction.Operations {
 				if op != nil {
 					toInsert.operations = append(toInsert.operations, op)
 				}
@@ -368,6 +372,7 @@ func (uc *UseCase) bulkUpdateTransactionStatus(
 }
 
 // individualUpdateTransactionStatus uses individual updates for small batches.
+// Returns an aggregated error if any updates failed.
 func (uc *UseCase) individualUpdateTransactionStatus(
 	ctx context.Context,
 	logger libLog.Logger,
@@ -376,12 +381,16 @@ func (uc *UseCase) individualUpdateTransactionStatus(
 ) error {
 	var updated int64
 
+	var failureCount int64
+
 	for _, tx := range transactions {
 		_, err := uc.UpdateTransactionStatus(ctx, tx)
 		if err != nil {
 			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf(
 				"Failed to update transaction %s status: %v", tx.ID, err,
 			))
+
+			failureCount++
 
 			continue
 		}
@@ -392,9 +401,13 @@ func (uc *UseCase) individualUpdateTransactionStatus(
 	result.TransactionsUpdated = updated
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-		"Individual updated transactions: attempted=%d, updated=%d",
-		result.TransactionsUpdateAttempted, updated,
+		"Individual updated transactions: attempted=%d, updated=%d, failed=%d",
+		result.TransactionsUpdateAttempted, updated, failureCount,
 	))
+
+	if failureCount > 0 {
+		return fmt.Errorf("failed to update %d of %d transactions", failureCount, len(transactions))
+	}
 
 	return nil
 }
