@@ -17,8 +17,6 @@ jobs:
     with:
       runner_type: "blacksmith-4vcpu-ubuntu-2404"
       filter_paths: |-
-        components/onboarding
-        components/transaction
         components/crm
         components/ledger
       shared_paths: |
@@ -36,7 +34,7 @@ jobs:
       enable_helm_dispatch: true
       helm_chart: "midaz"
       helm_detect_env_changes: true
-      helm_values_key_mappings: '{"midaz-onboarding": "onboarding", "midaz-transaction": "transaction", "midaz-crm": "crm", "midaz-ledger": "ledger"}'
+      helm_values_key_mappings: '{"midaz-crm": "crm", "midaz-ledger": "ledger"}'
     secrets: inherit
 
   # =========================
@@ -53,7 +51,7 @@ jobs:
       deploy_in_firmino: true
       deploy_in_clotilde: true
       artifact_pattern: "gitops-tags-midaz-*"
-      yaml_key_mappings: '{"midaz-onboarding.tag": ".onboarding.image.tag", "midaz-transaction.tag": ".transaction.image.tag", "midaz-crm.tag": ".crm.image.tag", "midaz-ledger.tag": ".ledger.image.tag"}'
+      yaml_key_mappings: '{"midaz-crm.tag": ".crm.image.tag", "midaz-ledger.tag": ".ledger.image.tag"}'
       commit_message_prefix: "midaz"
       enable_argocd_sync: true
     secrets: inherit
@@ -67,9 +65,9 @@ jobs:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.18.1
     with:
       s3_bucket: "lerian-migration-files"
-      file_pattern: "components/onboarding/migrations/*.sql"
+      file_pattern: "components/ledger/migrations/onboarding/*.sql"
       s3_prefix: "ledger/onboarding/postgresql"
-      strip_prefix: "components/onboarding/migrations"
+      strip_prefix: "components/ledger/migrations/onboarding"
       flatten: false
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_MIGRATIONS_ROLE_ARN }}
@@ -80,9 +78,9 @@ jobs:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@v1.18.1
     with:
       s3_bucket: "lerian-migration-files"
-      file_pattern: "components/transaction/migrations/*.sql"
+      file_pattern: "components/ledger/migrations/transaction/*.sql"
       s3_prefix: "ledger/transaction/postgresql"
-      strip_prefix: "components/transaction/migrations"
+      strip_prefix: "components/ledger/migrations/transaction"
       flatten: false
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_MIGRATIONS_ROLE_ARN }}
