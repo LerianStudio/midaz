@@ -58,18 +58,18 @@ func setupBootstrapIntegrationInfra(t *testing.T) *integrationTestInfra {
 // test container instead of a production database.
 func (infra *integrationTestInfra) buildTestConfig() *Config {
 	return &Config{
-		PrimaryDBHost:     infra.pgResult.Host,
-		PrimaryDBUser:     infra.pgResult.Config.DBUser,
-		PrimaryDBPassword: infra.pgResult.Config.DBPassword,
-		PrimaryDBName:     infra.pgResult.Config.DBName,
-		PrimaryDBPort:     infra.pgResult.Port,
-		PrimaryDBSSLMode:  "disable",
-		ReplicaDBHost:     infra.pgResult.Host,
-		ReplicaDBUser:     infra.pgResult.Config.DBUser,
-		ReplicaDBPassword: infra.pgResult.Config.DBPassword,
-		ReplicaDBName:     infra.pgResult.Config.DBName,
-		ReplicaDBPort:     infra.pgResult.Port,
-		ReplicaDBSSLMode:  "disable",
+		OnbPrefixedPrimaryDBHost:     infra.pgResult.Host,
+		OnbPrefixedPrimaryDBUser:     infra.pgResult.Config.DBUser,
+		OnbPrefixedPrimaryDBPassword: infra.pgResult.Config.DBPassword,
+		OnbPrefixedPrimaryDBName:     infra.pgResult.Config.DBName,
+		OnbPrefixedPrimaryDBPort:     infra.pgResult.Port,
+		OnbPrefixedPrimaryDBSSLMode:  "disable",
+		OnbPrefixedReplicaDBHost:     infra.pgResult.Host,
+		OnbPrefixedReplicaDBUser:     infra.pgResult.Config.DBUser,
+		OnbPrefixedReplicaDBPassword: infra.pgResult.Config.DBPassword,
+		OnbPrefixedReplicaDBName:     infra.pgResult.Config.DBName,
+		OnbPrefixedReplicaDBPort:     infra.pgResult.Port,
+		OnbPrefixedReplicaDBSSLMode:  "disable",
 	}
 }
 
@@ -312,11 +312,6 @@ func TestIntegration_InitOnboardingPostgres_PrefixedFallbackConnects(t *testing.
 		OnbPrefixedReplicaDBName:     infra.pgResult.Config.DBName,
 		OnbPrefixedReplicaDBPort:     infra.pgResult.Port,
 		OnbPrefixedReplicaDBSSLMode:  "disable",
-		// Fallback values pointing at invalid host.
-		PrimaryDBHost: "invalid-host-should-not-be-used",
-		PrimaryDBPort: "9999",
-		ReplicaDBHost: "invalid-host-should-not-be-used",
-		ReplicaDBPort: "9999",
 	}
 
 	conn, err := buildOnboardingPostgresConnection(cfg, logger)
@@ -353,18 +348,18 @@ func TestIntegration_InitOnboardingPostgres_InvalidConfigReturnsError(t *testing
 	t.Cleanup(func() { onboardingPostgresConnector = original })
 
 	cfg := &Config{
-		PrimaryDBHost:     "invalid-host-that-does-not-exist",
-		PrimaryDBUser:     "nobody",
-		PrimaryDBPassword: "nothing",
-		PrimaryDBName:     "nonexistent",
-		PrimaryDBPort:     "59999",
-		PrimaryDBSSLMode:  "disable",
-		ReplicaDBHost:     "invalid-host-that-does-not-exist",
-		ReplicaDBUser:     "nobody",
-		ReplicaDBPassword: "nothing",
-		ReplicaDBName:     "nonexistent",
-		ReplicaDBPort:     "59999",
-		ReplicaDBSSLMode:  "disable",
+		OnbPrefixedPrimaryDBHost:     "invalid-host-that-does-not-exist",
+		OnbPrefixedPrimaryDBUser:     "nobody",
+		OnbPrefixedPrimaryDBPassword: "nothing",
+		OnbPrefixedPrimaryDBName:     "nonexistent",
+		OnbPrefixedPrimaryDBPort:     "59999",
+		OnbPrefixedPrimaryDBSSLMode:  "disable",
+		OnbPrefixedReplicaDBHost:     "invalid-host-that-does-not-exist",
+		OnbPrefixedReplicaDBUser:     "nobody",
+		OnbPrefixedReplicaDBPassword: "nothing",
+		OnbPrefixedReplicaDBName:     "nonexistent",
+		OnbPrefixedReplicaDBPort:     "59999",
+		OnbPrefixedReplicaDBSSLMode:  "disable",
 	}
 
 	result, err := initOnboardingSingleTenantPostgres(cfg, logger)
@@ -386,18 +381,18 @@ func TestIntegration_InitOnboardingPostgres_MultiTenantInvalidConfigReturnsError
 	t.Cleanup(func() { onboardingPostgresConnector = original })
 
 	cfg := &Config{
-		PrimaryDBHost:     "invalid-host-that-does-not-exist",
-		PrimaryDBUser:     "nobody",
-		PrimaryDBPassword: "nothing",
-		PrimaryDBName:     "nonexistent",
-		PrimaryDBPort:     "59999",
-		PrimaryDBSSLMode:  "disable",
-		ReplicaDBHost:     "invalid-host-that-does-not-exist",
-		ReplicaDBUser:     "nobody",
-		ReplicaDBPassword: "nothing",
-		ReplicaDBName:     "nonexistent",
-		ReplicaDBPort:     "59999",
-		ReplicaDBSSLMode:  "disable",
+		OnbPrefixedPrimaryDBHost:     "invalid-host-that-does-not-exist",
+		OnbPrefixedPrimaryDBUser:     "nobody",
+		OnbPrefixedPrimaryDBPassword: "nothing",
+		OnbPrefixedPrimaryDBName:     "nonexistent",
+		OnbPrefixedPrimaryDBPort:     "59999",
+		OnbPrefixedPrimaryDBSSLMode:  "disable",
+		OnbPrefixedReplicaDBHost:     "invalid-host-that-does-not-exist",
+		OnbPrefixedReplicaDBUser:     "nobody",
+		OnbPrefixedReplicaDBPassword: "nothing",
+		OnbPrefixedReplicaDBName:     "nonexistent",
+		OnbPrefixedReplicaDBPort:     "59999",
+		OnbPrefixedReplicaDBSSLMode:  "disable",
 	}
 
 	mockClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))

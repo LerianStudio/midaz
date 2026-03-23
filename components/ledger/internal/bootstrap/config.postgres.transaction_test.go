@@ -229,7 +229,7 @@ func TestInitTransactionSingleTenantPostgres_ConnectorError_ReturnsWrappedError(
 	assert.ErrorIs(t, err, connErr, "original error must be wrapped, not replaced")
 }
 
-func TestBuildTransactionPostgresConnection_PrefixedFallback(t *testing.T) {
+func TestBuildTransactionPostgresConnection_PrefixedValues(t *testing.T) {
 	t.Parallel()
 
 	logger := libLog.NewNop()
@@ -239,7 +239,7 @@ func TestBuildTransactionPostgresConnection_PrefixedFallback(t *testing.T) {
 		cfg  *Config
 	}{
 		{
-			name: "uses prefixed values when available",
+			name: "uses prefixed values",
 			cfg: &Config{
 				TxnPrefixedPrimaryDBHost:     "prefixed-host",
 				TxnPrefixedPrimaryDBUser:     "prefixed-user",
@@ -253,25 +253,6 @@ func TestBuildTransactionPostgresConnection_PrefixedFallback(t *testing.T) {
 				TxnPrefixedReplicaDBName:     "prefixed-rdb",
 				TxnPrefixedReplicaDBPort:     "5434",
 				TxnPrefixedReplicaDBSSLMode:  "verify-full",
-				PrimaryDBHost:                "fallback-host",
-				PrimaryDBUser:                "fallback-user",
-			},
-		},
-		{
-			name: "falls back to non-prefixed values",
-			cfg: &Config{
-				PrimaryDBHost:     "fallback-host",
-				PrimaryDBUser:     "fallback-user",
-				PrimaryDBPassword: "fallback-pass",
-				PrimaryDBName:     "fallback-db",
-				PrimaryDBPort:     "5432",
-				PrimaryDBSSLMode:  "disable",
-				ReplicaDBHost:     "replica-host",
-				ReplicaDBUser:     "replica-user",
-				ReplicaDBPassword: "replica-pass",
-				ReplicaDBName:     "replica-db",
-				ReplicaDBPort:     "5432",
-				ReplicaDBSSLMode:  "disable",
 			},
 		},
 		{

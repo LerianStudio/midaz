@@ -19,7 +19,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // onboardingPostgresComponents holds PostgreSQL-related components for the onboarding domain.
@@ -134,37 +133,22 @@ func defaultOnboardingPostgresConnector(cfg *Config, logger libLog.Logger) (*lib
 }
 
 // buildOnboardingPostgresConnection creates a PostgresConnection for the onboarding domain
-// using prefixed env var fallback (DB_ONBOARDING_* with DB_* fallback).
+// using DB_ONBOARDING_* env vars.
 func buildOnboardingPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Client, error) {
-	dbHost := utils.EnvFallback(cfg.OnbPrefixedPrimaryDBHost, cfg.PrimaryDBHost)
-	dbUser := utils.EnvFallback(cfg.OnbPrefixedPrimaryDBUser, cfg.PrimaryDBUser)
-	dbPassword := utils.EnvFallback(cfg.OnbPrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
-	dbName := utils.EnvFallback(cfg.OnbPrefixedPrimaryDBName, cfg.PrimaryDBName)
-	dbPort := utils.EnvFallback(cfg.OnbPrefixedPrimaryDBPort, cfg.PrimaryDBPort)
-	dbSSLMode := utils.EnvFallback(cfg.OnbPrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
-
-	dbReplicaHost := utils.EnvFallback(cfg.OnbPrefixedReplicaDBHost, cfg.ReplicaDBHost)
-	dbReplicaUser := utils.EnvFallback(cfg.OnbPrefixedReplicaDBUser, cfg.ReplicaDBUser)
-	dbReplicaPassword := utils.EnvFallback(cfg.OnbPrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
-	dbReplicaName := utils.EnvFallback(cfg.OnbPrefixedReplicaDBName, cfg.ReplicaDBName)
-	dbReplicaPort := utils.EnvFallback(cfg.OnbPrefixedReplicaDBPort, cfg.ReplicaDBPort)
-	dbReplicaSSLMode := utils.EnvFallback(cfg.OnbPrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
-
-	maxOpenConns := utils.EnvFallbackInt(cfg.OnbPrefixedMaxOpenConnections, cfg.MaxOpenConnections)
-	maxIdleConns := utils.EnvFallbackInt(cfg.OnbPrefixedMaxIdleConnections, cfg.MaxIdleConnections)
-
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
+		cfg.OnbPrefixedPrimaryDBHost, cfg.OnbPrefixedPrimaryDBUser, cfg.OnbPrefixedPrimaryDBPassword,
+		cfg.OnbPrefixedPrimaryDBName, cfg.OnbPrefixedPrimaryDBPort, cfg.OnbPrefixedPrimaryDBSSLMode)
 
 	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbReplicaHost, dbReplicaUser, dbReplicaPassword, dbReplicaName, dbReplicaPort, dbReplicaSSLMode)
+		cfg.OnbPrefixedReplicaDBHost, cfg.OnbPrefixedReplicaDBUser, cfg.OnbPrefixedReplicaDBPassword,
+		cfg.OnbPrefixedReplicaDBName, cfg.OnbPrefixedReplicaDBPort, cfg.OnbPrefixedReplicaDBSSLMode)
 
 	conn, err := libPostgres.New(libPostgres.Config{
 		PrimaryDSN:         postgreSourcePrimary,
 		ReplicaDSN:         postgreSourceReplica,
 		Logger:             logger,
-		MaxOpenConnections: maxOpenConns,
-		MaxIdleConnections: maxIdleConns,
+		MaxOpenConnections: cfg.OnbPrefixedMaxOpenConnections,
+		MaxIdleConnections: cfg.OnbPrefixedMaxIdleConnections,
 	})
 	if err != nil {
 		return nil, err
@@ -179,19 +163,13 @@ var onboardingPostgresMigrator = defaultOnboardingPostgresMigrator
 
 // defaultOnboardingPostgresMigrator executes database migrations for onboarding.
 func defaultOnboardingPostgresMigrator(cfg *Config, logger libLog.Logger) error {
-	dbHost := utils.EnvFallback(cfg.OnbPrefixedPrimaryDBHost, cfg.PrimaryDBHost)
-	dbUser := utils.EnvFallback(cfg.OnbPrefixedPrimaryDBUser, cfg.PrimaryDBUser)
-	dbPassword := utils.EnvFallback(cfg.OnbPrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
-	dbName := utils.EnvFallback(cfg.OnbPrefixedPrimaryDBName, cfg.PrimaryDBName)
-	dbPort := utils.EnvFallback(cfg.OnbPrefixedPrimaryDBPort, cfg.PrimaryDBPort)
-	dbSSLMode := utils.EnvFallback(cfg.OnbPrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
-
 	primaryDSN := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
+		cfg.OnbPrefixedPrimaryDBHost, cfg.OnbPrefixedPrimaryDBUser, cfg.OnbPrefixedPrimaryDBPassword,
+		cfg.OnbPrefixedPrimaryDBName, cfg.OnbPrefixedPrimaryDBPort, cfg.OnbPrefixedPrimaryDBSSLMode)
 
 	migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
 		PrimaryDSN:     primaryDSN,
-		DatabaseName:   dbName,
+		DatabaseName:   cfg.OnbPrefixedPrimaryDBName,
 		Component:      "ledger",
 		MigrationsPath: "components/ledger/migrations/onboarding",
 		Logger:         logger,

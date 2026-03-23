@@ -233,18 +233,18 @@ func TestProperty_BuildTransactionPostgresConnection_NeverPanics(t *testing.T) {
 		sslmode = sanitizeTransactionPropertyString(sslmode, 64)
 
 		cfg := &Config{
-			PrimaryDBHost:     host,
-			PrimaryDBPort:     port,
-			PrimaryDBUser:     user,
-			PrimaryDBPassword: password,
-			PrimaryDBName:     dbname,
-			PrimaryDBSSLMode:  sslmode,
-			ReplicaDBHost:     host,
-			ReplicaDBPort:     port,
-			ReplicaDBUser:     user,
-			ReplicaDBPassword: password,
-			ReplicaDBName:     dbname,
-			ReplicaDBSSLMode:  sslmode,
+			TxnPrefixedPrimaryDBHost:     host,
+			TxnPrefixedPrimaryDBPort:     port,
+			TxnPrefixedPrimaryDBUser:     user,
+			TxnPrefixedPrimaryDBPassword: password,
+			TxnPrefixedPrimaryDBName:     dbname,
+			TxnPrefixedPrimaryDBSSLMode:  sslmode,
+			TxnPrefixedReplicaDBHost:     host,
+			TxnPrefixedReplicaDBPort:     port,
+			TxnPrefixedReplicaDBUser:     user,
+			TxnPrefixedReplicaDBPassword: password,
+			TxnPrefixedReplicaDBName:     dbname,
+			TxnPrefixedReplicaDBSSLMode:  sslmode,
 		}
 
 		conn, err := buildTransactionPostgresConnection(cfg, logger)

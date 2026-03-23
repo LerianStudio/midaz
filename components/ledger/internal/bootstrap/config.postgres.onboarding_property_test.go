@@ -225,18 +225,18 @@ func TestProperty_BuildOnboardingPostgresConnection_NeverPanics(t *testing.T) {
 		sslmode = sanitizeOnboardingPropertyString(sslmode, 64)
 
 		cfg := &Config{
-			PrimaryDBHost:     host,
-			PrimaryDBPort:     port,
-			PrimaryDBUser:     user,
-			PrimaryDBPassword: password,
-			PrimaryDBName:     dbname,
-			PrimaryDBSSLMode:  sslmode,
-			ReplicaDBHost:     host,
-			ReplicaDBPort:     port,
-			ReplicaDBUser:     user,
-			ReplicaDBPassword: password,
-			ReplicaDBName:     dbname,
-			ReplicaDBSSLMode:  sslmode,
+			OnbPrefixedPrimaryDBHost:     host,
+			OnbPrefixedPrimaryDBPort:     port,
+			OnbPrefixedPrimaryDBUser:     user,
+			OnbPrefixedPrimaryDBPassword: password,
+			OnbPrefixedPrimaryDBName:     dbname,
+			OnbPrefixedPrimaryDBSSLMode:  sslmode,
+			OnbPrefixedReplicaDBHost:     host,
+			OnbPrefixedReplicaDBPort:     port,
+			OnbPrefixedReplicaDBUser:     user,
+			OnbPrefixedReplicaDBPassword: password,
+			OnbPrefixedReplicaDBName:     dbname,
+			OnbPrefixedReplicaDBSSLMode:  sslmode,
 		}
 
 		conn, err := buildOnboardingPostgresConnection(cfg, logger)

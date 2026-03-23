@@ -15,7 +15,6 @@ import (
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/transaction"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -71,16 +70,7 @@ func initTransactionMultiTenantMongo(opts *Options, cfg *Config, logger libLog.L
 
 // initTransactionSingleTenantMongo initializes MongoDB in single-tenant mode for transaction.
 func initTransactionSingleTenantMongo(cfg *Config, logger libLog.Logger) (*transactionMongoComponents, error) {
-	mongoURI := utils.EnvFallback(cfg.TxnPrefixedMongoURI, cfg.MongoURI)
-	mongoHost := utils.EnvFallback(cfg.TxnPrefixedMongoDBHost, cfg.MongoDBHost)
-	mongoName := utils.EnvFallback(cfg.TxnPrefixedMongoDBName, cfg.MongoDBName)
-	mongoUser := utils.EnvFallback(cfg.TxnPrefixedMongoDBUser, cfg.MongoDBUser)
-	mongoPassword := utils.EnvFallback(cfg.TxnPrefixedMongoDBPassword, cfg.MongoDBPassword)
-	mongoPortRaw := utils.EnvFallback(cfg.TxnPrefixedMongoDBPort, cfg.MongoDBPort)
-	mongoParametersRaw := utils.EnvFallback(cfg.TxnPrefixedMongoDBParameters, cfg.MongoDBParameters)
-	mongoPoolSize := utils.EnvFallbackInt(cfg.TxnPrefixedMaxPoolSize, cfg.MaxPoolSize)
-
-	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
+	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(cfg.TxnPrefixedMongoDBPort, cfg.TxnPrefixedMongoDBParameters, logger)
 
 	mongoQuery, err := url.ParseQuery(mongoParameters)
 	if err != nil {
@@ -88,12 +78,12 @@ func initTransactionSingleTenantMongo(cfg *Config, logger libLog.Logger) (*trans
 	}
 
 	mongoSource, err := libMongo.BuildURI(libMongo.URIConfig{
-		Scheme:   mongoURI,
-		Username: mongoUser,
-		Password: mongoPassword,
-		Host:     mongoHost,
+		Scheme:   cfg.TxnPrefixedMongoURI,
+		Username: cfg.TxnPrefixedMongoDBUser,
+		Password: cfg.TxnPrefixedMongoDBPassword,
+		Host:     cfg.TxnPrefixedMongoDBHost,
 		Port:     mongoPort,
-		Database: mongoName,
+		Database: cfg.TxnPrefixedMongoDBName,
 		Query:    mongoQuery,
 	})
 	if err != nil {
@@ -101,13 +91,13 @@ func initTransactionSingleTenantMongo(cfg *Config, logger libLog.Logger) (*trans
 	}
 
 	var mongoMaxPoolSize uint64 = 100
-	if mongoPoolSize > 0 {
-		mongoMaxPoolSize = uint64(mongoPoolSize)
+	if cfg.TxnPrefixedMaxPoolSize > 0 {
+		mongoMaxPoolSize = uint64(cfg.TxnPrefixedMaxPoolSize)
 	}
 
 	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{
 		URI:         mongoSource,
-		Database:    mongoName,
+		Database:    cfg.TxnPrefixedMongoDBName,
 		Logger:      logger,
 		MaxPoolSize: mongoMaxPoolSize,
 	})

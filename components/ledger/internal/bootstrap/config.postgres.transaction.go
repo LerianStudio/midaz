@@ -18,7 +18,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // transactionPostgresComponents holds PostgreSQL-related components for the transaction domain.
@@ -130,37 +129,22 @@ func defaultTransactionPostgresConnector(cfg *Config, logger libLog.Logger) (*li
 }
 
 // buildTransactionPostgresConnection creates a PostgresConnection for the transaction domain
-// using prefixed env var fallback (DB_TRANSACTION_* with DB_* fallback).
+// using DB_TRANSACTION_* env vars.
 func buildTransactionPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Client, error) {
-	dbHost := utils.EnvFallback(cfg.TxnPrefixedPrimaryDBHost, cfg.PrimaryDBHost)
-	dbUser := utils.EnvFallback(cfg.TxnPrefixedPrimaryDBUser, cfg.PrimaryDBUser)
-	dbPassword := utils.EnvFallback(cfg.TxnPrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
-	dbName := utils.EnvFallback(cfg.TxnPrefixedPrimaryDBName, cfg.PrimaryDBName)
-	dbPort := utils.EnvFallback(cfg.TxnPrefixedPrimaryDBPort, cfg.PrimaryDBPort)
-	dbSSLMode := utils.EnvFallback(cfg.TxnPrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
-
-	dbReplicaHost := utils.EnvFallback(cfg.TxnPrefixedReplicaDBHost, cfg.ReplicaDBHost)
-	dbReplicaUser := utils.EnvFallback(cfg.TxnPrefixedReplicaDBUser, cfg.ReplicaDBUser)
-	dbReplicaPassword := utils.EnvFallback(cfg.TxnPrefixedReplicaDBPassword, cfg.ReplicaDBPassword)
-	dbReplicaName := utils.EnvFallback(cfg.TxnPrefixedReplicaDBName, cfg.ReplicaDBName)
-	dbReplicaPort := utils.EnvFallback(cfg.TxnPrefixedReplicaDBPort, cfg.ReplicaDBPort)
-	dbReplicaSSLMode := utils.EnvFallback(cfg.TxnPrefixedReplicaDBSSLMode, cfg.ReplicaDBSSLMode)
-
-	maxOpenConns := utils.EnvFallbackInt(cfg.TxnPrefixedMaxOpenConnections, cfg.MaxOpenConnections)
-	maxIdleConns := utils.EnvFallbackInt(cfg.TxnPrefixedMaxIdleConnections, cfg.MaxIdleConnections)
-
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
+		cfg.TxnPrefixedPrimaryDBHost, cfg.TxnPrefixedPrimaryDBUser, cfg.TxnPrefixedPrimaryDBPassword,
+		cfg.TxnPrefixedPrimaryDBName, cfg.TxnPrefixedPrimaryDBPort, cfg.TxnPrefixedPrimaryDBSSLMode)
 
 	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbReplicaHost, dbReplicaUser, dbReplicaPassword, dbReplicaName, dbReplicaPort, dbReplicaSSLMode)
+		cfg.TxnPrefixedReplicaDBHost, cfg.TxnPrefixedReplicaDBUser, cfg.TxnPrefixedReplicaDBPassword,
+		cfg.TxnPrefixedReplicaDBName, cfg.TxnPrefixedReplicaDBPort, cfg.TxnPrefixedReplicaDBSSLMode)
 
 	conn, err := libPostgres.New(libPostgres.Config{
 		PrimaryDSN:         postgreSourcePrimary,
 		ReplicaDSN:         postgreSourceReplica,
 		Logger:             logger,
-		MaxOpenConnections: maxOpenConns,
-		MaxIdleConnections: maxIdleConns,
+		MaxOpenConnections: cfg.TxnPrefixedMaxOpenConnections,
+		MaxIdleConnections: cfg.TxnPrefixedMaxIdleConnections,
 	})
 	if err != nil {
 		return nil, err
@@ -175,19 +159,13 @@ var transactionPostgresMigrator = defaultTransactionPostgresMigrator
 
 // defaultTransactionPostgresMigrator executes database migrations for transaction.
 func defaultTransactionPostgresMigrator(cfg *Config, logger libLog.Logger) error {
-	dbHost := utils.EnvFallback(cfg.TxnPrefixedPrimaryDBHost, cfg.PrimaryDBHost)
-	dbUser := utils.EnvFallback(cfg.TxnPrefixedPrimaryDBUser, cfg.PrimaryDBUser)
-	dbPassword := utils.EnvFallback(cfg.TxnPrefixedPrimaryDBPassword, cfg.PrimaryDBPassword)
-	dbName := utils.EnvFallback(cfg.TxnPrefixedPrimaryDBName, cfg.PrimaryDBName)
-	dbPort := utils.EnvFallback(cfg.TxnPrefixedPrimaryDBPort, cfg.PrimaryDBPort)
-	dbSSLMode := utils.EnvFallback(cfg.TxnPrefixedPrimaryDBSSLMode, cfg.PrimaryDBSSLMode)
-
 	primaryDSN := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		dbHost, dbUser, dbPassword, dbName, dbPort, dbSSLMode)
+		cfg.TxnPrefixedPrimaryDBHost, cfg.TxnPrefixedPrimaryDBUser, cfg.TxnPrefixedPrimaryDBPassword,
+		cfg.TxnPrefixedPrimaryDBName, cfg.TxnPrefixedPrimaryDBPort, cfg.TxnPrefixedPrimaryDBSSLMode)
 
 	migrator, err := libPostgres.NewMigrator(libPostgres.MigrationConfig{
 		PrimaryDSN:     primaryDSN,
-		DatabaseName:   dbName,
+		DatabaseName:   cfg.TxnPrefixedPrimaryDBName,
 		Component:      "ledger",
 		MigrationsPath: "components/ledger/migrations/transaction",
 		Logger:         logger,

@@ -99,18 +99,18 @@ func (infra *chaosBootstrapInfra) buildProxiedConfig(t *testing.T) *Config {
 	require.NoError(t, err, "failed to parse port")
 
 	return &Config{
-		PrimaryDBHost:     host,
-		PrimaryDBUser:     infra.pgResult.Config.DBUser,
-		PrimaryDBPassword: infra.pgResult.Config.DBPassword,
-		PrimaryDBName:     infra.pgResult.Config.DBName,
-		PrimaryDBPort:     portStr,
-		PrimaryDBSSLMode:  "disable",
-		ReplicaDBHost:     host,
-		ReplicaDBUser:     infra.pgResult.Config.DBUser,
-		ReplicaDBPassword: infra.pgResult.Config.DBPassword,
-		ReplicaDBName:     infra.pgResult.Config.DBName,
-		ReplicaDBPort:     portStr,
-		ReplicaDBSSLMode:  "disable",
+		TxnPrefixedPrimaryDBHost:     host,
+		TxnPrefixedPrimaryDBUser:     infra.pgResult.Config.DBUser,
+		TxnPrefixedPrimaryDBPassword: infra.pgResult.Config.DBPassword,
+		TxnPrefixedPrimaryDBName:     infra.pgResult.Config.DBName,
+		TxnPrefixedPrimaryDBPort:     portStr,
+		TxnPrefixedPrimaryDBSSLMode:  "disable",
+		TxnPrefixedReplicaDBHost:     host,
+		TxnPrefixedReplicaDBUser:     infra.pgResult.Config.DBUser,
+		TxnPrefixedReplicaDBPassword: infra.pgResult.Config.DBPassword,
+		TxnPrefixedReplicaDBName:     infra.pgResult.Config.DBName,
+		TxnPrefixedReplicaDBPort:     portStr,
+		TxnPrefixedReplicaDBSSLMode:  "disable",
 	}
 }
 

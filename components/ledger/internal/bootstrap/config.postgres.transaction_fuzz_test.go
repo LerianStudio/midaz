@@ -90,19 +90,19 @@ func FuzzBuildTransactionPostgresConnection_ConfigValues(f *testing.F) {
 		}
 
 		cfg := &Config{
-			PrimaryDBHost:     host,
-			PrimaryDBPort:     port,
-			PrimaryDBUser:     user,
-			PrimaryDBPassword: password,
-			PrimaryDBName:     dbname,
-			PrimaryDBSSLMode:  sslmode,
+			TxnPrefixedPrimaryDBHost:     host,
+			TxnPrefixedPrimaryDBPort:     port,
+			TxnPrefixedPrimaryDBUser:     user,
+			TxnPrefixedPrimaryDBPassword: password,
+			TxnPrefixedPrimaryDBName:     dbname,
+			TxnPrefixedPrimaryDBSSLMode:  sslmode,
 			// Replica fields use same values to exercise both paths.
-			ReplicaDBHost:     host,
-			ReplicaDBPort:     port,
-			ReplicaDBUser:     user,
-			ReplicaDBPassword: password,
-			ReplicaDBName:     dbname,
-			ReplicaDBSSLMode:  sslmode,
+			TxnPrefixedReplicaDBHost:     host,
+			TxnPrefixedReplicaDBPort:     port,
+			TxnPrefixedReplicaDBUser:     user,
+			TxnPrefixedReplicaDBPassword: password,
+			TxnPrefixedReplicaDBName:     dbname,
+			TxnPrefixedReplicaDBSSLMode:  sslmode,
 		}
 
 		// Act: call buildPostgresConnection -- must not panic (covered by test execution).

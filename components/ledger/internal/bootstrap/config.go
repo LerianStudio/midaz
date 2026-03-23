@@ -132,24 +132,6 @@ type Config struct {
 	TxnPrefixedMaxOpenConnections int `env:"DB_TRANSACTION_MAX_OPEN_CONNS"`
 	TxnPrefixedMaxIdleConnections int `env:"DB_TRANSACTION_MAX_IDLE_CONNS"`
 
-	// --- PostgreSQL fallback (DB_* env tags, used when prefixed vars are empty) ---
-	PrimaryDBHost     string `env:"DB_HOST"`
-	PrimaryDBUser     string `env:"DB_USER"`
-	PrimaryDBPassword string `env:"DB_PASSWORD"`
-	PrimaryDBName     string `env:"DB_NAME"`
-	PrimaryDBPort     string `env:"DB_PORT"`
-	PrimaryDBSSLMode  string `env:"DB_SSLMODE"`
-
-	ReplicaDBHost     string `env:"DB_REPLICA_HOST"`
-	ReplicaDBUser     string `env:"DB_REPLICA_USER"`
-	ReplicaDBPassword string `env:"DB_REPLICA_PASSWORD"`
-	ReplicaDBName     string `env:"DB_REPLICA_NAME"`
-	ReplicaDBPort     string `env:"DB_REPLICA_PORT"`
-	ReplicaDBSSLMode  string `env:"DB_REPLICA_SSLMODE"`
-
-	MaxOpenConnections int `env:"DB_MAX_OPEN_CONNS"`
-	MaxIdleConnections int `env:"DB_MAX_IDLE_CONNS"`
-
 	// --- Onboarding MongoDB fields (MONGO_ONBOARDING_* env tags) ---
 	OnbPrefixedMongoURI          string `env:"MONGO_ONBOARDING_URI"`
 	OnbPrefixedMongoDBHost       string `env:"MONGO_ONBOARDING_HOST"`
@@ -169,16 +151,6 @@ type Config struct {
 	TxnPrefixedMongoDBPort       string `env:"MONGO_TRANSACTION_PORT"`
 	TxnPrefixedMongoDBParameters string `env:"MONGO_TRANSACTION_PARAMETERS"`
 	TxnPrefixedMaxPoolSize       int    `env:"MONGO_TRANSACTION_MAX_POOL_SIZE"`
-
-	// --- MongoDB fallback (MONGO_* env tags) ---
-	MongoURI          string `env:"MONGO_URI"`
-	MongoDBHost       string `env:"MONGO_HOST"`
-	MongoDBName       string `env:"MONGO_NAME"`
-	MongoDBUser       string `env:"MONGO_USER"`
-	MongoDBPassword   string `env:"MONGO_PASSWORD"`
-	MongoDBPort       string `env:"MONGO_PORT"`
-	MongoDBParameters string `env:"MONGO_PARAMETERS"`
-	MaxPoolSize       int    `env:"MONGO_MAX_POOL_SIZE"`
 
 	// --- RabbitMQ (transaction domain only) ---
 	RabbitURI                                string `env:"RABBITMQ_URI"`

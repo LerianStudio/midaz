@@ -15,7 +15,6 @@ import (
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/onboarding"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -71,16 +70,7 @@ func initOnboardingMultiTenantMongo(opts *Options, cfg *Config, logger libLog.Lo
 
 // initOnboardingSingleTenantMongo initializes MongoDB in single-tenant mode for onboarding.
 func initOnboardingSingleTenantMongo(cfg *Config, logger libLog.Logger) (*onboardingMongoComponents, error) {
-	mongoURI := utils.EnvFallback(cfg.OnbPrefixedMongoURI, cfg.MongoURI)
-	mongoHost := utils.EnvFallback(cfg.OnbPrefixedMongoDBHost, cfg.MongoDBHost)
-	mongoName := utils.EnvFallback(cfg.OnbPrefixedMongoDBName, cfg.MongoDBName)
-	mongoUser := utils.EnvFallback(cfg.OnbPrefixedMongoDBUser, cfg.MongoDBUser)
-	mongoPassword := utils.EnvFallback(cfg.OnbPrefixedMongoDBPassword, cfg.MongoDBPassword)
-	mongoPortRaw := utils.EnvFallback(cfg.OnbPrefixedMongoDBPort, cfg.MongoDBPort)
-	mongoParametersRaw := utils.EnvFallback(cfg.OnbPrefixedMongoDBParameters, cfg.MongoDBParameters)
-	mongoPoolSize := utils.EnvFallbackInt(cfg.OnbPrefixedMaxPoolSize, cfg.MaxPoolSize)
-
-	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(mongoPortRaw, mongoParametersRaw, logger)
+	mongoPort, mongoParameters := pkgMongo.ExtractMongoPortAndParameters(cfg.OnbPrefixedMongoDBPort, cfg.OnbPrefixedMongoDBParameters, logger)
 
 	mongoQuery, err := url.ParseQuery(mongoParameters)
 	if err != nil {
@@ -88,12 +78,12 @@ func initOnboardingSingleTenantMongo(cfg *Config, logger libLog.Logger) (*onboar
 	}
 
 	mongoSource, err := libMongo.BuildURI(libMongo.URIConfig{
-		Scheme:   mongoURI,
-		Username: mongoUser,
-		Password: mongoPassword,
-		Host:     mongoHost,
+		Scheme:   cfg.OnbPrefixedMongoURI,
+		Username: cfg.OnbPrefixedMongoDBUser,
+		Password: cfg.OnbPrefixedMongoDBPassword,
+		Host:     cfg.OnbPrefixedMongoDBHost,
 		Port:     mongoPort,
-		Database: mongoName,
+		Database: cfg.OnbPrefixedMongoDBName,
 		Query:    mongoQuery,
 	})
 	if err != nil {
@@ -101,13 +91,13 @@ func initOnboardingSingleTenantMongo(cfg *Config, logger libLog.Logger) (*onboar
 	}
 
 	var mongoMaxPoolSize uint64 = 100
-	if mongoPoolSize > 0 {
-		mongoMaxPoolSize = uint64(mongoPoolSize)
+	if cfg.OnbPrefixedMaxPoolSize > 0 {
+		mongoMaxPoolSize = uint64(cfg.OnbPrefixedMaxPoolSize)
 	}
 
 	mongoConnection, err := libMongo.NewClient(context.Background(), libMongo.Config{
 		URI:         mongoSource,
-		Database:    mongoName,
+		Database:    cfg.OnbPrefixedMongoDBName,
 		Logger:      logger,
 		MaxPoolSize: mongoMaxPoolSize,
 	})
