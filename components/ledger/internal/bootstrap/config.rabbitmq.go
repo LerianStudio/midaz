@@ -156,10 +156,12 @@ func initMultiTenantRabbitMQ(
 			func(ctx context.Context, delivery amqp.Delivery) error {
 				ctx, err := resolveTenantConnections(ctx, rmqComponents)
 				if err != nil {
+					logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to resolve tenant connections for consumer message: %v", err))
 					return err
 				}
 
 				if err := handlerBTO(ctx, delivery.Body, useCase); err != nil {
+					logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to process consumer message: %v", err))
 					return err
 				}
 
@@ -212,7 +214,9 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 
 		emitTenantCounter(ctx, rmq.metricsFactory, utils.TenantConnectionsTotal, tenantID, "postgresql")
 
-		ctx = tmcore.ContextWithModulePGConnection(ctx, ApplicationName, db)
+		// Module name must be "transaction" to match the per-tenant PG schema naming
+		// and the middleware's module-scoped connection resolution.
+		ctx = tmcore.ContextWithModulePGConnection(ctx, "transaction", db)
 	}
 
 	if rmq.mongoManager != nil {
