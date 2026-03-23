@@ -12,7 +12,6 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libConstant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -20,7 +19,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
-	grpcMetadata "google.golang.org/grpc/metadata"
 )
 
 // CreateAsset creates an asset and metadata synchronously and ensures an external
@@ -176,10 +174,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			AllowReceiving: true,
 		}
 
-		// Inject authorization token into context metadata for downstream gRPC calls
-		ctxWithAuth := grpcMetadata.AppendToOutgoingContext(ctx, libConstant.MetadataAuthorization, token)
-
-		_, err = uc.CreateBalanceSync(ctxWithAuth, balanceInput)
+		_, err = uc.CreateBalanceSync(ctx, balanceInput)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance", err)
 

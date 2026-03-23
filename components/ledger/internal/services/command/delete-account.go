@@ -11,7 +11,6 @@ import (
 	"reflect"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libConstant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
@@ -19,7 +18,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-	"google.golang.org/grpc/metadata"
 )
 
 // DeleteAccountByID deletes an account from the repository by IDs.
@@ -49,9 +47,6 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 	if accFound == nil {
 		return pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
-
-	// Inject authorization token into context metadata for downstream gRPC calls
-	ctx = metadata.AppendToOutgoingContext(ctx, libConstant.MetadataAuthorization, token)
 
 	accountID, err := uuid.Parse(accFound.ID)
 	if err != nil {

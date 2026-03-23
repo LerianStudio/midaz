@@ -14,7 +14,6 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libConstant "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
@@ -22,7 +21,6 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
-	"google.golang.org/grpc/metadata"
 )
 
 // CreateAccount creates an account and metadata, then synchronously creates the default balance.
@@ -148,9 +146,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		AllowSending:   true,
 		AllowReceiving: true,
 	}
-
-	// Inject authorization token into context metadata for downstream gRPC calls
-	ctx = metadata.AppendToOutgoingContext(ctx, libConstant.MetadataAuthorization, token)
 
 	_, err = uc.CreateBalanceSync(ctx, balanceInput)
 	if err != nil {

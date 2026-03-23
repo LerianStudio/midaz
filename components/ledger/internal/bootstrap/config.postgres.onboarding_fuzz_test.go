@@ -5,9 +5,9 @@
 package bootstrap
 
 // =============================================================================
-// FUZZ TESTS -- buildPostgresConnection Config Values
+// FUZZ TESTS -- buildOnboardingPostgresConnection Config Values
 //
-// This fuzz test exercises buildPostgresConnection with arbitrary Config field
+// This fuzz test exercises buildOnboardingPostgresConnection with arbitrary Config field
 // values to verify:
 //   1. No panic under any combination of field values (including Unicode, null
 //      bytes, very long strings, empty strings, and security payloads).
@@ -32,7 +32,7 @@ import (
 
 // FuzzBuildPostgresConnection_ConfigValues fuzzes the 6 core config fields
 // (host, port, user, password, dbname, sslmode) to verify that
-// buildPostgresConnection never panics regardless of input values.
+// buildOnboardingPostgresConnection never panics regardless of input values.
 //
 // Invariants verified for every input combination:
 //   - No panic (covered by test execution)
@@ -105,12 +105,12 @@ func FuzzBuildOnboardingPostgresConnection_ConfigValues(f *testing.F) {
 			OnbPrefixedReplicaDBSSLMode:  sslmode,
 		}
 
-		// Act: call buildPostgresConnection -- must not panic (covered by test execution).
+		// Act: call buildOnboardingPostgresConnection -- must not panic (covered by test execution).
 		conn, err := buildOnboardingPostgresConnection(cfg, logger)
 		require.NoError(t, err)
 
 		// Invariant 1: always returns a non-nil connection.
-		require.NotNil(t, conn, "buildPostgresConnection must never return nil")
+		require.NotNil(t, conn, "buildOnboardingPostgresConnection must never return nil")
 
 		// Invariant 2: connection string fields are populated (not empty struct).
 		connected, connectedErr := conn.IsConnected()

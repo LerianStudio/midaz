@@ -1,7 +1,3 @@
-// Copyright (c) 2026 Lerian Studio. All rights reserved.
-// Use of this source code is governed by the Elastic License 2.0
-// that can be found in the LICENSE file.
-
 //go:build integration
 
 // Copyright (c) 2026 Lerian Studio. All rights reserved.
@@ -89,7 +85,7 @@ func TestIntegration_InitTransactionPostgres_SingleTenantProducesWorkingRepos(t 
 
 	// Restore the default connector so the real PostgreSQL container is used.
 	// The unit test file overrides postgresConnector; here we need the real one.
-	original := postgresConnector
+	original := transactionPostgresConnector
 	transactionPostgresConnector = defaultTransactionPostgresConnector
 	t.Cleanup(func() { transactionPostgresConnector = original })
 
@@ -134,7 +130,7 @@ func TestIntegration_InitTransactionPostgres_MultiTenantProducesWorkingRepos(t *
 	require.NoError(t, err)
 	cfg := infra.buildTestConfig()
 
-	original := postgresConnector
+	original := transactionPostgresConnector
 	transactionPostgresConnector = defaultTransactionPostgresConnector
 	t.Cleanup(func() { transactionPostgresConnector = original })
 
@@ -226,7 +222,7 @@ func TestIntegration_InitTransactionPostgres_DispatcherRoutesCorrectly(t *testin
 	require.NoError(t, err)
 	cfg := infra.buildTestConfig()
 
-	original := postgresConnector
+	original := transactionPostgresConnector
 	transactionPostgresConnector = defaultTransactionPostgresConnector
 	t.Cleanup(func() { transactionPostgresConnector = original })
 
@@ -252,7 +248,7 @@ func TestIntegration_InitTransactionPostgres_DispatcherRoutesCorrectly(t *testin
 	t.Run("multi-tenant opts routes to multi-tenant", func(t *testing.T) {
 		// Need to reset the connector for the sub-test since the parent
 		// cleanup may restore original before this runs.
-		prev := postgresConnector
+		prev := transactionPostgresConnector
 		transactionPostgresConnector = defaultTransactionPostgresConnector
 		t.Cleanup(func() { transactionPostgresConnector = prev })
 
@@ -341,7 +337,7 @@ func TestIntegration_InitTransactionPostgres_InvalidConfigReturnsError(t *testin
 	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
 	require.NoError(t, err)
 
-	original := postgresConnector
+	original := transactionPostgresConnector
 	transactionPostgresConnector = defaultTransactionPostgresConnector
 	t.Cleanup(func() { transactionPostgresConnector = original })
 
@@ -374,7 +370,7 @@ func TestIntegration_InitTransactionPostgres_MultiTenantInvalidConfigReturnsErro
 	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "midaz-tests"})
 	require.NoError(t, err)
 
-	original := postgresConnector
+	original := transactionPostgresConnector
 	transactionPostgresConnector = defaultTransactionPostgresConnector
 	t.Cleanup(func() { transactionPostgresConnector = original })
 

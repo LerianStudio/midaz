@@ -28,8 +28,6 @@ import (
 	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 )
 
-// Compile-time interface verification.
-
 // UseCase is a struct that aggregates all repositories for both onboarding and transaction
 // domains, providing simplified access in use case implementations.
 type UseCase struct {

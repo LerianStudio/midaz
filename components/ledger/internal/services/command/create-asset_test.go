@@ -100,7 +100,7 @@ func TestCreateAsset(t *testing.T) {
 
 				mockBalanceRepo.EXPECT().
 					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(false, nil).AnyTimes()
+					Return(false, nil).Times(1)
 
 				mockBalanceRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
@@ -193,7 +193,7 @@ func TestCreateAsset(t *testing.T) {
 
 				mockBalanceRepo.EXPECT().
 					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(false, nil).AnyTimes()
+					Return(false, nil).Times(1)
 
 				mockBalanceRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).

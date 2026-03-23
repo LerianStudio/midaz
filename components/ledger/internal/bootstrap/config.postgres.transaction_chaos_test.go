@@ -144,7 +144,7 @@ func TestIntegration_Chaos_InitPostgres_SingleTenantConnectionLoss(t *testing.T)
 	cfg := infra.buildProxiedConfig(t)
 
 	// Use the real connector so connections go through the proxy.
-	original := postgresConnector
+	original := transactionPostgresConnector
 	transactionPostgresConnector = defaultTransactionPostgresConnector
 	t.Cleanup(func() { transactionPostgresConnector = original })
 
@@ -257,7 +257,7 @@ func TestIntegration_Chaos_InitPostgres_MultiTenantConnectionLoss(t *testing.T) 
 	require.NoError(t, err)
 	cfg := infra.buildProxiedConfig(t)
 
-	original := postgresConnector
+	original := transactionPostgresConnector
 	transactionPostgresConnector = defaultTransactionPostgresConnector
 	t.Cleanup(func() { transactionPostgresConnector = original })
 
@@ -371,7 +371,7 @@ func TestIntegration_Chaos_InitPostgres_PostInitConnectionLoss(t *testing.T) {
 	require.NoError(t, err)
 	cfg := infra.buildProxiedConfig(t)
 
-	original := postgresConnector
+	original := transactionPostgresConnector
 	transactionPostgresConnector = defaultTransactionPostgresConnector
 	t.Cleanup(func() { transactionPostgresConnector = original })
 

@@ -55,25 +55,6 @@ func TestResolveLoggerEnvironment(t *testing.T) {
 	}
 }
 
-func TestInitLogger_UsesInjectedLogger(t *testing.T) {
-	t.Parallel()
-
-	injectedLogger := newBootstrapTestLogger(t)
-	logger, err := initLogger(&Options{Logger: injectedLogger}, &Config{EnvName: "production", LogLevel: "debug"})
-
-	require.NoError(t, err)
-	assert.Same(t, injectedLogger, logger)
-}
-
-func TestInitLogger_InvalidLevelReturnsError(t *testing.T) {
-	t.Parallel()
-
-	logger, err := initLogger(nil, &Config{EnvName: "production", LogLevel: "definitely-not-a-level"})
-
-	assert.Nil(t, logger)
-	require.Error(t, err)
-}
-
 func TestBuildRedisConfig_SelectsExpectedTopology(t *testing.T) {
 	t.Parallel()
 

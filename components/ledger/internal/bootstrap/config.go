@@ -313,6 +313,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Infrastructure initialization ===
 
+	// Cleanup helper: on error, close resources in reverse order of creation.
+	var cleanups []func()
+
+	addCleanup := func(fn func()) { cleanups = append(cleanups, fn) }
+	doCleanup := func() {
+		for i := len(cleanups) - 1; i >= 0; i-- {
+			cleanups[i]()
+		}
+	}
+
 	// 1. Onboarding PostgreSQL → 7 repos
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing onboarding PostgreSQL...")
 
@@ -321,20 +331,30 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize onboarding PostgreSQL: %w", err)
 	}
 
+	addCleanup(func() { _ = onbPG.connection.Close() })
+
 	// 2. Transaction PostgreSQL → 6 repos
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing transaction PostgreSQL...")
 
 	txnPG, err := initTransactionPostgres(internalOpts, cfg, logger)
 	if err != nil {
+		doCleanup()
 		return nil, fmt.Errorf("failed to initialize transaction PostgreSQL: %w", err)
 	}
+
+	addCleanup(func() { _ = txnPG.connection.Close() })
 
 	// 3. Onboarding MongoDB → metadata repo
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing onboarding MongoDB...")
 
 	onbMgo, err := initOnboardingMongo(internalOpts, cfg, logger)
 	if err != nil {
+		doCleanup()
 		return nil, fmt.Errorf("failed to initialize onboarding MongoDB: %w", err)
+	}
+
+	if onbMgo.connection != nil {
+		addCleanup(func() { _ = onbMgo.connection.Close(context.Background()) })
 	}
 
 	// 4. Transaction MongoDB → metadata repo
@@ -342,7 +362,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	txnMgo, err := initTransactionMongo(internalOpts, cfg, logger)
 	if err != nil {
+		doCleanup()
 		return nil, fmt.Errorf("failed to initialize transaction MongoDB: %w", err)
+	}
+
+	if txnMgo.connection != nil {
+		addCleanup(func() { _ = txnMgo.connection.Close(context.Background()) })
 	}
 
 	// 5. Redis (shared connection, two consumer repos)
@@ -350,16 +375,21 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	redisConnection, err := initRedisConnection(cfg, logger)
 	if err != nil {
+		doCleanup()
 		return nil, fmt.Errorf("failed to initialize Redis: %w", err)
 	}
 
+	addCleanup(func() { _ = redisConnection.Close() })
+
 	onbRedisRepo, err := onbRedis.NewConsumerRedis(redisConnection)
 	if err != nil {
+		doCleanup()
 		return nil, fmt.Errorf("failed to initialize onboarding redis consumer: %w", err)
 	}
 
 	txnRedisRepo, err := txRedis.NewConsumerRedis(redisConnection)
 	if err != nil {
+		doCleanup()
 		return nil, fmt.Errorf("failed to initialize transaction redis consumer: %w", err)
 	}
 
@@ -368,6 +398,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	rmq, err := initRabbitMQ(internalOpts, cfg, logger, telemetry, redisConnection)
 	if err != nil {
+		doCleanup()
 		return nil, fmt.Errorf("failed to initialize RabbitMQ: %w", err)
 	}
 
@@ -433,6 +464,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
 	if err := rmq.wireConsumer(commandUseCase); err != nil {
+		doCleanup()
 		return nil, err
 	}
 
@@ -470,6 +502,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager)
 	if err != nil {
+		doCleanup()
 		return nil, err
 	}
 
@@ -531,19 +564,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		Telemetry:             telemetry,
 		metricsFactory:        rmq.metricsFactory,
 	}, nil
-}
-
-// initLogger returns the injected logger from options, or creates a new one.
-func initLogger(opts *Options, cfg *Config) (libLog.Logger, error) {
-	if opts != nil && opts.Logger != nil {
-		return opts.Logger, nil
-	}
-
-	return libZap.New(libZap.Config{
-		Environment:     resolveLoggerEnvironment(cfg.EnvName),
-		Level:           cfg.LogLevel,
-		OTelLibraryName: cfg.OtelLibraryName,
-	})
 }
 
 // resolveLoggerEnvironment maps an env name to a libZap environment constant.
@@ -686,6 +706,8 @@ func buildRabbitMQConnectionString(uri, user, pass, host, port, vhost string) st
 	if vhost != "" {
 		u.RawPath = "/" + url.PathEscape(vhost)
 		u.Path = "/" + vhost
+	} else {
+		u.Path = "/"
 	}
 
 	return u.String()

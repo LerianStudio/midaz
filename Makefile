@@ -544,7 +544,7 @@ all-components:
 		echo "Error: No command specified. Use COMMAND=<cmd> to specify a command."; \
 		exit 1; \
 	fi
-	@for dir in $(COMPONENTS); do \
+	@for dir in $(COMPONENTS) $(LEDGER_DIR); do \
 		echo "Running '$(COMMAND)' in $$dir..."; \
 		(cd $$dir && $(MAKE) $(COMMAND)) || exit 1; \
 	done

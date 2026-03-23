@@ -52,7 +52,7 @@ func (s *Service) Run() {
 		launcherOpts = append(launcherOpts, libCommons.RunApp("Redis Queue Consumer", s.RedisQueueConsumer))
 	}
 
-	// Balance sync worker (always enabled)
+	// Balance sync worker (optional, started when configured)
 	if s.BalanceSyncWorker != nil {
 		launcherOpts = append(launcherOpts, libCommons.RunApp("Balance Sync Worker", s.BalanceSyncWorker))
 	}

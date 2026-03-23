@@ -6,6 +6,7 @@ package in
 
 import (
 	"os"
+	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/ledger/api"
@@ -36,7 +37,18 @@ func WithSwaggerEnvConfig() fiber.Handler {
 		}
 
 		if schemes := os.Getenv("SWAGGER_SCHEMES"); schemes != "" {
-			api.SwaggerInfo.Schemes = []string{schemes}
+			var parsed []string
+
+			for _, s := range strings.Split(schemes, ",") {
+				s = strings.TrimSpace(s)
+				if s != "" {
+					parsed = append(parsed, s)
+				}
+			}
+
+			if len(parsed) > 0 {
+				api.SwaggerInfo.Schemes = parsed
+			}
 		}
 
 		return c.Next()

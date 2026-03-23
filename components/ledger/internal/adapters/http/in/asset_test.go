@@ -82,7 +82,7 @@ func TestHandler_CreateAsset(t *testing.T) {
 				// CreateBalanceSync uses BalanceRepo internally
 				balanceRepo.EXPECT().
 					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(false, nil).AnyTimes()
+					Return(false, nil).Times(1)
 
 				balanceRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
