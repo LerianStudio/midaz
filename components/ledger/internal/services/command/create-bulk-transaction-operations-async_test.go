@@ -10,12 +10,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
+	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/repository"
@@ -88,12 +88,12 @@ func TestCreateBulkTransactionOperationsAsync_SingleTransaction_Success(t *testi
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRepo: mockTransactionRepo,
-		OperationRepo:   mockOperationRepo,
-		MetadataRepo:    mockMetadataRepo,
-		BalanceRepo:     mockBalanceRepo,
-		RabbitMQRepo:    mockRabbitMQRepo,
-		RedisRepo:       mockRedisRepo,
+		TransactionRepo:         mockTransactionRepo,
+		OperationRepo:           mockOperationRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		BalanceRepo:             mockBalanceRepo,
+		RabbitMQRepo:            mockRabbitMQRepo,
+		TransactionRedisRepo:    mockRedisRepo,
 	}
 
 	orgID := uuid.New()
@@ -217,12 +217,12 @@ func TestCreateBulkTransactionOperationsAsync_MultipleTransactions_Success(t *te
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRepo: mockTransactionRepo,
-		OperationRepo:   mockOperationRepo,
-		MetadataRepo:    mockMetadataRepo,
-		BalanceRepo:     mockBalanceRepo,
-		RabbitMQRepo:    mockRabbitMQRepo,
-		RedisRepo:       mockRedisRepo,
+		TransactionRepo:         mockTransactionRepo,
+		OperationRepo:           mockOperationRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		BalanceRepo:             mockBalanceRepo,
+		RabbitMQRepo:            mockRabbitMQRepo,
+		TransactionRedisRepo:    mockRedisRepo,
 	}
 
 	payloads := make([]transaction.TransactionProcessingPayload, 3)
@@ -318,12 +318,12 @@ func TestCreateBulkTransactionOperationsAsync_WithDuplicates(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRepo: mockTransactionRepo,
-		OperationRepo:   mockOperationRepo,
-		MetadataRepo:    mockMetadataRepo,
-		BalanceRepo:     mockBalanceRepo,
-		RabbitMQRepo:    mockRabbitMQRepo,
-		RedisRepo:       mockRedisRepo,
+		TransactionRepo:         mockTransactionRepo,
+		OperationRepo:           mockOperationRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		BalanceRepo:             mockBalanceRepo,
+		RabbitMQRepo:            mockRabbitMQRepo,
+		TransactionRedisRepo:    mockRedisRepo,
 	}
 
 	orgID := uuid.New()
@@ -401,12 +401,12 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_BelowThreshold(t 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRepo: mockTransactionRepo,
-		OperationRepo:   mockOperationRepo,
-		MetadataRepo:    mockMetadataRepo,
-		BalanceRepo:     mockBalanceRepo,
-		RabbitMQRepo:    mockRabbitMQRepo,
-		RedisRepo:       mockRedisRepo,
+		TransactionRepo:         mockTransactionRepo,
+		OperationRepo:           mockOperationRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		BalanceRepo:             mockBalanceRepo,
+		RabbitMQRepo:            mockRabbitMQRepo,
+		TransactionRedisRepo:    mockRedisRepo,
 	}
 
 	orgID := uuid.New()
@@ -482,12 +482,12 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRepo: mockTransactionRepo,
-		OperationRepo:   mockOperationRepo,
-		MetadataRepo:    mockMetadataRepo,
-		BalanceRepo:     mockBalanceRepo,
-		RabbitMQRepo:    mockRabbitMQRepo,
-		RedisRepo:       mockRedisRepo,
+		TransactionRepo:         mockTransactionRepo,
+		OperationRepo:           mockOperationRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		BalanceRepo:             mockBalanceRepo,
+		RabbitMQRepo:            mockRabbitMQRepo,
+		TransactionRedisRepo:    mockRedisRepo,
 	}
 
 	orgID := uuid.New()
@@ -831,12 +831,12 @@ func TestCreateBulkTransactionOperationsAsync_BalanceUpdateFails_UsesFallback(t 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRepo: mockTransactionRepo,
-		OperationRepo:   mockOperationRepo,
-		MetadataRepo:    mockMetadataRepo,
-		BalanceRepo:     mockBalanceRepo,
-		RabbitMQRepo:    mockRabbitMQRepo,
-		RedisRepo:       mockRedisRepo,
+		TransactionRepo:         mockTransactionRepo,
+		OperationRepo:           mockOperationRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		BalanceRepo:             mockBalanceRepo,
+		RabbitMQRepo:            mockRabbitMQRepo,
+		TransactionRedisRepo:    mockRedisRepo,
 	}
 
 	orgID := uuid.New()
@@ -922,12 +922,12 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_AboveThreshold_Us
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
 	uc := &UseCase{
-		TransactionRepo: mockTransactionRepo,
-		OperationRepo:   mockOperationRepo,
-		MetadataRepo:    mockMetadataRepo,
-		BalanceRepo:     mockBalanceRepo,
-		RabbitMQRepo:    mockRabbitMQRepo,
-		RedisRepo:       mockRedisRepo,
+		TransactionRepo:         mockTransactionRepo,
+		OperationRepo:           mockOperationRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		BalanceRepo:             mockBalanceRepo,
+		RabbitMQRepo:            mockRabbitMQRepo,
+		TransactionRedisRepo:    mockRedisRepo,
 	}
 
 	// Create 12 status transition payloads (above threshold of 10)
