@@ -60,10 +60,10 @@ type Config struct {
 	MultiTenantEnvironment              string `env:"MULTI_TENANT_ENVIRONMENT"`
 	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`
 	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"`
-	MultiTenantMaxTenantPools               int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
-	MultiTenantIdleTimeoutSec               int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
-	MultiTenantServiceAPIKey                string `env:"MULTI_TENANT_SERVICE_API_KEY"`
-	MultiTenantSettingsCheckIntervalSec     int    `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"` // seconds between tenant config revalidation checks
+	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
+	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
+	MultiTenantServiceAPIKey            string `env:"MULTI_TENANT_SERVICE_API_KEY"`
+	MultiTenantSettingsCheckIntervalSec int    `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"` // seconds between tenant config revalidation checks
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -446,30 +446,6 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 	)
 
 	return tenantClient, tenantServiceName, nil
-}
-
-func buildModuleTenantMiddleware(moduleName string, logger libLog.Logger, rawPGManager, rawMongoManager any) (*tmmiddleware.MultiPoolMiddleware, error) {
-	pgManager, ok := rawPGManager.(*tmpostgres.Manager)
-	if !ok || pgManager == nil {
-		return nil, fmt.Errorf("%s multi-tenant PostgreSQL manager not available", moduleName)
-	}
-
-	mongoManager, ok := rawMongoManager.(*tmmongo.Manager)
-	if !ok || mongoManager == nil {
-		return nil, fmt.Errorf("%s multi-tenant MongoDB manager not available", moduleName)
-	}
-
-	options := []tmmiddleware.MultiPoolOption{
-		tmmiddleware.WithDefaultRoute(moduleName, pgManager, mongoManager),
-		tmmiddleware.WithMultiPoolLogger(logger),
-		tmmiddleware.WithErrorMapper(midazErrorMapper),
-	}
-
-	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
-		libLog.String("module", moduleName),
-	)
-
-	return tmmiddleware.NewMultiPoolMiddleware(options...), nil
 }
 
 func requireMongoManager(moduleName string, rawMongoManager any) (*tmmongo.Manager, error) {
