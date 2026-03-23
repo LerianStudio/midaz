@@ -19,7 +19,7 @@ import (
 
 	// CreateBalanceSync creates a new balance synchronously using the request-supplied properties.
 	// If key != "default", it validates that the default balance exists and that the account type allows additional balances.
-	// This method implements mbootstrap.BalancePort, allowing the transaction module
+	// This method provides balance creation, used by account/asset creation flows
 	// to be used directly by the onboarding module in unified ledger mode.
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	"github.com/google/uuid"

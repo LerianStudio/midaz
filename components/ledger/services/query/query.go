@@ -25,13 +25,9 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/rabbitmq"
 	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 )
 
 // Compile-time interface verification.
-// UseCase implements mbootstrap.SettingsPort for unified ledger mode,
-// allowing transaction operations to query ledger settings directly (in-process).
-var _ mbootstrap.SettingsPort = (*UseCase)(nil)
 
 // UseCase is a struct that aggregates all repositories for both onboarding and transaction
 // domains, providing simplified access in use case implementations.
