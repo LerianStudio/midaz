@@ -12,7 +12,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"

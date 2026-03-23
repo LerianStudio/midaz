@@ -14,8 +14,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/rabbitmq"
+	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 )
 

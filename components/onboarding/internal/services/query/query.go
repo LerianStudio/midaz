@@ -15,7 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
+	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/onboarding"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
 )
 

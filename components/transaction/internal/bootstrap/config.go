@@ -20,9 +20,9 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
+	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	grpcIn "github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/grpc/in"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
@@ -159,7 +159,7 @@ type Config struct {
 	RabbitMQNumbersOfWorkers                 int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
 	RabbitMQNumbersOfPrefetch                int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
 	RabbitMQHealthCheckURL                   string `env:"RABBITMQ_HEALTH_CHECK_URL"`
-	RabbitMQTLS                             bool   `env:"RABBITMQ_TLS"`
+	RabbitMQTLS                              bool   `env:"RABBITMQ_TLS"`
 	RabbitMQTransactionBalanceOperationQueue string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"`
 	OtelServiceName                          string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName                          string `env:"OTEL_LIBRARY_NAME"`
@@ -536,7 +536,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		mongoManager:            mgo.mongoManager,
 		commandUseCase:          commandUseCase,
 		queryUseCase:            queryUseCase,
-		metricsFactory: rmq.metricsFactory,
+		metricsFactory:          rmq.metricsFactory,
 		auth:                    auth,
 		transactionHandler:      h.transaction,
 		operationHandler:        h.operation,

@@ -23,7 +23,7 @@ import (
 // TestMain verifies no goroutine leaks across all tests in this package.
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m,
-		goleak.IgnoreAnyFunction("github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq.(*ConsumerRoutes).RunConsumers.func1"),
+		goleak.IgnoreAnyFunction("github.com/LerianStudio/midaz/v3/components/ledger/adapters/rabbitmq.(*ConsumerRoutes).RunConsumers.func1"),
 	)
 }
 

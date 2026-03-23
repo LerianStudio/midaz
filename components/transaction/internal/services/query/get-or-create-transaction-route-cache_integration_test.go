@@ -16,7 +16,7 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v4/commons/postgres"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"

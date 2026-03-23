@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
+	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/onboarding"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"

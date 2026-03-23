@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 //go:build integration
 
 // Copyright (c) 2026 Lerian Studio. All rights reserved.
@@ -12,7 +16,7 @@
 //
 // Run with:
 //
-//	go test -tags integration -v -run TestIntegration_RedisNamespacing ./components/onboarding/internal/adapters/redis/...
+//	go test -tags integration -v -run TestIntegration_RedisNamespacing ./components/ledger/adapters/redis/onboarding/...
 package redis
 
 import (

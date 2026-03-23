@@ -13,7 +13,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"

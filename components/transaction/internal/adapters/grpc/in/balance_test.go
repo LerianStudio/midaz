@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	balancepb "github.com/LerianStudio/midaz/v3/pkg/mgrpc/balance"

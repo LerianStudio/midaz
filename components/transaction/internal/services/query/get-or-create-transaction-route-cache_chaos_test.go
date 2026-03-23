@@ -27,7 +27,7 @@ import (
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
 	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"

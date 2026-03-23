@@ -14,7 +14,7 @@ package redis
 // Run with:
 //
 //	go test -run TestProperty -v -count=1 \
-//	    ./components/transaction/internal/adapters/redis/
+//	    ./components/ledger/adapters/redis/transaction/
 //
 // Each TestProperty_* function uses testing/quick.Check and will report the
 // counterexample that falsified the property if any violation is found.

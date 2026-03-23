@@ -23,7 +23,7 @@ import (
 	// Run with:
 	//
 	//	go test -run=^$ -fuzz=FuzzKeyNamespacing_SimpleKey -fuzztime=30s \
-	//	    ./components/onboarding/internal/adapters/redis/
+	//	    ./components/ledger/adapters/redis/onboarding/
 	//
 	// =============================================================================
 )

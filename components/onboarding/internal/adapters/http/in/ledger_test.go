@@ -16,7 +16,7 @@ import (
 
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/ledger"
-	redisAdapter "github.com/LerianStudio/midaz/v3/components/onboarding/internal/adapters/redis"
+	redisAdapter "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/onboarding"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg"

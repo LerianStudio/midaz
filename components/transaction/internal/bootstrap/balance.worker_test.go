@@ -15,7 +15,7 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/redis"
+	redis "github.com/LerianStudio/midaz/v3/components/ledger/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"

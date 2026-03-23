@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 //go:build integration
 
 // Copyright (c) 2026 Lerian Studio. All rights reserved.
@@ -13,7 +17,7 @@
 //
 // Run with:
 //
-//	CHAOS=1 go test -tags integration -v -run TestIntegration_Chaos ./components/transaction/internal/adapters/redis/...
+//	CHAOS=1 go test -tags integration -v -run TestIntegration_Chaos ./components/ledger/adapters/redis/transaction/...
 package redis
 
 import (
@@ -26,7 +30,6 @@ import (
 	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
-	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"

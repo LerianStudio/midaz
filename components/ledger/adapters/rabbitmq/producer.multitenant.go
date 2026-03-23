@@ -20,7 +20,7 @@ import (
 // for audit trail and consumer context in multi-tenant messaging.
 const headerTenantID = "X-Tenant-ID"
 
-//go:generate mockgen -source=./components/transaction/internal/adapters/rabbitmq/producer.multitenant.go -destination=./components/transaction/internal/adapters/rabbitmq/producer.multitenant_mock.go -package=rabbitmq
+//go:generate mockgen -source=./components/ledger/adapters/rabbitmq/producer.multitenant.go -destination=./components/ledger/adapters/rabbitmq/producer.multitenant_mock.go -package=rabbitmq
 
 // PublishableChannel abstracts the amqp.Channel operations used during message
 // publishing. *amqp.Channel satisfies this interface, enabling unit-test mocking

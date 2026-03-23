@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/transaction/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/v3/components/ledger/adapters/rabbitmq"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.uber.org/mock/gomock"
