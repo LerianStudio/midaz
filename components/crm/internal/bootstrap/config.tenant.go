@@ -23,6 +23,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+const moduleName = "crm"
+
 // initTenantMiddleware creates the tenant middleware for multi-tenant mode.
 // Returns nil when multi-tenant is disabled or the URL is not configured.
 // The middleware extracts tenantId from JWT, resolves the tenant-specific
@@ -50,14 +52,14 @@ func initTenantMiddleware(cfg *Config, logger libLog.Logger, telemetry *libOpent
 
 	mongoOpts := buildMongoManagerOptions(cfg, logger)
 
-	mongoManager := tmmongo.NewManager(tmClient, in.ApplicationName, mongoOpts...)
+	mongoManager := tmmongo.NewManager(tmClient, cfg.ApplicationName, mongoOpts...)
 
 	tenantMid := tmmiddleware.NewTenantMiddleware(
 		tmmiddleware.WithMongoManager(mongoManager),
 	)
 
 	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("Multi-tenant middleware initialized: target=%s service=%s",
-		redactedTenantManagerURL(mtURL), in.ApplicationName))
+		redactedTenantManagerURL(mtURL), cfg.ApplicationName))
 
 	return wrapTenantMiddlewareWithMetrics(tenantMid.WithTenantDB, telemetry, logger), nil
 }
@@ -129,7 +131,7 @@ func redactedTenantManagerURL(raw string) string {
 
 func buildMongoManagerOptions(cfg *Config, logger libLog.Logger) []tmmongo.Option {
 	mongoOpts := []tmmongo.Option{
-		tmmongo.WithModule(in.ApplicationName),
+		tmmongo.WithModule(moduleName),
 		tmmongo.WithLogger(logger),
 	}
 
@@ -139,6 +141,12 @@ func buildMongoManagerOptions(cfg *Config, logger libLog.Logger) []tmmongo.Optio
 
 	if cfg.MultiTenantIdleTimeoutSec > 0 {
 		mongoOpts = append(mongoOpts, tmmongo.WithIdleTimeout(time.Duration(cfg.MultiTenantIdleTimeoutSec)*time.Second))
+	}
+
+	if cfg.MultiTenantSettingsCheckIntervalSec > 0 {
+		mongoOpts = append(mongoOpts, tmmongo.WithSettingsCheckInterval(
+			time.Duration(cfg.MultiTenantSettingsCheckIntervalSec)*time.Second,
+		))
 	}
 
 	return mongoOpts

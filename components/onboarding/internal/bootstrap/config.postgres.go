@@ -52,11 +52,19 @@ func initMultiTenantPostgres(opts *Options, cfg *Config, logger libLog.Logger) (
 		return nil, fmt.Errorf("TenantClient is required for multi-tenant PostgreSQL initialization")
 	}
 
+	pgOpts := []tmpostgres.Option{
+		tmpostgres.WithModule(ApplicationName),
+		tmpostgres.WithLogger(logger),
+	}
+
+	if cfg.MultiTenantSettingsCheckIntervalSec > 0 {
+		pgOpts = append(pgOpts, tmpostgres.WithSettingsCheckInterval(time.Duration(cfg.MultiTenantSettingsCheckIntervalSec)*time.Second))
+	}
+
 	pgMgr := tmpostgres.NewManager(
 		opts.TenantClient,
 		opts.TenantServiceName,
-		tmpostgres.WithModule(ApplicationName),
-		tmpostgres.WithLogger(logger),
+		pgOpts...,
 	)
 
 	// Build and connect. In multi-tenant mode, this connection serves as

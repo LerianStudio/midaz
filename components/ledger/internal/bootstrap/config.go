@@ -60,9 +60,10 @@ type Config struct {
 	MultiTenantEnvironment              string `env:"MULTI_TENANT_ENVIRONMENT"`
 	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`
 	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"`
-	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
-	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
-	MultiTenantServiceAPIKey            string `env:"MULTI_TENANT_SERVICE_API_KEY"`
+	MultiTenantMaxTenantPools               int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
+	MultiTenantIdleTimeoutSec               int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
+	MultiTenantServiceAPIKey                string `env:"MULTI_TENANT_SERVICE_API_KEY"`
+	MultiTenantSettingsCheckIntervalSec     int    `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"` // seconds between tenant config revalidation checks
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -309,25 +310,61 @@ func buildUnifiedRouteSetup(
 		return setup, nil
 	}
 
-	onboardingMiddleware, err := buildModuleTenantMiddleware(
-		"onboarding",
-		logger,
-		onboardingService.GetPGManager(),
-		onboardingService.GetMongoManager(),
-	)
-	if err != nil {
-		return nil, err
+	onboardingPGManager, ok := onboardingService.GetPGManager().(*tmpostgres.Manager)
+	if !ok || onboardingPGManager == nil {
+		return nil, fmt.Errorf("onboarding multi-tenant PostgreSQL manager not available")
 	}
 
-	transactionMiddleware, err := buildModuleTenantMiddleware(
-		"transaction",
-		logger,
-		transactionService.GetPGManager(),
-		transactionService.GetMongoManager(),
-	)
-	if err != nil {
-		return nil, err
+	onboardingMongoManager, ok := onboardingService.GetMongoManager().(*tmmongo.Manager)
+	if !ok || onboardingMongoManager == nil {
+		return nil, fmt.Errorf("onboarding multi-tenant MongoDB manager not available")
 	}
+
+	transactionPGManager, ok := transactionService.GetPGManager().(*tmpostgres.Manager)
+	if !ok || transactionPGManager == nil {
+		return nil, fmt.Errorf("transaction multi-tenant PostgreSQL manager not available")
+	}
+
+	// Build onboarding middleware with cross-module injection so that
+	// in-process calls from onboarding into the transaction module
+	// (e.g. CreateAccount → CreateBalanceSync) find the "transaction"
+	// PG connection already present in the request context.
+	onboardingMiddleware := tmmiddleware.NewMultiPoolMiddleware(
+		tmmiddleware.WithDefaultRoute("onboarding", onboardingPGManager, onboardingMongoManager),
+		tmmiddleware.WithRoute(nil, "transaction", transactionPGManager, nil),
+		tmmiddleware.WithCrossModuleInjection(),
+		tmmiddleware.WithMultiPoolLogger(logger),
+		tmmiddleware.WithErrorMapper(midazErrorMapper),
+	)
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
+		libLog.String("module", "onboarding"),
+		libLog.Bool("cross_module_injection", true),
+	)
+
+	transactionMongoManager, ok := transactionService.GetMongoManager().(*tmmongo.Manager)
+	if !ok || transactionMongoManager == nil {
+		return nil, fmt.Errorf("transaction multi-tenant MongoDB manager not available")
+	}
+
+	// Build transaction middleware with cross-module injection so that
+	// in-process calls from transaction into the onboarding module
+	// (e.g. GetLedgerSettings → SettingsPort → LedgerRepo) find the "onboarding"
+	// PG connection already present in the request context.
+	transactionMiddleware := tmmiddleware.NewMultiPoolMiddleware(
+		tmmiddleware.WithDefaultRoute("transaction", transactionPGManager, transactionMongoManager),
+		tmmiddleware.WithRoute(nil, "onboarding", onboardingPGManager, nil),
+		tmmiddleware.WithCrossModuleInjection(),
+		tmmiddleware.WithMultiPoolLogger(logger),
+		tmmiddleware.WithErrorMapper(midazErrorMapper),
+	)
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
+		libLog.String("module", "transaction"),
+		libLog.Bool("cross_module_injection", true),
+	)
+
+	var err error
 
 	setup.onboardingMongoManager, err = requireMongoManager("onboarding", onboardingService.GetMongoManager())
 	if err != nil {

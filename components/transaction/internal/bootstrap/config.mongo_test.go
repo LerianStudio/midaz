@@ -100,7 +100,9 @@ func TestInitMultiTenantMongo_Success(t *testing.T) {
 		TenantServiceName:  "transaction",
 	}
 
-	result, err := initMultiTenantMongo(opts, logger)
+	cfg := &Config{}
+
+	result, err := initMultiTenantMongo(opts, cfg, logger)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -120,10 +122,57 @@ func TestInitMultiTenantMongo_NilTenantClient_ReturnsError(t *testing.T) {
 		TenantServiceName:  "transaction",
 	}
 
-	result, err := initMultiTenantMongo(opts, logger)
+	cfg := &Config{}
+
+	result, err := initMultiTenantMongo(opts, cfg, logger)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "TenantClient is required")
+}
+
+func TestInitMultiTenantMongo_WithSettingsCheckInterval(t *testing.T) {
+	t.Parallel()
+
+	logger := libLog.NewNop()
+	client := mustTenantClient(t, logger)
+
+	tests := []struct {
+		name     string
+		interval int
+	}{
+		{
+			name:     "positive interval applies WithSettingsCheckInterval option",
+			interval: 60,
+		},
+		{
+			name:     "zero interval skips WithSettingsCheckInterval option",
+			interval: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := &Options{
+				MultiTenantEnabled: true,
+				TenantClient:       client,
+				TenantServiceName:  "transaction",
+			}
+
+			cfg := &Config{
+				MultiTenantSettingsCheckIntervalSec: tt.interval,
+			}
+
+			result, err := initMultiTenantMongo(opts, cfg, logger)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			assert.NotNil(t, result.mongoManager, "mongoManager must be set in multi-tenant mode")
+			assert.NotNil(t, result.metadataRepo, "metadataRepo must be set in multi-tenant mode")
+			assert.Nil(t, result.connection, "connection must be nil in multi-tenant mode")
+		})
+	}
 }
 
 func TestInitSingleTenantMongo_CreatesComponents(t *testing.T) {

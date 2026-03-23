@@ -1,7 +1,5 @@
 FROM --platform=$BUILDPLATFORM golang:1.25.8-alpine AS builder
-# ci: force rebuild
-# Force rebuild for develop branch - 2026-03-20
-
+# Force rebuild for develop branch - 2026-03-21 (3)
 
 WORKDIR /ledger-app
 
@@ -24,5 +22,7 @@ COPY --from=builder /ledger-app/components/onboarding/migrations /components/onb
 COPY --from=builder /ledger-app/components/transaction/migrations /components/transaction/migrations
 
 EXPOSE 3002
+
+USER nonroot:nonroot
 
 ENTRYPOINT ["/app"]

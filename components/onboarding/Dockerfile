@@ -22,5 +22,7 @@ COPY --from=builder /onboarding-app/components/onboarding/migrations /components
 
 EXPOSE 3000
 
+USER nonroot:nonroot
+
 # Set entrypoint to the compiled binary
 ENTRYPOINT ["/app"]
