@@ -193,7 +193,13 @@ func (bc *BulkCollector) handleMessage(
 		bc.mu.Unlock()
 
 		if timer != nil {
-			timer.Stop()
+			if !timer.Stop() {
+				// Drain any stale value from timer channel to prevent unexpected flush
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 		}
 
 		bc.executeFlush(ctx, messages)

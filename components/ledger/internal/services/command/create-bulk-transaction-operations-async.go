@@ -512,9 +512,9 @@ func (uc *UseCase) fallbackToIndividualProcessing(
 		successCount, len(payloads),
 	))
 
-	// Return error only if all payloads failed
-	if successCount == 0 && lastErr != nil {
-		return result, fmt.Errorf("all fallback processing failed: %w", lastErr)
+	// Return error if any payload failed (partial failure)
+	if successCount != int64(len(payloads)) && lastErr != nil {
+		return result, fmt.Errorf("partial fallback processing failed: %d/%d succeeded: %w", successCount, len(payloads), lastErr)
 	}
 
 	return result, nil
