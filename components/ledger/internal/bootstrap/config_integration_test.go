@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
 //go:build integration
 
 // Copyright (c) 2026 Lerian Studio. All rights reserved.
@@ -377,57 +381,9 @@ func TestIntegration_InitServers_WithAllDependencies_Succeeds(t *testing.T) {
 	// Assert
 	require.NoError(t, err, "InitServers should succeed with all dependencies")
 	require.NotNil(t, service, "service should not be nil")
-	assert.NotNil(t, service.OnboardingService, "onboarding service should be initialized")
-	assert.NotNil(t, service.TransactionService, "transaction service should be initialized")
+	assert.NotNil(t, service.UnifiedServer, "unified server should be initialized")
 	assert.NotNil(t, service.Logger, "logger should be initialized")
 	assert.NotNil(t, service.Telemetry, "telemetry should be initialized")
-
-	// Verify the BalancePort is available for in-process communication
-	balancePort := service.TransactionService.GetBalancePort()
-	assert.NotNil(t, balancePort, "BalancePort should be available from transaction service")
-}
-
-// TestInitServers_BalancePortWiring verifies that the unified ledger service
-// correctly wires the BalancePort from Transaction to Onboarding.
-//
-// This test ensures that:
-// - Both services are initialized
-// - BalancePort is exposed by TransactionService
-// - The wiring enables in-process calls for balance operations
-//
-// NOTE: Actual use case tests (CreateAccount creates Balance, DeleteAccount
-// deletes Balances) should be implemented in services/command/ when ready.
-func TestIntegration_InitServers_BalancePortWiring(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-
-	// Arrange
-	_, addresses, cleanup := setupAllContainers(t)
-	defer cleanup()
-
-	setEnvFromContainers(t, addresses)
-
-	// Change to project root for migrations
-	restoreDir := changeToProjectRoot(t)
-	defer restoreDir()
-
-	// Act - Initialize the unified ledger service
-	service, err := InitServers()
-
-	// Assert
-	require.NoError(t, err, "InitServers should succeed")
-	require.NotNil(t, service, "service should not be nil")
-
-	// Verify the service is properly composed
-	assert.NotNil(t, service.OnboardingService, "onboarding service should be initialized")
-	assert.NotNil(t, service.TransactionService, "transaction service should be initialized")
-
-	// Verify BalancePort wiring - this is what enables in-process calls
-	balancePort := service.TransactionService.GetBalancePort()
-	require.NotNil(t, balancePort, "BalancePort should be available for in-process balance operations")
-
-	t.Log("Unified mode correctly wired: OnboardingService -> BalancePort -> TransactionService")
 }
 
 // TestService_Run_StartsAllServers tests that Service.Run() correctly starts
@@ -457,31 +413,12 @@ func TestIntegration_Service_Run_StartsAllServers(t *testing.T) {
 	require.NoError(t, err, "InitServers should succeed")
 	require.NotNil(t, service, "service should not be nil")
 
-	// Verify runnables are available from both services
-	onboardingRunnables := service.OnboardingService.GetRunnables()
-	transactionRunnables := service.TransactionService.GetRunnables()
-
-	// Onboarding should have at least 1 runnable (HTTP server)
-	assert.NotEmpty(t, onboardingRunnables, "onboarding should have runnables")
-	t.Logf("Onboarding runnables: %d", len(onboardingRunnables))
-	for _, r := range onboardingRunnables {
-		t.Logf("  - %s", r.Name)
-	}
-
-	// Transaction should have multiple runnables (HTTP, gRPC, RabbitMQ consumer, Redis consumer)
-	assert.NotEmpty(t, transactionRunnables, "transaction should have runnables")
-	t.Logf("Transaction runnables: %d", len(transactionRunnables))
-	for _, r := range transactionRunnables {
-		t.Logf("  - %s", r.Name)
-	}
-
-	// Total runnables should be the sum of both
-	totalRunnables := len(onboardingRunnables) + len(transactionRunnables)
-	assert.GreaterOrEqual(t, totalRunnables, 2, "should have at least 2 total runnables")
+	// Verify the unified server is available
+	assert.NotNil(t, service.UnifiedServer, "unified server should be initialized")
 
 	// Note: We don't call service.Run() in tests because it blocks
 	// and starts the full server lifecycle. The above verifies the
 	// service is correctly composed and ready to run.
 
-	t.Logf("Service correctly composed with %d total runnables", totalRunnables)
+	t.Log("Service correctly composed with direct infrastructure initialization")
 }
