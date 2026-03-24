@@ -54,6 +54,7 @@ jobs:
       yaml_key_mappings: '{"midaz-crm.tag": ".crm.image.tag", "midaz-ledger.tag": ".ledger.image.tag"}'
       commit_message_prefix: "midaz"
       enable_argocd_sync: true
+      enable_docker_login: false
     secrets: inherit
 
   # =========================
