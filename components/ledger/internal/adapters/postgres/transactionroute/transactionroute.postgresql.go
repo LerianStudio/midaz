@@ -43,6 +43,7 @@ type Repository interface {
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID, toRemove []uuid.UUID) error
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error)
+	FindOperationRouteIDsByTransactionRouteIDs(ctx context.Context, transactionRouteIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
 }
 
 // TransactionRoutePostgreSQLRepository is a PostgreSQL implementation of the TransactionRouteRepository.
@@ -702,6 +703,84 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 	}
 
 	return transactionRoutes, cur, nil
+}
+
+// FindOperationRouteIDsByTransactionRouteIDs queries the junction table in batch to return
+// a mapping of transaction route IDs to their linked operation route IDs.
+// Returns an empty map (not nil) when no links are found or input is empty.
+func (r *TransactionRoutePostgreSQLRepository) FindOperationRouteIDsByTransactionRouteIDs(ctx context.Context, transactionRouteIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_operation_route_ids_by_transaction_route_ids")
+	defer span.End()
+
+	result := make(map[uuid.UUID][]uuid.UUID)
+
+	if len(transactionRouteIDs) == 0 {
+		return result, nil
+	}
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+
+		return nil, err
+	}
+
+	query := squirrel.Select("otr.transaction_route_id", "otr.operation_route_id").
+		From("operation_transaction_route otr").
+		Join("operation_route orr ON otr.operation_route_id = orr.id AND orr.deleted_at IS NULL").
+		Where(squirrel.Eq{"otr.transaction_route_id": transactionRouteIDs}).
+		Where(squirrel.Eq{"otr.deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	sqlQuery, args, err := query.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to build query: %v", err))
+
+		return nil, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_operation_route_ids.query")
+	defer spanQuery.End()
+
+	rows, err := db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute query: %v", err))
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var trID, orID uuid.UUID
+
+		if err := rows.Scan(&trID, &orID); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to scan junction row", err)
+
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to scan junction row: %v", err))
+
+			return nil, err
+		}
+
+		result[trID] = append(result[trID], orID)
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
+
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to iterate rows: %v", err))
+
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // updateOperationRouteRelationships handles the logic of updating operation route relationships within an existing transaction.
