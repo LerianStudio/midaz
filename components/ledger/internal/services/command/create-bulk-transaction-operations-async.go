@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -526,14 +527,30 @@ func (uc *UseCase) processMetadataAndEvents(
 			}
 		}
 
-		// Send events asynchronously
-		go uc.SendTransactionEvents(ctx, tx)
+		// Send events asynchronously with fresh context to survive parent cancellation
+		go func() {
+			opCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
 
-		// Clean up backup queue
+			uc.SendTransactionEvents(opCtx, tx)
+		}()
+
+		// Clean up backup queue with fresh context to survive parent cancellation
 		orgID, ledgerID, err := uc.extractOrgLedgerIDs(payload)
 		if err == nil {
-			go uc.RemoveTransactionFromRedisQueue(ctx, logger, orgID, ledgerID, tx.ID)
-			go uc.DeleteWriteBehindTransaction(ctx, orgID, ledgerID, tx.ID)
+			go func(orgID, ledgerID uuid.UUID, txID string) {
+				opCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+
+				uc.RemoveTransactionFromRedisQueue(opCtx, logger, orgID, ledgerID, txID)
+			}(orgID, ledgerID, tx.ID)
+
+			go func(orgID, ledgerID uuid.UUID, txID string) {
+				opCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+
+				uc.DeleteWriteBehindTransaction(opCtx, orgID, ledgerID, txID)
+			}(orgID, ledgerID, tx.ID)
 		}
 	}
 }
