@@ -1739,13 +1739,13 @@ const docTemplate = `
           },
           {
             "type": "string",
-            "description": "Filter accounts by portfolio ID (UUID format)",
+            "description": "Filter accounts by portfolio ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics).",
             "name": "portfolio_id",
             "in": "query"
           },
           {
             "type": "string",
-            "description": "Filter accounts by segment ID (UUID format)",
+            "description": "Filter accounts by segment ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics).",
             "name": "segment_id",
             "in": "query"
           }

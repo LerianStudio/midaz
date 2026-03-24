@@ -1430,12 +1430,14 @@ paths:
           - asc
           - desc
           type: string
-      - description: Filter accounts by portfolio ID (UUID format)
+      - description: Filter accounts by portfolio ID (UUID format). If both portfolio_id
+          and segment_id are provided, both filters are applied (AND semantics).
         in: query
         name: portfolio_id
         schema:
           type: string
-      - description: Filter accounts by segment ID (UUID format)
+      - description: Filter accounts by segment ID (UUID format). If both portfolio_id
+          and segment_id are provided, both filters are applied (AND semantics).
         in: query
         name: segment_id
         schema:
