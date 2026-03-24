@@ -10,6 +10,7 @@ import (
 	"errors"
 	"testing"
 
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
@@ -1085,7 +1086,10 @@ func TestIndividualUpdateTransactionStatus_PartialFailure(t *testing.T) {
 		TransactionsUpdateAttempted: int64(len(transactions)),
 	}
 
-	logger := &MockLogger{}
+	logger := libLog.NewMockLogger(ctrl)
+	// Expect warning logs for 2 failed updates + info log for summary
+	logger.EXPECT().Log(gomock.Any(), libLog.LevelWarn, gomock.Any()).Times(2)
+	logger.EXPECT().Log(gomock.Any(), libLog.LevelInfo, gomock.Any()).Times(1)
 
 	err := uc.individualUpdateTransactionStatus(context.Background(), logger, transactions, result)
 
