@@ -41,6 +41,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 		organizationID uuid.UUID
 		ledgerID       uuid.UUID
 		portfolioID    *uuid.UUID
+		segmentID      *uuid.UUID
 		filter         http.QueryHeader
 		mockSetup      func()
 		expectErr      bool
@@ -131,6 +132,31 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 				require.Len(t, result, 1)
 				assert.Equal(t, acc1ID.String(), result[0].ID)
 				assert.Equal(t, "value", result[0].Metadata["key"])
+			},
+		},
+		{
+			name:           "success - filters by segment when provided",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			portfolioID:    nil,
+			segmentID:      func() *uuid.UUID { id := uuid.New(); return &id }(),
+			mockSetup: func() {
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), "Account", gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: acc1ID.String(), Data: map[string]any{"key": "seg-value"}},
+					}, nil)
+				mockAccountRepo.EXPECT().
+					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Not(gomock.Nil()), gomock.Any()).
+					Return([]*mmodel.Account{
+						{ID: acc1ID.String(), Name: "Segment Account"},
+					}, nil)
+			},
+			expectErr: false,
+			validate: func(t *testing.T, result []*mmodel.Account) {
+				require.Len(t, result, 1)
+				assert.Equal(t, acc1ID.String(), result[0].ID)
+				assert.Equal(t, "seg-value", result[0].Metadata["key"])
 			},
 		},
 		{
@@ -228,7 +254,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetAllMetadataAccounts(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, nil, tt.filter)
+			result, err := uc.GetAllMetadataAccounts(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.segmentID, tt.filter)
 
 			if tt.expectErr {
 				require.Error(t, err)

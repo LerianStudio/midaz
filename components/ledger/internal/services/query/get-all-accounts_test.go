@@ -35,6 +35,7 @@ func TestGetAllAccount(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	portfolioID := uuid.New()
+	segmentID := uuid.New()
 
 	filter := http.QueryHeader{
 		Limit: 10,
@@ -43,12 +44,16 @@ func TestGetAllAccount(t *testing.T) {
 
 	tests := []struct {
 		name             string
+		portfolioID      *uuid.UUID
+		segmentID        *uuid.UUID
 		setupMocks       func()
 		expectedErr      error
 		expectedAccounts []*mmodel.Account
 	}{
 		{
-			name: "success - accounts retrieved with metadata",
+			name:        "success - accounts retrieved with metadata",
+			portfolioID: &portfolioID,
+			segmentID:   nil,
 			setupMocks: func() {
 				bFalse := false
 				bTrue := true
@@ -81,7 +86,33 @@ func TestGetAllAccount(t *testing.T) {
 			},
 		},
 		{
-			name: "failure - accounts not found",
+			name:        "success - accounts filtered by segmentID",
+			portfolioID: &portfolioID,
+			segmentID:   &segmentID,
+			setupMocks: func() {
+				mockAccountRepo.EXPECT().
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, &segmentID, filter.ToOffsetPagination()).
+					Return([]*mmodel.Account{
+						{ID: "acc1"},
+					}, nil).
+					Times(1)
+
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Account", []string{"acc1"}).
+					Return([]*mongodb.Metadata{
+						{EntityID: "acc1", Data: map[string]any{"key1": "value1"}},
+					}, nil).
+					Times(1)
+			},
+			expectedErr: nil,
+			expectedAccounts: []*mmodel.Account{
+				{ID: "acc1", Metadata: map[string]any{"key1": "value1"}},
+			},
+		},
+		{
+			name:        "failure - accounts not found",
+			portfolioID: &portfolioID,
+			segmentID:   nil,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter.ToOffsetPagination()).
@@ -92,7 +123,9 @@ func TestGetAllAccount(t *testing.T) {
 			expectedAccounts: nil,
 		},
 		{
-			name: "failure - error retrieving accounts",
+			name:        "failure - error retrieving accounts",
+			portfolioID: &portfolioID,
+			segmentID:   nil,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter.ToOffsetPagination()).
@@ -103,7 +136,9 @@ func TestGetAllAccount(t *testing.T) {
 			expectedAccounts: nil,
 		},
 		{
-			name: "failure - metadata retrieval error",
+			name:        "failure - metadata retrieval error",
+			portfolioID: &portfolioID,
+			segmentID:   nil,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter.ToOffsetPagination()).
@@ -127,7 +162,7 @@ func TestGetAllAccount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
 
-			result, err := uc.GetAllAccount(ctx, organizationID, ledgerID, &portfolioID, nil, filter)
+			result, err := uc.GetAllAccount(ctx, organizationID, ledgerID, tt.portfolioID, tt.segmentID, filter)
 
 			if tt.expectedErr != nil {
 				assert.Error(t, err)

@@ -522,6 +522,47 @@ func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) 
 	}
 }
 
+func TestIntegration_AccountRepository_FindAll_FiltersBySegment(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	segmentID := pgtestutil.CreateTestSegmentWithParams(t, container.DB, orgID, ledgerID, pgtestutil.DefaultSegmentParams())
+
+	// Insert 2 accounts with segment, 1 without.
+	acc1 := pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "In Segment 1", "@insegment1", "USD", nil)
+	acc2 := pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "In Segment 2", "@insegment2", "USD", nil)
+	pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "No Segment", "@nosegment", "USD", nil)
+
+	// Assign segment_id directly via SQL since CreateTestAccount doesn't support it.
+	_, err := container.DB.Exec("UPDATE account SET segment_id = $1 WHERE id IN ($2, $3)", segmentID, acc1, acc2)
+	require.NoError(t, err, "failed to assign segment_id to test accounts")
+
+	ctx := context.Background()
+	filter := http.Pagination{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, &segmentID, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "should only return accounts in the segment")
+
+	for _, acc := range accounts {
+		assert.NotNil(t, acc.SegmentID)
+		assert.Equal(t, segmentID.String(), *acc.SegmentID)
+	}
+}
+
 // ============================================================================
 // FindWithDeleted Tests
 // ============================================================================
