@@ -4,10 +4,6 @@
 
 //go:build integration
 
-// Copyright (c) 2026 Lerian Studio. All rights reserved.
-// Use of this source code is governed by the Elastic License 2.0
-// that can be found in the LICENSE file.
-
 package query
 
 import (
@@ -78,7 +74,7 @@ func TestIntegration_GetAllAccount_PaginationUnion(t *testing.T) {
 			EndDate:   time.Now().Add(24 * time.Hour),
 		}
 
-		accounts, err := uc.GetAllAccount(ctx, orgID, ledgerID, nil, filter)
+		accounts, err := uc.GetAllAccount(ctx, orgID, ledgerID, nil, nil, filter)
 		require.NoError(t, err, "GetAllAccount page %d should succeed", page)
 
 		for _, acc := range accounts {
@@ -148,11 +144,11 @@ func TestIntegration_GetAllAccount_PaginationStableOrder(t *testing.T) {
 	}
 
 	// First read
-	accounts1, err := uc.GetAllAccount(ctx, orgID, ledgerID, nil, filter)
+	accounts1, err := uc.GetAllAccount(ctx, orgID, ledgerID, nil, nil, filter)
 	require.NoError(t, err, "first GetAllAccount should succeed")
 
 	// Second read
-	accounts2, err := uc.GetAllAccount(ctx, orgID, ledgerID, nil, filter)
+	accounts2, err := uc.GetAllAccount(ctx, orgID, ledgerID, nil, nil, filter)
 	require.NoError(t, err, "second GetAllAccount should succeed")
 
 	// Assert: same length

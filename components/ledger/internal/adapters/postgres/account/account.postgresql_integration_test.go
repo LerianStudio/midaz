@@ -382,7 +382,7 @@ func TestIntegration_AccountRepository_FindAll_ReturnsPaginatedAccounts(t *testi
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")
@@ -420,15 +420,15 @@ func TestIntegration_AccountRepository_FindAll_PaginatesWithoutDuplicates(t *tes
 
 	// Act - Get all 3 pages
 	baseFilter.Page = 1
-	page1, err := repo.FindAll(ctx, orgID, ledgerID, nil, baseFilter)
+	page1, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter)
 	require.NoError(t, err)
 
 	baseFilter.Page = 2
-	page2, err := repo.FindAll(ctx, orgID, ledgerID, nil, baseFilter)
+	page2, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter)
 	require.NoError(t, err)
 
 	baseFilter.Page = 3
-	page3, err := repo.FindAll(ctx, orgID, ledgerID, nil, baseFilter)
+	page3, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter)
 	require.NoError(t, err)
 
 	// Assert - Correct counts per page
@@ -474,7 +474,7 @@ func TestIntegration_AccountRepository_FindAll_ExcludesSoftDeleted(t *testing.T)
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
 
 	// Assert
 	require.NoError(t, err)
@@ -510,7 +510,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) 
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, &portfolioID, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, &portfolioID, nil, filter)
 
 	// Assert
 	require.NoError(t, err)
@@ -519,6 +519,47 @@ func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) 
 	for _, acc := range accounts {
 		assert.NotNil(t, acc.PortfolioID)
 		assert.Equal(t, portfolioID.String(), *acc.PortfolioID)
+	}
+}
+
+func TestIntegration_AccountRepository_FindAll_FiltersBySegment(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	segmentID := pgtestutil.CreateTestSegmentWithParams(t, container.DB, orgID, ledgerID, pgtestutil.DefaultSegmentParams())
+
+	// Insert 2 accounts with segment, 1 without.
+	acc1 := pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "In Segment 1", "@insegment1", "USD", nil)
+	acc2 := pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "In Segment 2", "@insegment2", "USD", nil)
+	pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "No Segment", "@nosegment", "USD", nil)
+
+	// Assign segment_id directly via SQL since CreateTestAccount doesn't support it.
+	_, err := container.DB.Exec("UPDATE account SET segment_id = $1 WHERE id IN ($2, $3)", segmentID, acc1, acc2)
+	require.NoError(t, err, "failed to assign segment_id to test accounts")
+
+	ctx := context.Background()
+	filter := http.Pagination{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: time.Now().Add(-24 * time.Hour),
+		EndDate:   time.Now().Add(24 * time.Hour),
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, &segmentID, filter)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "should only return accounts in the segment")
+
+	for _, acc := range accounts {
+		assert.NotNil(t, acc.SegmentID)
+		assert.Equal(t, segmentID.String(), *acc.SegmentID)
 	}
 }
 
@@ -988,7 +1029,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsMatchingAccounts(t *test
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, []uuid.UUID{id1, id2})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2})
 
 	// Assert
 	require.NoError(t, err)
@@ -1000,6 +1041,39 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsMatchingAccounts(t *test
 	}
 	assert.True(t, ids[id1.String()])
 	assert.True(t, ids[id2.String()])
+}
+
+func TestIntegration_AccountRepository_ListByIDs_FiltersBySegment(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	segmentID := pgtestutil.CreateTestSegmentWithParams(t, container.DB, orgID, ledgerID, pgtestutil.DefaultSegmentParams())
+
+	// Create 3 accounts, assign segment to 2 of them.
+	id1 := pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "In Segment 1", "@listsg1", "USD", nil)
+	id2 := pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "In Segment 2", "@listsg2", "USD", nil)
+	id3 := pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "No Segment", "@listsg3", "USD", nil)
+
+	_, err := container.DB.Exec("UPDATE account SET segment_id = $1 WHERE id IN ($2, $3)", segmentID, id1, id2)
+	require.NoError(t, err, "failed to assign segment_id to test accounts")
+
+	ctx := context.Background()
+
+	// Act: ListByIDs with all 3 IDs but segment filter should exclude id3.
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, &segmentID, []uuid.UUID{id1, id2, id3})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "should only return accounts matching the segment")
+
+	for _, acc := range accounts {
+		assert.NotNil(t, acc.SegmentID)
+		assert.Equal(t, segmentID.String(), *acc.SegmentID)
+	}
 }
 
 func TestIntegration_AccountRepository_ListByIDs_ExcludesSoftDeleted(t *testing.T) {
@@ -1018,7 +1092,7 @@ func TestIntegration_AccountRepository_ListByIDs_ExcludesSoftDeleted(t *testing.
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, []uuid.UUID{id1, id2})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2})
 
 	// Assert
 	require.NoError(t, err)
@@ -1038,7 +1112,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsEmptyForNoMatch(t *testi
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())})
 
 	// Assert
 	require.NoError(t, err)

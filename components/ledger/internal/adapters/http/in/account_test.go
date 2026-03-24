@@ -219,7 +219,7 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			queryParams: "",
 			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				accountRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Any()).
+					FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
 					Return([]*mmodel.Account{}, nil).
 					Times(1)
 			},
@@ -247,7 +247,7 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 				account2ID := uuid.New().String()
 
 				accountRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Any()).
+					FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{
 							ID:             account1ID,
@@ -327,7 +327,7 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 
 				// AccountRepo.ListByIDs returns the accounts
 				accountRepo.EXPECT().
-					ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Any()).
+					ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{
 							ID:             account1ID,
@@ -408,7 +408,7 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 
 				// AccountRepo.ListByIDs returns not found error
 				accountRepo.EXPECT().
-					ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Any()).
+					ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
 					Return(nil, pkg.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())).
 					Times(1)
 			},
@@ -426,7 +426,7 @@ func TestAccountHandler_GetAllAccounts(t *testing.T) {
 			queryParams: "",
 			setupMocks: func(accountRepo *account.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				accountRepo.EXPECT().
-					FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Any()).
+					FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
 					Return(nil, pkg.InternalServerError{
 						Code:    "0046",
 						Title:   "Internal Server Error",
