@@ -1084,3 +1084,420 @@ func TestIntegration_Chaos_Consumer_ContainerRestart(t *testing.T) {
 
 	t.Log("Chaos test passed: consumer recovers after container restart")
 }
+
+// =============================================================================
+// INTEGRATION TESTS - BULK MODE
+// =============================================================================
+
+// setupBulkConsumerInfra sets up infrastructure for bulk consumer testing.
+func setupBulkConsumerInfra(t *testing.T, bulkSize int, flushTimeout time.Duration) *consumerTestInfra {
+	t.Helper()
+
+	infra := setupConsumerInfra(t, 1, bulkSize*2) // Prefetch should be >= bulk size
+
+	// Configure bulk mode
+	infra.consumer.ConfigureBulk(&BulkConfig{
+		Enabled:         true,
+		Size:            bulkSize,
+		FlushTimeout:    flushTimeout,
+		FallbackEnabled: true,
+	})
+
+	return infra
+}
+
+// TestIntegration_BulkConsumer_SizeBasedFlush tests that bulk consumer flushes
+// when the batch size is reached.
+func TestIntegration_BulkConsumer_SizeBasedFlush(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	bulkSize := 5
+	flushTimeout := 30 * time.Second // Long timeout to ensure size triggers first
+	infra := setupBulkConsumerInfra(t, bulkSize, flushTimeout)
+
+	ctx := context.Background()
+
+	// Track bulk handler invocations
+	var bulkInvocations int32
+	var totalMessages int32
+	bulkDone := make(chan struct{}, 1)
+
+	// Register individual handler (for fallback)
+	infra.consumer.Register(infra.queue, func(ctx context.Context, body []byte) error {
+		t.Log("Individual handler called (fallback)")
+		return nil
+	})
+
+	// Register bulk handler
+	infra.consumer.RegisterBulk(infra.queue, func(ctx context.Context, messages []amqp.Delivery) ([]BulkMessageResult, error) {
+		count := len(messages)
+		invocation := atomic.AddInt32(&bulkInvocations, 1)
+		atomic.AddInt32(&totalMessages, int32(count))
+
+		t.Logf("Bulk handler invoked (invocation %d): received %d messages", invocation, count)
+
+		// Signal when we receive a full batch
+		if count == bulkSize {
+			select {
+			case bulkDone <- struct{}{}:
+			default:
+			}
+		}
+
+		return nil, nil // All succeed
+	})
+
+	// Verify bulk mode is enabled
+	require.True(t, infra.consumer.IsBulkModeEnabled(), "bulk mode should be enabled")
+
+	// Start consumers
+	err := infra.consumer.RunConsumers()
+	require.NoError(t, err, "RunConsumers should succeed")
+
+	// Give consumer time to start
+	time.Sleep(500 * time.Millisecond)
+
+	// Publish exactly bulkSize messages
+	t.Logf("Publishing %d messages (bulk size: %d)", bulkSize, bulkSize)
+	for i := 0; i < bulkSize; i++ {
+		publishTestMessage(t, ctx, infra.producer, infra.exchange, infra.routingKey,
+			fmt.Sprintf("Bulk message %d", i+1))
+	}
+
+	// Wait for bulk handler to be invoked
+	select {
+	case <-bulkDone:
+		t.Log("Bulk handler received full batch")
+	case <-time.After(10 * time.Second):
+		t.Fatal("timeout waiting for bulk handler to process full batch")
+	}
+
+	// Verify bulk handler was invoked
+	invocations := atomic.LoadInt32(&bulkInvocations)
+	msgs := atomic.LoadInt32(&totalMessages)
+	t.Logf("Bulk invocations: %d, Total messages processed: %d", invocations, msgs)
+
+	assert.GreaterOrEqual(t, invocations, int32(1), "bulk handler should have been invoked at least once")
+	assert.Equal(t, int32(bulkSize), msgs, "all messages should have been processed")
+
+	// Verify queue is empty (messages were acknowledged)
+	time.Sleep(500 * time.Millisecond)
+	msgCount := rmqtestutil.GetQueueMessageCount(t, infra.rmqContainer.Channel, infra.queue)
+	assert.Equal(t, 0, msgCount, "queue should be empty after bulk consumption")
+
+	t.Log("Integration test passed: bulk consumer flushes by size")
+}
+
+// TestIntegration_BulkConsumer_TimeBasedFlush tests that bulk consumer flushes
+// when the timeout is reached, even with fewer messages than bulk size.
+func TestIntegration_BulkConsumer_TimeBasedFlush(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	bulkSize := 100 // Large size to ensure timeout triggers first
+	flushTimeout := 200 * time.Millisecond
+	infra := setupBulkConsumerInfra(t, bulkSize, flushTimeout)
+
+	ctx := context.Background()
+
+	// Track bulk handler invocations
+	var bulkInvocations int32
+	var totalMessages int32
+	bulkDone := make(chan struct{}, 1)
+
+	// Register individual handler (for fallback)
+	infra.consumer.Register(infra.queue, func(ctx context.Context, body []byte) error {
+		return nil
+	})
+
+	// Register bulk handler
+	infra.consumer.RegisterBulk(infra.queue, func(ctx context.Context, messages []amqp.Delivery) ([]BulkMessageResult, error) {
+		count := len(messages)
+		invocation := atomic.AddInt32(&bulkInvocations, 1)
+		atomic.AddInt32(&totalMessages, int32(count))
+
+		t.Logf("Bulk handler invoked (invocation %d): received %d messages", invocation, count)
+
+		// Signal completion
+		select {
+		case bulkDone <- struct{}{}:
+		default:
+		}
+
+		return nil, nil
+	})
+
+	// Start consumers
+	err := infra.consumer.RunConsumers()
+	require.NoError(t, err)
+
+	// Give consumer time to start
+	time.Sleep(500 * time.Millisecond)
+
+	// Publish fewer messages than bulk size
+	numMessages := 3
+	t.Logf("Publishing %d messages (bulk size: %d, timeout: %v)", numMessages, bulkSize, flushTimeout)
+	for i := 0; i < numMessages; i++ {
+		publishTestMessage(t, ctx, infra.producer, infra.exchange, infra.routingKey,
+			fmt.Sprintf("Timeout flush message %d", i+1))
+	}
+
+	// Wait for timeout-based flush
+	select {
+	case <-bulkDone:
+		t.Log("Bulk handler received messages via timeout")
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for bulk handler to process via timeout flush")
+	}
+
+	// Verify
+	msgs := atomic.LoadInt32(&totalMessages)
+	assert.Equal(t, int32(numMessages), msgs, "all messages should have been processed")
+
+	// Verify queue is empty
+	time.Sleep(500 * time.Millisecond)
+	msgCount := rmqtestutil.GetQueueMessageCount(t, infra.rmqContainer.Channel, infra.queue)
+	assert.Equal(t, 0, msgCount, "queue should be empty after timeout flush")
+
+	t.Log("Integration test passed: bulk consumer flushes by timeout")
+}
+
+// TestIntegration_BulkConsumer_MultipleBatches tests that bulk consumer processes
+// multiple batches correctly.
+func TestIntegration_BulkConsumer_MultipleBatches(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	bulkSize := 3
+	flushTimeout := 5 * time.Second
+	infra := setupBulkConsumerInfra(t, bulkSize, flushTimeout)
+
+	ctx := context.Background()
+
+	// Track batches
+	var batchCount int32
+	var totalMessages int32
+	done := make(chan struct{})
+
+	expectedBatches := int32(3) // 9 messages / 3 per batch
+	expectedMessages := expectedBatches * int32(bulkSize)
+
+	// Register handlers
+	infra.consumer.Register(infra.queue, func(ctx context.Context, body []byte) error {
+		return nil
+	})
+
+	infra.consumer.RegisterBulk(infra.queue, func(ctx context.Context, messages []amqp.Delivery) ([]BulkMessageResult, error) {
+		count := len(messages)
+		batch := atomic.AddInt32(&batchCount, 1)
+		total := atomic.AddInt32(&totalMessages, int32(count))
+
+		t.Logf("Batch %d: received %d messages (total: %d)", batch, count, total)
+
+		if total >= expectedMessages {
+			close(done)
+		}
+
+		return nil, nil
+	})
+
+	// Start consumers
+	err := infra.consumer.RunConsumers()
+	require.NoError(t, err)
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Publish multiple batches worth of messages
+	totalToPublish := int(expectedMessages)
+	t.Logf("Publishing %d messages (bulk size: %d)", totalToPublish, bulkSize)
+	for i := 0; i < totalToPublish; i++ {
+		publishTestMessage(t, ctx, infra.producer, infra.exchange, infra.routingKey,
+			fmt.Sprintf("Multi-batch message %d", i+1))
+	}
+
+	// Wait for all batches
+	select {
+	case <-done:
+		t.Log("All batches processed")
+	case <-time.After(15 * time.Second):
+		current := atomic.LoadInt32(&totalMessages)
+		t.Fatalf("timeout: processed %d/%d messages", current, expectedMessages)
+	}
+
+	// Verify
+	batches := atomic.LoadInt32(&batchCount)
+	msgs := atomic.LoadInt32(&totalMessages)
+	t.Logf("Total batches: %d, Total messages: %d", batches, msgs)
+
+	assert.GreaterOrEqual(t, batches, expectedBatches, "should have processed expected batches")
+	assert.Equal(t, expectedMessages, msgs, "should have processed all messages")
+
+	t.Log("Integration test passed: bulk consumer handles multiple batches")
+}
+
+// TestIntegration_BulkConsumer_FallbackOnError tests that bulk consumer falls back
+// to individual processing when bulk handler fails.
+func TestIntegration_BulkConsumer_FallbackOnError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	bulkSize := 5
+	flushTimeout := 200 * time.Millisecond
+	infra := setupBulkConsumerInfra(t, bulkSize, flushTimeout)
+
+	ctx := context.Background()
+
+	// Track handler invocations
+	var bulkAttempts int32
+	var individualCount int32
+	done := make(chan struct{})
+
+	numMessages := 3
+
+	// Register individual handler (fallback)
+	infra.consumer.Register(infra.queue, func(ctx context.Context, body []byte) error {
+		count := atomic.AddInt32(&individualCount, 1)
+		t.Logf("Individual handler called (count: %d)", count)
+
+		if count >= int32(numMessages) {
+			select {
+			case <-done:
+			default:
+				close(done)
+			}
+		}
+
+		return nil
+	})
+
+	// Register bulk handler that always fails
+	infra.consumer.RegisterBulk(infra.queue, func(ctx context.Context, messages []amqp.Delivery) ([]BulkMessageResult, error) {
+		attempt := atomic.AddInt32(&bulkAttempts, 1)
+		t.Logf("Bulk handler attempt %d: failing with error", attempt)
+		return nil, fmt.Errorf("simulated bulk failure")
+	})
+
+	// Start consumers
+	err := infra.consumer.RunConsumers()
+	require.NoError(t, err)
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Publish messages
+	t.Logf("Publishing %d messages (bulk will fail, should fallback)", numMessages)
+	for i := 0; i < numMessages; i++ {
+		publishTestMessage(t, ctx, infra.producer, infra.exchange, infra.routingKey,
+			fmt.Sprintf("Fallback message %d", i+1))
+	}
+
+	// Wait for individual processing to complete
+	select {
+	case <-done:
+		t.Log("Fallback processing completed")
+	case <-time.After(15 * time.Second):
+		individual := atomic.LoadInt32(&individualCount)
+		t.Fatalf("timeout: individual handler processed %d/%d messages", individual, numMessages)
+	}
+
+	// Verify
+	bulk := atomic.LoadInt32(&bulkAttempts)
+	individual := atomic.LoadInt32(&individualCount)
+	t.Logf("Bulk attempts: %d, Individual processed: %d", bulk, individual)
+
+	assert.GreaterOrEqual(t, bulk, int32(1), "bulk handler should have been attempted")
+	assert.Equal(t, int32(numMessages), individual, "all messages should have been processed individually")
+
+	// Verify queue is empty
+	time.Sleep(500 * time.Millisecond)
+	msgCount := rmqtestutil.GetQueueMessageCount(t, infra.rmqContainer.Channel, infra.queue)
+	assert.Equal(t, 0, msgCount, "queue should be empty after fallback processing")
+
+	t.Log("Integration test passed: bulk consumer falls back to individual on error")
+}
+
+// TestIntegration_BulkConsumer_ConfigDisabled tests that bulk mode can be disabled.
+func TestIntegration_BulkConsumer_ConfigDisabled(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupConsumerInfra(t, 1, 10)
+
+	ctx := context.Background()
+
+	// Set bulk config but with Enabled = false
+	infra.consumer.ConfigureBulk(&BulkConfig{
+		Enabled:         false,
+		Size:            5,
+		FlushTimeout:    100 * time.Millisecond,
+		FallbackEnabled: true,
+	})
+
+	// Track handler invocations
+	var individualCount int32
+	var bulkCount int32
+	done := make(chan struct{})
+
+	numMessages := 3
+
+	// Register individual handler
+	infra.consumer.Register(infra.queue, func(ctx context.Context, body []byte) error {
+		count := atomic.AddInt32(&individualCount, 1)
+		t.Logf("Individual handler called (count: %d)", count)
+
+		if count >= int32(numMessages) {
+			select {
+			case <-done:
+			default:
+				close(done)
+			}
+		}
+
+		return nil
+	})
+
+	// Register bulk handler (should not be called)
+	infra.consumer.RegisterBulk(infra.queue, func(ctx context.Context, messages []amqp.Delivery) ([]BulkMessageResult, error) {
+		atomic.AddInt32(&bulkCount, 1)
+		t.Log("Bulk handler called (unexpected!)")
+		return nil, nil
+	})
+
+	// Verify bulk mode is NOT enabled
+	require.False(t, infra.consumer.IsBulkModeEnabled(), "bulk mode should be disabled")
+
+	// Start consumers
+	err := infra.consumer.RunConsumers()
+	require.NoError(t, err)
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Publish messages
+	t.Logf("Publishing %d messages (bulk disabled)", numMessages)
+	for i := 0; i < numMessages; i++ {
+		publishTestMessage(t, ctx, infra.producer, infra.exchange, infra.routingKey,
+			fmt.Sprintf("Individual message %d", i+1))
+	}
+
+	// Wait for individual processing
+	select {
+	case <-done:
+		t.Log("Individual processing completed")
+	case <-time.After(10 * time.Second):
+		t.Fatal("timeout waiting for individual processing")
+	}
+
+	// Verify
+	bulk := atomic.LoadInt32(&bulkCount)
+	individual := atomic.LoadInt32(&individualCount)
+
+	assert.Equal(t, int32(0), bulk, "bulk handler should NOT have been called")
+	assert.Equal(t, int32(numMessages), individual, "all messages should have been processed individually")
+
+	t.Log("Integration test passed: bulk mode disabled uses individual handler")
+}

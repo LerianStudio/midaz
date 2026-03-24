@@ -182,6 +182,15 @@ type Config struct {
 	RabbitMQOperationTimeout                  string `env:"RABBITMQ_OPERATION_TIMEOUT"`
 	RabbitMQMultiTenantSyncInterval           int    `env:"RABBITMQ_MULTI_TENANT_SYNC_INTERVAL"`
 	RabbitMQMultiTenantDiscoveryTimeout       int    `env:"RABBITMQ_MULTI_TENANT_DISCOVERY_TIMEOUT"`
+	RabbitMQTransactionAsync                  bool   `env:"RABBITMQ_TRANSACTION_ASYNC"`
+
+	// Bulk mode activates only when RABBITMQ_TRANSACTION_ASYNC=true AND BulkRecorderEnabled=true.
+	// Bulk size should match RabbitMQ prefetch for optimal performance (workers × prefetch).
+	BulkRecorderEnabled          bool `env:"BULK_RECORDER_ENABLED"`
+	BulkRecorderSize             int  `env:"BULK_RECORDER_SIZE"`
+	BulkRecorderFlushTimeoutMs   int  `env:"BULK_RECORDER_FLUSH_TIMEOUT_MS"`
+	BulkRecorderMaxRowsPerInsert int  `env:"BULK_RECORDER_MAX_ROWS_PER_INSERT"`
+	BulkRecorderFallbackEnabled  bool `env:"BULK_RECORDER_FALLBACK_ENABLED"`
 
 	// --- Balance/Worker fields ---
 	BalanceSyncWorkerEnabled bool `env:"BALANCE_SYNC_WORKER_ENABLED"`
@@ -898,5 +907,38 @@ func applyConfigDefaults(cfg *Config) {
 	// BalanceSyncWorkerEnabled defaults to true (enabled) when the env var is not set.
 	if os.Getenv("BALANCE_SYNC_WORKER_ENABLED") == "" {
 		cfg.BalanceSyncWorkerEnabled = true
+	}
+
+	// Bulk Recorder defaults
+	// BulkRecorderEnabled defaults to true when the env var is not set.
+	if os.Getenv("BULK_RECORDER_ENABLED") == "" {
+		cfg.BulkRecorderEnabled = true
+	}
+
+	// BulkRecorderFallbackEnabled defaults to true when the env var is not set.
+	if os.Getenv("BULK_RECORDER_FALLBACK_ENABLED") == "" {
+		cfg.BulkRecorderFallbackEnabled = true
+	}
+
+	// BulkRecorderFlushTimeoutMs defaults to 100ms.
+	intDefault(&cfg.BulkRecorderFlushTimeoutMs, 100)
+
+	// BulkRecorderMaxRowsPerInsert defaults to 1000 (safe under PostgreSQL 65,535 param limit).
+	intDefault(&cfg.BulkRecorderMaxRowsPerInsert, 1000)
+
+	// BulkRecorderSize: derive from workers × prefetch if not explicitly set.
+	// This ensures bulk size matches RabbitMQ prefetch for optimal performance.
+	if cfg.BulkRecorderSize == 0 {
+		workers := cfg.RabbitMQNumbersOfWorkers
+		if workers == 0 {
+			workers = 5 // default workers
+		}
+
+		prefetch := cfg.RabbitMQNumbersOfPrefetch
+		if prefetch == 0 {
+			prefetch = 10 // default prefetch
+		}
+
+		cfg.BulkRecorderSize = workers * prefetch
 	}
 }

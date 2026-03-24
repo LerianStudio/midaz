@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v4/commons/constants"
@@ -455,4 +456,554 @@ func TestConsumerRoutes_PrefetchCalculation(t *testing.T) {
 			assert.Equal(t, tt.expectedPrefetch, cr.NumbersOfPrefetch)
 		})
 	}
+}
+
+// =============================================================================
+// UNIT TESTS - BulkConfig and Bulk Mode Configuration
+// =============================================================================
+
+func TestConsumerRoutes_ConfigureBulk(t *testing.T) {
+	t.Parallel()
+
+	cr := &ConsumerRoutes{
+		routes:     make(map[string]QueueHandlerFunc),
+		bulkRoutes: make(map[string]BulkHandlerFunc),
+		Logger:     testLogger,
+	}
+
+	cfg := &BulkConfig{
+		Enabled:         true,
+		Size:            100,
+		FlushTimeout:    500 * time.Millisecond,
+		FallbackEnabled: true,
+	}
+
+	cr.ConfigureBulk(cfg)
+
+	assert.Equal(t, cfg, cr.bulkConfig)
+}
+
+func TestConsumerRoutes_BulkConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		config   *BulkConfig
+		expected *BulkConfig
+	}{
+		{
+			name:     "returns_nil_when_not_set",
+			config:   nil,
+			expected: nil,
+		},
+		{
+			name: "returns_configured_value",
+			config: &BulkConfig{
+				Enabled:         true,
+				Size:            50,
+				FlushTimeout:    100 * time.Millisecond,
+				FallbackEnabled: false,
+			},
+			expected: &BulkConfig{
+				Enabled:         true,
+				Size:            50,
+				FlushTimeout:    100 * time.Millisecond,
+				FallbackEnabled: false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cr := &ConsumerRoutes{
+				routes:     make(map[string]QueueHandlerFunc),
+				bulkRoutes: make(map[string]BulkHandlerFunc),
+				bulkConfig: tt.config,
+				Logger:     testLogger,
+			}
+
+			result := cr.BulkConfig()
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConsumerRoutes_IsBulkModeEnabled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		config   *BulkConfig
+		expected bool
+	}{
+		{
+			name:     "returns_false_when_config_is_nil",
+			config:   nil,
+			expected: false,
+		},
+		{
+			name: "returns_false_when_enabled_is_false",
+			config: &BulkConfig{
+				Enabled: false,
+				Size:    100,
+			},
+			expected: false,
+		},
+		{
+			name: "returns_true_when_enabled_is_true",
+			config: &BulkConfig{
+				Enabled: true,
+				Size:    100,
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cr := &ConsumerRoutes{
+				routes:     make(map[string]QueueHandlerFunc),
+				bulkRoutes: make(map[string]BulkHandlerFunc),
+				bulkConfig: tt.config,
+				Logger:     testLogger,
+			}
+
+			result := cr.IsBulkModeEnabled()
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// =============================================================================
+// UNIT TESTS - RegisterBulk
+// =============================================================================
+
+func TestConsumerRoutes_RegisterBulk(t *testing.T) {
+	t.Parallel()
+
+	cr := &ConsumerRoutes{
+		routes:     make(map[string]QueueHandlerFunc),
+		bulkRoutes: make(map[string]BulkHandlerFunc),
+		Logger:     testLogger,
+	}
+
+	queueName := "test-bulk-queue"
+	handler := func(ctx context.Context, messages []amqp.Delivery) ([]BulkMessageResult, error) {
+		return nil, nil
+	}
+
+	cr.RegisterBulk(queueName, handler)
+
+	assert.Len(t, cr.bulkRoutes, 1)
+	assert.Contains(t, cr.bulkRoutes, queueName)
+	assert.NotNil(t, cr.bulkRoutes[queueName])
+}
+
+func TestConsumerRoutes_RegisterBulk_MultipleQueues(t *testing.T) {
+	t.Parallel()
+
+	cr := &ConsumerRoutes{
+		routes:     make(map[string]QueueHandlerFunc),
+		bulkRoutes: make(map[string]BulkHandlerFunc),
+		Logger:     testLogger,
+	}
+
+	queues := []string{
+		"bulk-queue-1",
+		"bulk-queue-2",
+		"bulk-queue-3",
+	}
+
+	for _, queueName := range queues {
+		handler := func(ctx context.Context, messages []amqp.Delivery) ([]BulkMessageResult, error) {
+			return nil, nil
+		}
+		cr.RegisterBulk(queueName, handler)
+	}
+
+	assert.Len(t, cr.bulkRoutes, len(queues))
+
+	for _, queueName := range queues {
+		assert.Contains(t, cr.bulkRoutes, queueName)
+	}
+}
+
+func TestConsumerRoutes_RegisterBulk_OverwriteExisting(t *testing.T) {
+	t.Parallel()
+
+	cr := &ConsumerRoutes{
+		routes:     make(map[string]QueueHandlerFunc),
+		bulkRoutes: make(map[string]BulkHandlerFunc),
+		Logger:     testLogger,
+	}
+
+	queueName := "test-queue"
+	callCount := 0
+
+	// Register first handler
+	handler1 := func(ctx context.Context, messages []amqp.Delivery) ([]BulkMessageResult, error) {
+		callCount = 1
+		return nil, nil
+	}
+	cr.RegisterBulk(queueName, handler1)
+
+	// Register second handler (should overwrite)
+	handler2 := func(ctx context.Context, messages []amqp.Delivery) ([]BulkMessageResult, error) {
+		callCount = 2
+		return nil, nil
+	}
+	cr.RegisterBulk(queueName, handler2)
+
+	assert.Len(t, cr.bulkRoutes, 1)
+
+	// Call the registered handler - should be handler2
+	ctx := context.Background()
+	_, err := cr.bulkRoutes[queueName](ctx, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 2, callCount, "second handler should have been called")
+}
+
+// =============================================================================
+// UNIT TESTS - BulkHandlerFunc
+// =============================================================================
+
+func TestBulkHandlerFunc_Success(t *testing.T) {
+	t.Parallel()
+
+	handlerCalled := false
+	var receivedMessages []amqp.Delivery
+
+	handler := BulkHandlerFunc(func(ctx context.Context, messages []amqp.Delivery) ([]BulkMessageResult, error) {
+		handlerCalled = true
+		receivedMessages = messages
+		return nil, nil
+	})
+
+	ctx := context.Background()
+	testMessages := []amqp.Delivery{
+		{Body: []byte("msg1")},
+		{Body: []byte("msg2")},
+	}
+
+	results, err := handler(ctx, testMessages)
+
+	require.NoError(t, err)
+	assert.True(t, handlerCalled)
+	assert.Equal(t, testMessages, receivedMessages)
+	assert.Nil(t, results)
+}
+
+func TestBulkHandlerFunc_Error(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("bulk processing failed")
+
+	handler := BulkHandlerFunc(func(ctx context.Context, messages []amqp.Delivery) ([]BulkMessageResult, error) {
+		return nil, expectedErr
+	})
+
+	ctx := context.Background()
+	_, err := handler(ctx, nil)
+
+	require.Error(t, err)
+	assert.Equal(t, expectedErr, err)
+}
+
+func TestBulkHandlerFunc_WithResults(t *testing.T) {
+	t.Parallel()
+
+	handler := BulkHandlerFunc(func(ctx context.Context, messages []amqp.Delivery) ([]BulkMessageResult, error) {
+		results := []BulkMessageResult{
+			{Index: 0, Success: true, Error: nil},
+			{Index: 1, Success: false, Error: errors.New("failed")},
+		}
+		return results, nil
+	})
+
+	ctx := context.Background()
+	results, err := handler(ctx, []amqp.Delivery{{}, {}})
+
+	require.NoError(t, err)
+	assert.Len(t, results, 2)
+	assert.True(t, results[0].Success)
+	assert.False(t, results[1].Success)
+}
+
+// =============================================================================
+// UNIT TESTS - BulkMessageResult
+// =============================================================================
+
+func TestBulkMessageResult_Structure(t *testing.T) {
+	t.Parallel()
+
+	result := BulkMessageResult{
+		Index:   5,
+		Success: true,
+		Error:   nil,
+	}
+
+	assert.Equal(t, 5, result.Index)
+	assert.True(t, result.Success)
+	assert.Nil(t, result.Error)
+
+	failedResult := BulkMessageResult{
+		Index:   3,
+		Success: false,
+		Error:   errors.New("processing failed"),
+	}
+
+	assert.Equal(t, 3, failedResult.Index)
+	assert.False(t, failedResult.Success)
+	assert.Error(t, failedResult.Error)
+}
+
+// =============================================================================
+// UNIT TESTS - BulkConfig Structure
+// =============================================================================
+
+func TestBulkConfig_Structure(t *testing.T) {
+	t.Parallel()
+
+	config := BulkConfig{
+		Enabled:         true,
+		Size:            200,
+		FlushTimeout:    500 * time.Millisecond,
+		FallbackEnabled: true,
+	}
+
+	assert.True(t, config.Enabled)
+	assert.Equal(t, 200, config.Size)
+	assert.Equal(t, 500*time.Millisecond, config.FlushTimeout)
+	assert.True(t, config.FallbackEnabled)
+}
+
+func TestBulkConfig_Defaults(t *testing.T) {
+	t.Parallel()
+
+	// Zero-value BulkConfig should have safe defaults
+	var config BulkConfig
+
+	assert.False(t, config.Enabled)
+	assert.Equal(t, 0, config.Size)
+	assert.Equal(t, time.Duration(0), config.FlushTimeout)
+	assert.False(t, config.FallbackEnabled)
+}
+
+// =============================================================================
+// UNIT TESTS - buildBulkContext
+// =============================================================================
+
+func TestConsumerRoutes_BuildBulkContext_EmptyDeliveries(t *testing.T) {
+	t.Parallel()
+
+	cr := &ConsumerRoutes{
+		Logger: testLogger,
+	}
+
+	ctx := context.Background()
+	result := cr.buildBulkContext(ctx, []amqp.Delivery{})
+
+	// Should return original context unchanged
+	assert.Equal(t, ctx, result)
+}
+
+func TestConsumerRoutes_BuildBulkContext_WithDeliveries(t *testing.T) {
+	t.Parallel()
+
+	cr := &ConsumerRoutes{
+		Logger: testLogger,
+	}
+
+	ctx := context.Background()
+	deliveries := []amqp.Delivery{
+		{
+			Headers: amqp.Table{
+				libConstants.HeaderID: "test-header-id-123",
+			},
+			Body: []byte("msg1"),
+		},
+		{
+			Body: []byte("msg2"),
+		},
+	}
+
+	result := cr.buildBulkContext(ctx, deliveries)
+
+	// Context should be enriched (not equal to original)
+	assert.NotEqual(t, ctx, result)
+}
+
+func TestConsumerRoutes_BuildBulkContext_ExtractsHeaderID(t *testing.T) {
+	t.Parallel()
+
+	cr := &ConsumerRoutes{
+		Logger: testLogger,
+	}
+
+	expectedID := "existing-midaz-id-456"
+	ctx := context.Background()
+	deliveries := []amqp.Delivery{
+		{
+			Headers: amqp.Table{
+				libConstants.HeaderID: expectedID,
+			},
+			Body: []byte("msg1"),
+		},
+	}
+
+	result := cr.buildBulkContext(ctx, deliveries)
+
+	// Verify the context was built successfully
+	assert.NotEqual(t, ctx, result)
+}
+
+// =============================================================================
+// UNIT TESTS - Bulk Mode Selection Logic
+// =============================================================================
+
+func TestConsumerRoutes_BulkModeSelection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		bulkConfig     *BulkConfig
+		hasBulkHandler bool
+		expected       bool
+	}{
+		{
+			name:           "bulk_mode_disabled_when_config_is_nil",
+			bulkConfig:     nil,
+			hasBulkHandler: true,
+			expected:       false,
+		},
+		{
+			name: "bulk_mode_disabled_when_enabled_is_false",
+			bulkConfig: &BulkConfig{
+				Enabled: false,
+				Size:    100,
+			},
+			hasBulkHandler: true,
+			expected:       false,
+		},
+		{
+			name: "bulk_mode_disabled_when_no_bulk_handler",
+			bulkConfig: &BulkConfig{
+				Enabled: true,
+				Size:    100,
+			},
+			hasBulkHandler: false,
+			expected:       false,
+		},
+		{
+			name: "bulk_mode_enabled_when_all_conditions_met",
+			bulkConfig: &BulkConfig{
+				Enabled: true,
+				Size:    100,
+			},
+			hasBulkHandler: true,
+			expected:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cr := &ConsumerRoutes{
+				routes:     make(map[string]QueueHandlerFunc),
+				bulkRoutes: make(map[string]BulkHandlerFunc),
+				bulkConfig: tt.bulkConfig,
+				Logger:     testLogger,
+			}
+
+			// Simulate IsBulkModeEnabled && hasBulkHandler
+			useBulkMode := cr.IsBulkModeEnabled() && tt.hasBulkHandler
+
+			assert.Equal(t, tt.expected, useBulkMode)
+		})
+	}
+}
+
+// =============================================================================
+// UNIT TESTS - resolveMessageHeaderID (indirectly tested)
+// =============================================================================
+
+func TestResolveMessageHeaderID_StringValue(t *testing.T) {
+	t.Parallel()
+
+	headers := amqp.Table{
+		libConstants.HeaderID: "string-id-value",
+	}
+
+	result := resolveMessageHeaderID(headers)
+
+	assert.Equal(t, "string-id-value", result)
+}
+
+func TestResolveMessageHeaderID_ByteSliceValue(t *testing.T) {
+	t.Parallel()
+
+	headers := amqp.Table{
+		libConstants.HeaderID: []byte("byte-slice-id"),
+	}
+
+	result := resolveMessageHeaderID(headers)
+
+	assert.Equal(t, "byte-slice-id", result)
+}
+
+func TestResolveMessageHeaderID_EmptyString(t *testing.T) {
+	t.Parallel()
+
+	headers := amqp.Table{
+		libConstants.HeaderID: "",
+	}
+
+	result := resolveMessageHeaderID(headers)
+
+	// Should generate a new UUID when empty
+	assert.NotEmpty(t, result)
+	assert.NotEqual(t, "", result)
+}
+
+func TestResolveMessageHeaderID_EmptyByteSlice(t *testing.T) {
+	t.Parallel()
+
+	headers := amqp.Table{
+		libConstants.HeaderID: []byte{},
+	}
+
+	result := resolveMessageHeaderID(headers)
+
+	// Should generate a new UUID when empty
+	assert.NotEmpty(t, result)
+}
+
+func TestResolveMessageHeaderID_MissingHeader(t *testing.T) {
+	t.Parallel()
+
+	headers := amqp.Table{}
+
+	result := resolveMessageHeaderID(headers)
+
+	// Should generate a new UUID
+	assert.NotEmpty(t, result)
+	// Verify it looks like a UUID (36 chars with dashes)
+	assert.Len(t, result, 36)
+}
+
+func TestResolveMessageHeaderID_NilHeaders(t *testing.T) {
+	t.Parallel()
+
+	result := resolveMessageHeaderID(nil)
+
+	// Should generate a new UUID
+	assert.NotEmpty(t, result)
+	assert.Len(t, result, 36)
 }

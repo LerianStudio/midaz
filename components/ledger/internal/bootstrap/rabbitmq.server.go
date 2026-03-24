@@ -10,14 +10,16 @@ import (
 	"os"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/vmihailenco/msgpack/v5"
-
-	// MultiQueueConsumer represents a multi-queue consumer.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type MultiQueueConsumer struct {
@@ -32,8 +34,13 @@ func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *command.Use
 		UseCase:        useCase,
 	}
 
-	// Registry handlers for each queue
-	routes.Register(os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"), consumer.handlerBTOQueue)
+	queueName := os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE")
+
+	// Register individual handler (used for non-bulk mode and as fallback)
+	routes.Register(queueName, consumer.handlerBTOQueue)
+
+	// Register bulk handler (used when bulk mode is enabled)
+	routes.RegisterBulk(queueName, consumer.handlerBTOBulkQueue)
 
 	return consumer
 }
@@ -83,4 +90,111 @@ func handlerBTO(ctx context.Context, body []byte, useCase *command.UseCase) erro
 	}
 
 	return nil
+}
+
+// handlerBTOBulkQueue processes a batch of messages from the balance queue.
+// Returns per-message results for acknowledgment handling.
+func (mq *MultiQueueConsumer) handlerBTOBulkQueue(ctx context.Context, messages []amqp.Delivery) ([]rabbitmq.BulkMessageResult, error) {
+	return handlerBTOBulk(ctx, messages, mq.UseCase)
+}
+
+// handlerBTOBulk is the bulk handler for balance-transaction-operation processing.
+// It unmarshals all messages, extracts payloads, and calls CreateBulkTransactionOperationsAsync.
+func handlerBTOBulk(ctx context.Context, messages []amqp.Delivery, useCase *command.UseCase) ([]rabbitmq.BulkMessageResult, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update_bulk")
+	defer span.End()
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Processing bulk of %d messages from balance_queue", len(messages)))
+
+	// Extract payloads from all messages
+	payloads := make([]transaction.TransactionProcessingPayload, 0, len(messages))
+
+	for i, msg := range messages {
+		var queueMsg mmodel.Queue
+
+		if err := msgpack.Unmarshal(msg.Body, &queueMsg); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Error unmarshalling message in bulk", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error unmarshalling message %d in bulk: %v", i, err))
+
+			// Return error to trigger fallback processing
+			return nil, fmt.Errorf("failed to unmarshal message %d: %w", i, err)
+		}
+
+		// Extract payload from queue data
+		if len(queueMsg.QueueData) == 0 {
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Message %d has empty QueueData, skipping", i))
+
+			continue
+		}
+
+		var payload transaction.TransactionProcessingPayload
+		if err := msgpack.Unmarshal(queueMsg.QueueData[0].Value, &payload); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Error unmarshalling payload in bulk", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error unmarshalling payload %d in bulk: %v", i, err))
+
+			// Return error to trigger fallback processing
+			return nil, fmt.Errorf("failed to unmarshal payload %d: %w", i, err)
+		}
+
+		payloads = append(payloads, payload)
+	}
+
+	if len(payloads) == 0 {
+		logger.Log(ctx, libLog.LevelWarn, "No valid payloads extracted from bulk")
+
+		// All messages processed (skipped), return empty results (all ack)
+		return nil, nil
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Processing %d payloads in bulk", len(payloads)))
+
+	// Call bulk processing
+	result, err := useCase.CreateBulkTransactionOperationsAsync(ctx, payloads)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Bulk transaction processing failed", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Bulk transaction processing failed: %v", err))
+
+		// Return error to trigger fallback processing
+		return nil, err
+	}
+
+	// Record metrics as span attributes
+	recordBulkMetrics(span, result, len(messages), len(payloads))
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Bulk processing completed successfully for %d payloads", len(payloads)),
+		libLog.Any("transactions_attempted", result.TransactionsAttempted),
+		libLog.Any("transactions_inserted", result.TransactionsInserted),
+		libLog.Any("transactions_ignored", result.TransactionsIgnored),
+		libLog.Any("operations_attempted", result.OperationsAttempted),
+		libLog.Any("operations_inserted", result.OperationsInserted),
+		libLog.Any("operations_ignored", result.OperationsIgnored),
+	)
+
+	// All succeeded - return nil results to indicate bulk ack
+	return nil, nil
+}
+
+// recordBulkMetrics sets span attributes for bulk processing metrics.
+func recordBulkMetrics(span trace.Span, result *command.BulkResult, messageCount, payloadCount int) {
+	span.SetAttributes(
+		// Message-level counts
+		attribute.Int("bulk.messages_received", messageCount),
+		attribute.Int("bulk.payloads_extracted", payloadCount),
+
+		// Transaction counts
+		attribute.Int64("bulk.transactions_attempted", result.TransactionsAttempted),
+		attribute.Int64("bulk.transactions_inserted", result.TransactionsInserted),
+		attribute.Int64("bulk.transactions_ignored", result.TransactionsIgnored),
+
+		// Operation counts
+		attribute.Int64("bulk.operations_attempted", result.OperationsAttempted),
+		attribute.Int64("bulk.operations_inserted", result.OperationsInserted),
+		attribute.Int64("bulk.operations_ignored", result.OperationsIgnored),
+
+		// Fallback tracking
+		attribute.Bool("bulk.fallback_used", result.FallbackUsed),
+		attribute.Int64("bulk.fallback_count", result.FallbackCount),
+	)
 }
