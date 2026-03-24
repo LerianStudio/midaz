@@ -1097,10 +1097,9 @@ func setupBulkConsumerInfra(t *testing.T, bulkSize int, flushTimeout time.Durati
 
 	// Configure bulk mode
 	infra.consumer.ConfigureBulk(&BulkConfig{
-		Enabled:         true,
-		Size:            bulkSize,
-		FlushTimeout:    flushTimeout,
-		FallbackEnabled: true,
+		Enabled:      true,
+		Size:         bulkSize,
+		FlushTimeout: flushTimeout,
 	})
 
 	return infra
@@ -1432,10 +1431,9 @@ func TestIntegration_BulkConsumer_ConfigDisabled(t *testing.T) {
 
 	// Set bulk config but with Enabled = false
 	infra.consumer.ConfigureBulk(&BulkConfig{
-		Enabled:         false,
-		Size:            5,
-		FlushTimeout:    100 * time.Millisecond,
-		FallbackEnabled: true,
+		Enabled:      false,
+		Size:         5,
+		FlushTimeout: 100 * time.Millisecond,
 	})
 
 	// Track handler invocations

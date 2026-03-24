@@ -74,9 +74,6 @@ type BulkConfig struct {
 
 	// FlushTimeout is the maximum duration to wait before flushing an incomplete batch.
 	FlushTimeout time.Duration
-
-	// FallbackEnabled indicates whether to fall back to individual processing on bulk failure.
-	FallbackEnabled bool
 }
 
 // ConsumerRoutes struct
@@ -328,17 +325,15 @@ func (cr *ConsumerRoutes) startBulkWorker(
 		return cr.processBulkFlush(flushCtx, queue, deliveries, bulkHandler)
 	})
 
-	// Set error handler for fallback processing
-	if cr.bulkConfig.FallbackEnabled {
-		collector.SetFlushErrorHandler(func(errCtx context.Context, deliveries []amqp.Delivery, err error) {
-			cr.Log(errCtx, libLog.LevelWarn, "Bulk processing failed, using fallback",
-				libLog.String("queue", queue),
-				libLog.Int("message_count", len(deliveries)),
-				libLog.Err(err),
-			)
-			cr.processFallback(errCtx, queue, deliveries, individualHandler)
-		})
-	}
+	// Set error handler for fallback processing (always enabled for safety)
+	collector.SetFlushErrorHandler(func(errCtx context.Context, deliveries []amqp.Delivery, err error) {
+		cr.Log(errCtx, libLog.LevelWarn, "Bulk processing failed, using fallback",
+			libLog.String("queue", queue),
+			libLog.Int("message_count", len(deliveries)),
+			libLog.Err(err),
+		)
+		cr.processFallback(errCtx, queue, deliveries, individualHandler)
+	})
 
 	// Start a goroutine to feed messages to the collector
 	go func() {
@@ -348,12 +343,8 @@ func (cr *ConsumerRoutes) startBulkWorker(
 					libLog.String("queue", queue),
 					libLog.Err(err),
 				)
-				// If we can't add to collector, process individually as fallback
-				if cr.bulkConfig.FallbackEnabled {
-					cr.processIndividualMessage(ctx, queue, msg, individualHandler)
-				} else {
-					_ = msg.Nack(false, true)
-				}
+				// If we can't add to collector, process individually as fallback (always enabled for safety)
+				cr.processIndividualMessage(ctx, queue, msg, individualHandler)
 			}
 		}
 

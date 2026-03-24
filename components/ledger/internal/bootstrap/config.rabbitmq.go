@@ -50,7 +50,6 @@ func logBulkConfiguration(ctx context.Context, logger libLog.Logger, cfg *Config
 		libLog.Int("bulk_recorder_size", cfg.BulkRecorderSize),
 		libLog.Int("bulk_recorder_flush_timeout_ms", cfg.BulkRecorderFlushTimeoutMs),
 		libLog.Int("bulk_recorder_max_rows_per_insert", cfg.BulkRecorderMaxRowsPerInsert),
-		libLog.Bool("bulk_recorder_fallback_enabled", cfg.BulkRecorderFallbackEnabled),
 	)
 
 	if bulkMode {
@@ -421,20 +420,18 @@ func initSingleTenantRabbitMQ(
 		// Configure bulk processing if enabled
 		if shouldUseBulkMode(cfg) {
 			routes.ConfigureBulk(&rabbitmq.BulkConfig{
-				Enabled:         true,
-				Size:            cfg.BulkRecorderSize,
-				FlushTimeout:    time.Duration(cfg.BulkRecorderFlushTimeoutMs) * time.Millisecond,
-				FallbackEnabled: cfg.BulkRecorderFallbackEnabled,
+				Enabled:      true,
+				Size:         cfg.BulkRecorderSize,
+				FlushTimeout: time.Duration(cfg.BulkRecorderFlushTimeoutMs) * time.Millisecond,
 			})
 
 			logger.Log(context.Background(), libLog.LevelInfo, "Bulk mode configured for consumer",
 				libLog.Int("bulk_size", cfg.BulkRecorderSize),
 				libLog.Int("flush_timeout_ms", cfg.BulkRecorderFlushTimeoutMs),
-				libLog.Bool("fallback_enabled", cfg.BulkRecorderFallbackEnabled),
 			)
 		}
 
-		rmq.multiQueueConsumer = NewMultiQueueConsumer(routes, useCase)
+		rmq.multiQueueConsumer = NewMultiQueueConsumer(routes, useCase, telemetry.MetricsFactory)
 
 		return nil
 	}

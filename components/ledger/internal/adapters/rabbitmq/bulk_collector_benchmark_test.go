@@ -229,10 +229,9 @@ func BenchmarkConsumerRoutes_IsBulkModeEnabled(b *testing.B) {
 func BenchmarkConsumerRoutes_ConfigureBulk(b *testing.B) {
 	cr := &ConsumerRoutes{}
 	config := &BulkConfig{
-		Enabled:         true,
-		Size:            100,
-		FlushTimeout:    100 * time.Millisecond,
-		FallbackEnabled: true,
+		Enabled:      true,
+		Size:         100,
+		FlushTimeout: 100 * time.Millisecond,
 	}
 
 	b.ResetTimer()

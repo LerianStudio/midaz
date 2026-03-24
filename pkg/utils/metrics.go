@@ -118,9 +118,9 @@ var (
 
 	// BulkRecorderBulkDuration tracks the time taken for each bulk processing.
 	BulkRecorderBulkDuration = metrics.Metric{
-		Name:        "bulk_recorder_bulk_duration_seconds",
-		Unit:        "s",
-		Description: "Time taken for bulk processing in seconds.",
+		Name:        "bulk_recorder_bulk_duration_ms",
+		Unit:        "ms",
+		Description: "Time taken for bulk processing in milliseconds.",
 	}
 
 	// BulkRecorderFallbackTotal counts fallback activations when bulk fails.

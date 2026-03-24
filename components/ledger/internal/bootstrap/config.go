@@ -190,7 +190,6 @@ type Config struct {
 	BulkRecorderSize             int  `env:"BULK_RECORDER_SIZE"`
 	BulkRecorderFlushTimeoutMs   int  `env:"BULK_RECORDER_FLUSH_TIMEOUT_MS"`
 	BulkRecorderMaxRowsPerInsert int  `env:"BULK_RECORDER_MAX_ROWS_PER_INSERT"`
-	BulkRecorderFallbackEnabled  bool `env:"BULK_RECORDER_FALLBACK_ENABLED"`
 
 	// --- Balance/Worker fields ---
 	BalanceSyncWorkerEnabled bool `env:"BALANCE_SYNC_WORKER_ENABLED"`
@@ -915,13 +914,6 @@ func applyConfigDefaults(cfg *Config) {
 	// Explicit "true"/"false" values are parsed by SetConfigFromEnvVars before this runs.
 	if os.Getenv("BULK_RECORDER_ENABLED") == "" {
 		cfg.BulkRecorderEnabled = true
-	}
-
-	// BulkRecorderFallbackEnabled defaults to true when the env var is not set or empty.
-	// This treats both unset and empty string as "use default" for safer behavior.
-	// Explicit "true"/"false" values are parsed by SetConfigFromEnvVars before this runs.
-	if os.Getenv("BULK_RECORDER_FALLBACK_ENABLED") == "" {
-		cfg.BulkRecorderFallbackEnabled = true
 	}
 
 	// BulkRecorderFlushTimeoutMs defaults to 100ms.

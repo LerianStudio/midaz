@@ -472,10 +472,9 @@ func TestConsumerRoutes_ConfigureBulk(t *testing.T) {
 	}
 
 	cfg := &BulkConfig{
-		Enabled:         true,
-		Size:            100,
-		FlushTimeout:    500 * time.Millisecond,
-		FallbackEnabled: true,
+		Enabled:      true,
+		Size:         100,
+		FlushTimeout: 500 * time.Millisecond,
 	}
 
 	cr.ConfigureBulk(cfg)
@@ -499,16 +498,14 @@ func TestConsumerRoutes_BulkConfig(t *testing.T) {
 		{
 			name: "returns_configured_value",
 			config: &BulkConfig{
-				Enabled:         true,
-				Size:            50,
-				FlushTimeout:    100 * time.Millisecond,
-				FallbackEnabled: false,
+				Enabled:      true,
+				Size:         50,
+				FlushTimeout: 100 * time.Millisecond,
 			},
 			expected: &BulkConfig{
-				Enabled:         true,
-				Size:            50,
-				FlushTimeout:    100 * time.Millisecond,
-				FallbackEnabled: false,
+				Enabled:      true,
+				Size:         50,
+				FlushTimeout: 100 * time.Millisecond,
 			},
 		},
 	}
@@ -771,16 +768,14 @@ func TestBulkConfig_Structure(t *testing.T) {
 	t.Parallel()
 
 	config := BulkConfig{
-		Enabled:         true,
-		Size:            200,
-		FlushTimeout:    500 * time.Millisecond,
-		FallbackEnabled: true,
+		Enabled:      true,
+		Size:         200,
+		FlushTimeout: 500 * time.Millisecond,
 	}
 
 	assert.True(t, config.Enabled)
 	assert.Equal(t, 200, config.Size)
 	assert.Equal(t, 500*time.Millisecond, config.FlushTimeout)
-	assert.True(t, config.FallbackEnabled)
 }
 
 func TestBulkConfig_Defaults(t *testing.T) {
@@ -792,7 +787,6 @@ func TestBulkConfig_Defaults(t *testing.T) {
 	assert.False(t, config.Enabled)
 	assert.Equal(t, 0, config.Size)
 	assert.Equal(t, time.Duration(0), config.FlushTimeout)
-	assert.False(t, config.FallbackEnabled)
 }
 
 // =============================================================================
