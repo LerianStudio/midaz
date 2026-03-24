@@ -19,6 +19,7 @@ package transactionroute
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -117,7 +118,7 @@ func (infra *chaosNetworkTransactionRouteInfra) createTransactionRouteWithLinks(
 
 	for i := 0; i < opRouteCount; i++ {
 		opRouteID := pgtestutil.CreateTestOperationRouteSimple(t, infra.pgResult.DB, infra.orgID, infra.ledgerID,
-			title+" OpRoute "+string(rune('A'+i)), "source")
+			fmt.Sprintf("%s OpRoute %d", title, i+1), "source")
 		pgtestutil.CreateTestOperationTransactionRouteLink(t, infra.pgResult.DB, opRouteID, trID)
 
 		opRouteIDs = append(opRouteIDs, opRouteID)
