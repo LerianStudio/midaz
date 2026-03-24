@@ -1043,6 +1043,39 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsMatchingAccounts(t *test
 	assert.True(t, ids[id2.String()])
 }
 
+func TestIntegration_AccountRepository_ListByIDs_FiltersBySegment(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupContainer(t)
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	segmentID := pgtestutil.CreateTestSegmentWithParams(t, container.DB, orgID, ledgerID, pgtestutil.DefaultSegmentParams())
+
+	// Create 3 accounts, assign segment to 2 of them.
+	id1 := pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "In Segment 1", "@listsg1", "USD", nil)
+	id2 := pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "In Segment 2", "@listsg2", "USD", nil)
+	id3 := pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "No Segment", "@listsg3", "USD", nil)
+
+	_, err := container.DB.Exec("UPDATE account SET segment_id = $1 WHERE id IN ($2, $3)", segmentID, id1, id2)
+	require.NoError(t, err, "failed to assign segment_id to test accounts")
+
+	ctx := context.Background()
+
+	// Act: ListByIDs with all 3 IDs but segment filter should exclude id3.
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, &segmentID, []uuid.UUID{id1, id2, id3})
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, accounts, 2, "should only return accounts matching the segment")
+
+	for _, acc := range accounts {
+		assert.NotNil(t, acc.SegmentID)
+		assert.Equal(t, segmentID.String(), *acc.SegmentID)
+	}
+}
+
 func TestIntegration_AccountRepository_ListByIDs_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupContainer(t)

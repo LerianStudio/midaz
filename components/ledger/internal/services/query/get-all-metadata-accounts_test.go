@@ -160,6 +160,31 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			},
 		},
 		{
+			name:           "success - filters by both portfolio and segment when provided",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			portfolioID:    func() *uuid.UUID { id := uuid.New(); return &id }(),
+			segmentID:      func() *uuid.UUID { id := uuid.New(); return &id }(),
+			mockSetup: func() {
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), "Account", gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: acc1ID.String(), Data: map[string]any{"key": "both-value"}},
+					}, nil)
+				mockAccountRepo.EXPECT().
+					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Not(gomock.Nil()), gomock.Not(gomock.Nil()), gomock.Any()).
+					Return([]*mmodel.Account{
+						{ID: acc1ID.String(), Name: "Both Filters Account"},
+					}, nil)
+			},
+			expectErr: false,
+			validate: func(t *testing.T, result []*mmodel.Account) {
+				require.Len(t, result, 1)
+				assert.Equal(t, acc1ID.String(), result[0].ID)
+				assert.Equal(t, "both-value", result[0].Metadata["key"])
+			},
+		},
+		{
 			name:           "error - metadata not found returns nil",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),

@@ -1435,12 +1435,14 @@ paths:
         in: query
         name: portfolio_id
         schema:
+          format: uuid
           type: string
       - description: Filter accounts by segment ID (UUID format). If both portfolio_id
           and segment_id are provided, both filters are applied (AND semantics).
         in: query
         name: segment_id
         schema:
+          format: uuid
           type: string
       responses:
         "200":
