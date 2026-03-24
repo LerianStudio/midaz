@@ -329,8 +329,8 @@ github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.41.0 h1:JQS8FXKu
 github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.41.0/go.mod h1:p7PE0uLxjRRNZJnnndNoJUadUZoE0jMzzjpSP0DxcUM=
 github.com/testcontainers/testcontainers-go/modules/redis v0.41.0 h1:QlTSe4JGOnjr/37MXx0GqNLGa+8sKQst7lsn7uLjg8E=
 github.com/testcontainers/testcontainers-go/modules/redis v0.41.0/go.mod h1:5mDOIWrS/a+z8gBesXBQAAQtrqJrW2tUi9Tf46+/Luo=
-github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.40.0 h1:JtBm3qORRmX5lKdlBaAaNUMmXQojGKQHxTMf3Cz1ze0=
-github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.40.0/go.mod h1:9NUCf6iXexsvcccyJlFiHbS2R8e3TL+oaGkNYKDdjFI=
+github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.41.0 h1:FcPygoroBsZHT5tvfUXxCftFixQXamB8imLygqf+9yw=
+github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.41.0/go.mod h1:veWhBHxGtFfL7BhCGuZTCRIHYZ8wuJ5YipASibgK0Jw=
 github.com/tklauser/go-sysconf v0.3.16 h1:frioLaCQSsF5Cy1jgRBrzr6t502KIIwQ0MArYICU0nA=
 github.com/tklauser/go-sysconf v0.3.16/go.mod h1:/qNL9xxDhc7tx3HSRsLWNnuzbVfh3e7gh/BmM179nYI=
 github.com/tklauser/numcpus v0.11.0 h1:nSTwhKH5e1dMNsCdVBukSZrURJRoHbSEQjdEbY+9RXw=

@@ -104,7 +104,7 @@ require (
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0
-	github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.40.0
+	github.com/testcontainers/testcontainers-go/modules/toxiproxy v0.41.0
 	go.uber.org/goleak v1.3.0
 )
 
