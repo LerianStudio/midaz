@@ -53,7 +53,7 @@ func TestGetAllAccount(t *testing.T) {
 				bFalse := false
 				bTrue := true
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter.ToOffsetPagination()).
 					Return([]*mmodel.Account{
 						{ID: "acc1", Blocked: &bFalse},
 						{ID: "acc2", Blocked: &bTrue},
@@ -84,7 +84,7 @@ func TestGetAllAccount(t *testing.T) {
 			name: "failure - accounts not found",
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter.ToOffsetPagination()).
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
@@ -95,7 +95,7 @@ func TestGetAllAccount(t *testing.T) {
 			name: "failure - error retrieving accounts",
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter.ToOffsetPagination()).
 					Return(nil, errors.New("failed to retrieve accounts")).
 					Times(1)
 			},
@@ -106,7 +106,7 @@ func TestGetAllAccount(t *testing.T) {
 			name: "failure - metadata retrieval error",
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter.ToOffsetPagination()).
 					Return([]*mmodel.Account{
 						{ID: "acc1"},
 						{ID: "acc2"},
@@ -127,7 +127,7 @@ func TestGetAllAccount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
 
-			result, err := uc.GetAllAccount(ctx, organizationID, ledgerID, &portfolioID, filter)
+			result, err := uc.GetAllAccount(ctx, organizationID, ledgerID, &portfolioID, nil, filter)
 
 			if tt.expectedErr != nil {
 				assert.Error(t, err)

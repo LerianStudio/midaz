@@ -382,7 +382,7 @@ func TestIntegration_AccountRepository_FindAll_ReturnsPaginatedAccounts(t *testi
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")
@@ -420,15 +420,15 @@ func TestIntegration_AccountRepository_FindAll_PaginatesWithoutDuplicates(t *tes
 
 	// Act - Get all 3 pages
 	baseFilter.Page = 1
-	page1, err := repo.FindAll(ctx, orgID, ledgerID, nil, baseFilter)
+	page1, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter)
 	require.NoError(t, err)
 
 	baseFilter.Page = 2
-	page2, err := repo.FindAll(ctx, orgID, ledgerID, nil, baseFilter)
+	page2, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter)
 	require.NoError(t, err)
 
 	baseFilter.Page = 3
-	page3, err := repo.FindAll(ctx, orgID, ledgerID, nil, baseFilter)
+	page3, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter)
 	require.NoError(t, err)
 
 	// Assert - Correct counts per page
@@ -474,7 +474,7 @@ func TestIntegration_AccountRepository_FindAll_ExcludesSoftDeleted(t *testing.T)
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
 
 	// Assert
 	require.NoError(t, err)
@@ -510,7 +510,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) 
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, &portfolioID, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, &portfolioID, nil, filter)
 
 	// Assert
 	require.NoError(t, err)
@@ -988,7 +988,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsMatchingAccounts(t *test
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, []uuid.UUID{id1, id2})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2})
 
 	// Assert
 	require.NoError(t, err)
@@ -1018,7 +1018,7 @@ func TestIntegration_AccountRepository_ListByIDs_ExcludesSoftDeleted(t *testing.
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, []uuid.UUID{id1, id2})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2})
 
 	// Assert
 	require.NoError(t, err)
@@ -1038,7 +1038,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsEmptyForNoMatch(t *testi
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())})
 
 	// Assert
 	require.NoError(t, err)

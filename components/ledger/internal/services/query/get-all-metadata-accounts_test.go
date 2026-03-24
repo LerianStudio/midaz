@@ -60,7 +60,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc2ID.String(), Data: map[string]any{"group": "ops"}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{acc1ID, acc2ID})).
+					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{acc1ID, acc2ID})).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Account 1", Status: mmodel.Status{Code: "ACTIVE"}},
 						{ID: acc2ID.String(), Name: "Account 2", Status: mmodel.Status{Code: "ACTIVE"}},
@@ -98,7 +98,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Admin Account"},
 					}, nil)
@@ -121,7 +121,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc1ID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Not(gomock.Nil()), gomock.Any()).
+					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Not(gomock.Nil()), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Portfolio Account"},
 					}, nil)
@@ -171,7 +171,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc1ID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:   true,
@@ -189,7 +189,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc1ID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("database connection timeout"))
 			},
 			expectErr:   true,
@@ -209,7 +209,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc2ID.String(), Data: map[string]any{"found": true}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Only This One"},
 					}, nil)
@@ -228,7 +228,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetAllMetadataAccounts(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.filter)
+			result, err := uc.GetAllMetadataAccounts(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, nil, tt.filter)
 
 			if tt.expectErr {
 				require.Error(t, err)
