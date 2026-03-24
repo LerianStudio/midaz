@@ -126,8 +126,10 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	var portfolioID *uuid.UUID
-	var segmentID *uuid.UUID
+	var (
+		portfolioID *uuid.UUID
+		segmentID   *uuid.UUID
+	)
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {

@@ -12,7 +12,7 @@ info:
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
-  version: v3.5.2
+  version: v3.6.0
 host: localhost:3002
 basePath: /
 paths:
@@ -1185,6 +1185,14 @@ paths:
         type: string
         description: Sort direction for results based on creation date
         name: sort_order
+        in: query
+      - type: string
+        description: Filter accounts by portfolio ID (UUID format)
+        name: portfolio_id
+        in: query
+      - type: string
+        description: Filter accounts by segment ID (UUID format)
+        name: segment_id
         in: query
       responses:
         '200':
@@ -4557,7 +4565,7 @@ paths:
         in: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
       responses:
         '201':
           description: Created
@@ -4739,7 +4747,7 @@ paths:
         in: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
       responses:
         '201':
           description: Created
@@ -8244,7 +8252,7 @@ definitions:
         type: string
         maxLength: 50
         example: Charge Settlement
-  github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction.CreateTransactionSwaggerModel:
+  github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
     description: Schema for creating transaction with the complete Send operation
       structure defined inline
     type: object

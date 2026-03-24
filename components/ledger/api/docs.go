@@ -5,7 +5,7 @@ import "github.com/swaggo/swag"
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "v3.5.2",
+	Version:          "v3.6.0",
 	Host:             "localhost:3002",
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
@@ -36,7 +36,7 @@ const docTemplate = `
       "name": "Apache 2.0",
       "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v3.5.2"
+    "version": "v3.6.0"
   },
   "host": "localhost:3002",
   "basePath": "/",
@@ -1735,6 +1735,18 @@ const docTemplate = `
             "type": "string",
             "description": "Sort direction for results based on creation date",
             "name": "sort_order",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter accounts by portfolio ID (UUID format)",
+            "name": "portfolio_id",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter accounts by segment ID (UUID format)",
+            "name": "segment_id",
             "in": "query"
           }
         ],
@@ -6707,7 +6719,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction.CreateTransactionSwaggerModel"
+              "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
             }
           }
         ],
@@ -6978,7 +6990,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction.CreateTransactionSwaggerModel"
+              "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
             }
           }
         ],
@@ -10436,7 +10448,7 @@ const docTemplate = `
         }
       }
     },
-    "github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction.CreateTransactionSwaggerModel": {
+    "github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel": {
       "description": "Schema for creating transaction with the complete Send operation structure defined inline",
       "type": "object",
       "properties": {
