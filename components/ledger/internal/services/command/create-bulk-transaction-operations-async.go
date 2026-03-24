@@ -30,6 +30,10 @@ import (
 // to use bulk update. Below this threshold, individual updates are used.
 const bulkUpdateThreshold = 10
 
+// asyncOperationTimeout defines the timeout for fire-and-forget async operations
+// like sending events and cleaning up backup queues.
+const asyncOperationTimeout = 30 * time.Second
+
 // BulkResult contains the aggregated counts from a bulk transaction/operation processing.
 type BulkResult struct {
 	// Transaction insert counts
@@ -527,26 +531,26 @@ func (uc *UseCase) processMetadataAndEvents(
 			}
 		}
 
-		// Send events asynchronously with fresh context to survive parent cancellation
+		// Send events asynchronously with context that preserves trace but survives parent cancellation
 		go func() {
-			opCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
 			defer cancel()
 
 			uc.SendTransactionEvents(opCtx, tx)
 		}()
 
-		// Clean up backup queue with fresh context to survive parent cancellation
+		// Clean up backup queue with context that preserves trace but survives parent cancellation
 		orgID, ledgerID, err := uc.extractOrgLedgerIDs(payload)
 		if err == nil {
 			go func(orgID, ledgerID uuid.UUID, txID string) {
-				opCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
 				defer cancel()
 
 				uc.RemoveTransactionFromRedisQueue(opCtx, logger, orgID, ledgerID, txID)
 			}(orgID, ledgerID, tx.ID)
 
 			go func(orgID, ledgerID uuid.UUID, txID string) {
-				opCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				opCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), asyncOperationTimeout)
 				defer cancel()
 
 				uc.DeleteWriteBehindTransaction(opCtx, orgID, ledgerID, txID)
