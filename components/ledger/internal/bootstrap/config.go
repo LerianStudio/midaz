@@ -910,12 +910,16 @@ func applyConfigDefaults(cfg *Config) {
 	}
 
 	// Bulk Recorder defaults
-	// BulkRecorderEnabled defaults to true when the env var is not set.
+	// BulkRecorderEnabled defaults to true when the env var is not set or empty.
+	// This treats both unset and empty string as "use default" for safer behavior.
+	// Explicit "true"/"false" values are parsed by SetConfigFromEnvVars before this runs.
 	if os.Getenv("BULK_RECORDER_ENABLED") == "" {
 		cfg.BulkRecorderEnabled = true
 	}
 
-	// BulkRecorderFallbackEnabled defaults to true when the env var is not set.
+	// BulkRecorderFallbackEnabled defaults to true when the env var is not set or empty.
+	// This treats both unset and empty string as "use default" for safer behavior.
+	// Explicit "true"/"false" values are parsed by SetConfigFromEnvVars before this runs.
 	if os.Getenv("BULK_RECORDER_FALLBACK_ENABLED") == "" {
 		cfg.BulkRecorderFallbackEnabled = true
 	}

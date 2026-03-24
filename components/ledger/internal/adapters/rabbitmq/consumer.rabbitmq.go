@@ -551,20 +551,13 @@ func (cr *ConsumerRoutes) processFallback(
 		libLog.Int("message_count", len(deliveries)),
 	)
 
-	var successCount, failCount int
-
 	for _, delivery := range deliveries {
 		cr.processIndividualMessage(ctx, queue, delivery, individualHandler)
-
-		// Note: We can't easily track success/fail here since processIndividualMessage
-		// handles ack/nack internally. For metrics, we rely on the individual handler.
-		successCount++
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, "Fallback processing completed",
 		libLog.String("queue", queue),
-		libLog.Int("success_count", successCount),
-		libLog.Int("fail_count", failCount),
+		libLog.Int("message_count", len(deliveries)),
 	)
 }
 

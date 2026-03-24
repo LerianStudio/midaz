@@ -160,8 +160,10 @@ func handlerBTOBulk(ctx context.Context, messages []amqp.Delivery, useCase *comm
 		return nil, err
 	}
 
-	// Record metrics as span attributes
-	recordBulkMetrics(span, result, len(messages), len(payloads))
+	// Record metrics as span attributes (if result is available)
+	if result != nil {
+		recordBulkMetrics(span, result, len(messages), len(payloads))
+	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Bulk processing completed successfully for %d payloads", len(payloads)),
 		libLog.Any("transactions_attempted", result.TransactionsAttempted),
