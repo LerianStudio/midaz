@@ -19,6 +19,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// CountFilter holds optional filters for counting transactions.
+type CountFilter struct {
+	Route     string    // Empty means include all routes
+	Status    string    // Empty means include all statuses
+	StartDate time.Time // Mandatory lower bound on created_at
+	EndDate   time.Time // Mandatory upper bound on created_at
+}
+
 // TransactionPostgreSQLModel represents the entity TransactionPostgreSQLModel into SQL context in Database
 //
 // @Description Database model for storing transaction information in PostgreSQL
