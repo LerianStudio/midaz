@@ -5781,6 +5781,100 @@ paths:
       tags:
       - Transactions
       x-codegen-request-body-name: transaction
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
+    head:
+      description: Count transactions matching optional filters (route, status, date
+        range)
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by transaction route
+        in: query
+        name: route
+        schema:
+          type: string
+      - description: Filter by transaction status
+        in: query
+        name: status
+        schema:
+          enum:
+          - CREATED
+          - APPROVED
+          - PENDING
+          - CANCELED
+          - NOTED
+          type: string
+      - description: Start of date range (RFC 3339, defaults to today 00:00:00 UTC)
+        in: query
+        name: start_date
+        schema:
+          format: date-time
+          type: string
+      - description: End of date range (RFC 3339, defaults to today 23:59:59 UTC)
+        in: query
+        name: end_date
+        schema:
+          format: date-time
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+          headers:
+            X-Total-Count:
+              description: Total count of matching transactions
+              schema:
+                type: integer
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Count Transactions by Filters
+      tags:
+      - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
     post:
       description: Create a Transaction with the input payload
