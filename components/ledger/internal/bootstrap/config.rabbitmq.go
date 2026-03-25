@@ -16,7 +16,6 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmconsumer "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/consumer"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
@@ -90,17 +89,14 @@ type rabbitMQComponents struct {
 
 // initRabbitMQ initializes RabbitMQ producer and consumer components.
 // Dispatches to single-tenant or multi-tenant initialization based on Options.
-// redisConnection is required only for multi-tenant mode (Redis Pub/Sub event listening);
-// it is ignored in single-tenant mode.
 func initRabbitMQ(
 	opts *Options,
 	cfg *Config,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
-	redisConnection *libRedis.Client,
 ) (*rabbitMQComponents, error) {
 	if opts != nil && opts.MultiTenantEnabled {
-		return initMultiTenantRabbitMQ(opts, cfg, logger, telemetry, redisConnection)
+		return initMultiTenantRabbitMQ(opts, cfg, logger, telemetry)
 	}
 
 	return initSingleTenantRabbitMQ(opts, cfg, logger, telemetry)
@@ -109,13 +105,11 @@ func initRabbitMQ(
 // initMultiTenantRabbitMQ initializes RabbitMQ in multi-tenant mode.
 // Uses tmrabbitmq.Manager for per-tenant vhost connections with LRU eviction.
 // No circuit breaker is needed; the Manager manages its own connection lifecycle.
-// redisConnection is required for Redis Pub/Sub event-driven tenant discovery.
 func initMultiTenantRabbitMQ(
 	opts *Options,
 	cfg *Config,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
-	redisConnection *libRedis.Client,
 ) (*rabbitMQComponents, error) {
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing multi-tenant RabbitMQ producer and consumer")
 
@@ -124,15 +118,6 @@ func initMultiTenantRabbitMQ(
 
 	if opts.TenantClient == nil {
 		return nil, fmt.Errorf("TenantClient is required for multi-tenant RabbitMQ initialization")
-	}
-
-	if redisConnection == nil {
-		return nil, fmt.Errorf("Redis connection is required for multi-tenant RabbitMQ consumer (Redis Pub/Sub)")
-	}
-
-	redisClient, err := redisConnection.GetClient(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Redis client for multi-tenant consumer: %w", err)
 	}
 
 	rmqOpts := []tmrabbitmq.Option{
@@ -173,7 +158,11 @@ func initMultiTenantRabbitMQ(
 		AllowInsecureHTTP: allowInsecureMultiTenantHTTP(opts.TenantManagerURL, cfg.EnvName),
 	}
 
-	consumer, err := tmconsumer.NewMultiTenantConsumerWithError(tenantRabbitMQ, redisClient, mtConfig, logger)
+	consumer, err := tmconsumer.NewMultiTenantConsumerWithError(
+		mtConfig,
+		logger,
+		tmconsumer.WithRabbitMQ(tenantRabbitMQ),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize multi-tenant consumer: %w", err)
 	}
