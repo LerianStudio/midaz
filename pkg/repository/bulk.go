@@ -56,3 +56,21 @@ type DBTransaction interface {
 	Commit() error
 	Rollback() error
 }
+
+// MongoDBBulkInsertResult contains the counts from a MongoDB bulk insert operation.
+// It tracks how many documents were attempted, actually inserted, and matched (duplicates).
+// This is analogous to BulkInsertResult but designed for MongoDB's BulkWrite semantics.
+type MongoDBBulkInsertResult struct {
+	Attempted   int64    // Documents sent to BulkWrite
+	Inserted    int64    // Documents actually inserted (UpsertedCount)
+	Matched     int64    // Documents that matched filter (already existed)
+	InsertedIDs []string // EntityIDs of documents that were actually inserted
+}
+
+// MongoDBBulkUpdateResult contains the counts from a MongoDB bulk update operation.
+// It tracks how many documents were attempted and actually modified.
+type MongoDBBulkUpdateResult struct {
+	Attempted int64 // Documents sent to BulkWrite
+	Modified  int64 // Documents actually modified
+	Matched   int64 // Documents that matched filter
+}

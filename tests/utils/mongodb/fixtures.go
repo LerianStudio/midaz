@@ -80,11 +80,11 @@ func CountDocuments(t *testing.T, db *mongo.Database, collection string, filter 
 }
 
 // ClearCollection removes all documents from a collection.
-func ClearCollection(t *testing.T, db *mongo.Database, collection string) {
-	t.Helper()
+func ClearCollection(tb testing.TB, db *mongo.Database, collection string) {
+	tb.Helper()
 
 	_, err := db.Collection(collection).DeleteMany(context.Background(), bson.M{})
-	require.NoError(t, err, "failed to clear collection")
+	require.NoError(tb, err, "failed to clear collection")
 }
 
 // ============================================================================
