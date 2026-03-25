@@ -9020,7 +9020,7 @@ const docTemplate = `
         "title": {
           "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
           "type": "string",
-          "maxLength": 50,
+          "maxLength": 255,
           "example": "Cashin from service charge"
         }
       }
@@ -9379,7 +9379,7 @@ const docTemplate = `
         "title": {
           "description": "Short text summarizing the purpose of the transaction. Used as an entry note for identification.",
           "type": "string",
-          "maxLength": 50,
+          "maxLength": 255,
           "example": "Charge Settlement"
         }
       }
@@ -10393,7 +10393,7 @@ const docTemplate = `
         "title": {
           "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
           "type": "string",
-          "maxLength": 50,
+          "maxLength": 255,
           "example": "Cashin from service charge"
         }
       }
@@ -10541,7 +10541,7 @@ const docTemplate = `
         "title": {
           "description": "Short text summarizing the purpose of the transaction. Used as an entry note for identification.",
           "type": "string",
-          "maxLength": 50,
+          "maxLength": 255,
           "example": "Charge Settlement"
         }
       }

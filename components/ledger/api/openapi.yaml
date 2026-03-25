@@ -7822,7 +7822,7 @@ components:
           description: Short text summarizing the purpose of the operation. Used as
             an entry note for identification.
           example: Cashin from service charge
-          maxLength: 50
+          maxLength: 255
           type: string
       required:
       - operationType
@@ -8186,7 +8186,7 @@ components:
           description: Short text summarizing the purpose of the transaction. Used
             as an entry note for identification.
           example: Charge Settlement
-          maxLength: 50
+          maxLength: 255
           type: string
       required:
       - operationRoutes
@@ -9508,7 +9508,7 @@ components:
           description: Short text summarizing the purpose of the operation. Used as
             an entry note for identification.
           example: Cashin from service charge
-          maxLength: 50
+          maxLength: 255
           type: string
       type: object
     UpdateOrganizationInput:
@@ -9690,7 +9690,7 @@ components:
           description: Short text summarizing the purpose of the transaction. Used
             as an entry note for identification.
           example: Charge Settlement
-          maxLength: 50
+          maxLength: 255
           type: string
       type: object
     github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
