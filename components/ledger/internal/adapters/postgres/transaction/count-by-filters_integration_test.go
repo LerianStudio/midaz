@@ -48,6 +48,7 @@ type countByFiltersInfra struct {
 	repo        *TransactionPostgreSQLRepository
 	orgID       uuid.UUID
 	ledgerID    uuid.UUID
+	seededAt    time.Time
 }
 
 // setupCountByFiltersInfra creates infrastructure and inserts the standard
@@ -101,6 +102,7 @@ func setupCountByFiltersInfra(t *testing.T) *countByFiltersInfra {
 		repo:        repo,
 		orgID:       orgID,
 		ledgerID:    ledgerID,
+		seededAt:    now,
 	}
 }
 
@@ -121,21 +123,17 @@ func insertTransaction(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, rout
 	return id
 }
 
-// todayRange returns the start and end of today in UTC.
-func todayRange() (time.Time, time.Time) {
-	now := time.Now().UTC()
-	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	end := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
-
+// todayRange returns the start and end of the given reference day in UTC.
+func todayRange(ref time.Time) (time.Time, time.Time) {
+	start := time.Date(ref.Year(), ref.Month(), ref.Day(), 0, 0, 0, 0, time.UTC)
+	end := time.Date(ref.Year(), ref.Month(), ref.Day(), 23, 59, 59, 999999999, time.UTC)
 	return start, end
 }
 
-// fullRange returns a 48-hour range covering yesterday through today.
-func fullRange() (time.Time, time.Time) {
-	now := time.Now().UTC()
-	start := time.Date(now.Year(), now.Month(), now.Day()-1, 0, 0, 0, 0, time.UTC)
-	end := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
-
+// fullRange returns a 48-hour range covering the day before ref through ref day.
+func fullRange(ref time.Time) (time.Time, time.Time) {
+	start := time.Date(ref.Year(), ref.Month(), ref.Day()-1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(ref.Year(), ref.Month(), ref.Day(), 23, 59, 59, 999999999, time.UTC)
 	return start, end
 }
 
@@ -153,7 +151,7 @@ func TestIntegration_CountByFilters_NoFilters(t *testing.T) {
 	infra := setupCountByFiltersInfra(t)
 	ctx := context.Background()
 
-	todayStart, todayEnd := todayRange()
+	todayStart, todayEnd := todayRange(infra.seededAt)
 
 	count, err := infra.repo.CountByFilters(ctx, infra.orgID, infra.ledgerID, CountFilter{
 		StartDate: todayStart,
@@ -174,7 +172,7 @@ func TestIntegration_CountByFilters_ByRoute(t *testing.T) {
 	infra := setupCountByFiltersInfra(t)
 	ctx := context.Background()
 
-	todayStart, todayEnd := todayRange()
+	todayStart, todayEnd := todayRange(infra.seededAt)
 
 	count, err := infra.repo.CountByFilters(ctx, infra.orgID, infra.ledgerID, CountFilter{
 		Route:     "PIX",
@@ -196,7 +194,7 @@ func TestIntegration_CountByFilters_ByStatus(t *testing.T) {
 	infra := setupCountByFiltersInfra(t)
 	ctx := context.Background()
 
-	todayStart, todayEnd := todayRange()
+	todayStart, todayEnd := todayRange(infra.seededAt)
 
 	count, err := infra.repo.CountByFilters(ctx, infra.orgID, infra.ledgerID, CountFilter{
 		Status:    "APPROVED",
@@ -218,7 +216,7 @@ func TestIntegration_CountByFilters_ByRouteAndStatus(t *testing.T) {
 	infra := setupCountByFiltersInfra(t)
 	ctx := context.Background()
 
-	todayStart, todayEnd := todayRange()
+	todayStart, todayEnd := todayRange(infra.seededAt)
 
 	count, err := infra.repo.CountByFilters(ctx, infra.orgID, infra.ledgerID, CountFilter{
 		Route:     "PIX",
@@ -242,7 +240,7 @@ func TestIntegration_CountByFilters_ExplicitDateRange(t *testing.T) {
 	infra := setupCountByFiltersInfra(t)
 	ctx := context.Background()
 
-	start, end := fullRange()
+	start, end := fullRange(infra.seededAt)
 
 	count, err := infra.repo.CountByFilters(ctx, infra.orgID, infra.ledgerID, CountFilter{
 		StartDate: start,
@@ -263,7 +261,7 @@ func TestIntegration_CountByFilters_NonExistentRoute(t *testing.T) {
 	infra := setupCountByFiltersInfra(t)
 	ctx := context.Background()
 
-	start, end := fullRange()
+	start, end := fullRange(infra.seededAt)
 
 	count, err := infra.repo.CountByFilters(ctx, infra.orgID, infra.ledgerID, CountFilter{
 		Route:     "NONEXISTENT",
@@ -284,7 +282,7 @@ func TestIntegration_CountByFilters_SoftDeletedExcluded(t *testing.T) {
 	infra := setupCountByFiltersInfra(t)
 	ctx := context.Background()
 
-	start, end := fullRange()
+	start, end := fullRange(infra.seededAt)
 
 	// Count all PIX/APPROVED across full range
 	count, err := infra.repo.CountByFilters(ctx, infra.orgID, infra.ledgerID, CountFilter{
@@ -308,7 +306,7 @@ func TestIntegration_CountByFilters_EmptyOrg(t *testing.T) {
 	infra := setupCountByFiltersInfra(t)
 	ctx := context.Background()
 
-	start, end := fullRange()
+	start, end := fullRange(infra.seededAt)
 
 	// Use a different org ID that has no transactions
 	emptyOrgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -331,7 +329,7 @@ func TestIntegration_CountByFilters_FilterNarrowing(t *testing.T) {
 	infra := setupCountByFiltersInfra(t)
 	ctx := context.Background()
 
-	todayStart, todayEnd := todayRange()
+	todayStart, todayEnd := todayRange(infra.seededAt)
 
 	// Count with no filters
 	countAll, err := infra.repo.CountByFilters(ctx, infra.orgID, infra.ledgerID, CountFilter{
@@ -395,7 +393,7 @@ func TestIntegration_CountByFilters_CancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	todayStart, todayEnd := todayRange()
+	todayStart, todayEnd := todayRange(infra.seededAt)
 
 	_, err := infra.repo.CountByFilters(ctx, infra.orgID, infra.ledgerID, CountFilter{
 		StartDate: todayStart,

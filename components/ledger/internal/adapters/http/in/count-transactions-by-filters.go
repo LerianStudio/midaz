@@ -38,9 +38,9 @@ var validTransactionStatuses = map[string]bool{
 //	@Param			organization_id	path		string	true	"Organization ID"	format(uuid)
 //	@Param			ledger_id		path		string	true	"Ledger ID"			format(uuid)
 //	@Param			route			query		string	false	"Filter by transaction route"
-//	@Param			status			query		string	false	"Filter by transaction status (CREATED, APPROVED, PENDING, CANCELED, NOTED)"
-//	@Param			start_date		query		string	false	"Start of date range (RFC 3339, defaults to today 00:00:00 UTC)"
-//	@Param			end_date		query		string	false	"End of date range (RFC 3339, defaults to today 23:59:59 UTC)"
+//	@Param			status			query		string	false	"Filter by transaction status"	Enums(CREATED, APPROVED, PENDING, CANCELED, NOTED)
+//	@Param			start_date		query		string	false	"Start of date range (RFC 3339, defaults to today 00:00:00 UTC)"	format(date-time)
+//	@Param			end_date		query		string	false	"End of date range (RFC 3339, defaults to today 23:59:59 UTC)"	format(date-time)
 //	@Success		204
 //	@Header			204	{integer}	X-Total-Count	"Total count of matching transactions"
 //	@Failure		400	{object}	mmodel.Error

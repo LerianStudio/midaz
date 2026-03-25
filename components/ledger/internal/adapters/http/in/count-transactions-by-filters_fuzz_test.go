@@ -224,11 +224,19 @@ func FuzzParseCountFilter_Dates(f *testing.F) {
 			}
 		}
 
-		// Both parseable or empty - check date order
-		if err != nil {
-			// Could be start > end
-			t.Logf("Error (possibly start > end): %v", err)
+		// Both parseable or empty — enforce start <= end invariant
+		if trimmedStart != "" && trimmedEnd != "" {
+			startT, startErr := time.Parse(time.RFC3339, trimmedStart)
+			endT, endErr := time.Parse(time.RFC3339, trimmedEnd)
+
+			if startErr == nil && endErr == nil && startT.After(endT) {
+				assert.Error(t, err, "start_date > end_date should produce error")
+				return
+			}
 		}
+
+		// If we reach here, inputs are valid — no error expected
+		assert.NoError(t, err, "valid inputs should not produce error: route=%q status=%q start=%q end=%q", "", "", startDate, endDate)
 	})
 }
 

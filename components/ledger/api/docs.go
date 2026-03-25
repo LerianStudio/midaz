@@ -7080,19 +7080,28 @@ const docTemplate = `
             "in": "query"
           },
           {
+            "enum": [
+              "CREATED",
+              "APPROVED",
+              "PENDING",
+              "CANCELED",
+              "NOTED"
+            ],
             "type": "string",
-            "description": "Filter by transaction status (CREATED, APPROVED, PENDING, CANCELED, NOTED)",
+            "description": "Filter by transaction status",
             "name": "status",
             "in": "query"
           },
           {
             "type": "string",
+            "format": "date-time",
             "description": "Start of date range (RFC 3339, defaults to today 00:00:00 UTC)",
             "name": "start_date",
             "in": "query"
           },
           {
             "type": "string",
+            "format": "date-time",
             "description": "End of date range (RFC 3339, defaults to today 23:59:59 UTC)",
             "name": "end_date",
             "in": "query"

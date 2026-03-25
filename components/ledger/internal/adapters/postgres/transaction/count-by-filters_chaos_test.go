@@ -20,6 +20,8 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -47,6 +49,7 @@ type countByFiltersChaosInfra struct {
 	proxy      *chaos.Proxy
 	orgID      uuid.UUID
 	ledgerID   uuid.UUID
+	seededAt   time.Time
 }
 
 // setupCountByFiltersChaosInfra creates the chaos test infrastructure:
@@ -99,6 +102,7 @@ func setupCountByFiltersChaosInfra(t *testing.T) *countByFiltersChaosInfra {
 		proxy:      proxy,
 		orgID:      orgID,
 		ledgerID:   ledgerID,
+		seededAt:   now,
 	}
 }
 
@@ -136,8 +140,8 @@ func TestIntegration_Chaos_CountByFilters_ConnectionLoss(t *testing.T) {
 	infra := setupCountByFiltersChaosInfra(t)
 	ctx := context.Background()
 
-	todayStart := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, time.UTC)
-	todayEnd := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 23, 59, 59, 999999999, time.UTC)
+	todayStart := time.Date(infra.seededAt.Year(), infra.seededAt.Month(), infra.seededAt.Day(), 0, 0, 0, 0, time.UTC)
+	todayEnd := time.Date(infra.seededAt.Year(), infra.seededAt.Month(), infra.seededAt.Day(), 23, 59, 59, 999999999, time.UTC)
 
 	filter := CountFilter{
 		Route:     "PIX",
@@ -162,12 +166,8 @@ func TestIntegration_Chaos_CountByFilters_ConnectionLoss(t *testing.T) {
 	defer cancel()
 
 	_, err = infra.repo.CountByFilters(ctxTimeout, infra.orgID, infra.ledgerID, filter)
-	if err != nil {
-		t.Logf("Phase 3 (Verify): count during connection loss returned error (expected): %v", err)
-	} else {
-		t.Log("Phase 3 (Verify): count succeeded during connection loss (connection pool cached)")
-	}
-	// Key invariant: no panic occurred (test would have crashed)
+	require.Error(t, err, "Phase 3 (Verify): CountByFilters should fail during connection loss")
+	t.Logf("Phase 3 (Verify): count during connection loss returned error (expected): %v", err)
 
 	// Phase 4: Restore — reconnect the proxy
 	t.Log("Phase 4 (Restore): reconnecting network")
@@ -204,8 +204,8 @@ func TestIntegration_Chaos_CountByFilters_HighLatency(t *testing.T) {
 	infra := setupCountByFiltersChaosInfra(t)
 	ctx := context.Background()
 
-	todayStart := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, time.UTC)
-	todayEnd := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 23, 59, 59, 999999999, time.UTC)
+	todayStart := time.Date(infra.seededAt.Year(), infra.seededAt.Month(), infra.seededAt.Day(), 0, 0, 0, 0, time.UTC)
+	todayEnd := time.Date(infra.seededAt.Year(), infra.seededAt.Month(), infra.seededAt.Day(), 23, 59, 59, 999999999, time.UTC)
 
 	filter := CountFilter{
 		Route:     "PIX",
@@ -278,8 +278,8 @@ func TestIntegration_Chaos_CountByFilters_ConnectionPoolExhaustion(t *testing.T)
 	infra := setupCountByFiltersChaosInfra(t)
 	ctx := context.Background()
 
-	todayStart := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, time.UTC)
-	todayEnd := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 23, 59, 59, 999999999, time.UTC)
+	todayStart := time.Date(infra.seededAt.Year(), infra.seededAt.Month(), infra.seededAt.Day(), 0, 0, 0, 0, time.UTC)
+	todayEnd := time.Date(infra.seededAt.Year(), infra.seededAt.Month(), infra.seededAt.Day(), 23, 59, 59, 999999999, time.UTC)
 
 	filter := CountFilter{
 		Route:     "PIX",
@@ -301,21 +301,31 @@ func TestIntegration_Chaos_CountByFilters_ConnectionPoolExhaustion(t *testing.T)
 	err = infra.proxy.Disconnect()
 	require.NoError(t, err, "failed to disconnect proxy")
 
-	// Phase 3: Verify — multiple concurrent queries should all fail gracefully
-	errCount := 0
-	for i := 0; i < 5; i++ {
-		ctxTimeout, cancel := context.WithTimeout(ctx, 3*time.Second)
+	// Phase 3: Verify — concurrent queries should fail gracefully (no panic, no hang)
+	const concurrency = 10
+	var wg sync.WaitGroup
+	var errCount int64
 
-		_, queryErr := infra.repo.CountByFilters(ctxTimeout, infra.orgID, infra.ledgerID, filter)
-		cancel()
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
 
-		if queryErr != nil {
-			errCount++
-		}
+		go func() {
+			defer wg.Done()
+
+			ctxTimeout, cancel := context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+
+			_, queryErr := infra.repo.CountByFilters(ctxTimeout, infra.orgID, infra.ledgerID, filter)
+			if queryErr != nil {
+				atomic.AddInt64(&errCount, 1)
+			}
+		}()
 	}
 
-	t.Logf("Phase 3 (Verify): %d/5 queries failed during pool exhaustion", errCount)
-	// Key invariant: no panic, no hang (timeout worked)
+	wg.Wait()
+
+	t.Logf("Phase 3 (Verify): %d/%d concurrent queries failed during pool exhaustion", errCount, concurrency)
+	require.Greater(t, errCount, int64(0), "at least some concurrent queries should fail during pool exhaustion")
 
 	// Phase 4: Restore — reconnect
 	t.Log("Phase 4 (Restore): reconnecting proxy")

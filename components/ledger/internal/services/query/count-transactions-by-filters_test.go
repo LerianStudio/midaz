@@ -21,7 +21,7 @@ func TestCountTransactionsByFilters(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		setupMock      func(mockRepo *transaction.MockRepository)
+		setupMock      func(mockRepo *transaction.MockRepository, orgID uuid.UUID, ledgerID uuid.UUID, filter transaction.CountFilter)
 		organizationID uuid.UUID
 		ledgerID       uuid.UUID
 		filter         transaction.CountFilter
@@ -30,9 +30,9 @@ func TestCountTransactionsByFilters(t *testing.T) {
 	}{
 		{
 			name: "success with filters",
-			setupMock: func(mockRepo *transaction.MockRepository) {
+			setupMock: func(mockRepo *transaction.MockRepository, orgID uuid.UUID, ledgerID uuid.UUID, filter transaction.CountFilter) {
 				mockRepo.EXPECT().
-					CountByFilters(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					CountByFilters(gomock.Any(), gomock.Eq(orgID), gomock.Eq(ledgerID), gomock.Eq(filter)).
 					Return(int64(42), nil)
 			},
 			organizationID: uuid.New(),
@@ -48,9 +48,9 @@ func TestCountTransactionsByFilters(t *testing.T) {
 		},
 		{
 			name: "success with zero count",
-			setupMock: func(mockRepo *transaction.MockRepository) {
+			setupMock: func(mockRepo *transaction.MockRepository, orgID uuid.UUID, ledgerID uuid.UUID, filter transaction.CountFilter) {
 				mockRepo.EXPECT().
-					CountByFilters(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					CountByFilters(gomock.Any(), gomock.Eq(orgID), gomock.Eq(ledgerID), gomock.Eq(filter)).
 					Return(int64(0), nil)
 			},
 			organizationID: uuid.New(),
@@ -61,9 +61,9 @@ func TestCountTransactionsByFilters(t *testing.T) {
 		},
 		{
 			name: "repository error",
-			setupMock: func(mockRepo *transaction.MockRepository) {
+			setupMock: func(mockRepo *transaction.MockRepository, orgID uuid.UUID, ledgerID uuid.UUID, filter transaction.CountFilter) {
 				mockRepo.EXPECT().
-					CountByFilters(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					CountByFilters(gomock.Any(), gomock.Eq(orgID), gomock.Eq(ledgerID), gomock.Eq(filter)).
 					Return(int64(0), errors.New("database error"))
 			},
 			organizationID: uuid.New(),
@@ -82,7 +82,7 @@ func TestCountTransactionsByFilters(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockRepo := transaction.NewMockRepository(ctrl)
-			tc.setupMock(mockRepo)
+			tc.setupMock(mockRepo, tc.organizationID, tc.ledgerID, tc.filter)
 
 			uc := &UseCase{
 				TransactionRepo: mockRepo,
