@@ -923,7 +923,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidOperationRouteType.Error(),
 			Title:      "Invalid Operation Route Type",
-			Message:    "The provided 'type' is not valid. Accepted types are 'debit' or 'credit'. Please provide a valid type.",
+			Message:    "The provided 'operationType' is not valid. Accepted types are 'source', 'destination', or 'bidirectional'. Please provide a valid type.",
 		},
 		constant.ErrMissingOperationRoutes: ValidationError{
 			EntityType: entityType,
