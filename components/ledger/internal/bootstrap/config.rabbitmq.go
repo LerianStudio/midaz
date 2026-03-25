@@ -111,6 +111,7 @@ func initMultiTenantRabbitMQ(
 		Service:          opts.TenantServiceName,
 		Environment:      opts.TenantEnvironment,
 		DiscoveryTimeout: discoveryTimeout,
+		CacheTTL:         time.Duration(cfg.MultiTenantCacheTTLSec) * time.Second,
 	}
 
 	consumer, err := tmconsumer.NewMultiTenantConsumerWithError(tenantRabbitMQ, mtConfig, logger)
