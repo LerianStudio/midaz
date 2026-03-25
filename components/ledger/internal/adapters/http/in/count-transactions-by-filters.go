@@ -47,7 +47,7 @@ var validTransactionStatuses = map[string]bool{
 //	@Failure		401	{object}	mmodel.Error
 //	@Failure		403	{object}	mmodel.Error
 //	@Failure		500	{object}	mmodel.Error
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/count [head]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count [head]
 func (handler *TransactionHandler) CountTransactionsByFilters(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

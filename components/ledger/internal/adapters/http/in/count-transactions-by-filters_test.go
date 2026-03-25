@@ -145,7 +145,7 @@ func TestTransactionHandler_CountTransactionsByFilters(t *testing.T) {
 			handler := &TransactionHandler{Query: queryUC}
 
 			app := fiber.New()
-			app.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/count",
+			app.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count",
 				func(c *fiber.Ctx) error {
 					c.Locals("organization_id", orgID)
 					c.Locals("ledger_id", ledgerID)
@@ -154,7 +154,7 @@ func TestTransactionHandler_CountTransactionsByFilters(t *testing.T) {
 				handler.CountTransactionsByFilters,
 			)
 
-			url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/count"
+			url := "/v1/organizations/" + orgID.String() + "/ledgers/" + ledgerID.String() + "/transactions/metrics/count"
 			if tt.queryParams != "" {
 				url += "?" + tt.queryParams
 			}
