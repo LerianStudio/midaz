@@ -224,19 +224,31 @@ func FuzzParseCountFilter_Dates(f *testing.F) {
 			}
 		}
 
-		// Both parseable or empty — enforce start <= end invariant
-		if trimmedStart != "" && trimmedEnd != "" {
-			startT, startErr := time.Parse(time.RFC3339, trimmedStart)
-			endT, endErr := time.Parse(time.RFC3339, trimmedEnd)
+		// Both parseable or empty — enforce start <= end invariant.
+		// parseCountFilter defaults missing dates to today's UTC range,
+		// so we must compute the effective dates the same way.
+		now := time.Now().UTC()
+		var effectiveStart, effectiveEnd time.Time
 
-			if startErr == nil && endErr == nil && startT.After(endT) {
-				assert.Error(t, err, "start_date > end_date should produce error")
-				return
-			}
+		if trimmedStart != "" {
+			effectiveStart, _ = time.Parse(time.RFC3339, trimmedStart)
+		} else {
+			effectiveStart = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		}
+
+		if trimmedEnd != "" {
+			effectiveEnd, _ = time.Parse(time.RFC3339, trimmedEnd)
+		} else {
+			effectiveEnd = time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999999999, time.UTC)
+		}
+
+		if effectiveStart.After(effectiveEnd) {
+			assert.Error(t, err, "start_date > end_date should produce error (effective start=%v end=%v)", effectiveStart, effectiveEnd)
+			return
 		}
 
 		// If we reach here, inputs are valid — no error expected
-		assert.NoError(t, err, "valid inputs should not produce error: route=%q status=%q start=%q end=%q", "", "", startDate, endDate)
+		assert.NoError(t, err, "valid inputs should not produce error: start=%q end=%q (effective start=%v end=%v)", startDate, endDate, effectiveStart, effectiveEnd)
 	})
 }
 

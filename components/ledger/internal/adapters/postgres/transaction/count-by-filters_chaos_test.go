@@ -235,12 +235,8 @@ func TestIntegration_Chaos_CountByFilters_HighLatency(t *testing.T) {
 	_, err = infra.repo.CountByFilters(ctxTimeout, infra.orgID, infra.ledgerID, filter)
 	elapsed := time.Since(start)
 
-	if err != nil {
-		t.Logf("Phase 3 (Verify): count timed out as expected after %v: %v", elapsed, err)
-	} else {
-		t.Logf("Phase 3 (Verify): count succeeded despite latency in %v", elapsed)
-	}
-	// Key invariant: no panic occurred
+	require.Error(t, err, "Phase 3 (Verify): CountByFilters should timeout with 5s latency and 3s context deadline")
+	t.Logf("Phase 3 (Verify): count timed out as expected after %v: %v", elapsed, err)
 
 	// Phase 4: Restore — remove latency toxic
 	t.Log("Phase 4 (Restore): removing latency")
@@ -262,8 +258,9 @@ func TestIntegration_Chaos_CountByFilters_HighLatency(t *testing.T) {
 }
 
 // TestIntegration_Chaos_CountByFilters_ConnectionPoolExhaustion tests that
-// CountByFilters returns an error instead of hanging when the connection pool
-// is exhausted (via Toxiproxy bandwidth limit to slow all connections).
+// CountByFilters returns errors instead of hanging when the connection pool
+// is exhausted. Uses a severe bandwidth throttle (1 KB/s) with high concurrency
+// (20 goroutines) to create real connection pool contention.
 //
 // 5-phase structure: Normal → Inject → Verify → Restore → Recovery
 func TestIntegration_Chaos_CountByFilters_ConnectionPoolExhaustion(t *testing.T) {
@@ -294,15 +291,17 @@ func TestIntegration_Chaos_CountByFilters_ConnectionPoolExhaustion(t *testing.T)
 	assert.Equal(t, int64(5), count)
 	t.Logf("Phase 1 (Normal): count = %d", count)
 
-	// Phase 2: Inject — disconnect proxy to simulate pool exhaustion
-	// When the connection is severed, existing pool connections become stale
-	// and new connections cannot be established, simulating pool exhaustion.
-	t.Log("Phase 2 (Inject): disconnecting proxy to simulate connection pool exhaustion")
-	err = infra.proxy.Disconnect()
-	require.NoError(t, err, "failed to disconnect proxy")
+	// Phase 2: Inject — severely throttle bandwidth to create connection contention.
+	// A 1 KB/s limit forces all queries to take several seconds, exhausting the
+	// connection pool when many concurrent requests compete for connections.
+	t.Log("Phase 2 (Inject): adding severe bandwidth throttle (1 KB/s)")
+	err = infra.proxy.AddBandwidthLimit(1)
+	require.NoError(t, err, "failed to add bandwidth limit")
 
-	// Phase 3: Verify — concurrent queries should fail gracefully (no panic, no hang)
-	const concurrency = 10
+	// Phase 3: Verify — flood with concurrent queries to exhaust the pool.
+	// 20 goroutines competing for connections through a 1 KB/s pipe should
+	// cause timeouts and contention.
+	const concurrency = 20
 	var wg sync.WaitGroup
 	var errCount int64
 
@@ -312,7 +311,7 @@ func TestIntegration_Chaos_CountByFilters_ConnectionPoolExhaustion(t *testing.T)
 		go func() {
 			defer wg.Done()
 
-			ctxTimeout, cancel := context.WithTimeout(ctx, 3*time.Second)
+			ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 
 			_, queryErr := infra.repo.CountByFilters(ctxTimeout, infra.orgID, infra.ledgerID, filter)
@@ -325,12 +324,12 @@ func TestIntegration_Chaos_CountByFilters_ConnectionPoolExhaustion(t *testing.T)
 	wg.Wait()
 
 	t.Logf("Phase 3 (Verify): %d/%d concurrent queries failed during pool exhaustion", errCount, concurrency)
-	require.Greater(t, errCount, int64(0), "at least some concurrent queries should fail during pool exhaustion")
+	require.Greater(t, errCount, int64(0), "at least some concurrent queries should fail or timeout during bandwidth throttle")
 
-	// Phase 4: Restore — reconnect
-	t.Log("Phase 4 (Restore): reconnecting proxy")
-	err = infra.proxy.Reconnect()
-	require.NoError(t, err, "failed to reconnect proxy")
+	// Phase 4: Restore — remove bandwidth throttle
+	t.Log("Phase 4 (Restore): removing bandwidth throttle")
+	err = infra.proxy.RemoveAllToxics()
+	require.NoError(t, err, "failed to remove toxics")
 
 	// Phase 5: Recovery — verify normal operation resumes
 	chaos.AssertRecoveryWithin(t, func() error {
