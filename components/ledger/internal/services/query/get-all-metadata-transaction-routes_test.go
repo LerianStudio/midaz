@@ -12,6 +12,7 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -49,9 +50,11 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 		defer ctrl.Finish()
 
 		mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+		mockORRepo := operationroute.NewMockRepository(ctrl)
 		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 		uc := &UseCase{
 			TransactionRouteRepo:    mockTransactionRouteRepo,
+			OperationRouteRepo:      mockORRepo,
 			TransactionMetadataRepo: mockMetadataRepo,
 		}
 
@@ -100,6 +103,11 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 		mockTransactionRouteRepo.EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 			Return(expectedTransactionRoutes, expectedCursor, nil)
+
+		// Enrichment: junction returns empty map (no links)
+		mockTransactionRouteRepo.EXPECT().
+			FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+			Return(map[uuid.UUID][]uuid.UUID{}, nil)
 
 		result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 

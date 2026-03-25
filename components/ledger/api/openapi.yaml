@@ -1430,6 +1430,20 @@ paths:
           - asc
           - desc
           type: string
+      - description: Filter accounts by portfolio ID (UUID format). If both portfolio_id
+          and segment_id are provided, both filters are applied (AND semantics).
+        in: query
+        name: portfolio_id
+        schema:
+          format: uuid
+          type: string
+      - description: Filter accounts by segment ID (UUID format). If both portfolio_id
+          and segment_id are provided, both filters are applied (AND semantics).
+        in: query
+        name: segment_id
+        schema:
+          format: uuid
+          type: string
       responses:
         "200":
           content:
@@ -5494,7 +5508,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
         description: Transaction Input
         required: true
       responses:
@@ -5723,7 +5737,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction.CreateTransactionSwaggerModel'
+              $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
         description: Transaction Input
         required: true
       responses:
@@ -5767,6 +5781,100 @@ paths:
       tags:
       - Transactions
       x-codegen-request-body-name: transaction
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
+    head:
+      description: Count transactions matching optional filters (route, status, date
+        range)
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - description: Filter by transaction route
+        in: query
+        name: route
+        schema:
+          type: string
+      - description: Filter by transaction status
+        in: query
+        name: status
+        schema:
+          enum:
+          - CREATED
+          - APPROVED
+          - PENDING
+          - CANCELED
+          - NOTED
+          type: string
+      - description: Start of date range (RFC 3339, defaults to today 00:00:00 UTC)
+        in: query
+        name: start_date
+        schema:
+          format: date-time
+          type: string
+      - description: End of date range (RFC 3339, defaults to today 23:59:59 UTC)
+        in: query
+        name: end_date
+        schema:
+          format: date-time
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+          headers:
+            X-Total-Count:
+              description: Total count of matching transactions
+              schema:
+                type: integer
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad Request
+        "401":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        "500":
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+      summary: Count Transactions by Filters
+      tags:
+      - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
     post:
       description: Create a Transaction with the input payload
@@ -7714,7 +7822,7 @@ components:
           description: Short text summarizing the purpose of the operation. Used as
             an entry note for identification.
           example: Cashin from service charge
-          maxLength: 50
+          maxLength: 255
           type: string
       required:
       - operationType
@@ -8078,7 +8186,7 @@ components:
           description: Short text summarizing the purpose of the transaction. Used
             as an entry note for identification.
           example: Charge Settlement
-          maxLength: 50
+          maxLength: 255
           type: string
       required:
       - operationRoutes
@@ -8518,7 +8626,6 @@ components:
         organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
-        action: direct
         operationType: source
         id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         account: '{}'
@@ -8535,17 +8642,6 @@ components:
           description: Optional accounting entries for each action type associated
             with this operation route.
           type: object
-        action:
-          description: The action associated with this operation route in the context
-            of a transaction route.
-          enum:
-          - direct
-          - hold
-          - commit
-          - cancel
-          - revert
-          example: direct
-          type: string
         code:
           description: External reference of the operation route.
           example: EXT-001
@@ -9096,7 +9192,6 @@ components:
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           account: '{}'
@@ -9112,7 +9207,6 @@ components:
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           account: '{}'
@@ -9414,7 +9508,7 @@ components:
           description: Short text summarizing the purpose of the operation. Used as
             an entry note for identification.
           example: Cashin from service charge
-          maxLength: 50
+          maxLength: 255
           type: string
       type: object
     UpdateOrganizationInput:
@@ -9596,10 +9690,10 @@ components:
           description: Short text summarizing the purpose of the transaction. Used
             as an entry note for identification.
           example: Charge Settlement
-          maxLength: 50
+          maxLength: 255
           type: string
       type: object
-    github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction.CreateTransactionSwaggerModel:
+    github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
       description: Schema for creating transaction with the complete Send operation
         structure defined inline
       properties:
@@ -9654,7 +9748,7 @@ components:
           format: uuid
           type: string
         send:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send'
         transactionDate:
           description: |-
             TransactionDate Period from transaction creation date until now
@@ -10270,7 +10364,6 @@ components:
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           account: '{}'
@@ -10286,7 +10379,6 @@ components:
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           account: '{}'
@@ -10402,7 +10494,6 @@ components:
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             account: '{}'
@@ -10418,7 +10509,6 @@ components:
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             account: '{}'
@@ -10445,7 +10535,6 @@ components:
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             account: '{}'
@@ -10461,7 +10550,6 @@ components:
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             account: '{}'
@@ -10884,8 +10972,8 @@ components:
             required: true
           type: string
       type: object
-    github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from:
-      properties:
+    ? github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from
+    : properties:
         accountAlias:
           description: |-
             Account identifier or alias
@@ -10912,8 +11000,8 @@ components:
             example: {"operation": "funding", "type": "external"}
           type: object
       type: object
-    github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source:
-      description: |-
+    ? github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source
+    : description: |-
         Source accounts and amounts for the transaction
         required: true
       properties:
@@ -10922,10 +11010,10 @@ components:
             List of source operations
             required: true
           items:
-            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from'
+            $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source_from'
           type: array
       type: object
-    github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction_CreateTransactionSwaggerModel_send:
+    github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send:
       description: |-
         Send operation details including source and distribution
         required: true
@@ -10939,7 +11027,7 @@ components:
         distribute:
           $ref: '#/components/schemas/CreateTransactionInflowSwaggerModel_send_distribute'
         source:
-          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source'
+          $ref: '#/components/schemas/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction_CreateTransactionSwaggerModel_send_source'
         value:
           description: |-
             Transaction amount value in the smallest unit of the asset

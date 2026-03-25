@@ -82,6 +82,14 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID, 
 				transactionRoutes[i].Metadata = data
 			}
 		}
+
+		if err := uc.enrichTransactionRoutesWithOperationRoutes(ctx, transactionRoutes); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to enrich transaction routes with operation routes", err)
+
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to enrich transaction routes with operation routes: %v", err))
+
+			return nil, libHTTP.CursorPagination{}, err
+		}
 	}
 
 	return transactionRoutes, cur, nil

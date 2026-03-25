@@ -103,6 +103,21 @@ func (mr *MockRepositoryMockRecorder) FindByID(arg0, arg1, arg2, arg3 any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockRepository)(nil).FindByID), arg0, arg1, arg2, arg3)
 }
 
+// FindOperationRouteIDsByTransactionRouteIDs mocks base method.
+func (m *MockRepository) FindOperationRouteIDsByTransactionRouteIDs(arg0 context.Context, arg1 []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindOperationRouteIDsByTransactionRouteIDs", arg0, arg1)
+	ret0, _ := ret[0].(map[uuid.UUID][]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindOperationRouteIDsByTransactionRouteIDs indicates an expected call of FindOperationRouteIDsByTransactionRouteIDs.
+func (mr *MockRepositoryMockRecorder) FindOperationRouteIDsByTransactionRouteIDs(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOperationRouteIDsByTransactionRouteIDs", reflect.TypeOf((*MockRepository)(nil).FindOperationRouteIDsByTransactionRouteIDs), arg0, arg1)
+}
+
 // Update mocks base method.
 func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 *mmodel.TransactionRoute, arg5, arg6 []uuid.UUID) (*mmodel.TransactionRoute, error) {
 	m.ctrl.T.Helper()

@@ -184,6 +184,29 @@ func TestValidateParameters_WithInvalidPortfolioID(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+func TestValidateParameters_WithSegmentID(t *testing.T) {
+	validUUID := "123e4567-e89b-12d3-a456-426614174000"
+	params := map[string]string{
+		"segment_id": validUUID,
+	}
+
+	result, err := ValidateParameters(params)
+
+	require.NoError(t, err)
+	assert.Equal(t, validUUID, result.SegmentID)
+}
+
+func TestValidateParameters_WithInvalidSegmentID(t *testing.T) {
+	params := map[string]string{
+		"segment_id": "invalid-uuid",
+	}
+
+	result, err := ValidateParameters(params)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
 func TestValidateParameters_WithOperationType(t *testing.T) {
 	params := map[string]string{
 		"type": "credit",

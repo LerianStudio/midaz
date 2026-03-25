@@ -115,7 +115,6 @@ func (randomTransactionRoute) Generate(r *rand.Rand, size int) reflect.Value {
 		route := OperationRoute{
 			ID:                uuid.New(),
 			OperationType:     operationTypes[opTypeIdx],
-			Action:            action,
 			AccountingEntries: actionToEntries[action],
 		}
 

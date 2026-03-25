@@ -5,7 +5,7 @@ import "github.com/swaggo/swag"
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "v3.5.2",
+	Version:          "v3.6.0",
 	Host:             "localhost:3002",
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
@@ -36,7 +36,7 @@ const docTemplate = `
       "name": "Apache 2.0",
       "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v3.5.2"
+    "version": "v3.6.0"
   },
   "host": "localhost:3002",
   "basePath": "/",
@@ -1735,6 +1735,20 @@ const docTemplate = `
             "type": "string",
             "description": "Sort direction for results based on creation date",
             "name": "sort_order",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Filter accounts by portfolio ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics).",
+            "name": "portfolio_id",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Filter accounts by segment ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics).",
+            "name": "segment_id",
             "in": "query"
           }
         ],
@@ -6707,7 +6721,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction.CreateTransactionSwaggerModel"
+              "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
             }
           }
         ],
@@ -6978,7 +6992,7 @@ const docTemplate = `
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction.CreateTransactionSwaggerModel"
+              "$ref": "#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel"
             }
           }
         ],
@@ -7015,6 +7029,114 @@ const docTemplate = `
           },
           "500": {
             "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count": {
+      "head": {
+        "description": "Count transactions matching optional filters (route, status, date range)",
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "Count Transactions by Filters",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Filter by transaction route",
+            "name": "route",
+            "in": "query"
+          },
+          {
+            "enum": [
+              "CREATED",
+              "APPROVED",
+              "PENDING",
+              "CANCELED",
+              "NOTED"
+            ],
+            "type": "string",
+            "description": "Filter by transaction status",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of date range (RFC 3339, defaults to today 00:00:00 UTC)",
+            "name": "start_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of date range (RFC 3339, defaults to today 23:59:59 UTC)",
+            "name": "end_date",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content",
+            "headers": {
+              "X-Total-Count": {
+                "type": "integer",
+                "description": "Total count of matching transactions"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -8898,7 +9020,7 @@ const docTemplate = `
         "title": {
           "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
           "type": "string",
-          "maxLength": 50,
+          "maxLength": 255,
           "example": "Cashin from service charge"
         }
       }
@@ -9257,7 +9379,7 @@ const docTemplate = `
         "title": {
           "description": "Short text summarizing the purpose of the transaction. Used as an entry note for identification.",
           "type": "string",
-          "maxLength": 50,
+          "maxLength": 255,
           "example": "Charge Settlement"
         }
       }
@@ -9611,18 +9733,6 @@ const docTemplate = `
               "$ref": "#/definitions/AccountingEntries"
             }
           ]
-        },
-        "action": {
-          "description": "The action associated with this operation route in the context of a transaction route.",
-          "type": "string",
-          "enum": [
-            "direct",
-            "hold",
-            "commit",
-            "cancel",
-            "revert"
-          ],
-          "example": "direct"
         },
         "code": {
           "description": "External reference of the operation route.",
@@ -10283,7 +10393,7 @@ const docTemplate = `
         "title": {
           "description": "Short text summarizing the purpose of the operation. Used as an entry note for identification.",
           "type": "string",
-          "maxLength": 50,
+          "maxLength": 255,
           "example": "Cashin from service charge"
         }
       }
@@ -10431,12 +10541,12 @@ const docTemplate = `
         "title": {
           "description": "Short text summarizing the purpose of the transaction. Used as an entry note for identification.",
           "type": "string",
-          "maxLength": 50,
+          "maxLength": 255,
           "example": "Charge Settlement"
         }
       }
     },
-    "github_com_LerianStudio_midaz_v3_components_ledger_adapters_postgres_transaction.CreateTransactionSwaggerModel": {
+    "github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel": {
       "description": "Schema for creating transaction with the complete Send operation structure defined inline",
       "type": "object",
       "properties": {

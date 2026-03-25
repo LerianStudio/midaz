@@ -118,7 +118,6 @@ func FuzzGetOrCreateTransactionRouteCacheBytes(f *testing.F) {
 				{
 					ID:                uuid.New(),
 					OperationType:     "source",
-					Action:            "direct",
 					AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 					Account: &mmodel.AccountRule{
 						RuleType: "alias",

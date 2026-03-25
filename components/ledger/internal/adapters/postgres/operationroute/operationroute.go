@@ -80,10 +80,6 @@ func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 		var ae mmodel.AccountingEntries
 		if err := json.Unmarshal(m.AccountingEntries, &ae); err == nil {
 			e.AccountingEntries = &ae
-
-			if actions := ae.Actions(); len(actions) > 0 {
-				e.Action = actions[0]
-			}
 		}
 	}
 

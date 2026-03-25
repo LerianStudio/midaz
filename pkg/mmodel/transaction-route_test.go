@@ -192,7 +192,6 @@ func TestTransactionRoute_ToCache(t *testing.T) {
 					{
 						ID:                uuid.New(),
 						OperationType:     "unknown",
-						Action:            "direct",
 						AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}},
 						Account: &AccountRule{
 							RuleType: "alias",
@@ -504,7 +503,6 @@ func TestTransactionRoute_ToCache_WithActions(t *testing.T) {
 			{
 				ID:                sourceRouteID,
 				OperationType:     "source",
-				Action:            "direct",
 				AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
@@ -514,7 +512,6 @@ func TestTransactionRoute_ToCache_WithActions(t *testing.T) {
 			{
 				ID:                destRouteID,
 				OperationType:     "destination",
-				Action:            "direct",
 				AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
@@ -524,7 +521,6 @@ func TestTransactionRoute_ToCache_WithActions(t *testing.T) {
 			{
 				ID:                bidiRouteID,
 				OperationType:     "bidirectional",
-				Action:            "hold",
 				AccountingEntries: &AccountingEntries{Hold: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
@@ -580,7 +576,6 @@ func TestTransactionRoute_ToCache_SingleAction(t *testing.T) {
 			{
 				ID:                routeID,
 				OperationType:     "source",
-				Action:            "commit",
 				AccountingEntries: &AccountingEntries{Commit: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
@@ -604,7 +599,7 @@ func TestTransactionRoute_ToCache_SingleAction(t *testing.T) {
 	assert.Len(t, commitActions.Bidirectional, 0)
 }
 
-func TestTransactionRoute_ToCache_EmptyAction(t *testing.T) {
+func TestTransactionRoute_ToCache_NoAccountingEntries(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now().UTC()
@@ -613,12 +608,11 @@ func TestTransactionRoute_ToCache_EmptyAction(t *testing.T) {
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
 		LedgerID:       uuid.New(),
-		Title:          "Empty Action Route",
+		Title:          "No AccountingEntries Route",
 		OperationRoutes: []OperationRoute{
 			{
 				ID:            uuid.New(),
 				OperationType: "source",
-				Action:        "",
 			},
 		},
 		CreatedAt: now,
@@ -627,9 +621,9 @@ func TestTransactionRoute_ToCache_EmptyAction(t *testing.T) {
 
 	cache := transactionRoute.ToCache()
 
-	// Routes with empty Action and no AccountingEntries are excluded from all action buckets
+	// Routes with no AccountingEntries are excluded from all action buckets
 	require.NotNil(t, cache.Actions)
-	assert.Len(t, cache.Actions, 0, "route with empty Action and no AccountingEntries should not appear in any action bucket")
+	assert.Len(t, cache.Actions, 0, "route with no AccountingEntries should not appear in any action bucket")
 }
 
 func TestTransactionRouteCache_Actions_RoundTrip(t *testing.T) {
@@ -839,9 +833,9 @@ func TestTransactionRoute_ToCache_MultipleRoutesPerAction(t *testing.T) {
 		LedgerID:       uuid.New(),
 		Title:          "Multiple per action",
 		OperationRoutes: []OperationRoute{
-			{ID: src1, OperationType: "source", Action: "direct", AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}}},
-			{ID: src2, OperationType: "source", Action: "direct", AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}}},
-			{ID: dst1, OperationType: "destination", Action: "direct", AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}}},
+			{ID: src1, OperationType: "source", AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}}},
+			{ID: src2, OperationType: "source", AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}}},
+			{ID: dst1, OperationType: "destination", AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}}},
 		},
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -874,7 +868,6 @@ func TestTransactionRoute_ToCache_AllActionTypes(t *testing.T) {
 		routes = append(routes, OperationRoute{
 			ID:                uuid.New(),
 			OperationType:     "source",
-			Action:            action,
 			AccountingEntries: actionToEntries[action],
 		})
 	}
@@ -934,7 +927,6 @@ func TestTransactionRoute_ToCache_BidirectionalWithAction(t *testing.T) {
 			{
 				ID:                bidiID,
 				OperationType:     "bidirectional",
-				Action:            "hold",
 				AccountingEntries: &AccountingEntries{Hold: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
@@ -968,7 +960,6 @@ func TestTransactionRoute_ToCache_UnknownOperationType_NoPhantomAction(t *testin
 			{
 				ID:                uuid.New(),
 				OperationType:     "unknown",
-				Action:            "direct",
 				AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",

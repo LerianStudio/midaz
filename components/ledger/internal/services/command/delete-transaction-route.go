@@ -36,7 +36,7 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Transaction Route ID not found: %s", transactionRouteID.String()))
 
-			return pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
+			return pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, reflect.TypeOf(mmodel.TransactionRoute{}).Name())
 		}
 
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error finding transaction route: %v", err))

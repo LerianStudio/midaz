@@ -121,7 +121,6 @@ func makeTestRoute() *mmodel.TransactionRoute {
 			{
 				ID:                sourceID,
 				OperationType:     "source",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
@@ -131,7 +130,6 @@ func makeTestRoute() *mmodel.TransactionRoute {
 			{
 				ID:                destID,
 				OperationType:     "destination",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",

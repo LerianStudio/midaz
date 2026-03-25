@@ -99,7 +99,6 @@ func TestToCache_PropagatesCodeAndAccountingEntries(t *testing.T) {
 						ID:                routeID,
 						Code:              tt.code,
 						OperationType:     "source",
-						Action:            "direct",
 						AccountingEntries: tt.accountingEntries,
 					},
 				},
@@ -129,7 +128,6 @@ func TestToCache_MsgpackRoundTrip_PreservesRubrics(t *testing.T) {
 				ID:            routeID,
 				Code:          "EXT-RT",
 				OperationType: "source",
-				Action:        "direct",
 				AccountingEntries: &AccountingEntries{
 					Direct: &AccountingEntry{
 						Debit:  &AccountingRubric{Code: "1001", Description: "Cash"},
@@ -220,7 +218,6 @@ func TestToCache_MsgpackRoundTrip_MinimalAccountingEntries(t *testing.T) {
 				ID:                routeID,
 				Code:              "MIN-ENT",
 				OperationType:     "destination",
-				Action:            "hold",
 				AccountingEntries: &AccountingEntries{Hold: &AccountingEntry{}},
 			},
 		},

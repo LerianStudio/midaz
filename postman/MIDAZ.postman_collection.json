@@ -24,7 +24,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "96d5a548-ef08-40a5-93b0-f9c5fdb40fdf",
+                "id": "5eb91890-949c-487f-93d7-c950c99d2975",
                 "exec": [
                   "// Request not found in collection for: POST /v1/organizations",
                   "// Variables to extract: [\"organizationId\"]"
@@ -47,7 +47,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "d77da4c0-4ebe-4a74-8910-3ae5cd9028b8",
+                "id": "6b45701d-9e43-4de4-a34e-b5366218e1de",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}",
                   "// Variables to extract: []"
@@ -70,7 +70,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "8c8b3055-d80c-4c1e-96a4-59e3191db0d8",
+                "id": "dec2e64c-cb2d-45e6-a685-b2757c24cba6",
                 "exec": [
                   "// Request not found in collection for: PATCH /v1/organizations/{organizationId}",
                   "// Variables to extract: []"
@@ -93,7 +93,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "45b513d0-66cb-492f-92aa-bf06e3ef32d3",
+                "id": "14670896-0dec-44a8-b86e-40598c0c17d1",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations",
                   "// Variables to extract: []"
@@ -116,7 +116,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "3c83548d-2171-482b-b09f-67d533d31c2e",
+                "id": "a1857d52-75b9-4a31-bac0-2376e61c071b",
                 "exec": [
                   "// Request not found in collection for: POST /v1/organizations/{organizationId}/ledgers",
                   "// Variables to extract: [\"ledgerId\"]"
@@ -139,7 +139,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "a2f46716-f659-4872-9aea-c19e6b9e1297",
+                "id": "4e21ab9d-d120-4aef-8aaa-4076b74deb88",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}",
                   "// Variables to extract: []"
@@ -162,7 +162,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "f7e3c422-ed95-4650-ade1-2d14cab66308",
+                "id": "abba683a-84b6-4c6f-8f8d-f2ad828d1002",
                 "exec": [
                   "// Request not found in collection for: PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}",
                   "// Variables to extract: []"
@@ -185,7 +185,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "a6b93f8f-2afb-43f7-af01-a92520a09ee0",
+                "id": "a573a29e-5da3-45b3-a775-a0232e485443",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers",
                   "// Variables to extract: []"
@@ -208,7 +208,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "0c83e970-0263-4c9d-922f-bcac22729ad7",
+                "id": "f7347583-cd03-42ed-92c4-c6d1b848f571",
                 "exec": [
                   "// Request not found in collection for: POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets",
                   "// Variables to extract: [\"assetId\"]"
@@ -231,7 +231,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "c4141dc5-6700-41f1-9f19-4da3ef0d2ec0",
+                "id": "3ba37652-13d7-4c6a-8857-ab53bf58b94c",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets/{assetId}",
                   "// Variables to extract: []"
@@ -254,7 +254,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "971d6fe0-bea7-42b0-a416-dcb1636e6edc",
+                "id": "e0ece0b3-fc48-4349-868e-0f3b3b244fce",
                 "exec": [
                   "// Request not found in collection for: PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets/{assetId}",
                   "// Variables to extract: []"
@@ -277,7 +277,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "a76ef310-5853-464d-bc43-8af8ecaa39c3",
+                "id": "2c949bc9-c8c7-41b9-9c78-0dee0fb23186",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets",
                   "// Variables to extract: []"
@@ -300,7 +300,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "3d5fa682-4ae1-4a96-a51b-5cb6d521139c",
+                "id": "4c850e1f-8db4-4fa0-968e-13f98dbcbc1b",
                 "exec": [
                   "// Request not found in collection for: POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts",
                   "// Variables to extract: [\"accountId\",\"accountAlias\"]"
@@ -323,7 +323,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "9850610e-1274-421d-bc44-535217dc7f02",
+                "id": "8c17dd3f-c17a-480d-b407-6f589db0ffc8",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}",
                   "// Variables to extract: []"
@@ -346,7 +346,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "be097e54-da48-434a-88a5-f7ecb2cb4357",
+                "id": "90a6e616-808d-4f9a-a124-99c2ef27c1f5",
                 "exec": [
                   "// Request not found in collection for: PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}",
                   "// Variables to extract: []"
@@ -369,7 +369,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "a7c7f753-5708-4379-9b94-b38044c54893",
+                "id": "ec9e9dc8-54c1-4133-b19e-1097fd5ad252",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts",
                   "// Variables to extract: []"
@@ -392,7 +392,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "541eabf4-5058-42d5-ae26-169e703375fa",
+                "id": "d64ba469-1ef0-40fc-a3a6-badd54ca2e1d",
                 "exec": [
                   "// Request not found in collection for: POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios",
                   "// Variables to extract: [\"portfolioId\"]"
@@ -415,7 +415,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "282ba0ed-4279-49d2-b8e3-f7b87ef3bd28",
+                "id": "b1924531-fee1-4ae7-b253-225c1db8a5f6",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/{portfolioId}",
                   "// Variables to extract: []"
@@ -438,7 +438,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "cc9ff7f8-a4db-4db3-94f6-34383c7f451a",
+                "id": "65f32ccf-4e93-4c80-8839-26c36352efef",
                 "exec": [
                   "// Request not found in collection for: PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/{portfolioId}",
                   "// Variables to extract: []"
@@ -461,7 +461,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "39b7d39c-021f-4fc6-a86a-b8d6672155f0",
+                "id": "78c92acc-b02b-4153-a308-3b6f1a256143",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios",
                   "// Variables to extract: []"
@@ -484,7 +484,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "06f89a9d-860b-41f8-8745-a1dd4b894501",
+                "id": "e5392239-cfa4-45da-b2b4-b7a75510cc85",
                 "exec": [
                   "// Request not found in collection for: POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments",
                   "// Variables to extract: [\"segmentId\"]"
@@ -507,7 +507,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "504f88f0-b72f-416a-96bd-a18cc5cd3d64",
+                "id": "78e8abbb-c156-498e-b400-13e31302e268",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/{segmentId}",
                   "// Variables to extract: []"
@@ -530,7 +530,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "4ddfb6ce-0a1b-423e-803b-bbf973e8883d",
+                "id": "411a3831-77a7-495e-ab5e-678c388438df",
                 "exec": [
                   "// Request not found in collection for: PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/{segmentId}",
                   "// Variables to extract: []"
@@ -553,7 +553,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "7487bd87-d1cd-40ff-abf4-922611a82d85",
+                "id": "477e5e6f-0bcc-4029-a6ad-6eee28d604d0",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments",
                   "// Variables to extract: []"
@@ -576,7 +576,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "a8d66dbc-a9b6-4736-92bd-2c01aef5b74c",
+                "id": "10a7ee75-7047-46e5-ba30-5b1797a33a8f",
                 "exec": [
                   "// Request not found in collection for: HEAD /v1/organizations/metrics/count",
                   "// Variables to extract: []"
@@ -599,7 +599,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "57175637-b50e-4f90-b45f-19e06c24eb9d",
+                "id": "a7b47fc0-0cbf-490f-b009-07c229cc856a",
                 "exec": [
                   "// Request not found in collection for: HEAD /v1/organizations/{organizationId}/ledgers/metrics/count",
                   "// Variables to extract: []"
@@ -622,7 +622,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "049d5001-4842-4d12-9b8e-605def675408",
+                "id": "318c4ede-632f-4b53-8c1e-42fbfea119cc",
                 "exec": [
                   "// Request not found in collection for: HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/metrics/count",
                   "// Variables to extract: []"
@@ -645,7 +645,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "2239062b-9623-4b6e-800c-bffe2573404a",
+                "id": "02e820d2-3f75-4e15-8a4b-d933bbeef55d",
                 "exec": [
                   "// Request not found in collection for: HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets/metrics/count",
                   "// Variables to extract: []"
@@ -668,7 +668,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "af5cfb75-88a0-4f8a-94f3-2e9bdcd01874",
+                "id": "5c61a94d-b1f4-40b8-8bdc-daf9871f60f3",
                 "exec": [
                   "// Request not found in collection for: HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/metrics/count",
                   "// Variables to extract: []"
@@ -691,7 +691,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "15dd7c6e-0e72-4e2e-81d5-633615cdd350",
+                "id": "cb254e3a-a4f2-4651-999e-8f9dc05abc7b",
                 "exec": [
                   "// Request not found in collection for: HEAD /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/metrics/count",
                   "// Variables to extract: []"
@@ -714,7 +714,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "7cea62ad-e5e0-48c1-b82d-e72f0025130e",
+                "id": "61b3ba1e-78e2-428a-a140-ff7d3f1e3e2c",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/alias/{alias}",
                   "// Variables to extract: []"
@@ -737,7 +737,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "ee1d906f-fa36-499e-89ac-7ef7da3ca091",
+                "id": "5a73e966-c033-451d-963a-68feb2a5488a",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/external/{code}",
                   "// Variables to extract: []"
@@ -760,7 +760,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "ff99830b-0f61-4ac8-9185-0bf8b9af853e",
+                "id": "e349ea90-deca-48c4-b266-b57113886ab7",
                 "exec": [
                   "// Request not found in collection for: POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/json",
                   "// Variables to extract: [\"transactionId\",\"balanceId\",\"operationId\"]"
@@ -783,7 +783,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "d4e5be3c-ac46-4749-ab2c-c7b37a6296e5",
+                "id": "94a03da4-bd74-4b61-92ec-6d3cf88a1e6c",
                 "exec": [
                   "// Request not found in collection for: POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/inflow",
                   "// Variables to extract: [\"inflowTransactionId\"]"
@@ -806,7 +806,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "e842a5ef-0697-427e-9d32-7c68bcba531b",
+                "id": "af6ba00c-6084-46ca-bfd6-6e210e2a36bd",
                 "exec": [
                   "// Request not found in collection for: POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/outflow",
                   "// Variables to extract: [\"outflowTransactionId\"]"
@@ -829,7 +829,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "6f7a5d89-f075-4134-bd32-f66fdfbaaa5a",
+                "id": "dfad4f37-d2e8-4a65-873c-21fe41cbc7e8",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/{transactionId}",
                   "// Variables to extract: []"
@@ -852,7 +852,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "2d5ce333-ca40-4a57-ae41-2f477b52bbc0",
+                "id": "2f226d36-0164-4e80-8de1-089a9f32b642",
                 "exec": [
                   "// Request not found in collection for: PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/{transactionId}",
                   "// Variables to extract: []"
@@ -875,7 +875,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "d78f1946-2ddb-431b-a76a-b62752fd70ad",
+                "id": "56d656df-9aea-488c-994a-a5d444b3914f",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions",
                   "// Variables to extract: []"
@@ -898,7 +898,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "ffaefe6d-a6df-452a-8664-9d6c6164ac2a",
+                "id": "92f8a833-e9cb-4fd4-841b-197f602743ec",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}/operations/{operationId}",
                   "// Variables to extract: []"
@@ -921,7 +921,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "45d26c92-dc2e-4042-add5-75184408d592",
+                "id": "d8477ed3-9967-4f0b-8b11-b5d259e805d0",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}/operations",
                   "// Variables to extract: []"
@@ -944,7 +944,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "f3a1d20a-650c-4af3-a101-8fa00ce423f7",
+                "id": "ced1e9fd-3b40-40e6-ad40-35cf0e7645e0",
                 "exec": [
                   "// Request not found in collection for: PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/{transactionId}/operations/{operationId}",
                   "// Variables to extract: []"
@@ -967,7 +967,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "c4b98f2d-4a88-4c7b-976a-8acbfe5a943a",
+                "id": "cc8f9259-0de4-425f-a1d4-1f2b114e5699",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances/{balanceId}",
                   "// Variables to extract: []"
@@ -990,7 +990,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "d8459f6f-6ec8-4ac3-8c49-5250407a504d",
+                "id": "061d8e71-2fe4-4bab-9a31-ab6cdc5cf71c",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}/balances",
                   "// Variables to extract: []"
@@ -1013,7 +1013,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "570c36fb-38cd-4e03-9ef6-398652883832",
+                "id": "74227cf8-cd08-406f-97cf-384d68616dcf",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/alias/{alias}/balances",
                   "// Variables to extract: []"
@@ -1036,7 +1036,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "70ae56e6-f1a1-4726-a9f9-5221f38e3328",
+                "id": "1263351c-ddc1-4f68-8526-ff5b4c86b68b",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/external/{code}/balances",
                   "// Variables to extract: []"
@@ -1059,7 +1059,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "7842e8a8-4ab8-42ad-85cb-3455f11a5f7b",
+                "id": "c948c9ce-f8dd-45cd-821b-a6c50410f2eb",
                 "exec": [
                   "// Request not found in collection for: PATCH /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances/{balanceId}",
                   "// Variables to extract: []"
@@ -1082,7 +1082,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "b7769b32-682f-45cc-9f38-770a1d5f6139",
+                "id": "1c205725-9d17-46f5-9659-5087399a658e",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances",
                   "// Variables to extract: []"
@@ -1105,7 +1105,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "c76de465-ca68-46fd-a14e-ad1e8873b17b",
+                "id": "2c8d7d1e-1c64-469f-9f3d-58f03dd2d88a",
                 "exec": [
                   "// Request not found in collection for: GET /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/alias/{alias}/balances",
                   "// Variables to extract: [\"currentBalanceAmount\"]"
@@ -1128,7 +1128,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "ec83f6f9-a3a7-41b9-b83c-40e525c4c24f",
+                "id": "0c48a2f1-7c32-4bad-a067-b167c5e8d351",
                 "exec": [
                   "// Request not found in collection for: POST /v1/organizations/{organizationId}/ledgers/{ledgerId}/transactions/json",
                   "// Variables to extract: []"
@@ -1151,7 +1151,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "65609484-d0cb-44cd-b1bb-00c1eddc5478",
+                "id": "806d3542-4bdc-4c64-a30e-2a39deea67bc",
                 "exec": [
                   "// Request not found in collection for: DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/balances/{balanceId}",
                   "// Variables to extract: []"
@@ -1174,7 +1174,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "1b1a6e26-9518-40ed-af13-8b10bb872311",
+                "id": "87a4f32d-7670-492e-9e54-aab5dfa8ec25",
                 "exec": [
                   "// Request not found in collection for: DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/segments/{segmentId}",
                   "// Variables to extract: []"
@@ -1197,7 +1197,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "366f24dd-1886-4173-a823-af226150b035",
+                "id": "15345f02-df7c-40b3-a062-f59997869c90",
                 "exec": [
                   "// Request not found in collection for: DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/portfolios/{portfolioId}",
                   "// Variables to extract: []"
@@ -1220,7 +1220,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "95daaa4d-f851-4eb9-8877-4fbb76d3f034",
+                "id": "d8eb9d0f-77e6-422d-9555-05b603c8f284",
                 "exec": [
                   "// Request not found in collection for: DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/accounts/{accountId}",
                   "// Variables to extract: []"
@@ -1243,7 +1243,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "bf8114a2-9aef-4f43-81f3-488838b3731a",
+                "id": "0530f35c-332b-4724-b731-31a25e3f836a",
                 "exec": [
                   "// Request not found in collection for: DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}/assets/{assetId}",
                   "// Variables to extract: []"
@@ -1266,7 +1266,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "96764cbf-de08-448a-9f34-735de4e78646",
+                "id": "600f6030-ab93-4dd0-910d-848fee0bce02",
                 "exec": [
                   "// Request not found in collection for: DELETE /v1/organizations/{organizationId}/ledgers/{ledgerId}",
                   "// Variables to extract: []"
@@ -1289,7 +1289,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "a712bbe2-c4c2-4b4f-ae0f-7be2c2d9c605",
+                "id": "3741ee9f-d342-4c3d-985a-aab81d0df24c",
                 "exec": [
                   "// Request not found in collection for: DELETE /v1/organizations/{organizationId}",
                   "// Variables to extract: []"
@@ -1318,7 +1318,7 @@
             {
               "listen": "test",
               "script": {
-                "id": "e90787db-09a0-4f1e-a788-a33b9faf3d9a",
+                "id": "90d414af-1ee2-46ab-98fd-805db53863d7",
                 "exec": [
                   "\n// ===== WORKFLOW SUMMARY =====\nconsole.log(\"📊 Workflow Execution Summary\");\nconsole.log(\"Total Steps: 56\");\n\n// Calculate total execution time\nconst startTime = pm.globals.get(\"workflow_start_time\");\nif (startTime) {\n    const totalTime = Date.now() - startTime;\n    console.log(\"⏱️ Total Execution Time: \" + totalTime + \"ms\");\n    pm.globals.set(\"workflow_total_time\", totalTime);\n}\n\n// Summary of step performance\nconsole.log(\"📈 Performance Summary:\");\nfor (let i = 1; i <= 56; i++) {\n    const stepTime = pm.environment.get(\"perf_step_\" + i);\n    if (stepTime) {\n        console.log(\"  Step \" + i + \": \" + stepTime + \"ms\");\n    }\n}\n\nconsole.log(\"✅ Workflow completed successfully\");\n"
                 ],
@@ -1328,7 +1328,7 @@
           ]
         }
       ],
-      "_postman_id": "591d8609-ab5e-4ecf-a105-5d9e7db3e2b5",
+      "_postman_id": "262bad21-0cbf-4a34-a603-5afbf941a1fe",
       "event": []
     },
     {

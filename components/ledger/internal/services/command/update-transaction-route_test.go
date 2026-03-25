@@ -231,8 +231,8 @@ func TestUpdateTransactionRouteWithOperationRoutes(t *testing.T) {
 	currentTransactionRoute := &mmodel.TransactionRoute{
 		ID: transactionRouteID,
 		OperationRoutes: []mmodel.OperationRoute{
-			{ID: existingOpRouteID1, OperationType: "source", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
-			{ID: existingOpRouteID2, OperationType: "destination", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+			{ID: existingOpRouteID1, OperationType: "source", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+			{ID: existingOpRouteID2, OperationType: "destination", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
 		},
 	}
 
@@ -565,8 +565,8 @@ func TestHandleOperationRouteUpdatesDiffsByRouteID(t *testing.T) {
 	currentTransactionRoute := &mmodel.TransactionRoute{
 		ID: transactionRouteID,
 		OperationRoutes: []mmodel.OperationRoute{
-			{ID: opRouteSource, OperationType: "source", Action: "direct"},
-			{ID: opRouteDest, OperationType: "destination", Action: "direct"},
+			{ID: opRouteSource, OperationType: "source"},
+			{ID: opRouteDest, OperationType: "destination"},
 		},
 	}
 
@@ -877,8 +877,8 @@ func TestHandleOperationRouteUpdates_DiffScenarios(t *testing.T) {
 		{
 			name: "no_changes_when_existing_and_new_match_exactly",
 			existingRoutes: []mmodel.OperationRoute{
-				{ID: opRouteSource, OperationType: "source", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
-				{ID: opRouteDest, OperationType: "destination", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+				{ID: opRouteSource, OperationType: "source", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+				{ID: opRouteDest, OperationType: "destination", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
 			},
 			newInputs: []uuid.UUID{opRouteSource, opRouteDest},
 			fetchedOpRoutes: []*mmodel.OperationRoute{
@@ -891,8 +891,8 @@ func TestHandleOperationRouteUpdates_DiffScenarios(t *testing.T) {
 		{
 			name: "remove_all_existing_and_add_all_new",
 			existingRoutes: []mmodel.OperationRoute{
-				{ID: opRouteSource, OperationType: "source", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
-				{ID: opRouteDest, OperationType: "destination", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+				{ID: opRouteSource, OperationType: "source", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+				{ID: opRouteDest, OperationType: "destination", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
 			},
 			newInputs: []uuid.UUID{newSource, newDest},
 			fetchedOpRoutes: []*mmodel.OperationRoute{
@@ -905,8 +905,8 @@ func TestHandleOperationRouteUpdates_DiffScenarios(t *testing.T) {
 		{
 			name: "duplicate_inputs_are_deduplicated",
 			existingRoutes: []mmodel.OperationRoute{
-				{ID: opRouteSource, OperationType: "source", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
-				{ID: opRouteDest, OperationType: "destination", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+				{ID: opRouteSource, OperationType: "source", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+				{ID: opRouteDest, OperationType: "destination", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
 			},
 			newInputs: []uuid.UUID{opRouteSource, opRouteSource, opRouteDest, opRouteDest},
 			fetchedOpRoutes: []*mmodel.OperationRoute{
@@ -983,8 +983,8 @@ func TestHandleOperationRouteUpdates_SoftDeletePreserved(t *testing.T) {
 		Return(&mmodel.TransactionRoute{
 			ID: transactionRouteID,
 			OperationRoutes: []mmodel.OperationRoute{
-				{ID: opRouteToKeep, OperationType: "source", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
-				{ID: opRouteToRemove, OperationType: "destination", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+				{ID: opRouteToKeep, OperationType: "source", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+				{ID: opRouteToRemove, OperationType: "destination", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
 			},
 		}, nil).
 		Times(1)

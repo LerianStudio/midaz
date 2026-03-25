@@ -106,6 +106,8 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Param			start_date		query		string																false	"Filter accounts created on or after this date (format: YYYY-MM-DD)"
 //	@Param			end_date		query		string																false	"Filter accounts created on or before this date (format: YYYY-MM-DD)"
 //	@Param			sort_order		query		string																false	"Sort direction for results based on creation date"	Enums(asc,desc)
+//	@Param			portfolio_id	query		string																false	"Filter accounts by portfolio ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics)."	format(uuid)
+//	@Param			segment_id		query		string																false	"Filter accounts by segment ID (UUID format). If both portfolio_id and segment_id are provided, both filters are applied (AND semantics)."	format(uuid)
 //	@Success		200				{object}	http.Pagination{items=[]mmodel.Account}	"Successfully retrieved accounts list"
 //	@Failure		400				{object}	mmodel.Error														"Invalid query parameters"
 //	@Failure		401				{object}	mmodel.Error														"Unauthorized access"
@@ -124,7 +126,10 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	var portfolioID *uuid.UUID
+	var (
+		portfolioID *uuid.UUID
+		segmentID   *uuid.UUID
+	)
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
@@ -151,10 +156,17 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Search of all Accounts with Portfolio ID: %s", portfolioID))
 	}
 
+	if !libCommons.IsNilOrEmpty(&headerParams.SegmentID) {
+		parsedID := uuid.MustParse(headerParams.SegmentID)
+		segmentID = &parsedID
+
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Search of all Accounts with Segment ID: %s", segmentID))
+	}
+
 	if headerParams.Metadata != nil {
 		logger.Log(ctx, libLog.LevelInfo, "Initiating retrieval of all Accounts by metadata")
 
-		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, *headerParams)
+		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Accounts on query", err)
 
@@ -174,7 +186,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	headerParams.Metadata = &bson.M{}
 
-	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, *headerParams)
+	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Accounts on query", err)
 

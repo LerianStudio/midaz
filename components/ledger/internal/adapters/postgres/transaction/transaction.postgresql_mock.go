@@ -59,6 +59,21 @@ func (mr *MockRepositoryMockRecorder) BeginTx(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BeginTx", reflect.TypeOf((*MockRepository)(nil).BeginTx), ctx)
 }
 
+// CountByFilters mocks base method.
+func (m *MockRepository) CountByFilters(ctx context.Context, organizationID, ledgerID uuid.UUID, filter CountFilter) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountByFilters", ctx, organizationID, ledgerID, filter)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountByFilters indicates an expected call of CountByFilters.
+func (mr *MockRepositoryMockRecorder) CountByFilters(ctx, organizationID, ledgerID, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByFilters", reflect.TypeOf((*MockRepository)(nil).CountByFilters), ctx, organizationID, ledgerID, filter)
+}
+
 // Create mocks base method.
 func (m *MockRepository) Create(ctx context.Context, transaction *Transaction) (*Transaction, error) {
 	m.ctrl.T.Helper()

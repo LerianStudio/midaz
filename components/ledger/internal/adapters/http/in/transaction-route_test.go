@@ -644,14 +644,14 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 	tests := []struct {
 		name           string
 		queryParams    string
-		setupMocks     func(transactionRouteRepo *transactionroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID)
+		setupMocks     func(transactionRouteRepo *transactionroute.MockRepository, operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID)
 		expectedStatus int
 		validateBody   func(t *testing.T, body []byte)
 	}{
 		{
 			name:        "empty list returns 200 with pagination structure",
 			queryParams: "",
-			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				transactionRouteRepo.EXPECT().
 					FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return([]*mmodel.TransactionRoute{}, libHTTP.CursorPagination{}, nil).
@@ -683,7 +683,7 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 		{
 			name:        "success with items returns transaction routes",
 			queryParams: "?limit=5",
-			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				tr1ID := uuid.New()
 				tr2ID := uuid.New()
 
@@ -725,6 +725,12 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 						},
 					}, nil).
 					Times(1)
+
+				// Enrichment: junction query returns empty map (no linked operation routes)
+				transactionRouteRepo.EXPECT().
+					FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+					Return(map[uuid.UUID][]uuid.UUID{}, nil).
+					Times(1)
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
@@ -757,7 +763,7 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 		{
 			name:        "with metadata filter returns filtered transaction routes",
 			queryParams: "?metadata.category=settlement",
-			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				trID := uuid.New()
 
 				// GetAllMetadataTransactionRoutes first calls FindList to get metadata matching filter
@@ -790,6 +796,12 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 						Prev: "",
 					}, nil).
 					Times(1)
+
+				// Enrichment: junction query returns empty map (no linked operation routes)
+				transactionRouteRepo.EXPECT().
+					FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+					Return(map[uuid.UUID][]uuid.UUID{}, nil).
+					Times(1)
 			},
 			expectedStatus: 200,
 			validateBody: func(t *testing.T, body []byte) {
@@ -811,7 +823,7 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 		{
 			name:        "repository error returns 500",
 			queryParams: "",
-			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
+			setupMocks: func(transactionRouteRepo *transactionroute.MockRepository, operationRouteRepo *operationroute.MockRepository, metadataRepo *mongodb.MockRepository, orgID, ledgerID uuid.UUID) {
 				transactionRouteRepo.EXPECT().
 					FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
 					Return(nil, libHTTP.CursorPagination{}, pkg.InternalServerError{
@@ -842,11 +854,13 @@ func TestTransactionRouteHandler_GetAllTransactionRoutes(t *testing.T) {
 			ledgerID := uuid.New()
 
 			mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+			mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-			tt.setupMocks(mockTransactionRouteRepo, mockMetadataRepo, orgID, ledgerID)
+			tt.setupMocks(mockTransactionRouteRepo, mockOperationRouteRepo, mockMetadataRepo, orgID, ledgerID)
 
 			queryUC := &query.UseCase{
 				TransactionRouteRepo:    mockTransactionRouteRepo,
+				OperationRouteRepo:      mockOperationRouteRepo,
 				TransactionMetadataRepo: mockMetadataRepo,
 			}
 			handler := &TransactionRouteHandler{Query: queryUC}

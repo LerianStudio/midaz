@@ -14,7 +14,6 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmconsumer "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/consumer"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
@@ -93,10 +92,9 @@ func initRabbitMQ(
 	cfg *Config,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
-	redisConnection *libRedis.Client,
 ) (*rabbitMQComponents, error) {
 	if opts != nil && opts.MultiTenantEnabled {
-		return initMultiTenantRabbitMQ(opts, cfg, logger, telemetry, redisConnection)
+		return initMultiTenantRabbitMQ(opts, cfg, logger, telemetry)
 	}
 
 	return initSingleTenantRabbitMQ(opts, cfg, logger, telemetry)
@@ -110,7 +108,6 @@ func initMultiTenantRabbitMQ(
 	cfg *Config,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
-	redisConnection *libRedis.Client,
 ) (*rabbitMQComponents, error) {
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing multi-tenant RabbitMQ producer and consumer")
 
@@ -136,12 +133,6 @@ func initMultiTenantRabbitMQ(
 		rmqOpts...,
 	)
 
-	// Get Redis UniversalClient for tenant discovery cache (SMEMBERS on active tenants key)
-	tenantDiscoveryRedisClient, err := redisConnection.GetClient(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Redis client for multi-tenant consumer: %w", err)
-	}
-
 	prefetchCount := cfg.RabbitMQNumbersOfPrefetch
 	if prefetchCount == 0 {
 		prefetchCount = 10
@@ -164,7 +155,7 @@ func initMultiTenantRabbitMQ(
 		DiscoveryTimeout: discoveryTimeout,
 	}
 
-	consumer, err := tmconsumer.NewMultiTenantConsumerWithError(tenantRabbitMQ, tenantDiscoveryRedisClient, mtConfig, logger)
+	consumer, err := tmconsumer.NewMultiTenantConsumerWithError(tenantRabbitMQ, mtConfig, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize multi-tenant consumer: %w", err)
 	}
@@ -198,10 +189,12 @@ func initMultiTenantRabbitMQ(
 			func(ctx context.Context, delivery amqp.Delivery) error {
 				ctx, err := resolveTenantConnections(ctx, rmqComponents)
 				if err != nil {
+					logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to resolve tenant connections for consumer message: %v", err))
 					return err
 				}
 
 				if err := handlerBTO(ctx, delivery.Body, useCase); err != nil {
+					logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to process consumer message: %v", err))
 					return err
 				}
 
@@ -254,7 +247,9 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 
 		emitTenantCounter(ctx, rmq.metricsFactory, utils.TenantConnectionsTotal, tenantID, "postgresql")
 
-		ctx = tmcore.ContextWithModulePGConnection(ctx, ApplicationName, db)
+		// Module name must be "transaction" to match the per-tenant PG schema naming
+		// and the middleware's module-scoped connection resolution.
+		ctx = tmcore.ContextWithModulePGConnection(ctx, "transaction", db)
 	}
 
 	if rmq.mongoManager != nil {

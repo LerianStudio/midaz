@@ -12,6 +12,7 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v4/commons/net/http"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v3/pkg"
@@ -35,9 +36,11 @@ func TestGetAllTransactionRoutesSuccess(t *testing.T) {
 	transactionRouteID2 := uuid.New()
 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+	mockORRepo := operationroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	uc := &UseCase{
 		TransactionRouteRepo:    mockTransactionRouteRepo,
+		OperationRouteRepo:      mockORRepo,
 		TransactionMetadataRepo: mockMetadataRepo,
 	}
 
@@ -91,6 +94,11 @@ func TestGetAllTransactionRoutesSuccess(t *testing.T) {
 		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
 		Return(expectedMetadata, nil)
 
+	// Enrichment: junction returns empty map (no links)
+	mockTransactionRouteRepo.EXPECT().
+		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID][]uuid.UUID{}, nil)
+
 	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
 	assert.NoError(t, err)
@@ -112,9 +120,11 @@ func TestGetAllTransactionRoutesSuccessWithoutMetadata(t *testing.T) {
 	transactionRouteID1 := uuid.New()
 
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+	mockORRepo := operationroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	uc := &UseCase{
 		TransactionRouteRepo:    mockTransactionRouteRepo,
+		OperationRouteRepo:      mockORRepo,
 		TransactionMetadataRepo: mockMetadataRepo,
 	}
 
@@ -154,6 +164,11 @@ func TestGetAllTransactionRoutesSuccessWithoutMetadata(t *testing.T) {
 	mockMetadataRepo.EXPECT().
 		FindList(gomock.Any(), reflect.TypeOf(mmodel.TransactionRoute{}).Name(), gomock.Any()).
 		Return(expectedMetadata, nil)
+
+	// Enrichment: junction returns empty map (no links)
+	mockTransactionRouteRepo.EXPECT().
+		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID][]uuid.UUID{}, nil)
 
 	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, ledgerID, filter)
 
