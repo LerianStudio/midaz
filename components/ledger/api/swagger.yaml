@@ -6603,7 +6603,7 @@ definitions:
         description: Short text summarizing the purpose of the operation. Used as
           an entry note for identification.
         type: string
-        maxLength: 50
+        maxLength: 255
         example: Cashin from service charge
   CreateOrganizationInput:
     description: Request payload for creating a new organization. Contains all the
@@ -7052,7 +7052,7 @@ definitions:
         description: Short text summarizing the purpose of the transaction. Used as
           an entry note for identification.
         type: string
-        maxLength: 50
+        maxLength: 255
         example: Charge Settlement
   Error:
     description: Standardized error response format used across all API endpoints
@@ -7470,17 +7470,6 @@ definitions:
           this operation route.
         allOf:
         - $ref: '#/definitions/AccountingEntries'
-      action:
-        description: The action associated with this operation route in the context
-          of a transaction route.
-        type: string
-        enum:
-        - direct
-        - hold
-        - commit
-        - cancel
-        - revert
-        example: direct
       code:
         description: External reference of the operation route.
         type: string
@@ -8179,7 +8168,7 @@ definitions:
         description: Short text summarizing the purpose of the operation. Used as
           an entry note for identification.
         type: string
-        maxLength: 50
+        maxLength: 255
         example: Cashin from service charge
   UpdateOrganizationInput:
     description: Request payload for updating an existing organization. All fields
@@ -8330,7 +8319,7 @@ definitions:
         description: Short text summarizing the purpose of the transaction. Used as
           an entry note for identification.
         type: string
-        maxLength: 50
+        maxLength: 255
         example: Charge Settlement
   github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
     description: Schema for creating transaction with the complete Send operation

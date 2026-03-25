@@ -7822,7 +7822,7 @@ components:
           description: Short text summarizing the purpose of the operation. Used as
             an entry note for identification.
           example: Cashin from service charge
-          maxLength: 50
+          maxLength: 255
           type: string
       required:
       - operationType
@@ -8186,7 +8186,7 @@ components:
           description: Short text summarizing the purpose of the transaction. Used
             as an entry note for identification.
           example: Charge Settlement
-          maxLength: 50
+          maxLength: 255
           type: string
       required:
       - operationRoutes
@@ -8626,7 +8626,6 @@ components:
         organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
-        action: direct
         operationType: source
         id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
         account: '{}'
@@ -8643,17 +8642,6 @@ components:
           description: Optional accounting entries for each action type associated
             with this operation route.
           type: object
-        action:
-          description: The action associated with this operation route in the context
-            of a transaction route.
-          enum:
-          - direct
-          - hold
-          - commit
-          - cancel
-          - revert
-          example: direct
-          type: string
         code:
           description: External reference of the operation route.
           example: EXT-001
@@ -9204,7 +9192,6 @@ components:
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           account: '{}'
@@ -9220,7 +9207,6 @@ components:
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           account: '{}'
@@ -9522,7 +9508,7 @@ components:
           description: Short text summarizing the purpose of the operation. Used as
             an entry note for identification.
           example: Cashin from service charge
-          maxLength: 50
+          maxLength: 255
           type: string
       type: object
     UpdateOrganizationInput:
@@ -9704,7 +9690,7 @@ components:
           description: Short text summarizing the purpose of the transaction. Used
             as an entry note for identification.
           example: Charge Settlement
-          maxLength: 50
+          maxLength: 255
           type: string
       type: object
     github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
@@ -10378,7 +10364,6 @@ components:
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           account: '{}'
@@ -10394,7 +10379,6 @@ components:
           organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          action: direct
           operationType: source
           id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
           account: '{}'
@@ -10510,7 +10494,6 @@ components:
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             account: '{}'
@@ -10526,7 +10509,6 @@ components:
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             account: '{}'
@@ -10553,7 +10535,6 @@ components:
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             account: '{}'
@@ -10569,7 +10550,6 @@ components:
             organizationId: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            action: direct
             operationType: source
             id: 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
             account: '{}'

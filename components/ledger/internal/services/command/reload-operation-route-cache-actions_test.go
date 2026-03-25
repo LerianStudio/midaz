@@ -57,7 +57,6 @@ func TestReloadOperationRouteCache_RebuildWithActionGrouping(t *testing.T) {
 			{
 				ID:                sourceOpRouteID,
 				OperationType:     "source",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
@@ -67,7 +66,6 @@ func TestReloadOperationRouteCache_RebuildWithActionGrouping(t *testing.T) {
 			{
 				ID:                destOpRouteID,
 				OperationType:     "destination",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
@@ -163,7 +161,6 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 			{
 				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "source",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 		},
@@ -178,13 +175,11 @@ func TestReloadOperationRouteCache_MultipleTransactionRoutesWithActions(t *testi
 			{
 				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "source",
-				Action:            "hold",
 				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 			{
 				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "destination",
-				Action:            "hold",
 				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 		},

@@ -73,7 +73,6 @@ func FuzzToCache(f *testing.F) {
 			route := OperationRoute{
 				ID:                uuid.New(),
 				OperationType:     opType,
-				Action:            action,
 				AccountingEntries: actionToEntries[action],
 			}
 
@@ -246,7 +245,6 @@ func FuzzToCacheMsgpackRoundTrip(f *testing.F) {
 			route := OperationRoute{
 				ID:                uuid.New(),
 				OperationType:     "source",
-				Action:            action,
 				AccountingEntries: roundtripActionToEntries[action],
 			}
 

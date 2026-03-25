@@ -41,7 +41,6 @@ func TestCreateAccountingRouteCache_StoresActionAwareCache(t *testing.T) {
 			{
 				ID:                sourceRouteID,
 				OperationType:     "source",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
@@ -51,7 +50,6 @@ func TestCreateAccountingRouteCache_StoresActionAwareCache(t *testing.T) {
 			{
 				ID:                destRouteID,
 				OperationType:     "destination",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
@@ -116,25 +114,21 @@ func TestCreateAccountingRouteCache_MultipleActions(t *testing.T) {
 			{
 				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "source",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 			{
 				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "destination",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 			{
 				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "source",
-				Action:            "hold",
 				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 			{
 				ID:                uuid.Must(libCommons.GenerateUUIDv7()),
 				OperationType:     "bidirectional",
-				Action:            "hold",
 				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 		},

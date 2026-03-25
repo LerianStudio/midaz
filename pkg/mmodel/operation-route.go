@@ -97,8 +97,6 @@ type OperationRoute struct {
 	Code string `json:"code,omitempty" example:"EXT-001"`
 	// The type of the operation route.
 	OperationType string `json:"operationType,omitempty" example:"source" enums:"source,destination,bidirectional"`
-	// The action associated with this operation route in the context of a transaction route.
-	Action string `json:"action,omitempty" example:"direct" enums:"direct,hold,commit,cancel,revert"`
 	// Optional accounting entries for each action type associated with this operation route.
 	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty"`
 	// AccountingEntriesRaw holds the raw JSON for accountingEntries for merge-patch updates.
@@ -121,7 +119,7 @@ type OperationRoute struct {
 // @Description CreateOperationRouteInput payload for creating a new Operation Route with title, description, operation type, and optional account rules.
 type CreateOperationRouteInput struct {
 	// Short text summarizing the purpose of the operation. Used as an entry note for identification.
-	Title string `json:"title,omitempty" validate:"required,max=50" example:"Cashin from service charge"`
+	Title string `json:"title,omitempty" validate:"required,max=255" example:"Cashin from service charge"`
 	// Detailed description of the operation route purpose and usage.
 	Description string `json:"description,omitempty" validate:"max=250" example:"This operation route handles cash-in transactions from service charge collections"`
 	// External reference of the operation route.
@@ -142,7 +140,7 @@ type CreateOperationRouteInput struct {
 // @Description UpdateOperationRouteInput payload
 type UpdateOperationRouteInput struct {
 	// Short text summarizing the purpose of the operation. Used as an entry note for identification.
-	Title string `json:"title,omitempty" validate:"max=50" example:"Cashin from service charge"`
+	Title string `json:"title,omitempty" validate:"max=255" example:"Cashin from service charge"`
 	// Detailed description of the operation route purpose and usage.
 	Description string `json:"description,omitempty" validate:"max=250" example:"This operation route handles cash-in transactions from service charge collections"`
 	// External reference of the operation route.

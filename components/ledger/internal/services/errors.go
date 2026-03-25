@@ -41,8 +41,7 @@ func ValidatePGError(pgErr *pgconn.PgError, entityType string, args ...any) erro
 
 	// Transaction constraint violations
 	switch {
-	case strings.Contains(pgErr.ConstraintName, "operation_route_type_check") ||
-		strings.Contains(pgErr.Message, "type") && strings.Contains(pgErr.Message, "debit") && strings.Contains(pgErr.Message, "credit"):
+	case strings.Contains(pgErr.ConstraintName, "operation_route_operation_type_check"):
 		return pkg.ValidateBusinessError(constant.ErrInvalidOperationRouteType, entityType)
 	}
 

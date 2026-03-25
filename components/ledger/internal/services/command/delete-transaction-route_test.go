@@ -82,7 +82,7 @@ func TestDeleteTransactionRouteByIDNotFoundOnFind(t *testing.T) {
 
 	var businessError pkg.EntityNotFoundError
 	assert.True(t, errors.As(err, &businessError))
-	assert.Equal(t, "0101", businessError.Code)
+	assert.Equal(t, "0105", businessError.Code)
 }
 
 // TestDeleteTransactionRouteByIDFindError tests deletion with database error during find

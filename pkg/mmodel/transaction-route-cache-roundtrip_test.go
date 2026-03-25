@@ -35,7 +35,6 @@ func TestTransactionRoute_ToCache_MsgpackRoundTrip_FullPipeline(t *testing.T) {
 			{
 				ID:                srcDirectID,
 				OperationType:     "source",
-				Action:            "direct",
 				AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
@@ -45,7 +44,6 @@ func TestTransactionRoute_ToCache_MsgpackRoundTrip_FullPipeline(t *testing.T) {
 			{
 				ID:                dstDirectID,
 				OperationType:     "destination",
-				Action:            "direct",
 				AccountingEntries: &AccountingEntries{Direct: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "account_type",
@@ -55,7 +53,6 @@ func TestTransactionRoute_ToCache_MsgpackRoundTrip_FullPipeline(t *testing.T) {
 			{
 				ID:                srcHoldID,
 				OperationType:     "source",
-				Action:            "hold",
 				AccountingEntries: &AccountingEntries{Hold: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
@@ -65,7 +62,6 @@ func TestTransactionRoute_ToCache_MsgpackRoundTrip_FullPipeline(t *testing.T) {
 			{
 				ID:                bidiHoldID,
 				OperationType:     "bidirectional",
-				Action:            "hold",
 				AccountingEntries: &AccountingEntries{Hold: &AccountingEntry{}},
 				Account: &AccountRule{
 					RuleType: "alias",
@@ -75,7 +71,6 @@ func TestTransactionRoute_ToCache_MsgpackRoundTrip_FullPipeline(t *testing.T) {
 			{
 				ID:                dstCommitID,
 				OperationType:     "destination",
-				Action:            "commit",
 				AccountingEntries: &AccountingEntries{Commit: &AccountingEntry{}},
 				Account:           nil,
 			},
