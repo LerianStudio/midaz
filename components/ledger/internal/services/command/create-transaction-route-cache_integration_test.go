@@ -78,7 +78,6 @@ func TestIntegration_CreateAccountingRouteCache_ActionAwareCacheStored(t *testin
 			{
 				ID:                sourceRouteID,
 				OperationType:     "source",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
@@ -88,7 +87,6 @@ func TestIntegration_CreateAccountingRouteCache_ActionAwareCacheStored(t *testin
 			{
 				ID:                destRouteID,
 				OperationType:     "destination",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
@@ -151,25 +149,21 @@ func TestIntegration_CreateAccountingRouteCache_MultipleActions(t *testing.T) {
 			{
 				ID:                directSourceID,
 				OperationType:     "source",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 			{
 				ID:                directDestID,
 				OperationType:     "destination",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 			{
 				ID:                holdSourceID,
 				OperationType:     "source",
-				Action:            "hold",
 				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 			{
 				ID:                holdDestID,
 				OperationType:     "destination",
-				Action:            "hold",
 				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 		},
@@ -222,7 +216,6 @@ func TestIntegration_CreateAccountingRouteCache_BidirectionalRoute(t *testing.T)
 			{
 				ID:                bidiRouteID,
 				OperationType:     "bidirectional",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 		},
@@ -306,7 +299,6 @@ func TestIntegration_CreateAccountingRouteCache_OverwritesExistingKey(t *testing
 			{
 				ID:                libCommons.GenerateUUIDv7(),
 				OperationType:     "source",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 			},
 		},
@@ -331,13 +323,11 @@ func TestIntegration_CreateAccountingRouteCache_OverwritesExistingKey(t *testing
 			{
 				ID:                newSourceID,
 				OperationType:     "source",
-				Action:            "hold",
 				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 			{
 				ID:                newDestID,
 				OperationType:     "destination",
-				Action:            "hold",
 				AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}},
 			},
 		},
@@ -381,7 +371,6 @@ func TestIntegration_CreateAccountingRouteCache_AccountRulePreserved(t *testing.
 			{
 				ID:                sourceID,
 				OperationType:     "source",
-				Action:            "direct",
 				AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}},
 				Account: &mmodel.AccountRule{
 					RuleType: "alias",
@@ -432,7 +421,7 @@ func TestIntegration_CreateAccountingRouteCache_DifferentOrgsSameRouteID(t *test
 		LedgerID:       ledgerID,
 		Title:          "Org1 Route",
 		OperationRoutes: []mmodel.OperationRoute{
-			{ID: sourceID1, OperationType: "source", Action: "direct", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
+			{ID: sourceID1, OperationType: "source", AccountingEntries: &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{}}},
 		},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -444,7 +433,7 @@ func TestIntegration_CreateAccountingRouteCache_DifferentOrgsSameRouteID(t *test
 		LedgerID:       ledgerID,
 		Title:          "Org2 Route",
 		OperationRoutes: []mmodel.OperationRoute{
-			{ID: sourceID2, OperationType: "source", Action: "hold", AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}}},
+			{ID: sourceID2, OperationType: "source", AccountingEntries: &mmodel.AccountingEntries{Hold: &mmodel.AccountingEntry{}}},
 		},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),

@@ -9734,18 +9734,6 @@ const docTemplate = `
             }
           ]
         },
-        "action": {
-          "description": "The action associated with this operation route in the context of a transaction route.",
-          "type": "string",
-          "enum": [
-            "direct",
-            "hold",
-            "commit",
-            "cancel",
-            "revert"
-          ],
-          "example": "direct"
-        },
         "code": {
           "description": "External reference of the operation route.",
           "type": "string",
