@@ -23,6 +23,7 @@ import (
 	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
+	tmwatcher "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/watcher"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
@@ -417,6 +418,32 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		rmq.mongoManager = txnMgo.mongoManager
 	}
 
+	// 7. SettingsWatcher — revalidates PG pool settings independently of the RabbitMQ consumer
+	var settingsWatcher *tmwatcher.SettingsWatcher
+
+	if cfg.MultiTenantEnabled && tenantClient != nil {
+		watcherOpts := []tmwatcher.Option{
+			tmwatcher.WithLogger(logger),
+		}
+
+		settingsCheckInterval := time.Duration(cfg.MultiTenantSettingsCheckIntervalSec) * time.Second
+		if settingsCheckInterval > 0 {
+			watcherOpts = append(watcherOpts, tmwatcher.WithInterval(settingsCheckInterval))
+		}
+
+		if onbPG.pgManager != nil {
+			watcherOpts = append(watcherOpts, tmwatcher.WithPostgresManager(onbPG.pgManager))
+		}
+
+		if txnPG.pgManager != nil {
+			watcherOpts = append(watcherOpts, tmwatcher.WithPostgresManager(txnPG.pgManager))
+		}
+
+		settingsWatcher = tmwatcher.NewSettingsWatcher(tenantClient, tenantServiceName, watcherOpts...)
+
+		logger.Log(context.Background(), libLog.LevelInfo, "SettingsWatcher created for PostgreSQL pool settings revalidation")
+	}
+
 	// === Use cases ===
 
 	settingsCacheTTL := resolveSettingsCacheTTL(cfg, logger)
@@ -568,6 +595,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MultiTenantConsumer:   rmq.multiTenantConsumer,
 		RedisQueueConsumer:    redisConsumer,
 		BalanceSyncWorker:     balanceSyncWorker,
+		SettingsWatcher:       settingsWatcher,
 		CircuitBreakerManager: rmq.circuitBreakerManager,
 		Logger:                logger,
 		Telemetry:             telemetry,
