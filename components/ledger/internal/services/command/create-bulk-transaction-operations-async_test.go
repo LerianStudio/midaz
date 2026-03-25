@@ -164,11 +164,7 @@ func TestCreateBulkTransactionOperationsAsync_SingleTransaction_Success(t *testi
 		}, nil).
 		Times(1)
 
-	// Mock balance update (BalancesUpdate is what UpdateBalances calls internally)
-	mockBalanceRepo.EXPECT().
-		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil).
-		Times(1)
+	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 	// Mock metadata creation (may be called)
 	mockMetadataRepo.EXPECT().
@@ -284,11 +280,7 @@ func TestCreateBulkTransactionOperationsAsync_MultipleTransactions_Success(t *te
 		}, nil).
 		Times(1)
 
-	// Mock balance updates (3 times)
-	mockBalanceRepo.EXPECT().
-		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil).
-		Times(3)
+	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 	// Mock metadata and events
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -372,8 +364,7 @@ func TestCreateBulkTransactionOperationsAsync_WithDuplicates(t *testing.T) {
 		}, nil).
 		Times(1)
 
-	// Mock balance update
-	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
@@ -431,7 +422,7 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_BelowThreshold(t 
 		BalancesAfter: []*mmodel.Balance{{ID: uuid.New().String(), Alias: "alias1", Available: decimal.NewFromInt(50)}},
 	}
 
-	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 	// Below threshold (< 10), uses individual update via UpdateTransactionStatus
 	// which internally calls TransactionRepo.Update
@@ -537,8 +528,7 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 		Return(&operation.Operation{ID: operationID}, nil).
 		Times(1)
 
-	// Balance update happens in fallback processing
-	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	// Note: Balance updates are handled by BalanceSyncWorker, not in fallback flow
 
 	// Metadata creation and events
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -886,14 +876,10 @@ func TestCreateBulkTransactionOperationsAsync_BalanceUpdateFails_UsesFallback(t 
 		}, nil).
 		Times(1)
 
-	// Balance update fails after bulk insert
-	// Note: Balance sync worker will reconcile this later
-	mockBalanceRepo.EXPECT().
-		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(errors.New("balance update failed")).
-		Times(1)
+	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
+	// This test verifies bulk insert succeeds without inline balance updates
 
-	// Metadata creation and events still proceed
+	// Metadata creation and events proceed
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -955,11 +941,7 @@ func TestCreateBulkTransactionOperationsAsync_StatusTransition_AboveThreshold_Us
 		}
 	}
 
-	// Mock balance updates (12 times)
-	mockBalanceRepo.EXPECT().
-		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil).
-		Times(12)
+	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 	// Mock bulk update (above threshold uses UpdateBulk instead of individual Update)
 	mockTransactionRepo.EXPECT().

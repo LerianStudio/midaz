@@ -241,8 +241,11 @@ func (cr *ConsumerRoutes) logAndSleep(ctx context.Context, errMsg, retryMsg, que
 // startWorkers starts the appropriate workers based on bulk mode configuration.
 func (cr *ConsumerRoutes) startWorkers(ctx context.Context, queueName string, handler QueueHandlerFunc, bulkHandler BulkHandlerFunc, useBulkMode bool, messages <-chan amqp.Delivery) {
 	if useBulkMode {
-		// Start a single bulk worker that uses BulkCollector
-		go cr.startBulkWorker(ctx, queueName, handler, bulkHandler, messages)
+		// Start N bulk workers, each with its own BulkCollector
+		// Messages are distributed among workers by Go runtime (channel fan-out)
+		for i := 0; i < cr.NumbersOfWorkers; i++ {
+			go cr.startBulkWorker(ctx, queueName, handler, bulkHandler, messages)
+		}
 	} else {
 		// Start individual workers (original behavior)
 		for i := 0; i < cr.NumbersOfWorkers; i++ {

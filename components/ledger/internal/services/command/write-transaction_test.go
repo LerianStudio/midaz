@@ -119,11 +119,7 @@ func setupMocksForFallback(
 	mockBalanceRepo *balance.MockRepository,
 	tran *transaction.Transaction,
 ) {
-	// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
-	mockBalanceRepo.EXPECT().
-		BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil).
-		AnyTimes()
+	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 	// Mock TransactionRepo.Create
 	mockTransactionRepo.EXPECT().
@@ -438,11 +434,7 @@ func TestWriteTransactionAsync(t *testing.T) {
 			Return(nil, errors.New("rabbitmq connection failed")).
 			Times(1)
 
-		// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 		// Fallback also fails - TransactionRepo.Create returns error
 		mockTransactionRepo.EXPECT().
@@ -549,11 +541,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			TransactionRedisRepo:    mockRedisRepo,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 		// TransactionRepo.Create fails (not a duplicate key error)
 		mockTransactionRepo.EXPECT().
@@ -625,11 +613,7 @@ func TestWriteTransactionSync(t *testing.T) {
 			TransactionRedisRepo:    mockRedisRepo,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			AnyTimes()
+		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().

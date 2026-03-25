@@ -92,8 +92,8 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 	// Classify payloads into inserts and updates
 	toInsert, toUpdate := uc.classifyAndExtractEntities(payloads)
 
-	// Try bulk insert and update first (before updating balances)
-	// If bulk fails, fallback will handle balance updates
+	// Try bulk insert and update first
+	// If bulk fails, fallback to individual processing
 	if err := uc.performBulkInsertAndUpdate(ctx, logger, toInsert, toUpdate, result); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Bulk insert/update failed, falling back", err)
 		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Bulk insert/update failed, using fallback: %v", err))
@@ -101,56 +101,15 @@ func (uc *UseCase) CreateBulkTransactionOperationsAsync(
 		return uc.fallbackToIndividualProcessing(ctx, logger, payloads, result)
 	}
 
-	// Bulk insert succeeded - now update balances
-	// This order prevents double balance updates if we had to fallback
-	if err := uc.updateBalancesForPayloads(ctx, logger, payloads); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balances after bulk insert", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances after bulk insert: %v", err))
-
-		// Note: Transactions are already persisted, but balances failed
-		// This is a partial success - log but don't fail the entire operation
-		// The balance sync worker will reconcile eventually
-	}
+	// Note: Balance updates are handled by BalanceSyncWorker asynchronously.
+	// Hot balance was already updated atomically by Lua script during validation.
+	// Cold balance persistence is scheduled via ZADD to schedule:balance-sync.
 
 	// Process metadata and send events only for actually-inserted transactions
 	// This ensures idempotency by skipping duplicates that were ignored during bulk insert
 	uc.processMetadataAndEvents(ctx, logger, payloads, result.InsertedTransactionIDs)
 
 	return result, nil
-}
-
-// updateBalancesForPayloads updates balances for all payloads that require it.
-func (uc *UseCase) updateBalancesForPayloads(
-	ctx context.Context,
-	logger libLog.Logger,
-	payloads []transaction.TransactionProcessingPayload,
-) error {
-	for i, payload := range payloads {
-		if payload.Transaction == nil {
-			continue
-		}
-
-		if payload.Transaction.Status.Code == constant.NOTED {
-			continue
-		}
-
-		if payload.Validate == nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Payload %d has nil Validate field, skipping balance update", i))
-
-			continue
-		}
-
-		orgID, ledgerID, err := uc.extractOrgLedgerIDs(payload)
-		if err != nil {
-			return fmt.Errorf("payload %d: %w", i, err)
-		}
-
-		if err := uc.UpdateBalances(ctx, orgID, ledgerID, *payload.Validate, payload.Balances, payload.BalancesAfter); err != nil {
-			return fmt.Errorf("payload %d balance update: %w", i, err)
-		}
-	}
-
-	return nil
 }
 
 // extractOrgLedgerIDs extracts organization and ledger IDs from a payload.
