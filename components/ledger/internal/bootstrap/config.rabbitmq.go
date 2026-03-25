@@ -7,6 +7,8 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
@@ -14,6 +16,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v4/commons/rabbitmq"
+	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmconsumer "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/consumer"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
@@ -87,14 +90,17 @@ type rabbitMQComponents struct {
 
 // initRabbitMQ initializes RabbitMQ producer and consumer components.
 // Dispatches to single-tenant or multi-tenant initialization based on Options.
+// redisConnection is required only for multi-tenant mode (Redis Pub/Sub event listening);
+// it is ignored in single-tenant mode.
 func initRabbitMQ(
 	opts *Options,
 	cfg *Config,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
+	redisConnection *libRedis.Client,
 ) (*rabbitMQComponents, error) {
 	if opts != nil && opts.MultiTenantEnabled {
-		return initMultiTenantRabbitMQ(opts, cfg, logger, telemetry)
+		return initMultiTenantRabbitMQ(opts, cfg, logger, telemetry, redisConnection)
 	}
 
 	return initSingleTenantRabbitMQ(opts, cfg, logger, telemetry)
@@ -103,11 +109,13 @@ func initRabbitMQ(
 // initMultiTenantRabbitMQ initializes RabbitMQ in multi-tenant mode.
 // Uses tmrabbitmq.Manager for per-tenant vhost connections with LRU eviction.
 // No circuit breaker is needed; the Manager manages its own connection lifecycle.
+// redisConnection is required for Redis Pub/Sub event-driven tenant discovery.
 func initMultiTenantRabbitMQ(
 	opts *Options,
 	cfg *Config,
 	logger libLog.Logger,
 	telemetry *libOpentelemetry.Telemetry,
+	redisConnection *libRedis.Client,
 ) (*rabbitMQComponents, error) {
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing multi-tenant RabbitMQ producer and consumer")
 
@@ -116,6 +124,15 @@ func initMultiTenantRabbitMQ(
 
 	if opts.TenantClient == nil {
 		return nil, fmt.Errorf("TenantClient is required for multi-tenant RabbitMQ initialization")
+	}
+
+	if redisConnection == nil {
+		return nil, fmt.Errorf("Redis connection is required for multi-tenant RabbitMQ consumer (Redis Pub/Sub)")
+	}
+
+	redisClient, err := redisConnection.GetClient(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Redis client for multi-tenant consumer: %w", err)
 	}
 
 	rmqOpts := []tmrabbitmq.Option{
@@ -146,16 +163,17 @@ func initMultiTenantRabbitMQ(
 	}
 
 	mtConfig := tmconsumer.MultiTenantConfig{
-		SyncInterval:     syncInterval,
-		PrefetchCount:    prefetchCount,
-		MultiTenantURL:   opts.TenantManagerURL,
-		ServiceAPIKey:    opts.MultiTenantServiceAPIKey,
-		Service:          opts.TenantServiceName,
-		Environment:      opts.TenantEnvironment,
-		DiscoveryTimeout: discoveryTimeout,
+		SyncInterval:      syncInterval,
+		PrefetchCount:     prefetchCount,
+		MultiTenantURL:    opts.TenantManagerURL,
+		ServiceAPIKey:     opts.MultiTenantServiceAPIKey,
+		Service:           opts.TenantServiceName,
+		Environment:       opts.TenantEnvironment,
+		DiscoveryTimeout:  discoveryTimeout,
+		AllowInsecureHTTP: allowInsecureMultiTenantHTTP(opts.TenantManagerURL, cfg.EnvName),
 	}
 
-	consumer, err := tmconsumer.NewMultiTenantConsumerWithError(tenantRabbitMQ, mtConfig, logger)
+	consumer, err := tmconsumer.NewMultiTenantConsumerWithError(tenantRabbitMQ, redisClient, mtConfig, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize multi-tenant consumer: %w", err)
 	}
@@ -432,6 +450,28 @@ func initSingleTenantRabbitMQ(
 	}
 
 	return rmq, nil
+}
+
+// allowInsecureMultiTenantHTTP returns true when the tenant-manager URL uses plain HTTP
+// and the environment is a non-production environment (local, development, test).
+// This mirrors the CRM pattern in config.tenant.go for consistent behavior.
+func allowInsecureMultiTenantHTTP(tenantManagerURL, envName string) bool {
+	parsedURL, err := url.Parse(tenantManagerURL)
+	if err != nil {
+		return false
+	}
+
+	scheme := strings.ToLower(strings.TrimSpace(parsedURL.Scheme))
+	if scheme != "http" {
+		return false
+	}
+
+	switch strings.ToLower(strings.TrimSpace(envName)) {
+	case "local", "development", "dev", "test", "testing", "staging":
+		return true
+	default:
+		return false
+	}
 }
 
 // compositeStateListener fans out state change notifications to multiple listeners.

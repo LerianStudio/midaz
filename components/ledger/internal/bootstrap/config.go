@@ -409,7 +409,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// 6. RabbitMQ → producer + consumer
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing RabbitMQ...")
 
-	rmq, err := initRabbitMQ(internalOpts, cfg, logger, telemetry)
+	rmq, err := initRabbitMQ(internalOpts, cfg, logger, telemetry, redisConnection)
 	if err != nil {
 		doCleanup()
 		return nil, fmt.Errorf("failed to initialize RabbitMQ: %w", err)
