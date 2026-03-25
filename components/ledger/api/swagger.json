@@ -6741,6 +6741,105 @@
         }
       }
     },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/count": {
+      "head": {
+        "description": "Count transactions matching optional filters (route, status, date range)",
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "Count Transactions by Filters",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Authorization Bearer Token",
+            "name": "Authorization",
+            "in": "header",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Request ID",
+            "name": "X-Request-Id",
+            "in": "header"
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Organization ID",
+            "name": "organization_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Ledger ID",
+            "name": "ledger_id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Filter by transaction route",
+            "name": "route",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter by transaction status (CREATED, APPROVED, PENDING, CANCELED, NOTED)",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Start of date range (RFC 3339, defaults to today 00:00:00 UTC)",
+            "name": "start_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "End of date range (RFC 3339, defaults to today 23:59:59 UTC)",
+            "name": "end_date",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content",
+            "headers": {
+              "X-Total-Count": {
+                "type": "integer",
+                "description": "Total count of matching transactions"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl": {
       "post": {
         "description": "Create a Transaction with the input DSL file",
