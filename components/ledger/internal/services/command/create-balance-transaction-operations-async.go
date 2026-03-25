@@ -54,27 +54,15 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	if t.Transaction.Status.Code != constant.NOTED {
-		ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
-		defer spanUpdateBalances.End()
+	if t.Transaction == nil {
+		logger.Log(ctx, libLog.LevelError, "Transaction payload has nil Transaction field")
 
-		logger.Log(ctx, libLog.LevelInfo, "Trying to update balances")
-
-		if t.Validate == nil {
-			logger.Log(ctx, libLog.LevelError, "Transaction payload has nil Validate field, skipping balance update")
-
-			return fmt.Errorf("transaction payload has nil Validate field")
-		}
-
-		err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances, t.BalancesAfter)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdateBalances, "Failed to update balances", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balances: %v", err.Error()))
-
-			return err
-		}
+		return fmt.Errorf("transaction payload has nil Transaction field")
 	}
+
+	// Note: Balance updates are handled by BalanceSyncWorker asynchronously.
+	// Hot balance was already updated atomically by Lua script during validation.
+	// Cold balance persistence is scheduled via ZADD to schedule:balance-sync.
 
 	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanUpdateTransaction.End()

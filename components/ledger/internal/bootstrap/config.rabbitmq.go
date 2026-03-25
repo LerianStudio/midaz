@@ -26,6 +26,45 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+// shouldUseBulkMode determines if bulk processing should be used for RabbitMQ message consumption.
+// Bulk mode activates only when both conditions are met:
+//   - RABBITMQ_TRANSACTION_ASYNC=true (async mode enabled)
+//   - BULK_RECORDER_ENABLED=true (bulk mode not disabled)
+//
+// When bulk mode is active, messages are accumulated by BulkCollector and processed in batches.
+// When inactive, messages are processed individually as before (backward compatible).
+func shouldUseBulkMode(cfg *Config) bool {
+	return cfg.RabbitMQTransactionAsync && cfg.BulkRecorderEnabled
+}
+
+// logBulkConfiguration logs the bulk recorder configuration at startup.
+// Helps operators understand the current bulk mode settings.
+func logBulkConfiguration(ctx context.Context, logger libLog.Logger, cfg *Config) {
+	bulkMode := shouldUseBulkMode(cfg)
+
+	logger.Log(ctx, libLog.LevelInfo, "Bulk recorder configuration",
+		libLog.Bool("bulk_mode_active", bulkMode),
+		libLog.Bool("rabbitmq_transaction_async", cfg.RabbitMQTransactionAsync),
+		libLog.Bool("bulk_recorder_enabled", cfg.BulkRecorderEnabled),
+		libLog.Int("bulk_recorder_size", cfg.BulkRecorderSize),
+		libLog.Int("bulk_recorder_flush_timeout_ms", cfg.BulkRecorderFlushTimeoutMs),
+		libLog.Int("bulk_recorder_max_rows_per_insert", cfg.BulkRecorderMaxRowsPerInsert),
+	)
+
+	if bulkMode {
+		logger.Log(ctx, libLog.LevelInfo, "Bulk mode is ACTIVE: messages will be accumulated and processed in batches",
+			libLog.Int("bulk_size", cfg.BulkRecorderSize),
+			libLog.Int("flush_timeout_ms", cfg.BulkRecorderFlushTimeoutMs),
+		)
+	} else {
+		if !cfg.RabbitMQTransactionAsync {
+			logger.Log(ctx, libLog.LevelInfo, "Bulk mode is INACTIVE: RABBITMQ_TRANSACTION_ASYNC is not true")
+		} else {
+			logger.Log(ctx, libLog.LevelInfo, "Bulk mode is INACTIVE: BULK_RECORDER_ENABLED is false")
+		}
+	}
+}
+
 // rabbitMQComponents holds all RabbitMQ-related components initialized during bootstrap.
 // In single-tenant mode, multiQueueConsumer and circuitBreakerManager are populated.
 // In multi-tenant mode, multiTenantConsumer is populated instead.
@@ -71,6 +110,9 @@ func initMultiTenantRabbitMQ(
 	telemetry *libOpentelemetry.Telemetry,
 ) (*rabbitMQComponents, error) {
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing multi-tenant RabbitMQ producer and consumer")
+
+	// Log bulk recorder configuration at startup
+	logBulkConfiguration(context.Background(), logger, cfg)
 
 	if opts.TenantClient == nil {
 		return nil, fmt.Errorf("TenantClient is required for multi-tenant RabbitMQ initialization")
@@ -250,6 +292,9 @@ func initSingleTenantRabbitMQ(
 ) (*rabbitMQComponents, error) {
 	logCtx := context.Background()
 
+	// Log bulk recorder configuration at startup
+	logBulkConfiguration(logCtx, logger, cfg)
+
 	// Producer connection
 	rabbitSource := buildRabbitMQConnectionString(
 		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost, cfg.RabbitMQVHost)
@@ -367,7 +412,21 @@ func initSingleTenantRabbitMQ(
 			telemetry,
 		)
 
-		rmq.multiQueueConsumer = NewMultiQueueConsumer(routes, useCase)
+		// Configure bulk processing if enabled
+		if shouldUseBulkMode(cfg) {
+			routes.ConfigureBulk(&rabbitmq.BulkConfig{
+				Enabled:      true,
+				Size:         cfg.BulkRecorderSize,
+				FlushTimeout: time.Duration(cfg.BulkRecorderFlushTimeoutMs) * time.Millisecond,
+			})
+
+			logger.Log(context.Background(), libLog.LevelInfo, "Bulk mode configured for consumer",
+				libLog.Int("bulk_size", cfg.BulkRecorderSize),
+				libLog.Int("flush_timeout_ms", cfg.BulkRecorderFlushTimeoutMs),
+			)
+		}
+
+		rmq.multiQueueConsumer = NewMultiQueueConsumer(routes, useCase, telemetry.MetricsFactory)
 
 		return nil
 	}

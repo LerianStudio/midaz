@@ -339,7 +339,10 @@ func (r *OperationPostgreSQLRepository) createBulkInternal(
 		return operations[i].ID < operations[j].ID
 	})
 
-	result := &repository.BulkInsertResult{Attempted: int64(len(operations))}
+	result := &repository.BulkInsertResult{
+		Attempted:   int64(len(operations)),
+		InsertedIDs: make([]string, 0, len(operations)),
+	}
 
 	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
 	// Operation has 30 columns, so 1000 rows = 30,000 parameters (under 65,535 limit)
@@ -359,7 +362,7 @@ func (r *OperationPostgreSQLRepository) createBulkInternal(
 
 		end := min(i+chunkSize, len(operations))
 
-		chunkInserted, err := r.insertOperationChunk(ctx, db, operations[i:end])
+		chunkResult, err := r.insertOperationChunk(ctx, db, operations[i:end])
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to insert operation chunk", err)
 			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to insert operation chunk: %v", err))
@@ -368,7 +371,8 @@ func (r *OperationPostgreSQLRepository) createBulkInternal(
 			return result, err
 		}
 
-		result.Inserted += chunkInserted
+		result.Inserted += chunkResult.inserted
+		result.InsertedIDs = append(result.InsertedIDs, chunkResult.insertedIDs...)
 	}
 
 	result.Ignored = result.Attempted - result.Inserted
@@ -379,9 +383,16 @@ func (r *OperationPostgreSQLRepository) createBulkInternal(
 	return result, nil
 }
 
+// operationChunkInsertResult holds the result of inserting a chunk of operations.
+type operationChunkInsertResult struct {
+	inserted    int64
+	insertedIDs []string
+}
+
 // insertOperationChunk inserts a chunk of operations using multi-row INSERT.
 // Uses repository.DBExecutor to work with both dbresolver.DB and dbresolver.Tx.
-func (r *OperationPostgreSQLRepository) insertOperationChunk(ctx context.Context, db repository.DBExecutor, operations []*Operation) (int64, error) {
+// Returns the count of inserted rows and their IDs for downstream filtering.
+func (r *OperationPostgreSQLRepository) insertOperationChunk(ctx context.Context, db repository.DBExecutor, operations []*Operation) (*operationChunkInsertResult, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.insert_operation_chunk")
@@ -431,30 +442,55 @@ func (r *OperationPostgreSQLRepository) insertOperationChunk(ctx context.Context
 		)
 	}
 
-	builder = builder.Suffix("ON CONFLICT (id) DO NOTHING")
+	builder = builder.Suffix("ON CONFLICT (id) DO NOTHING RETURNING id")
 
 	query, args, err := builder.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build bulk insert query", err)
 
-		return 0, err
+		return nil, err
 	}
 
-	execResult, err := db.ExecContext(ctx, query, args...)
+	// Use QueryContext to retrieve the RETURNING clause results
+	querier, ok := db.(repository.DBQuerier)
+	if !ok {
+		libOpentelemetry.HandleSpanError(span, "DBExecutor does not support QueryContext", repository.ErrQueryContextNotSupported)
+
+		return nil, repository.ErrQueryContextNotSupported
+	}
+
+	rows, err := querier.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to execute bulk insert", err)
 
-		return 0, err
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := &operationChunkInsertResult{
+		insertedIDs: make([]string, 0, len(operations)),
 	}
 
-	rowsAffected, err := execResult.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to scan inserted ID", err)
 
-		return 0, err
+			return nil, err
+		}
+
+		result.insertedIDs = append(result.insertedIDs, id)
 	}
 
-	return rowsAffected, nil
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Error iterating inserted IDs", err)
+
+		return nil, err
+	}
+
+	result.inserted = int64(len(result.insertedIDs))
+
+	return result, nil
 }
 
 // FindAll retrieves Operations entities from the database.

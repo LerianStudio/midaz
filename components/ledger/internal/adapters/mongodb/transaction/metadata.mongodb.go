@@ -79,7 +79,9 @@ func (mmr *MetadataMongoDBRepository) getDatabase(ctx context.Context) (*mongo.D
 	return mmr.connection.Database(ctx)
 }
 
-// Create inserts a new metadata entity into mongodb.
+// Create inserts a new metadata entity into mongodb using upsert for idempotency.
+// If metadata for the same entity_id and entity_name already exists, the operation is a no-op.
+// This ensures that duplicate calls (e.g., from retries or bulk processing) do not create duplicate documents.
 func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection string, metadata *Metadata) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -102,18 +104,36 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 		return err
 	}
 
-	ctx, spanInsert := tracer.Start(ctx, "mongodb.create_metadata.insert")
+	ctx, spanUpsert := tracer.Start(ctx, "mongodb.create_metadata.upsert")
 
-	insertResult, err := coll.InsertOne(ctx, record)
+	// Use upsert with $setOnInsert to ensure idempotency:
+	// - If no document exists for this entity_id, insert the full record
+	// - If a document already exists, do nothing (no update)
+	filter := bson.M{
+		"entity_id":   metadata.EntityID,
+		"entity_name": metadata.EntityName,
+	}
+
+	update := bson.M{
+		"$setOnInsert": record,
+	}
+
+	opts := options.Update().SetUpsert(true)
+
+	upsertResult, err := coll.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanInsert, "Failed to insert metadata", err)
+		libOpentelemetry.HandleSpanError(spanUpsert, "Failed to upsert metadata", err)
 
 		return err
 	}
 
-	spanInsert.End()
+	spanUpsert.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintln("Inserted a document: ", insertResult.InsertedID))
+	if upsertResult.UpsertedCount > 0 {
+		logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Inserted metadata document for entity %s", metadata.EntityID))
+	} else {
+		logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Metadata already exists for entity %s, skipped insert", metadata.EntityID))
+	}
 
 	return nil
 }

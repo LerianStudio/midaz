@@ -150,11 +150,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -278,11 +274,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 		// Mock TransactionRepo.Create with duplicate key error
 		pgErr := &pgconn.PgError{Code: "23505"}
@@ -470,11 +462,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -659,11 +647,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -815,11 +799,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
@@ -979,11 +959,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			QueueData:      queueData,
 		}
 
-		// Mock BalanceRepo.BalancesUpdate (called by UpdateBalances before transaction create)
-		mockBalanceRepo.EXPECT().
-			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
 		// Mock TransactionRepo.Create
 		mockTransactionRepo.EXPECT().
