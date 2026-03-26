@@ -438,7 +438,7 @@ func TestIntegration_Chaos_TransactionRoute_NetworkPartition(t *testing.T) {
 	tenantDB, err := infra.conn.Resolver(context.Background())
 	require.NoError(t, err, "setup: must be able to get DB from proxied connection")
 
-	tenantCtx := tmcore.ContextWithTenantPGConnection(ctx, tenantDB)
+	tenantCtx := tmcore.ContextWithPGConnection(ctx, tenantDB)
 
 	// --- Phase 1: Normal ---
 	// Verify operations work both with plain context (static path) and with

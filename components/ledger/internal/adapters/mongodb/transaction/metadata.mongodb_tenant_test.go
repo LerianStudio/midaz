@@ -112,7 +112,7 @@ func TestGetDatabase_ReturnsTenantDB_WhenContextHasTenantMongo(t *testing.T) {
 			repo := &MetadataMongoDBRepository{
 				connection: newPlaceholderConnection(),
 			}
-			ctx := tmcore.ContextWithTenantMongo(context.Background(), tt.tenantDB)
+			ctx := tmcore.ContextWithMongo(context.Background(), tt.tenantDB)
 
 			// Act
 			db, err := repo.getDatabase(ctx)
@@ -134,7 +134,7 @@ func TestGetDatabase_TenantDB_TakesPrecedence_OverStaticConnection(t *testing.T)
 	}
 
 	tenantDB := newDisconnectedDatabase(t, "tenant-priority")
-	ctx := tmcore.ContextWithTenantMongo(context.Background(), tenantDB)
+	ctx := tmcore.ContextWithMongo(context.Background(), tenantDB)
 
 	// Act
 	db, dbErr := repo.getDatabase(ctx)
@@ -196,10 +196,10 @@ func TestGetDatabase_FallsBackToStaticConnection_WhenNoTenantContext(t *testing.
 func TestGetDatabase_FallsBack_WhenTenantDBIsNilInContext(t *testing.T) {
 	t.Parallel()
 
-	// Arrange — inject a nil *mongo.Database into context via ContextWithTenantMongo.
+	// Arrange — inject a nil *mongo.Database into context via ContextWithMongo.
 	// GetMongoFromContext checks db != nil, so it should return nil,
 	// which causes getDatabase to fall through to the static connection path.
-	ctx := tmcore.ContextWithTenantMongo(context.Background(), nil)
+	ctx := tmcore.ContextWithMongo(context.Background(), nil)
 
 	repo := &MetadataMongoDBRepository{
 		connection: newPlaceholderConnection(),

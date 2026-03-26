@@ -18,7 +18,7 @@ import (
 // FUZZ TESTS -- getDB Context Tenant PG Connection Resolution
 //
 // This fuzz test exercises getDB with arbitrary context values alongside
-// the generic tenant PG connection via tmcore.ContextWithTenantPGConnection
+// the generic tenant PG connection via tmcore.ContextWithPGConnection
 // to verify:
 //  1. No panic under any context content (including Unicode, null bytes, very
 //     long strings, empty strings, and security payloads).
@@ -74,7 +74,7 @@ func FuzzGetDB_TenantPGConnection(f *testing.F) {
 
 		ctx := context.WithValue(context.Background(), ctxKey{name: "fuzz"}, contextValue)
 		if hasTenant {
-			ctx = tmcore.ContextWithTenantPGConnection(ctx, tenantDB)
+			ctx = tmcore.ContextWithPGConnection(ctx, tenantDB)
 		}
 
 		repo := &TransactionPostgreSQLRepository{

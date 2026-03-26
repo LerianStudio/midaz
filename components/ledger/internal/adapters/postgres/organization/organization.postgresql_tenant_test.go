@@ -59,7 +59,7 @@ func TestGetDB_ReturnsTenantDB_WhenContextHasTenantPGConnection(t *testing.T) {
 				connection: newPlaceholderPostgresConnection(),
 				tableName:  "organization",
 			}
-			ctx := tmcore.ContextWithTenantPGConnection(context.Background(), tt.tenantDB)
+			ctx := tmcore.ContextWithPGConnection(context.Background(), tt.tenantDB)
 
 			// Act
 			db, err := repo.getDB(ctx)
