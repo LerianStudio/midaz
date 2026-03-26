@@ -97,7 +97,7 @@ func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entit
 		return nil, err
 	}
 
-	return tmcore.ContextWithTenantMongo(ctx, tenantDB), nil
+	return tmcore.ContextWithMongo(ctx, tenantDB), nil
 }
 
 func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, onboardingRepo bool) (context.Context, error) {
@@ -127,7 +127,7 @@ func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, on
 		return nil, err
 	}
 
-	return tmcore.ContextWithTenantMongo(ctx, tenantDB), nil
+	return tmcore.ContextWithMongo(ctx, tenantDB), nil
 }
 
 // isValidEntity checks if the entity name is valid for metadata index operations.

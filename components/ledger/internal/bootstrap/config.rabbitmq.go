@@ -257,7 +257,7 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 		emitTenantCounter(ctx, rmq.metricsFactory, utils.TenantConnectionsTotal, tenantID, "postgresql")
 
 		// Store the tenant PG connection in the generic tenant context key.
-		ctx = tmcore.ContextWithTenantPGConnection(ctx, db)
+		ctx = tmcore.ContextWithPGConnection(ctx, db)
 	}
 
 	if rmq.mongoManager != nil {
@@ -270,7 +270,7 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 
 		emitTenantCounter(ctx, rmq.metricsFactory, utils.TenantConnectionsTotal, tenantID, "mongodb")
 
-		ctx = tmcore.ContextWithTenantMongo(ctx, mongoDB)
+		ctx = tmcore.ContextWithMongo(ctx, mongoDB)
 	}
 
 	return ctx, nil

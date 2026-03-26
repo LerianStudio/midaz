@@ -82,7 +82,7 @@ func NewAccountTypePostgreSQLRepository(pc *libPostgres.Client, requireTenant ..
 // In multi-tenant mode, the middleware injects a tenant-specific dbresolver.DB into context.
 // In single-tenant mode (or when no tenant context exists), falls back to the static connection.
 func (r *AccountTypePostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
-	if db := tmcore.GetTenantPGConnectionFromContext(ctx); db != nil {
+	if db := tmcore.GetPGConnectionFromContext(ctx); db != nil {
 		return db, nil
 	}
 
