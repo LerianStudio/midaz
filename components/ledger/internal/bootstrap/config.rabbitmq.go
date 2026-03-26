@@ -23,6 +23,7 @@ import (
 	tmrabbitmq "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/attribute"
@@ -249,7 +250,7 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 		// Store the tenant PG connection in both generic and module-specific context keys.
 		// Generic key provides backward compatibility; module key enables cross-module resolution.
 		ctx = tmcore.ContextWithPGConnection(ctx, db)
-		ctx = tmcore.ContextWithPG(ctx, "transaction", db)
+		ctx = tmcore.ContextWithPG(ctx, constant.ModuleTransaction, db)
 	}
 
 	if rmq.mongoManager != nil {
@@ -263,7 +264,7 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 		emitTenantCounter(ctx, rmq.metricsFactory, utils.TenantConnectionsTotal, tenantID, "mongodb")
 
 		ctx = tmcore.ContextWithMongo(ctx, mongoDB)
-		ctx = tmcore.ContextWithMB(ctx, "transaction", mongoDB)
+		ctx = tmcore.ContextWithMB(ctx, constant.ModuleTransaction, mongoDB)
 	}
 
 	return ctx, nil

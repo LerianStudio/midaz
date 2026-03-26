@@ -82,7 +82,7 @@ func NewSegmentPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...boo
 // In single-tenant mode (or when no tenant context exists), falls back to the static connection.
 func (p *SegmentPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	// Module-specific connection (from middleware WithModule)
-	if db := tmcore.GetPG(ctx, "onboarding"); db != nil {
+	if db := tmcore.GetPG(ctx, constant.ModuleOnboarding); db != nil {
 		return db, nil
 	}
 

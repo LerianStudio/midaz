@@ -14,6 +14,7 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -46,7 +47,7 @@ func initTransactionMultiTenantMongo(opts *Options, cfg *Config, logger libLog.L
 	}
 
 	mongoOpts := []tmmongo.Option{
-		tmmongo.WithModule("transaction"),
+		tmmongo.WithModule(constant.ModuleTransaction),
 		tmmongo.WithLogger(logger),
 	}
 

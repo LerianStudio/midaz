@@ -82,6 +82,12 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 			"MultiTenantURL":                      "MULTI_TENANT_URL",
 			"MultiTenantCircuitBreakerThreshold":  "MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD",
 			"MultiTenantCircuitBreakerTimeoutSec": "MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC",
+			"MultiTenantServiceAPIKey":            "MULTI_TENANT_SERVICE_API_KEY",
+			"MultiTenantSettingsCheckIntervalSec": "MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC",
+			"MultiTenantCacheTTLSec":              "MULTI_TENANT_CACHE_TTL_SEC",
+			"MultiTenantRedisHost":                "MULTI_TENANT_REDIS_HOST",
+			"MultiTenantRedisPort":                "MULTI_TENANT_REDIS_PORT",
+			"MultiTenantRedisPassword":            "MULTI_TENANT_REDIS_PASSWORD",
 		}
 
 		cfg := &Config{}

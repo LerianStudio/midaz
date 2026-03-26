@@ -83,7 +83,7 @@ func NewPortfolioPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...b
 // In single-tenant mode (or when no tenant context exists), falls back to the static connection.
 func (r *PortfolioPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
 	// Module-specific connection (from middleware WithModule)
-	if db := tmcore.GetPG(ctx, "onboarding"); db != nil {
+	if db := tmcore.GetPG(ctx, constant.ModuleOnboarding); db != nil {
 		return db, nil
 	}
 
@@ -94,6 +94,10 @@ func (r *PortfolioPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.D
 
 	if r.requireTenant {
 		return nil, fmt.Errorf("tenant postgres connection missing from context")
+	}
+
+	if r.connection == nil {
+		return nil, fmt.Errorf("postgres connection not available")
 	}
 
 	return r.connection.Resolver(ctx)

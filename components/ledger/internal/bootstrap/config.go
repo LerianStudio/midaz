@@ -977,10 +977,10 @@ func buildUnifiedRouteSetup(
 
 	// Build unified tenant middleware with all module managers (PG + Mongo)
 	tenantMiddleware := tmmiddleware.NewTenantMiddleware(
-		tmmiddleware.WithPG(onboardingPGManager, "onboarding"),
-		tmmiddleware.WithPG(transactionPGManager, "transaction"),
-		tmmiddleware.WithMB(onboardingMongoManager, "onboarding"),
-		tmmiddleware.WithMB(transactionMongoManager, "transaction"),
+		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
+		tmmiddleware.WithPG(transactionPGManager, constant.ModuleTransaction),
+		tmmiddleware.WithMB(onboardingMongoManager, constant.ModuleOnboarding),
+		tmmiddleware.WithMB(transactionMongoManager, constant.ModuleTransaction),
 		tmmiddleware.WithTenantCache(tenantCache),
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
