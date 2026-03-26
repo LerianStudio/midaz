@@ -20,9 +20,11 @@ import (
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmevent "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/event"
 	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
@@ -98,6 +100,9 @@ type Config struct {
 	MultiTenantServiceAPIKey            string `env:"MULTI_TENANT_SERVICE_API_KEY"`
 	MultiTenantSettingsCheckIntervalSec int    `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"`
 	MultiTenantCacheTTLSec              int    `env:"MULTI_TENANT_CACHE_TTL_SEC" default:"120"` // seconds for tenant config cache TTL (0 = disabled)
+	MultiTenantRedisHost                string `env:"MULTI_TENANT_REDIS_HOST"`
+	MultiTenantRedisPort                string `env:"MULTI_TENANT_REDIS_PORT"`
+	MultiTenantRedisPassword            string `env:"MULTI_TENANT_REDIS_PASSWORD"`
 
 	// --- Onboarding PostgreSQL fields (DB_ONBOARDING_* env tags) ---
 	OnbPrefixedPrimaryDBHost     string `env:"DB_ONBOARDING_HOST"`
@@ -211,6 +216,9 @@ type Options struct {
 	// TenantClient is the tenant manager client for multi-tenant mode.
 	TenantClient *tmclient.Client
 
+	// TenantCache is the shared process-local cache for tenant configurations.
+	TenantCache *tenantcache.TenantCache
+
 	// Multi-tenant configuration (resolved from Config during init).
 	MultiTenantEnabled       bool
 	TenantServiceName        string
@@ -322,6 +330,81 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 	if opts != nil {
 		internalOpts.CircuitBreakerStateListener = opts.CircuitBreakerStateListener
+	}
+
+	// === Tenant Cache & Event Listener (multi-tenant only) ===
+
+	var tenantCache *tenantcache.TenantCache
+
+	var tenantLoader *tenantcache.TenantLoader
+
+	var eventListener *tmevent.TenantEventListener
+
+	if cfg.MultiTenantEnabled && tenantClient != nil {
+		tenantCache = tenantcache.NewTenantCache()
+
+		cacheTTL := time.Duration(cfg.MultiTenantCacheTTLSec) * time.Second
+		tenantLoader = tenantcache.NewTenantLoader(tenantClient, tenantCache, tenantServiceName, cacheTTL, logger)
+
+		dispatcher := tmevent.NewEventDispatcher(
+			tenantCache,
+			tenantLoader,
+			tenantServiceName,
+			tmevent.WithDispatcherLogger(logger),
+			tmevent.WithCacheTTL(cacheTTL),
+		)
+
+		// Create Redis client for tenant-manager Pub/Sub when configured
+		if cfg.MultiTenantRedisHost != "" {
+			redisPort := cfg.MultiTenantRedisPort
+			if redisPort == "" {
+				redisPort = "6379"
+			}
+
+			tmRedisConfig := libRedis.Config{
+				Topology: libRedis.Topology{
+					Standalone: &libRedis.StandaloneTopology{
+						Address: cfg.MultiTenantRedisHost + ":" + redisPort,
+					},
+				},
+				Logger: logger,
+			}
+
+			if cfg.MultiTenantRedisPassword != "" {
+				tmRedisConfig.Auth = libRedis.Auth{
+					StaticPassword: &libRedis.StaticPasswordAuth{Password: cfg.MultiTenantRedisPassword},
+				}
+			}
+
+			tmRedisConn, tmRedisErr := libRedis.New(context.Background(), tmRedisConfig)
+			if tmRedisErr != nil {
+				return nil, fmt.Errorf("failed to initialize tenant-manager Redis for Pub/Sub: %w", tmRedisErr)
+			}
+
+			tmRedisClient, tmClientErr := tmRedisConn.GetClient(context.Background())
+			if tmClientErr != nil {
+				return nil, fmt.Errorf("failed to get tenant-manager Redis client: %w", tmClientErr)
+			}
+
+			var listenerErr error
+
+			eventListener, listenerErr = tmevent.NewTenantEventListener(
+				tmRedisClient,
+				dispatcher.HandleEvent,
+				tmevent.WithListenerLogger(logger),
+				tmevent.WithService(tenantServiceName),
+			)
+			if listenerErr != nil {
+				return nil, fmt.Errorf("failed to create tenant event listener: %w", listenerErr)
+			}
+
+			logger.Log(context.Background(), libLog.LevelInfo, "Tenant event listener configured",
+				libLog.String("redis_host", cfg.MultiTenantRedisHost),
+				libLog.String("service", tenantServiceName),
+			)
+		}
+
+		internalOpts.TenantCache = tenantCache
 	}
 
 	// === Infrastructure initialization ===
@@ -555,8 +638,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// RedisQueueConsumer: multi-tenant or single-tenant
 	var redisConsumer *RedisQueueConsumer
-	if cfg.MultiTenantEnabled {
-		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, tenantClient, txnPG.pgManager, tenantServiceName)
+	if cfg.MultiTenantEnabled && tenantCache != nil {
+		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, tenantCache, txnPG.pgManager, tenantServiceName)
 	} else {
 		redisConsumer = NewRedisQueueConsumer(logger, *transactionHandler)
 	}
@@ -576,6 +659,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MultiTenantConsumer:   rmq.multiTenantConsumer,
 		RedisQueueConsumer:    redisConsumer,
 		BalanceSyncWorker:     balanceSyncWorker,
+		EventListener:         eventListener,
 		CircuitBreakerManager: rmq.circuitBreakerManager,
 		Logger:                logger,
 		Telemetry:             telemetry,
@@ -702,8 +786,8 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 
 	var balanceSyncWorker *BalanceSyncWorker
 
-	if opts != nil && opts.MultiTenantEnabled {
-		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, true, opts.TenantClient, pgManager, tenantServiceName)
+	if opts != nil && opts.MultiTenantEnabled && opts.TenantCache != nil {
+		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, true, opts.TenantCache, pgManager, tenantServiceName)
 	} else {
 		balanceSyncWorker = NewBalanceSyncWorker(redisConn, logger, commandUC, balanceSyncMaxWorkers)
 	}
@@ -773,6 +857,10 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 
 	if cfg.MultiTenantCacheTTLSec >= 0 {
 		clientOpts = append(clientOpts, tmclient.WithCacheTTL(time.Duration(cfg.MultiTenantCacheTTLSec)*time.Second))
+	}
+
+	if allowInsecureMultiTenantHTTP(tenantManagerURL, cfg.EnvName) {
+		clientOpts = append(clientOpts, tmclient.WithAllowInsecureHTTP())
 	}
 
 	tenantClient, err := tmclient.NewClient(
