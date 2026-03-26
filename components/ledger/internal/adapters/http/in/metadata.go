@@ -97,7 +97,17 @@ func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entit
 		return nil, err
 	}
 
-	return tmcore.ContextWithMongo(ctx, tenantDB), nil
+	// Store in both generic and module-specific context keys.
+	ctx = tmcore.ContextWithMongo(ctx, tenantDB)
+
+	// Determine module name based on entity type for module-specific injection.
+	if _, ok := onboardingEntities[entityName]; ok {
+		ctx = tmcore.ContextWithMB(ctx, "onboarding", tenantDB)
+	} else {
+		ctx = tmcore.ContextWithMB(ctx, "transaction", tenantDB)
+	}
+
+	return ctx, nil
 }
 
 func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, onboardingRepo bool) (context.Context, error) {
@@ -127,7 +137,11 @@ func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, on
 		return nil, err
 	}
 
-	return tmcore.ContextWithMongo(ctx, tenantDB), nil
+	// Store in both generic and module-specific context keys.
+	ctx = tmcore.ContextWithMongo(ctx, tenantDB)
+	ctx = tmcore.ContextWithMB(ctx, groupName, tenantDB)
+
+	return ctx, nil
 }
 
 // isValidEntity checks if the entity name is valid for metadata index operations.

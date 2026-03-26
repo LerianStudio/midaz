@@ -136,6 +136,12 @@ func NewOperationPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...b
 // In multi-tenant mode, the middleware injects a tenant-specific dbresolver.DB into context.
 // In single-tenant mode (or when no tenant context exists), falls back to the static connection.
 func (r *OperationPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
+	// Module-specific connection (from middleware WithModule)
+	if db := tmcore.GetPG(ctx, "transaction"); db != nil {
+		return db, nil
+	}
+
+	// Generic connection fallback (single-module services)
 	if db := tmcore.GetPGConnectionFromContext(ctx); db != nil {
 		return db, nil
 	}

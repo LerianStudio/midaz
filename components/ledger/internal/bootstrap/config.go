@@ -93,11 +93,8 @@ type Config struct {
 	// Multi-tenant configuration
 	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED"`
 	MultiTenantURL                      string `env:"MULTI_TENANT_URL"`
-	MultiTenantEnvironment              string `env:"MULTI_TENANT_ENVIRONMENT"`
 	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`
 	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"`
-	MultiTenantMaxTenantPools           int    `env:"MULTI_TENANT_MAX_TENANT_POOLS"`
-	MultiTenantIdleTimeoutSec           int    `env:"MULTI_TENANT_IDLE_TIMEOUT_SEC"`
 	MultiTenantServiceAPIKey            string `env:"MULTI_TENANT_SERVICE_API_KEY"`
 	MultiTenantSettingsCheckIntervalSec int    `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"`
 	MultiTenantCacheTTLSec              int    `env:"MULTI_TENANT_CACHE_TTL_SEC" default:"120"` // seconds for tenant config cache TTL (0 = disabled)
@@ -187,8 +184,6 @@ type Config struct {
 	RabbitMQCircuitBreakerHealthCheckInterval int    `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_INTERVAL"`
 	RabbitMQCircuitBreakerHealthCheckTimeout  int    `env:"RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_TIMEOUT"`
 	RabbitMQOperationTimeout                  string `env:"RABBITMQ_OPERATION_TIMEOUT"`
-	RabbitMQMultiTenantSyncInterval           int    `env:"RABBITMQ_MULTI_TENANT_SYNC_INTERVAL"`
-	RabbitMQMultiTenantDiscoveryTimeout       int    `env:"RABBITMQ_MULTI_TENANT_DISCOVERY_TIMEOUT"`
 	RabbitMQTransactionAsync                  bool   `env:"RABBITMQ_TRANSACTION_ASYNC"`
 
 	// Bulk mode activates only when RABBITMQ_TRANSACTION_ASYNC=true AND BulkRecorderEnabled=true.
@@ -199,7 +194,6 @@ type Config struct {
 	BulkRecorderMaxRowsPerInsert int  `env:"BULK_RECORDER_MAX_ROWS_PER_INSERT"`
 
 	// --- Balance/Worker fields ---
-	BalanceSyncWorkerEnabled bool `env:"BALANCE_SYNC_WORKER_ENABLED"`
 	BalanceSyncMaxWorkers    int  `env:"BALANCE_SYNC_MAX_WORKERS"`
 
 	// --- Settings ---
@@ -223,7 +217,6 @@ type Options struct {
 	// Multi-tenant configuration (resolved from Config during init).
 	MultiTenantEnabled       bool
 	TenantServiceName        string
-	TenantEnvironment        string
 	TenantManagerURL         string
 	MultiTenantServiceAPIKey string
 }
@@ -324,7 +317,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MultiTenantEnabled:          cfg.MultiTenantEnabled,
 		TenantClient:                tenantClient,
 		TenantServiceName:           tenantServiceName,
-		TenantEnvironment:           cfg.MultiTenantEnvironment,
 		TenantManagerURL:            strings.TrimSpace(cfg.MultiTenantURL),
 		MultiTenantServiceAPIKey:    strings.TrimSpace(cfg.MultiTenantServiceAPIKey),
 		CircuitBreakerStateListener: nil,
@@ -702,9 +694,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Workers ===
 
-	// BALANCE_SYNC_WORKER_ENABLED is deprecated - balance sync is always enabled
-	logger.Log(context.Background(), libLog.LevelInfo, "BalanceSyncWorker: always enabled (BALANCE_SYNC_WORKER_ENABLED env var is deprecated)")
-
 	// RedisQueueConsumer: multi-tenant or single-tenant
 	var redisConsumer *RedisQueueConsumer
 	if cfg.MultiTenantEnabled && tenantCache != nil {
@@ -943,7 +932,6 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Multi-tenant mode enabled",
 		libLog.String("service", tenantServiceName),
-		libLog.String("environment", cfg.MultiTenantEnvironment),
 		libLog.Bool("tenant_manager_configured", true),
 	)
 
@@ -993,6 +981,7 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithMongoManager(onboardingMongoManager),
 		tmmiddleware.WithTenantCache(tenantCache),
 		tmmiddleware.WithTenantLoader(tenantLoader),
+		tmmiddleware.WithModule("onboarding"),
 	)
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
@@ -1005,6 +994,7 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithMongoManager(transactionMongoManager),
 		tmmiddleware.WithTenantCache(tenantCache),
 		tmmiddleware.WithTenantLoader(tenantLoader),
+		tmmiddleware.WithModule("transaction"),
 	)
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
@@ -1093,11 +1083,6 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.RedisMaxRetries, 3)
 	intDefault(&cfg.RedisMinRetryBackoff, 8)
 	intDefault(&cfg.RedisMaxRetryBackoff, 1)
-
-	// BalanceSyncWorkerEnabled defaults to true (enabled) when the env var is not set.
-	if os.Getenv("BALANCE_SYNC_WORKER_ENABLED") == "" {
-		cfg.BalanceSyncWorkerEnabled = true
-	}
 
 	// Bulk Recorder defaults
 	// BulkRecorderEnabled defaults to true when the env var is not set or empty.
