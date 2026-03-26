@@ -179,6 +179,8 @@ func (cr *ConsumerRoutes) logConsumerMode(queueName string, useBulkMode, hasBulk
 }
 
 // runConsumerLoop runs the main consumer loop for a queue with automatic reconnection.
+// Creates a channel-scoped context that cancels when the channel closes, ensuring
+// workers stop cleanly without attempting to ack messages with stale delivery tags.
 func (cr *ConsumerRoutes) runConsumerLoop(queueName string, handler QueueHandlerFunc, bulkHandler BulkHandlerFunc, useBulkMode bool) {
 	backoff := utils.InitialBackoff
 	bgCtx := context.Background()
@@ -196,9 +198,14 @@ func (cr *ConsumerRoutes) runConsumerLoop(queueName string, handler QueueHandler
 		notifyClose := make(chan *amqp.Error, 1)
 		cr.conn.Channel.NotifyClose(notifyClose)
 
-		cr.startWorkers(bgCtx, queueName, handler, bulkHandler, useBulkMode, messages)
+		// Create channel-scoped context that cancels when channel closes.
+		// This ensures workers stop cleanly without acking stale delivery tags.
+		channelCtx, channelCancel := context.WithCancel(bgCtx)
 
-		cr.waitForChannelClose(bgCtx, queueName, notifyClose)
+		cr.startWorkers(channelCtx, queueName, handler, bulkHandler, useBulkMode, messages)
+
+		// Wait for channel close and cancel the channel context
+		cr.waitForChannelCloseAndCancel(bgCtx, queueName, notifyClose, channelCancel)
 	}
 }
 
@@ -247,26 +254,42 @@ func (cr *ConsumerRoutes) startWorkers(ctx context.Context, queueName string, ha
 			go cr.startBulkWorker(ctx, queueName, handler, bulkHandler, messages)
 		}
 	} else {
-		// Start individual workers (original behavior)
+		// Start individual workers with channel-scoped context
 		for i := 0; i < cr.NumbersOfWorkers; i++ {
-			go cr.startWorker(i, queueName, handler, messages)
+			go cr.startWorker(ctx, i, queueName, handler, messages)
 		}
 	}
 }
 
-// waitForChannelClose waits for the channel to close and logs the event.
-func (cr *ConsumerRoutes) waitForChannelClose(ctx context.Context, queueName string, notifyClose <-chan *amqp.Error) {
+// waitForChannelCloseAndCancel waits for the channel to close, cancels the channel context,
+// and logs the event. The context cancellation signals workers to stop processing
+// and skip acking messages with stale delivery tags.
+func (cr *ConsumerRoutes) waitForChannelCloseAndCancel(ctx context.Context, queueName string, notifyClose <-chan *amqp.Error, cancel context.CancelFunc) {
 	if errClose := <-notifyClose; errClose != nil {
-		cr.Log(ctx, libLog.LevelWarn, "channel closed", libLog.String("queue", queueName), libLog.Err(errClose))
+		cr.Log(ctx, libLog.LevelWarn, "channel closed - cancelling workers",
+			libLog.String("queue", queueName),
+			libLog.Err(errClose),
+		)
 	} else {
-		cr.Log(ctx, libLog.LevelWarn, "channel closed: no error info", libLog.String("queue", queueName))
+		cr.Log(ctx, libLog.LevelWarn, "channel closed (no error info) - cancelling workers",
+			libLog.String("queue", queueName),
+		)
 	}
+
+	// Cancel channel context to signal workers to stop
+	// This prevents workers from acking messages with stale delivery tags
+	cancel()
+
+	// Small delay to allow workers to clean up before reconnection attempt
+	time.Sleep(100 * time.Millisecond)
 
 	cr.Log(ctx, libLog.LevelWarn, "restarting consumer", libLog.String("queue", queueName))
 }
 
 // startWorker starts a worker that processes messages from the queue.
-func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc QueueHandlerFunc, messages <-chan amqp.Delivery) {
+// Uses channel-scoped context to detect channel closure and skip ack/nack
+// with stale delivery tags, leaving messages for RabbitMQ redelivery.
+func (cr *ConsumerRoutes) startWorker(channelCtx context.Context, workerID int, queue string, handlerFunc QueueHandlerFunc, messages <-chan amqp.Delivery) {
 	for msg := range messages {
 		midazID := resolveMessageHeaderID(msg.Headers)
 
@@ -298,12 +321,34 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 			spanConsumer.End()
 			logger.Log(ctx, libLog.LevelError, "Error processing message from queue", libLog.Int("workerID", workerID), libLog.String("queue", queue), libLog.Err(err))
 
+			// Check if channel context is cancelled before nacking
+			// If cancelled, skip nack to avoid stale delivery tag error
+			if channelCtx.Err() != nil {
+				logger.Log(ctx, libLog.LevelWarn, "Channel closed - skipping nack, message left for redelivery",
+					libLog.Int("workerID", workerID),
+					libLog.String("queue", queue),
+				)
+
+				continue
+			}
+
 			_ = msg.Nack(false, true)
 
 			continue
 		}
 
 		spanConsumer.End()
+
+		// Check if channel context is cancelled before acking
+		// If cancelled, skip ack to avoid stale delivery tag error
+		if channelCtx.Err() != nil {
+			logger.Log(ctx, libLog.LevelWarn, "Channel closed - skipping ack, message left for redelivery",
+				libLog.Int("workerID", workerID),
+				libLog.String("queue", queue),
+			)
+
+			continue
+		}
 
 		_ = msg.Ack(false)
 	}
@@ -314,6 +359,7 @@ func (cr *ConsumerRoutes) startWorker(workerID int, queue string, handlerFunc Qu
 // startBulkWorker starts a bulk worker that uses BulkCollector to accumulate messages.
 // Messages are processed in batches for improved throughput.
 // Falls back to individual processing on bulk failure if fallback is enabled.
+// Configured with channel-scoped context to handle channel closure gracefully.
 func (cr *ConsumerRoutes) startBulkWorker(
 	ctx context.Context,
 	queue string,
@@ -338,6 +384,15 @@ func (cr *ConsumerRoutes) startBulkWorker(
 		cr.processFallback(errCtx, queue, deliveries, individualHandler)
 	})
 
+	// Set context cancel handler for channel closure scenarios.
+	// When channel closes, context cancels, and we skip acking to let RabbitMQ redeliver.
+	collector.SetContextCancelHandler(func(cancelCtx context.Context, messageCount int) {
+		cr.Log(cancelCtx, libLog.LevelWarn, "Channel closed during bulk processing - messages left for redelivery",
+			libLog.String("queue", queue),
+			libLog.Int("message_count", messageCount),
+		)
+	})
+
 	// Start a goroutine to feed messages to the collector
 	go func() {
 		for msg := range messages {
@@ -351,7 +406,7 @@ func (cr *ConsumerRoutes) startBulkWorker(
 			}
 		}
 
-		// Channel closed, stop the collector (this will trigger final flush)
+		// Channel closed, stop the collector (this will trigger final flush or skip based on context)
 		collector.Stop()
 	}()
 
