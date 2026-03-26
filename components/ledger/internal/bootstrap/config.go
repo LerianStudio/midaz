@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -1022,20 +1023,47 @@ func buildUnifiedRouteSetup(
 }
 
 // midazErrorMapper converts tenant-manager errors into Midaz-specific HTTP responses.
+// It uses the standard midazhttp response helpers to ensure a consistent error format
+// across all Midaz endpoints (code/title/message JSON envelope).
 func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	if err == nil {
 		return nil
 	}
 
-	if tmcore.IsTenantNotProvisionedError(err) {
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-			"code":    constant.ErrTenantNotProvisioned.Error(),
-			"title":   "Tenant Not Provisioned",
-			"message": "Database schema not initialized for this tenant. Contact your administrator.",
-		})
+	// Tenant suspended or purged → 403 (same semantics as tenant-manager /connections)
+	var suspErr *tmcore.TenantSuspendedError
+	if errors.As(err, &suspErr) {
+		return midazhttp.Forbidden(c,
+			constant.ErrTenantServiceSuspended.Error(),
+			"Service Suspended",
+			fmt.Sprintf("service is %s for tenant %s", suspErr.Status, tenantID),
+		)
 	}
 
-	return err
+	// Tenant not found → 404
+	if errors.Is(err, tmcore.ErrTenantNotFound) {
+		return midazhttp.NotFound(c,
+			constant.ErrTenantNotFound.Error(),
+			"Tenant Not Found",
+			fmt.Sprintf("tenant not found: %s", tenantID),
+		)
+	}
+
+	// Tenant not provisioned → 422
+	if tmcore.IsTenantNotProvisionedError(err) {
+		return midazhttp.UnprocessableEntity(c,
+			constant.ErrTenantNotProvisioned.Error(),
+			"Tenant Not Provisioned",
+			"Database schema not initialized for this tenant. Contact your administrator.",
+		)
+	}
+
+	// Unknown error → 503
+	return midazhttp.ServiceUnavailable(c,
+		constant.ErrTenantServiceUnavailable.Error(),
+		"Tenant Service Unavailable",
+		fmt.Sprintf("failed to resolve tenant %s: %s", tenantID, err.Error()),
+	)
 }
 
 // applyConfigDefaults sets sensible defaults for Config fields that remain at their

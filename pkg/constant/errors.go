@@ -170,6 +170,9 @@ var (
 	ErrDuplicateActionRoute                     = errors.New("0156")
 	ErrNoRoutesForAction                        = errors.New("0157")
 	ErrTooManyOperationRoutes                   = errors.New("0158")
+	ErrTenantServiceSuspended                   = errors.New("0159")
+	ErrTenantNotFound                           = errors.New("0160")
+	ErrTenantServiceUnavailable                 = errors.New("0161")
 )
 
 // List of CRM errors.
