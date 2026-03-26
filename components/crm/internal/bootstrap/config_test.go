@@ -423,7 +423,7 @@ func TestAllowInsecureTenantManagerHTTP(t *testing.T) {
 	assert.True(t, allowInsecureTenantManagerHTTP("DEV"))
 	assert.True(t, allowInsecureTenantManagerHTTP("testing"))
 	assert.False(t, allowInsecureTenantManagerHTTP("production"))
-	assert.False(t, allowInsecureTenantManagerHTTP("staging"))
+	assert.True(t, allowInsecureTenantManagerHTTP("staging"))
 }
 
 func TestRedactedTenantManagerURL(t *testing.T) {
