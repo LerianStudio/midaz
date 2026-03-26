@@ -33,17 +33,18 @@ var (
 // Thread-safe for single goroutine use (designed for worker pattern).
 // The collector is single-use: once Stop() is called, it cannot be restarted.
 type BulkCollector struct {
-	mu                sync.Mutex
-	messages          []amqp.Delivery
-	bulkSize          int
-	flushTimeout      time.Duration
-	flushCallback     FlushCallbackFunc
-	flushErrorHandler FlushErrorHandler
-	firstMsgTime      time.Time
-	inputChan         chan amqp.Delivery
-	done              chan struct{}
-	started           bool
-	stopped           bool // terminal state, set by Stop()
+	mu                   sync.Mutex
+	messages             []amqp.Delivery
+	bulkSize             int
+	flushTimeout         time.Duration
+	flushCallback        FlushCallbackFunc
+	flushErrorHandler    FlushErrorHandler
+	contextCancelHandler ContextCancelHandler
+	firstMsgTime         time.Time
+	inputChan            chan amqp.Delivery
+	done                 chan struct{}
+	started              bool
+	stopped              bool // terminal state, set by Stop()
 }
 
 // FlushCallbackFunc is called when the collector flushes accumulated messages.
@@ -53,6 +54,10 @@ type FlushCallbackFunc func(ctx context.Context, messages []amqp.Delivery) error
 // FlushErrorHandler is called when the flush callback returns an error.
 // It receives the context, the messages that failed, and the error.
 type FlushErrorHandler func(ctx context.Context, messages []amqp.Delivery, err error)
+
+// ContextCancelHandler is called when context cancellation interrupts processing.
+// It receives the context and the count of messages that were left unacked.
+type ContextCancelHandler func(ctx context.Context, messageCount int)
 
 // NewBulkCollector creates a new BulkCollector with the given bulk size and flush timeout.
 // bulkSize: maximum number of messages before triggering a flush
@@ -91,6 +96,16 @@ func (bc *BulkCollector) SetFlushErrorHandler(handler FlushErrorHandler) {
 	defer bc.mu.Unlock()
 
 	bc.flushErrorHandler = handler
+}
+
+// SetContextCancelHandler sets the handler called when context cancellation
+// interrupts processing. The handler receives the count of messages left unacked.
+// Must be called before Start. Optional.
+func (bc *BulkCollector) SetContextCancelHandler(handler ContextCancelHandler) {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	bc.contextCancelHandler = handler
 }
 
 // Add queues a message for bulk processing.
@@ -254,14 +269,35 @@ func (bc *BulkCollector) handleTimeout(ctx context.Context) {
 
 // cleanupOnExit performs final flush and cleanup when the loop exits.
 // Drains any remaining messages from inputChan before performing the final flush.
-// Uses a fresh context with timeout for the final flush to ensure messages
-// are not dropped even if the original context was cancelled.
-func (bc *BulkCollector) cleanupOnExit(_ context.Context, timer *time.Timer) {
+// If the original context was cancelled (channel closure), messages are NOT flushed
+// to avoid acking with stale delivery tags - they are left for RabbitMQ redelivery.
+func (bc *BulkCollector) cleanupOnExit(ctx context.Context, timer *time.Timer) {
 	if timer != nil {
 		timer.Stop()
 	}
 
-	// Drain any remaining messages from inputChan to prevent message loss
+	// Check if context was cancelled (indicates channel closure)
+	if ctx.Err() != nil {
+		// Drain input channel to prevent goroutine leak
+		bc.drainInputChan()
+
+		bc.mu.Lock()
+		messageCount := len(bc.messages)
+		// Clear messages - they will be redelivered by RabbitMQ
+		bc.messages = make([]amqp.Delivery, 0, bc.bulkSize)
+		handler := bc.contextCancelHandler
+		bc.started = false
+		bc.mu.Unlock()
+
+		// Notify handler about skipped messages (for metrics/logging)
+		if handler != nil && messageCount > 0 {
+			handler(ctx, messageCount)
+		}
+
+		return
+	}
+
+	// Normal shutdown path - drain and flush remaining messages
 	bc.drainInputChan()
 
 	bc.mu.Lock()
