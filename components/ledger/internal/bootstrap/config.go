@@ -332,7 +332,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		internalOpts.CircuitBreakerStateListener = opts.CircuitBreakerStateListener
 	}
 
-	// === Tenant Cache & Event Listener (multi-tenant only) ===
+	// === Tenant Cache (multi-tenant only) ===
+	// The dispatcher and event listener are created AFTER infrastructure init (PG, Mongo, RabbitMQ)
+	// so that they can receive the infrastructure managers for closing tenant connections on
+	// suspend/delete events.
 
 	var tenantCache *tenantcache.TenantCache
 
@@ -340,69 +343,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	var eventListener *tmevent.TenantEventListener
 
+	var cacheTTL time.Duration
+
 	if cfg.MultiTenantEnabled && tenantClient != nil {
 		tenantCache = tenantcache.NewTenantCache()
 
-		cacheTTL := time.Duration(cfg.MultiTenantCacheTTLSec) * time.Second
+		cacheTTL = time.Duration(cfg.MultiTenantCacheTTLSec) * time.Second
 		tenantLoader = tenantcache.NewTenantLoader(tenantClient, tenantCache, tenantServiceName, cacheTTL, logger)
-
-		dispatcher := tmevent.NewEventDispatcher(
-			tenantCache,
-			tenantLoader,
-			tenantServiceName,
-			tmevent.WithDispatcherLogger(logger),
-			tmevent.WithCacheTTL(cacheTTL),
-		)
-
-		// Create Redis client for tenant-manager Pub/Sub when configured
-		if cfg.MultiTenantRedisHost != "" {
-			redisPort := cfg.MultiTenantRedisPort
-			if redisPort == "" {
-				redisPort = "6379"
-			}
-
-			tmRedisConfig := libRedis.Config{
-				Topology: libRedis.Topology{
-					Standalone: &libRedis.StandaloneTopology{
-						Address: cfg.MultiTenantRedisHost + ":" + redisPort,
-					},
-				},
-				Logger: logger,
-			}
-
-			if cfg.MultiTenantRedisPassword != "" {
-				tmRedisConfig.Auth = libRedis.Auth{
-					StaticPassword: &libRedis.StaticPasswordAuth{Password: cfg.MultiTenantRedisPassword},
-				}
-			}
-
-			tmRedisConn, tmRedisErr := libRedis.New(context.Background(), tmRedisConfig)
-			if tmRedisErr != nil {
-				return nil, fmt.Errorf("failed to initialize tenant-manager Redis for Pub/Sub: %w", tmRedisErr)
-			}
-
-			tmRedisClient, tmClientErr := tmRedisConn.GetClient(context.Background())
-			if tmClientErr != nil {
-				return nil, fmt.Errorf("failed to get tenant-manager Redis client: %w", tmClientErr)
-			}
-
-			var listenerErr error
-
-			eventListener, listenerErr = tmevent.NewTenantEventListener(
-				tmRedisClient,
-				dispatcher.HandleEvent,
-				tmevent.WithListenerLogger(logger),
-				tmevent.WithService(tenantServiceName),
-			)
-			if listenerErr != nil {
-				return nil, fmt.Errorf("failed to create tenant event listener: %w", listenerErr)
-			}
-
-			logger.Log(context.Background(), libLog.LevelInfo, "Tenant event listener configured",
-				libLog.String("redis_host", cfg.MultiTenantRedisHost),
-				libLog.String("service", tenantServiceName),
-			)
-		}
 
 		internalOpts.TenantCache = tenantCache
 	}
@@ -506,6 +453,119 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if rmq != nil {
 		rmq.pgManager = txnPG.pgManager
 		rmq.mongoManager = txnMgo.mongoManager
+	}
+
+	// === Event Dispatcher & Listener (multi-tenant only) ===
+	// Created AFTER infrastructure init so the dispatcher receives the PG, Mongo, and RabbitMQ
+	// managers. This allows removeTenant to close infrastructure connections when a tenant is
+	// suspended, deleted, or disassociated.
+	if cfg.MultiTenantEnabled && tenantCache != nil && tenantLoader != nil {
+		dispatcherOpts := []tmevent.DispatcherOption{
+			tmevent.WithDispatcherLogger(logger),
+			tmevent.WithCacheTTL(cacheTTL),
+			tmevent.WithOnTenantRemoved(func(ctx context.Context, tenantID string) {
+				// Close ALL postgres managers (onboarding + transaction)
+				if onbPG.pgManager != nil {
+					if err := onbPG.pgManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close onboarding PG connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				if txnPG.pgManager != nil {
+					if err := txnPG.pgManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close transaction PG connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				// Close ALL mongo managers (onboarding + transaction)
+				if onbMgo.mongoManager != nil {
+					if err := onbMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close onboarding Mongo connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				if txnMgo.mongoManager != nil {
+					if err := txnMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close transaction Mongo connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				// Close RabbitMQ
+				if rmq != nil && rmq.rabbitmqManager != nil {
+					if err := rmq.rabbitmqManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close RabbitMQ connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				logger.Log(ctx, libLog.LevelInfo, "tenant evicted: all connections closed",
+					libLog.String("tenant_id", tenantID))
+			}),
+		}
+
+		dispatcher := tmevent.NewEventDispatcher(
+			tenantCache,
+			tenantLoader,
+			tenantServiceName,
+			dispatcherOpts...,
+		)
+
+		// Create Redis client for tenant-manager Pub/Sub when configured
+		if cfg.MultiTenantRedisHost != "" {
+			redisPort := cfg.MultiTenantRedisPort
+			if redisPort == "" {
+				redisPort = "6379"
+			}
+
+			tmRedisConfig := libRedis.Config{
+				Topology: libRedis.Topology{
+					Standalone: &libRedis.StandaloneTopology{
+						Address: cfg.MultiTenantRedisHost + ":" + redisPort,
+					},
+				},
+				Logger: logger,
+			}
+
+			if cfg.MultiTenantRedisPassword != "" {
+				tmRedisConfig.Auth = libRedis.Auth{
+					StaticPassword: &libRedis.StaticPasswordAuth{Password: cfg.MultiTenantRedisPassword},
+				}
+			}
+
+			tmRedisConn, tmRedisErr := libRedis.New(context.Background(), tmRedisConfig)
+			if tmRedisErr != nil {
+				doCleanup()
+				return nil, fmt.Errorf("failed to initialize tenant-manager Redis for Pub/Sub: %w", tmRedisErr)
+			}
+
+			tmRedisClient, tmClientErr := tmRedisConn.GetClient(context.Background())
+			if tmClientErr != nil {
+				doCleanup()
+				return nil, fmt.Errorf("failed to get tenant-manager Redis client: %w", tmClientErr)
+			}
+
+			var listenerErr error
+
+			eventListener, listenerErr = tmevent.NewTenantEventListener(
+				tmRedisClient,
+				dispatcher.HandleEvent,
+				tmevent.WithListenerLogger(logger),
+				tmevent.WithService(tenantServiceName),
+			)
+			if listenerErr != nil {
+				doCleanup()
+				return nil, fmt.Errorf("failed to create tenant event listener: %w", listenerErr)
+			}
+
+			logger.Log(context.Background(), libLog.LevelInfo, "Tenant event listener configured",
+				libLog.String("redis_host", cfg.MultiTenantRedisHost),
+				libLog.String("service", tenantServiceName),
+			)
+		}
 	}
 
 	// === Use cases ===

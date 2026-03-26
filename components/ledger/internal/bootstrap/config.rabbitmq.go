@@ -76,9 +76,10 @@ type rabbitMQComponents struct {
 	multiQueueConsumer    *MultiQueueConsumer
 	multiTenantConsumer   *tmconsumer.MultiTenantConsumer
 	circuitBreakerManager *CircuitBreakerManager
-	pgManager             *tmpostgres.Manager     // nil in single-tenant mode; used by consumer handler for per-tenant PG resolution
-	mongoManager          *tmmongo.Manager        // nil in single-tenant mode; used by consumer handler for per-tenant Mongo resolution
-	metricsFactory        *metrics.MetricsFactory // nil in single-tenant mode or when telemetry disabled; used for tenant metrics emission
+	pgManager             *tmpostgres.Manager      // nil in single-tenant mode; used by consumer handler for per-tenant PG resolution
+	mongoManager          *tmmongo.Manager          // nil in single-tenant mode; used by consumer handler for per-tenant Mongo resolution
+	rabbitmqManager       *tmrabbitmq.Manager       // nil in single-tenant mode; used by event dispatcher to close tenant RabbitMQ connections
+	metricsFactory        *metrics.MetricsFactory   // nil in single-tenant mode or when telemetry disabled; used for tenant metrics emission
 
 	// wireConsumer is a callback that wires the consumer with the UseCase.
 	// Must be called after UseCase creation because the handler needs UseCase.
@@ -183,6 +184,7 @@ func initMultiTenantRabbitMQ(
 	rmqComponents := &rabbitMQComponents{
 		producerRepo:        producer,
 		multiTenantConsumer: consumer,
+		rabbitmqManager:     tenantRabbitMQ,
 		metricsFactory:      metricsFactory,
 	}
 
