@@ -975,40 +975,28 @@ func buildUnifiedRouteSetup(
 		return nil, fmt.Errorf("transaction multi-tenant MongoDB manager not available")
 	}
 
-	// Build onboarding tenant middleware (resolves PG + Mongo for onboarding routes)
-	onboardingMiddleware := tmmiddleware.NewTenantMiddleware(
-		tmmiddleware.WithPostgresManager(onboardingPGManager),
-		tmmiddleware.WithMongoManager(onboardingMongoManager),
+	// Build unified tenant middleware with all module managers (PG + Mongo)
+	tenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPG(onboardingPGManager, "onboarding"),
+		tmmiddleware.WithPG(transactionPGManager, "transaction"),
+		tmmiddleware.WithMB(onboardingMongoManager, "onboarding"),
+		tmmiddleware.WithMB(transactionMongoManager, "transaction"),
 		tmmiddleware.WithTenantCache(tenantCache),
 		tmmiddleware.WithTenantLoader(tenantLoader),
-		tmmiddleware.WithModule("onboarding"),
 	)
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
-		libLog.String("module", "onboarding"),
-	)
-
-	// Build transaction tenant middleware (resolves PG + Mongo for transaction routes)
-	transactionMiddleware := tmmiddleware.NewTenantMiddleware(
-		tmmiddleware.WithPostgresManager(transactionPGManager),
-		tmmiddleware.WithMongoManager(transactionMongoManager),
-		tmmiddleware.WithTenantCache(tenantCache),
-		tmmiddleware.WithTenantLoader(tenantLoader),
-		tmmiddleware.WithModule("transaction"),
-	)
-
-	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
-		libLog.String("module", "transaction"),
+		libLog.String("modules", "onboarding,transaction"),
 	)
 
 	authAssertion := midazhttp.MarkTrustedAuthAssertion()
 
 	setup.onboardingRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, onboardingMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, tenantMiddleware.WithTenantDB},
 	}
 
 	setup.transactionRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, transactionMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, tenantMiddleware.WithTenantDB},
 	}
 
 	setup.ledgerRouteOptions = &midazhttp.ProtectedRouteOptions{
