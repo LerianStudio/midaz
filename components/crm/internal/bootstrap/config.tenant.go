@@ -244,7 +244,7 @@ func buildTenantClientOptions(cfg *Config, mtURL string) ([]tmclient.ClientOptio
 
 func allowInsecureTenantManagerHTTP(env string) bool {
 	switch strings.ToLower(strings.TrimSpace(env)) {
-	case "local", "development", "dev", "test", "testing":
+	case "local", "development", "dev", "test", "testing", "staging":
 		return true
 	default:
 		return false

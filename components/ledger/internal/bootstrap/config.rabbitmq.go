@@ -118,7 +118,7 @@ func initMultiTenantRabbitMQ(
 	logBulkConfiguration(context.Background(), logger, cfg)
 
 	if opts.TenantClient == nil {
-		return nil, fmt.Errorf("TenantClient is required for multi-tenant RabbitMQ initialization")
+		return nil, fmt.Errorf("tenant client is required for multi-tenant RabbitMQ initialization")
 	}
 
 	rmqOpts := []tmrabbitmq.Option{
