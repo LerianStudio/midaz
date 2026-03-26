@@ -661,7 +661,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Multi-tenant middleware ===
 
-	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager)
+	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager, tenantCache, tenantLoader)
 	if err != nil {
 		doCleanup()
 		return nil, err
@@ -955,6 +955,8 @@ func buildUnifiedRouteSetup(
 	transactionPGManager *tmpostgres.Manager,
 	onboardingMongoManager *tmmongo.Manager,
 	transactionMongoManager *tmmongo.Manager,
+	tenantCache *tenantcache.TenantCache,
+	tenantLoader *tenantcache.TenantLoader,
 ) (*unifiedRouteSetup, error) {
 	setup := &unifiedRouteSetup{}
 	if !cfg.MultiTenantEnabled {
@@ -977,32 +979,28 @@ func buildUnifiedRouteSetup(
 		return nil, fmt.Errorf("transaction multi-tenant MongoDB manager not available")
 	}
 
-	// Build onboarding middleware with cross-module injection
-	onboardingMiddleware := tmmiddleware.NewMultiPoolMiddleware(
-		tmmiddleware.WithDefaultRoute("onboarding", onboardingPGManager, onboardingMongoManager),
-		tmmiddleware.WithRoute(nil, "transaction", transactionPGManager, nil),
-		tmmiddleware.WithCrossModuleInjection(),
-		tmmiddleware.WithMultiPoolLogger(logger),
-		tmmiddleware.WithErrorMapper(midazErrorMapper),
+	// Build onboarding tenant middleware (resolves PG + Mongo for onboarding routes)
+	onboardingMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPostgresManager(onboardingPGManager),
+		tmmiddleware.WithMongoManager(onboardingMongoManager),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
+	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
 		libLog.String("module", "onboarding"),
-		libLog.Bool("cross_module_injection", true),
 	)
 
-	// Build transaction middleware with cross-module injection
-	transactionMiddleware := tmmiddleware.NewMultiPoolMiddleware(
-		tmmiddleware.WithDefaultRoute("transaction", transactionPGManager, transactionMongoManager),
-		tmmiddleware.WithRoute(nil, "onboarding", onboardingPGManager, nil),
-		tmmiddleware.WithCrossModuleInjection(),
-		tmmiddleware.WithMultiPoolLogger(logger),
-		tmmiddleware.WithErrorMapper(midazErrorMapper),
+	// Build transaction tenant middleware (resolves PG + Mongo for transaction routes)
+	transactionMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPostgresManager(transactionPGManager),
+		tmmiddleware.WithMongoManager(transactionMongoManager),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
+	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
 		libLog.String("module", "transaction"),
-		libLog.Bool("cross_module_injection", true),
 	)
 
 	authAssertion := midazhttp.MarkTrustedAuthAssertion()

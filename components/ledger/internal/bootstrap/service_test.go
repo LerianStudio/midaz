@@ -270,11 +270,12 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 	})
 }
 
-// TestMultiPoolMiddleware_NilWhenDisabled verifies that middleware constructed
-// with no pools is effectively a no-op but still a valid non-nil instance.
-func TestMultiPoolMiddleware_NilWhenDisabled(t *testing.T) {
+// TestTenantMiddleware_DisabledWhenNoManagers verifies that middleware constructed
+// with no managers is a valid non-nil instance but reports itself as disabled.
+func TestTenantMiddleware_DisabledWhenNoManagers(t *testing.T) {
 	t.Parallel()
 
-	middleware := tmmiddleware.NewMultiPoolMiddleware()
-	assert.NotNil(t, middleware, "NewMultiPoolMiddleware always returns non-nil")
+	mid := tmmiddleware.NewTenantMiddleware()
+	assert.NotNil(t, mid, "NewTenantMiddleware always returns non-nil")
+	assert.False(t, mid.Enabled(), "middleware with no managers should be disabled")
 }
