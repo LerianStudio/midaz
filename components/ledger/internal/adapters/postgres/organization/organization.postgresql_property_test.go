@@ -8,16 +8,15 @@ package organization
 // PROPERTY-BASED TESTS — getDB Domain Invariants
 //
 // These tests verify that the domain invariants of getDB hold across hundreds
-// of automatically-generated module name strings. The getDB method resolves
-// per-tenant PostgreSQL connections with a static fallback.
+// of automatically-generated inputs. The getDB method resolves per-tenant
+// PostgreSQL connections with a static fallback.
 //
 // Invariants verified:
-//   1. Totality: getDB always returns non-nil DB or non-nil error (never nil, nil).
-//   2. Module isolation: a DB stored under module X (X != "onboarding") is never
-//      returned by getDB — it must fall back to the static connection.
-//   3. Determinism: calling getDB twice with the same context produces the same result.
-//   4. Fallback guarantee: when context carries a valid "onboarding" module DB,
-//      getDB always succeeds regardless of other context values.
+//  1. Totality: getDB always returns non-nil DB or non-nil error (never nil, nil).
+//  2. Tenant connection returned: when a tenant DB is in context, getDB returns it.
+//  3. Determinism: calling getDB twice with the same context produces the same result.
+//  4. Fallback guarantee: when context carries a valid tenant DB,
+//     getDB always succeeds regardless of other context values.
 //
 // Run with:
 //
@@ -62,7 +61,7 @@ func newPropertyRepo() *OrganizationPostgreSQLRepository {
 
 // TestProperty_GetDB_NeverReturnsNilWithoutError verifies the totality property:
 //
-//	For ANY module name injected into context, getDB NEVER returns (nil, nil).
+//	When a tenant DB is injected into context, getDB NEVER returns (nil, nil).
 //	It always produces either a non-nil DB or a non-nil error.
 //
 // This guards against silent failures where the caller would proceed with a nil
@@ -70,11 +69,9 @@ func newPropertyRepo() *OrganizationPostgreSQLRepository {
 func TestProperty_GetDB_NeverReturnsNilWithoutError(t *testing.T) {
 	repo := newPropertyRepo()
 
-	property := func(moduleName string) bool {
-		moduleName = sanitizeQuickString(moduleName, 256)
-
-		ctx := tmcore.ContextWithModulePGConnection(
-			context.Background(), moduleName, &mockDB{},
+	property := func(_ string) bool {
+		ctx := tmcore.ContextWithTenantPGConnection(
+			context.Background(), &mockDB{},
 		)
 
 		db, err := repo.getDB(ctx)
@@ -85,45 +82,37 @@ func TestProperty_GetDB_NeverReturnsNilWithoutError(t *testing.T) {
 
 	err := quick.Check(property, &quick.Config{MaxCount: 100})
 	require.NoError(t, err,
-		"Totality property violated: getDB returned (nil, nil) for some module name")
+		"Totality property violated: getDB returned (nil, nil)")
 }
 
-// TestProperty_GetDB_ModuleIsolation verifies the module isolation property:
+// TestProperty_GetDB_TenantConnectionReturned verifies the tenant connection property:
 //
-//	When context carries a DB under module name X (where X != "onboarding"),
-//	getDB must NOT return that DB. It must fall back to the static connection.
+//	When context carries a tenant DB, getDB always returns that exact DB instance.
 //
-// This prevents cross-module database leaks where, for example, a "transaction"
-// module's database would be used to query the "onboarding" schema.
-func TestProperty_GetDB_ModuleIsolation(t *testing.T) {
+// This ensures that the generic tenant PG context is correctly resolved
+// without module-specific filtering.
+func TestProperty_GetDB_TenantConnectionReturned(t *testing.T) {
 	repo := newPropertyRepo()
 
-	property := func(moduleName string) bool {
-		moduleName = sanitizeQuickString(moduleName, 256)
-
-		// Skip the one module name that IS expected to match.
-		if moduleName == "onboarding" {
-			return true
-		}
-
+	property := func(_ string) bool {
 		injectedDB := &mockDB{}
-		ctx := tmcore.ContextWithModulePGConnection(
-			context.Background(), moduleName, injectedDB,
+		ctx := tmcore.ContextWithTenantPGConnection(
+			context.Background(), injectedDB,
 		)
 
 		db, err := repo.getDB(ctx)
 
-		// For non-"onboarding" modules, getDB falls back to the static
-		// connection (which has no live server), so err != nil is expected.
-		// The injected DB must never be returned for a non-"onboarding" module.
-		_ = err // error expected: static placeholder has no live PostgreSQL
+		// getDB must succeed and return the injected tenant DB.
+		if err != nil {
+			return false
+		}
 
-		return db != injectedDB
+		return db == injectedDB
 	}
 
 	err := quick.Check(property, &quick.Config{MaxCount: 100})
 	require.NoError(t, err,
-		"Module isolation property violated: getDB returned a DB from a different module")
+		"Tenant connection property violated: getDB did not return the injected tenant DB")
 }
 
 // TestProperty_GetDB_Determinism verifies the determinism property:
@@ -136,11 +125,9 @@ func TestProperty_GetDB_ModuleIsolation(t *testing.T) {
 func TestProperty_GetDB_Determinism(t *testing.T) {
 	repo := newPropertyRepo()
 
-	property := func(moduleName string) bool {
-		moduleName = sanitizeQuickString(moduleName, 256)
-
-		ctx := tmcore.ContextWithModulePGConnection(
-			context.Background(), moduleName, &mockDB{},
+	property := func(_ string) bool {
+		ctx := tmcore.ContextWithTenantPGConnection(
+			context.Background(), &mockDB{},
 		)
 
 		db1, err1 := repo.getDB(ctx)
@@ -165,50 +152,43 @@ func TestProperty_GetDB_Determinism(t *testing.T) {
 
 // TestProperty_GetDB_FallbackGuarantee verifies the fallback guarantee property:
 //
-//	When context carries a valid "onboarding" module DB, getDB ALWAYS succeeds
-//	— regardless of what other arbitrary values or module entries exist in the
-//	context. The tenant path is the guaranteed-success path.
+//	When context carries a valid tenant DB, getDB ALWAYS succeeds
+//	-- regardless of what other arbitrary values exist in the context.
+//	The tenant path is the guaranteed-success path.
 //
 // This ensures that in multi-tenant mode, as long as the middleware correctly
-// injects the module DB, repository operations will never fail at the connection
+// injects the tenant DB, repository operations will never fail at the connection
 // resolution step.
 func TestProperty_GetDB_FallbackGuarantee(t *testing.T) {
 	repo := newPropertyRepo()
-	onboardingDB := &mockDB{}
+	tenantDB := &mockDB{}
 
-	property := func(extraModuleName string) bool {
-		extraModuleName = sanitizeQuickString(extraModuleName, 256)
-
-		// Start with context that has an arbitrary extra module DB.
-		ctx := tmcore.ContextWithModulePGConnection(
-			context.Background(), extraModuleName, &mockDB{},
-		)
-
-		// Layer the "onboarding" module DB on top — this is what the
-		// middleware does in production multi-tenant mode.
-		ctx = tmcore.ContextWithModulePGConnection(ctx, "onboarding", onboardingDB)
+	property := func(_ string) bool {
+		// Inject the tenant DB -- this is what the middleware does
+		// in production multi-tenant mode.
+		ctx := tmcore.ContextWithTenantPGConnection(context.Background(), tenantDB)
 
 		db, err := repo.getDB(ctx)
-		// getDB must always succeed and return the onboarding DB.
+		// getDB must always succeed and return the tenant DB.
 		if err != nil {
 			return false
 		}
 
-		return db == onboardingDB
+		return db == tenantDB
 	}
 
 	err := quick.Check(property, &quick.Config{MaxCount: 100})
 	require.NoError(t, err,
-		"Fallback guarantee property violated: getDB failed despite 'onboarding' module DB being in context")
+		"Fallback guarantee property violated: getDB failed despite tenant DB being in context")
 }
 
 // TestProperty_GetDB_FallbackGuarantee_WithContextValues is a supplementary
 // property test that verifies the fallback guarantee holds even when the context
-// contains arbitrary non-module values that could theoretically interfere with
+// contains arbitrary non-tenant values that could theoretically interfere with
 // key lookups.
 func TestProperty_GetDB_FallbackGuarantee_WithContextValues(t *testing.T) {
 	repo := newPropertyRepo()
-	onboardingDB := &mockDB{}
+	tenantDB := &mockDB{}
 
 	type ctxKey struct{ name string }
 
@@ -219,15 +199,15 @@ func TestProperty_GetDB_FallbackGuarantee_WithContextValues(t *testing.T) {
 		// Build a context with an arbitrary key-value pair.
 		ctx := context.WithValue(context.Background(), ctxKey{name: keyName}, value)
 
-		// Layer the "onboarding" module DB on top.
-		ctx = tmcore.ContextWithModulePGConnection(ctx, "onboarding", onboardingDB)
+		// Layer the tenant DB on top.
+		ctx = tmcore.ContextWithTenantPGConnection(ctx, tenantDB)
 
 		db, err := repo.getDB(ctx)
 		if err != nil {
 			return false
 		}
 
-		return db == onboardingDB
+		return db == tenantDB
 	}
 
 	err := quick.Check(property, &quick.Config{MaxCount: 100})
@@ -235,14 +215,14 @@ func TestProperty_GetDB_FallbackGuarantee_WithContextValues(t *testing.T) {
 		"Fallback guarantee property violated: arbitrary context values interfered with getDB resolution")
 }
 
-// TestProperty_GetDB_NeverReturnsNilWithoutError_NoModuleInContext verifies
-// totality when the context has NO module DB at all (plain background context).
+// TestProperty_GetDB_NeverReturnsNilWithoutError_NoTenantInContext verifies
+// totality when the context has NO tenant DB at all (plain background context).
 // getDB must still return a non-nil error (from the static fallback path) rather
 // than (nil, nil).
-func TestProperty_GetDB_NeverReturnsNilWithoutError_NoModuleInContext(t *testing.T) {
+func TestProperty_GetDB_NeverReturnsNilWithoutError_NoTenantInContext(t *testing.T) {
 	repo := newPropertyRepo()
 
-	// No quick.Check needed here — single deterministic case — but we frame
+	// No quick.Check needed here -- single deterministic case -- but we frame
 	// it as a property check over arbitrary context values to prove robustness.
 	type ctxKey struct{ name string }
 
@@ -250,7 +230,7 @@ func TestProperty_GetDB_NeverReturnsNilWithoutError_NoModuleInContext(t *testing
 		keyName = sanitizeQuickString(keyName, 128)
 		value = sanitizeQuickString(value, 128)
 
-		// Context with arbitrary values but NO module DB.
+		// Context with arbitrary values but NO tenant DB.
 		ctx := context.WithValue(context.Background(), ctxKey{name: keyName}, value)
 
 		db, err := repo.getDB(ctx)
@@ -260,7 +240,7 @@ func TestProperty_GetDB_NeverReturnsNilWithoutError_NoModuleInContext(t *testing
 
 	err := quick.Check(property, &quick.Config{MaxCount: 100})
 	require.NoError(t, err,
-		"Totality property violated: getDB returned (nil, nil) when no module DB was in context")
+		"Totality property violated: getDB returned (nil, nil) when no tenant DB was in context")
 }
 
 // =============================================================================

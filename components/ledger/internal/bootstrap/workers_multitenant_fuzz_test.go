@@ -32,6 +32,7 @@ import (
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 )
@@ -71,9 +72,11 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 	}
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
+	cache := tenantcache.NewTenantCache()
+
 	f.Fuzz(func(t *testing.T, maxWorkers int, multiTenantEnabled bool, serviceName string) {
 		// Property: constructor must never panic (enforced by test execution).
-		worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, maxWorkers, multiTenantEnabled, tenantClient, pgMgr, serviceName)
+		worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, maxWorkers, multiTenantEnabled, cache, pgMgr, serviceName)
 
 		// Property: returned worker is never nil.
 		if worker == nil {
@@ -95,10 +98,10 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 			t.Fatalf("serviceName mismatch: got %q, want %q", worker.serviceName, serviceName)
 		}
 
-		// Property: isMultiTenantReady() is true only when enabled AND pgManager AND tenantClient non-nil.
+		// Property: isMultiTenantReady() is true only when enabled AND pgManager AND tenantCache non-nil.
 		ready := worker.isMultiTenantReady()
-		if multiTenantEnabled && worker.pgManager != nil && worker.tenantClient != nil && !ready {
-			t.Fatal("isMultiTenantReady() should be true when enabled, pgManager, and tenantClient are non-nil")
+		if multiTenantEnabled && worker.pgManager != nil && worker.tenantCache != nil && !ready {
+			t.Fatal("isMultiTenantReady() should be true when enabled, pgManager, and tenantCache are non-nil")
 		}
 
 		if !multiTenantEnabled && ready {
@@ -141,6 +144,8 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 	}
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
+	consumerCache := tenantcache.NewTenantCache()
+
 	f.Fuzz(func(t *testing.T, multiTenantEnabled bool, hasPGManager bool, serviceName string) {
 		var mgr *tmpostgres.Manager
 		if hasPGManager {
@@ -148,7 +153,7 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 		}
 
 		// Property: constructor must never panic.
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, multiTenantEnabled, tenantClient, mgr, serviceName)
+		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, multiTenantEnabled, consumerCache, mgr, serviceName)
 
 		// Property: returned consumer is never nil.
 		if consumer == nil {
@@ -167,11 +172,11 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 
 		// Property: isMultiTenantReady() follows the predicate logic.
 		ready := consumer.isMultiTenantReady()
-		expectReady := multiTenantEnabled && mgr != nil && consumer.tenantClient != nil
+		expectReady := multiTenantEnabled && mgr != nil && consumer.tenantCache != nil
 
 		if ready != expectReady {
-			t.Fatalf("isMultiTenantReady() = %v, want %v (enabled=%v, hasPGManager=%v, hasTenantClient=%v)",
-				ready, expectReady, multiTenantEnabled, hasPGManager, consumer.tenantClient != nil)
+			t.Fatalf("isMultiTenantReady() = %v, want %v (enabled=%v, hasPGManager=%v, hasTenantCache=%v)",
+				ready, expectReady, multiTenantEnabled, hasPGManager, consumer.tenantCache != nil)
 		}
 	})
 }
@@ -182,7 +187,7 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 //
 // Properties verified:
 //  1. isMultiTenantReady() never panics on any struct state.
-//  2. Result is true IFF multiTenantEnabled == true AND pgManager != nil AND tenantClient != nil.
+//  2. Result is true IFF multiTenantEnabled == true AND pgManager != nil AND tenantCache != nil.
 //  3. Zero-value structs always return false.
 //  4. Predicate is idempotent (calling twice returns same result).
 func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
@@ -224,11 +229,11 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 		workerReady := worker.isMultiTenantReady()
 
 		// Property: result matches predicate logic.
-		// tenantClient is not set in this fuzz test, so isMultiTenantReady() is always false.
-		expectWorkerReady := workerEnabled && workerHasPGMgr && worker.tenantClient != nil
+		// tenantCache is not set in this fuzz test, so isMultiTenantReady() is always false.
+		expectWorkerReady := workerEnabled && workerHasPGMgr && worker.tenantCache != nil
 		if workerReady != expectWorkerReady {
-			t.Fatalf("BalanceSyncWorker.isMultiTenantReady() = %v, want %v (enabled=%v, hasPGMgr=%v, hasTenantClient=%v)",
-				workerReady, expectWorkerReady, workerEnabled, workerHasPGMgr, worker.tenantClient != nil)
+			t.Fatalf("BalanceSyncWorker.isMultiTenantReady() = %v, want %v (enabled=%v, hasPGMgr=%v, hasTenantCache=%v)",
+				workerReady, expectWorkerReady, workerEnabled, workerHasPGMgr, worker.tenantCache != nil)
 		}
 
 		// Property: idempotent.
@@ -250,11 +255,11 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 		consumerReady := consumer.isMultiTenantReady()
 
 		// Property: result matches predicate logic.
-		// tenantClient is not set in this fuzz test, so isMultiTenantReady() is always false.
-		expectConsumerReady := consumerEnabled && consumerHasPGMgr && consumer.tenantClient != nil
+		// tenantCache is not set in this fuzz test, so isMultiTenantReady() is always false.
+		expectConsumerReady := consumerEnabled && consumerHasPGMgr && consumer.tenantCache != nil
 		if consumerReady != expectConsumerReady {
-			t.Fatalf("RedisQueueConsumer.isMultiTenantReady() = %v, want %v (enabled=%v, hasPGMgr=%v, hasTenantClient=%v)",
-				consumerReady, expectConsumerReady, consumerEnabled, consumerHasPGMgr, consumer.tenantClient != nil)
+			t.Fatalf("RedisQueueConsumer.isMultiTenantReady() = %v, want %v (enabled=%v, hasPGMgr=%v, hasTenantCache=%v)",
+				consumerReady, expectConsumerReady, consumerEnabled, consumerHasPGMgr, consumer.tenantCache != nil)
 		}
 
 		// Property: idempotent.

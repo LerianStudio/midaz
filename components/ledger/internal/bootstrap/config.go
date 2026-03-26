@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -20,9 +21,11 @@ import (
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
+	tmevent "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/event"
 	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
@@ -98,6 +101,9 @@ type Config struct {
 	MultiTenantServiceAPIKey            string `env:"MULTI_TENANT_SERVICE_API_KEY"`
 	MultiTenantSettingsCheckIntervalSec int    `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"`
 	MultiTenantCacheTTLSec              int    `env:"MULTI_TENANT_CACHE_TTL_SEC" default:"120"` // seconds for tenant config cache TTL (0 = disabled)
+	MultiTenantRedisHost                string `env:"MULTI_TENANT_REDIS_HOST"`
+	MultiTenantRedisPort                string `env:"MULTI_TENANT_REDIS_PORT"`
+	MultiTenantRedisPassword            string `env:"MULTI_TENANT_REDIS_PASSWORD"`
 
 	// --- Onboarding PostgreSQL fields (DB_ONBOARDING_* env tags) ---
 	OnbPrefixedPrimaryDBHost     string `env:"DB_ONBOARDING_HOST"`
@@ -210,6 +216,9 @@ type Options struct {
 
 	// TenantClient is the tenant manager client for multi-tenant mode.
 	TenantClient *tmclient.Client
+
+	// TenantCache is the shared process-local cache for tenant configurations.
+	TenantCache *tenantcache.TenantCache
 
 	// Multi-tenant configuration (resolved from Config during init).
 	MultiTenantEnabled       bool
@@ -324,6 +333,28 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		internalOpts.CircuitBreakerStateListener = opts.CircuitBreakerStateListener
 	}
 
+	// === Tenant Cache (multi-tenant only) ===
+	// The dispatcher and event listener are created AFTER infrastructure init (PG, Mongo, RabbitMQ)
+	// so that they can receive the infrastructure managers for closing tenant connections on
+	// suspend/delete events.
+
+	var tenantCache *tenantcache.TenantCache
+
+	var tenantLoader *tenantcache.TenantLoader
+
+	var eventListener *tmevent.TenantEventListener
+
+	var cacheTTL time.Duration
+
+	if cfg.MultiTenantEnabled && tenantClient != nil {
+		tenantCache = tenantcache.NewTenantCache()
+
+		cacheTTL = time.Duration(cfg.MultiTenantCacheTTLSec) * time.Second
+		tenantLoader = tenantcache.NewTenantLoader(tenantClient, tenantCache, tenantServiceName, cacheTTL, logger)
+
+		internalOpts.TenantCache = tenantCache
+	}
+
 	// === Infrastructure initialization ===
 
 	// Cleanup helper: on error, close resources in reverse order of creation.
@@ -425,6 +456,127 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		rmq.mongoManager = txnMgo.mongoManager
 	}
 
+	// === Event Dispatcher & Listener (multi-tenant only) ===
+	// Created AFTER infrastructure init so the dispatcher receives the PG, Mongo, and RabbitMQ
+	// managers. This allows removeTenant to close infrastructure connections when a tenant is
+	// suspended, deleted, or disassociated.
+	if cfg.MultiTenantEnabled && tenantCache != nil && tenantLoader != nil {
+		dispatcherOpts := []tmevent.DispatcherOption{
+			tmevent.WithDispatcherLogger(logger),
+			tmevent.WithCacheTTL(cacheTTL),
+			tmevent.WithOnTenantRemoved(func(ctx context.Context, tenantID string) {
+				// Close ALL postgres managers (onboarding + transaction)
+				if onbPG.pgManager != nil {
+					if err := onbPG.pgManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close onboarding PG connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				if txnPG.pgManager != nil {
+					if err := txnPG.pgManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close transaction PG connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				// Close ALL mongo managers (onboarding + transaction)
+				if onbMgo.mongoManager != nil {
+					if err := onbMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close onboarding Mongo connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				if txnMgo.mongoManager != nil {
+					if err := txnMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close transaction Mongo connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				// Close RabbitMQ
+				if rmq != nil && rmq.rabbitmqManager != nil {
+					if err := rmq.rabbitmqManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close RabbitMQ connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				// Invalidate pmClient internal cache so lazy-load fetches fresh state from tenant-manager
+				if tenantClient != nil {
+					if err := tenantClient.InvalidateConfig(ctx, tenantID, tenantServiceName); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to invalidate tenant config cache",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				logger.Log(ctx, libLog.LevelInfo, "tenant evicted: all connections and caches invalidated",
+					libLog.String("tenant_id", tenantID))
+			}),
+		}
+
+		dispatcher := tmevent.NewEventDispatcher(
+			tenantCache,
+			tenantLoader,
+			tenantServiceName,
+			dispatcherOpts...,
+		)
+
+		// Create Redis client for tenant-manager Pub/Sub when configured
+		if cfg.MultiTenantRedisHost != "" {
+			redisPort := cfg.MultiTenantRedisPort
+			if redisPort == "" {
+				redisPort = "6379"
+			}
+
+			tmRedisConfig := libRedis.Config{
+				Topology: libRedis.Topology{
+					Standalone: &libRedis.StandaloneTopology{
+						Address: cfg.MultiTenantRedisHost + ":" + redisPort,
+					},
+				},
+				Logger: logger,
+			}
+
+			if cfg.MultiTenantRedisPassword != "" {
+				tmRedisConfig.Auth = libRedis.Auth{
+					StaticPassword: &libRedis.StaticPasswordAuth{Password: cfg.MultiTenantRedisPassword},
+				}
+			}
+
+			tmRedisConn, tmRedisErr := libRedis.New(context.Background(), tmRedisConfig)
+			if tmRedisErr != nil {
+				doCleanup()
+				return nil, fmt.Errorf("failed to initialize tenant-manager Redis for Pub/Sub: %w", tmRedisErr)
+			}
+
+			tmRedisClient, tmClientErr := tmRedisConn.GetClient(context.Background())
+			if tmClientErr != nil {
+				doCleanup()
+				return nil, fmt.Errorf("failed to get tenant-manager Redis client: %w", tmClientErr)
+			}
+
+			var listenerErr error
+
+			eventListener, listenerErr = tmevent.NewTenantEventListener(
+				tmRedisClient,
+				dispatcher.HandleEvent,
+				tmevent.WithListenerLogger(logger),
+				tmevent.WithService(tenantServiceName),
+			)
+			if listenerErr != nil {
+				doCleanup()
+				return nil, fmt.Errorf("failed to create tenant event listener: %w", listenerErr)
+			}
+
+			logger.Log(context.Background(), libLog.LevelInfo, "Tenant event listener configured",
+				libLog.String("redis_host", cfg.MultiTenantRedisHost),
+				libLog.String("service", tenantServiceName),
+			)
+		}
+	}
+
 	// === Use cases ===
 
 	settingsCacheTTL := resolveSettingsCacheTTL(cfg, logger)
@@ -517,7 +669,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Multi-tenant middleware ===
 
-	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager)
+	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager, tenantCache, tenantLoader)
 	if err != nil {
 		doCleanup()
 		return nil, err
@@ -555,8 +707,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// RedisQueueConsumer: multi-tenant or single-tenant
 	var redisConsumer *RedisQueueConsumer
-	if cfg.MultiTenantEnabled {
-		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, tenantClient, txnPG.pgManager, tenantServiceName)
+	if cfg.MultiTenantEnabled && tenantCache != nil {
+		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, tenantCache, txnPG.pgManager, tenantServiceName)
 	} else {
 		redisConsumer = NewRedisQueueConsumer(logger, *transactionHandler)
 	}
@@ -576,6 +728,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MultiTenantConsumer:   rmq.multiTenantConsumer,
 		RedisQueueConsumer:    redisConsumer,
 		BalanceSyncWorker:     balanceSyncWorker,
+		EventListener:         eventListener,
 		CircuitBreakerManager: rmq.circuitBreakerManager,
 		Logger:                logger,
 		Telemetry:             telemetry,
@@ -702,8 +855,8 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 
 	var balanceSyncWorker *BalanceSyncWorker
 
-	if opts != nil && opts.MultiTenantEnabled {
-		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, true, opts.TenantClient, pgManager, tenantServiceName)
+	if opts != nil && opts.MultiTenantEnabled && opts.TenantCache != nil {
+		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, true, opts.TenantCache, pgManager, tenantServiceName)
 	} else {
 		balanceSyncWorker = NewBalanceSyncWorker(redisConn, logger, commandUC, balanceSyncMaxWorkers)
 	}
@@ -775,6 +928,10 @@ func initTenantClient(cfg *Config, logger libLog.Logger) (*tmclient.Client, stri
 		clientOpts = append(clientOpts, tmclient.WithCacheTTL(time.Duration(cfg.MultiTenantCacheTTLSec)*time.Second))
 	}
 
+	if allowInsecureMultiTenantHTTP(tenantManagerURL, cfg.EnvName) {
+		clientOpts = append(clientOpts, tmclient.WithAllowInsecureHTTP())
+	}
+
 	tenantClient, err := tmclient.NewClient(
 		tenantManagerURL,
 		logger,
@@ -806,6 +963,8 @@ func buildUnifiedRouteSetup(
 	transactionPGManager *tmpostgres.Manager,
 	onboardingMongoManager *tmmongo.Manager,
 	transactionMongoManager *tmmongo.Manager,
+	tenantCache *tenantcache.TenantCache,
+	tenantLoader *tenantcache.TenantLoader,
 ) (*unifiedRouteSetup, error) {
 	setup := &unifiedRouteSetup{}
 	if !cfg.MultiTenantEnabled {
@@ -828,32 +987,28 @@ func buildUnifiedRouteSetup(
 		return nil, fmt.Errorf("transaction multi-tenant MongoDB manager not available")
 	}
 
-	// Build onboarding middleware with cross-module injection
-	onboardingMiddleware := tmmiddleware.NewMultiPoolMiddleware(
-		tmmiddleware.WithDefaultRoute("onboarding", onboardingPGManager, onboardingMongoManager),
-		tmmiddleware.WithRoute(nil, "transaction", transactionPGManager, nil),
-		tmmiddleware.WithCrossModuleInjection(),
-		tmmiddleware.WithMultiPoolLogger(logger),
-		tmmiddleware.WithErrorMapper(midazErrorMapper),
+	// Build onboarding tenant middleware (resolves PG + Mongo for onboarding routes)
+	onboardingMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPostgresManager(onboardingPGManager),
+		tmmiddleware.WithMongoManager(onboardingMongoManager),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
+	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
 		libLog.String("module", "onboarding"),
-		libLog.Bool("cross_module_injection", true),
 	)
 
-	// Build transaction middleware with cross-module injection
-	transactionMiddleware := tmmiddleware.NewMultiPoolMiddleware(
-		tmmiddleware.WithDefaultRoute("transaction", transactionPGManager, transactionMongoManager),
-		tmmiddleware.WithRoute(nil, "onboarding", onboardingPGManager, nil),
-		tmmiddleware.WithCrossModuleInjection(),
-		tmmiddleware.WithMultiPoolLogger(logger),
-		tmmiddleware.WithErrorMapper(midazErrorMapper),
+	// Build transaction tenant middleware (resolves PG + Mongo for transaction routes)
+	transactionMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPostgresManager(transactionPGManager),
+		tmmiddleware.WithMongoManager(transactionMongoManager),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Module-scoped tenant middleware configured",
+	logger.Log(context.Background(), libLog.LevelInfo, "Tenant middleware configured",
 		libLog.String("module", "transaction"),
-		libLog.Bool("cross_module_injection", true),
 	)
 
 	authAssertion := midazhttp.MarkTrustedAuthAssertion()
@@ -874,20 +1029,47 @@ func buildUnifiedRouteSetup(
 }
 
 // midazErrorMapper converts tenant-manager errors into Midaz-specific HTTP responses.
+// It uses the standard midazhttp response helpers to ensure a consistent error format
+// across all Midaz endpoints (code/title/message JSON envelope).
 func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
 	if err == nil {
 		return nil
 	}
 
-	if tmcore.IsTenantNotProvisionedError(err) {
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-			"code":    constant.ErrTenantNotProvisioned.Error(),
-			"title":   "Tenant Not Provisioned",
-			"message": "Database schema not initialized for this tenant. Contact your administrator.",
-		})
+	// Tenant suspended or purged → 403 (same semantics as tenant-manager /connections)
+	var suspErr *tmcore.TenantSuspendedError
+	if errors.As(err, &suspErr) {
+		return midazhttp.Forbidden(c,
+			constant.ErrTenantServiceSuspended.Error(),
+			"Service Suspended",
+			fmt.Sprintf("service is %s for tenant %s", suspErr.Status, tenantID),
+		)
 	}
 
-	return err
+	// Tenant not found → 404
+	if errors.Is(err, tmcore.ErrTenantNotFound) {
+		return midazhttp.NotFound(c,
+			constant.ErrTenantNotFound.Error(),
+			"Tenant Not Found",
+			fmt.Sprintf("tenant not found: %s", tenantID),
+		)
+	}
+
+	// Tenant not provisioned → 422
+	if tmcore.IsTenantNotProvisionedError(err) {
+		return midazhttp.UnprocessableEntity(c,
+			constant.ErrTenantNotProvisioned.Error(),
+			"Tenant Not Provisioned",
+			"Database schema not initialized for this tenant. Contact your administrator.",
+		)
+	}
+
+	// Unknown error → 503
+	return midazhttp.ServiceUnavailable(c,
+		constant.ErrTenantServiceUnavailable.Error(),
+		"Tenant Service Unavailable",
+		fmt.Sprintf("failed to resolve tenant %s: %s", tenantID, err.Error()),
+	)
 }
 
 // applyConfigDefaults sets sensible defaults for Config fields that remain at their

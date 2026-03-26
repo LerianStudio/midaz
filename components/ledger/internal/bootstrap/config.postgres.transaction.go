@@ -23,7 +23,7 @@ import (
 // transactionPostgresComponents holds PostgreSQL-related components for the transaction domain.
 type transactionPostgresComponents struct {
 	connection           *libPostgres.Client
-	pgManager            *tmpostgres.Manager // nil in single-tenant mode; reserved for MultiPoolMiddleware wiring
+	pgManager            *tmpostgres.Manager // nil in single-tenant mode; used by TenantMiddleware
 	transactionRepo      *transaction.TransactionPostgreSQLRepository
 	operationRepo        *operation.OperationPostgreSQLRepository
 	assetRateRepo        *assetrate.AssetRatePostgreSQLRepository

@@ -24,7 +24,7 @@ import (
 // onboardingPostgresComponents holds PostgreSQL-related components for the onboarding domain.
 type onboardingPostgresComponents struct {
 	connection       *libPostgres.Client
-	pgManager        *tmpostgres.Manager // nil in single-tenant mode; reserved for MultiPoolMiddleware wiring
+	pgManager        *tmpostgres.Manager // nil in single-tenant mode; used by TenantMiddleware
 	organizationRepo *organization.OrganizationPostgreSQLRepository
 	ledgerRepo       *ledger.LedgerPostgreSQLRepository
 	accountRepo      *account.AccountPostgreSQLRepository

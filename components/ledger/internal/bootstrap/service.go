@@ -6,12 +6,16 @@ package bootstrap
 
 import (
 	"context"
+	"os"
+	"os/signal"
+	"syscall"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
 	tmconsumer "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/consumer"
+	tmevent "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/event"
 )
 
 // Service is the unified ledger service that owns all infrastructure directly.
@@ -21,6 +25,7 @@ type Service struct {
 	MultiTenantConsumer   *tmconsumer.MultiTenantConsumer
 	RedisQueueConsumer    *RedisQueueConsumer
 	BalanceSyncWorker     *BalanceSyncWorker
+	EventListener         *tmevent.TenantEventListener
 	CircuitBreakerManager *CircuitBreakerManager
 	Logger                libLog.Logger
 	Telemetry             *libOpentelemetry.Telemetry
@@ -57,6 +62,12 @@ func (s *Service) Run() {
 		launcherOpts = append(launcherOpts, libCommons.RunApp("Balance Sync Worker", s.BalanceSyncWorker))
 	}
 
+	// Tenant event listener (Redis Pub/Sub)
+	if s.EventListener != nil {
+		launcherOpts = append(launcherOpts, libCommons.RunApp("Tenant Event Listener",
+			&eventListenerRunnable{listener: s.EventListener}))
+	}
+
 	// Circuit breaker health checker
 	if s.CircuitBreakerManager != nil {
 		launcherOpts = append(launcherOpts, libCommons.RunApp("Circuit Breaker Health Checker",
@@ -64,4 +75,31 @@ func (s *Service) Run() {
 	}
 
 	libCommons.NewLauncher(launcherOpts...).Run()
+}
+
+// eventListenerRunnable adapts a TenantEventListener to the libCommons.App interface.
+// It starts the Redis Pub/Sub listener and blocks until SIGINT/SIGTERM is received,
+// matching the shutdown pattern of other runnables in this package.
+type eventListenerRunnable struct {
+	listener *tmevent.TenantEventListener
+}
+
+// Run starts the event listener and blocks until SIGINT/SIGTERM.
+func (r *eventListenerRunnable) Run(_ *libCommons.Launcher) error {
+	if r.listener == nil {
+		return nil
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+
+	if err := r.listener.Start(ctx); err != nil {
+		stop()
+
+		return err
+	}
+
+	<-ctx.Done()
+	stop()
+
+	return r.listener.Stop()
 }

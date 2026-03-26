@@ -7,6 +7,8 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v4/commons/circuitbreaker"
@@ -74,9 +76,10 @@ type rabbitMQComponents struct {
 	multiQueueConsumer    *MultiQueueConsumer
 	multiTenantConsumer   *tmconsumer.MultiTenantConsumer
 	circuitBreakerManager *CircuitBreakerManager
-	pgManager             *tmpostgres.Manager     // nil in single-tenant mode; used by consumer handler for per-tenant PG resolution
-	mongoManager          *tmmongo.Manager        // nil in single-tenant mode; used by consumer handler for per-tenant Mongo resolution
-	metricsFactory        *metrics.MetricsFactory // nil in single-tenant mode or when telemetry disabled; used for tenant metrics emission
+	pgManager             *tmpostgres.Manager      // nil in single-tenant mode; used by consumer handler for per-tenant PG resolution
+	mongoManager          *tmmongo.Manager          // nil in single-tenant mode; used by consumer handler for per-tenant Mongo resolution
+	rabbitmqManager       *tmrabbitmq.Manager       // nil in single-tenant mode; used by event dispatcher to close tenant RabbitMQ connections
+	metricsFactory        *metrics.MetricsFactory   // nil in single-tenant mode or when telemetry disabled; used for tenant metrics emission
 
 	// wireConsumer is a callback that wires the consumer with the UseCase.
 	// Must be called after UseCase creation because the handler needs UseCase.
@@ -115,7 +118,7 @@ func initMultiTenantRabbitMQ(
 	logBulkConfiguration(context.Background(), logger, cfg)
 
 	if opts.TenantClient == nil {
-		return nil, fmt.Errorf("TenantClient is required for multi-tenant RabbitMQ initialization")
+		return nil, fmt.Errorf("tenant client is required for multi-tenant RabbitMQ initialization")
 	}
 
 	rmqOpts := []tmrabbitmq.Option{
@@ -146,16 +149,21 @@ func initMultiTenantRabbitMQ(
 	}
 
 	mtConfig := tmconsumer.MultiTenantConfig{
-		SyncInterval:     syncInterval,
-		PrefetchCount:    prefetchCount,
-		MultiTenantURL:   opts.TenantManagerURL,
-		ServiceAPIKey:    opts.MultiTenantServiceAPIKey,
-		Service:          opts.TenantServiceName,
-		Environment:      opts.TenantEnvironment,
-		DiscoveryTimeout: discoveryTimeout,
+		SyncInterval:      syncInterval,
+		PrefetchCount:     prefetchCount,
+		MultiTenantURL:    opts.TenantManagerURL,
+		ServiceAPIKey:     opts.MultiTenantServiceAPIKey,
+		Service:           opts.TenantServiceName,
+		Environment:       opts.TenantEnvironment,
+		DiscoveryTimeout:  discoveryTimeout,
+		AllowInsecureHTTP: allowInsecureMultiTenantHTTP(opts.TenantManagerURL, cfg.EnvName),
 	}
 
-	consumer, err := tmconsumer.NewMultiTenantConsumerWithError(tenantRabbitMQ, mtConfig, logger)
+	consumer, err := tmconsumer.NewMultiTenantConsumerWithError(
+		mtConfig,
+		logger,
+		tmconsumer.WithRabbitMQ(tenantRabbitMQ),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize multi-tenant consumer: %w", err)
 	}
@@ -176,6 +184,7 @@ func initMultiTenantRabbitMQ(
 	rmqComponents := &rabbitMQComponents{
 		producerRepo:        producer,
 		multiTenantConsumer: consumer,
+		rabbitmqManager:     tenantRabbitMQ,
 		metricsFactory:      metricsFactory,
 	}
 
@@ -247,9 +256,8 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 
 		emitTenantCounter(ctx, rmq.metricsFactory, utils.TenantConnectionsTotal, tenantID, "postgresql")
 
-		// Module name must be "transaction" to match the per-tenant PG schema naming
-		// and the middleware's module-scoped connection resolution.
-		ctx = tmcore.ContextWithModulePGConnection(ctx, "transaction", db)
+		// Store the tenant PG connection in the generic tenant context key.
+		ctx = tmcore.ContextWithTenantPGConnection(ctx, db)
 	}
 
 	if rmq.mongoManager != nil {
@@ -432,6 +440,28 @@ func initSingleTenantRabbitMQ(
 	}
 
 	return rmq, nil
+}
+
+// allowInsecureMultiTenantHTTP returns true when the tenant-manager URL uses plain HTTP
+// and the environment is a non-production environment (local, development, test).
+// This mirrors the CRM pattern in config.tenant.go for consistent behavior.
+func allowInsecureMultiTenantHTTP(tenantManagerURL, envName string) bool {
+	parsedURL, err := url.Parse(tenantManagerURL)
+	if err != nil {
+		return false
+	}
+
+	scheme := strings.ToLower(strings.TrimSpace(parsedURL.Scheme))
+	if scheme != "http" {
+		return false
+	}
+
+	switch strings.ToLower(strings.TrimSpace(envName)) {
+	case "local", "development", "dev", "test", "testing", "staging":
+		return true
+	default:
+		return false
+	}
 }
 
 // compositeStateListener fans out state change notifications to multiple listeners.

@@ -13,6 +13,7 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +22,7 @@ import (
 
 // TestBalanceSyncWorker_MultiTenantFields verifies that the BalanceSyncWorker
 // struct contains the multi-tenant fields required for per-tenant dispatching.
-// These fields (multiTenantEnabled, tenantClient, pgManager) must exist on the
+// These fields (multiTenantEnabled, tenantCache, pgManager) must exist on the
 // struct so that Run() can dispatch to runMultiTenant() or runSingleTenant().
 func TestBalanceSyncWorker_MultiTenantFields(t *testing.T) {
 	t.Parallel()
@@ -31,32 +32,33 @@ func TestBalanceSyncWorker_MultiTenantFields(t *testing.T) {
 	useCase := &command.UseCase{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
+	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
 		name               string
 		multiTenantEnabled bool
-		tenantClient       *tmclient.Client
+		tenantCache        *tenantcache.TenantCache
 		pgManager          *tmpostgres.Manager
 		wantMultiTenant    bool
 	}{
 		{
 			name:               "multi-tenant enabled with pgManager",
 			multiTenantEnabled: true,
-			tenantClient:       tenantClient,
+			tenantCache:        cache,
 			pgManager:          tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger)),
 			wantMultiTenant:    true,
 		},
 		{
 			name:               "single-tenant when pgManager is nil",
 			multiTenantEnabled: true,
-			tenantClient:       tenantClient,
+			tenantCache:        cache,
 			pgManager:          nil,
 			wantMultiTenant:    false,
 		},
 		{
 			name:               "single-tenant when multiTenantEnabled is false",
 			multiTenantEnabled: false,
-			tenantClient:       nil,
+			tenantCache:        nil,
 			pgManager:          nil,
 			wantMultiTenant:    false,
 		},
@@ -71,7 +73,7 @@ func TestBalanceSyncWorker_MultiTenantFields(t *testing.T) {
 			// These fields must exist on the struct for multi-tenant support.
 			// The test will fail to compile until the fields are added.
 			worker.multiTenantEnabled = tt.multiTenantEnabled
-			worker.tenantClient = tt.tenantClient
+			worker.tenantCache = tt.tenantCache
 			worker.pgManager = tt.pgManager
 
 			assert.Equal(t, tt.multiTenantEnabled, worker.multiTenantEnabled,
@@ -80,8 +82,8 @@ func TestBalanceSyncWorker_MultiTenantFields(t *testing.T) {
 			if tt.wantMultiTenant {
 				assert.NotNil(t, worker.pgManager,
 					"pgManager should be non-nil in multi-tenant mode")
-				assert.NotNil(t, worker.tenantClient,
-					"tenantClient should be non-nil in multi-tenant mode")
+				assert.NotNil(t, worker.tenantCache,
+					"tenantCache should be non-nil in multi-tenant mode")
 			} else {
 				if !tt.multiTenantEnabled {
 					assert.Nil(t, worker.pgManager,
@@ -131,32 +133,33 @@ func TestRedisQueueConsumer_MultiTenantFields(t *testing.T) {
 	handler := in.TransactionHandler{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
+	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
 		name               string
 		multiTenantEnabled bool
-		tenantClient       *tmclient.Client
+		tenantCache        *tenantcache.TenantCache
 		pgManager          *tmpostgres.Manager
 		wantMultiTenant    bool
 	}{
 		{
 			name:               "multi-tenant enabled with pgManager",
 			multiTenantEnabled: true,
-			tenantClient:       tenantClient,
+			tenantCache:        cache,
 			pgManager:          tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger)),
 			wantMultiTenant:    true,
 		},
 		{
 			name:               "single-tenant when pgManager is nil",
 			multiTenantEnabled: true,
-			tenantClient:       tenantClient,
+			tenantCache:        cache,
 			pgManager:          nil,
 			wantMultiTenant:    false,
 		},
 		{
 			name:               "single-tenant when disabled",
 			multiTenantEnabled: false,
-			tenantClient:       nil,
+			tenantCache:        nil,
 			pgManager:          nil,
 			wantMultiTenant:    false,
 		},
@@ -170,7 +173,7 @@ func TestRedisQueueConsumer_MultiTenantFields(t *testing.T) {
 
 			// These fields must exist on the struct for multi-tenant support.
 			consumer.multiTenantEnabled = tt.multiTenantEnabled
-			consumer.tenantClient = tt.tenantClient
+			consumer.tenantCache = tt.tenantCache
 			consumer.pgManager = tt.pgManager
 
 			assert.Equal(t, tt.multiTenantEnabled, consumer.multiTenantEnabled,
@@ -179,8 +182,8 @@ func TestRedisQueueConsumer_MultiTenantFields(t *testing.T) {
 			if tt.wantMultiTenant {
 				assert.NotNil(t, consumer.pgManager,
 					"pgManager should be non-nil in multi-tenant mode")
-				assert.NotNil(t, consumer.tenantClient,
-					"tenantClient should be non-nil in multi-tenant mode")
+				assert.NotNil(t, consumer.tenantCache,
+					"tenantCache should be non-nil in multi-tenant mode")
 			}
 		})
 	}
@@ -219,14 +222,15 @@ func TestNewBalanceSyncWorkerMultiTenant(t *testing.T) {
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
+	cache := tenantcache.NewTenantCache()
 
-	worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, 5, true, tenantClient, pgMgr, "transaction")
+	worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, 5, true, cache, pgMgr, "transaction")
 
 	require.NotNil(t, worker, "worker should not be nil")
 	assert.True(t, worker.multiTenantEnabled,
 		"multiTenantEnabled should be true")
-	assert.Same(t, tenantClient, worker.tenantClient,
-		"tenantClient should be the same instance")
+	assert.Same(t, cache, worker.tenantCache,
+		"tenantCache should be the same instance")
 	assert.Same(t, pgMgr, worker.pgManager,
 		"pgManager should be the same instance")
 	assert.Equal(t, 5, worker.maxWorkers,
@@ -245,14 +249,15 @@ func TestNewRedisQueueConsumerMultiTenant(t *testing.T) {
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
+	cache := tenantcache.NewTenantCache()
 
-	consumer := NewRedisQueueConsumerMultiTenant(logger, handler, true, tenantClient, pgMgr, "transaction")
+	consumer := NewRedisQueueConsumerMultiTenant(logger, handler, true, cache, pgMgr, "transaction")
 
 	require.NotNil(t, consumer, "consumer should not be nil")
 	assert.True(t, consumer.multiTenantEnabled,
 		"multiTenantEnabled should be true")
-	assert.Same(t, tenantClient, consumer.tenantClient,
-		"tenantClient should be the same instance")
+	assert.Same(t, cache, consumer.tenantCache,
+		"tenantCache should be the same instance")
 	assert.Same(t, pgMgr, consumer.pgManager,
 		"pgManager should be the same instance")
 	assert.Equal(t, "transaction", consumer.serviceName,
@@ -282,7 +287,7 @@ func TestRabbitMQConsumerHandlerReceivesPGManager(t *testing.T) {
 }
 
 // TestBalanceSyncWorker_IsMultiTenantReady exercises the isMultiTenantReady()
-// predicate across all combinations of multiTenantEnabled x pgManager x tenantClient,
+// predicate across all combinations of multiTenantEnabled x pgManager x tenantCache,
 // plus the zero-value struct edge case.
 func TestBalanceSyncWorker_IsMultiTenantReady(t *testing.T) {
 	t.Parallel()
@@ -293,54 +298,55 @@ func TestBalanceSyncWorker_IsMultiTenantReady(t *testing.T) {
 	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
+	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
 		name               string
 		multiTenantEnabled bool
 		pgManager          *tmpostgres.Manager
-		tenantClient       *tmclient.Client
+		tenantCache        *tenantcache.TenantCache
 		want               bool
 	}{
 		{
-			name:               "true_when_enabled_pgManager_and_tenantClient_set",
+			name:               "true_when_enabled_pgManager_and_tenantCache_set",
 			multiTenantEnabled: true,
 			pgManager:          pgMgr,
-			tenantClient:       tc,
+			tenantCache:        cache,
 			want:               true,
 		},
 		{
 			name:               "false_when_enabled_but_pgManager_nil",
 			multiTenantEnabled: true,
 			pgManager:          nil,
-			tenantClient:       tc,
+			tenantCache:        cache,
 			want:               false,
 		},
 		{
-			name:               "false_when_enabled_but_tenantClient_nil",
+			name:               "false_when_enabled_but_tenantCache_nil",
 			multiTenantEnabled: true,
 			pgManager:          pgMgr,
-			tenantClient:       nil,
+			tenantCache:        nil,
 			want:               false,
 		},
 		{
 			name:               "false_when_disabled_but_pgManager_set",
 			multiTenantEnabled: false,
 			pgManager:          pgMgr,
-			tenantClient:       tc,
+			tenantCache:        cache,
 			want:               false,
 		},
 		{
 			name:               "false_when_disabled_and_pgManager_nil",
 			multiTenantEnabled: false,
 			pgManager:          nil,
-			tenantClient:       nil,
+			tenantCache:        nil,
 			want:               false,
 		},
 		{
 			name:               "false_for_zero_value_struct",
 			multiTenantEnabled: false,
 			pgManager:          nil,
-			tenantClient:       nil,
+			tenantCache:        nil,
 			want:               false,
 		},
 	}
@@ -356,7 +362,7 @@ func TestBalanceSyncWorker_IsMultiTenantReady(t *testing.T) {
 				worker = NewBalanceSyncWorker(conn, logger, useCase, 5)
 				worker.multiTenantEnabled = tt.multiTenantEnabled
 				worker.pgManager = tt.pgManager
-				worker.tenantClient = tt.tenantClient
+				worker.tenantCache = tt.tenantCache
 			}
 
 			got := worker.isMultiTenantReady()
@@ -367,7 +373,7 @@ func TestBalanceSyncWorker_IsMultiTenantReady(t *testing.T) {
 }
 
 // TestRedisQueueConsumer_IsMultiTenantReady exercises the isMultiTenantReady()
-// predicate across all combinations of multiTenantEnabled x pgManager x tenantClient,
+// predicate across all combinations of multiTenantEnabled x pgManager x tenantCache,
 // plus the zero-value struct edge case.
 func TestRedisQueueConsumer_IsMultiTenantReady(t *testing.T) {
 	t.Parallel()
@@ -377,54 +383,55 @@ func TestRedisQueueConsumer_IsMultiTenantReady(t *testing.T) {
 	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
+	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
 		name               string
 		multiTenantEnabled bool
 		pgManager          *tmpostgres.Manager
-		tenantClient       *tmclient.Client
+		tenantCache        *tenantcache.TenantCache
 		want               bool
 	}{
 		{
-			name:               "true_when_enabled_pgManager_and_tenantClient_set",
+			name:               "true_when_enabled_pgManager_and_tenantCache_set",
 			multiTenantEnabled: true,
 			pgManager:          pgMgr,
-			tenantClient:       tc,
+			tenantCache:        cache,
 			want:               true,
 		},
 		{
 			name:               "false_when_enabled_but_pgManager_nil",
 			multiTenantEnabled: true,
 			pgManager:          nil,
-			tenantClient:       tc,
+			tenantCache:        cache,
 			want:               false,
 		},
 		{
-			name:               "false_when_enabled_but_tenantClient_nil",
+			name:               "false_when_enabled_but_tenantCache_nil",
 			multiTenantEnabled: true,
 			pgManager:          pgMgr,
-			tenantClient:       nil,
+			tenantCache:        nil,
 			want:               false,
 		},
 		{
 			name:               "false_when_disabled_but_pgManager_set",
 			multiTenantEnabled: false,
 			pgManager:          pgMgr,
-			tenantClient:       tc,
+			tenantCache:        cache,
 			want:               false,
 		},
 		{
 			name:               "false_when_disabled_and_pgManager_nil",
 			multiTenantEnabled: false,
 			pgManager:          nil,
-			tenantClient:       nil,
+			tenantCache:        nil,
 			want:               false,
 		},
 		{
 			name:               "false_for_zero_value_struct",
 			multiTenantEnabled: false,
 			pgManager:          nil,
-			tenantClient:       nil,
+			tenantCache:        nil,
 			want:               false,
 		},
 	}
@@ -440,7 +447,7 @@ func TestRedisQueueConsumer_IsMultiTenantReady(t *testing.T) {
 				consumer = NewRedisQueueConsumer(logger, handler)
 				consumer.multiTenantEnabled = tt.multiTenantEnabled
 				consumer.pgManager = tt.pgManager
-				consumer.tenantClient = tt.tenantClient
+				consumer.tenantCache = tt.tenantCache
 			}
 
 			got := consumer.isMultiTenantReady()
@@ -451,7 +458,7 @@ func TestRedisQueueConsumer_IsMultiTenantReady(t *testing.T) {
 }
 
 // TestNewBalanceSyncWorkerMultiTenant_EdgeCases covers constructor edge cases:
-// disabled mode with non-nil deps, nil tenantClient with non-nil pgManager, and all-nil.
+// disabled mode with non-nil deps, nil tenantCache with non-nil pgManager, and all-nil.
 func TestNewBalanceSyncWorkerMultiTenant_EdgeCases(t *testing.T) {
 	t.Parallel()
 
@@ -461,11 +468,12 @@ func TestNewBalanceSyncWorkerMultiTenant_EdgeCases(t *testing.T) {
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
+	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
 		name               string
 		multiTenantEnabled bool
-		tenantClient       *tmclient.Client
+		tenantCache        *tenantcache.TenantCache
 		pgManager          *tmpostgres.Manager
 		wantEnabled        bool
 		wantReady          bool
@@ -473,15 +481,15 @@ func TestNewBalanceSyncWorkerMultiTenant_EdgeCases(t *testing.T) {
 		{
 			name:               "disabled_with_non_nil_deps",
 			multiTenantEnabled: false,
-			tenantClient:       tenantClient,
+			tenantCache:        cache,
 			pgManager:          pgMgr,
 			wantEnabled:        false,
 			wantReady:          false,
 		},
 		{
-			name:               "nil_tenantClient_with_non_nil_pgManager",
+			name:               "nil_tenantCache_with_non_nil_pgManager",
 			multiTenantEnabled: true,
-			tenantClient:       nil,
+			tenantCache:        nil,
 			pgManager:          pgMgr,
 			wantEnabled:        true,
 			wantReady:          false,
@@ -489,7 +497,7 @@ func TestNewBalanceSyncWorkerMultiTenant_EdgeCases(t *testing.T) {
 		{
 			name:               "all_nil_disabled",
 			multiTenantEnabled: false,
-			tenantClient:       nil,
+			tenantCache:        nil,
 			pgManager:          nil,
 			wantEnabled:        false,
 			wantReady:          false,
@@ -502,7 +510,7 @@ func TestNewBalanceSyncWorkerMultiTenant_EdgeCases(t *testing.T) {
 
 			worker := NewBalanceSyncWorkerMultiTenant(
 				conn, logger, useCase, 5,
-				tt.multiTenantEnabled, tt.tenantClient, tt.pgManager, "transaction",
+				tt.multiTenantEnabled, tt.tenantCache, tt.pgManager, "transaction",
 			)
 
 			require.NotNil(t, worker, "constructor must return non-nil")
@@ -511,16 +519,16 @@ func TestNewBalanceSyncWorkerMultiTenant_EdgeCases(t *testing.T) {
 			assert.Equal(t, tt.wantReady, worker.isMultiTenantReady(),
 				"isMultiTenantReady() should reflect field combination")
 
-			if tt.tenantClient == nil {
-				assert.Nil(t, worker.tenantClient,
-					"tenantClient should be nil when passed nil")
+			if tt.tenantCache == nil {
+				assert.Nil(t, worker.tenantCache,
+					"tenantCache should be nil when passed nil")
 			}
 		})
 	}
 }
 
 // TestNewRedisQueueConsumerMultiTenant_EdgeCases covers constructor edge cases:
-// disabled mode with non-nil deps, nil tenantClient with non-nil pgManager, and all-nil.
+// disabled mode with non-nil deps, nil tenantCache with non-nil pgManager, and all-nil.
 func TestNewRedisQueueConsumerMultiTenant_EdgeCases(t *testing.T) {
 	t.Parallel()
 
@@ -529,11 +537,12 @@ func TestNewRedisQueueConsumerMultiTenant_EdgeCases(t *testing.T) {
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
+	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
 		name               string
 		multiTenantEnabled bool
-		tenantClient       *tmclient.Client
+		tenantCache        *tenantcache.TenantCache
 		pgManager          *tmpostgres.Manager
 		wantEnabled        bool
 		wantReady          bool
@@ -541,15 +550,15 @@ func TestNewRedisQueueConsumerMultiTenant_EdgeCases(t *testing.T) {
 		{
 			name:               "disabled_with_non_nil_deps",
 			multiTenantEnabled: false,
-			tenantClient:       tenantClient,
+			tenantCache:        cache,
 			pgManager:          pgMgr,
 			wantEnabled:        false,
 			wantReady:          false,
 		},
 		{
-			name:               "nil_tenantClient_with_non_nil_pgManager",
+			name:               "nil_tenantCache_with_non_nil_pgManager",
 			multiTenantEnabled: true,
-			tenantClient:       nil,
+			tenantCache:        nil,
 			pgManager:          pgMgr,
 			wantEnabled:        true,
 			wantReady:          false,
@@ -557,7 +566,7 @@ func TestNewRedisQueueConsumerMultiTenant_EdgeCases(t *testing.T) {
 		{
 			name:               "all_nil_disabled",
 			multiTenantEnabled: false,
-			tenantClient:       nil,
+			tenantCache:        nil,
 			pgManager:          nil,
 			wantEnabled:        false,
 			wantReady:          false,
@@ -570,7 +579,7 @@ func TestNewRedisQueueConsumerMultiTenant_EdgeCases(t *testing.T) {
 
 			consumer := NewRedisQueueConsumerMultiTenant(
 				logger, handler,
-				tt.multiTenantEnabled, tt.tenantClient, tt.pgManager, "transaction",
+				tt.multiTenantEnabled, tt.tenantCache, tt.pgManager, "transaction",
 			)
 
 			require.NotNil(t, consumer, "constructor must return non-nil")
@@ -579,9 +588,9 @@ func TestNewRedisQueueConsumerMultiTenant_EdgeCases(t *testing.T) {
 			assert.Equal(t, tt.wantReady, consumer.isMultiTenantReady(),
 				"isMultiTenantReady() should reflect field combination")
 
-			if tt.tenantClient == nil {
-				assert.Nil(t, consumer.tenantClient,
-					"tenantClient should be nil when passed nil")
+			if tt.tenantCache == nil {
+				assert.Nil(t, consumer.tenantCache,
+					"tenantCache should be nil when passed nil")
 			}
 		})
 	}
@@ -630,8 +639,8 @@ func TestNewBalanceSyncWorker_ZeroValueMultiTenantFields(t *testing.T) {
 				"maxWorkers should be %d", tt.wantMaxWorkers)
 			assert.False(t, worker.multiTenantEnabled,
 				"multiTenantEnabled should default to false")
-			assert.Nil(t, worker.tenantClient,
-				"tenantClient should default to nil")
+			assert.Nil(t, worker.tenantCache,
+				"tenantCache should default to nil")
 			assert.Nil(t, worker.pgManager,
 				"pgManager should default to nil")
 			assert.False(t, worker.isMultiTenantReady(),
@@ -653,8 +662,8 @@ func TestNewRedisQueueConsumer_ZeroValueMultiTenantFields(t *testing.T) {
 	require.NotNil(t, consumer, "base constructor must return non-nil")
 	assert.False(t, consumer.multiTenantEnabled,
 		"multiTenantEnabled should default to false")
-	assert.Nil(t, consumer.tenantClient,
-		"tenantClient should default to nil")
+	assert.Nil(t, consumer.tenantCache,
+		"tenantCache should default to nil")
 	assert.Nil(t, consumer.pgManager,
 		"pgManager should default to nil")
 	assert.False(t, consumer.isMultiTenantReady(),
@@ -722,12 +731,13 @@ func TestBalanceSyncWorker_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
+	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
 		name               string
 		multiTenantEnabled bool
 		pgManager          *tmpostgres.Manager
-		tenantClient       *tmclient.Client
+		tenantCache        *tenantcache.TenantCache
 		wantReady          bool
 	}{
 		{
@@ -740,14 +750,14 @@ func TestBalanceSyncWorker_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 			name:               "multi_tenant_dispatches_to_runMultiTenant",
 			multiTenantEnabled: true,
 			pgManager:          pgMgr,
-			tenantClient:       tc,
+			tenantCache:        cache,
 			wantReady:          true,
 		},
 		{
 			name:               "enabled_but_nil_pgManager_falls_back_to_single",
 			multiTenantEnabled: true,
 			pgManager:          nil,
-			tenantClient:       tc,
+			tenantCache:        cache,
 			wantReady:          false,
 		},
 	}
@@ -759,7 +769,7 @@ func TestBalanceSyncWorker_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 			worker := NewBalanceSyncWorker(conn, logger, useCase, 5)
 			worker.multiTenantEnabled = tt.multiTenantEnabled
 			worker.pgManager = tt.pgManager
-			worker.tenantClient = tt.tenantClient
+			worker.tenantCache = tt.tenantCache
 
 			got := worker.isMultiTenantReady()
 			assert.Equal(t, tt.wantReady, got,
@@ -779,12 +789,13 @@ func TestRedisQueueConsumer_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
+	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
 		name               string
 		multiTenantEnabled bool
 		pgManager          *tmpostgres.Manager
-		tenantClient       *tmclient.Client
+		tenantCache        *tenantcache.TenantCache
 		wantReady          bool
 	}{
 		{
@@ -797,14 +808,14 @@ func TestRedisQueueConsumer_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 			name:               "multi_tenant_dispatches_to_runMultiTenant",
 			multiTenantEnabled: true,
 			pgManager:          pgMgr,
-			tenantClient:       tc,
+			tenantCache:        cache,
 			wantReady:          true,
 		},
 		{
 			name:               "enabled_but_nil_pgManager_falls_back_to_single",
 			multiTenantEnabled: true,
 			pgManager:          nil,
-			tenantClient:       tc,
+			tenantCache:        cache,
 			wantReady:          false,
 		},
 	}
@@ -816,7 +827,7 @@ func TestRedisQueueConsumer_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 			consumer := NewRedisQueueConsumer(logger, handler)
 			consumer.multiTenantEnabled = tt.multiTenantEnabled
 			consumer.pgManager = tt.pgManager
-			consumer.tenantClient = tt.tenantClient
+			consumer.tenantCache = tt.tenantCache
 
 			got := consumer.isMultiTenantReady()
 			assert.Equal(t, tt.wantReady, got,
@@ -884,6 +895,7 @@ func TestBalanceSyncWorker_MultiTenantConstructorPreservesRunBehavior(t *testing
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
+	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
 		name               string
@@ -911,7 +923,7 @@ func TestBalanceSyncWorker_MultiTenantConstructorPreservesRunBehavior(t *testing
 
 			worker := NewBalanceSyncWorkerMultiTenant(
 				conn, logger, useCase, 5,
-				tt.multiTenantEnabled, tenantClient, tt.pgManager, "transaction",
+				tt.multiTenantEnabled, cache, tt.pgManager, "transaction",
 			)
 
 			require.NotNil(t, worker, "constructor must return non-nil worker")
