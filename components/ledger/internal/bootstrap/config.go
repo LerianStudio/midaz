@@ -503,7 +503,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 					}
 				}
 
-				logger.Log(ctx, libLog.LevelInfo, "tenant evicted: all connections closed",
+				// Invalidate pmClient internal cache so lazy-load fetches fresh state from tenant-manager
+				if tenantClient != nil {
+					if err := tenantClient.InvalidateConfig(ctx, tenantID, tenantServiceName); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to invalidate tenant config cache",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				logger.Log(ctx, libLog.LevelInfo, "tenant evicted: all connections and caches invalidated",
 					libLog.String("tenant_id", tenantID))
 			}),
 		}

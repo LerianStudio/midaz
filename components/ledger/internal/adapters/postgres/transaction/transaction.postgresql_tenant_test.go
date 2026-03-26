@@ -27,7 +27,7 @@ func newPlaceholderPostgresConnection() *libPostgres.Client {
 // getDB Tests -- Multi-Tenant Path
 // =============================================================================
 
-func TestGetDB_ReturnsTenantDB_WhenContextHasModulePostgres(t *testing.T) {
+func TestGetDB_ReturnsTenantDB_WhenContextHasTenantPGConnection(t *testing.T) {
 	t.Parallel()
 
 	// Use two distinct mockDB instances so assert.Same proves identity,
@@ -59,7 +59,7 @@ func TestGetDB_ReturnsTenantDB_WhenContextHasModulePostgres(t *testing.T) {
 				connection: newPlaceholderPostgresConnection(),
 				tableName:  "transaction",
 			}
-			ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tt.tenantDB)
+			ctx := tmcore.ContextWithTenantPGConnection(context.Background(), tt.tenantDB)
 
 			// Act
 			db, err := repo.getDB(ctx)
@@ -90,14 +90,6 @@ func TestGetDB_FallsBackToStaticConnection_WhenNoTenantContext(t *testing.T) {
 		{
 			name: "context_with_unrelated_values",
 			ctx:  context.WithValue(context.Background(), struct{}{}, "unrelated"),
-		},
-		{
-			name: "context_with_tenant_db_for_different_module",
-			ctx:  tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", &mockDB{}),
-		},
-		{
-			name: "context_with_tenant_db_for_empty_module_name",
-			ctx:  tmcore.ContextWithModulePGConnection(context.Background(), "", &mockDB{}),
 		},
 	}
 

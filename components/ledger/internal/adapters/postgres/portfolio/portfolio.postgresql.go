@@ -82,7 +82,7 @@ func NewPortfolioPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...b
 // In multi-tenant mode, the middleware injects a tenant-specific dbresolver.DB into context.
 // In single-tenant mode (or when no tenant context exists), falls back to the static connection.
 func (r *PortfolioPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
-	if db, err := tmcore.GetModulePostgresForTenant(ctx, "onboarding"); err == nil {
+	if db := tmcore.GetTenantPGConnectionFromContext(ctx); db != nil {
 		return db, nil
 	}
 

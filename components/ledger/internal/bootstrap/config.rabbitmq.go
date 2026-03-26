@@ -256,9 +256,8 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 
 		emitTenantCounter(ctx, rmq.metricsFactory, utils.TenantConnectionsTotal, tenantID, "postgresql")
 
-		// Module name must be "transaction" to match the per-tenant PG schema naming
-		// and the middleware's module-scoped connection resolution.
-		ctx = tmcore.ContextWithModulePGConnection(ctx, "transaction", db)
+		// Store the tenant PG connection in the generic tenant context key.
+		ctx = tmcore.ContextWithTenantPGConnection(ctx, db)
 	}
 
 	if rmq.mongoManager != nil {

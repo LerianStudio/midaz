@@ -929,11 +929,11 @@ func TestIntegration_GetDB_CreateAndFindRoundTrip(t *testing.T) {
 }
 
 // ============================================================================
-// IS-3: getDB with tenant module in context returns tenant DB
+// IS-3: getDB with tenant PG connection in context returns tenant DB
 // ============================================================================
 //
 // These tests verify that when a tenant-specific dbresolver.DB is injected into
-// context via tmcore.ContextWithModulePGConnection("onboarding", tenantDB),
+// context via tmcore.ContextWithTenantPGConnection(tenantDB),
 // the getDB method returns that tenant DB instead of the static connection.
 //
 // Strategy: Two separate PostgreSQL containers.
@@ -985,7 +985,7 @@ func TestIntegration_GetDB_TenantContext_ReturnsValidHandle(t *testing.T) {
 	repo := createRepository(t, staticContainer)
 
 	_, tenantDB := setupTenantContainer(t)
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+	ctx := tmcore.ContextWithTenantPGConnection(context.Background(), tenantDB)
 
 	// Act
 	db, err := repo.getDB(ctx)
@@ -1001,7 +1001,7 @@ func TestIntegration_GetDB_TenantContext_CanExecuteQueries(t *testing.T) {
 	repo := createRepository(t, staticContainer)
 
 	_, tenantDB := setupTenantContainer(t)
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+	ctx := tmcore.ContextWithTenantPGConnection(context.Background(), tenantDB)
 
 	// Act -- getDB should return the tenant DB, which should support queries.
 	db, err := repo.getDB(ctx)
@@ -1029,7 +1029,7 @@ func TestIntegration_GetDB_TenantContext_RoutesToTenantDatabase(t *testing.T) {
 	tenantOrgID := pgtestutil.CreateTestOrganizationWithParams(t, tenantContainer.DB, params)
 
 	// Act -- use tenant context: getDB should route to the tenant database.
-	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+	tenantCtx := tmcore.ContextWithTenantPGConnection(context.Background(), tenantDB)
 	found, err := repo.Find(tenantCtx, tenantOrgID)
 
 	// Assert -- data exists only in tenant container, so Find succeeds only
@@ -1054,7 +1054,7 @@ func TestIntegration_GetDB_TenantContext_CreateAndFind(t *testing.T) {
 	repo := createRepository(t, staticContainer)
 
 	_, tenantDB := setupTenantContainer(t)
-	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+	tenantCtx := tmcore.ContextWithTenantPGConnection(context.Background(), tenantDB)
 
 	// Act -- Create through tenant context.
 	org := &mmodel.Organization{
@@ -1092,7 +1092,7 @@ func TestIntegration_GetDB_TenantContext_CountIsolation(t *testing.T) {
 	repo := createRepository(t, staticContainer)
 
 	tenantContainer, tenantDB := setupTenantContainer(t)
-	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+	tenantCtx := tmcore.ContextWithTenantPGConnection(context.Background(), tenantDB)
 
 	// Get initial counts.
 	staticCount, err := repo.Count(context.Background())
@@ -1121,30 +1121,30 @@ func TestIntegration_GetDB_TenantContext_CountIsolation(t *testing.T) {
 	assert.Equal(t, tenantCount+2, newTenantCount, "tenant count should increase by 2")
 }
 
-func TestIntegration_GetDB_TenantContext_DifferentModuleIgnored(t *testing.T) {
-	// Arrange -- inject tenant DB for a DIFFERENT module ("transaction").
-	// getDB for "onboarding" should ignore it and fall back to static.
+func TestIntegration_GetDB_TenantContext_AlwaysReturnsTenantDB(t *testing.T) {
+	// Arrange -- inject tenant DB via the generic tenant PG connection.
+	// getDB should always return the tenant DB when present in context.
 	staticContainer := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, staticContainer)
 
-	_, tenantDB := setupTenantContainer(t)
+	tenantContainer, tenantDB := setupTenantContainer(t)
 
-	// Inject tenant DB under "transaction" module -- not "onboarding".
-	wrongModuleCtx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+	// Inject tenant DB via generic tenant PG connection.
+	tenantCtx := tmcore.ContextWithTenantPGConnection(context.Background(), tenantDB)
 
-	// Insert data into static container so we can verify the static path is used.
+	// Insert data into tenant container so we can verify the tenant path is used.
 	params := pgtestutil.DefaultOrganizationParams()
-	params.LegalName = "StaticOnly Org"
+	params.LegalName = "TenantOnly Org"
 	params.LegalDocument = "82000000000001"
-	staticOrgID := pgtestutil.CreateTestOrganizationWithParams(t, staticContainer.DB, params)
+	tenantOrgID := pgtestutil.CreateTestOrganizationWithParams(t, tenantContainer.DB, params)
 
-	// Act -- with wrong module context, getDB should fall back to static.
-	found, err := repo.Find(wrongModuleCtx, staticOrgID)
+	// Act -- with tenant context, getDB should return tenant DB.
+	found, err := repo.Find(tenantCtx, tenantOrgID)
 
 	// Assert
-	require.NoError(t, err, "Find should succeed through static fallback when module name mismatches")
+	require.NoError(t, err, "Find should succeed through tenant DB path")
 	require.NotNil(t, found)
-	assert.Equal(t, "StaticOnly Org", found.LegalName)
+	assert.Equal(t, "TenantOnly Org", found.LegalName)
 }
 
 func TestIntegration_GetDB_TenantContext_UpdateAndDeleteThroughTenantPath(t *testing.T) {
@@ -1153,7 +1153,7 @@ func TestIntegration_GetDB_TenantContext_UpdateAndDeleteThroughTenantPath(t *tes
 	repo := createRepository(t, staticContainer)
 
 	tenantContainer, tenantDB := setupTenantContainer(t)
-	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+	tenantCtx := tmcore.ContextWithTenantPGConnection(context.Background(), tenantDB)
 
 	// Insert directly into tenant container.
 	params := pgtestutil.DefaultOrganizationParams()
@@ -1200,7 +1200,7 @@ func TestIntegration_GetDB_TenantContext_FindAllThroughTenantPath(t *testing.T) 
 	repo := createRepository(t, staticContainer)
 
 	tenantContainer, tenantDB := setupTenantContainer(t)
-	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+	tenantCtx := tmcore.ContextWithTenantPGConnection(context.Background(), tenantDB)
 
 	// Insert 3 organizations into tenant container only.
 	for i := 0; i < 3; i++ {
@@ -1229,7 +1229,7 @@ func TestIntegration_GetDB_TenantContext_ListByIDsThroughTenantPath(t *testing.T
 	repo := createRepository(t, staticContainer)
 
 	tenantContainer, tenantDB := setupTenantContainer(t)
-	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+	tenantCtx := tmcore.ContextWithTenantPGConnection(context.Background(), tenantDB)
 
 	// Insert 2 organizations into tenant container.
 	params1 := pgtestutil.DefaultOrganizationParams()

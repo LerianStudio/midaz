@@ -81,13 +81,12 @@ func NewSegmentPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...boo
 // In multi-tenant mode, the middleware injects a tenant-specific dbresolver.DB into context.
 // In single-tenant mode (or when no tenant context exists), falls back to the static connection.
 func (p *SegmentPostgreSQLRepository) getDB(ctx context.Context) (dbresolver.DB, error) {
-	tenantDB, tenantErr := tmcore.GetModulePostgresForTenant(ctx, "onboarding")
-	if tenantErr == nil {
-		return tenantDB, nil
+	if db := tmcore.GetTenantPGConnectionFromContext(ctx); db != nil {
+		return db, nil
 	}
 
 	if p.requireTenant {
-		return nil, fmt.Errorf("tenant postgres connection missing from context: %w", tenantErr)
+		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
 
 	if p.connection == nil {

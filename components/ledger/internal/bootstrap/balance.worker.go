@@ -231,7 +231,7 @@ func (w *BalanceSyncWorker) processTenantBalances(ctx context.Context, tenantID 
 		return false
 	}
 
-	tenantCtx = tmcore.ContextWithModulePGConnection(tenantCtx, "transaction", db)
+	tenantCtx = tmcore.ContextWithTenantPGConnection(tenantCtx, db)
 
 	return w.processBalancesToExpire(tenantCtx, rds)
 }

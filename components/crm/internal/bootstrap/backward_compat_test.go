@@ -81,7 +81,7 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 
 				logger := newMockLogger()
 
-				mw, err := initTenantMiddleware(tt.cfg, logger, nil)
+				mw, _, err := initTenantMiddleware(tt.cfg, logger, nil)
 
 				require.NoError(t, err,
 					"initTenantMiddleware must not return error when multi-tenant is disabled")
@@ -101,12 +101,14 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 		}
 		logger := newMockLogger()
 
-		mw, err := initTenantMiddleware(cfg, logger, nil)
+		mw, listener, err := initTenantMiddleware(cfg, logger, nil)
 
 		require.NoError(t, err,
 			"single-tenant mode must not attempt Tenant Manager connection")
 		assert.Nil(t, mw,
 			"single-tenant mode must not create any middleware")
+		assert.Nil(t, listener,
+			"single-tenant mode must not create any event listener")
 	})
 
 	t.Run("config_struct_has_all_required_multi_tenant_fields_with_correct_tags", func(t *testing.T) {
