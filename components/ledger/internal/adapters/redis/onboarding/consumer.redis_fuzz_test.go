@@ -72,7 +72,7 @@ func FuzzKeyNamespacing_SimpleKey(f *testing.F) {
 		// Build context with or without a tenant ID.
 		var ctx context.Context
 		if tenantID != "" {
-			ctx = tmcore.SetTenantIDInContext(context.Background(), tenantID)
+			ctx = tmcore.ContextWithTenantID(context.Background(), tenantID)
 		} else {
 			ctx = context.Background()
 		}

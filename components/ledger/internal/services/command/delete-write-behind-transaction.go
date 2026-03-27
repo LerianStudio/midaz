@@ -26,7 +26,7 @@ func (uc *UseCase) DeleteWriteBehindTransaction(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "command.delete_write_behind_transaction")
 	defer span.End()
 
-	tenantID := tmcore.GetTenantIDFromContext(ctx)
+	tenantID := tmcore.GetTenantIDContext(ctx)
 
 	key := utils.WriteBehindTransactionKey(organizationID, ledgerID, transactionID)
 

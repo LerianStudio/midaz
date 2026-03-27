@@ -135,7 +135,7 @@ func TestIntegration_Chaos_RedisNamespacing_ConnectionLossOnSet(t *testing.T) {
 	infra := setupRedisChaosNetworkInfra(t)
 
 	tenantID := "chaos-tenant-" + uuid.New().String()
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 	key := "chaos-set-key:" + uuid.New().String()
 	value := "chaos-set-value-" + uuid.New().String()
 
@@ -216,7 +216,7 @@ func TestIntegration_Chaos_RedisNamespacing_HighLatencyOnGet(t *testing.T) {
 	infra := setupRedisChaosNetworkInfra(t)
 
 	tenantID := "chaos-latency-tenant-" + uuid.New().String()
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 	key := "chaos-latency-key:" + uuid.New().String()
 	value := "chaos-latency-value"
 
@@ -327,7 +327,7 @@ func TestIntegration_Chaos_RedisNamespacing_ConnectionLossOnMGet(t *testing.T) {
 	infra := setupRedisChaosNetworkInfra(t)
 
 	tenantID := "chaos-mget-tenant-" + uuid.New().String()
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 
 	// Pre-populate several keys.
 	keys := []string{
@@ -439,7 +439,7 @@ func TestIntegration_Chaos_RedisNamespacing_ConnectionLossOnQueueOp(t *testing.T
 	infra := setupRedisChaosNetworkInfra(t)
 
 	tenantID := "chaos-queue-tenant-" + uuid.New().String()
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 
 	msgKey := "chaos-queue-msg:" + uuid.New().String()
 	msgPayload := []byte(`{"chaos":"test","ts":"` + time.Now().Format(time.RFC3339) + `"}`)
@@ -524,7 +524,7 @@ func TestIntegration_Chaos_RedisNamespacing_RecoveryAfterReconnect(t *testing.T)
 	infra := setupRedisChaosNetworkInfra(t)
 
 	tenantID := "chaos-recovery-tenant-" + uuid.New().String()
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 	key := "chaos-recovery-key:" + uuid.New().String()
 	value := "chaos-recovery-value-" + uuid.New().String()
 

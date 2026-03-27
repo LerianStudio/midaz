@@ -113,7 +113,7 @@ func TestKeyNamespacing_SimpleKeyMethods(t *testing.T) {
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
-				ctx = tmcore.SetTenantIDInContext(ctx, tc.tenantID)
+				ctx = tmcore.ContextWithTenantID(ctx, tc.tenantID)
 			}
 
 			// Test Set

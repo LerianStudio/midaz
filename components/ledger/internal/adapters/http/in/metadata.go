@@ -78,7 +78,7 @@ func (handler *MetadataIndexHandler) getMongoManager(entityName string) *tmmongo
 }
 
 func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entityName string) (context.Context, error) {
-	tenantID := tmcore.GetTenantID(ctx)
+	tenantID := tmcore.GetTenantIDContext(ctx)
 
 	mongoManager := handler.getMongoManager(entityName)
 	if tenantID == "" {
@@ -112,7 +112,7 @@ func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entit
 }
 
 func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, onboardingRepo bool) (context.Context, error) {
-	tenantID := tmcore.GetTenantID(ctx)
+	tenantID := tmcore.GetTenantIDContext(ctx)
 	mongoManager := handler.TransactionMongoManager
 	groupName := constant.ModuleTransaction
 

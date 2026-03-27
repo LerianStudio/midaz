@@ -199,7 +199,7 @@ func initMultiTenantRabbitMQ(
 				}
 
 				// Emit message processed metric after successful handler execution
-				tenantID := tmcore.GetTenantIDFromContext(ctx)
+				tenantID := tmcore.GetTenantIDContext(ctx)
 				if rmqComponents.metricsFactory != nil && tenantID != "" {
 					counter, counterErr := rmqComponents.metricsFactory.Counter(utils.TenantMessagesProcessedTotal)
 					if counterErr == nil {
@@ -232,7 +232,7 @@ func initMultiTenantRabbitMQ(
 //   - Nil pgManager/mongoManager: skips that resolution (not configured).
 //   - Connection error: returns error so the message is nacked and retried.
 func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (context.Context, error) {
-	tenantID := tmcore.GetTenantIDFromContext(ctx)
+	tenantID := tmcore.GetTenantIDContext(ctx)
 	if tenantID == "" {
 		return ctx, fmt.Errorf("missing tenant context in multi-tenant consumer")
 	}

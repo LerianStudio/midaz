@@ -70,12 +70,12 @@ func NewMetadataMongoDBRepository(mc *libMongo.Client) *MetadataMongoDBRepositor
 // In single-tenant mode (or when no tenant context exists), falls back to the static connection.
 func (mmr *MetadataMongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, error) {
 	// Module-specific database (from middleware WithModule)
-	if db := tmcore.GetMB(ctx, constant.ModuleOnboarding); db != nil {
+	if db := tmcore.GetMBContext(ctx, constant.ModuleOnboarding); db != nil {
 		return db, nil
 	}
 
 	// Generic database fallback (single-module services)
-	if db := tmcore.GetMongoFromContext(ctx); db != nil {
+	if db := tmcore.GetMongoContext(ctx); db != nil {
 		return db, nil
 	}
 
