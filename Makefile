@@ -569,6 +569,7 @@ dev-setup:
 	@command -v gitleaks >/dev/null 2>&1 || (echo "Installing gitleaks..." && go install github.com/zricethezav/gitleaks/v8@latest) || echo "⚠️  Failed to install gitleaks"
 	@command -v gofumpt >/dev/null 2>&1 || (echo "Installing gofumpt..." && go install mvdan.cc/gofumpt@latest) || echo "⚠️  Failed to install gofumpt"
 	@command -v goimports >/dev/null 2>&1 || (echo "Installing goimports..." && go install golang.org/x/tools/cmd/goimports@latest) || echo "⚠️  Failed to install goimports"
+	@command -v gosec >/dev/null 2>&1 || (echo "Installing gosec..." && go install github.com/securego/gosec/v2/cmd/gosec@latest) || echo "⚠️  Failed to install gosec"
 	@echo "Setting up git hooks..."
 	@$(MAKE) setup-git-hooks
 	@for dir in $(COMPONENTS); do \
