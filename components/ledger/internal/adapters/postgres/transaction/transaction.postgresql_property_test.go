@@ -72,7 +72,7 @@ func TestProperty_GetDB_NeverReturnsNilWithoutError(t *testing.T) {
 	repo := newPropertyRepo()
 
 	property := func(_ string) bool {
-		ctx := tmcore.ContextWithPGConnection(
+		ctx := tmcore.ContextWithPG(
 			context.Background(), &mockDB{},
 		)
 
@@ -100,7 +100,7 @@ func TestProperty_GetDB_TenantConnectionReturned(t *testing.T) {
 
 	property := func(_ string) bool {
 		injectedDB := &mockDB{}
-		ctx := tmcore.ContextWithPGConnection(
+		ctx := tmcore.ContextWithPG(
 			context.Background(), injectedDB,
 		)
 
@@ -132,7 +132,7 @@ func TestProperty_GetDB_Determinism(t *testing.T) {
 	repo := newPropertyRepo()
 
 	property := func(_ string) bool {
-		ctx := tmcore.ContextWithPGConnection(
+		ctx := tmcore.ContextWithPG(
 			context.Background(), &mockDB{},
 		)
 
@@ -174,7 +174,7 @@ func TestProperty_GetDB_FallbackGuarantee(t *testing.T) {
 	property := func(_ string) bool {
 		// Inject the tenant DB -- this is what the middleware does
 		// in production multi-tenant mode.
-		ctx := tmcore.ContextWithPGConnection(context.Background(), tenantDB)
+		ctx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 		db, err := repo.getDB(ctx)
 		// getDB must always succeed and return the tenant DB.
@@ -210,7 +210,7 @@ func TestProperty_GetDB_FallbackGuarantee_WithContextValues(t *testing.T) {
 		ctx := context.WithValue(context.Background(), ctxKey{name: keyName}, value)
 
 		// Layer the tenant DB on top.
-		ctx = tmcore.ContextWithPGConnection(ctx, tenantDB)
+		ctx = tmcore.ContextWithPG(ctx, tenantDB)
 
 		db, err := repo.getDB(ctx)
 		if err != nil {

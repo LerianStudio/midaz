@@ -348,7 +348,6 @@ func setEnvFromContainers(t *testing.T, addresses *ContainerAddresses) {
 	// Disable features that require additional setup
 	t.Setenv("PLUGIN_AUTH_ENABLED", "false")
 	t.Setenv("ENABLE_TELEMETRY", "false")
-	t.Setenv("BALANCE_SYNC_WORKER_ENABLED", "false")
 	t.Setenv("OTEL_LIBRARY_NAME", "midaz-tests")
 }
 

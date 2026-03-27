@@ -1195,8 +1195,8 @@ func setupTenantIsolation(t *testing.T) *tenantIsolationInfra {
 	placeholderConn := &libMongo.Client{}
 	repo := NewMetadataMongoDBRepository(placeholderConn)
 
-	ctxA := tmcore.ContextWithMongo(context.Background(), tenantADatabase)
-	ctxB := tmcore.ContextWithMongo(context.Background(), tenantBDatabase)
+	ctxA := tmcore.ContextWithMB(context.Background(), tenantADatabase)
+	ctxB := tmcore.ContextWithMB(context.Background(), tenantBDatabase)
 
 	return &tenantIsolationInfra{
 		container: container,
@@ -1423,7 +1423,7 @@ func TestIntegration_MetadataRepository_TenantContext_TakesPrecedence_OverStatic
 
 	// -- Query with a tenant context pointing to a DIFFERENT database --
 	tenantDB := container.Client.Database("tenant_isolated_db")
-	tenantCtx := tmcore.ContextWithMongo(context.Background(), tenantDB)
+	tenantCtx := tmcore.ContextWithMB(context.Background(), tenantDB)
 
 	tenantResult, err := repo.FindByEntity(tenantCtx, collection, "precedence-entity")
 	require.NoError(t, err)

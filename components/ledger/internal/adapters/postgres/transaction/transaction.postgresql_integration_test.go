@@ -1483,7 +1483,7 @@ func TestIntegration_GetDB_CreateAndFindRoundTrip(t *testing.T) {
 // =============================================================================
 //
 // These tests verify that when a tenant-specific dbresolver.DB is injected into
-// context via tmcore.ContextWithPGConnection(tenantDB),
+// context via tmcore.ContextWithPG(tenantDB),
 // the getDB method returns that tenant DB instead of the static connection.
 //
 // Strategy: Two separate PostgreSQL containers.
@@ -1537,7 +1537,7 @@ func TestIntegration_GetDB_TenantContext_ReturnsValidHandle(t *testing.T) {
 	// Arrange -- static container for constructor, tenant container for context.
 	infra := setupIntegrationInfra(t)
 	_, tenantDB := setupTenantContainer(t)
-	ctx := tmcore.ContextWithPGConnection(context.Background(), tenantDB)
+	ctx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 	// Act
 	db, err := infra.repo.getDB(ctx)
@@ -1557,7 +1557,7 @@ func TestIntegration_GetDB_TenantContext_CanExecuteQueries(t *testing.T) {
 	// Arrange
 	infra := setupIntegrationInfra(t)
 	_, tenantDB := setupTenantContainer(t)
-	ctx := tmcore.ContextWithPGConnection(context.Background(), tenantDB)
+	ctx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 	// Act -- getDB should return the tenant DB, which should support queries.
 	db, err := infra.repo.getDB(ctx)
@@ -1587,7 +1587,7 @@ func TestIntegration_GetDB_TenantContext_RoutesToTenantDatabase(t *testing.T) {
 	ledgerID := infra.ledgerID
 
 	// Create a transaction ONLY in the tenant database via tenant context.
-	tenantCtx := tmcore.ContextWithPGConnection(context.Background(), tenantDB)
+	tenantCtx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 	tx := &Transaction{
 		ID:             uuid.New().String(),
@@ -1631,7 +1631,7 @@ func TestIntegration_GetDB_TenantContext_CreateAndFind(t *testing.T) {
 	// Arrange
 	infra := setupIntegrationInfra(t)
 	_, tenantDB := setupTenantContainer(t)
-	tenantCtx := tmcore.ContextWithPGConnection(context.Background(), tenantDB)
+	tenantCtx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 	orgID := infra.orgID
 	ledgerID := infra.ledgerID
@@ -1675,7 +1675,7 @@ func TestIntegration_GetDB_TenantContext_FindAllIsolation(t *testing.T) {
 	// Arrange
 	infra := setupIntegrationInfra(t)
 	_, tenantDB := setupTenantContainer(t)
-	tenantCtx := tmcore.ContextWithPGConnection(context.Background(), tenantDB)
+	tenantCtx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 	orgID := infra.orgID
 	ledgerID := infra.ledgerID
@@ -1728,7 +1728,7 @@ func TestIntegration_GetDB_TenantContext_AlwaysReturnsTenantDB(t *testing.T) {
 	_, tenantDB := setupTenantContainer(t)
 
 	// Inject tenant DB via generic tenant PG connection.
-	tenantCtx := tmcore.ContextWithPGConnection(context.Background(), tenantDB)
+	tenantCtx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 	// Act -- getDB should return the tenant DB handle.
 	db, err := infra.repo.getDB(tenantCtx)
@@ -1748,7 +1748,7 @@ func TestIntegration_GetDB_TenantContext_UpdateAndDeleteThroughTenantPath(t *tes
 	// Arrange
 	infra := setupIntegrationInfra(t)
 	_, tenantDB := setupTenantContainer(t)
-	tenantCtx := tmcore.ContextWithPGConnection(context.Background(), tenantDB)
+	tenantCtx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 	orgID := infra.orgID
 	ledgerID := infra.ledgerID

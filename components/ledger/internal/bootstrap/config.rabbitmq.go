@@ -23,6 +23,7 @@ import (
 	tmrabbitmq "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/attribute"
@@ -141,21 +142,11 @@ func initMultiTenantRabbitMQ(
 		prefetchCount = 10
 	}
 
-	syncInterval := utils.GetDurationSecondsWithDefault(cfg.RabbitMQMultiTenantSyncInterval, 30*time.Second)
-
-	discoveryTimeout := 500 * time.Millisecond
-	if cfg.RabbitMQMultiTenantDiscoveryTimeout > 0 {
-		discoveryTimeout = time.Duration(cfg.RabbitMQMultiTenantDiscoveryTimeout) * time.Millisecond
-	}
-
 	mtConfig := tmconsumer.MultiTenantConfig{
-		SyncInterval:      syncInterval,
 		PrefetchCount:     prefetchCount,
 		MultiTenantURL:    opts.TenantManagerURL,
 		ServiceAPIKey:     opts.MultiTenantServiceAPIKey,
 		Service:           opts.TenantServiceName,
-		Environment:       opts.TenantEnvironment,
-		DiscoveryTimeout:  discoveryTimeout,
 		AllowInsecureHTTP: allowInsecureMultiTenantHTTP(opts.TenantManagerURL, cfg.EnvName),
 	}
 
@@ -208,7 +199,7 @@ func initMultiTenantRabbitMQ(
 				}
 
 				// Emit message processed metric after successful handler execution
-				tenantID := tmcore.GetTenantIDFromContext(ctx)
+				tenantID := tmcore.GetTenantIDContext(ctx)
 				if rmqComponents.metricsFactory != nil && tenantID != "" {
 					counter, counterErr := rmqComponents.metricsFactory.Counter(utils.TenantMessagesProcessedTotal)
 					if counterErr == nil {
@@ -241,7 +232,7 @@ func initMultiTenantRabbitMQ(
 //   - Nil pgManager/mongoManager: skips that resolution (not configured).
 //   - Connection error: returns error so the message is nacked and retried.
 func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (context.Context, error) {
-	tenantID := tmcore.GetTenantIDFromContext(ctx)
+	tenantID := tmcore.GetTenantIDContext(ctx)
 	if tenantID == "" {
 		return ctx, fmt.Errorf("missing tenant context in multi-tenant consumer")
 	}
@@ -256,8 +247,10 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 
 		emitTenantCounter(ctx, rmq.metricsFactory, utils.TenantConnectionsTotal, tenantID, "postgresql")
 
-		// Store the tenant PG connection in the generic tenant context key.
-		ctx = tmcore.ContextWithPGConnection(ctx, db)
+		// Store the tenant PG connection in both generic and module-specific context keys.
+		// Generic key provides backward compatibility; module key enables cross-module resolution.
+		ctx = tmcore.ContextWithPG(ctx, db)
+		ctx = tmcore.ContextWithPG(ctx, db, constant.ModuleTransaction)
 	}
 
 	if rmq.mongoManager != nil {
@@ -270,7 +263,8 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 
 		emitTenantCounter(ctx, rmq.metricsFactory, utils.TenantConnectionsTotal, tenantID, "mongodb")
 
-		ctx = tmcore.ContextWithMongo(ctx, mongoDB)
+		ctx = tmcore.ContextWithMB(ctx, mongoDB)
+		ctx = tmcore.ContextWithMB(ctx, mongoDB, constant.ModuleTransaction)
 	}
 
 	return ctx, nil

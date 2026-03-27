@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -77,7 +78,7 @@ func (handler *MetadataIndexHandler) getMongoManager(entityName string) *tmmongo
 }
 
 func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entityName string) (context.Context, error) {
-	tenantID := tmcore.GetTenantID(ctx)
+	tenantID := tmcore.GetTenantIDContext(ctx)
 
 	mongoManager := handler.getMongoManager(entityName)
 	if tenantID == "" {
@@ -94,20 +95,30 @@ func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entit
 
 	tenantDB, err := mongoManager.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
-		return nil, err
+		return nil, mapTenantError(err, tenantID)
 	}
 
-	return tmcore.ContextWithMongo(ctx, tenantDB), nil
+	// Store in both generic and module-specific context keys.
+	ctx = tmcore.ContextWithMB(ctx, tenantDB)
+
+	// Determine module name based on entity type for module-specific injection.
+	if _, ok := onboardingEntities[entityName]; ok {
+		ctx = tmcore.ContextWithMB(ctx, tenantDB, constant.ModuleOnboarding)
+	} else {
+		ctx = tmcore.ContextWithMB(ctx, tenantDB, constant.ModuleTransaction)
+	}
+
+	return ctx, nil
 }
 
 func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, onboardingRepo bool) (context.Context, error) {
-	tenantID := tmcore.GetTenantID(ctx)
+	tenantID := tmcore.GetTenantIDContext(ctx)
 	mongoManager := handler.TransactionMongoManager
-	groupName := "transaction"
+	groupName := constant.ModuleTransaction
 
 	if onboardingRepo {
 		mongoManager = handler.OnboardingMongoManager
-		groupName = "onboarding"
+		groupName = constant.ModuleOnboarding
 	}
 
 	if tenantID == "" {
@@ -124,10 +135,49 @@ func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, on
 
 	tenantDB, err := mongoManager.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
-		return nil, err
+		return nil, mapTenantError(err, tenantID)
 	}
 
-	return tmcore.ContextWithMongo(ctx, tenantDB), nil
+	// Store in both generic and module-specific context keys.
+	ctx = tmcore.ContextWithMB(ctx, tenantDB)
+	ctx = tmcore.ContextWithMB(ctx, tenantDB, groupName)
+
+	return ctx, nil
+}
+
+// mapTenantError converts tenant-manager errors into Midaz-specific error types
+// so that the caller's http.WithError can map them to the correct HTTP status codes.
+func mapTenantError(err error, tenantID string) error {
+	var suspErr *tmcore.TenantSuspendedError
+	if errors.As(err, &suspErr) {
+		return pkg.ForbiddenError{
+			Code:    constant.ErrTenantServiceSuspended.Error(),
+			Title:   "Service Suspended",
+			Message: fmt.Sprintf("service is %s for tenant %s", suspErr.Status, tenantID),
+		}
+	}
+
+	if errors.Is(err, tmcore.ErrTenantNotFound) {
+		return pkg.EntityNotFoundError{
+			Code:    constant.ErrTenantNotFound.Error(),
+			Title:   "Tenant Not Found",
+			Message: fmt.Sprintf("tenant not found: %s", tenantID),
+		}
+	}
+
+	if tmcore.IsTenantNotProvisionedError(err) {
+		return pkg.UnprocessableOperationError{
+			Code:    constant.ErrTenantNotProvisioned.Error(),
+			Title:   "Tenant Not Provisioned",
+			Message: "Database schema not initialized for this tenant. Contact your administrator.",
+		}
+	}
+
+	return pkg.ServiceUnavailableError{
+		Code:    constant.ErrTenantServiceUnavailable.Error(),
+		Title:   "Tenant Service Unavailable",
+		Message: fmt.Sprintf("failed to resolve tenant %s: %s", tenantID, err.Error()),
+	}
 }
 
 // isValidEntity checks if the entity name is valid for metadata index operations.

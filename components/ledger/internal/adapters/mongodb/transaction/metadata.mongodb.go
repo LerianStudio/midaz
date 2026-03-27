@@ -64,7 +64,13 @@ func NewMetadataMongoDBRepository(mc *libMongo.Client, requireTenant ...bool) *M
 // In multi-tenant mode, the middleware injects a tenant-specific *mongo.Database into context.
 // In single-tenant mode (or when no tenant context exists), falls back to the static connection.
 func (mmr *MetadataMongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, error) {
-	if db := tmcore.GetMongoFromContext(ctx); db != nil {
+	// Module-specific database (from middleware WithModule)
+	if db := tmcore.GetMBContext(ctx, constant.ModuleTransaction); db != nil {
+		return db, nil
+	}
+
+	// Generic database fallback (single-module services)
+	if db := tmcore.GetMBContext(ctx); db != nil {
 		return db, nil
 	}
 

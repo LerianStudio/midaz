@@ -165,7 +165,8 @@ func (r *RedisQueueConsumer) runMultiTenant() error {
 					continue
 				}
 
-				tenantCtx = tmcore.ContextWithPGConnection(tenantCtx, db)
+				tenantCtx = tmcore.ContextWithPG(tenantCtx, db)
+				tenantCtx = tmcore.ContextWithPG(tenantCtx, db, constant.ModuleTransaction)
 
 				r.readMessagesAndProcess(tenantCtx)
 			}

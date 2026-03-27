@@ -72,14 +72,14 @@ func NewMongoDBRepository(connection *libMongo.Client, dataSecurity *libCrypto.C
 func (hm *MongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, error) {
 	if hm.connection == nil {
 		// Check tenant context when static connection is nil (multi-tenant mode without static fallback)
-		if db := tmcore.GetMongoFromContext(ctx); db != nil {
+		if db := tmcore.GetMBContext(ctx); db != nil {
 			return db, nil
 		}
 
 		return nil, fmt.Errorf("no database connection available: multi-tenant context required but not present, and no static connection configured")
 	}
 
-	if db := tmcore.GetMongoFromContext(ctx); db != nil {
+	if db := tmcore.GetMBContext(ctx); db != nil {
 		return db, nil
 	}
 

@@ -188,7 +188,7 @@ func TestProperty_MGet_OutputKeysMatchOriginal(t *testing.T) {
 
 		ctx := context.Background()
 		if tenantID != "" {
-			ctx = tmcore.SetTenantIDInContext(ctx, tenantID)
+			ctx = tmcore.ContextWithTenantID(ctx, tenantID)
 		}
 
 		result, err := repo.MGet(ctx, originalKeys)

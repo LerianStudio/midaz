@@ -21,7 +21,7 @@ import (
 //   - Config loads with default values (MultiTenantEnabled=false)
 //   - Options.TenantClient is nil by default
 //   - Service does not require Tenant Manager availability
-//   - All 7 MULTI_TENANT_* fields have correct env tags
+//   - All MULTI_TENANT_* fields have correct env tags
 func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 	t.Parallel()
 
@@ -37,16 +37,10 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 			"MultiTenantEnabled must default to false (Go zero value)")
 		assert.Empty(t, cfg.MultiTenantURL,
 			"MultiTenantURL must default to empty string")
-		assert.Empty(t, cfg.MultiTenantEnvironment,
-			"MultiTenantEnvironment must default to empty string")
 		assert.Zero(t, cfg.MultiTenantCircuitBreakerThreshold,
 			"MultiTenantCircuitBreakerThreshold must default to zero")
 		assert.Zero(t, cfg.MultiTenantCircuitBreakerTimeoutSec,
 			"MultiTenantCircuitBreakerTimeoutSec must default to zero")
-		assert.Zero(t, cfg.MultiTenantMaxTenantPools,
-			"MultiTenantMaxTenantPools must default to zero")
-		assert.Zero(t, cfg.MultiTenantIdleTimeoutSec,
-			"MultiTenantIdleTimeoutSec must default to zero")
 	})
 
 	t.Run("multi_tenant_disabled_produces_nil_tenant_client", func(t *testing.T) {
@@ -79,18 +73,21 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 	t.Run("config_struct_has_all_required_multi_tenant_fields_with_correct_tags", func(t *testing.T) {
 		t.Parallel()
 
-		// Verify that the Config struct includes the 7 MULTI_TENANT_* fields
+		// Verify that the Config struct includes the MULTI_TENANT_* fields
 		// required by multi-tenant.md, with correct env tags.
 		// This ensures backward compat: all fields must be optional (no envDefault
 		// that forces multi-tenant on).
 		expectedFields := map[string]string{
 			"MultiTenantEnabled":                  "MULTI_TENANT_ENABLED",
 			"MultiTenantURL":                      "MULTI_TENANT_URL",
-			"MultiTenantEnvironment":              "MULTI_TENANT_ENVIRONMENT",
 			"MultiTenantCircuitBreakerThreshold":  "MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD",
 			"MultiTenantCircuitBreakerTimeoutSec": "MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC",
-			"MultiTenantMaxTenantPools":           "MULTI_TENANT_MAX_TENANT_POOLS",
-			"MultiTenantIdleTimeoutSec":           "MULTI_TENANT_IDLE_TIMEOUT_SEC",
+			"MultiTenantServiceAPIKey":            "MULTI_TENANT_SERVICE_API_KEY",
+			"MultiTenantConnectionsCheckIntervalSec": "MULTI_TENANT_CONNECTIONS_CHECK_INTERVAL_SEC",
+			"MultiTenantCacheTTLSec":              "MULTI_TENANT_CACHE_TTL_SEC",
+			"MultiTenantRedisHost":                "MULTI_TENANT_REDIS_HOST",
+			"MultiTenantRedisPort":                "MULTI_TENANT_REDIS_PORT",
+			"MultiTenantRedisPassword":            "MULTI_TENANT_REDIS_PASSWORD",
 		}
 
 		cfg := &Config{}
