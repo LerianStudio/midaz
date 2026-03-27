@@ -483,7 +483,10 @@ func (cr *ConsumerRoutes) processBulkFlush(
 }
 
 // acknowledgeByResults acknowledges messages based on processing results.
-// Uses bulk ack if all messages succeeded, otherwise individual ack/nack.
+// IMPORTANT: Uses individual ack (multiple=false) for each message to prevent
+// cross-worker acking when multiple workers share a channel. Bulk ack is unsafe
+// because delivery tags are sequential per channel, and Ack(true) on tag N
+// acknowledges ALL tags <= N, including messages being processed by other workers.
 func (cr *ConsumerRoutes) acknowledgeByResults(
 	ctx context.Context,
 	deliveries []amqp.Delivery,
@@ -491,54 +494,36 @@ func (cr *ConsumerRoutes) acknowledgeByResults(
 	logger libLog.Logger,
 	queue string,
 ) {
+	if len(deliveries) == 0 {
+		return
+	}
+
 	// If no results provided, assume all succeeded (backward compatible)
 	if len(results) == 0 {
-		// Bulk ack on the last message (acknowledges all messages up to this delivery tag)
-		lastMsg := deliveries[len(deliveries)-1]
-		if err := lastMsg.Ack(true); err != nil {
-			logger.Log(ctx, libLog.LevelError, "Failed to bulk ack messages",
-				libLog.String("queue", queue),
-				libLog.Int("message_count", len(deliveries)),
-				libLog.Err(err),
-			)
+		// Individual ack for each message (safe with multiple workers)
+		for i, delivery := range deliveries {
+			if err := delivery.Ack(false); err != nil {
+				logger.Log(ctx, libLog.LevelError, "Failed to ack message",
+					libLog.String("queue", queue),
+					libLog.Int("index", i),
+					libLog.Err(err),
+				)
+			}
 		}
 
 		return
 	}
 
-	// Check if all messages succeeded
-	allSucceeded := true
-
-	for _, result := range results {
-		if !result.Success {
-			allSucceeded = false
-
-			break
-		}
-	}
-
-	if allSucceeded {
-		// Bulk ack on the last message
-		lastMsg := deliveries[len(deliveries)-1]
-		if err := lastMsg.Ack(true); err != nil {
-			logger.Log(ctx, libLog.LevelError, "Failed to bulk ack messages",
-				libLog.String("queue", queue),
-				libLog.Int("message_count", len(deliveries)),
-				libLog.Err(err),
-			)
-		}
-
-		return
-	}
-
-	// Mixed results: individual ack/nack
+	// Build result map for quick lookup
 	resultMap := make(map[int]BulkMessageResult, len(results))
 	for _, r := range results {
 		resultMap[r.Index] = r
 	}
 
+	// Process each delivery based on its result
 	for i, delivery := range deliveries {
 		result, hasResult := resultMap[i]
+
 		if hasResult && !result.Success {
 			// Failed: nack with requeue
 			if err := delivery.Nack(false, true); err != nil {
@@ -549,7 +534,7 @@ func (cr *ConsumerRoutes) acknowledgeByResults(
 				)
 			}
 		} else {
-			// Succeeded or no result (treat as success): ack
+			// Succeeded or no result (treat as success): individual ack
 			if err := delivery.Ack(false); err != nil {
 				logger.Log(ctx, libLog.LevelError, "Failed to ack message",
 					libLog.String("queue", queue),
