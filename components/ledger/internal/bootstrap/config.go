@@ -456,6 +456,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		dispatcherOpts := []tmevent.DispatcherOption{
 			tmevent.WithDispatcherLogger(logger),
 			tmevent.WithCacheTTL(cacheTTL),
+			tmevent.WithOnTenantAdded(func(ctx context.Context, tenantID string) {
+				if rmq != nil && rmq.multiTenantConsumer != nil {
+					rmq.multiTenantConsumer.EnsureConsumerStarted(ctx, tenantID)
+				}
+			}),
 			tmevent.WithOnTenantRemoved(func(ctx context.Context, tenantID string) {
 				// Close ALL postgres managers (onboarding + transaction)
 				if onbPG.pgManager != nil {
@@ -514,6 +519,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			tenantServiceName,
 			dispatcherOpts...,
 		)
+
+		tenantLoader.SetOnTenantLoaded(func(ctx context.Context, tenantID string) {
+			if rmq != nil && rmq.multiTenantConsumer != nil {
+				rmq.multiTenantConsumer.EnsureConsumerStarted(ctx, tenantID)
+			}
+		})
 
 		// Create Redis client for tenant-manager Pub/Sub when configured
 		if cfg.MultiTenantRedisHost != "" {
