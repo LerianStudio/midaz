@@ -51,7 +51,7 @@ type redisClientProvider interface {
 }
 
 func tenantKeyFromContextOrError(ctx context.Context, key string) (string, error) {
-	return tmvalkey.GetKeyFromContext(ctx, key)
+	return tmvalkey.GetKeyContext(ctx, key)
 }
 
 func tenantKeysFromContext(ctx context.Context, keys []string) ([]string, error) {

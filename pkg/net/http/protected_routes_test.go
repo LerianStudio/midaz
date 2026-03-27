@@ -54,7 +54,7 @@ func TestMarkTrustedAuthAssertion_SetsTrustedLocalsAndTenantContext(t *testing.T
 	app.Get("/test", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"userID":   c.Locals("user_id"),
-			"tenantID": tmcore.GetTenantID(c.UserContext()),
+			"tenantID": tmcore.GetTenantIDContext(c.UserContext()),
 		})
 	})
 

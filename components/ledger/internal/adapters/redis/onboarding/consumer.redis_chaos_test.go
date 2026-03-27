@@ -125,7 +125,7 @@ func TestIntegration_Chaos_RedisNamespacing_ConnectionLossOnSet(t *testing.T) {
 	infra := setupOnboardingRedisChaosNetworkInfra(t)
 
 	tenantID := "chaos-set-tenant-" + uuid.New().String()
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 	key := "chaos-set-key:" + uuid.New().String()
 	value := "chaos-set-value-" + uuid.New().String()
 	ttl := 5 * time.Minute
@@ -234,7 +234,7 @@ func TestIntegration_Chaos_RedisNamespacing_RecoveryAfterReconnect(t *testing.T)
 	infra := setupOnboardingRedisChaosNetworkInfra(t)
 
 	tenantID := "chaos-recovery-tenant-" + uuid.New().String()
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 	key := "chaos-recovery-key:" + uuid.New().String()
 	value := "chaos-recovery-value-" + uuid.New().String()
 	ttl := 5 * time.Minute

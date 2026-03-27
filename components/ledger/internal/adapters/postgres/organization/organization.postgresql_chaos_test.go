@@ -404,7 +404,7 @@ func TestIntegration_Chaos_Organization_NetworkPartition(t *testing.T) {
 	tenantDB, err := infra.conn.Resolver(context.Background())
 	require.NoError(t, err, "setup: must be able to get DB from proxied connection")
 
-	tenantCtx := tmcore.ContextWithPGConnection(ctx, tenantDB)
+	tenantCtx := tmcore.ContextWithPG(ctx, tenantDB)
 
 	// --- Phase 1: Normal ---
 	// Verify operations work both with plain context (static path) and with

@@ -304,7 +304,7 @@ func TestIntegration_MultiTenantProducer_MessageIsolation(t *testing.T) {
 	// Publish 3 messages as tenant A
 	for i := 0; i < 3; i++ {
 		msg := fmt.Sprintf(`{"tenant":"%s","seq":%d}`, tenantA, i)
-		ctxA := tmcore.SetTenantIDInContext(ctx, tenantA)
+		ctxA := tmcore.ContextWithTenantID(ctx, tenantA)
 
 		_, err := infra.producer.ProducerDefault(ctxA, infra.exchange, infra.routingKey, []byte(msg))
 		require.NoError(t, err, "tenant-a publish %d should succeed", i)
@@ -313,7 +313,7 @@ func TestIntegration_MultiTenantProducer_MessageIsolation(t *testing.T) {
 	// Publish 2 messages as tenant B
 	for i := 0; i < 2; i++ {
 		msg := fmt.Sprintf(`{"tenant":"%s","seq":%d}`, tenantB, i)
-		ctxB := tmcore.SetTenantIDInContext(ctx, tenantB)
+		ctxB := tmcore.ContextWithTenantID(ctx, tenantB)
 
 		_, err := infra.producer.ProducerDefault(ctxB, infra.exchange, infra.routingKey, []byte(msg))
 		require.NoError(t, err, "tenant-b publish %d should succeed", i)
@@ -367,7 +367,7 @@ func TestIntegration_MultiTenantProducer_WithContext(t *testing.T) {
 	tenantID := "tenant-ctx"
 	infra := setupMultiTenantInfra(t, []string{tenantID})
 
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 	msg := []byte(`{"method":"with-context"}`)
 
 	_, err := infra.producer.ProducerDefaultWithContext(ctx, infra.exchange, infra.routingKey, msg)
@@ -391,7 +391,7 @@ func TestIntegration_MultiTenantProducer_ConnectionReuse(t *testing.T) {
 	tenantID := "tenant-reuse"
 	infra := setupMultiTenantInfra(t, []string{tenantID})
 
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 
 	// Publish 10 messages rapidly
 	for i := 0; i < 10; i++ {
@@ -433,7 +433,7 @@ func TestIntegration_MultiTenantProducer_PersistentDelivery(t *testing.T) {
 	tenantID := "tenant-persist"
 	infra := setupMultiTenantInfra(t, []string{tenantID})
 
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 	msg := []byte(`{"persist":true}`)
 
 	_, err := infra.producer.ProducerDefault(ctx, infra.exchange, infra.routingKey, msg)

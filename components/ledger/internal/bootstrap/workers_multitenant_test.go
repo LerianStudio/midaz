@@ -875,7 +875,7 @@ func TestResolveTenantConnections_NilManagers(t *testing.T) {
 			require.NotPanics(t, func() {
 				result, err := resolveTenantConnections(ctx, rmq)
 				require.NoError(t, err)
-				assert.Equal(t, tt.tenantID, tmcore.GetTenantIDFromContext(result),
+				assert.Equal(t, tt.tenantID, tmcore.GetTenantIDContext(result),
 					"tenant ID should be preserved with nil managers")
 			}, "resolveTenantConnections must not panic with nil managers")
 		})

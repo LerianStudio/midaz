@@ -14,7 +14,7 @@ import (
 	// =============================================================================
 	// FUZZ TESTS — Redis Key Namespacing (T-002)
 	//
-	// These fuzz tests exercise tmvalkey.GetKeyFromContext with arbitrary key and
+	// These fuzz tests exercise tmvalkey.GetKeyContext with arbitrary key and
 	// tenantID inputs to verify:
 	//   1. No panic under any input (including Unicode, null bytes, very long strings,
 	//      colons, empty strings, and strings that already look like namespaced keys).
@@ -72,15 +72,15 @@ func FuzzKeyNamespacing_SimpleKey(f *testing.F) {
 		// Build context with or without a tenant ID.
 		var ctx context.Context
 		if tenantID != "" {
-			ctx = tmcore.SetTenantIDInContext(context.Background(), tenantID)
+			ctx = tmcore.ContextWithTenantID(context.Background(), tenantID)
 		} else {
 			ctx = context.Background()
 		}
 
 		// Call the function under test — must not panic.
-		result, err := tmvalkey.GetKeyFromContext(ctx, key)
+		result, err := tmvalkey.GetKeyContext(ctx, key)
 		if err != nil {
-			t.Fatalf("GetKeyFromContext should not fail for generated inputs: %v", err)
+			t.Fatalf("GetKeyContext should not fail for generated inputs: %v", err)
 		}
 
 		// Invariant 1: non-empty tenantID → prefix is applied.
@@ -100,9 +100,9 @@ func FuzzKeyNamespacing_SimpleKey(f *testing.F) {
 
 		// Invariant 3: determinism — calling again with the same context and key
 		// must return the same value.
-		result2, err := tmvalkey.GetKeyFromContext(ctx, key)
+		result2, err := tmvalkey.GetKeyContext(ctx, key)
 		if err != nil {
-			t.Fatalf("GetKeyFromContext should be deterministic without errors: %v", err)
+			t.Fatalf("GetKeyContext should be deterministic without errors: %v", err)
 		}
 		if result != result2 {
 			t.Errorf("FuzzKeyNamespacing_SimpleKey: non-deterministic result: first=%q second=%q (key=%q, tenantID=%q)",

@@ -30,7 +30,7 @@ func (uc *UseCase) CreateWriteBehindTransaction(ctx context.Context, organizatio
 	ctx, span := tracer.Start(ctx, "command.create_write_behind_transaction")
 	defer span.End()
 
-	tenantID := tmcore.GetTenantIDFromContext(ctx)
+	tenantID := tmcore.GetTenantIDContext(ctx)
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("[DEBUG] CreateWriteBehindTransaction: tenantID=%q", tenantID))
 

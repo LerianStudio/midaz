@@ -952,7 +952,7 @@ func TestKeyNamespacing_SimpleKeyMethods(t *testing.T) {
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
-				ctx = tmcore.SetTenantIDInContext(ctx, tc.tenantID)
+				ctx = tmcore.ContextWithTenantID(ctx, tc.tenantID)
 			}
 
 			// Test Set
@@ -1047,7 +1047,7 @@ func TestKeyNamespacing_MGet(t *testing.T) {
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
-				ctx = tmcore.SetTenantIDInContext(ctx, tc.tenantID)
+				ctx = tmcore.ContextWithTenantID(ctx, tc.tenantID)
 			}
 
 			result, err := repo.MGet(ctx, tc.originalKeys)
@@ -1114,7 +1114,7 @@ func TestKeyNamespacing_QueueOperations(t *testing.T) {
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
-				ctx = tmcore.SetTenantIDInContext(ctx, tc.tenantID)
+				ctx = tmcore.ContextWithTenantID(ctx, tc.tenantID)
 			}
 
 			// Test AddMessageToQueue
@@ -1208,7 +1208,7 @@ func TestKeyNamespacing_ListBalanceByKey(t *testing.T) {
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
-				ctx = tmcore.SetTenantIDInContext(ctx, tc.tenantID)
+				ctx = tmcore.ContextWithTenantID(ctx, tc.tenantID)
 			}
 
 			_, err := repo.ListBalanceByKey(ctx, organizationID, ledgerID, balanceKey)
@@ -1273,7 +1273,7 @@ func TestKeyNamespacing_ProcessBalanceAtomicOperation(t *testing.T) {
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
-				ctx = tmcore.SetTenantIDInContext(ctx, tc.tenantID)
+				ctx = tmcore.ContextWithTenantID(ctx, tc.tenantID)
 			}
 
 			balanceOp := mmodel.BalanceOperation{
@@ -1373,7 +1373,7 @@ func TestKeyNamespacing_GetBalanceSyncKeys(t *testing.T) {
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
-				ctx = tmcore.SetTenantIDInContext(ctx, tc.tenantID)
+				ctx = tmcore.ContextWithTenantID(ctx, tc.tenantID)
 			}
 
 			// The script result will be empty []any — that is the expected fallback from the stub.
@@ -1431,7 +1431,7 @@ func TestKeyNamespacing_RemoveBalanceSyncKey(t *testing.T) {
 
 			ctx := context.Background()
 			if tc.tenantID != "" {
-				ctx = tmcore.SetTenantIDInContext(ctx, tc.tenantID)
+				ctx = tmcore.ContextWithTenantID(ctx, tc.tenantID)
 			}
 
 			member := "balance:{transactions}:org:ledger:default"

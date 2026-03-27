@@ -121,7 +121,7 @@ func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, k
 	ctx, span := tracer.Start(ctx, spanName)
 	defer span.End()
 
-	tenantID := tmcore.GetTenantIDFromContext(ctx)
+	tenantID := tmcore.GetTenantIDContext(ctx)
 	if tenantID == "" {
 		err := fmt.Errorf("tenant ID is required in context for multi-tenant producer")
 		libOpentelemetry.HandleSpanError(span, "Missing tenant ID in context", err)

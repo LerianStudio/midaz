@@ -74,7 +74,7 @@ func TestIntegration_RedisNamespacing_SetGetWithTenant(t *testing.T) {
 	infra := setupOnboardingRedisIntegrationInfra(t)
 
 	tenantID := "int-tenant-" + uuid.New().String()
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 
 	logicalKey := "session:token:" + uuid.New().String()
 	value := "integration-value-" + uuid.New().String()
@@ -191,8 +191,8 @@ func TestIntegration_RedisNamespacing_TwoTenantsNoCollision(t *testing.T) {
 	tenantA := "tenant-a-" + uuid.New().String()
 	tenantB := "tenant-b-" + uuid.New().String()
 
-	ctxA := tmcore.SetTenantIDInContext(context.Background(), tenantA)
-	ctxB := tmcore.SetTenantIDInContext(context.Background(), tenantB)
+	ctxA := tmcore.ContextWithTenantID(context.Background(), tenantA)
+	ctxB := tmcore.ContextWithTenantID(context.Background(), tenantB)
 
 	// Both tenants use the exact same logical key.
 	sharedLogicalKey := "shared:session:token"
@@ -280,8 +280,8 @@ func TestIntegration_RedisNamespacing_DelWithTenant(t *testing.T) {
 	tenantA := "del-tenant-a-" + uuid.New().String()
 	tenantB := "del-tenant-b-" + uuid.New().String()
 
-	ctxA := tmcore.SetTenantIDInContext(context.Background(), tenantA)
-	ctxB := tmcore.SetTenantIDInContext(context.Background(), tenantB)
+	ctxA := tmcore.ContextWithTenantID(context.Background(), tenantA)
+	ctxB := tmcore.ContextWithTenantID(context.Background(), tenantB)
 
 	logicalKey := "profile:settings:" + uuid.New().String()
 	valueA := "settings-a-" + uuid.New().String()
@@ -342,7 +342,7 @@ func TestIntegration_RedisNamespacing_TTLIsRespected(t *testing.T) {
 	infra := setupOnboardingRedisIntegrationInfra(t)
 
 	tenantID := "ttl-tenant-" + uuid.New().String()
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 
 	logicalKey := "ephemeral:key:" + uuid.New().String()
 	value := "ephemeral-value"
