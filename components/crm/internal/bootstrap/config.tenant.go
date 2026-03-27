@@ -77,7 +77,7 @@ func initTenantMiddleware(
 	tenantLoader := tenantcache.NewTenantLoader(tmClient, tenantCache, tenantServiceName, cacheTTL, logger)
 
 	tenantMid := tmmiddleware.NewTenantMiddleware(
-		tmmiddleware.WithMongoManager(mongoManager),
+		tmmiddleware.WithMB(mongoManager),
 		tmmiddleware.WithTenantCache(tenantCache),
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)

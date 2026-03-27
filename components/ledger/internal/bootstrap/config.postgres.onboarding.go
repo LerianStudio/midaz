@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
 // onboardingPostgresComponents holds PostgreSQL-related components for the onboarding domain.
@@ -53,7 +54,7 @@ func initOnboardingMultiTenantPostgres(opts *Options, cfg *Config, logger libLog
 	}
 
 	pgOpts := []tmpostgres.Option{
-		tmpostgres.WithModule("onboarding"),
+		tmpostgres.WithModule(constant.ModuleOnboarding),
 		tmpostgres.WithLogger(logger),
 	}
 

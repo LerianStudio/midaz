@@ -3,7 +3,7 @@ module github.com/LerianStudio/midaz/v3
 go 1.25.8
 
 require (
-	github.com/LerianStudio/lib-auth/v2 v2.5.0
+	github.com/LerianStudio/lib-auth/v2 v2.6.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/go-playground/locales v0.14.1
@@ -100,7 +100,7 @@ require (
 )
 
 require (
-	github.com/LerianStudio/lib-commons/v4 v4.5.0-beta.7
+	github.com/LerianStudio/lib-commons/v4 v4.5.0-beta.12
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0

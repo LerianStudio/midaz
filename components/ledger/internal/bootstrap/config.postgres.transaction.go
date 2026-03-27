@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
 // transactionPostgresComponents holds PostgreSQL-related components for the transaction domain.
@@ -51,7 +52,7 @@ func initTransactionMultiTenantPostgres(opts *Options, cfg *Config, logger libLo
 	}
 
 	pgOpts := []tmpostgres.Option{
-		tmpostgres.WithModule("transaction"),
+		tmpostgres.WithModule(constant.ModuleTransaction),
 		tmpostgres.WithLogger(logger),
 	}
 

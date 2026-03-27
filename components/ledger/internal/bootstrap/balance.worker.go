@@ -22,6 +22,7 @@ import (
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
@@ -232,6 +233,7 @@ func (w *BalanceSyncWorker) processTenantBalances(ctx context.Context, tenantID 
 	}
 
 	tenantCtx = tmcore.ContextWithPGConnection(tenantCtx, db)
+	tenantCtx = tmcore.ContextWithPG(tenantCtx, constant.ModuleTransaction, db)
 
 	return w.processBalancesToExpire(tenantCtx, rds)
 }

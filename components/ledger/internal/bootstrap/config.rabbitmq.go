@@ -23,6 +23,7 @@ import (
 	tmrabbitmq "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/attribute"
@@ -141,21 +142,11 @@ func initMultiTenantRabbitMQ(
 		prefetchCount = 10
 	}
 
-	syncInterval := utils.GetDurationSecondsWithDefault(cfg.RabbitMQMultiTenantSyncInterval, 30*time.Second)
-
-	discoveryTimeout := 500 * time.Millisecond
-	if cfg.RabbitMQMultiTenantDiscoveryTimeout > 0 {
-		discoveryTimeout = time.Duration(cfg.RabbitMQMultiTenantDiscoveryTimeout) * time.Millisecond
-	}
-
 	mtConfig := tmconsumer.MultiTenantConfig{
-		SyncInterval:      syncInterval,
 		PrefetchCount:     prefetchCount,
 		MultiTenantURL:    opts.TenantManagerURL,
 		ServiceAPIKey:     opts.MultiTenantServiceAPIKey,
 		Service:           opts.TenantServiceName,
-		Environment:       opts.TenantEnvironment,
-		DiscoveryTimeout:  discoveryTimeout,
 		AllowInsecureHTTP: allowInsecureMultiTenantHTTP(opts.TenantManagerURL, cfg.EnvName),
 	}
 
@@ -256,8 +247,10 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 
 		emitTenantCounter(ctx, rmq.metricsFactory, utils.TenantConnectionsTotal, tenantID, "postgresql")
 
-		// Store the tenant PG connection in the generic tenant context key.
+		// Store the tenant PG connection in both generic and module-specific context keys.
+		// Generic key provides backward compatibility; module key enables cross-module resolution.
 		ctx = tmcore.ContextWithPGConnection(ctx, db)
+		ctx = tmcore.ContextWithPG(ctx, constant.ModuleTransaction, db)
 	}
 
 	if rmq.mongoManager != nil {
@@ -271,6 +264,7 @@ func resolveTenantConnections(ctx context.Context, rmq *rabbitMQComponents) (con
 		emitTenantCounter(ctx, rmq.metricsFactory, utils.TenantConnectionsTotal, tenantID, "mongodb")
 
 		ctx = tmcore.ContextWithMongo(ctx, mongoDB)
+		ctx = tmcore.ContextWithMB(ctx, constant.ModuleTransaction, mongoDB)
 	}
 
 	return ctx, nil
