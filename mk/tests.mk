@@ -1,8 +1,7 @@
 # ------------------------------------------------------
 # Test configuration (extracted from root Makefile)
 # ------------------------------------------------------
-TEST_ONBOARDING_URL ?= http://localhost:3000
-TEST_TRANSACTION_URL ?= http://localhost:3001
+TEST_LEDGER_URL ?= http://localhost:3000
 TEST_HEALTH_WAIT ?= 60
 
 # Optional auth configuration (passed through to tests)
@@ -18,10 +17,10 @@ FUZZTIME ?= 10s
 
 # Integration test filter
 # RUN: specific test name pattern (e.g., TestIntegration_AliasRepo_Create)
-# PKG: specific package to test (e.g., ./components/transaction/...)
+# PKG: specific package to test (e.g., ./components/ledger/...)
 # Usage: make test-integration RUN=TestIntegration_AliasRepo_Create
-#        make test-integration PKG=./components/transaction/...
-#        make test-integration RUN=TestIntegration_Chaos_Redis PKG=./components/transaction/... CHAOS=1
+#        make test-integration PKG=./components/ledger/...
+#        make test-integration RUN=TestIntegration_Chaos_Redis PKG=./components/ledger/... CHAOS=1
 RUN ?=
 PKG ?=
 
@@ -66,7 +65,7 @@ endif
 define wait_for_services
 	echo "Waiting for services to become healthy..."
 	bash -c 'for i in $$(seq 1 $(TEST_HEALTH_WAIT)); do \
-	  if curl -fsS $(TEST_ONBOARDING_URL)/health >/dev/null 2>&1 && curl -fsS $(TEST_TRANSACTION_URL)/health >/dev/null 2>&1; then \
+	  if curl -fsS $(TEST_LEDGER_URL)/health >/dev/null 2>&1; then \
 	    echo "Services are up"; exit 0; \
 	  fi; \
 	  sleep 1; \
@@ -144,20 +143,20 @@ test-chaos-system:
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
 	@set -e; mkdir -p $(TEST_REPORTS_DIR)/chaos; \
-	trap '$(MAKE) -s down-backend >/dev/null 2>&1 || true' EXIT; \
-	$(MAKE) up-backend; \
+	trap '$(MAKE) -s down >/dev/null 2>&1 || true' EXIT; \
+	$(MAKE) up; \
 	$(MAKE) -s wait-for-services; \
 	if [ -n "$(GOTESTSUM)" ]; then \
-	  CHAOS=1 ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-system.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos || { \
+	  CHAOS=1 LEDGER_URL=$(TEST_LEDGER_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-system.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos || { \
 	    if [ "$(RETRY_ON_FAIL)" = "1" ]; then \
 	      echo "Retrying chaos tests once..."; \
-	      CHAOS=1 ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-system-rerun.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
+	      CHAOS=1 LEDGER_URL=$(TEST_LEDGER_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) gotestsum --format testname --junitfile $(TEST_REPORTS_DIR)/chaos/chaos-system-rerun.xml -- -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
 	    else \
 	      exit 1; \
 	    fi; \
 	  }; \
 	else \
-	  CHAOS=1 ONBOARDING_URL=$(TEST_ONBOARDING_URL) TRANSACTION_URL=$(TEST_TRANSACTION_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) go test -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
+	  CHAOS=1 LEDGER_URL=$(TEST_LEDGER_URL) TEST_AUTH_URL=$(TEST_AUTH_URL) TEST_AUTH_USERNAME=$(TEST_AUTH_USERNAME) TEST_AUTH_PASSWORD=$(TEST_AUTH_PASSWORD) go test -v -race -timeout 30m -count=1 $(GO_TEST_LDFLAGS) ./tests/chaos; \
 	fi
 
 # Native Go fuzz tests (coverage-guided mutation testing).

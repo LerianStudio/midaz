@@ -44,7 +44,7 @@ type TransactionRoute struct {
 // @Description CreateTransactionRouteInput payload
 type CreateTransactionRouteInput struct {
 	// Short text summarizing the purpose of the transaction. Used as an entry note for identification.
-	Title string `json:"title,omitempty" validate:"required,max=50" example:"Charge Settlement"`
+	Title string `json:"title,omitempty" validate:"required,max=255" example:"Charge Settlement"`
 	// A description for the Transaction Route.
 	Description string `json:"description,omitempty" validate:"max=250" example:"Settlement route for service charges"`
 	// Additional metadata stored as JSON
@@ -67,7 +67,7 @@ func (c *CreateTransactionRouteInput) OperationRouteIDs() []uuid.UUID {
 // @Description UpdateTransactionRouteInput payload
 type UpdateTransactionRouteInput struct {
 	// Short text summarizing the purpose of the transaction. Used as an entry note for identification.
-	Title string `json:"title,omitempty" validate:"max=50" example:"Charge Settlement"`
+	Title string `json:"title,omitempty" validate:"max=255" example:"Charge Settlement"`
 	// A description for the Transaction Route.
 	Description string `json:"description,omitempty" validate:"max=250" example:"Settlement route for service charges"`
 	// Additional metadata stored as JSON

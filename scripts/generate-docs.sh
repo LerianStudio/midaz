@@ -13,7 +13,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Components to process
-COMPONENTS=("onboarding" "transaction" "crm")
+COMPONENTS=("ledger" "crm")
 
 # Temporary log dir
 LOG_DIR="${ROOT_DIR}/tmp"
@@ -201,7 +201,7 @@ main() {
         done
     fi
 
-    # Generate ledger unified swagger (merges onboarding + transaction + ledger settings)
+    # Run ledger merge-swagger to produce the unified docs.go and swagger.json
     if [ "$overall_success" = true ]; then
         if [ -f "${ROOT_DIR}/components/ledger/scripts/merge-swagger.sh" ]; then
             print_step "Generating ledger unified swagger" "PROCESSING"

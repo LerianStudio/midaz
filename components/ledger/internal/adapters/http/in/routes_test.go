@@ -67,7 +67,7 @@ func TestRegisterRoutesToApp_RegistersRoutes(t *testing.T) {
 	auth := &middleware.AuthClient{Enabled: false}
 	handler := &MetadataIndexHandler{}
 
-	RegisterRoutesToApp(app, auth, handler, nil)
+	RegisterMetadataRoutesToApp(app, auth, handler, nil)
 
 	routes := app.GetRoutes()
 	routeSet := make(map[string]bool)
@@ -98,7 +98,7 @@ func TestRegisterRoutesToApp_WithRouteOptions(t *testing.T) {
 		},
 	}
 
-	RegisterRoutesToApp(app, auth, handler, options)
+	RegisterMetadataRoutesToApp(app, auth, handler, options)
 
 	routes := app.GetRoutes()
 	assert.NotEmpty(t, routes, "should have registered routes with options")

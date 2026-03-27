@@ -36,6 +36,7 @@ type QueryHeader struct {
 	EndDate                             time.Time
 	UseMetadata                         bool
 	PortfolioID                         string
+	SegmentID                           string
 	OperationType                       string
 	Direction                           *string
 	RouteID                             *string
@@ -96,6 +97,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var (
 		metadata                            *bson.M
 		portfolioID                         string
+		segmentID                           string
 		operationType                       string
 		direction                           *string
 		routeID                             *string
@@ -153,6 +155,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			endDate = parsedDate
 		case strings.Contains(key, "portfolio_id"):
 			portfolioID = value
+		case strings.Contains(key, "segment_id"):
+			segmentID = value
 		case strings.Contains(strings.ToLower(key), "type"):
 			operationType = strings.ToUpper(value)
 		case key == "direction":
@@ -224,6 +228,13 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		}
 	}
 
+	if !libCommons.IsNilOrEmpty(&segmentID) {
+		_, err := uuid.Parse(segmentID)
+		if err != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "segment_id")
+		}
+	}
+
 	if direction != nil && *direction != constant.DirectionDebit && *direction != constant.DirectionCredit {
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "direction")
 	}
@@ -244,6 +255,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		EndDate:                             endDate,
 		UseMetadata:                         useMetadata,
 		PortfolioID:                         portfolioID,
+		SegmentID:                           segmentID,
 		OperationType:                       operationType,
 		Direction:                           direction,
 		RouteID:                             routeID,

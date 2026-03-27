@@ -12,7 +12,7 @@ info:
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
-  version: v3.5.2
+  version: v3.6.0
 host: localhost:3002
 basePath: /
 paths:
@@ -1186,6 +1186,18 @@ paths:
         description: Sort direction for results based on creation date
         name: sort_order
         in: query
+      - type: string
+        format: uuid
+        description: Filter accounts by portfolio ID (UUID format). If both portfolio_id
+          and segment_id are provided, both filters are applied (AND semantics).
+        name: portfolio_id
+        in: query
+      - type: string
+        format: uuid
+        description: Filter accounts by segment ID (UUID format). If both portfolio_id
+          and segment_id are provided, both filters are applied (AND semantics).
+        name: segment_id
+        in: query
       responses:
         '200':
           description: Successfully retrieved accounts list
@@ -1342,6 +1354,67 @@ paths:
           description: Internal server error
           schema:
             $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
+    get:
+      description: Get Balances with alias
+      produces:
+      - application/json
+      tags:
+      - Balances
+      summary: Get Balances using Alias
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Alias (e.g. @person1)
+        name: alias
+        in: path
+        required: true
+      responses:
+        '200':
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/http.Pagination'
+            - type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/definitions/mmodel.Balance'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Balance not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
     get:
       description: Returns detailed information about an account identified by its
@@ -1398,6 +1471,67 @@ paths:
           description: Internal server error
           schema:
             $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
+    get:
+      description: Get External balances with code
+      produces:
+      - application/json
+      tags:
+      - Balances
+      summary: Get External balances using code
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Code (e.g. BRL)
+        name: code
+        in: path
+        required: true
+      responses:
+        '200':
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/http.Pagination'
+            - type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/definitions/mmodel.Balance'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Balance not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count:
     head:
       description: Returns the total count of accounts for the specified organization,
@@ -1438,6 +1572,391 @@ paths:
             $ref: '#/definitions/Error'
         '404':
           description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
+    get:
+      description: Get all balances by account id
+      produces:
+      - application/json
+      tags:
+      - Balances
+      summary: Get all balances by account id
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Account ID
+        name: account_id
+        in: path
+        required: true
+      - type: integer
+        default: 10
+        description: Limit
+        name: limit
+        in: query
+      - type: string
+        description: Start Date
+        name: start_date
+        in: query
+      - type: string
+        description: End Date
+        name: end_date
+        in: query
+      - enum:
+        - asc
+        - desc
+        type: string
+        description: Sort Order
+        name: sort_order
+        in: query
+      - type: string
+        description: Cursor
+        name: cursor
+        in: query
+      responses:
+        '200':
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/http.Pagination'
+            - type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/definitions/mmodel.Balance'
+        '400':
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Account not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+    post:
+      description: Create an Additional Balance with the input payload
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - Balances
+      summary: Create Additional Balance
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Account ID
+        name: account_id
+        in: path
+        required: true
+      - description: Balance Input
+        name: balance
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/CreateAdditionalBalance'
+      responses:
+        '201':
+          description: Created
+          schema:
+            $ref: '#/definitions/mmodel.Balance'
+        '400':
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Balance not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
+    get:
+      description: Get the historical state of all Balances for an account at a specific
+        point in time (yyyy-mm-dd hh:mm:ss format)
+      produces:
+      - application/json
+      tags:
+      - Balances
+      summary: Get Account Balances history at date
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Account ID
+        name: account_id
+        in: path
+        required: true
+      - type: string
+        description: 'Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15
+          10:30:00)'
+        name: date
+        in: query
+        required: true
+      responses:
+        '200':
+          description: OK
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/BalanceHistory'
+        '400':
+          description: Invalid date format or date in the future
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Account not found or no data available at date
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
+    get:
+      description: Get all Operations with the input ID
+      produces:
+      - application/json
+      tags:
+      - Operations
+      summary: Get all Operations by account
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Account ID
+        name: account_id
+        in: path
+        required: true
+      - type: integer
+        default: 10
+        description: Limit
+        name: limit
+        in: query
+      - type: string
+        description: Start Date
+        name: start_date
+        in: query
+      - type: string
+        description: End Date
+        name: end_date
+        in: query
+      - enum:
+        - asc
+        - desc
+        type: string
+        description: Sort Order
+        name: sort_order
+        in: query
+      - type: string
+        description: Cursor
+        name: cursor
+        in: query
+      - type: string
+        description: DEBIT, CREDIT
+        name: type
+        in: query
+      - enum:
+        - debit
+        - credit
+        type: string
+        description: Filter by direction
+        name: direction
+        in: query
+      - type: string
+        format: uuid
+        description: Filter by operation route ID
+        name: route_id
+        in: query
+      responses:
+        '200':
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/http.Pagination'
+            - type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/definitions/Operation'
+        '400':
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Account not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
+    get:
+      description: Get an Operation with the input ID
+      produces:
+      - application/json
+      tags:
+      - Operations
+      summary: Get Operation
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Account ID
+        name: account_id
+        in: path
+        required: true
+      - type: string
+        description: Operation ID
+        name: operation_id
+        in: path
+        required: true
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/Operation'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Operation not found
           schema:
             $ref: '#/definitions/Error'
         '500':
@@ -1618,6 +2137,217 @@ paths:
             $ref: '#/definitions/Error'
         '409':
           description: 'Conflict: Account with the same name already exists'
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
+    put:
+      description: Create or Update an AssetRate with the input details
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - Asset Rates
+      summary: Create or Update an AssetRate
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - description: AssetRate Input
+        name: asset-rate
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/CreateAssetRateInput'
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/AssetRate'
+        '400':
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Ledger or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
+    get:
+      description: Get an AssetRate by the Asset Code with the input details
+      produces:
+      - application/json
+      tags:
+      - Asset Rates
+      summary: Get an AssetRate by the Asset Code
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: From Asset Code
+        name: asset_code
+        in: path
+        required: true
+      - type: array
+        items:
+          type: string
+        collectionFormat: csv
+        description: To Asset Codes
+        name: to
+        in: query
+      - type: integer
+        default: 10
+        description: Limit
+        name: limit
+        in: query
+      - type: string
+        description: Start Date
+        name: start_date
+        in: query
+      - type: string
+        description: End Date
+        name: end_date
+        in: query
+      - enum:
+        - asc
+        - desc
+        type: string
+        description: Sort Order
+        name: sort_order
+        in: query
+      - type: string
+        description: Cursor
+        name: cursor
+        in: query
+      responses:
+        '200':
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/http.Pagination'
+            - type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/definitions/AssetRate'
+        '400':
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Asset code not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
+    get:
+      description: Get an AssetRate by External ID with the input details
+      produces:
+      - application/json
+      tags:
+      - Asset Rates
+      summary: Get an AssetRate by External ID
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: External ID
+        name: external_id
+        in: path
+        required: true
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/AssetRate'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Asset rate not found
           schema:
             $ref: '#/definitions/Error'
         '500':
@@ -2004,6 +2734,628 @@ paths:
             $ref: '#/definitions/Error'
         '409':
           description: 'Conflict: Asset with the same name already exists'
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances:
+    get:
+      description: Get all balances
+      produces:
+      - application/json
+      tags:
+      - Balances
+      summary: Get all balances
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: integer
+        default: 10
+        description: Limit
+        name: limit
+        in: query
+      - type: string
+        description: Start Date
+        name: start_date
+        in: query
+      - type: string
+        description: End Date
+        name: end_date
+        in: query
+      - enum:
+        - asc
+        - desc
+        type: string
+        description: Sort Order
+        name: sort_order
+        in: query
+      - type: string
+        description: Cursor
+        name: cursor
+        in: query
+      responses:
+        '200':
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/http.Pagination'
+            - type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/definitions/mmodel.Balance'
+        '400':
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
+    get:
+      description: Get a Balance with the input ID
+      produces:
+      - application/json
+      tags:
+      - Balances
+      summary: Get Balance by id
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Balance ID
+        name: balance_id
+        in: path
+        required: true
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Balance'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Balance not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+    delete:
+      description: Delete a Balance with the input ID
+      produces:
+      - application/json
+      tags:
+      - Balances
+      summary: Delete Balance by account
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Balance ID
+        name: balance_id
+        in: path
+        required: true
+      responses:
+        '204':
+          description: Balance successfully deleted
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Balance not found
+          schema:
+            $ref: '#/definitions/Error'
+        '409':
+          description: 'Conflict: Cannot delete balance with active operations'
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+    patch:
+      description: Update a Balance with the input payload
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - Balances
+      summary: Update Balance
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Balance ID
+        name: balance_id
+        in: path
+        required: true
+      - description: Balance Input
+        name: balance
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateBalance'
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Balance'
+        '400':
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Balance not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
+    get:
+      description: Get the historical state of a Balance at a specific point in time
+        (yyyy-mm-dd hh:mm:ss format)
+      produces:
+      - application/json
+      tags:
+      - Balances
+      summary: Get Balance history at date
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Balance ID
+        name: balance_id
+        in: path
+        required: true
+      - type: string
+        description: 'Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15
+          10:30:00)'
+        name: date
+        in: query
+        required: true
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/BalanceHistory'
+        '400':
+          description: Invalid date format or date in the future
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Balance not found or no data available at date
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
+    get:
+      description: Returns a list of all operation routes within the specified ledger
+        with cursor-based pagination
+      produces:
+      - application/json
+      tags:
+      - Operation Route
+      summary: Retrieve all operation routes
+      parameters:
+      - type: string
+        description: 'Authorization Bearer Token with format: Bearer {token}'
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID for tracing
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID in UUID format
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID in UUID format
+        name: ledger_id
+        in: path
+        required: true
+      - type: integer
+        default: 10
+        description: Limit
+        name: limit
+        in: query
+      - type: string
+        description: Start Date
+        name: start_date
+        in: query
+      - type: string
+        description: End Date
+        name: end_date
+        in: query
+      - enum:
+        - asc
+        - desc
+        type: string
+        description: Sort Order
+        name: sort_order
+        in: query
+      - type: string
+        description: Cursor
+        name: cursor
+        in: query
+      responses:
+        '200':
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/http.Pagination'
+            - type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: '#/definitions/OperationRoute'
+        '400':
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Operation Route not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+    post:
+      description: Endpoint to create a new Operation Route.
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - Operation Route
+      summary: Create Operation Route
+      parameters:
+      - type: string
+        description: 'Authorization Bearer Token with format: Bearer {token}'
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID for tracing
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID in UUID format
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID in UUID format
+        name: ledger_id
+        in: path
+        required: true
+      - description: Operation Route Input
+        name: operation-route
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/CreateOperationRouteInput'
+      responses:
+        '201':
+          description: Successfully created operation route
+          schema:
+            $ref: '#/definitions/OperationRoute'
+        '400':
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{id}:
+    get:
+      description: Returns detailed information about an operation route identified
+        by its UUID within the specified ledger
+      produces:
+      - application/json
+      tags:
+      - Operation Route
+      summary: Retrieve a specific operation route
+      parameters:
+      - type: string
+        description: 'Authorization Bearer Token with format: Bearer {token}'
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID for tracing
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID in UUID format
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID in UUID format
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Operation Route ID in UUID format
+        name: id
+        in: path
+        required: true
+      responses:
+        '200':
+          description: Successfully retrieved operation route
+          schema:
+            $ref: '#/definitions/OperationRoute'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
+    delete:
+      description: Deletes an existing operation route identified by its UUID within
+        the specified ledger
+      produces:
+      - application/json
+      tags:
+      - Operation Route
+      summary: Delete an operation route
+      parameters:
+      - type: string
+        description: 'Authorization Bearer Token with format: Bearer {token}'
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID for tracing
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID in UUID format
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID in UUID format
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Operation Route ID in UUID format
+        name: operation_route_id
+        in: path
+        required: true
+      responses:
+        '204':
+          description: Successfully deleted operation route
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Operation Route not found
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+    patch:
+      description: Updates an existing operation route's properties such as title,
+        description, and type within the specified ledger
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      tags:
+      - Operation Route
+      summary: Update an operation route
+      parameters:
+      - type: string
+        description: 'Authorization Bearer Token with format: Bearer {token}'
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID for tracing
+        name: X-Request-Id
+        in: header
+      - type: string
+        description: Organization ID in UUID format
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        description: Ledger ID in UUID format
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Operation Route ID in UUID format
+        name: operation_route_id
+        in: path
+        required: true
+      - description: Operation Route Input
+        name: operation-route
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateOperationRouteInput'
+      responses:
+        '200':
+          description: Successfully updated operation route
+          schema:
+            $ref: '#/definitions/OperationRoute'
+        '400':
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Operation Route not found
+          schema:
+            $ref: '#/definitions/Error'
+        '409':
+          description: 'Conflict: Operation Route with the same title already exists'
           schema:
             $ref: '#/definitions/Error'
         '500':
@@ -2786,1346 +4138,6 @@ paths:
           description: Internal server error
           schema:
             $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances:
-    get:
-      description: Get Balances with alias
-      produces:
-      - application/json
-      tags:
-      - Balances
-      summary: Get Balances using Alias
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Alias (e.g. @person1)
-        name: alias
-        in: path
-        required: true
-      responses:
-        '200':
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/http.Pagination'
-            - type: object
-              properties:
-                items:
-                  type: array
-                  items:
-                    $ref: '#/definitions/mmodel.Balance'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Balance not found
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances:
-    get:
-      description: Get External balances with code
-      produces:
-      - application/json
-      tags:
-      - Balances
-      summary: Get External balances using code
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Code (e.g. BRL)
-        name: code
-        in: path
-        required: true
-      responses:
-        '200':
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/http.Pagination'
-            - type: object
-              properties:
-                items:
-                  type: array
-                  items:
-                    $ref: '#/definitions/mmodel.Balance'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Balance not found
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
-    get:
-      description: Get all balances by account id
-      produces:
-      - application/json
-      tags:
-      - Balances
-      summary: Get all balances by account id
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Account ID
-        name: account_id
-        in: path
-        required: true
-      - type: integer
-        default: 10
-        description: Limit
-        name: limit
-        in: query
-      - type: string
-        description: Start Date
-        name: start_date
-        in: query
-      - type: string
-        description: End Date
-        name: end_date
-        in: query
-      - enum:
-        - asc
-        - desc
-        type: string
-        description: Sort Order
-        name: sort_order
-        in: query
-      - type: string
-        description: Cursor
-        name: cursor
-        in: query
-      responses:
-        '200':
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/http.Pagination'
-            - type: object
-              properties:
-                items:
-                  type: array
-                  items:
-                    $ref: '#/definitions/mmodel.Balance'
-        '400':
-          description: Invalid query parameters
-          schema:
-            $ref: '#/definitions/Error'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Account not found
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-    post:
-      description: Create an Additional Balance with the input payload
-      consumes:
-      - application/json
-      produces:
-      - application/json
-      tags:
-      - Balances
-      summary: Create Additional Balance
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Account ID
-        name: account_id
-        in: path
-        required: true
-      - description: Balance Input
-        name: balance
-        in: body
-        required: true
-        schema:
-          $ref: '#/definitions/CreateAdditionalBalance'
-      responses:
-        '201':
-          description: Created
-          schema:
-            $ref: '#/definitions/mmodel.Balance'
-        '400':
-          description: Invalid input, validation errors
-          schema:
-            $ref: '#/definitions/Error'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Balance not found
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances/history:
-    get:
-      description: Get the historical state of all Balances for an account at a specific
-        point in time (yyyy-mm-dd hh:mm:ss format)
-      produces:
-      - application/json
-      tags:
-      - Balances
-      summary: Get Account Balances history at date
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Account ID
-        name: account_id
-        in: path
-        required: true
-      - type: string
-        description: 'Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15
-          10:30:00)'
-        name: date
-        in: query
-        required: true
-      responses:
-        '200':
-          description: OK
-          schema:
-            type: array
-            items:
-              $ref: '#/definitions/BalanceHistory'
-        '400':
-          description: Invalid date format or date in the future
-          schema:
-            $ref: '#/definitions/Error'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Account not found or no data available at date
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
-    get:
-      description: Get all Operations with the input ID
-      produces:
-      - application/json
-      tags:
-      - Operations
-      summary: Get all Operations by account
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Account ID
-        name: account_id
-        in: path
-        required: true
-      - type: integer
-        default: 10
-        description: Limit
-        name: limit
-        in: query
-      - type: string
-        description: Start Date
-        name: start_date
-        in: query
-      - type: string
-        description: End Date
-        name: end_date
-        in: query
-      - enum:
-        - asc
-        - desc
-        type: string
-        description: Sort Order
-        name: sort_order
-        in: query
-      - type: string
-        description: Cursor
-        name: cursor
-        in: query
-      - type: string
-        description: DEBIT, CREDIT
-        name: type
-        in: query
-      - enum:
-        - debit
-        - credit
-        type: string
-        description: Filter by direction
-        name: direction
-        in: query
-      - type: string
-        format: uuid
-        description: Filter by operation route ID
-        name: route_id
-        in: query
-      responses:
-        '200':
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/http.Pagination'
-            - type: object
-              properties:
-                items:
-                  type: array
-                  items:
-                    $ref: '#/definitions/Operation'
-        '400':
-          description: Invalid query parameters
-          schema:
-            $ref: '#/definitions/Error'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Account not found
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
-    get:
-      description: Get an Operation with the input ID
-      produces:
-      - application/json
-      tags:
-      - Operations
-      summary: Get Operation
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Account ID
-        name: account_id
-        in: path
-        required: true
-      - type: string
-        description: Operation ID
-        name: operation_id
-        in: path
-        required: true
-      responses:
-        '200':
-          description: OK
-          schema:
-            $ref: '#/definitions/Operation'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Operation not found
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
-    put:
-      description: Create or Update an AssetRate with the input details
-      consumes:
-      - application/json
-      produces:
-      - application/json
-      tags:
-      - Asset Rates
-      summary: Create or Update an AssetRate
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - description: AssetRate Input
-        name: asset-rate
-        in: body
-        required: true
-        schema:
-          $ref: '#/definitions/CreateAssetRateInput'
-      responses:
-        '200':
-          description: OK
-          schema:
-            $ref: '#/definitions/AssetRate'
-        '400':
-          description: Invalid input, validation errors
-          schema:
-            $ref: '#/definitions/Error'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Ledger or organization not found
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
-    get:
-      description: Get an AssetRate by the Asset Code with the input details
-      produces:
-      - application/json
-      tags:
-      - Asset Rates
-      summary: Get an AssetRate by the Asset Code
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: From Asset Code
-        name: asset_code
-        in: path
-        required: true
-      - type: array
-        items:
-          type: string
-        collectionFormat: csv
-        description: To Asset Codes
-        name: to
-        in: query
-      - type: integer
-        default: 10
-        description: Limit
-        name: limit
-        in: query
-      - type: string
-        description: Start Date
-        name: start_date
-        in: query
-      - type: string
-        description: End Date
-        name: end_date
-        in: query
-      - enum:
-        - asc
-        - desc
-        type: string
-        description: Sort Order
-        name: sort_order
-        in: query
-      - type: string
-        description: Cursor
-        name: cursor
-        in: query
-      responses:
-        '200':
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/http.Pagination'
-            - type: object
-              properties:
-                items:
-                  type: array
-                  items:
-                    $ref: '#/definitions/AssetRate'
-        '400':
-          description: Invalid query parameters
-          schema:
-            $ref: '#/definitions/Error'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Asset code not found
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
-    get:
-      description: Get an AssetRate by External ID with the input details
-      produces:
-      - application/json
-      tags:
-      - Asset Rates
-      summary: Get an AssetRate by External ID
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: External ID
-        name: external_id
-        in: path
-        required: true
-      responses:
-        '200':
-          description: OK
-          schema:
-            $ref: '#/definitions/AssetRate'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Asset rate not found
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances:
-    get:
-      description: Get all balances
-      produces:
-      - application/json
-      tags:
-      - Balances
-      summary: Get all balances
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: integer
-        default: 10
-        description: Limit
-        name: limit
-        in: query
-      - type: string
-        description: Start Date
-        name: start_date
-        in: query
-      - type: string
-        description: End Date
-        name: end_date
-        in: query
-      - enum:
-        - asc
-        - desc
-        type: string
-        description: Sort Order
-        name: sort_order
-        in: query
-      - type: string
-        description: Cursor
-        name: cursor
-        in: query
-      responses:
-        '200':
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/http.Pagination'
-            - type: object
-              properties:
-                items:
-                  type: array
-                  items:
-                    $ref: '#/definitions/mmodel.Balance'
-        '400':
-          description: Invalid query parameters
-          schema:
-            $ref: '#/definitions/Error'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
-    get:
-      description: Get a Balance with the input ID
-      produces:
-      - application/json
-      tags:
-      - Balances
-      summary: Get Balance by id
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Balance ID
-        name: balance_id
-        in: path
-        required: true
-      responses:
-        '200':
-          description: OK
-          schema:
-            $ref: '#/definitions/mmodel.Balance'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Balance not found
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-    delete:
-      description: Delete a Balance with the input ID
-      produces:
-      - application/json
-      tags:
-      - Balances
-      summary: Delete Balance by account
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Balance ID
-        name: balance_id
-        in: path
-        required: true
-      responses:
-        '204':
-          description: Balance successfully deleted
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Balance not found
-          schema:
-            $ref: '#/definitions/Error'
-        '409':
-          description: 'Conflict: Cannot delete balance with active operations'
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-    patch:
-      description: Update a Balance with the input payload
-      consumes:
-      - application/json
-      produces:
-      - application/json
-      tags:
-      - Balances
-      summary: Update Balance
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Balance ID
-        name: balance_id
-        in: path
-        required: true
-      - description: Balance Input
-        name: balance
-        in: body
-        required: true
-        schema:
-          $ref: '#/definitions/UpdateBalance'
-      responses:
-        '200':
-          description: OK
-          schema:
-            $ref: '#/definitions/mmodel.Balance'
-        '400':
-          description: Invalid input, validation errors
-          schema:
-            $ref: '#/definitions/Error'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Balance not found
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}/history:
-    get:
-      description: Get the historical state of a Balance at a specific point in time
-        (yyyy-mm-dd hh:mm:ss format)
-      produces:
-      - application/json
-      tags:
-      - Balances
-      summary: Get Balance history at date
-      parameters:
-      - type: string
-        description: Authorization Bearer Token
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Balance ID
-        name: balance_id
-        in: path
-        required: true
-      - type: string
-        description: 'Point in time (format: yyyy-mm-dd hh:mm:ss, e.g. 2024-01-15
-          10:30:00)'
-        name: date
-        in: query
-        required: true
-      responses:
-        '200':
-          description: OK
-          schema:
-            $ref: '#/definitions/BalanceHistory'
-        '400':
-          description: Invalid date format or date in the future
-          schema:
-            $ref: '#/definitions/Error'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Balance not found or no data available at date
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
-    get:
-      description: Returns a list of all operation routes within the specified ledger
-        with cursor-based pagination
-      produces:
-      - application/json
-      tags:
-      - Operation Route
-      summary: Retrieve all operation routes
-      parameters:
-      - type: string
-        description: 'Authorization Bearer Token with format: Bearer {token}'
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID for tracing
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID in UUID format
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID in UUID format
-        name: ledger_id
-        in: path
-        required: true
-      - type: integer
-        default: 10
-        description: Limit
-        name: limit
-        in: query
-      - type: string
-        description: Start Date
-        name: start_date
-        in: query
-      - type: string
-        description: End Date
-        name: end_date
-        in: query
-      - enum:
-        - asc
-        - desc
-        type: string
-        description: Sort Order
-        name: sort_order
-        in: query
-      - type: string
-        description: Cursor
-        name: cursor
-        in: query
-      responses:
-        '200':
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/http.Pagination'
-            - type: object
-              properties:
-                items:
-                  type: array
-                  items:
-                    $ref: '#/definitions/OperationRoute'
-        '400':
-          description: Invalid input, validation errors
-          schema:
-            $ref: '#/definitions/Error'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Operation Route not found
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-    post:
-      description: Endpoint to create a new Operation Route.
-      consumes:
-      - application/json
-      produces:
-      - application/json
-      tags:
-      - Operation Route
-      summary: Create Operation Route
-      parameters:
-      - type: string
-        description: 'Authorization Bearer Token with format: Bearer {token}'
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID for tracing
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID in UUID format
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID in UUID format
-        name: ledger_id
-        in: path
-        required: true
-      - description: Operation Route Input
-        name: operation-route
-        in: body
-        required: true
-        schema:
-          $ref: '#/definitions/CreateOperationRouteInput'
-      responses:
-        '201':
-          description: Successfully created operation route
-          schema:
-            $ref: '#/definitions/OperationRoute'
-        '400':
-          description: Invalid input, validation errors
-          schema:
-            $ref: '#/definitions/Error'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{id}:
-    get:
-      description: Returns detailed information about an operation route identified
-        by its UUID within the specified ledger
-      produces:
-      - application/json
-      tags:
-      - Operation Route
-      summary: Retrieve a specific operation route
-      parameters:
-      - type: string
-        description: 'Authorization Bearer Token with format: Bearer {token}'
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID for tracing
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID in UUID format
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID in UUID format
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Operation Route ID in UUID format
-        name: id
-        in: path
-        required: true
-      responses:
-        '200':
-          description: Successfully retrieved operation route
-          schema:
-            $ref: '#/definitions/OperationRoute'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes/{operation_route_id}:
-    delete:
-      description: Deletes an existing operation route identified by its UUID within
-        the specified ledger
-      produces:
-      - application/json
-      tags:
-      - Operation Route
-      summary: Delete an operation route
-      parameters:
-      - type: string
-        description: 'Authorization Bearer Token with format: Bearer {token}'
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID for tracing
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID in UUID format
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID in UUID format
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Operation Route ID in UUID format
-        name: operation_route_id
-        in: path
-        required: true
-      responses:
-        '204':
-          description: Successfully deleted operation route
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Operation Route not found
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
-    patch:
-      description: Updates an existing operation route's properties such as title,
-        description, and type within the specified ledger
-      consumes:
-      - application/json
-      produces:
-      - application/json
-      tags:
-      - Operation Route
-      summary: Update an operation route
-      parameters:
-      - type: string
-        description: 'Authorization Bearer Token with format: Bearer {token}'
-        name: Authorization
-        in: header
-        required: true
-      - type: string
-        description: Request ID for tracing
-        name: X-Request-Id
-        in: header
-      - type: string
-        description: Organization ID in UUID format
-        name: organization_id
-        in: path
-        required: true
-      - type: string
-        description: Ledger ID in UUID format
-        name: ledger_id
-        in: path
-        required: true
-      - type: string
-        description: Operation Route ID in UUID format
-        name: operation_route_id
-        in: path
-        required: true
-      - description: Operation Route Input
-        name: operation-route
-        in: body
-        required: true
-        schema:
-          $ref: '#/definitions/UpdateOperationRouteInput'
-      responses:
-        '200':
-          description: Successfully updated operation route
-          schema:
-            $ref: '#/definitions/OperationRoute'
-        '400':
-          description: Invalid input, validation errors
-          schema:
-            $ref: '#/definitions/Error'
-        '401':
-          description: Unauthorized access
-          schema:
-            $ref: '#/definitions/Error'
-        '403':
-          description: Forbidden access
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Operation Route not found
-          schema:
-            $ref: '#/definitions/Error'
-        '409':
-          description: 'Conflict: Operation Route with the same title already exists'
-          schema:
-            $ref: '#/definitions/Error'
-        '500':
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes:
     get:
       description: Endpoint to get all Transaction Routes with optional metadata filtering.
@@ -4557,7 +4569,7 @@ paths:
         in: body
         required: true
         schema:
-          $ref: '#/definitions/transaction.CreateTransactionSwaggerModel'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
       responses:
         '201':
           description: Created
@@ -4739,7 +4751,7 @@ paths:
         in: body
         required: true
         schema:
-          $ref: '#/definitions/transaction.CreateTransactionSwaggerModel'
+          $ref: '#/definitions/github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel'
       responses:
         '201':
           description: Created
@@ -4763,6 +4775,82 @@ paths:
             $ref: '#/definitions/Error'
         '500':
           description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count:
+    head:
+      description: Count transactions matching optional filters (route, status, date
+        range)
+      tags:
+      - Transactions
+      summary: Count Transactions by Filters
+      parameters:
+      - type: string
+        description: Authorization Bearer Token
+        name: Authorization
+        in: header
+        required: true
+      - type: string
+        description: Request ID
+        name: X-Request-Id
+        in: header
+      - type: string
+        format: uuid
+        description: Organization ID
+        name: organization_id
+        in: path
+        required: true
+      - type: string
+        format: uuid
+        description: Ledger ID
+        name: ledger_id
+        in: path
+        required: true
+      - type: string
+        description: Filter by transaction route
+        name: route
+        in: query
+      - enum:
+        - CREATED
+        - APPROVED
+        - PENDING
+        - CANCELED
+        - NOTED
+        type: string
+        description: Filter by transaction status
+        name: status
+        in: query
+      - type: string
+        format: date-time
+        description: Start of date range (RFC 3339, defaults to today 00:00:00 UTC)
+        name: start_date
+        in: query
+      - type: string
+        format: date-time
+        description: End of date range (RFC 3339, defaults to today 23:59:59 UTC)
+        name: end_date
+        in: query
+      responses:
+        '204':
+          description: No Content
+          headers:
+            X-Total-Count:
+              type: integer
+              description: Total count of matching transactions
+        '400':
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/Error'
+        '401':
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/Error'
+        '403':
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        '500':
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/Error'
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/outflow:
@@ -5552,6 +5640,18 @@ definitions:
         type: string
         format: date-time
         example: '2021-01-01T00:00:00Z'
+  AccountRule:
+    description: AccountRule object containing the rule type and condition for account
+      selection in operation routes.
+    type: object
+    properties:
+      ruleType:
+        description: The rule type for account selection.
+        type: string
+        example: alias
+      validIf:
+        description: The rule condition for account selection. String for alias type
+          (e.g. "@cash_account"), array for account_type.
   AccountType:
     description: AccountType object
     type: object
@@ -5602,6 +5702,65 @@ definitions:
         type: string
         format: date-time
         example: '2021-01-01T00:00:00Z'
+  AccountingEntries:
+    description: AccountingEntries object containing optional accounting entries for
+      each action type (direct, hold, commit, cancel, revert).
+    type: object
+    properties:
+      cancel:
+        description: The accounting entry for the cancel action.
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+      commit:
+        description: The accounting entry for the commit action.
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+      direct:
+        description: The accounting entry for the direct action.
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+      hold:
+        description: The accounting entry for the hold action.
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+      revert:
+        description: The accounting entry for the revert action.
+        allOf:
+        - $ref: '#/definitions/AccountingEntry'
+  AccountingEntry:
+    description: AccountingEntry object containing debit and credit rubrics for a
+      specific action.
+    type: object
+    required:
+    - credit
+    - debit
+    properties:
+      credit:
+        description: The credit rubric for this entry.
+        allOf:
+        - $ref: '#/definitions/AccountingRubric'
+      debit:
+        description: The debit rubric for this entry.
+        allOf:
+        - $ref: '#/definitions/AccountingRubric'
+  AccountingRubric:
+    description: AccountingRubric object containing the code and description for a
+      debit or credit entry.
+    type: object
+    required:
+    - code
+    - description
+    properties:
+      code:
+        description: The accounting rubric code.
+        type: string
+        maxLength: 50
+        example: '1001'
+      description:
+        description: The accounting rubric description.
+        type: string
+        maxLength: 250
+        example: Cash
   Address:
     description: Structured address information following standard postal address
       format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country
@@ -5677,6 +5836,20 @@ definitions:
         type: string
         maxLength: 20
         example: '10001'
+  Amount:
+    description: Amount is the struct designed to represent the amount of an operation.
+      Contains the value and scale (decimal places) of an operation amount.
+    type: object
+    properties:
+      value:
+        description: 'The amount value in the smallest unit of the asset (e.g., cents)
+
+          example: 1500
+
+          minimum: 0'
+        type: number
+        minimum: 0
+        example: 1500
   Asset:
     description: Asset represents a financial instrument within a ledger, such as
       a currency, cryptocurrency, commodity, or other asset type.
@@ -5735,1061 +5908,6 @@ definitions:
         type: string
         format: date-time
         example: '2021-01-01T00:00:00Z'
-  CreateAccountInput:
-    description: Request payload for creating a new account within a ledger. Accounts
-      represent individual financial entities such as bank accounts, credit cards,
-      expense categories, or any other financial buckets within a ledger. Accounts
-      are identified by a unique ID, can have aliases for easy reference, and are
-      associated with a specific asset type.
-    type: object
-    required:
-    - assetCode
-    - type
-    properties:
-      alias:
-        description: 'Unique alias for the account (optional, must follow alias format
-          rules)
-
-          required: false
-
-          example: @treasury_checking
-
-          maxLength: 100'
-        type: string
-        maxLength: 100
-        example: '@treasury_checking'
-      assetCode:
-        description: 'Asset code that this account will use for balances and transactions
-
-          required: true
-
-          example: USD
-
-          maxLength: 100'
-        type: string
-        maxLength: 100
-        example: USD
-      blocked:
-        description: 'Whether the account should start blocked
-
-          required: false
-
-          default: false'
-        type: boolean
-      entityId:
-        description: 'Optional external identifier for linking to external systems
-
-          required: false
-
-          example: EXT-ACC-12345
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: EXT-ACC-12345
-      metadata:
-        description: 'Custom key-value pairs for extending the account information
-
-          required: false
-
-          example: {"department": "Treasury", "purpose": "Operating Expenses", "region":
-          "Global"}'
-        type: object
-        additionalProperties: {}
-      name:
-        description: 'Human-readable name of the account
-
-          required: false
-
-          example: Corporate Checking Account
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: Corporate Checking Account
-      parentAccountId:
-        description: 'ID of the parent account if this is a subaccount (optional)
-
-          required: false
-
-          format: uuid'
-        type: string
-        format: uuid
-      portfolioId:
-        description: 'ID of the portfolio this account belongs to (optional)
-
-          required: false
-
-          format: uuid'
-        type: string
-        format: uuid
-      segmentId:
-        description: 'ID of the segment this account belongs to (optional)
-
-          required: false
-
-          format: uuid'
-        type: string
-        format: uuid
-      status:
-        description: 'Current operating status of the account
-
-          required: false'
-        allOf:
-        - $ref: '#/definitions/Status'
-      type:
-        description: 'Type of the account
-
-          required: true
-
-          example: deposit
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: deposit
-  CreateAccountTypeInput:
-    description: CreateAccountTypeInput payload
-    type: object
-    required:
-    - keyValue
-    - name
-    properties:
-      description:
-        description: Detailed description of the account type.
-        type: string
-        maxLength: 500
-        example: Assets that are expected to be converted to cash within one year
-      keyValue:
-        description: A unique key value identifier for the account type.
-        type: string
-        maxLength: 50
-        example: current_assets
-      metadata:
-        description: 'Custom key-value pairs for extending the account type information
-
-          required: false
-
-          example: {"department": "Treasury", "purpose": "Operating Expenses", "region":
-          "Global"}'
-        type: object
-        additionalProperties: {}
-      name:
-        description: The name of the account type.
-        type: string
-        maxLength: 100
-        example: Current Assets
-  CreateAssetInput:
-    description: CreateAssetInput is the input payload to create an asset within a
-      ledger, such as a currency, cryptocurrency, or other financial instrument.
-    type: object
-    required:
-    - code
-    - name
-    - type
-    properties:
-      code:
-        description: Unique code/symbol for the asset (required, max length 100 characters)
-        type: string
-        maxLength: 100
-        example: USD
-      metadata:
-        description: 'Additional custom attributes for the asset
-
-          Keys max length: 100 characters, Values max length: 2000 characters'
-        type: object
-        additionalProperties: {}
-      name:
-        description: Name of the asset (required, max length 256 characters)
-        type: string
-        maxLength: 256
-        example: US Dollar
-      status:
-        description: Status of the asset (active, inactive, pending)
-        allOf:
-        - $ref: '#/definitions/Status'
-      type:
-        description: Type of the asset (e.g., currency, cryptocurrency, commodity,
-          stock)
-        type: string
-        example: currency
-  CreateLedgerInput:
-    description: Request payload for creating a new ledger. Contains the ledger name
-      (required), status, and optional metadata. Ledgers are organizational units
-      within an organization that group related financial accounts and assets together.
-    type: object
-    required:
-    - name
-    properties:
-      metadata:
-        description: 'Custom key-value pairs for extending the ledger information
-
-          required: false
-
-          example: {"department": "Finance", "currency": "USD", "region": "North America"}'
-        type: object
-        additionalProperties: {}
-      name:
-        description: 'Display name of the ledger
-
-          required: true
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-      settings:
-        description: 'Dynamic configuration settings for this ledger. When nil, no
-          settings are persisted (optional).
-
-          example: {"accounting": {"validateAccountType": true}}'
-        allOf:
-        - $ref: '#/definitions/mmodel.LedgerSettings'
-      status:
-        description: 'Current operating status of the ledger (defaults to ACTIVE if
-          not specified)
-
-          required: false'
-        allOf:
-        - $ref: '#/definitions/Status'
-  CreateOrganizationInput:
-    description: Request payload for creating a new organization. Contains all the
-      necessary fields for organization creation, with required fields marked as such.
-      Organizations are the top-level entities in the hierarchy and contain ledgers,
-      which in turn contain accounts and assets.
-    type: object
-    required:
-    - legalDocument
-    - legalName
-    properties:
-      address:
-        description: 'Physical address of the organization
-
-          required: false'
-        allOf:
-        - $ref: '#/definitions/Address'
-      doingBusinessAs:
-        description: 'Trading or brand name of the organization, if different from
-          legal name
-
-          required: false
-
-          example: Lerian FS
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: Lerian FS
-      legalDocument:
-        description: 'Official tax ID, company registration number, or other legal
-          identification
-
-          required: true
-
-          example: 123456789012345
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: '123456789012345'
-      legalName:
-        description: 'Official legal name of the organization
-
-          required: true
-
-          example: Lerian Financial Services Ltd.
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: Lerian Financial Services Ltd.
-      metadata:
-        description: 'Custom key-value pairs for extending the organization information
-
-          required: false
-
-          example: {"industry": "Financial Services", "founded": 2020, "employees":
-          150}'
-        type: object
-        additionalProperties: {}
-      parentOrganizationId:
-        description: 'UUID of the parent organization if this is a child organization
-
-          required: false
-
-          format: uuid'
-        type: string
-        format: uuid
-      status:
-        description: 'Current operating status of the organization (defaults to ACTIVE
-          if not specified)
-
-          required: false'
-        allOf:
-        - $ref: '#/definitions/Status'
-  CreatePortfolioInput:
-    description: CreatePortfolioInput is the input payload to create a portfolio within
-      a ledger, representing a collection of accounts grouped for specific purposes.
-    type: object
-    required:
-    - name
-    properties:
-      entityId:
-        description: Optional external entity identifier (max length 256 characters)
-        type: string
-        maxLength: 256
-        example: 00000000-0000-0000-0000-000000000000
-      metadata:
-        description: 'Additional custom attributes for the portfolio
-
-          Keys max length: 100 characters, Values max length: 2000 characters'
-        type: object
-        additionalProperties: {}
-      name:
-        description: Name of the portfolio (required, max length 256 characters)
-        type: string
-        maxLength: 256
-        example: My Portfolio
-      status:
-        description: Status of the portfolio (active, inactive, pending)
-        allOf:
-        - $ref: '#/definitions/Status'
-  CreateSegmentInput:
-    description: CreateSegmentInput is the input payload to create a segment within
-      a ledger, representing a logical division such as a business area, product line,
-      or customer category.
-    type: object
-    required:
-    - name
-    properties:
-      metadata:
-        description: 'Additional custom attributes for the segment
-
-          Keys max length: 100 characters, Values max length: 2000 characters'
-        type: object
-        additionalProperties: {}
-      name:
-        description: Name of the segment (required, max length 256 characters)
-        type: string
-        maxLength: 256
-        example: My Segment
-      status:
-        description: Status of the segment (active, inactive, pending)
-        allOf:
-        - $ref: '#/definitions/Status'
-  Error:
-    description: Standardized error response format used across all API endpoints
-      for error situations. Provides structured information about errors including
-      codes, messages, and field-specific validation details.
-    type: object
-    properties:
-      code:
-        description: 'Error code identifying the specific error condition
-
-          example: ERR_INVALID_INPUT
-
-          maxLength: 50'
-        type: string
-        maxLength: 50
-        example: ERR_INVALID_INPUT
-      entityType:
-        description: 'Optional type of entity associated with the error
-
-          example: Organization
-
-          maxLength: 100'
-        type: string
-        maxLength: 100
-        example: Organization
-      fields:
-        description: 'Optional detailed field validations for client-side handling
-
-          example: {"name": "Field ''name'' is required"}'
-        type: object
-        additionalProperties:
-          type: string
-      message:
-        description: 'Detailed error message explaining the issue
-
-          example: The request contains invalid fields. Please check the field ''name''
-          and try again.
-
-          maxLength: 500'
-        type: string
-        maxLength: 500
-        example: The request contains invalid fields. Please check the field 'name'
-          and try again.
-      title:
-        description: 'Short, human-readable error title
-
-          example: Bad Request
-
-          maxLength: 100'
-        type: string
-        maxLength: 100
-        example: Bad Request
-  Ledger:
-    description: Complete ledger entity containing all fields including system-generated
-      fields like ID, creation timestamps, and metadata. This is the response format
-      for ledger operations. Ledgers are organizational units within an organization
-      that group related financial accounts and assets together.
-    type: object
-    properties:
-      createdAt:
-        description: 'Timestamp when the ledger was created (RFC3339 format)
-
-          example: 2021-01-01T00:00:00Z
-
-          format: date-time'
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-      deletedAt:
-        description: 'Timestamp when the ledger was soft deleted, null if not deleted
-          (RFC3339 format)
-
-          example: null
-
-          format: date-time'
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-      id:
-        description: 'Unique identifier for the ledger (UUID format)
-
-          example: 00000000-0000-0000-0000-000000000000
-
-          format: uuid'
-        type: string
-        format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-      metadata:
-        description: 'Custom key-value pairs for extending the ledger information
-
-          example: {"department": "Finance", "currency": "USD", "region": "North America"}'
-        type: object
-        additionalProperties: {}
-      name:
-        description: 'Display name of the ledger
-
-          example: Treasury Operations
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: Treasury Operations
-      organizationId:
-        description: 'Reference to the organization that owns this ledger (UUID format)
-
-          example: 00000000-0000-0000-0000-000000000000
-
-          format: uuid'
-        type: string
-        format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-      settings:
-        description: 'Dynamic configuration settings for this ledger
-
-          example: {"accounting": {"validateAccountType": true}}'
-        allOf:
-        - $ref: '#/definitions/mmodel.LedgerSettings'
-      status:
-        description: Current operating status of the ledger
-        allOf:
-        - $ref: '#/definitions/Status'
-      updatedAt:
-        description: 'Timestamp when the ledger was last updated (RFC3339 format)
-
-          example: 2021-01-01T00:00:00Z
-
-          format: date-time'
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-  Organization:
-    description: Complete organization entity containing all fields including system-generated
-      fields like ID, creation timestamps, and metadata. This is the response format
-      for organization operations. Organizations are the top-level entities in the
-      Midaz platform hierarchy.
-    type: object
-    properties:
-      address:
-        description: Physical address of the organization
-        allOf:
-        - $ref: '#/definitions/Address'
-      createdAt:
-        description: 'Timestamp when the organization was created (RFC3339 format)
-
-          example: 2021-01-01T00:00:00Z
-
-          format: date-time'
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-      deletedAt:
-        description: 'Timestamp when the organization was soft deleted, null if not
-          deleted (RFC3339 format)
-
-          example: null
-
-          format: date-time'
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-      doingBusinessAs:
-        description: 'Trading or brand name of the organization, if different from
-          legal name
-
-          example: Lerian FS
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: Lerian FS
-      id:
-        description: 'Unique identifier for the organization (UUID format)
-
-          example: 00000000-0000-0000-0000-000000000000
-
-          format: uuid'
-        type: string
-        format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-      legalDocument:
-        description: 'Official tax ID, company registration number, or other legal
-          identification
-
-          example: 123456789012345
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: '123456789012345'
-      legalName:
-        description: 'Official legal name of the organization
-
-          example: Lerian Financial Services Ltd.
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: Lerian Financial Services Ltd.
-      metadata:
-        description: 'Custom key-value pairs for extending the organization information
-
-          example: {"industry": "Financial Services", "founded": 2020, "employees":
-          150}'
-        type: object
-        additionalProperties: {}
-      parentOrganizationId:
-        description: 'Reference to the parent organization, if this is a child organization
-
-          example: 00000000-0000-0000-0000-000000000000
-
-          format: uuid'
-        type: string
-        format: uuid
-      status:
-        description: Current operating status of the organization
-        allOf:
-        - $ref: '#/definitions/Status'
-      updatedAt:
-        description: 'Timestamp when the organization was last updated (RFC3339 format)
-
-          example: 2021-01-01T00:00:00Z
-
-          format: date-time'
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-  Portfolio:
-    description: Portfolio represents a collection of accounts grouped for specific
-      purposes such as business units, departments, or client portfolios.
-    type: object
-    properties:
-      createdAt:
-        description: Timestamp when the portfolio was created
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-      deletedAt:
-        description: Timestamp when the portfolio was deleted (null if not deleted)
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-      entityId:
-        description: Optional external entity identifier (max length 256 characters)
-        type: string
-        maxLength: 256
-        example: 00000000-0000-0000-0000-000000000000
-      id:
-        description: Unique identifier for the portfolio (UUID format)
-        type: string
-        format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-      ledgerId:
-        description: ID of the ledger this portfolio belongs to (UUID format)
-        type: string
-        format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-      metadata:
-        description: Additional custom attributes for the portfolio
-        type: object
-        additionalProperties: {}
-      name:
-        description: Name of the portfolio (max length 256 characters)
-        type: string
-        maxLength: 256
-        example: My Portfolio
-      organizationId:
-        description: ID of the organization that owns this portfolio (UUID format)
-        type: string
-        format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-      status:
-        description: Status of the portfolio (active, inactive, pending)
-        allOf:
-        - $ref: '#/definitions/Status'
-      updatedAt:
-        description: Timestamp when the portfolio was last updated
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-  Segment:
-    description: Segment represents a logical division within a ledger such as a business
-      area, product line, or customer category.
-    type: object
-    properties:
-      createdAt:
-        description: Timestamp when the segment was created
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-      deletedAt:
-        description: Timestamp when the segment was deleted (null if not deleted)
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-      id:
-        description: Unique identifier for the segment (UUID format)
-        type: string
-        format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-      ledgerId:
-        description: ID of the ledger this segment belongs to (UUID format)
-        type: string
-        format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-      metadata:
-        description: Additional custom attributes for the segment
-        type: object
-        additionalProperties: {}
-      name:
-        description: Name of the segment (max length 256 characters)
-        type: string
-        maxLength: 256
-        example: My Segment
-      organizationId:
-        description: ID of the organization that owns this segment (UUID format)
-        type: string
-        format: uuid
-        example: 00000000-0000-0000-0000-000000000000
-      status:
-        description: Status of the segment (active, inactive, pending)
-        allOf:
-        - $ref: '#/definitions/Status'
-      updatedAt:
-        description: Timestamp when the segment was last updated
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-  Status:
-    description: Status is the struct designed to represent the status of a transaction.
-      Contains code and optional description for transaction states.
-    type: object
-    properties:
-      code:
-        description: 'Status code identifying the state of the transaction
-
-          example: ACTIVE
-
-          maxLength: 100'
-        type: string
-        maxLength: 100
-        example: ACTIVE
-      description:
-        description: 'Optional descriptive text explaining the status
-
-          example: Active status
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: Active status
-  UpdateAccountInput:
-    description: Request payload for updating an existing account. All fields are
-      optional - only specified fields will be updated. Omitted fields will remain
-      unchanged. This allows partial updates to account properties such as name, status,
-      portfolio, segment, and metadata.
-    type: object
-    properties:
-      blocked:
-        description: 'Whether the account should be blocked
-
-          required: false'
-        type: boolean
-      entityId:
-        description: 'Optional external identifier for linking to external systems
-
-          required: false
-
-          example: EXT-ACC-12345
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: EXT-ACC-12345
-      metadata:
-        description: 'Updated custom key-value pairs for extending the account information
-
-          required: false
-
-          example: {"department": "Global Treasury", "purpose": "Primary Operations",
-          "region": "Global"}'
-        type: object
-        additionalProperties: {}
-      name:
-        description: 'Updated name of the account
-
-          required: false
-
-          example: Primary Corporate Checking Account
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: Primary Corporate Checking Account
-      portfolioId:
-        description: 'Updated portfolio ID for the account
-
-          required: false
-
-          format: uuid'
-        type: string
-        format: uuid
-      segmentId:
-        description: 'Updated segment ID for the account
-
-          required: false
-
-          format: uuid'
-        type: string
-        format: uuid
-      status:
-        description: 'Updated status of the account
-
-          required: false'
-        allOf:
-        - $ref: '#/definitions/Status'
-  UpdateAccountTypeInput:
-    description: UpdateAccountTypeInput payload
-    type: object
-    properties:
-      description:
-        description: Detailed description of the account type.
-        type: string
-        maxLength: 500
-        example: Assets that are expected to be converted to cash within one year
-      metadata:
-        description: 'Custom key-value pairs for extending the account type information
-
-          required: false
-
-          example: {"department": "Treasury", "purpose": "Operating Expenses", "region":
-          "Global"}'
-        type: object
-        additionalProperties: {}
-      name:
-        description: The name of the account type.
-        type: string
-        maxLength: 100
-        example: Current Assets
-  UpdateAssetInput:
-    description: UpdateAssetInput is the input payload to update an existing asset's
-      properties such as name, status, and metadata.
-    type: object
-    properties:
-      metadata:
-        description: 'Updated or additional custom attributes for the asset
-
-          Keys max length: 100 characters, Values max length: 2000 characters'
-        type: object
-        additionalProperties: {}
-      name:
-        description: Updated name of the asset (optional, max length 256 characters)
-        type: string
-        maxLength: 256
-        example: Bitcoin
-      status:
-        description: Updated status of the asset (active, inactive, pending)
-        allOf:
-        - $ref: '#/definitions/Status'
-  UpdateLedgerInput:
-    description: Request payload for updating an existing ledger. All fields are optional
-      - only specified fields will be updated. Omitted fields will remain unchanged.
-    type: object
-    properties:
-      metadata:
-        description: 'Updated custom key-value pairs for extending the ledger information
-
-          required: false
-
-          example: {"department": "Global Finance", "currency": "USD", "region": "Global"}'
-        type: object
-        additionalProperties: {}
-      name:
-        description: 'Updated display name of the ledger
-
-          required: false
-
-          example: Treasury Operations Global
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: Treasury Operations Global
-      status:
-        description: 'Updated status of the ledger
-
-          required: false'
-        allOf:
-        - $ref: '#/definitions/Status'
-  UpdateOrganizationInput:
-    description: Request payload for updating an existing organization. All fields
-      are optional - only specified fields will be updated. Omitted fields will remain
-      unchanged.
-    type: object
-    properties:
-      address:
-        description: 'Updated physical address of the organization
-
-          required: false'
-        allOf:
-        - $ref: '#/definitions/Address'
-      doingBusinessAs:
-        description: 'Updated trading or brand name of the organization
-
-          required: false
-
-          example: Lerian Group
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: Lerian Group
-      legalName:
-        description: 'Updated legal name of the organization
-
-          required: false
-
-          example: Lerian Financial Group Ltd.
-
-          maxLength: 256'
-        type: string
-        maxLength: 256
-        example: Lerian Financial Group Ltd.
-      metadata:
-        description: 'Updated custom key-value pairs for extending the organization
-          information
-
-          required: false
-
-          example: {"industry": "Financial Technology", "founded": 2020, "employees":
-          200, "headquarters": "New York"}'
-        type: object
-        additionalProperties: {}
-      parentOrganizationId:
-        description: 'Updated UUID of the parent organization if this is a child organization
-
-          required: false
-
-          format: uuid'
-        type: string
-        format: uuid
-      status:
-        description: 'Updated status of the organization
-
-          required: false'
-        allOf:
-        - $ref: '#/definitions/Status'
-  UpdatePortfolioInput:
-    description: UpdatePortfolioInput is the input payload to update an existing portfolio's
-      properties such as name, entity ID, status, and metadata.
-    type: object
-    properties:
-      entityId:
-        description: Updated external entity identifier (optional, max length 256
-          characters)
-        type: string
-        maxLength: 256
-        example: 00000000-0000-0000-0000-000000000000
-      metadata:
-        description: 'Updated or additional custom attributes for the portfolio
-
-          Keys max length: 100 characters, Values max length: 2000 characters'
-        type: object
-        additionalProperties: {}
-      name:
-        description: Updated name of the portfolio (optional, max length 256 characters)
-        type: string
-        maxLength: 256
-        example: My Portfolio Updated
-      status:
-        description: Updated status of the portfolio (active, inactive, pending)
-        allOf:
-        - $ref: '#/definitions/Status'
-  UpdateSegmentInput:
-    description: UpdateSegmentInput is the input payload to update an existing segment's
-      properties such as name, status, and metadata.
-    type: object
-    properties:
-      metadata:
-        description: 'Updated or additional custom attributes for the segment
-
-          Keys max length: 100 characters, Values max length: 2000 characters'
-        type: object
-        additionalProperties: {}
-      name:
-        description: Updated name of the segment (optional, max length 256 characters)
-        type: string
-        maxLength: 256
-        example: My Segment Updated
-      status:
-        description: Updated status of the segment (active, inactive, pending)
-        allOf:
-        - $ref: '#/definitions/Status'
-  http.Pagination:
-    type: object
-    properties:
-      items: {}
-      limit:
-        type: integer
-      next_cursor:
-        type: string
-      page:
-        type: integer
-      prev_cursor:
-        type: string
-  mmodel.AccountingValidation:
-    type: object
-    properties:
-      validateAccountType:
-        description: 'ValidateAccountType enables validation of account types during
-          transaction processing.
-
-          When true, accounts must have types that match the operation route rules.
-
-          Default: false (permissive - no validation)'
-        type: boolean
-      validateRoutes:
-        description: 'ValidateRoutes enables validation of transaction routes during
-          processing.
-
-          When true, transactions must specify valid route IDs that exist in the ledger.
-
-          Default: false (permissive - no validation)'
-        type: boolean
-  mmodel.LedgerSettings:
-    type: object
-    properties:
-      accounting:
-        description: Accounting contains validation settings for accounting operations.
-        allOf:
-        - $ref: '#/definitions/mmodel.AccountingValidation'
-  AccountRule:
-    description: AccountRule object containing the rule type and condition for account
-      selection in operation routes.
-    type: object
-    properties:
-      ruleType:
-        description: The rule type for account selection.
-        type: string
-        example: alias
-      validIf:
-        description: The rule condition for account selection. String for alias type
-          (e.g. "@cash_account"), array for account_type.
-  AccountingEntries:
-    description: AccountingEntries object containing optional accounting entries for
-      each action type (direct, hold, commit, cancel, revert).
-    type: object
-    properties:
-      cancel:
-        description: The accounting entry for the cancel action.
-        allOf:
-        - $ref: '#/definitions/AccountingEntry'
-      commit:
-        description: The accounting entry for the commit action.
-        allOf:
-        - $ref: '#/definitions/AccountingEntry'
-      direct:
-        description: The accounting entry for the direct action.
-        allOf:
-        - $ref: '#/definitions/AccountingEntry'
-      hold:
-        description: The accounting entry for the hold action.
-        allOf:
-        - $ref: '#/definitions/AccountingEntry'
-      revert:
-        description: The accounting entry for the revert action.
-        allOf:
-        - $ref: '#/definitions/AccountingEntry'
-  AccountingEntry:
-    description: AccountingEntry object containing debit and credit rubrics for a
-      specific action.
-    type: object
-    required:
-    - credit
-    - debit
-    properties:
-      credit:
-        description: The credit rubric for this entry.
-        allOf:
-        - $ref: '#/definitions/AccountingRubric'
-      debit:
-        description: The debit rubric for this entry.
-        allOf:
-        - $ref: '#/definitions/AccountingRubric'
-  AccountingRubric:
-    description: AccountingRubric object containing the code and description for a
-      debit or credit entry.
-    type: object
-    required:
-    - code
-    - description
-    properties:
-      code:
-        description: The accounting rubric code.
-        type: string
-        maxLength: 50
-        example: '1001'
-      description:
-        description: The accounting rubric description.
-        type: string
-        maxLength: 250
-        example: Cash
-  Amount:
-    description: Amount is the struct designed to represent the amount of an operation.
-      Contains the value and scale (decimal places) of an operation amount.
-    type: object
-    properties:
-      value:
-        description: 'The amount value in the smallest unit of the asset (e.g., cents)
-
-          example: 1500
-
-          minimum: 0'
-        type: number
-        minimum: 0
-        example: 1500
   AssetRate:
     description: AssetRate is a struct designed to store asset rate data. Represents
       a complete asset rate entity containing conversion information between two assets,
@@ -7073,6 +6191,150 @@ definitions:
         type: integer
         minimum: 1
         example: 1
+  CreateAccountInput:
+    description: Request payload for creating a new account within a ledger. Accounts
+      represent individual financial entities such as bank accounts, credit cards,
+      expense categories, or any other financial buckets within a ledger. Accounts
+      are identified by a unique ID, can have aliases for easy reference, and are
+      associated with a specific asset type.
+    type: object
+    required:
+    - assetCode
+    - type
+    properties:
+      alias:
+        description: 'Unique alias for the account (optional, must follow alias format
+          rules)
+
+          required: false
+
+          example: @treasury_checking
+
+          maxLength: 100'
+        type: string
+        maxLength: 100
+        example: '@treasury_checking'
+      assetCode:
+        description: 'Asset code that this account will use for balances and transactions
+
+          required: true
+
+          example: USD
+
+          maxLength: 100'
+        type: string
+        maxLength: 100
+        example: USD
+      blocked:
+        description: 'Whether the account should start blocked
+
+          required: false
+
+          default: false'
+        type: boolean
+      entityId:
+        description: 'Optional external identifier for linking to external systems
+
+          required: false
+
+          example: EXT-ACC-12345
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: EXT-ACC-12345
+      metadata:
+        description: 'Custom key-value pairs for extending the account information
+
+          required: false
+
+          example: {"department": "Treasury", "purpose": "Operating Expenses", "region":
+          "Global"}'
+        type: object
+        additionalProperties: {}
+      name:
+        description: 'Human-readable name of the account
+
+          required: false
+
+          example: Corporate Checking Account
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: Corporate Checking Account
+      parentAccountId:
+        description: 'ID of the parent account if this is a subaccount (optional)
+
+          required: false
+
+          format: uuid'
+        type: string
+        format: uuid
+      portfolioId:
+        description: 'ID of the portfolio this account belongs to (optional)
+
+          required: false
+
+          format: uuid'
+        type: string
+        format: uuid
+      segmentId:
+        description: 'ID of the segment this account belongs to (optional)
+
+          required: false
+
+          format: uuid'
+        type: string
+        format: uuid
+      status:
+        description: 'Current operating status of the account
+
+          required: false'
+        allOf:
+        - $ref: '#/definitions/Status'
+      type:
+        description: 'Type of the account
+
+          required: true
+
+          example: deposit
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: deposit
+  CreateAccountTypeInput:
+    description: CreateAccountTypeInput payload
+    type: object
+    required:
+    - keyValue
+    - name
+    properties:
+      description:
+        description: Detailed description of the account type.
+        type: string
+        maxLength: 500
+        example: Assets that are expected to be converted to cash within one year
+      keyValue:
+        description: A unique key value identifier for the account type.
+        type: string
+        maxLength: 50
+        example: current_assets
+      metadata:
+        description: 'Custom key-value pairs for extending the account type information
+
+          required: false
+
+          example: {"department": "Treasury", "purpose": "Operating Expenses", "region":
+          "Global"}'
+        type: object
+        additionalProperties: {}
+      name:
+        description: The name of the account type.
+        type: string
+        maxLength: 100
+        example: Current Assets
   CreateAdditionalBalance:
     description: Request payload for creating a new balance with specified permissions
       and custom key.
@@ -7109,6 +6371,40 @@ definitions:
         type: string
         maxLength: 100
         example: asset-freeze
+  CreateAssetInput:
+    description: CreateAssetInput is the input payload to create an asset within a
+      ledger, such as a currency, cryptocurrency, or other financial instrument.
+    type: object
+    required:
+    - code
+    - name
+    - type
+    properties:
+      code:
+        description: Unique code/symbol for the asset (required, max length 100 characters)
+        type: string
+        maxLength: 100
+        example: USD
+      metadata:
+        description: 'Additional custom attributes for the asset
+
+          Keys max length: 100 characters, Values max length: 2000 characters'
+        type: object
+        additionalProperties: {}
+      name:
+        description: Name of the asset (required, max length 256 characters)
+        type: string
+        maxLength: 256
+        example: US Dollar
+      status:
+        description: Status of the asset (active, inactive, pending)
+        allOf:
+        - $ref: '#/definitions/Status'
+      type:
+        description: Type of the asset (e.g., currency, cryptocurrency, commodity,
+          stock)
+        type: string
+        example: currency
   CreateAssetRateInput:
     description: CreateAssetRateInput is the input payload to create an asset rate.
       Contains required fields for setting up asset conversion rates, including source
@@ -7197,6 +6493,76 @@ definitions:
         type: integer
         minimum: 0
         example: 3600
+  CreateLedgerInput:
+    description: Request payload for creating a new ledger. Contains the ledger name
+      (required), status, and optional metadata. Ledgers are organizational units
+      within an organization that group related financial accounts and assets together.
+    type: object
+    required:
+    - name
+    properties:
+      metadata:
+        description: 'Custom key-value pairs for extending the ledger information
+
+          required: false
+
+          example: {"department": "Finance", "currency": "USD", "region": "North America"}'
+        type: object
+        additionalProperties: {}
+      name:
+        description: 'Display name of the ledger
+
+          required: true
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+      settings:
+        description: 'Dynamic configuration settings for this ledger. When nil, no
+          settings are persisted (optional).
+
+          example: {"accounting": {"validateAccountType": true}}'
+        allOf:
+        - $ref: '#/definitions/mmodel.LedgerSettings'
+      status:
+        description: 'Current operating status of the ledger (defaults to ACTIVE if
+          not specified)
+
+          required: false'
+        allOf:
+        - $ref: '#/definitions/Status'
+  CreateMetadataIndexInput:
+    description: CreateMetadataIndexInput payload
+    type: object
+    required:
+    - metadataKey
+    properties:
+      metadataKey:
+        description: 'The metadata key to index (without "metadata." prefix)
+
+          required: true
+
+          maxLength: 100'
+        type: string
+        maxLength: 100
+        example: tier
+      sparse:
+        description: 'Whether the index should be sparse (only include documents with
+          the field)
+
+          required: false
+
+          default: true'
+        type: boolean
+        example: true
+      unique:
+        description: 'Whether the index should enforce uniqueness
+
+          required: false
+
+          default: false'
+        type: boolean
+        example: false
   CreateOperationRouteInput:
     description: CreateOperationRouteInput payload for creating a new Operation Route
       with title, description, operation type, and optional account rules.
@@ -7237,8 +6603,133 @@ definitions:
         description: Short text summarizing the purpose of the operation. Used as
           an entry note for identification.
         type: string
-        maxLength: 50
+        maxLength: 255
         example: Cashin from service charge
+  CreateOrganizationInput:
+    description: Request payload for creating a new organization. Contains all the
+      necessary fields for organization creation, with required fields marked as such.
+      Organizations are the top-level entities in the hierarchy and contain ledgers,
+      which in turn contain accounts and assets.
+    type: object
+    required:
+    - legalDocument
+    - legalName
+    properties:
+      address:
+        description: 'Physical address of the organization
+
+          required: false'
+        allOf:
+        - $ref: '#/definitions/Address'
+      doingBusinessAs:
+        description: 'Trading or brand name of the organization, if different from
+          legal name
+
+          required: false
+
+          example: Lerian FS
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: Lerian FS
+      legalDocument:
+        description: 'Official tax ID, company registration number, or other legal
+          identification
+
+          required: true
+
+          example: 123456789012345
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: '123456789012345'
+      legalName:
+        description: 'Official legal name of the organization
+
+          required: true
+
+          example: Lerian Financial Services Ltd.
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: Lerian Financial Services Ltd.
+      metadata:
+        description: 'Custom key-value pairs for extending the organization information
+
+          required: false
+
+          example: {"industry": "Financial Services", "founded": 2020, "employees":
+          150}'
+        type: object
+        additionalProperties: {}
+      parentOrganizationId:
+        description: 'UUID of the parent organization if this is a child organization
+
+          required: false
+
+          format: uuid'
+        type: string
+        format: uuid
+      status:
+        description: 'Current operating status of the organization (defaults to ACTIVE
+          if not specified)
+
+          required: false'
+        allOf:
+        - $ref: '#/definitions/Status'
+  CreatePortfolioInput:
+    description: CreatePortfolioInput is the input payload to create a portfolio within
+      a ledger, representing a collection of accounts grouped for specific purposes.
+    type: object
+    required:
+    - name
+    properties:
+      entityId:
+        description: Optional external entity identifier (max length 256 characters)
+        type: string
+        maxLength: 256
+        example: 00000000-0000-0000-0000-000000000000
+      metadata:
+        description: 'Additional custom attributes for the portfolio
+
+          Keys max length: 100 characters, Values max length: 2000 characters'
+        type: object
+        additionalProperties: {}
+      name:
+        description: Name of the portfolio (required, max length 256 characters)
+        type: string
+        maxLength: 256
+        example: My Portfolio
+      status:
+        description: Status of the portfolio (active, inactive, pending)
+        allOf:
+        - $ref: '#/definitions/Status'
+  CreateSegmentInput:
+    description: CreateSegmentInput is the input payload to create a segment within
+      a ledger, representing a logical division such as a business area, product line,
+      or customer category.
+    type: object
+    required:
+    - name
+    properties:
+      metadata:
+        description: 'Additional custom attributes for the segment
+
+          Keys max length: 100 characters, Values max length: 2000 characters'
+        type: object
+        additionalProperties: {}
+      name:
+        description: Name of the segment (required, max length 256 characters)
+        type: string
+        maxLength: 256
+        example: My Segment
+      status:
+        description: Status of the segment (active, inactive, pending)
+        allOf:
+        - $ref: '#/definitions/Status'
   CreateTransactionInflowSwaggerModel:
     description: Schema for creating inflow transaction with the complete SendInflow
       operation structure defined inline
@@ -7271,6 +6762,28 @@ definitions:
           example: {"reference": "TRANSACTION-001", "source": "api"}'
         type: object
         additionalProperties: {}
+      route:
+        description: 'Deprecated: legacy route identifier, use routeId instead. Contains
+          the transaction route UUID as a free-form string for backwards compatibility.
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          maxLength: 250
+
+          deprecated: true'
+        type: string
+        maxLength: 250
+        example: 00000000-0000-0000-0000-000000000000
+      routeId:
+        description: 'UUID of the transaction route. Used instead of route for proper
+          UUID validation and referential integrity.
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
       send:
         description: 'Send operation details including distribution only
 
@@ -7401,6 +6914,28 @@ definitions:
         type: boolean
         default: false
         example: true
+      route:
+        description: 'Deprecated: legacy route identifier, use routeId instead. Contains
+          the transaction route UUID as a free-form string for backwards compatibility.
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          maxLength: 250
+
+          deprecated: true'
+        type: string
+        maxLength: 250
+        example: 00000000-0000-0000-0000-000000000000
+      routeId:
+        description: 'UUID of the transaction route. Used instead of route for proper
+          UUID validation and referential integrity.
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
       send:
         description: 'Send operation details including source only
 
@@ -7517,8 +7052,185 @@ definitions:
         description: Short text summarizing the purpose of the transaction. Used as
           an entry note for identification.
         type: string
-        maxLength: 50
+        maxLength: 255
         example: Charge Settlement
+  Error:
+    description: Standardized error response format used across all API endpoints
+      for error situations. Provides structured information about errors including
+      codes, messages, and field-specific validation details.
+    type: object
+    properties:
+      code:
+        description: 'Error code identifying the specific error condition
+
+          example: ERR_INVALID_INPUT
+
+          maxLength: 50'
+        type: string
+        maxLength: 50
+        example: ERR_INVALID_INPUT
+      entityType:
+        description: 'Optional type of entity associated with the error
+
+          example: Organization
+
+          maxLength: 100'
+        type: string
+        maxLength: 100
+        example: Organization
+      fields:
+        description: 'Optional detailed field validations for client-side handling
+
+          example: {"name": "Field ''name'' is required"}'
+        type: object
+        additionalProperties:
+          type: string
+      message:
+        description: 'Detailed error message explaining the issue
+
+          example: The request contains invalid fields. Please check the field ''name''
+          and try again.
+
+          maxLength: 500'
+        type: string
+        maxLength: 500
+        example: The request contains invalid fields. Please check the field 'name'
+          and try again.
+      title:
+        description: 'Short, human-readable error title
+
+          example: Bad Request
+
+          maxLength: 100'
+        type: string
+        maxLength: 100
+        example: Bad Request
+  IndexStats:
+    description: Usage statistics collected by MongoDB for an index
+    type: object
+    properties:
+      accesses:
+        description: 'Number of operations that have used this index
+
+          example: 1523'
+        type: integer
+        example: 1523
+      statsSince:
+        description: 'Timestamp since when the statistics are being collected
+
+          example: 2024-12-01T10:30:00Z
+
+          format: date-time'
+        type: string
+        format: date-time
+        example: '2024-12-01T10:30:00Z'
+  Ledger:
+    description: Complete ledger entity containing all fields including system-generated
+      fields like ID, creation timestamps, and metadata. This is the response format
+      for ledger operations. Ledgers are organizational units within an organization
+      that group related financial accounts and assets together.
+    type: object
+    properties:
+      createdAt:
+        description: 'Timestamp when the ledger was created (RFC3339 format)
+
+          example: 2021-01-01T00:00:00Z
+
+          format: date-time'
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+      deletedAt:
+        description: 'Timestamp when the ledger was soft deleted, null if not deleted
+          (RFC3339 format)
+
+          example: null
+
+          format: date-time'
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+      id:
+        description: 'Unique identifier for the ledger (UUID format)
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      metadata:
+        description: 'Custom key-value pairs for extending the ledger information
+
+          example: {"department": "Finance", "currency": "USD", "region": "North America"}'
+        type: object
+        additionalProperties: {}
+      name:
+        description: 'Display name of the ledger
+
+          example: Treasury Operations
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: Treasury Operations
+      organizationId:
+        description: 'Reference to the organization that owns this ledger (UUID format)
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      settings:
+        description: 'Dynamic configuration settings for this ledger
+
+          example: {"accounting": {"validateAccountType": true}}'
+        allOf:
+        - $ref: '#/definitions/mmodel.LedgerSettings'
+      status:
+        description: Current operating status of the ledger
+        allOf:
+        - $ref: '#/definitions/Status'
+      updatedAt:
+        description: 'Timestamp when the ledger was last updated (RFC3339 format)
+
+          example: 2021-01-01T00:00:00Z
+
+          format: date-time'
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+  MetadataIndex:
+    description: Represents a custom MongoDB index on a metadata field
+    type: object
+    properties:
+      entityName:
+        description: The entity/collection name where the index exists
+        type: string
+        example: transaction
+      indexName:
+        description: The name of the index in MongoDB
+        type: string
+        example: metadata.tier_1
+      metadataKey:
+        description: The metadata key that is indexed
+        type: string
+        example: tier
+      sparse:
+        description: Whether the index is sparse
+        type: boolean
+        example: true
+      stats:
+        description: Usage statistics for this index (only available on GET, not on
+          CREATE)
+        allOf:
+        - $ref: '#/definitions/IndexStats'
+      unique:
+        description: Whether the index enforces uniqueness
+        type: boolean
+        example: false
   Operation:
     description: Operation is a struct designed to store operation data. Represents
       a financial operation that affects account balances, including details such
@@ -7758,17 +7470,6 @@ definitions:
           this operation route.
         allOf:
         - $ref: '#/definitions/AccountingEntries'
-      action:
-        description: The action associated with this operation route in the context
-          of a transaction route.
-        type: string
-        enum:
-        - direct
-        - hold
-        - commit
-        - cancel
-        - revert
-        example: direct
       code:
         description: External reference of the operation route.
         type: string
@@ -7822,6 +7523,226 @@ definitions:
         type: string
         format: date-time
         example: '2021-01-01T00:00:00Z'
+  Organization:
+    description: Complete organization entity containing all fields including system-generated
+      fields like ID, creation timestamps, and metadata. This is the response format
+      for organization operations. Organizations are the top-level entities in the
+      Midaz platform hierarchy.
+    type: object
+    properties:
+      address:
+        description: Physical address of the organization
+        allOf:
+        - $ref: '#/definitions/Address'
+      createdAt:
+        description: 'Timestamp when the organization was created (RFC3339 format)
+
+          example: 2021-01-01T00:00:00Z
+
+          format: date-time'
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+      deletedAt:
+        description: 'Timestamp when the organization was soft deleted, null if not
+          deleted (RFC3339 format)
+
+          example: null
+
+          format: date-time'
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+      doingBusinessAs:
+        description: 'Trading or brand name of the organization, if different from
+          legal name
+
+          example: Lerian FS
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: Lerian FS
+      id:
+        description: 'Unique identifier for the organization (UUID format)
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      legalDocument:
+        description: 'Official tax ID, company registration number, or other legal
+          identification
+
+          example: 123456789012345
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: '123456789012345'
+      legalName:
+        description: 'Official legal name of the organization
+
+          example: Lerian Financial Services Ltd.
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: Lerian Financial Services Ltd.
+      metadata:
+        description: 'Custom key-value pairs for extending the organization information
+
+          example: {"industry": "Financial Services", "founded": 2020, "employees":
+          150}'
+        type: object
+        additionalProperties: {}
+      parentOrganizationId:
+        description: 'Reference to the parent organization, if this is a child organization
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
+      status:
+        description: Current operating status of the organization
+        allOf:
+        - $ref: '#/definitions/Status'
+      updatedAt:
+        description: 'Timestamp when the organization was last updated (RFC3339 format)
+
+          example: 2021-01-01T00:00:00Z
+
+          format: date-time'
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+  Portfolio:
+    description: Portfolio represents a collection of accounts grouped for specific
+      purposes such as business units, departments, or client portfolios.
+    type: object
+    properties:
+      createdAt:
+        description: Timestamp when the portfolio was created
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+      deletedAt:
+        description: Timestamp when the portfolio was deleted (null if not deleted)
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+      entityId:
+        description: Optional external entity identifier (max length 256 characters)
+        type: string
+        maxLength: 256
+        example: 00000000-0000-0000-0000-000000000000
+      id:
+        description: Unique identifier for the portfolio (UUID format)
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      ledgerId:
+        description: ID of the ledger this portfolio belongs to (UUID format)
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      metadata:
+        description: Additional custom attributes for the portfolio
+        type: object
+        additionalProperties: {}
+      name:
+        description: Name of the portfolio (max length 256 characters)
+        type: string
+        maxLength: 256
+        example: My Portfolio
+      organizationId:
+        description: ID of the organization that owns this portfolio (UUID format)
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      status:
+        description: Status of the portfolio (active, inactive, pending)
+        allOf:
+        - $ref: '#/definitions/Status'
+      updatedAt:
+        description: Timestamp when the portfolio was last updated
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+  Segment:
+    description: Segment represents a logical division within a ledger such as a business
+      area, product line, or customer category.
+    type: object
+    properties:
+      createdAt:
+        description: Timestamp when the segment was created
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+      deletedAt:
+        description: Timestamp when the segment was deleted (null if not deleted)
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+      id:
+        description: Unique identifier for the segment (UUID format)
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      ledgerId:
+        description: ID of the ledger this segment belongs to (UUID format)
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      metadata:
+        description: Additional custom attributes for the segment
+        type: object
+        additionalProperties: {}
+      name:
+        description: Name of the segment (max length 256 characters)
+        type: string
+        maxLength: 256
+        example: My Segment
+      organizationId:
+        description: ID of the organization that owns this segment (UUID format)
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      status:
+        description: Status of the segment (active, inactive, pending)
+        allOf:
+        - $ref: '#/definitions/Status'
+      updatedAt:
+        description: Timestamp when the segment was last updated
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+  Status:
+    description: Status is the struct designed to represent the status of a transaction.
+      Contains code and optional description for transaction states.
+    type: object
+    properties:
+      code:
+        description: 'Status code identifying the state of the transaction
+
+          example: ACTIVE
+
+          maxLength: 100'
+        type: string
+        maxLength: 100
+        example: ACTIVE
+      description:
+        description: 'Optional descriptive text explaining the status
+
+          example: Active status
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: Active status
   Transaction:
     description: Transaction is a struct designed to store transaction data. Represents
       a financial transaction that consists of multiple operations affecting account
@@ -8033,6 +7954,114 @@ definitions:
         description: The timestamp when the transaction route was last updated.
         type: string
         example: '2025-01-01T00:00:00Z'
+  UpdateAccountInput:
+    description: Request payload for updating an existing account. All fields are
+      optional - only specified fields will be updated. Omitted fields will remain
+      unchanged. This allows partial updates to account properties such as name, status,
+      portfolio, segment, and metadata.
+    type: object
+    properties:
+      blocked:
+        description: 'Whether the account should be blocked
+
+          required: false'
+        type: boolean
+      entityId:
+        description: 'Optional external identifier for linking to external systems
+
+          required: false
+
+          example: EXT-ACC-12345
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: EXT-ACC-12345
+      metadata:
+        description: 'Updated custom key-value pairs for extending the account information
+
+          required: false
+
+          example: {"department": "Global Treasury", "purpose": "Primary Operations",
+          "region": "Global"}'
+        type: object
+        additionalProperties: {}
+      name:
+        description: 'Updated name of the account
+
+          required: false
+
+          example: Primary Corporate Checking Account
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: Primary Corporate Checking Account
+      portfolioId:
+        description: 'Updated portfolio ID for the account
+
+          required: false
+
+          format: uuid'
+        type: string
+        format: uuid
+      segmentId:
+        description: 'Updated segment ID for the account
+
+          required: false
+
+          format: uuid'
+        type: string
+        format: uuid
+      status:
+        description: 'Updated status of the account
+
+          required: false'
+        allOf:
+        - $ref: '#/definitions/Status'
+  UpdateAccountTypeInput:
+    description: UpdateAccountTypeInput payload
+    type: object
+    properties:
+      description:
+        description: Detailed description of the account type.
+        type: string
+        maxLength: 500
+        example: Assets that are expected to be converted to cash within one year
+      metadata:
+        description: 'Custom key-value pairs for extending the account type information
+
+          required: false
+
+          example: {"department": "Treasury", "purpose": "Operating Expenses", "region":
+          "Global"}'
+        type: object
+        additionalProperties: {}
+      name:
+        description: The name of the account type.
+        type: string
+        maxLength: 100
+        example: Current Assets
+  UpdateAssetInput:
+    description: UpdateAssetInput is the input payload to update an existing asset's
+      properties such as name, status, and metadata.
+    type: object
+    properties:
+      metadata:
+        description: 'Updated or additional custom attributes for the asset
+
+          Keys max length: 100 characters, Values max length: 2000 characters'
+        type: object
+        additionalProperties: {}
+      name:
+        description: Updated name of the asset (optional, max length 256 characters)
+        type: string
+        maxLength: 256
+        example: Bitcoin
+      status:
+        description: Updated status of the asset (active, inactive, pending)
+        allOf:
+        - $ref: '#/definitions/Status'
   UpdateBalance:
     description: Request payload for updating an existing balance's permissions. All
       fields are optional - only specified fields will be updated. Omitted fields
@@ -8057,6 +8086,36 @@ definitions:
           example: true'
         type: boolean
         example: true
+  UpdateLedgerInput:
+    description: Request payload for updating an existing ledger. All fields are optional
+      - only specified fields will be updated. Omitted fields will remain unchanged.
+    type: object
+    properties:
+      metadata:
+        description: 'Updated custom key-value pairs for extending the ledger information
+
+          required: false
+
+          example: {"department": "Global Finance", "currency": "USD", "region": "Global"}'
+        type: object
+        additionalProperties: {}
+      name:
+        description: 'Updated display name of the ledger
+
+          required: false
+
+          example: Treasury Operations Global
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: Treasury Operations Global
+      status:
+        description: 'Updated status of the ledger
+
+          required: false'
+        allOf:
+        - $ref: '#/definitions/Status'
   UpdateOperationInput:
     description: UpdateOperationInput is the input payload to update an operation.
       Contains fields that can be modified after an operation is created.
@@ -8109,8 +8168,112 @@ definitions:
         description: Short text summarizing the purpose of the operation. Used as
           an entry note for identification.
         type: string
-        maxLength: 50
+        maxLength: 255
         example: Cashin from service charge
+  UpdateOrganizationInput:
+    description: Request payload for updating an existing organization. All fields
+      are optional - only specified fields will be updated. Omitted fields will remain
+      unchanged.
+    type: object
+    properties:
+      address:
+        description: 'Updated physical address of the organization
+
+          required: false'
+        allOf:
+        - $ref: '#/definitions/Address'
+      doingBusinessAs:
+        description: 'Updated trading or brand name of the organization
+
+          required: false
+
+          example: Lerian Group
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: Lerian Group
+      legalName:
+        description: 'Updated legal name of the organization
+
+          required: false
+
+          example: Lerian Financial Group Ltd.
+
+          maxLength: 256'
+        type: string
+        maxLength: 256
+        example: Lerian Financial Group Ltd.
+      metadata:
+        description: 'Updated custom key-value pairs for extending the organization
+          information
+
+          required: false
+
+          example: {"industry": "Financial Technology", "founded": 2020, "employees":
+          200, "headquarters": "New York"}'
+        type: object
+        additionalProperties: {}
+      parentOrganizationId:
+        description: 'Updated UUID of the parent organization if this is a child organization
+
+          required: false
+
+          format: uuid'
+        type: string
+        format: uuid
+      status:
+        description: 'Updated status of the organization
+
+          required: false'
+        allOf:
+        - $ref: '#/definitions/Status'
+  UpdatePortfolioInput:
+    description: UpdatePortfolioInput is the input payload to update an existing portfolio's
+      properties such as name, entity ID, status, and metadata.
+    type: object
+    properties:
+      entityId:
+        description: Updated external entity identifier (optional, max length 256
+          characters)
+        type: string
+        maxLength: 256
+        example: 00000000-0000-0000-0000-000000000000
+      metadata:
+        description: 'Updated or additional custom attributes for the portfolio
+
+          Keys max length: 100 characters, Values max length: 2000 characters'
+        type: object
+        additionalProperties: {}
+      name:
+        description: Updated name of the portfolio (optional, max length 256 characters)
+        type: string
+        maxLength: 256
+        example: My Portfolio Updated
+      status:
+        description: Updated status of the portfolio (active, inactive, pending)
+        allOf:
+        - $ref: '#/definitions/Status'
+  UpdateSegmentInput:
+    description: UpdateSegmentInput is the input payload to update an existing segment's
+      properties such as name, status, and metadata.
+    type: object
+    properties:
+      metadata:
+        description: 'Updated or additional custom attributes for the segment
+
+          Keys max length: 100 characters, Values max length: 2000 characters'
+        type: object
+        additionalProperties: {}
+      name:
+        description: Updated name of the segment (optional, max length 256 characters)
+        type: string
+        maxLength: 256
+        example: My Segment Updated
+      status:
+        description: Updated status of the segment (active, inactive, pending)
+        allOf:
+        - $ref: '#/definitions/Status'
   UpdateTransactionInput:
     description: UpdateTransactionInput is the input payload to update a transaction.
       Contains fields that can be modified after a transaction is created.
@@ -8156,8 +8319,248 @@ definitions:
         description: Short text summarizing the purpose of the transaction. Used as
           an entry note for identification.
         type: string
-        maxLength: 50
+        maxLength: 255
         example: Charge Settlement
+  github_com_LerianStudio_midaz_v3_components_ledger_internal_adapters_postgres_transaction.CreateTransactionSwaggerModel:
+    description: Schema for creating transaction with the complete Send operation
+      structure defined inline
+    type: object
+    properties:
+      chartOfAccountsGroupName:
+        description: 'Chart of accounts group name for accounting purposes
+
+          example: FUNDING
+
+          maxLength: 256'
+        type: string
+      code:
+        description: 'Transaction code for reference
+
+          example: TR12345
+
+          maxLength: 100'
+        type: string
+      description:
+        description: 'Human-readable description of the transaction
+
+          example: New Transaction
+
+          maxLength: 256'
+        type: string
+      metadata:
+        description: 'Additional custom attributes
+
+          example: {"reference": "TRANSACTION-001", "source": "api"}'
+        type: object
+        additionalProperties: {}
+      pending:
+        description: 'Whether the transaction should be created in pending state
+
+          example: true
+
+          swagger: type boolean'
+        type: boolean
+        default: false
+        example: true
+      route:
+        description: 'Deprecated: legacy route identifier, use routeId instead. Contains
+          the transaction route UUID as a free-form string for backwards compatibility.
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          maxLength: 250
+
+          deprecated: true'
+        type: string
+        maxLength: 250
+        example: 00000000-0000-0000-0000-000000000000
+      routeId:
+        description: 'UUID of the transaction route. Used instead of route for proper
+          UUID validation and referential integrity.
+
+          example: 00000000-0000-0000-0000-000000000000
+
+          format: uuid'
+        type: string
+        format: uuid
+        example: 00000000-0000-0000-0000-000000000000
+      send:
+        description: 'Send operation details including source and distribution
+
+          required: true'
+        type: object
+        properties:
+          asset:
+            description: 'Asset code for the transaction
+
+              example: USD
+
+              required: true'
+            type: string
+          distribute:
+            description: 'Destination accounts and amounts for the transaction
+
+              required: true'
+            type: object
+            properties:
+              to:
+                description: 'List of destination operations
+
+                  required: true'
+                type: array
+                items:
+                  type: object
+                  properties:
+                    accountAlias:
+                      description: 'Account identifier or alias
+
+                        example: @myAccount
+
+                        required: true'
+                      type: string
+                    amount:
+                      description: 'Amount details for the operation
+
+                        required: true'
+                      type: object
+                      properties:
+                        asset:
+                          description: 'Asset code
+
+                            example: USD
+
+                            required: true'
+                          type: string
+                        value:
+                          description: 'Amount value in smallest unit
+
+                            example: "100.00"
+
+                            required: true'
+                          type: string
+                    chartOfAccounts:
+                      description: 'Chart of accounts code
+
+                        example: FUNDING_CREDIT'
+                      type: string
+                    description:
+                      description: 'Operation description
+
+                        example: Credit Operation'
+                      type: string
+                    metadata:
+                      description: 'Additional metadata
+
+                        example: {"operation": "funding", "type": "account"}'
+                      type: object
+                      additionalProperties: {}
+          source:
+            description: 'Source accounts and amounts for the transaction
+
+              required: true'
+            type: object
+            properties:
+              from:
+                description: 'List of source operations
+
+                  required: true'
+                type: array
+                items:
+                  type: object
+                  properties:
+                    accountAlias:
+                      description: 'Account identifier or alias
+
+                        example: @external/USD
+
+                        required: true'
+                      type: string
+                    amount:
+                      description: 'Amount details for the operation
+
+                        required: true'
+                      type: object
+                      properties:
+                        asset:
+                          description: 'Asset code
+
+                            example: USD
+
+                            required: true'
+                          type: string
+                        value:
+                          description: 'Amount value in smallest unit
+
+                            example: "100.00"
+
+                            required: true'
+                          type: string
+                    chartOfAccounts:
+                      description: 'Chart of accounts code
+
+                        example: FUNDING_DEBIT'
+                      type: string
+                    description:
+                      description: 'Operation description
+
+                        example: Debit Operation'
+                      type: string
+                    metadata:
+                      description: 'Additional metadata
+
+                        example: {"operation": "funding", "type": "external"}'
+                      type: object
+                      additionalProperties: {}
+          value:
+            description: 'Transaction amount value in the smallest unit of the asset
+
+              example: "100.00"
+
+              required: true'
+            type: string
+      transactionDate:
+        description: 'TransactionDate Period from transaction creation date until
+          now
+
+          Example "2021-01-01T00:00:00Z"
+
+          swagger: type string
+
+          required: false'
+        type: string
+        format: date-time
+        example: '2021-01-01T00:00:00Z'
+  http.Pagination:
+    type: object
+    properties:
+      items: {}
+      limit:
+        type: integer
+      next_cursor:
+        type: string
+      page:
+        type: integer
+      prev_cursor:
+        type: string
+  mmodel.AccountingValidation:
+    type: object
+    properties:
+      validateAccountType:
+        description: 'ValidateAccountType enables validation of account types during
+          transaction processing.
+
+          When true, accounts must have types that match the operation route rules.
+
+          Default: false (permissive - no validation)'
+        type: boolean
+      validateRoutes:
+        description: 'ValidateRoutes enables validation of transaction routes during
+          processing.
+
+          When true, transactions must specify valid route IDs that exist in the ledger.
+
+          Default: false (permissive - no validation)'
+        type: boolean
   mmodel.Balance:
     description: Complete balance entity containing all fields including system-generated
       fields like ID, creation timestamps, and metadata. This is the response format
@@ -8314,273 +8717,13 @@ definitions:
         type: integer
         minimum: 1
         example: 1
-  transaction.CreateTransactionSwaggerModel:
-    description: Schema for creating transaction with the complete Send operation
-      structure defined inline
+  mmodel.LedgerSettings:
     type: object
     properties:
-      chartOfAccountsGroupName:
-        description: 'Chart of accounts group name for accounting purposes
-
-          example: FUNDING
-
-          maxLength: 256'
-        type: string
-      code:
-        description: 'Transaction code for reference
-
-          example: TR12345
-
-          maxLength: 100'
-        type: string
-      description:
-        description: 'Human-readable description of the transaction
-
-          example: New Transaction
-
-          maxLength: 256'
-        type: string
-      metadata:
-        description: 'Additional custom attributes
-
-          example: {"reference": "TRANSACTION-001", "source": "api"}'
-        type: object
-        additionalProperties: {}
-      pending:
-        description: 'Whether the transaction should be created in pending state
-
-          example: true
-
-          swagger: type boolean'
-        type: boolean
-        default: false
-        example: true
-      send:
-        description: 'Send operation details including source and distribution
-
-          required: true'
-        type: object
-        properties:
-          asset:
-            description: 'Asset code for the transaction
-
-              example: USD
-
-              required: true'
-            type: string
-          distribute:
-            description: 'Destination accounts and amounts for the transaction
-
-              required: true'
-            type: object
-            properties:
-              to:
-                description: 'List of destination operations
-
-                  required: true'
-                type: array
-                items:
-                  type: object
-                  properties:
-                    accountAlias:
-                      description: 'Account identifier or alias
-
-                        example: @myAccount
-
-                        required: true'
-                      type: string
-                    amount:
-                      description: 'Amount details for the operation
-
-                        required: true'
-                      type: object
-                      properties:
-                        asset:
-                          description: 'Asset code
-
-                            example: USD
-
-                            required: true'
-                          type: string
-                        value:
-                          description: 'Amount value in smallest unit
-
-                            example: "100.00"
-
-                            required: true'
-                          type: string
-                    chartOfAccounts:
-                      description: 'Chart of accounts code
-
-                        example: FUNDING_CREDIT'
-                      type: string
-                    description:
-                      description: 'Operation description
-
-                        example: Credit Operation'
-                      type: string
-                    metadata:
-                      description: 'Additional metadata
-
-                        example: {"operation": "funding", "type": "account"}'
-                      type: object
-                      additionalProperties: {}
-          source:
-            description: 'Source accounts and amounts for the transaction
-
-              required: true'
-            type: object
-            properties:
-              from:
-                description: 'List of source operations
-
-                  required: true'
-                type: array
-                items:
-                  type: object
-                  properties:
-                    accountAlias:
-                      description: 'Account identifier or alias
-
-                        example: @external/USD
-
-                        required: true'
-                      type: string
-                    amount:
-                      description: 'Amount details for the operation
-
-                        required: true'
-                      type: object
-                      properties:
-                        asset:
-                          description: 'Asset code
-
-                            example: USD
-
-                            required: true'
-                          type: string
-                        value:
-                          description: 'Amount value in smallest unit
-
-                            example: "100.00"
-
-                            required: true'
-                          type: string
-                    chartOfAccounts:
-                      description: 'Chart of accounts code
-
-                        example: FUNDING_DEBIT'
-                      type: string
-                    description:
-                      description: 'Operation description
-
-                        example: Debit Operation'
-                      type: string
-                    metadata:
-                      description: 'Additional metadata
-
-                        example: {"operation": "funding", "type": "external"}'
-                      type: object
-                      additionalProperties: {}
-          value:
-            description: 'Transaction amount value in the smallest unit of the asset
-
-              example: "100.00"
-
-              required: true'
-            type: string
-      transactionDate:
-        description: 'TransactionDate Period from transaction creation date until
-          now
-
-          Example "2021-01-01T00:00:00Z"
-
-          swagger: type string
-
-          required: false'
-        type: string
-        format: date-time
-        example: '2021-01-01T00:00:00Z'
-  CreateMetadataIndexInput:
-    description: CreateMetadataIndexInput payload
-    type: object
-    required:
-    - metadataKey
-    properties:
-      metadataKey:
-        description: 'The metadata key to index (without "metadata." prefix)
-
-          required: true
-
-          maxLength: 100'
-        type: string
-        maxLength: 100
-        example: tier
-      sparse:
-        description: 'Whether the index should be sparse (only include documents with
-          the field)
-
-          required: false
-
-          default: true'
-        type: boolean
-        example: true
-      unique:
-        description: 'Whether the index should enforce uniqueness
-
-          required: false
-
-          default: false'
-        type: boolean
-        example: false
-  IndexStats:
-    description: Usage statistics collected by MongoDB for an index
-    type: object
-    properties:
-      accesses:
-        description: 'Number of operations that have used this index
-
-          example: 1523'
-        type: integer
-        example: 1523
-      statsSince:
-        description: 'Timestamp since when the statistics are being collected
-
-          example: 2024-12-01T10:30:00Z
-
-          format: date-time'
-        type: string
-        format: date-time
-        example: '2024-12-01T10:30:00Z'
-  MetadataIndex:
-    description: Represents a custom MongoDB index on a metadata field
-    type: object
-    properties:
-      entityName:
-        description: The entity/collection name where the index exists
-        type: string
-        example: transaction
-      indexName:
-        description: The name of the index in MongoDB
-        type: string
-        example: metadata.tier_1
-      metadataKey:
-        description: The metadata key that is indexed
-        type: string
-        example: tier
-      sparse:
-        description: Whether the index is sparse
-        type: boolean
-        example: true
-      stats:
-        description: Usage statistics for this index (only available on GET, not on
-          CREATE)
+      accounting:
+        description: Accounting contains validation settings for accounting operations.
         allOf:
-        - $ref: '#/definitions/IndexStats'
-      unique:
-        description: Whether the index enforces uniqueness
-        type: boolean
-        example: false
+        - $ref: '#/definitions/mmodel.AccountingValidation'
 securityDefinitions:
   BearerAuth:
     type: apiKey
@@ -8588,4 +8731,3 @@ securityDefinitions:
     in: header
     description: 'Bearer token authentication. Format: ''Bearer {access_token}''.
       Only required when auth plugin is enabled.'
-tags: []

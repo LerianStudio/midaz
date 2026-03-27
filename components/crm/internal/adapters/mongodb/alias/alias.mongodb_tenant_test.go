@@ -100,7 +100,7 @@ func TestGetDatabase_ReturnsTenantDB_WhenContextHasTenantMongo(t *testing.T) {
 			repo := &MongoDBRepository{
 				connection: newPlaceholderConnection("static-db"),
 			}
-			ctx := tmcore.ContextWithTenantMongo(context.Background(), tt.tenantDB)
+			ctx := tmcore.ContextWithMB(context.Background(), tt.tenantDB)
 
 			// Act
 			db, err := repo.getDatabase(ctx)
@@ -122,7 +122,7 @@ func TestGetDatabase_TenantDB_TakesPrecedence_OverStaticConnection(t *testing.T)
 	}
 
 	tenantDB := newDisconnectedDatabase(t, "tenant-priority")
-	ctx := tmcore.ContextWithTenantMongo(context.Background(), tenantDB)
+	ctx := tmcore.ContextWithMB(context.Background(), tenantDB)
 
 	// Act
 	db, dbErr := repo.getDatabase(ctx)
@@ -181,7 +181,7 @@ func TestGetDatabase_FallsBackToStaticConnection_WhenNoTenantContext(t *testing.
 func TestGetDatabase_FallsBack_WhenTenantDBIsNilInContext(t *testing.T) {
 	t.Parallel()
 
-	ctx := tmcore.ContextWithTenantMongo(context.Background(), nil)
+	ctx := tmcore.ContextWithMB(context.Background(), nil)
 
 	repo := &MongoDBRepository{
 		connection: newPlaceholderConnection("fallback-nil-db"),
@@ -210,8 +210,8 @@ func TestGetDatabase_TwoTenants_ResolveToDifferentDatabases(t *testing.T) {
 		connection: newPlaceholderConnection("static-db"),
 	}
 
-	ctxTenantA := tmcore.ContextWithTenantMongo(context.Background(), tenantAcmeDB)
-	ctxTenantB := tmcore.ContextWithTenantMongo(context.Background(), tenantGlobexDB)
+	ctxTenantA := tmcore.ContextWithMB(context.Background(), tenantAcmeDB)
+	ctxTenantB := tmcore.ContextWithMB(context.Background(), tenantGlobexDB)
 
 	// Act — resolve database for each tenant
 	dbA, errA := repo.getDatabase(ctxTenantA)
@@ -239,8 +239,8 @@ func TestGetDatabase_SameTenant_ReturnsSameDatabase(t *testing.T) {
 		connection: newPlaceholderConnection("static-db"),
 	}
 
-	ctx1 := tmcore.ContextWithTenantMongo(context.Background(), tenantDB)
-	ctx2 := tmcore.ContextWithTenantMongo(context.Background(), tenantDB)
+	ctx1 := tmcore.ContextWithMB(context.Background(), tenantDB)
+	ctx2 := tmcore.ContextWithMB(context.Background(), tenantDB)
 
 	// Act
 	db1, err1 := repo.getDatabase(ctx1)
@@ -286,7 +286,7 @@ func TestGetDatabase_NilConnection_WithTenantContext_Succeeds(t *testing.T) {
 		connection: nil,
 	}
 
-	ctx := tmcore.ContextWithTenantMongo(context.Background(), tenantDB)
+	ctx := tmcore.ContextWithMB(context.Background(), tenantDB)
 
 	// Act
 	db, err := repo.getDatabase(ctx)
