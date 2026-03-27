@@ -462,6 +462,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 				}
 			}),
 			tmevent.WithOnTenantRemoved(func(ctx context.Context, tenantID string) {
+				if rmq != nil && rmq.multiTenantConsumer != nil {
+					rmq.multiTenantConsumer.StopConsumer(tenantID)
+				}
+
 				// Close ALL postgres managers (onboarding + transaction)
 				if onbPG.pgManager != nil {
 					if err := onbPG.pgManager.CloseConnection(ctx, tenantID); err != nil {
