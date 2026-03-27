@@ -3,7 +3,7 @@ module github.com/LerianStudio/midaz/v3
 go 1.25.8
 
 require (
-	github.com/LerianStudio/lib-auth/v2 v2.5.0
+	github.com/LerianStudio/lib-auth/v2 v2.6.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/go-playground/locales v0.14.1
