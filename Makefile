@@ -301,11 +301,12 @@ SARIF ?= 0
 
 .PHONY: sec-gosec
 sec-gosec:
-	@if ! command -v gosec >/dev/null 2>&1; then \
+	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
+	if ! command -v gosec >/dev/null 2>&1; then \
 		echo "Installing gosec..."; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
-	fi
-	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
+	fi; \
+	if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
 		echo "Running gosec on components/ and pkg/ folders..."; \
 		if [ "$(SARIF)" = "1" ]; then \
 			echo "Generating SARIF output: gosec-report.sarif"; \
@@ -320,11 +321,12 @@ sec-gosec:
 
 .PHONY: sec-govulncheck
 sec-govulncheck:
-	@if ! command -v govulncheck >/dev/null 2>&1; then \
+	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
+	if ! command -v govulncheck >/dev/null 2>&1; then \
 		echo "Installing govulncheck..."; \
 		go install golang.org/x/vuln/cmd/govulncheck@latest; \
-	fi
-	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
+	fi; \
+	if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
 		echo "Running govulncheck on components/ and pkg/ folders..."; \
 		govulncheck ./components/... ./pkg/...; \
 	else \
