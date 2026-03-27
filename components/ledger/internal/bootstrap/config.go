@@ -457,6 +457,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			tmevent.WithDispatcherLogger(logger),
 			tmevent.WithCacheTTL(cacheTTL),
 			tmevent.WithOnTenantAdded(func(ctx context.Context, tenantID string) {
+				if tenantClient != nil {
+					_ = tenantClient.InvalidateConfig(ctx, tenantID, tenantServiceName)
+				}
 				if rmq != nil && rmq.multiTenantConsumer != nil {
 					rmq.multiTenantConsumer.EnsureConsumerStarted(ctx, tenantID)
 				}
