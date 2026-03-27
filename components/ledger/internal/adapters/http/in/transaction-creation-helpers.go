@@ -233,17 +233,43 @@ func (handler *TransactionHandler) BuildOperations(
 		}
 	}
 
-	resolveRouteCodesFromCache(operations, transactionRouteCache)
+	resolveRouteCodesFromCache(operations, transactionRouteCache, tran.Status.Code)
 
 	return operations, preBalances, nil
 }
 
+// statusToAction maps a transaction status code to the corresponding accounting
+// action used for looking up the correct AccountingEntries rubric.
+func statusToAction(statusCode string) string {
+	switch statusCode {
+	case constant.PENDING:
+		return constant.ActionHold
+	case constant.APPROVED:
+		return constant.ActionCommit
+	case constant.CANCELED:
+		return constant.ActionCancel
+	default:
+		return constant.ActionDirect
+	}
+}
+
 // resolveRouteCodesFromCache populates the RouteCode and RouteDescription fields
 // on each operation by looking up the operation's RouteID in the transaction route
-// cache. The cache is keyed by routeID within each action's Source, Destination,
-// and Bidirectional maps.
-func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache) {
+// cache for the given transaction status.
+//
+// RouteCode is resolved from the AccountingEntries rubric that matches the
+// operation's action (derived from transactionStatus) and direction
+// (debit → Debit rubric, credit → Credit rubric).
+// RouteDescription is resolved from the OperationRoute-level Description field.
+func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache, transactionStatus string) {
 	if cache == nil {
+		return
+	}
+
+	action := statusToAction(transactionStatus)
+
+	actionCache, ok := cache.Actions[action]
+	if !ok {
 		return
 	}
 
@@ -254,22 +280,55 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 
 		routeID := *op.RouteID
 
-		for _, actionCache := range cache.Actions {
-			if rc, ok := findRouteInActionCache(actionCache, routeID); ok {
-				if rc.Code != "" {
-					code := rc.Code
-					op.RouteCode = &code
-				}
+		if rc, ok := findRouteInActionCache(actionCache, routeID); ok {
+			if rubric := resolveAccountingRubric(rc.AccountingEntries, action, op.Direction); rubric != nil && rubric.Code != "" {
+				code := rubric.Code
+				op.RouteCode = &code
+			}
 
-				if rc.Description != "" {
-					desc := rc.Description
-					op.RouteDescription = &desc
-				}
-
-				break
+			if rc.Description != "" {
+				desc := rc.Description
+				op.RouteDescription = &desc
 			}
 		}
 	}
+}
+
+// resolveAccountingRubric selects the appropriate AccountingRubric from the given
+// AccountingEntries based on the action name and operation direction.
+// Returns nil when no matching entry or rubric exists.
+func resolveAccountingRubric(entries *mmodel.AccountingEntries, action, direction string) *mmodel.AccountingRubric {
+	if entries == nil {
+		return nil
+	}
+
+	var entry *mmodel.AccountingEntry
+
+	switch strings.ToLower(action) {
+	case constant.ActionDirect:
+		entry = entries.Direct
+	case constant.ActionHold:
+		entry = entries.Hold
+	case constant.ActionCommit:
+		entry = entries.Commit
+	case constant.ActionCancel:
+		entry = entries.Cancel
+	case constant.ActionRevert:
+		entry = entries.Revert
+	}
+
+	if entry == nil {
+		return nil
+	}
+
+	switch strings.ToLower(direction) {
+	case constant.DirectionDebit:
+		return entry.Debit
+	case constant.DirectionCredit:
+		return entry.Credit
+	}
+
+	return nil
 }
 
 // findRouteInActionCache searches for a routeID across Source, Destination, and
