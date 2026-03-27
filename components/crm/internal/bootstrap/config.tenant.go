@@ -277,9 +277,9 @@ func buildMongoManagerOptions(cfg *Config, logger libLog.Logger) []tmmongo.Optio
 		mongoOpts = append(mongoOpts, tmmongo.WithIdleTimeout(time.Duration(cfg.MultiTenantIdleTimeoutSec)*time.Second))
 	}
 
-	if cfg.MultiTenantConnectionsIntervalSec > 0 {
-		mongoOpts = append(mongoOpts, tmmongo.WithSettingsCheckInterval(
-			time.Duration(cfg.MultiTenantConnectionsIntervalSec)*time.Second,
+	if cfg.MultiTenantConnectionsCheckIntervalSec > 0 {
+		mongoOpts = append(mongoOpts, tmmongo.WithConnectionsCheckInterval(
+			time.Duration(cfg.MultiTenantConnectionsCheckIntervalSec)*time.Second,
 		))
 	}
 
