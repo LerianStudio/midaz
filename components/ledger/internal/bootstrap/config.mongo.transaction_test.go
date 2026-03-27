@@ -130,7 +130,7 @@ func TestInitTransactionMultiTenantMongo_NilTenantClient_ReturnsError(t *testing
 	assert.Contains(t, err.Error(), "TenantClient is required")
 }
 
-func TestInitTransactionMultiTenantMongo_WithSettingsCheckInterval(t *testing.T) {
+func TestInitTransactionMultiTenantMongo_WithConnectionsInterval(t *testing.T) {
 	t.Parallel()
 
 	logger := libLog.NewNop()
@@ -141,11 +141,11 @@ func TestInitTransactionMultiTenantMongo_WithSettingsCheckInterval(t *testing.T)
 		interval int
 	}{
 		{
-			name:     "positive interval applies WithSettingsCheckInterval option",
+			name:     "positive interval applies WithConnectionsInterval option",
 			interval: 60,
 		},
 		{
-			name:     "zero interval skips WithSettingsCheckInterval option",
+			name:     "zero interval skips WithConnectionsInterval option",
 			interval: 0,
 		},
 	}
@@ -161,7 +161,7 @@ func TestInitTransactionMultiTenantMongo_WithSettingsCheckInterval(t *testing.T)
 			}
 
 			cfg := &Config{
-				MultiTenantSettingsCheckIntervalSec: tt.interval,
+				MultiTenantConnectionsIntervalSec: tt.interval,
 			}
 
 			result, err := initTransactionMultiTenantMongo(opts, cfg, logger)

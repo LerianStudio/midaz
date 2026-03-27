@@ -51,9 +51,9 @@ func initOnboardingMultiTenantMongo(opts *Options, cfg *Config, logger libLog.Lo
 		tmmongo.WithLogger(logger),
 	}
 
-	if cfg.MultiTenantSettingsCheckIntervalSec > 0 {
+	if cfg.MultiTenantConnectionsIntervalSec > 0 {
 		mongoOpts = append(mongoOpts, tmmongo.WithSettingsCheckInterval(
-			time.Duration(cfg.MultiTenantSettingsCheckIntervalSec)*time.Second,
+			time.Duration(cfg.MultiTenantConnectionsIntervalSec)*time.Second,
 		))
 	}
 
