@@ -56,8 +56,8 @@ func initTransactionMultiTenantPostgres(opts *Options, cfg *Config, logger libLo
 		tmpostgres.WithLogger(logger),
 	}
 
-	if cfg.MultiTenantSettingsCheckIntervalSec > 0 {
-		pgOpts = append(pgOpts, tmpostgres.WithSettingsCheckInterval(time.Duration(cfg.MultiTenantSettingsCheckIntervalSec)*time.Second))
+	if cfg.MultiTenantConnectionsCheckIntervalSec > 0 {
+		pgOpts = append(pgOpts, tmpostgres.WithConnectionsCheckInterval(time.Duration(cfg.MultiTenantConnectionsCheckIntervalSec)*time.Second))
 	}
 
 	pgMgr := tmpostgres.NewManager(
