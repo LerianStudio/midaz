@@ -96,7 +96,7 @@ lint:
 	@if find . -name "*.go" -type f | grep -q .; then \
 		if ! command -v golangci-lint >/dev/null 2>&1; then \
 			echo "$(YELLOW)golangci-lint not found, installing...$(NC)"; \
-			@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+			go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest; \
 		else \
 			echo "$(GREEN)golangci-lint already installed ✔️$(NC)"; \
 		fi; \
@@ -269,7 +269,7 @@ dev-setup:
 	@echo "$(CYAN)Installing development tools...$(NC)"
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest; \
 	fi
 	@if ! command -v swag >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing swag...$(NC)"; \
