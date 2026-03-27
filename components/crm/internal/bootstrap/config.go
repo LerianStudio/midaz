@@ -61,6 +61,7 @@ type Config struct {
 	MultiTenantRedisHost                string `env:"MULTI_TENANT_REDIS_HOST"`
 	MultiTenantRedisPort                string `env:"MULTI_TENANT_REDIS_PORT"`
 	MultiTenantRedisPassword            string `env:"MULTI_TENANT_REDIS_PASSWORD"`
+	MultiTenantRedisTLS                 bool   `env:"MULTI_TENANT_REDIS_TLS"`
 	ApplicationName                     string `env:"APPLICATION_NAME"`
 }
 
