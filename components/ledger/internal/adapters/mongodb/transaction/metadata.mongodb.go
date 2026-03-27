@@ -70,7 +70,7 @@ func (mmr *MetadataMongoDBRepository) getDatabase(ctx context.Context) (*mongo.D
 	}
 
 	// Generic database fallback (single-module services)
-	if db := tmcore.GetMongoContext(ctx); db != nil {
+	if db := tmcore.GetMBContext(ctx); db != nil {
 		return db, nil
 	}
 

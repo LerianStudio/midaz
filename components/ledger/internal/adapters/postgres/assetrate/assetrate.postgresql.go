@@ -84,7 +84,7 @@ func (r *AssetRatePostgreSQLRepository) getDB(ctx context.Context) (dbresolver.D
 	}
 
 	// Generic connection fallback (single-module services)
-	if db := tmcore.GetPGConnectionContext(ctx); db != nil {
+	if db := tmcore.GetPGContext(ctx); db != nil {
 		return db, nil
 	}
 

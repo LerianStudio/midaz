@@ -88,7 +88,7 @@ func (r *AccountTypePostgreSQLRepository) getDB(ctx context.Context) (dbresolver
 	}
 
 	// Generic connection fallback (single-module services)
-	if db := tmcore.GetPGConnectionContext(ctx); db != nil {
+	if db := tmcore.GetPGContext(ctx); db != nil {
 		return db, nil
 	}
 

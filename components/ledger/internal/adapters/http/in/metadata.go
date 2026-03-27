@@ -99,13 +99,13 @@ func (handler *MetadataIndexHandler) contextForEntity(ctx context.Context, entit
 	}
 
 	// Store in both generic and module-specific context keys.
-	ctx = tmcore.ContextWithMongo(ctx, tenantDB)
+	ctx = tmcore.ContextWithMB(ctx, tenantDB)
 
 	// Determine module name based on entity type for module-specific injection.
 	if _, ok := onboardingEntities[entityName]; ok {
-		ctx = tmcore.ContextWithMB(ctx, constant.ModuleOnboarding, tenantDB)
+		ctx = tmcore.ContextWithMB(ctx, tenantDB, constant.ModuleOnboarding)
 	} else {
-		ctx = tmcore.ContextWithMB(ctx, constant.ModuleTransaction, tenantDB)
+		ctx = tmcore.ContextWithMB(ctx, tenantDB, constant.ModuleTransaction)
 	}
 
 	return ctx, nil
@@ -139,8 +139,8 @@ func (handler *MetadataIndexHandler) contextForRepoGroup(ctx context.Context, on
 	}
 
 	// Store in both generic and module-specific context keys.
-	ctx = tmcore.ContextWithMongo(ctx, tenantDB)
-	ctx = tmcore.ContextWithMB(ctx, groupName, tenantDB)
+	ctx = tmcore.ContextWithMB(ctx, tenantDB)
+	ctx = tmcore.ContextWithMB(ctx, tenantDB, groupName)
 
 	return ctx, nil
 }
