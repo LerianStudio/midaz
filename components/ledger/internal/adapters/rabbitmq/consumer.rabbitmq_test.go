@@ -1001,3 +1001,202 @@ func TestResolveMessageHeaderID_NilHeaders(t *testing.T) {
 	assert.NotEmpty(t, result)
 	assert.Len(t, result, 36)
 }
+
+// =============================================================================
+// UNIT TESTS - acknowledgeByResults Individual Ack Behavior
+// =============================================================================
+
+// mockAcknowledger tracks ack/nack calls without a real RabbitMQ connection.
+// Used to verify ack/nack calls and the multiple parameter.
+type mockAcknowledger struct {
+	ackCalled    bool
+	ackMultiple  bool
+	nackCalled   bool
+	nackMultiple bool
+	nackRequeue  bool
+}
+
+func (m *mockAcknowledger) Ack(tag uint64, multiple bool) error {
+	m.ackCalled = true
+	m.ackMultiple = multiple
+	return nil
+}
+
+func (m *mockAcknowledger) Nack(tag uint64, multiple bool, requeue bool) error {
+	m.nackCalled = true
+	m.nackMultiple = multiple
+	m.nackRequeue = requeue
+	return nil
+}
+
+func (m *mockAcknowledger) Reject(tag uint64, requeue bool) error {
+	return nil
+}
+
+func TestAcknowledgeByResults_AllSucceeded_UsesIndividualAck(t *testing.T) {
+	t.Parallel()
+
+	// Create mock acknowledgers for each delivery
+	ack1 := &mockAcknowledger{}
+	ack2 := &mockAcknowledger{}
+	ack3 := &mockAcknowledger{}
+
+	deliveries := []amqp.Delivery{
+		{Acknowledger: ack1, DeliveryTag: 1, Body: []byte("msg1")},
+		{Acknowledger: ack2, DeliveryTag: 2, Body: []byte("msg2")},
+		{Acknowledger: ack3, DeliveryTag: 3, Body: []byte("msg3")},
+	}
+
+	// Empty results means all succeeded
+	results := []BulkMessageResult{}
+
+	cr := &ConsumerRoutes{
+		Logger: testLogger,
+	}
+
+	ctx := context.Background()
+	cr.acknowledgeByResults(ctx, deliveries, results, testLogger, "test-queue")
+
+	// CRITICAL: Each message must be acked individually with multiple=false
+	// This prevents cross-worker acking when multiple workers share a channel
+	assert.True(t, ack1.ackCalled, "message 1 should be acked")
+	assert.False(t, ack1.ackMultiple, "message 1 should use individual ack (multiple=false)")
+
+	assert.True(t, ack2.ackCalled, "message 2 should be acked")
+	assert.False(t, ack2.ackMultiple, "message 2 should use individual ack (multiple=false)")
+
+	assert.True(t, ack3.ackCalled, "message 3 should be acked")
+	assert.False(t, ack3.ackMultiple, "message 3 should use individual ack (multiple=false)")
+}
+
+func TestAcknowledgeByResults_WithResults_AllSucceeded_UsesIndividualAck(t *testing.T) {
+	t.Parallel()
+
+	ack1 := &mockAcknowledger{}
+	ack2 := &mockAcknowledger{}
+
+	deliveries := []amqp.Delivery{
+		{Acknowledger: ack1, DeliveryTag: 1, Body: []byte("msg1")},
+		{Acknowledger: ack2, DeliveryTag: 2, Body: []byte("msg2")},
+	}
+
+	// Results indicate all succeeded
+	results := []BulkMessageResult{
+		{Index: 0, Success: true},
+		{Index: 1, Success: true},
+	}
+
+	cr := &ConsumerRoutes{
+		Logger: testLogger,
+	}
+
+	ctx := context.Background()
+	cr.acknowledgeByResults(ctx, deliveries, results, testLogger, "test-queue")
+
+	// Both should be acked individually
+	assert.True(t, ack1.ackCalled, "message 1 should be acked")
+	assert.False(t, ack1.ackMultiple, "message 1 should use individual ack")
+
+	assert.True(t, ack2.ackCalled, "message 2 should be acked")
+	assert.False(t, ack2.ackMultiple, "message 2 should use individual ack")
+}
+
+func TestAcknowledgeByResults_MixedResults_CorrectAckNack(t *testing.T) {
+	t.Parallel()
+
+	ack1 := &mockAcknowledger{}
+	ack2 := &mockAcknowledger{}
+	ack3 := &mockAcknowledger{}
+
+	deliveries := []amqp.Delivery{
+		{Acknowledger: ack1, DeliveryTag: 1, Body: []byte("msg1")},
+		{Acknowledger: ack2, DeliveryTag: 2, Body: []byte("msg2")},
+		{Acknowledger: ack3, DeliveryTag: 3, Body: []byte("msg3")},
+	}
+
+	// Mixed results: first and third succeed, second fails
+	results := []BulkMessageResult{
+		{Index: 0, Success: true},
+		{Index: 1, Success: false, Error: errors.New("processing failed")},
+		{Index: 2, Success: true},
+	}
+
+	cr := &ConsumerRoutes{
+		Logger: testLogger,
+	}
+
+	ctx := context.Background()
+	cr.acknowledgeByResults(ctx, deliveries, results, testLogger, "test-queue")
+
+	// Message 1: acked individually
+	assert.True(t, ack1.ackCalled, "message 1 should be acked")
+	assert.False(t, ack1.ackMultiple, "message 1 should use individual ack")
+	assert.False(t, ack1.nackCalled, "message 1 should not be nacked")
+
+	// Message 2: nacked with requeue
+	assert.False(t, ack2.ackCalled, "message 2 should not be acked")
+	assert.True(t, ack2.nackCalled, "message 2 should be nacked")
+	assert.False(t, ack2.nackMultiple, "message 2 should use individual nack")
+	assert.True(t, ack2.nackRequeue, "message 2 should be requeued")
+
+	// Message 3: acked individually
+	assert.True(t, ack3.ackCalled, "message 3 should be acked")
+	assert.False(t, ack3.ackMultiple, "message 3 should use individual ack")
+	assert.False(t, ack3.nackCalled, "message 3 should not be nacked")
+}
+
+func TestAcknowledgeByResults_EmptyDeliveries_NoAction(t *testing.T) {
+	t.Parallel()
+
+	cr := &ConsumerRoutes{
+		Logger: testLogger,
+	}
+
+	ctx := context.Background()
+	// Should not panic with empty deliveries
+	cr.acknowledgeByResults(ctx, []amqp.Delivery{}, []BulkMessageResult{}, testLogger, "test-queue")
+}
+
+func TestAcknowledgeByResults_AllFailed_NacksAllMessages(t *testing.T) {
+	t.Parallel()
+
+	ack1 := &mockAcknowledger{}
+	ack2 := &mockAcknowledger{}
+	ack3 := &mockAcknowledger{}
+
+	deliveries := []amqp.Delivery{
+		{Acknowledger: ack1, DeliveryTag: 1, Body: []byte("msg1")},
+		{Acknowledger: ack2, DeliveryTag: 2, Body: []byte("msg2")},
+		{Acknowledger: ack3, DeliveryTag: 3, Body: []byte("msg3")},
+	}
+
+	// All messages failed
+	results := []BulkMessageResult{
+		{Index: 0, Success: false, Error: errors.New("db error")},
+		{Index: 1, Success: false, Error: errors.New("validation error")},
+		{Index: 2, Success: false, Error: errors.New("timeout error")},
+	}
+
+	cr := &ConsumerRoutes{
+		Logger: testLogger,
+	}
+
+	ctx := context.Background()
+	cr.acknowledgeByResults(ctx, deliveries, results, testLogger, "test-queue")
+
+	// All messages should be nacked individually with requeue
+	assert.False(t, ack1.ackCalled, "message 1 should not be acked")
+	assert.True(t, ack1.nackCalled, "message 1 should be nacked")
+	assert.False(t, ack1.nackMultiple, "message 1 should use individual nack")
+	assert.True(t, ack1.nackRequeue, "message 1 should be requeued")
+
+	assert.False(t, ack2.ackCalled, "message 2 should not be acked")
+	assert.True(t, ack2.nackCalled, "message 2 should be nacked")
+	assert.False(t, ack2.nackMultiple, "message 2 should use individual nack")
+	assert.True(t, ack2.nackRequeue, "message 2 should be requeued")
+
+	assert.False(t, ack3.ackCalled, "message 3 should not be acked")
+	assert.True(t, ack3.nackCalled, "message 3 should be nacked")
+	assert.False(t, ack3.nackMultiple, "message 3 should use individual nack")
+	assert.True(t, ack3.nackRequeue, "message 3 should be requeued")
+}
