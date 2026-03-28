@@ -14,11 +14,11 @@ import (
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/lib-commons/v4/commons/opentelemetry/metrics"
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmevent "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/event"
 	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
+	tmredis "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/redis"
 	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
 	"github.com/LerianStudio/midaz/v3/components/crm/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
@@ -146,34 +146,14 @@ func initTenantEventListener(
 		return nil, nil
 	}
 
-	redisPort := strings.TrimSpace(cfg.MultiTenantRedisPort)
-	if redisPort == "" {
-		redisPort = "6379"
-	}
-
-	tmRedisConfig := libRedis.Config{
-		Topology: libRedis.Topology{
-			Standalone: &libRedis.StandaloneTopology{
-				Address: redisHost + ":" + redisPort,
-			},
-		},
-		Logger: logger,
-	}
-
-	if cfg.MultiTenantRedisPassword != "" {
-		tmRedisConfig.Auth = libRedis.Auth{
-			StaticPassword: &libRedis.StaticPasswordAuth{Password: cfg.MultiTenantRedisPassword},
-		}
-	}
-
-	tmRedisConn, err := libRedis.New(context.Background(), tmRedisConfig)
+	tmRedisClient, err := tmredis.NewTenantPubSubRedisClient(context.Background(), tmredis.TenantPubSubRedisConfig{
+		Host:     redisHost,
+		Port:     strings.TrimSpace(cfg.MultiTenantRedisPort),
+		Password: cfg.MultiTenantRedisPassword,
+		TLS:      cfg.MultiTenantRedisTLS,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize tenant-manager Redis for Pub/Sub: %w", err)
-	}
-
-	tmRedisClient, err := tmRedisConn.GetClient(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tenant-manager Redis client: %w", err)
 	}
 
 	eventListener, err := tmevent.NewTenantEventListener(
