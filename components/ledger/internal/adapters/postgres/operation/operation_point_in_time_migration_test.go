@@ -32,19 +32,12 @@ func TestOperationPointInTimeMigration_SemanticShape(t *testing.T) {
 
 	pointInTimeUp := readTransactionMigrationFile(t, "000017_add_idx_operation_point_in_time.up.sql")
 	pointInTimeDown := readTransactionMigrationFile(t, "000017_add_idx_operation_point_in_time.down.sql")
-	accountPointInTimeUp := readTransactionMigrationFile(t, "000018_add_idx_operation_account_point_in_time.up.sql")
-	accountPointInTimeDown := readTransactionMigrationFile(t, "000018_add_idx_operation_account_point_in_time.down.sql")
 
-	assert.Contains(t, pointInTimeUp, "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_operation_point_in_time")
-	assert.Contains(t, pointInTimeUp, "ON operation (organization_id, ledger_id, balance_id, created_at DESC)")
-	assert.Contains(t, pointInTimeUp, "INCLUDE (id, balance_key, available_balance_after, on_hold_balance_after, balance_version_after, account_id, asset_code)")
+	// Verify the unified lean index with balance_version_after in key, no INCLUDE columns
+	assert.Contains(t, pointInTimeUp, "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_operation_account_balance_pit")
+	assert.Contains(t, pointInTimeUp, "ON operation (organization_id, ledger_id, account_id, balance_id, created_at DESC, balance_version_after DESC)")
+	assert.NotContains(t, pointInTimeUp, "INCLUDE (", "lean index must not have INCLUDE columns")
 	assert.Contains(t, pointInTimeUp, "WHERE deleted_at IS NULL")
 
-	assert.Contains(t, accountPointInTimeUp, "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_operation_account_point_in_time")
-	assert.Contains(t, accountPointInTimeUp, "ON operation (organization_id, ledger_id, account_id, balance_id, created_at DESC)")
-	assert.Contains(t, accountPointInTimeUp, "INCLUDE (id, balance_key, available_balance_after, on_hold_balance_after, balance_version_after, asset_code)")
-	assert.Contains(t, accountPointInTimeUp, "WHERE deleted_at IS NULL")
-
-	assert.Contains(t, pointInTimeDown, "DROP INDEX CONCURRENTLY IF EXISTS idx_operation_point_in_time;")
-	assert.Contains(t, accountPointInTimeDown, "DROP INDEX CONCURRENTLY IF EXISTS idx_operation_account_point_in_time;")
+	assert.Contains(t, pointInTimeDown, "DROP INDEX CONCURRENTLY IF EXISTS idx_operation_account_balance_pit;")
 }

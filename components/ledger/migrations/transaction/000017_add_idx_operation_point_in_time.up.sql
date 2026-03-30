@@ -1,10 +1,8 @@
--- Migration: Add covering index for point-in-time balance queries
--- Purpose: Optimize queries that find the last operation for a balance before a given timestamp
--- This enables efficient point-in-time balance lookups for reconciliation and audit
-
--- Covering index for single balance point-in-time query
--- Query pattern: SELECT ... FROM operation WHERE organization_id = ? AND ledger_id = ? AND balance_id = ? AND created_at <= ? ORDER BY created_at DESC LIMIT 1
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_operation_point_in_time
-ON operation (organization_id, ledger_id, balance_id, created_at DESC)
-INCLUDE (id, balance_key, available_balance_after, on_hold_balance_after, balance_version_after, account_id, asset_code)
+-- Migration: Unified lean index for all point-in-time balance queries
+-- Purpose: Single index serving FindLastOperationBeforeTimestamp, FindLastOperationsForAccountBeforeTimestamp,
+--          and ListByAccountIDAtTimestamp with optimal key design
+-- Design: balance_version_after promoted to key for native sort (eliminates Incremental Sort);
+--         no INCLUDE columns (key redesign reduces scan to ~1 row per balance, making heap fetches negligible)
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_operation_account_balance_pit
+ON operation (organization_id, ledger_id, account_id, balance_id, created_at DESC, balance_version_after DESC)
 WHERE deleted_at IS NULL;
