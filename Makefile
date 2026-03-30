@@ -15,6 +15,9 @@ PKG_DIR := ./pkg
 # Define a list of all component directories for easier iteration
 COMPONENTS := $(INFRA_DIR) $(CRM_DIR)
 
+# Pinned tool versions — keep in sync with .github/workflows/go-combined-analysis.yml
+GOLANGCI_LINT_VERSION := v2.4.0
+
 # Include shared utility functions
 # Define common utility functions
 define print_title
@@ -233,7 +236,7 @@ lint:
 			echo "Linting in $(TESTS_DIR)..."; \
 			if ! command -v golangci-lint >/dev/null 2>&1; then \
 				echo "golangci-lint not found, installing..."; \
-				go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest; \
+				go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
 			else \
 				echo "golangci-lint already installed ✔️"; \
 			fi; \
@@ -251,7 +254,7 @@ lint:
 			echo "Linting in $(PKG_DIR)..."; \
 			if ! command -v golangci-lint >/dev/null 2>&1; then \
 				echo "golangci-lint not found, installing..."; \
-				go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest; \
+				go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
 			else \
 				echo "golangci-lint already installed ✔️"; \
 			fi; \
@@ -574,7 +577,7 @@ dev-setup:
 	@command -v gofumpt >/dev/null 2>&1 || (echo "Installing gofumpt..." && go install mvdan.cc/gofumpt@latest) || echo "⚠️  Failed to install gofumpt"
 	@command -v goimports >/dev/null 2>&1 || (echo "Installing goimports..." && go install golang.org/x/tools/cmd/goimports@latest) || echo "⚠️  Failed to install goimports"
 	@command -v gosec >/dev/null 2>&1 || (echo "Installing gosec..." && go install github.com/securego/gosec/v2/cmd/gosec@latest) || echo "⚠️  Failed to install gosec"
-	@command -v golangci-lint >/dev/null 2>&1 || (echo "Installing golangci-lint..." && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest) || echo "⚠️  Failed to install golangci-lint"
+	@command -v golangci-lint >/dev/null 2>&1 || (echo "Installing golangci-lint..." && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)) || echo "⚠️  Failed to install golangci-lint"
 	@echo "Setting up git hooks..."
 	@$(MAKE) setup-git-hooks
 	@for dir in $(COMPONENTS); do \
