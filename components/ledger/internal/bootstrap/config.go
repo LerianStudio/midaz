@@ -25,6 +25,7 @@ import (
 	tmmiddleware "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/middleware"
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
+	tmredis "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/redis"
 	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
 	libZap "github.com/LerianStudio/lib-commons/v4/commons/zap"
 	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
@@ -101,6 +102,7 @@ type Config struct {
 	MultiTenantRedisHost                   string `env:"MULTI_TENANT_REDIS_HOST"`
 	MultiTenantRedisPort                   string `env:"MULTI_TENANT_REDIS_PORT"`
 	MultiTenantRedisPassword               string `env:"MULTI_TENANT_REDIS_PASSWORD"`
+	MultiTenantRedisTLS                    bool   `env:"MULTI_TENANT_REDIS_TLS"`
 
 	// --- Onboarding PostgreSQL fields (DB_ONBOARDING_* env tags) ---
 	OnbPrefixedPrimaryDBHost     string `env:"DB_ONBOARDING_HOST"`
@@ -536,36 +538,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 		// Create Redis client for tenant-manager Pub/Sub when configured
 		if cfg.MultiTenantRedisHost != "" {
-			redisPort := cfg.MultiTenantRedisPort
-			if redisPort == "" {
-				redisPort = "6379"
-			}
-
-			tmRedisConfig := libRedis.Config{
-				Topology: libRedis.Topology{
-					Standalone: &libRedis.StandaloneTopology{
-						Address: cfg.MultiTenantRedisHost + ":" + redisPort,
-					},
-				},
-				Logger: logger,
-			}
-
-			if cfg.MultiTenantRedisPassword != "" {
-				tmRedisConfig.Auth = libRedis.Auth{
-					StaticPassword: &libRedis.StaticPasswordAuth{Password: cfg.MultiTenantRedisPassword},
-				}
-			}
-
-			tmRedisConn, tmRedisErr := libRedis.New(context.Background(), tmRedisConfig)
+			tmRedisClient, tmRedisErr := tmredis.NewTenantPubSubRedisClient(context.Background(), tmredis.TenantPubSubRedisConfig{
+				Host:     cfg.MultiTenantRedisHost,
+				Port:     strings.TrimSpace(cfg.MultiTenantRedisPort),
+				Password: cfg.MultiTenantRedisPassword,
+				TLS:      cfg.MultiTenantRedisTLS,
+			})
 			if tmRedisErr != nil {
 				doCleanup()
 				return nil, fmt.Errorf("failed to initialize tenant-manager Redis for Pub/Sub: %w", tmRedisErr)
-			}
-
-			tmRedisClient, tmClientErr := tmRedisConn.GetClient(context.Background())
-			if tmClientErr != nil {
-				doCleanup()
-				return nil, fmt.Errorf("failed to get tenant-manager Redis client: %w", tmClientErr)
 			}
 
 			var listenerErr error

@@ -88,6 +88,7 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 			"MultiTenantRedisHost":                "MULTI_TENANT_REDIS_HOST",
 			"MultiTenantRedisPort":                "MULTI_TENANT_REDIS_PORT",
 			"MultiTenantRedisPassword":            "MULTI_TENANT_REDIS_PASSWORD",
+			"MultiTenantRedisTLS":                 "MULTI_TENANT_REDIS_TLS",
 		}
 
 		cfg := &Config{}
