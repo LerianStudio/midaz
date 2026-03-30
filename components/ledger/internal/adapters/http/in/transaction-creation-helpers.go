@@ -284,11 +284,11 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 			if rubric := resolveAccountingRubric(rc.AccountingEntries, action, op.Direction); rubric != nil && rubric.Code != "" {
 				code := rubric.Code
 				op.RouteCode = &code
-			}
 
-			if rc.Description != "" {
-				desc := rc.Description
-				op.RouteDescription = &desc
+				if rubric.Description != "" {
+					desc := rubric.Description
+					op.RouteDescription = &desc
+				}
 			}
 		}
 	}
