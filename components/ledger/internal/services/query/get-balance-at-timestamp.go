@@ -49,8 +49,17 @@ func (uc *UseCase) GetBalanceAtTimestamp(ctx context.Context, organizationID, le
 		return nil, err
 	}
 
+	// Parse account ID from the balance for the index-optimized query
+	accountID, err := uuid.Parse(currentBalance.AccountID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to parse account ID from balance", err)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to parse account ID from balance: %v", err))
+
+		return nil, err
+	}
+
 	// Find the last operation before the timestamp
-	operation, err := uc.OperationRepo.FindLastOperationBeforeTimestamp(ctx, organizationID, ledgerID, balanceID, timestamp)
+	operation, err := uc.OperationRepo.FindLastOperationBeforeTimestamp(ctx, organizationID, ledgerID, accountID, balanceID, timestamp)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get operation before timestamp", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting operation before timestamp: %v", err))

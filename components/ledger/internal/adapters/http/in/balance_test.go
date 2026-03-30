@@ -1416,7 +1416,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 
 				// Then find last operation before date
 				operationRepo.EXPECT().
-					FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, balanceID, gomock.Any()).
+					FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, balanceID, gomock.Any()).
 					Return(&operation.Operation{
 						ID:         uuid.New().String(),
 						AccountID:  accountID.String(),
@@ -1542,7 +1542,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 
 				// No operation found before date (implementation checks this before CreatedAt)
 				operationRepo.EXPECT().
-					FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, balanceID, gomock.Any()).
+					FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, gomock.Any(), balanceID, gomock.Any()).
 					Return(nil, nil).
 					Times(1)
 			},

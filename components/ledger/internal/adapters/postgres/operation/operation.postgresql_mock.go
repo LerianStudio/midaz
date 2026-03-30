@@ -167,18 +167,18 @@ func (mr *MockRepositoryMockRecorder) FindByAccount(ctx, organizationID, ledgerI
 }
 
 // FindLastOperationBeforeTimestamp mocks base method.
-func (m *MockRepository) FindLastOperationBeforeTimestamp(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, timestamp time.Time) (*Operation, error) {
+func (m *MockRepository) FindLastOperationBeforeTimestamp(ctx context.Context, organizationID, ledgerID, accountID, balanceID uuid.UUID, timestamp time.Time) (*Operation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindLastOperationBeforeTimestamp", ctx, organizationID, ledgerID, balanceID, timestamp)
+	ret := m.ctrl.Call(m, "FindLastOperationBeforeTimestamp", ctx, organizationID, ledgerID, accountID, balanceID, timestamp)
 	ret0, _ := ret[0].(*Operation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindLastOperationBeforeTimestamp indicates an expected call of FindLastOperationBeforeTimestamp.
-func (mr *MockRepositoryMockRecorder) FindLastOperationBeforeTimestamp(ctx, organizationID, ledgerID, balanceID, timestamp any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindLastOperationBeforeTimestamp(ctx, organizationID, ledgerID, accountID, balanceID, timestamp any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindLastOperationBeforeTimestamp", reflect.TypeOf((*MockRepository)(nil).FindLastOperationBeforeTimestamp), ctx, organizationID, ledgerID, balanceID, timestamp)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindLastOperationBeforeTimestamp", reflect.TypeOf((*MockRepository)(nil).FindLastOperationBeforeTimestamp), ctx, organizationID, ledgerID, accountID, balanceID, timestamp)
 }
 
 // FindLastOperationsForAccountBeforeTimestamp mocks base method.

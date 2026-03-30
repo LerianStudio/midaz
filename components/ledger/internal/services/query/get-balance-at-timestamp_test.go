@@ -77,7 +77,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 			Return(currentBalance, nil)
 
 		operationRepo.EXPECT().
-			FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, balanceID, timestamp).
+			FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, balanceID, timestamp).
 			Return(lastOperation, nil)
 
 		result, err := uc.GetBalanceAtTimestamp(context.Background(), orgID, ledgerID, balanceID, timestamp)
@@ -174,6 +174,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 
 				orgID := uuid.Must(libCommons.GenerateUUIDv7())
 				ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+				accountID := uuid.Must(libCommons.GenerateUUIDv7())
 				balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 				timestamp := time.Now().Add(-time.Hour)
 
@@ -181,6 +182,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 					ID:             balanceID.String(),
 					OrganizationID: orgID.String(),
 					LedgerID:       ledgerID.String(),
+					AccountID:      accountID.String(),
 				}
 
 				balanceRepo := balance.NewMockRepository(ctrl)
@@ -200,7 +202,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 
 				if tt.setupOperationExp {
 					operationRepo.EXPECT().
-						FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, balanceID, timestamp).
+						FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, balanceID, timestamp).
 						Return(nil, tt.operationRepoErr)
 				}
 
@@ -246,7 +248,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 			Return(currentBalance, nil)
 
 		operationRepo.EXPECT().
-			FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, balanceID, timestamp).
+			FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, balanceID, timestamp).
 			Return(nil, nil)
 
 		result, err := uc.GetBalanceAtTimestamp(context.Background(), orgID, ledgerID, balanceID, timestamp)
@@ -270,6 +272,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 
 		orgID := uuid.Must(libCommons.GenerateUUIDv7())
 		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+		accountID := uuid.Must(libCommons.GenerateUUIDv7())
 		balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 		timestamp := time.Now().Add(-24 * time.Hour)
 		// Balance was created AFTER the timestamp
@@ -279,6 +282,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 			ID:             balanceID.String(),
 			OrganizationID: orgID.String(),
 			LedgerID:       ledgerID.String(),
+			AccountID:      accountID.String(),
 			CreatedAt:      balanceCreatedAt,
 		}
 
@@ -292,7 +296,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 			Return(currentBalance, nil)
 
 		operationRepo.EXPECT().
-			FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, balanceID, timestamp).
+			FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, balanceID, timestamp).
 			Return(nil, nil)
 
 		result, err := uc.GetBalanceAtTimestamp(context.Background(), orgID, ledgerID, balanceID, timestamp)
@@ -347,7 +351,7 @@ func TestGetBalanceAtTimestamp(t *testing.T) {
 			Return(currentBalance, nil)
 
 		operationRepo.EXPECT().
-			FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, balanceID, timestamp).
+			FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, balanceID, timestamp).
 			Return(lastOperation, nil)
 
 		result, err := uc.GetBalanceAtTimestamp(context.Background(), orgID, ledgerID, balanceID, timestamp)
