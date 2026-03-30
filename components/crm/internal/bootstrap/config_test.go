@@ -143,6 +143,7 @@ func TestInitTenantMiddleware(t *testing.T) {
 				EnvName:                  "development",
 				MultiTenantURL:           "http://tenant-manager:8080",
 				MultiTenantServiceAPIKey: "test-api-key",
+				ApplicationName:          "ledger",
 			},
 			expectNil: false,
 		},
@@ -156,6 +157,7 @@ func TestInitTenantMiddleware(t *testing.T) {
 				MultiTenantIdleTimeoutSec:          300,
 				MultiTenantCircuitBreakerThreshold: 3,
 				MultiTenantServiceAPIKey:           "test-api-key",
+				ApplicationName:                    "ledger",
 			},
 			expectNil: false,
 		},
@@ -165,7 +167,7 @@ func TestInitTenantMiddleware(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := newMockLogger()
 
-			mw, err := initTenantMiddleware(tt.cfg, logger, nil)
+			mw, _, err := initTenantMiddleware(tt.cfg, logger, nil)
 
 			if tt.expectErrMsg != "" {
 				require.Error(t, err)
@@ -234,10 +236,11 @@ func TestInitTenantMiddleware_URLWhitespaceVariations(t *testing.T) {
 				EnvName:                  "development",
 				MultiTenantURL:           tt.url,
 				MultiTenantServiceAPIKey: "test-api-key",
+				ApplicationName:          "ledger",
 			}
 			logger := newMockLogger()
 
-			mw, err := initTenantMiddleware(cfg, logger, nil)
+			mw, _, err := initTenantMiddleware(cfg, logger, nil)
 
 			if tt.expectErrMsg != "" {
 				require.Error(t, err, "initTenantMiddleware should return error for whitespace-only URL")
@@ -291,7 +294,7 @@ func TestInitTenantMiddleware_DisabledIgnoresInvalidURL(t *testing.T) {
 			}
 			logger := newMockLogger()
 
-			mw, err := initTenantMiddleware(cfg, logger, nil)
+			mw, _, err := initTenantMiddleware(cfg, logger, nil)
 
 			require.NoError(t, err,
 				"initTenantMiddleware must not error when disabled, regardless of URL value")
@@ -316,11 +319,12 @@ func TestInitTenantMiddleware_MetricsEmission(t *testing.T) {
 			EnvName:                  "development",
 			MultiTenantURL:           "http://tenant-manager:8080",
 			MultiTenantServiceAPIKey: "test-api-key",
+			ApplicationName:          "ledger",
 		}
 		logger := newMockLogger()
 
 		// Passing nil telemetry must not panic; metrics are no-op.
-		mw, err := initTenantMiddleware(cfg, logger, nil)
+		mw, _, err := initTenantMiddleware(cfg, logger, nil)
 
 		require.NoError(t, err)
 		assert.NotNil(t, mw,
@@ -336,7 +340,7 @@ func TestInitTenantMiddleware_MetricsEmission(t *testing.T) {
 		logger := newMockLogger()
 
 		// When disabled, nil telemetry must be perfectly safe (early return path).
-		mw, err := initTenantMiddleware(cfg, logger, nil)
+		mw, _, err := initTenantMiddleware(cfg, logger, nil)
 
 		require.NoError(t, err)
 		assert.Nil(t, mw,
@@ -351,13 +355,14 @@ func TestInitTenantMiddleware_MetricsEmission(t *testing.T) {
 			EnvName:                  "development",
 			MultiTenantURL:           "http://tenant-manager:8080",
 			MultiTenantServiceAPIKey: "test-api-key",
+			ApplicationName:          "ledger",
 		}
 		logger := newMockLogger()
 
 		// Telemetry struct with nil MetricsFactory must be safely guarded.
 		telemetry := &libOpentelemetry.Telemetry{}
 
-		mw, err := initTenantMiddleware(cfg, logger, telemetry)
+		mw, _, err := initTenantMiddleware(cfg, logger, telemetry)
 
 		require.NoError(t, err)
 		assert.NotNil(t, mw,
@@ -418,7 +423,7 @@ func TestAllowInsecureTenantManagerHTTP(t *testing.T) {
 	assert.True(t, allowInsecureTenantManagerHTTP("DEV"))
 	assert.True(t, allowInsecureTenantManagerHTTP("testing"))
 	assert.False(t, allowInsecureTenantManagerHTTP("production"))
-	assert.False(t, allowInsecureTenantManagerHTTP("staging"))
+	assert.True(t, allowInsecureTenantManagerHTTP("staging"))
 }
 
 func TestRedactedTenantManagerURL(t *testing.T) {

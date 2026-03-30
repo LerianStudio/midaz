@@ -1842,7 +1842,7 @@ func TestIntegration_RedisNamespacing_SetGetWithTenant(t *testing.T) {
 	infra := setupRedisIntegrationInfra(t)
 
 	tenantID := "tenant-" + uuid.New().String()
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 
 	originalKey := "balance:" + uuid.New().String()
 	expectedStoredKey := "tenant:" + tenantID + ":" + originalKey
@@ -1918,8 +1918,8 @@ func TestIntegration_RedisNamespacing_TwoTenantsNoCollision(t *testing.T) {
 	tenantA := "tenant-A-" + uuid.New().String()
 	tenantB := "tenant-B-" + uuid.New().String()
 
-	ctxA := tmcore.SetTenantIDInContext(context.Background(), tenantA)
-	ctxB := tmcore.SetTenantIDInContext(context.Background(), tenantB)
+	ctxA := tmcore.ContextWithTenantID(context.Background(), tenantA)
+	ctxB := tmcore.ContextWithTenantID(context.Background(), tenantB)
 
 	// Both tenants use the SAME logical key
 	sharedKey := "balance:123"
@@ -1968,7 +1968,7 @@ func TestIntegration_RedisNamespacing_MGetWithTenantReturnsOriginalKeys(t *testi
 	infra := setupRedisIntegrationInfra(t)
 
 	tenantID := "mget-tenant-" + uuid.New().String()
-	ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 
 	// Store values for multiple keys under this tenant
 	keys := []string{
@@ -2025,8 +2025,8 @@ func TestIntegration_RedisNamespacing_QueueTenantIsolation(t *testing.T) {
 	tenantA := "queue-tenant-A-" + uuid.New().String()
 	tenantB := "queue-tenant-B-" + uuid.New().String()
 
-	ctxA := tmcore.SetTenantIDInContext(context.Background(), tenantA)
-	ctxB := tmcore.SetTenantIDInContext(context.Background(), tenantB)
+	ctxA := tmcore.ContextWithTenantID(context.Background(), tenantA)
+	ctxB := tmcore.ContextWithTenantID(context.Background(), tenantB)
 
 	msgKeyA := "tx-msg-A-" + uuid.New().String()
 	msgKeyB := "tx-msg-B-" + uuid.New().String()

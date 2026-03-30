@@ -84,7 +84,7 @@ func TestResolveTenantConnections_EmitsMetrics_OnNilManagersNoError(t *testing.T
 	// skip resolution without error and without emitting metrics.
 	result, err := resolveTenantConnections(ctx, rmq)
 	require.NoError(t, err, "should not error with nil managers")
-	assert.Equal(t, "tenant-001", tmcore.GetTenantIDFromContext(result),
+	assert.Equal(t, "tenant-001", tmcore.GetTenantIDContext(result),
 		"tenant ID should be preserved")
 }
 

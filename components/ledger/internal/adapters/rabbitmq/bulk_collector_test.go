@@ -181,6 +181,9 @@ func TestBulkCollector_TimeBasedFlush(t *testing.T) {
 func TestBulkCollector_GracefulShutdown(t *testing.T) {
 	t.Parallel()
 
+	// This test verifies graceful shutdown via Stop() flushes remaining messages.
+	// Note: Context cancellation (channel closure) does NOT flush - use Stop() for graceful shutdown.
+
 	bulkSize := 100 // Large size to avoid size-based flush
 	var flushedCount int32
 	var flushedMessages []amqp.Delivery
@@ -195,14 +198,13 @@ func TestBulkCollector_GracefulShutdown(t *testing.T) {
 		return nil
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := context.Background()
 
-	var startErr error
 	done := make(chan struct{})
 
 	// Start collector in background
 	go func() {
-		startErr = bc.Start(ctx)
+		_ = bc.Start(ctx)
 		close(done)
 	}()
 
@@ -219,8 +221,8 @@ func TestBulkCollector_GracefulShutdown(t *testing.T) {
 	// Wait for messages to be processed by collector
 	time.Sleep(50 * time.Millisecond)
 
-	// Cancel context to trigger shutdown
-	cancel()
+	// Use Stop() for graceful shutdown (not context cancellation)
+	bc.Stop()
 
 	// Wait for collector to stop
 	select {
@@ -230,12 +232,11 @@ func TestBulkCollector_GracefulShutdown(t *testing.T) {
 		t.Fatal("collector did not stop")
 	}
 
-	// Verify final flush happened
+	// Verify final flush happened with Stop()
 	assert.Equal(t, int32(1), atomic.LoadInt32(&flushedCount))
 	mu.Lock()
 	assert.Len(t, flushedMessages, 3)
 	mu.Unlock()
-	assert.Equal(t, context.Canceled, startErr)
 }
 
 func TestBulkCollector_EmptyBulkOnShutdown(t *testing.T) {
@@ -544,7 +545,7 @@ func TestBulkCollector_ConcurrentAccess(t *testing.T) {
 		return nil
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := context.Background()
 
 	done := make(chan struct{})
 
@@ -573,8 +574,8 @@ func TestBulkCollector_ConcurrentAccess(t *testing.T) {
 
 	wg.Wait()
 
-	// Stop to trigger final flush
-	cancel()
+	// Use Stop() for graceful shutdown (context cancellation skips flush)
+	bc.Stop()
 	<-done
 
 	// Verify at least one flush happened (from shutdown with remaining messages)
@@ -584,23 +585,23 @@ func TestBulkCollector_ConcurrentAccess(t *testing.T) {
 func TestBulkCollector_FinalFlushWithCancelledContext(t *testing.T) {
 	t.Parallel()
 
-	// This test verifies that cleanupOnExit uses a fresh context.Background()
-	// instead of the cancelled parent context, ensuring the final batch is not dropped.
+	// This test verifies that when context is cancelled (e.g., channel closure),
+	// cleanupOnExit does NOT flush messages - they are left for RabbitMQ redelivery.
+	// This is the correct behavior to avoid acking messages with stale delivery tags.
 
 	var flushedCount int32
-	var flushedMessages []amqp.Delivery
-	var flushCtxErr error
+	var cancelHandlerMessageCount int
 	var mu sync.Mutex
 
 	bc := NewBulkCollector(100, 5*time.Second) // Large bulk size to avoid size-based flush
 	bc.SetFlushCallback(func(ctx context.Context, messages []amqp.Delivery) error {
 		atomic.AddInt32(&flushedCount, 1)
-		mu.Lock()
-		flushedMessages = append(flushedMessages, messages...)
-		flushCtxErr = ctx.Err() // Capture context state during flush
-		mu.Unlock()
-
 		return nil
+	})
+	bc.SetContextCancelHandler(func(ctx context.Context, messageCount int) {
+		mu.Lock()
+		cancelHandlerMessageCount = messageCount
+		mu.Unlock()
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -626,7 +627,7 @@ func TestBulkCollector_FinalFlushWithCancelledContext(t *testing.T) {
 	// Wait for messages to be added
 	time.Sleep(50 * time.Millisecond)
 
-	// Cancel context - this triggers cleanupOnExit
+	// Cancel context - this triggers cleanupOnExit with cancelled context
 	cancel()
 
 	// Wait for collector to stop
@@ -637,12 +638,170 @@ func TestBulkCollector_FinalFlushWithCancelledContext(t *testing.T) {
 		t.Fatal("collector did not stop within timeout")
 	}
 
-	// CRITICAL: Verify final flush happened even though parent context was cancelled
-	assert.Equal(t, int32(1), atomic.LoadInt32(&flushedCount), "final flush should have occurred")
+	// CRITICAL: Verify NO flush occurred - messages left for RabbitMQ redelivery
+	assert.Equal(t, int32(0), atomic.LoadInt32(&flushedCount),
+		"flush should NOT occur when context is cancelled - messages left for redelivery")
 
+	// Verify cancel handler received correct count
 	mu.Lock()
-	assert.Len(t, flushedMessages, 5, "all 5 messages should have been flushed")
-	// The flush context should NOT be cancelled (it uses context.Background())
-	assert.NoError(t, flushCtxErr, "flush context should NOT be cancelled - cleanupOnExit should use fresh context")
+	assert.Equal(t, 5, cancelHandlerMessageCount,
+		"cancel handler should receive count of messages left for redelivery")
+	mu.Unlock()
+}
+
+func TestBulkCollector_ContextCancellation_SkipsFlush(t *testing.T) {
+	t.Parallel()
+
+	// This test verifies that when context is cancelled (simulating channel closure),
+	// the collector does NOT attempt to flush messages, leaving them for RabbitMQ redelivery.
+
+	var flushedCount int32
+	var cancelHandlerCalled int32
+	var cancelledMessageCount int
+
+	bc := NewBulkCollector(100, 5*time.Second) // Large bulk size to avoid size-based flush
+	bc.SetFlushCallback(func(ctx context.Context, messages []amqp.Delivery) error {
+		atomic.AddInt32(&flushedCount, 1)
+		return nil
+	})
+	bc.SetContextCancelHandler(func(ctx context.Context, messageCount int) {
+		atomic.AddInt32(&cancelHandlerCalled, 1)
+		cancelledMessageCount = messageCount
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+
+	// Start collector in background
+	go func() {
+		_ = bc.Start(ctx)
+		close(done)
+	}()
+
+	// Wait for collector to start
+	time.Sleep(20 * time.Millisecond)
+
+	// Add some messages
+	for i := 0; i < 5; i++ {
+		msg := amqp.Delivery{Body: []byte{byte(i)}}
+		err := bc.Add(msg)
+		require.NoError(t, err)
+	}
+
+	// Wait for messages to be added to collector
+	time.Sleep(50 * time.Millisecond)
+
+	// Cancel context - simulates channel closure
+	cancel()
+
+	// Wait for collector to stop
+	select {
+	case <-done:
+		// Expected
+	case <-time.After(2 * time.Second):
+		t.Fatal("collector did not stop within timeout")
+	}
+
+	// CRITICAL: Verify NO flush happened (messages left for RabbitMQ redelivery)
+	assert.Equal(t, int32(0), atomic.LoadInt32(&flushedCount), "flush should NOT have occurred on context cancellation")
+
+	// Verify cancel handler was called with correct count
+	assert.Equal(t, int32(1), atomic.LoadInt32(&cancelHandlerCalled), "cancel handler should have been called")
+	assert.Equal(t, 5, cancelledMessageCount, "cancel handler should receive correct message count")
+}
+
+func TestBulkCollector_ContextCancellation_NoHandlerSet(t *testing.T) {
+	t.Parallel()
+
+	// Verify that context cancellation works even without a handler set
+
+	var flushedCount int32
+
+	bc := NewBulkCollector(100, 5*time.Second)
+	bc.SetFlushCallback(func(ctx context.Context, messages []amqp.Delivery) error {
+		atomic.AddInt32(&flushedCount, 1)
+		return nil
+	})
+	// Note: No SetContextCancelHandler called
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+
+	go func() {
+		_ = bc.Start(ctx)
+		close(done)
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+
+	for i := 0; i < 3; i++ {
+		msg := amqp.Delivery{Body: []byte{byte(i)}}
+		_ = bc.Add(msg)
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("collector did not stop")
+	}
+
+	// Should still skip flush even without handler
+	assert.Equal(t, int32(0), atomic.LoadInt32(&flushedCount), "flush should NOT have occurred")
+}
+
+func TestBulkCollector_NormalStop_StillFlushes(t *testing.T) {
+	t.Parallel()
+
+	// Verify that Stop() (not context cancellation) still flushes messages
+
+	var flushedCount int32
+	var flushedMessages []amqp.Delivery
+	var mu sync.Mutex
+
+	bc := NewBulkCollector(100, 5*time.Second)
+	bc.SetFlushCallback(func(ctx context.Context, messages []amqp.Delivery) error {
+		atomic.AddInt32(&flushedCount, 1)
+		mu.Lock()
+		flushedMessages = append(flushedMessages, messages...)
+		mu.Unlock()
+		return nil
+	})
+
+	ctx := context.Background() // Not cancelled
+
+	done := make(chan struct{})
+
+	go func() {
+		_ = bc.Start(ctx)
+		close(done)
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+
+	for i := 0; i < 4; i++ {
+		msg := amqp.Delivery{Body: []byte{byte(i)}}
+		_ = bc.Add(msg)
+	}
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Use Stop() instead of cancel()
+	bc.Stop()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("collector did not stop")
+	}
+
+	// Stop() should still flush
+	assert.Equal(t, int32(1), atomic.LoadInt32(&flushedCount), "flush SHOULD occur on Stop()")
+	mu.Lock()
+	assert.Len(t, flushedMessages, 4, "all messages should have been flushed")
 	mu.Unlock()
 }

@@ -97,6 +97,47 @@ func TestMidazErrorMapper(t *testing.T) {
 		wantTitle      string
 	}{
 		{
+			name:     "nil_error_returns_nil",
+			err:      nil,
+			tenantID: "tenant-abc",
+			wantNil:  true,
+		},
+		{
+			name: "tenant_suspended_returns_403",
+			err: &tmcore.TenantSuspendedError{
+				TenantID: "tenant-abc",
+				Status:   "suspended",
+				Message:  "tenant service is suspended",
+			},
+			tenantID:       "tenant-abc",
+			wantStatusCode: http.StatusForbidden,
+			wantNil:        false,
+			wantCode:       "0159",
+			wantTitle:      "Service Suspended",
+		},
+		{
+			name: "tenant_purged_returns_403",
+			err: &tmcore.TenantSuspendedError{
+				TenantID: "tenant-abc",
+				Status:   "purged",
+				Message:  "tenant service is purged",
+			},
+			tenantID:       "tenant-abc",
+			wantStatusCode: http.StatusForbidden,
+			wantNil:        false,
+			wantCode:       "0159",
+			wantTitle:      "Service Suspended",
+		},
+		{
+			name:           "tenant_not_found_returns_404",
+			err:            tmcore.ErrTenantNotFound,
+			tenantID:       "tenant-missing",
+			wantStatusCode: http.StatusNotFound,
+			wantNil:        false,
+			wantCode:       "0160",
+			wantTitle:      "Tenant Not Found",
+		},
+		{
 			name:           "tenant_not_provisioned_returns_422",
 			err:            tmcore.ErrTenantNotProvisioned,
 			tenantID:       "tenant-abc",
@@ -124,17 +165,13 @@ func TestMidazErrorMapper(t *testing.T) {
 			wantTitle:      "Tenant Not Provisioned",
 		},
 		{
-			name:           "non_provisioning_error_returns_err",
+			name:           "unknown_error_returns_503",
 			err:            errors.New("some other error"),
 			tenantID:       "tenant-abc",
-			wantStatusCode: http.StatusInternalServerError,
+			wantStatusCode: http.StatusServiceUnavailable,
 			wantNil:        false,
-		},
-		{
-			name:     "nil_error_returns_nil",
-			err:      nil,
-			tenantID: "tenant-abc",
-			wantNil:  true,
+			wantCode:       "0161",
+			wantTitle:      "Tenant Service Unavailable",
 		},
 	}
 
@@ -233,11 +270,12 @@ func TestNewUnifiedServer_CreatesServer(t *testing.T) {
 	})
 }
 
-// TestMultiPoolMiddleware_NilWhenDisabled verifies that middleware constructed
-// with no pools is effectively a no-op but still a valid non-nil instance.
-func TestMultiPoolMiddleware_NilWhenDisabled(t *testing.T) {
+// TestTenantMiddleware_DisabledWhenNoManagers verifies that middleware constructed
+// with no managers is a valid non-nil instance but reports itself as disabled.
+func TestTenantMiddleware_DisabledWhenNoManagers(t *testing.T) {
 	t.Parallel()
 
-	middleware := tmmiddleware.NewMultiPoolMiddleware()
-	assert.NotNil(t, middleware, "NewMultiPoolMiddleware always returns non-nil")
+	mid := tmmiddleware.NewTenantMiddleware()
+	assert.NotNil(t, mid, "NewTenantMiddleware always returns non-nil")
+	assert.False(t, mid.Enabled(), "middleware with no managers should be disabled")
 }

@@ -15,6 +15,9 @@ PKG_DIR := ./pkg
 # Define a list of all component directories for easier iteration
 COMPONENTS := $(INFRA_DIR) $(CRM_DIR)
 
+# Pinned tool versions — keep in sync with .github/workflows/go-combined-analysis.yml
+GOLANGCI_LINT_VERSION := v2.4.0
+
 # Include shared utility functions
 # Define common utility functions
 define print_title
@@ -227,12 +230,13 @@ lint:
 		echo "No Go files found in $(LEDGER_DIR), skipping linting"; \
 	fi
 	@echo "Checking for Go files in $(TESTS_DIR)..."
-	@if [ -d "$(TESTS_DIR)" ]; then \
+	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
+	if [ -d "$(TESTS_DIR)" ]; then \
 		if find "$(TESTS_DIR)" -name "*.go" -type f | grep -q .; then \
 			echo "Linting in $(TESTS_DIR)..."; \
 			if ! command -v golangci-lint >/dev/null 2>&1; then \
 				echo "golangci-lint not found, installing..."; \
-				go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+				go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
 			else \
 				echo "golangci-lint already installed ✔️"; \
 			fi; \
@@ -244,12 +248,13 @@ lint:
 		echo "No tests directory found at $(TESTS_DIR), skipping linting"; \
 	fi
 	@echo "Checking for Go files in $(PKG_DIR)..."
-	@if [ -d "$(PKG_DIR)" ]; then \
+	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
+	if [ -d "$(PKG_DIR)" ]; then \
 		if find "$(PKG_DIR)" -name "*.go" -type f | grep -q .; then \
 			echo "Linting in $(PKG_DIR)..."; \
 			if ! command -v golangci-lint >/dev/null 2>&1; then \
 				echo "golangci-lint not found, installing..."; \
-				go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+				go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
 			else \
 				echo "golangci-lint already installed ✔️"; \
 			fi; \
@@ -301,11 +306,12 @@ SARIF ?= 0
 
 .PHONY: sec-gosec
 sec-gosec:
-	@if ! command -v gosec >/dev/null 2>&1; then \
+	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
+	if ! command -v gosec >/dev/null 2>&1; then \
 		echo "Installing gosec..."; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
-	fi
-	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
+	fi; \
+	if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
 		echo "Running gosec on components/ and pkg/ folders..."; \
 		if [ "$(SARIF)" = "1" ]; then \
 			echo "Generating SARIF output: gosec-report.sarif"; \
@@ -320,11 +326,12 @@ sec-gosec:
 
 .PHONY: sec-govulncheck
 sec-govulncheck:
-	@if ! command -v govulncheck >/dev/null 2>&1; then \
+	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
+	if ! command -v govulncheck >/dev/null 2>&1; then \
 		echo "Installing govulncheck..."; \
 		go install golang.org/x/vuln/cmd/govulncheck@latest; \
-	fi
-	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
+	fi; \
+	if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
 		echo "Running govulncheck on components/ and pkg/ folders..."; \
 		govulncheck ./components/... ./pkg/...; \
 	else \
@@ -569,6 +576,8 @@ dev-setup:
 	@command -v gitleaks >/dev/null 2>&1 || (echo "Installing gitleaks..." && go install github.com/zricethezav/gitleaks/v8@latest) || echo "⚠️  Failed to install gitleaks"
 	@command -v gofumpt >/dev/null 2>&1 || (echo "Installing gofumpt..." && go install mvdan.cc/gofumpt@latest) || echo "⚠️  Failed to install gofumpt"
 	@command -v goimports >/dev/null 2>&1 || (echo "Installing goimports..." && go install golang.org/x/tools/cmd/goimports@latest) || echo "⚠️  Failed to install goimports"
+	@command -v gosec >/dev/null 2>&1 || (echo "Installing gosec..." && go install github.com/securego/gosec/v2/cmd/gosec@latest) || echo "⚠️  Failed to install gosec"
+	@command -v golangci-lint >/dev/null 2>&1 || (echo "Installing golangci-lint..." && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)) || echo "⚠️  Failed to install golangci-lint"
 	@echo "Setting up git hooks..."
 	@$(MAKE) setup-git-hooks
 	@for dir in $(COMPONENTS); do \

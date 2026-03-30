@@ -74,7 +74,7 @@ func redisDecimalFromString(t *testing.T, value string) decimal.Decimal {
 func TestKeyNamespacing_MalformedTenantID_FailsClosedBalanceSyncScripts(t *testing.T) {
 	t.Parallel()
 
-	ctx := tmcore.SetTenantIDInContext(context.Background(), "tenant:invalid")
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant:invalid")
 
 	t.Run("get balance sync keys", func(t *testing.T) {
 		t.Parallel()
@@ -116,14 +116,14 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedGetBalancesByKeys(t *testin
 		conn: newMockMGetConnection(mockClient),
 	}
 
-	_, err := repo.GetBalancesByKeys(tmcore.SetTenantIDInContext(context.Background(), "tenant:invalid"), []string{"key1", "key2"})
+	_, err := repo.GetBalancesByKeys(tmcore.ContextWithTenantID(context.Background(), "tenant:invalid"), []string{"key1", "key2"})
 	require.Error(t, err)
 }
 
 func TestKeyNamespacing_MalformedTenantID_FailsClosedBatchScheduleAndRemove(t *testing.T) {
 	t.Parallel()
 
-	ctx := tmcore.SetTenantIDInContext(context.Background(), "tenant:invalid")
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant:invalid")
 
 	t.Run("schedule balance sync batch", func(t *testing.T) {
 		t.Parallel()

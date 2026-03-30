@@ -18,12 +18,13 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
 // transactionPostgresComponents holds PostgreSQL-related components for the transaction domain.
 type transactionPostgresComponents struct {
 	connection           *libPostgres.Client
-	pgManager            *tmpostgres.Manager // nil in single-tenant mode; reserved for MultiPoolMiddleware wiring
+	pgManager            *tmpostgres.Manager // nil in single-tenant mode; used by TenantMiddleware
 	transactionRepo      *transaction.TransactionPostgreSQLRepository
 	operationRepo        *operation.OperationPostgreSQLRepository
 	assetRateRepo        *assetrate.AssetRatePostgreSQLRepository
@@ -51,12 +52,12 @@ func initTransactionMultiTenantPostgres(opts *Options, cfg *Config, logger libLo
 	}
 
 	pgOpts := []tmpostgres.Option{
-		tmpostgres.WithModule("transaction"),
+		tmpostgres.WithModule(constant.ModuleTransaction),
 		tmpostgres.WithLogger(logger),
 	}
 
-	if cfg.MultiTenantSettingsCheckIntervalSec > 0 {
-		pgOpts = append(pgOpts, tmpostgres.WithSettingsCheckInterval(time.Duration(cfg.MultiTenantSettingsCheckIntervalSec)*time.Second))
+	if cfg.MultiTenantConnectionsCheckIntervalSec > 0 {
+		pgOpts = append(pgOpts, tmpostgres.WithConnectionsCheckInterval(time.Duration(cfg.MultiTenantConnectionsCheckIntervalSec)*time.Second))
 	}
 
 	pgMgr := tmpostgres.NewManager(

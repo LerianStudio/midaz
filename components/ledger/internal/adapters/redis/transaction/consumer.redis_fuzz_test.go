@@ -14,7 +14,7 @@ import (
 	// =============================================================================
 	// FUZZ TESTS — Redis Key Namespacing (T-001)
 	//
-	// These fuzz tests exercise tmvalkey.GetKeyFromContext with arbitrary key and
+	// These fuzz tests exercise tmvalkey.GetKeyContext with arbitrary key and
 	// tenantID inputs to verify:
 	//   1. No panic under any input (including Unicode, null bytes, very long strings,
 	//      colons, empty strings, and strings that already look like namespaced keys).
@@ -68,13 +68,13 @@ func FuzzKeyNamespacing_SimpleKey(f *testing.F) {
 		// Build context with or without a tenant ID.
 		var ctx context.Context
 		if tenantID != "" {
-			ctx = tmcore.SetTenantIDInContext(context.Background(), tenantID)
+			ctx = tmcore.ContextWithTenantID(context.Background(), tenantID)
 		} else {
 			ctx = context.Background()
 		}
 
 		// Call the function under test — must not panic.
-		result, err := tmvalkey.GetKeyFromContext(ctx, key)
+		result, err := tmvalkey.GetKeyContext(ctx, key)
 		if err != nil {
 			t.Fatalf("unexpected namespacing error: %v", err)
 		}
@@ -96,7 +96,7 @@ func FuzzKeyNamespacing_SimpleKey(f *testing.F) {
 
 		// Invariant 3: determinism — calling again with the same context and key
 		// must return the same value.
-		result2, err := tmvalkey.GetKeyFromContext(ctx, key)
+		result2, err := tmvalkey.GetKeyContext(ctx, key)
 		if err != nil {
 			t.Fatalf("unexpected namespacing error in second call: %v", err)
 		}
@@ -163,7 +163,7 @@ func FuzzKeyNamespacing_MGet(f *testing.F) {
 		// Build context.
 		var ctx context.Context
 		if tenantID != "" {
-			ctx = tmcore.SetTenantIDInContext(context.Background(), tenantID)
+			ctx = tmcore.ContextWithTenantID(context.Background(), tenantID)
 		} else {
 			ctx = context.Background()
 		}
@@ -294,7 +294,7 @@ func FuzzKeyNamespacing_QueueKey(f *testing.F) {
 		// Build context.
 		var ctx context.Context
 		if tenantID != "" {
-			ctx = tmcore.SetTenantIDInContext(context.Background(), tenantID)
+			ctx = tmcore.ContextWithTenantID(context.Background(), tenantID)
 		} else {
 			ctx = context.Background()
 		}

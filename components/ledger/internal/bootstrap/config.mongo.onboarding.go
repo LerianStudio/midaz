@@ -14,6 +14,7 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v4/commons/mongo"
 	tmmongo "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/mongo"
 	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -46,13 +47,13 @@ func initOnboardingMultiTenantMongo(opts *Options, cfg *Config, logger libLog.Lo
 	}
 
 	mongoOpts := []tmmongo.Option{
-		tmmongo.WithModule("onboarding"),
+		tmmongo.WithModule(constant.ModuleOnboarding),
 		tmmongo.WithLogger(logger),
 	}
 
-	if cfg.MultiTenantSettingsCheckIntervalSec > 0 {
-		mongoOpts = append(mongoOpts, tmmongo.WithSettingsCheckInterval(
-			time.Duration(cfg.MultiTenantSettingsCheckIntervalSec)*time.Second,
+	if cfg.MultiTenantConnectionsCheckIntervalSec > 0 {
+		mongoOpts = append(mongoOpts, tmmongo.WithConnectionsCheckInterval(
+			time.Duration(cfg.MultiTenantConnectionsCheckIntervalSec)*time.Second,
 		))
 	}
 

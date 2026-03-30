@@ -275,7 +275,7 @@ func TestMultiTenantProducer_ProducerDefault(t *testing.T) {
 			// Build context with or without tenant ID
 			ctx := context.Background()
 			if tt.tenantID != "" {
-				ctx = tmcore.SetTenantIDInContext(ctx, tt.tenantID)
+				ctx = tmcore.ContextWithTenantID(ctx, tt.tenantID)
 			}
 
 			// Only set up GetChannel expectation when tenant ID is present
@@ -397,7 +397,7 @@ func TestMultiTenantProducer_ProducerDefaultWithContext(t *testing.T) {
 
 			ctx := context.Background()
 			if tt.tenantID != "" {
-				ctx = tmcore.SetTenantIDInContext(ctx, tt.tenantID)
+				ctx = tmcore.ContextWithTenantID(ctx, tt.tenantID)
 			}
 
 			if tt.tenantID != "" {
@@ -472,7 +472,7 @@ func TestMultiTenantProducer_BothMethodsDelegateToPublish(t *testing.T) {
 			producer := NewMultiTenantProducerWithProvider(provider, logger)
 
 			tenantID := "tenant-delegate-test"
-			ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+			ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 			exchange := "test-exchange"
 			key := "test.key"
 			message := []byte(`{"verify":"delegate"}`)
@@ -651,7 +651,7 @@ func TestMultiTenantProducer_PublishMessageParameters(t *testing.T) {
 			producer := NewMultiTenantProducerWithProvider(provider, logger)
 
 			tenantID := "tenant-params"
-			ctx := tmcore.SetTenantIDInContext(context.Background(), tenantID)
+			ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
 			exchange := "test-exchange"
 			key := "test.key"
 
@@ -715,7 +715,7 @@ func TestMultiTenantProducer_ProducerDefault_EmptyStringTenantID(t *testing.T) {
 			producer := NewMultiTenantProducerWithProvider(provider, logger)
 
 			// SetTenantIDInContext with empty string is equivalent to no tenant
-			ctx := tmcore.SetTenantIDInContext(context.Background(), tt.tenantID)
+			ctx := tmcore.ContextWithTenantID(context.Background(), tt.tenantID)
 
 			_, err := producer.ProducerDefault(ctx, "exchange", "key", []byte("msg"))
 
@@ -763,7 +763,7 @@ func TestMultiTenantProducer_ProducerDefault_GetChannelErrorWrapping(t *testing.
 
 			producer := NewMultiTenantProducerWithProvider(provider, logger)
 
-			ctx := tmcore.SetTenantIDInContext(context.Background(), tt.tenantID)
+			ctx := tmcore.ContextWithTenantID(context.Background(), tt.tenantID)
 
 			provider.EXPECT().
 				GetChannel(gomock.Any(), tt.tenantID).
@@ -907,7 +907,7 @@ func TestMultiTenantProducer_ProducerDefault_CanceledContext(t *testing.T) {
 			producer := NewMultiTenantProducerWithProvider(provider, logger)
 
 			ctx, cancel := context.WithCancel(context.Background())
-			ctx = tmcore.SetTenantIDInContext(ctx, "tenant-cancel")
+			ctx = tmcore.ContextWithTenantID(ctx, "tenant-cancel")
 
 			if tt.cancelContext {
 				cancel()

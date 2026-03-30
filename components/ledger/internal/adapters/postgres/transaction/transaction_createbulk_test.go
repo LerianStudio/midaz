@@ -87,7 +87,7 @@ func TestCreateBulk_NilElementInSlice(t *testing.T) {
 	t.Parallel()
 
 	mockDB := &bulkMockDB{}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -112,7 +112,7 @@ func TestCreateBulk_NilElementAtStart(t *testing.T) {
 	t.Parallel()
 
 	mockDB := &bulkMockDB{}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -136,7 +136,7 @@ func TestCreateBulk_NilElementAtEnd(t *testing.T) {
 	t.Parallel()
 
 	mockDB := &bulkMockDB{}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -180,7 +180,7 @@ func TestCreateBulk_SortsInputByID(t *testing.T) {
 	}
 
 	// Inject mock DB into context using tenant manager
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -577,7 +577,7 @@ func TestCreateBulk_ChunkFailure_PartialResult(t *testing.T) {
 		},
 	}
 
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -611,7 +611,7 @@ func TestCreateBulk_FirstChunkFailure(t *testing.T) {
 		},
 	}
 
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -644,7 +644,7 @@ func TestCreateBulk_ContextCancellation(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	ctx = tmcore.ContextWithModulePGConnection(ctx, "transaction", mockDB)
+	ctx = tmcore.ContextWithPG(ctx, mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,

@@ -60,7 +60,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	ctx, span := tracer.Start(ctx, "redis.set")
 	defer span.End()
 
-	key, err := tmvalkey.GetKeyFromContext(ctx, key)
+	key, err := tmvalkey.GetKeyContext(ctx, key)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build tenant key", err)
 
@@ -96,7 +96,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	ctx, span := tracer.Start(ctx, "redis.get")
 	defer span.End()
 
-	key, err := tmvalkey.GetKeyFromContext(ctx, key)
+	key, err := tmvalkey.GetKeyContext(ctx, key)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build tenant key", err)
 
@@ -130,7 +130,7 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	ctx, span := tracer.Start(ctx, "redis.del")
 	defer span.End()
 
-	key, err := tmvalkey.GetKeyFromContext(ctx, key)
+	key, err := tmvalkey.GetKeyContext(ctx, key)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build tenant key", err)
 

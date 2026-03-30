@@ -18,10 +18,11 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
-	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
@@ -38,7 +39,7 @@ type BalanceSyncWorker struct {
 	maxWorkers         int
 	useCase            *command.UseCase
 	multiTenantEnabled bool
-	tenantClient       *tmclient.Client
+	tenantCache        *tenantcache.TenantCache
 	pgManager          *tmpostgres.Manager
 	serviceName        string
 }
@@ -59,24 +60,24 @@ func NewBalanceSyncWorker(conn *libRedis.Client, logger libLog.Logger, useCase *
 }
 
 // NewBalanceSyncWorkerMultiTenant creates a BalanceSyncWorker with multi-tenant fields populated.
-// When multiTenantEnabled is true, both tenantClient and pgManager must be non-nil for the worker
-// to be considered ready (isMultiTenantReady). The worker uses tenantClient to discover active
-// tenants and pgManager to resolve per-tenant PostgreSQL connections.
-// serviceName is the service identifier used to query active tenants from the Tenant Manager
-// (e.g. the value of APPLICATION_NAME). It must not be empty when multi-tenant is enabled.
+// When multiTenantEnabled is true, both tenantCache and pgManager must be non-nil for the worker
+// to be considered ready (isMultiTenantReady). The worker reads tenant IDs from the shared
+// TenantCache (populated by the TenantEventListener) and uses pgManager to resolve per-tenant
+// PostgreSQL connections.
+// serviceName is the service identifier for logging purposes.
 func NewBalanceSyncWorkerMultiTenant(
 	conn *libRedis.Client,
 	logger libLog.Logger,
 	useCase *command.UseCase,
 	maxWorkers int,
 	multiTenantEnabled bool,
-	tenantClient *tmclient.Client,
+	cache *tenantcache.TenantCache,
 	pgManager *tmpostgres.Manager,
 	serviceName string,
 ) *BalanceSyncWorker {
 	w := NewBalanceSyncWorker(conn, logger, useCase, maxWorkers)
 	w.multiTenantEnabled = multiTenantEnabled
-	w.tenantClient = tenantClient
+	w.tenantCache = cache
 	w.pgManager = pgManager
 	w.serviceName = serviceName
 
@@ -84,10 +85,10 @@ func NewBalanceSyncWorkerMultiTenant(
 }
 
 // isMultiTenantReady returns true when the worker is configured for multi-tenant
-// dispatching. multiTenantEnabled, pgManager, and tenantClient must all be set;
+// dispatching. multiTenantEnabled, pgManager, and tenantCache must all be set;
 // if any is missing the worker falls back to single-tenant behavior.
 func (w *BalanceSyncWorker) isMultiTenantReady() bool {
-	return w.multiTenantEnabled && w.pgManager != nil && w.tenantClient != nil
+	return w.multiTenantEnabled && w.pgManager != nil && w.tenantCache != nil
 }
 
 // Run dispatches to multi-tenant or single-tenant execution based on configuration.
@@ -157,25 +158,25 @@ func (w *BalanceSyncWorker) runMultiTenant() error {
 			return nil
 		}
 
-		tenants, ok := w.discoverActiveTenants(ctx, rds)
+		tenantIDs, ok := w.discoverActiveTenants(ctx, rds)
 		if !ok {
 			continue
 		}
 
-		if tenants == nil {
+		if tenantIDs == nil {
 			return nil
 		}
 
 		processed := false
 
-		for _, tenant := range tenants {
+		for _, tenantID := range tenantIDs {
 			if w.shouldShutdown(ctx) {
 				w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
 
 				return nil
 			}
 
-			if w.processTenantBalances(ctx, tenant, rds) {
+			if w.processTenantBalances(ctx, tenantID, rds) {
 				processed = true
 			}
 		}
@@ -190,13 +191,14 @@ func (w *BalanceSyncWorker) runMultiTenant() error {
 	}
 }
 
-// discoverActiveTenants retrieves the list of active tenants for the transaction service.
-// Returns (tenants, true) on success, (nil, false) if an error or empty result requires
-// backing off and retrying, or (nil, true) if shutdown was requested during backoff.
-func (w *BalanceSyncWorker) discoverActiveTenants(ctx context.Context, rds redis.UniversalClient) ([]*tmclient.TenantSummary, bool) {
-	tenants, err := w.tenantClient.GetActiveTenantsByService(ctx, w.serviceName)
-	if err != nil {
-		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get active tenants: %v", err))
+// discoverActiveTenants reads tenant IDs from the shared TenantCache.
+// Returns (tenantIDs, true) on success, (nil, false) if no tenants are cached
+// (backs off and retries), or (nil, true) if shutdown was requested during backoff.
+func (w *BalanceSyncWorker) discoverActiveTenants(ctx context.Context, rds redis.UniversalClient) ([]string, bool) {
+	tenantIDs := w.tenantCache.TenantIDs()
+
+	if len(tenantIDs) == 0 {
+		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: no tenants in cache, backing off")
 
 		if w.waitForNextOrBackoff(ctx, rds) {
 			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
@@ -207,42 +209,31 @@ func (w *BalanceSyncWorker) discoverActiveTenants(ctx context.Context, rds redis
 		return nil, false
 	}
 
-	if len(tenants) == 0 {
-		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: no active tenants found, backing off")
-
-		if w.waitForNextOrBackoff(ctx, rds) {
-			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
-
-			return nil, true
-		}
-
-		return nil, false
-	}
-
-	return tenants, true
+	return tenantIDs, true
 }
 
 // processTenantBalances resolves the per-tenant PostgreSQL connection, augments the context
 // with the tenant ID and module connection, then processes expired balances for that tenant.
 // Returns true if any balances were processed.
-func (w *BalanceSyncWorker) processTenantBalances(ctx context.Context, tenant *tmclient.TenantSummary, rds redis.UniversalClient) bool {
-	tenantCtx := tmcore.ContextWithTenantID(ctx, tenant.ID)
+func (w *BalanceSyncWorker) processTenantBalances(ctx context.Context, tenantID string, rds redis.UniversalClient) bool {
+	tenantCtx := tmcore.ContextWithTenantID(ctx, tenantID)
 
-	conn, err := w.pgManager.GetConnection(tenantCtx, tenant.ID)
+	conn, err := w.pgManager.GetConnection(tenantCtx, tenantID)
 	if err != nil {
-		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get PG connection for tenant %s: %v", tenant.ID, err))
+		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get PG connection for tenant %s: %v", tenantID, err))
 
 		return false
 	}
 
 	db, err := conn.GetDB()
 	if err != nil {
-		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get DB for tenant %s: %v", tenant.ID, err))
+		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get DB for tenant %s: %v", tenantID, err))
 
 		return false
 	}
 
-	tenantCtx = tmcore.ContextWithModulePGConnection(tenantCtx, "transaction", db)
+	tenantCtx = tmcore.ContextWithPG(tenantCtx, db)
+	tenantCtx = tmcore.ContextWithPG(tenantCtx, db, constant.ModuleTransaction)
 
 	return w.processBalancesToExpire(tenantCtx, rds)
 }

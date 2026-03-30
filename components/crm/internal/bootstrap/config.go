@@ -56,8 +56,12 @@ type Config struct {
 	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`   // failures before circuit opens
 	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"` // seconds before circuit resets
 	MultiTenantServiceAPIKey            string `env:"MULTI_TENANT_SERVICE_API_KEY"`
-	MultiTenantSettingsCheckIntervalSec int    `env:"MULTI_TENANT_SETTINGS_CHECK_INTERVAL_SEC"` // seconds between tenant config revalidation checks
+	MultiTenantConnectionsCheckIntervalSec int    `env:"MULTI_TENANT_CONNECTIONS_CHECK_INTERVAL_SEC"` // seconds between tenant config revalidation checks
 	MultiTenantCacheTTLSec              int    `env:"MULTI_TENANT_CACHE_TTL_SEC" default:"120"` // seconds for tenant config cache TTL (0 = disabled)
+	MultiTenantRedisHost                string `env:"MULTI_TENANT_REDIS_HOST"`
+	MultiTenantRedisPort                string `env:"MULTI_TENANT_REDIS_PORT"`
+	MultiTenantRedisPassword            string `env:"MULTI_TENANT_REDIS_PASSWORD"`
+	MultiTenantRedisTLS                 bool   `env:"MULTI_TENANT_REDIS_TLS"`
 	ApplicationName                     string `env:"APPLICATION_NAME"`
 }
 
@@ -160,7 +164,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	auth := middleware.NewAuthClient(cfg.AuthAddress, cfg.AuthEnabled, nil)
 
-	tenantMiddleware, err := initTenantMiddleware(cfg, logger, telemetry)
+	tenantMiddleware, eventListener, err := initTenantMiddleware(cfg, logger, telemetry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize tenant middleware: %w", err)
 	}
@@ -169,8 +173,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 
 	return &Service{
-		Server: serverAPI,
-		Logger: logger,
+		Server:        serverAPI,
+		EventListener: eventListener,
+		Logger:        logger,
 	}, nil
 }
 

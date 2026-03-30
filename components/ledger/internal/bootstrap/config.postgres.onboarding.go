@@ -19,12 +19,13 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
 )
 
 // onboardingPostgresComponents holds PostgreSQL-related components for the onboarding domain.
 type onboardingPostgresComponents struct {
 	connection       *libPostgres.Client
-	pgManager        *tmpostgres.Manager // nil in single-tenant mode; reserved for MultiPoolMiddleware wiring
+	pgManager        *tmpostgres.Manager // nil in single-tenant mode; used by TenantMiddleware
 	organizationRepo *organization.OrganizationPostgreSQLRepository
 	ledgerRepo       *ledger.LedgerPostgreSQLRepository
 	accountRepo      *account.AccountPostgreSQLRepository
@@ -53,12 +54,12 @@ func initOnboardingMultiTenantPostgres(opts *Options, cfg *Config, logger libLog
 	}
 
 	pgOpts := []tmpostgres.Option{
-		tmpostgres.WithModule("onboarding"),
+		tmpostgres.WithModule(constant.ModuleOnboarding),
 		tmpostgres.WithLogger(logger),
 	}
 
-	if cfg.MultiTenantSettingsCheckIntervalSec > 0 {
-		pgOpts = append(pgOpts, tmpostgres.WithSettingsCheckInterval(time.Duration(cfg.MultiTenantSettingsCheckIntervalSec)*time.Second))
+	if cfg.MultiTenantConnectionsCheckIntervalSec > 0 {
+		pgOpts = append(pgOpts, tmpostgres.WithConnectionsCheckInterval(time.Duration(cfg.MultiTenantConnectionsCheckIntervalSec)*time.Second))
 	}
 
 	pgMgr := tmpostgres.NewManager(

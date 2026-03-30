@@ -1483,7 +1483,7 @@ func TestIntegration_GetDB_CreateAndFindRoundTrip(t *testing.T) {
 // =============================================================================
 //
 // These tests verify that when a tenant-specific dbresolver.DB is injected into
-// context via tmcore.ContextWithModulePGConnection("transaction", tenantDB),
+// context via tmcore.ContextWithPG(tenantDB),
 // the getDB method returns that tenant DB instead of the static connection.
 //
 // Strategy: Two separate PostgreSQL containers.
@@ -1537,7 +1537,7 @@ func TestIntegration_GetDB_TenantContext_ReturnsValidHandle(t *testing.T) {
 	// Arrange -- static container for constructor, tenant container for context.
 	infra := setupIntegrationInfra(t)
 	_, tenantDB := setupTenantContainer(t)
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+	ctx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 	// Act
 	db, err := infra.repo.getDB(ctx)
@@ -1557,7 +1557,7 @@ func TestIntegration_GetDB_TenantContext_CanExecuteQueries(t *testing.T) {
 	// Arrange
 	infra := setupIntegrationInfra(t)
 	_, tenantDB := setupTenantContainer(t)
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+	ctx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 	// Act -- getDB should return the tenant DB, which should support queries.
 	db, err := infra.repo.getDB(ctx)
@@ -1587,7 +1587,7 @@ func TestIntegration_GetDB_TenantContext_RoutesToTenantDatabase(t *testing.T) {
 	ledgerID := infra.ledgerID
 
 	// Create a transaction ONLY in the tenant database via tenant context.
-	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+	tenantCtx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 	tx := &Transaction{
 		ID:             uuid.New().String(),
@@ -1631,7 +1631,7 @@ func TestIntegration_GetDB_TenantContext_CreateAndFind(t *testing.T) {
 	// Arrange
 	infra := setupIntegrationInfra(t)
 	_, tenantDB := setupTenantContainer(t)
-	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+	tenantCtx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 	orgID := infra.orgID
 	ledgerID := infra.ledgerID
@@ -1675,7 +1675,7 @@ func TestIntegration_GetDB_TenantContext_FindAllIsolation(t *testing.T) {
 	// Arrange
 	infra := setupIntegrationInfra(t)
 	_, tenantDB := setupTenantContainer(t)
-	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+	tenantCtx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 	orgID := infra.orgID
 	ledgerID := infra.ledgerID
@@ -1717,30 +1717,25 @@ func TestIntegration_GetDB_TenantContext_FindAllIsolation(t *testing.T) {
 }
 
 // TestIntegration_GetDB_TenantContext_DifferentModuleIgnored verifies that
-// injecting a tenant DB for a different module ("onboarding") is ignored by
-// getDB for "transaction", which falls back to the static connection.
-func TestIntegration_GetDB_TenantContext_DifferentModuleIgnored(t *testing.T) {
+// injecting a tenant DB via the generic tenant PG connection is always used by getDB.
+func TestIntegration_GetDB_TenantContext_AlwaysReturnsTenantDB(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	// Arrange -- inject tenant DB for "onboarding" module, not "transaction".
+	// Arrange -- inject tenant DB via generic tenant PG connection.
 	infra := setupIntegrationInfra(t)
 	_, tenantDB := setupTenantContainer(t)
 
-	// Inject tenant DB under "onboarding" module -- not "transaction".
-	wrongModuleCtx := tmcore.ContextWithModulePGConnection(context.Background(), "onboarding", tenantDB)
+	// Inject tenant DB via generic tenant PG connection.
+	tenantCtx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
-	// Create a transaction in the static DB so we can verify static path is used.
-	created := infra.createTestTransaction(t, "StaticOnly Transaction")
+	// Act -- getDB should return the tenant DB handle.
+	db, err := infra.repo.getDB(tenantCtx)
 
-	// Act -- with wrong module context, getDB should fall back to static.
-	found, err := infra.repo.Find(wrongModuleCtx, infra.orgID, infra.ledgerID, parseID(t, created.ID))
-
-	// Assert
-	require.NoError(t, err, "Find should succeed through static fallback when module name mismatches")
-	require.NotNil(t, found)
-	assert.Equal(t, "StaticOnly Transaction", found.Description)
+	// Assert -- the tenant DB should be returned.
+	require.NoError(t, err, "getDB should succeed when tenant PG connection is in context")
+	require.NotNil(t, db, "getDB should return a non-nil tenant DB handle")
 }
 
 // TestIntegration_GetDB_TenantContext_UpdateAndDeleteThroughTenantPath verifies
@@ -1753,7 +1748,7 @@ func TestIntegration_GetDB_TenantContext_UpdateAndDeleteThroughTenantPath(t *tes
 	// Arrange
 	infra := setupIntegrationInfra(t)
 	_, tenantDB := setupTenantContainer(t)
-	tenantCtx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", tenantDB)
+	tenantCtx := tmcore.ContextWithPG(context.Background(), tenantDB)
 
 	orgID := infra.orgID
 	ledgerID := infra.ledgerID

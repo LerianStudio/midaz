@@ -63,7 +63,6 @@ func TestConfig_MultiTenantFields_Defaults(t *testing.T) {
 	// Assert: multi-tenant defaults to disabled (opt-in)
 	assert.False(t, cfg.MultiTenantEnabled, "MultiTenantEnabled should default to false")
 	assert.Empty(t, cfg.MultiTenantURL, "MultiTenantURL should default to empty")
-	assert.Empty(t, cfg.MultiTenantEnvironment, "MultiTenantEnvironment should default to empty")
 	assert.Zero(t, cfg.MultiTenantCircuitBreakerThreshold, "MultiTenantCircuitBreakerThreshold should default to zero (safe defaults applied at usage site)")
 	assert.Zero(t, cfg.MultiTenantCircuitBreakerTimeoutSec, "MultiTenantCircuitBreakerTimeoutSec should default to zero (safe defaults applied at usage site)")
 }
@@ -413,17 +412,17 @@ func containsInvalidEnvByte(values ...string) bool {
 // FuzzConfig_MultiTenantEnvParsing verifies that SetConfigFromEnvVars never panics
 // regardless of what values are injected into multi-tenant environment variables.
 func FuzzConfig_MultiTenantEnvParsing(f *testing.F) {
-	f.Add("true", "http://localhost:4003", "ledger", "production", "5", "30")
-	f.Add("false", "", "", "", "0", "0")
-	f.Add("TRUE", "https://tm.internal:443/api", "crm", "staging", "10", "60")
-	f.Add("invalid", "not-a-url", "", "", "-1", "-1")
-	f.Add("", "   ", "a]b[c", "unicode\u202e\ufffd", "999999999", "999999999")
-	f.Add("1", "http://host'; DROP TABLE config;--", "svc'", "env'", "3", "10")
-	f.Add("0", "<script>alert(1)</script>", "<img>", "</div>", "0", "0")
-	f.Add("true", "http://"+strings.Repeat("a", 255)+".example.com", strings.Repeat("b", 255), strings.Repeat("c", 255), "1", "1")
+	f.Add("true", "http://localhost:4003", "ledger", "5", "30")
+	f.Add("false", "", "", "0", "0")
+	f.Add("TRUE", "https://tm.internal:443/api", "crm", "10", "60")
+	f.Add("invalid", "not-a-url", "", "-1", "-1")
+	f.Add("", "   ", "a]b[c", "999999999", "999999999")
+	f.Add("1", "http://host'; DROP TABLE config;--", "svc'", "3", "10")
+	f.Add("0", "<script>alert(1)</script>", "<img>", "0", "0")
+	f.Add("true", "http://"+strings.Repeat("a", 255)+".example.com", strings.Repeat("b", 255), "1", "1")
 
-	f.Fuzz(func(t *testing.T, enabled, url, service, env, cbFailures, cbTimeout string) {
-		if containsInvalidEnvByte(enabled, url, service, env, cbFailures, cbTimeout) {
+	f.Fuzz(func(t *testing.T, enabled, url, service, cbFailures, cbTimeout string) {
+		if containsInvalidEnvByte(enabled, url, service, cbFailures, cbTimeout) {
 			t.Skip("skipping: input contains null byte (POSIX env var restriction)")
 		}
 
@@ -439,10 +438,6 @@ func FuzzConfig_MultiTenantEnvParsing(f *testing.F) {
 			service = service[:256]
 		}
 
-		if len(env) > 256 {
-			env = env[:256]
-		}
-
 		if len(cbFailures) > 32 {
 			cbFailures = cbFailures[:32]
 		}
@@ -454,7 +449,6 @@ func FuzzConfig_MultiTenantEnvParsing(f *testing.F) {
 		t.Setenv("MULTI_TENANT_ENABLED", enabled)
 		t.Setenv("MULTI_TENANT_URL", url)
 		t.Setenv("APPLICATION_NAME", service)
-		t.Setenv("MULTI_TENANT_ENVIRONMENT", env)
 		t.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD", cbFailures)
 		t.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC", cbTimeout)
 
@@ -508,7 +502,6 @@ func TestProperty_Config_DisabledModeIsIdentity(t *testing.T) {
 		"MULTI_TENANT_ENABLED",
 		"MULTI_TENANT_URL",
 		"APPLICATION_NAME",
-		"MULTI_TENANT_ENVIRONMENT",
 		"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD",
 		"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC",
 	}
@@ -527,8 +520,8 @@ func TestProperty_Config_DisabledModeIsIdentity(t *testing.T) {
 		}
 	}
 
-	property := func(url, service, env, cbFailures, cbTimeout string) bool {
-		if containsInvalidEnvByte(url, service, env, cbFailures, cbTimeout) {
+	property := func(url, service, cbFailures, cbTimeout string) bool {
+		if containsInvalidEnvByte(url, service, cbFailures, cbTimeout) {
 			return true
 		}
 
@@ -538,10 +531,6 @@ func TestProperty_Config_DisabledModeIsIdentity(t *testing.T) {
 
 		if len(service) > 256 {
 			service = service[:256]
-		}
-
-		if len(env) > 256 {
-			env = env[:256]
 		}
 
 		if len(cbFailures) > 32 {
@@ -564,7 +553,6 @@ func TestProperty_Config_DisabledModeIsIdentity(t *testing.T) {
 		_ = os.Setenv("MULTI_TENANT_ENABLED", "false")
 		_ = os.Setenv("MULTI_TENANT_URL", url)
 		_ = os.Setenv("APPLICATION_NAME", service)
-		_ = os.Setenv("MULTI_TENANT_ENVIRONMENT", env)
 		_ = os.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD", cbFailures)
 		_ = os.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC", cbTimeout)
 
@@ -591,17 +579,13 @@ func TestProperty_Config_EnabledEmptyURLAlwaysErrors(t *testing.T) {
 	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentDevelopment, OTelLibraryName: "ledger-test"})
 	require.NoError(t, err, "logger init must not fail")
 
-	property := func(service, env string, cbFailures, cbTimeout uint8) bool {
-		if containsInvalidEnvByte(service, env) {
+	property := func(service string, cbFailures, cbTimeout uint8) bool {
+		if containsInvalidEnvByte(service) {
 			return true
 		}
 
 		if len(service) > 256 {
 			service = service[:256]
-		}
-
-		if len(env) > 256 {
-			env = env[:256]
 		}
 
 		if strings.TrimSpace(service) == "" {
@@ -612,7 +596,6 @@ func TestProperty_Config_EnabledEmptyURLAlwaysErrors(t *testing.T) {
 		t.Setenv("PLUGIN_AUTH_ENABLED", "true")
 		t.Setenv("MULTI_TENANT_URL", "")
 		t.Setenv("APPLICATION_NAME", service)
-		t.Setenv("MULTI_TENANT_ENVIRONMENT", env)
 		t.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD", fmt.Sprintf("%d", cbFailures))
 		t.Setenv("MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC", fmt.Sprintf("%d", cbTimeout))
 

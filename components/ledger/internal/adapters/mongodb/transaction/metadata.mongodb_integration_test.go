@@ -1163,8 +1163,8 @@ func TestIntegration_MetadataRepository_TenantIsolation_CreateAndFind(t *testing
 
 	collection := "operation"
 
-	ctxA := tmcore.ContextWithTenantMongo(context.Background(), tenantADB)
-	ctxB := tmcore.ContextWithTenantMongo(context.Background(), tenantBDB)
+	ctxA := tmcore.ContextWithMB(context.Background(), tenantADB)
+	ctxB := tmcore.ContextWithMB(context.Background(), tenantBDB)
 
 	metaA := &Metadata{
 		EntityID:   "iso-entity-1",
@@ -1232,8 +1232,8 @@ func TestIntegration_MetadataRepository_TenantIsolation_UpdateDoesNotCrossTenant
 
 	collection := "operation"
 
-	ctxA := tmcore.ContextWithTenantMongo(context.Background(), tenantADB)
-	ctxB := tmcore.ContextWithTenantMongo(context.Background(), tenantBDB)
+	ctxA := tmcore.ContextWithMB(context.Background(), tenantADB)
+	ctxB := tmcore.ContextWithMB(context.Background(), tenantBDB)
 
 	// Insert same entity_id into both tenants with different data
 	metaA := &Metadata{
@@ -1285,8 +1285,8 @@ func TestIntegration_MetadataRepository_TenantIsolation_DeleteDoesNotCrossTenant
 
 	collection := "operation"
 
-	ctxA := tmcore.ContextWithTenantMongo(context.Background(), tenantADB)
-	ctxB := tmcore.ContextWithTenantMongo(context.Background(), tenantBDB)
+	ctxA := tmcore.ContextWithMB(context.Background(), tenantADB)
+	ctxB := tmcore.ContextWithMB(context.Background(), tenantBDB)
 
 	// Insert same entity_id into both tenants
 	metaA := &Metadata{
@@ -1381,7 +1381,7 @@ func TestIntegration_MetadataRepository_TenantContext_TakesPrecedence_OverStatic
 
 	collection := "operation"
 
-	ctxWithTenant := tmcore.ContextWithTenantMongo(context.Background(), tenantDB)
+	ctxWithTenant := tmcore.ContextWithMB(context.Background(), tenantDB)
 
 	metadata := &Metadata{
 		EntityID:   "precedence-entity-1",

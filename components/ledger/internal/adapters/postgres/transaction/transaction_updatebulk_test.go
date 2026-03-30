@@ -52,7 +52,7 @@ func TestUpdateBulk_NilElementInSlice(t *testing.T) {
 	t.Parallel()
 
 	mockDB := &bulkMockDB{}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -77,7 +77,7 @@ func TestUpdateBulk_NilElementAtStart(t *testing.T) {
 	t.Parallel()
 
 	mockDB := &bulkMockDB{}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -103,7 +103,7 @@ func TestUpdateBulk_SingleTransaction_AllUpdated(t *testing.T) {
 	// With batched update, a single transaction results in a single ExecContext call
 	// rowsAffected = 1 means the transaction was updated
 	mockDB := &bulkMockDB{rowsAffected: 1}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -129,7 +129,7 @@ func TestUpdateBulk_SingleTransaction_Unchanged(t *testing.T) {
 
 	// rowsAffected = 0 means status already matches (no update needed)
 	mockDB := &bulkMockDB{rowsAffected: 0}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -156,7 +156,7 @@ func TestUpdateBulk_MultipleTransactions_MixedResults(t *testing.T) {
 	// The rowsAffected reflects how many rows were actually updated (status changed).
 	// For 3 transactions where 2 have status changes and 1 doesn't, rowsAffected = 2.
 	mockDB := &bulkMockDB{rowsAffected: 2}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -178,7 +178,7 @@ func TestUpdateBulk_SortsByID(t *testing.T) {
 	t.Parallel()
 
 	mockDB := &bulkMockDB{rowsAffected: 1}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -207,7 +207,7 @@ func TestUpdateBulk_DatabaseError(t *testing.T) {
 
 	dbErr := errors.New("database connection lost")
 	mockDB := &bulkMockDB{execErr: dbErr}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -294,7 +294,7 @@ func TestUpdateBulk_ContextCancellation(t *testing.T) {
 	cancel() // Cancel immediately
 
 	mockDB := &bulkMockDB{rowsAffected: 1}
-	ctx = tmcore.ContextWithModulePGConnection(ctx, "transaction", mockDB)
+	ctx = tmcore.ContextWithPG(ctx, mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -315,7 +315,7 @@ func TestUpdateBulk_StatusTransition_PendingToApproved(t *testing.T) {
 	t.Parallel()
 
 	mockDB := &bulkMockDB{rowsAffected: 1}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -340,7 +340,7 @@ func TestUpdateBulk_StatusTransition_PendingToCanceled(t *testing.T) {
 	t.Parallel()
 
 	mockDB := &bulkMockDB{rowsAffected: 1}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -388,7 +388,7 @@ func TestUpdateBulk_BatchedQuery_SingleExecPerChunk(t *testing.T) {
 	mockDB := &updateBulkQueryCaptureMock{
 		bulkMockDB: bulkMockDB{rowsAffected: 5},
 	}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -431,7 +431,7 @@ func TestUpdateBulk_BatchedQuery_ParameterStructure(t *testing.T) {
 	mockDB := &updateBulkQueryCaptureMock{
 		bulkMockDB: bulkMockDB{rowsAffected: 2},
 	}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -485,7 +485,7 @@ func TestUpdateBulk_BatchedQuery_MultipleChunks(t *testing.T) {
 			{rowsAffected: 1},   // Third chunk (1 transaction)
 		},
 	}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", sequenceMock)
+	ctx := tmcore.ContextWithPG(context.Background(), sequenceMock)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -513,7 +513,7 @@ func TestUpdateBulk_BatchedQuery_EmptyChunk(t *testing.T) {
 	mockDB := &updateBulkQueryCaptureMock{
 		bulkMockDB: bulkMockDB{rowsAffected: 0},
 	}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
@@ -556,7 +556,7 @@ func TestUpdateBulk_CrossTenantIsolation(t *testing.T) {
 	mockDB := &updateBulkQueryCaptureMock{
 		bulkMockDB: bulkMockDB{rowsAffected: 0}, // No rows updated due to WHERE mismatch
 	}
-	ctx := tmcore.ContextWithModulePGConnection(context.Background(), "transaction", mockDB)
+	ctx := tmcore.ContextWithPG(context.Background(), mockDB)
 
 	repo := &TransactionPostgreSQLRepository{
 		connection:    nil,
