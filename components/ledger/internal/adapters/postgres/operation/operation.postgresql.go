@@ -106,7 +106,9 @@ var operationColumns = strings.Join(operationColumnList, ", ")
 // operationPointInTimeColumns contains only the columns needed for point-in-time balance queries.
 // These columns are served by idx_operation_account_balance_pit via heap fetches (the index
 // is a lean key-only index without INCLUDE columns for optimal storage).
-// Note: 'id' is included for cursor pagination support in list queries.
+// Note: 'id' is included for cursor pagination in the outer query of
+// FindLastOperationsForAccountBeforeTimestamp, not as an ORDER BY tiebreaker
+// ((balance_id, created_at, balance_version_after) is unique).
 var operationPointInTimeColumns = []string{
 	"id",
 	"balance_id",
@@ -1344,9 +1346,10 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 		}
 	}
 
-	// Build query using DISTINCT ON to get the last operation per balance_id
-	// PostgreSQL DISTINCT ON returns the first row for each distinct value based on ORDER BY
-	// Uses optimized column list (9 columns vs 26) to enable Index-Only Scan with covering index
+	// Build query using DISTINCT ON to get the last operation per balance_id.
+	// PostgreSQL DISTINCT ON returns the first row for each distinct value based on ORDER BY.
+	// No id DESC tiebreaker needed: (balance_id, created_at, balance_version_after) is unique,
+	// and the index provides native sort on all three columns.
 	findQuery := squirrel.Select("DISTINCT ON (balance_id) "+strings.Join(operationPointInTimeColumns, ", ")).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
@@ -1354,7 +1357,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 		Where(squirrel.Eq{"account_id": accountID}).
 		Where(squirrel.LtOrEq{"created_at": timestamp}).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("balance_id", "created_at DESC", "balance_version_after DESC", "id DESC").
+		OrderBy("balance_id", "created_at DESC", "balance_version_after DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
 	// Apply pagination on the outer query
