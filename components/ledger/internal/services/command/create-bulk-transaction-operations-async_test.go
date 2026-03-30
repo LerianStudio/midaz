@@ -1084,3 +1084,109 @@ func TestIndividualUpdateTransactionStatus_PartialFailure(t *testing.T) {
 	assert.Equal(t, int64(3), result.TransactionsUpdated,
 		"TransactionsUpdated should reflect only successful updates")
 }
+
+// TestClassifyAndExtractEntities_CollectsOperationsForStatusTransitions verifies that
+// operations from status transitions (commit/cancel flows) are correctly collected in toInsert.operations.
+// This is a regression test for the bug where operations from commit flows were silently discarded.
+func TestClassifyAndExtractEntities_CollectsOperationsForStatusTransitions(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	transactionID := uuid.New().String()
+	op1ID := uuid.New().String()
+	op2ID := uuid.New().String()
+
+	// Status transition: PENDING -> APPROVED with operations (commit flow)
+	payloads := []transaction.TransactionProcessingPayload{
+		{
+			Transaction: &transaction.Transaction{
+				ID:     transactionID,
+				Status: transaction.Status{Code: constant.APPROVED},
+				Operations: []*operation.Operation{
+					{ID: op1ID, TransactionID: transactionID},
+					{ID: op2ID, TransactionID: transactionID},
+				},
+			},
+			Validate: &pkgTransaction.Responses{Pending: true},
+		},
+	}
+
+	toInsert, toUpdate := uc.classifyAndExtractEntities(payloads)
+
+	// Transaction should be in toUpdate (status transition)
+	assert.Len(t, toUpdate.transactions, 1, "Status transition should go to toUpdate")
+	assert.Len(t, toInsert.transactions, 0, "No new transactions to insert")
+
+	// CRITICAL: Operations MUST be collected in toInsert.operations
+	assert.Len(t, toInsert.operations, 2, "Operations from status transition MUST be collected")
+
+	// Verify operation IDs are correct
+	operationIDs := make(map[string]bool)
+	for _, op := range toInsert.operations {
+		operationIDs[op.ID] = true
+	}
+	assert.True(t, operationIDs[op1ID], "Operation 1 should be in toInsert.operations")
+	assert.True(t, operationIDs[op2ID], "Operation 2 should be in toInsert.operations")
+}
+
+// TestClassifyAndExtractEntities_MixedBatch_CollectsAllOperations verifies that
+// operations from BOTH new inserts AND status transitions are collected in a mixed batch.
+// This ensures the fix handles the common case of batches containing both types.
+func TestClassifyAndExtractEntities_MixedBatch_CollectsAllOperations(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	// Transaction 1: New insert
+	tx1ID := uuid.New().String()
+	op1ID := uuid.New().String()
+
+	// Transaction 2: Status transition with operations
+	tx2ID := uuid.New().String()
+	op2ID := uuid.New().String()
+	op3ID := uuid.New().String()
+
+	payloads := []transaction.TransactionProcessingPayload{
+		// Insert: new transaction
+		{
+			Transaction: &transaction.Transaction{
+				ID:     tx1ID,
+				Status: transaction.Status{Code: constant.CREATED},
+				Operations: []*operation.Operation{
+					{ID: op1ID, TransactionID: tx1ID},
+				},
+			},
+		},
+		// Update: pending -> approved with operations
+		{
+			Transaction: &transaction.Transaction{
+				ID:     tx2ID,
+				Status: transaction.Status{Code: constant.APPROVED},
+				Operations: []*operation.Operation{
+					{ID: op2ID, TransactionID: tx2ID},
+					{ID: op3ID, TransactionID: tx2ID},
+				},
+			},
+			Validate: &pkgTransaction.Responses{Pending: true},
+		},
+	}
+
+	toInsert, toUpdate := uc.classifyAndExtractEntities(payloads)
+
+	// Verify transaction classification
+	assert.Len(t, toInsert.transactions, 1, "One transaction should be insert")
+	assert.Len(t, toUpdate.transactions, 1, "One transaction should be update")
+
+	// CRITICAL: ALL operations should be in toInsert.operations (from both insert AND update)
+	assert.Len(t, toInsert.operations, 3, "All 3 operations should be collected")
+
+	// Verify all operation IDs
+	operationIDs := make(map[string]bool)
+	for _, op := range toInsert.operations {
+		operationIDs[op.ID] = true
+	}
+	assert.True(t, operationIDs[op1ID], "Operation from insert should be collected")
+	assert.True(t, operationIDs[op2ID], "Operation 1 from status transition should be collected")
+	assert.True(t, operationIDs[op3ID], "Operation 2 from status transition should be collected")
+}
