@@ -262,8 +262,8 @@ func TestResolveRouteCodesFromCache_SourceRoute(t *testing.T) {
 
 	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated from accounting entry debit rubric code")
 	assert.Equal(t, "1001", *ops[0].RouteCode)
-	require.NotNil(t, ops[0].RouteDescription, "RouteDescription should be populated from route description")
-	assert.Equal(t, "Route description", *ops[0].RouteDescription)
+	require.NotNil(t, ops[0].RouteDescription, "RouteDescription should be populated from accounting rubric description")
+	assert.Equal(t, "Debit desc", *ops[0].RouteDescription)
 }
 
 // TestResolveRouteCodesFromCache_DestinationRoute verifies resolution from destination routes
@@ -368,7 +368,8 @@ func TestResolveRouteCodesFromCache_EmptyRouteID(t *testing.T) {
 }
 
 // TestResolveRouteCodesFromCache_NoAccountingEntries verifies that when the cache has no
-// AccountingEntries, RouteCode remains nil while RouteDescription is still populated.
+// AccountingEntries, both RouteCode and RouteDescription remain nil since description
+// now comes from the accounting rubric rather than the route-level description.
 func TestResolveRouteCodesFromCache_NoAccountingEntries(t *testing.T) {
 	routeID := "route-uuid-1"
 	cache := &mmodel.TransactionRouteCache{
@@ -393,8 +394,7 @@ func TestResolveRouteCodesFromCache_NoAccountingEntries(t *testing.T) {
 	resolveRouteCodesFromCache(ops, cache, "CREATED")
 
 	assert.Nil(t, ops[0].RouteCode, "RouteCode should remain nil when no AccountingEntries exist")
-	require.NotNil(t, ops[0].RouteDescription, "RouteDescription should still be populated")
-	assert.Equal(t, "Route without entries", *ops[0].RouteDescription)
+	assert.Nil(t, ops[0].RouteDescription, "RouteDescription should remain nil when no accounting rubric is resolved")
 }
 
 // TestResolveRouteCodesFromCache_HoldAction verifies resolution for the hold action.
@@ -535,6 +535,5 @@ func TestResolveRouteCodesFromCache_ActionMissingEntry(t *testing.T) {
 	resolveRouteCodesFromCache(ops, cache, "CREATED")
 
 	assert.Nil(t, ops[0].RouteCode, "RouteCode should remain nil when action entry is missing from AccountingEntries")
-	require.NotNil(t, ops[0].RouteDescription, "RouteDescription should still be populated")
-	assert.Equal(t, "Has entries but not for direct", *ops[0].RouteDescription)
+	assert.Nil(t, ops[0].RouteDescription, "RouteDescription should remain nil when no matching accounting rubric is resolved")
 }
