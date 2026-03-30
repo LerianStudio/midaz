@@ -1,3 +1,3 @@
--- Rollback: Remove point-in-time balance query indexes
+-- Rollback: Remove unified point-in-time balance query index
 
-DROP INDEX CONCURRENTLY IF EXISTS idx_operation_point_in_time;
+DROP INDEX CONCURRENTLY IF EXISTS idx_operation_account_balance_pit;

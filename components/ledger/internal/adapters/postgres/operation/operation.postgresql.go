@@ -104,8 +104,8 @@ var operationColumnList = []string{
 var operationColumns = strings.Join(operationColumnList, ", ")
 
 // operationPointInTimeColumns contains only the columns needed for point-in-time balance queries.
-// This reduced column list enables PostgreSQL to use Index-Only Scan with the covering index
-// idx_operation_point_in_time, avoiding expensive heap fetches.
+// These columns are served by idx_operation_account_balance_pit via heap fetches (the index
+// is a lean key-only index without INCLUDE columns for optimal storage).
 // Note: 'id' is included for cursor pagination support in list queries.
 var operationPointInTimeColumns = []string{
 	"id",
