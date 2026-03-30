@@ -93,7 +93,9 @@ type OperationRoute struct {
 	Title string `json:"title,omitempty" example:"Cashin from service charge"`
 	// Detailed description of the operation route purpose and usage.
 	Description string `json:"description,omitempty" example:"This operation route handles cash-in transactions from service charge collections"`
-	// External reference of the operation route.
+	// Deprecated: external reference code kept for backward compatibility. Use the rubric codes inside accountingEntries instead.
+	// example: EXT-001
+	// deprecated: true
 	Code string `json:"code,omitempty" example:"EXT-001"`
 	// The type of the operation route.
 	OperationType string `json:"operationType,omitempty" example:"source" enums:"source,destination,bidirectional"`
@@ -122,7 +124,10 @@ type CreateOperationRouteInput struct {
 	Title string `json:"title,omitempty" validate:"required,max=255" example:"Cashin from service charge"`
 	// Detailed description of the operation route purpose and usage.
 	Description string `json:"description,omitempty" validate:"max=250" example:"This operation route handles cash-in transactions from service charge collections"`
-	// External reference of the operation route.
+	// Deprecated: external reference code kept for backward compatibility. Use the rubric codes inside accountingEntries instead.
+	// example: EXT-001
+	// maxLength: 100
+	// deprecated: true
 	Code string `json:"code,omitempty" validate:"max=100" example:"EXT-001"`
 	// The type of the operation route.
 	OperationType string `json:"operationType,omitempty" validate:"required" example:"source" enum:"source,destination,bidirectional"`
@@ -143,7 +148,10 @@ type UpdateOperationRouteInput struct {
 	Title string `json:"title,omitempty" validate:"max=255" example:"Cashin from service charge"`
 	// Detailed description of the operation route purpose and usage.
 	Description string `json:"description,omitempty" validate:"max=250" example:"This operation route handles cash-in transactions from service charge collections"`
-	// External reference of the operation route.
+	// Deprecated: external reference code kept for backward compatibility. Use the rubric codes inside accountingEntries instead.
+	// example: EXT-001
+	// maxLength: 100
+	// deprecated: true
 	Code string `json:"code,omitempty" validate:"max=100" example:"EXT-001"`
 	// Optional accounting entries for each action type associated with this operation route.
 	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty"`

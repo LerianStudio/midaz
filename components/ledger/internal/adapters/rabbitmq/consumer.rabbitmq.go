@@ -254,9 +254,10 @@ func (cr *ConsumerRoutes) startWorkers(ctx context.Context, queueName string, ha
 			go cr.startBulkWorker(ctx, queueName, handler, bulkHandler, messages)
 		}
 	} else {
-		// Start individual workers with channel-scoped context
+		// Start individual workers with channel-scoped context.
+		// ctx is derived from channelCtx (not a request context) — this is a long-lived consumer loop.
 		for i := 0; i < cr.NumbersOfWorkers; i++ {
-			go cr.startWorker(ctx, i, queueName, handler, messages)
+			go cr.startWorker(ctx, i, queueName, handler, messages) // #nosec G118 -- ctx is channel-scoped, not request-scoped; Background is correct for long-lived consumers
 		}
 	}
 }
