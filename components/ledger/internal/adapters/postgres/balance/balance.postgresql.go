@@ -1750,7 +1750,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDAtTimestamp(ctx context.Con
 		Where(squirrel.Eq{"account_id": accountID}).
 		Where(squirrel.LtOrEq{"created_at": timestamp}).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("balance_id", "created_at DESC")
+		OrderBy("balance_id", "created_at DESC", "balance_version_after DESC", "id DESC")
 
 	latestOpsSql, latestOpsArgs, err := latestOpsSubquery.ToSql()
 	if err != nil {
