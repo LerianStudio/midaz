@@ -877,10 +877,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
 	}
 
-	action := constant.ActionDirect
-	if transactionStatus == constant.PENDING {
-		action = constant.ActionHold
-	}
+	action := statusToAction(transactionStatus)
 
 	if len(actionOverride) > 0 && actionOverride[0] != "" {
 		action = actionOverride[0]

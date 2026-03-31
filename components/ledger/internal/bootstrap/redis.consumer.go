@@ -428,11 +428,9 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 		}
 
 		// Prefer persisted action from backup payload (e.g. revert), then
-		// fall back to status-derived action for backward compatibility.
+		// fall back to status-derived action only for non-created statuses.
 		action := m.Action
 		if action == "" {
-			action = constant.ActionDirect
-
 			switch m.TransactionStatus {
 			case constant.PENDING:
 				action = constant.ActionHold
