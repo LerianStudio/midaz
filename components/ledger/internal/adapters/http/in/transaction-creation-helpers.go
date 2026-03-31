@@ -258,9 +258,9 @@ func statusToAction(statusCode string) string {
 // on each operation by looking up the operation's RouteID in the transaction route
 // cache for the given accounting action (direct, hold, commit, cancel, revert).
 //
-// RouteCode is resolved from the AccountingEntries rubric that matches the
-// operation's action and direction (debit → Debit rubric, credit → Credit rubric).
-// RouteDescription is resolved from the OperationRoute-level Description field.
+// Both RouteCode and RouteDescription are resolved from the AccountingRubric
+// that matches the operation's action and direction (debit → Debit rubric,
+// credit → Credit rubric).
 func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache, action string) {
 	if cache == nil {
 		return
