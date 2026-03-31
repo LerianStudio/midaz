@@ -877,13 +877,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
 	}
 
-	err = handler.sendTransactionToRedisQueue(ctx, scope.OrganizationID, scope.LedgerID, transactionID, transactionInput, validate, transactionStatus, transactionDate, idempotencyState.internalKey)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
-
 	action := constant.ActionDirect
 	if transactionStatus == constant.PENDING {
 		action = constant.ActionHold
@@ -892,6 +885,13 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	if len(actionOverride) > 0 && actionOverride[0] != "" {
 		action = actionOverride[0]
 	}
+
+	err = handler.sendTransactionToRedisQueue(ctx, scope.OrganizationID, scope.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, idempotencyState.internalKey)
+	if err != nil {
+		return http.WithError(c, err)
+	}
+
+	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
 	balancesBefore, balancesAfter, routeCache, err := handler.Query.GetBalances(ctx, scope.OrganizationID, scope.LedgerID, transactionID, &transactionInput, validate, transactionStatus, action)
 	if err != nil {
@@ -949,7 +949,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
-	handler.Command.UpdateTransactionBackupOperations(ctx, scope.OrganizationID, scope.LedgerID, transactionID.String(), operations)
+	handler.Command.UpdateTransactionBackupOperations(ctx, scope.OrganizationID, scope.LedgerID, transactionID.String(), operations, action)
 
 	originalStatus := tran.Status
 
@@ -1032,6 +1032,7 @@ func (handler *TransactionHandler) sendTransactionToRedisQueue(
 	transactionInput pkgTransaction.Transaction,
 	validate *pkgTransaction.Responses,
 	transactionStatus string,
+	action string,
 	transactionDate time.Time,
 	internalKey *string,
 ) error {
@@ -1040,7 +1041,7 @@ func (handler *TransactionHandler) sendTransactionToRedisQueue(
 	ctxSendTransactionToRedisQueue, spanSendTransactionToRedisQueue := tracer.Start(ctx, "handler.create_transaction.send_transaction_to_redis_queue")
 	defer spanSendTransactionToRedisQueue.End()
 
-	err := handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, transactionInput, validate, transactionStatus, transactionDate, nil)
+	err := handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, nil)
 	if err == nil {
 		return nil
 	}

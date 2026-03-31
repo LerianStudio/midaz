@@ -243,7 +243,7 @@ func (uc *UseCase) RemoveTransactionFromRedisQueue(ctx context.Context, logger l
 // When balances is non-nil (e.g. commit/cancel flows), the snapshot is included
 // directly in the backup message so the Redis consumer can retry without relying
 // on the Lua script to populate them.
-func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus string, transactionDate time.Time, balances []*mmodel.Balance) error {
+func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionInput pkgTransaction.Transaction, validate *pkgTransaction.Responses, transactionStatus, action string, transactionDate time.Time, balances []*mmodel.Balance) error {
 	logger, _, reqId, _ := libCommons.NewTrackingFromContext(ctx)
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
@@ -291,6 +291,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 		TTL:               time.Now(),
 		Validate:          validate,
 		TransactionStatus: transactionStatus,
+		Action:            action,
 		TransactionDate:   transactionDate,
 	}
 
@@ -318,7 +319,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 //
 // This is a best-effort operation: failures are logged but do not block
 // the main transaction flow.
-func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, operations []*operation.Operation) {
+func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionID string, operations []*operation.Operation, actionOverride ...string) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_backup_operations")
@@ -348,6 +349,10 @@ func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organi
 	}
 
 	queue.Operations = redisOps
+
+	if len(actionOverride) > 0 && actionOverride[0] != "" {
+		queue.Action = actionOverride[0]
+	}
 
 	updated, err := json.Marshal(queue)
 	if err != nil {

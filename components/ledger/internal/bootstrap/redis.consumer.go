@@ -427,17 +427,20 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 			}
 		}
 
-		// Derive the accounting action from the transaction status so that
-		// resolveRouteCodesFromCache picks the correct AccountingEntries rubric.
-		action := constant.ActionDirect
+		// Prefer persisted action from backup payload (e.g. revert), then
+		// fall back to status-derived action for backward compatibility.
+		action := m.Action
+		if action == "" {
+			action = constant.ActionDirect
 
-		switch m.TransactionStatus {
-		case constant.PENDING:
-			action = constant.ActionHold
-		case constant.APPROVED:
-			action = constant.ActionCommit
-		case constant.CANCELED:
-			action = constant.ActionCancel
+			switch m.TransactionStatus {
+			case constant.PENDING:
+				action = constant.ActionHold
+			case constant.APPROVED:
+				action = constant.ActionCommit
+			case constant.CANCELED:
+				action = constant.ActionCancel
+			}
 		}
 
 		var buildErr error
