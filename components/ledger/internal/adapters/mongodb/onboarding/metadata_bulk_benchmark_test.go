@@ -18,6 +18,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// benchSink prevents compiler optimization of benchmark results.
+var benchSink any
+
 // =============================================================================
 // BENCHMARK TESTS - MongoDB Metadata CreateBulk and UpdateBulk (Onboarding)
 // =============================================================================
@@ -78,13 +81,15 @@ func createBenchmarkMetadataBatch(count int) []*Metadata {
 // createBenchmarkUpdateBatch creates a batch of update operations for benchmarking.
 func createBenchmarkUpdateBatch(metadata []*Metadata) []MetadataBulkUpdate {
 	updates := make([]MetadataBulkUpdate, len(metadata))
+	ts := time.Now().Format(time.RFC3339)
+
 	for i, m := range metadata {
 		updates[i] = MetadataBulkUpdate{
 			EntityID: m.EntityID,
 			Data: map[string]any{
 				"index":      i,
 				"updated":    true,
-				"updated_at": time.Now().Format(time.RFC3339),
+				"updated_at": ts,
 			},
 		}
 	}
@@ -120,15 +125,17 @@ func BenchmarkMetadata_CreateBulk_BatchSizes(b *testing.B) {
 
 			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				b.StopTimer()
 				metadata := createBenchmarkMetadataBatch(bm.batchSize)
 				b.StartTimer()
 
-				_, err := infra.repo.CreateBulk(ctx, "benchmark_entity", metadata)
+				result, err := infra.repo.CreateBulk(ctx, "benchmark_entity", metadata)
 				if err != nil {
 					b.Fatalf("CreateBulk failed: %v", err)
 				}
+
+				benchSink = result
 			}
 		})
 	}
@@ -148,7 +155,7 @@ func BenchmarkMetadata_CreateBulk_Throughput(b *testing.B) {
 
 	totalDocuments := int64(0)
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		b.StopTimer()
 		metadata := createBenchmarkMetadataBatch(batchSize)
 		b.StartTimer()
@@ -159,6 +166,7 @@ func BenchmarkMetadata_CreateBulk_Throughput(b *testing.B) {
 		}
 
 		totalDocuments += result.Inserted
+		benchSink = result
 	}
 
 	b.ReportMetric(float64(totalDocuments)/b.Elapsed().Seconds(), "docs/sec")
@@ -177,7 +185,7 @@ func BenchmarkMetadata_CreateBulk_vs_Individual(b *testing.B) {
 
 			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				b.StopTimer()
 				metadata := createBenchmarkMetadataBatch(testSize)
 				b.StartTimer()
@@ -188,6 +196,8 @@ func BenchmarkMetadata_CreateBulk_vs_Individual(b *testing.B) {
 						b.Fatalf("Create failed: %v", err)
 					}
 				}
+
+				benchSink = metadata
 			}
 		})
 
@@ -196,15 +206,17 @@ func BenchmarkMetadata_CreateBulk_vs_Individual(b *testing.B) {
 
 			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				b.StopTimer()
 				metadata := createBenchmarkMetadataBatch(testSize)
 				b.StartTimer()
 
-				_, err := infra.repo.CreateBulk(ctx, "benchmark_entity", metadata)
+				result, err := infra.repo.CreateBulk(ctx, "benchmark_entity", metadata)
 				if err != nil {
 					b.Fatalf("CreateBulk failed: %v", err)
 				}
+
+				benchSink = result
 			}
 		})
 	}
@@ -232,8 +244,12 @@ func BenchmarkMetadata_CreateBulk_Concurrent(b *testing.B) {
 
 			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				var wg sync.WaitGroup
+
+				var errOnce sync.Once
+
+				var firstErr error
 
 				for g := 0; g < bm.goroutines; g++ {
 					wg.Add(1)
@@ -245,12 +261,16 @@ func BenchmarkMetadata_CreateBulk_Concurrent(b *testing.B) {
 
 						_, err := infra.repo.CreateBulk(ctx, "benchmark_entity", metadata)
 						if err != nil {
-							b.Errorf("CreateBulk failed: %v", err)
+							errOnce.Do(func() { firstErr = err })
 						}
 					}()
 				}
 
 				wg.Wait()
+
+				if firstErr != nil {
+					b.Fatalf("CreateBulk failed: %v", firstErr)
+				}
 			}
 		})
 	}
@@ -280,7 +300,7 @@ func BenchmarkMetadata_CreateBulk_Chunking(b *testing.B) {
 
 			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				b.StopTimer()
 				metadata := createBenchmarkMetadataBatch(bm.batchSize)
 				b.StartTimer()
@@ -293,6 +313,8 @@ func BenchmarkMetadata_CreateBulk_Chunking(b *testing.B) {
 				if result.Inserted != int64(bm.batchSize) {
 					b.Fatalf("expected %d inserted, got %d", bm.batchSize, result.Inserted)
 				}
+
+				benchSink = result
 			}
 		})
 	}
@@ -333,15 +355,17 @@ func BenchmarkMetadata_UpdateBulk_BatchSizes(b *testing.B) {
 
 			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				b.StopTimer()
 				updates := createBenchmarkUpdateBatch(metadata)
 				b.StartTimer()
 
-				_, err := infra.repo.UpdateBulk(ctx, "benchmark_entity", updates)
+				result, err := infra.repo.UpdateBulk(ctx, "benchmark_entity", updates)
 				if err != nil {
 					b.Fatalf("UpdateBulk failed: %v", err)
 				}
+
+				benchSink = result
 			}
 		})
 	}
@@ -367,7 +391,7 @@ func BenchmarkMetadata_UpdateBulk_vs_Individual(b *testing.B) {
 
 			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				b.StopTimer()
 				updates := createBenchmarkUpdateBatch(metadata)
 				b.StartTimer()
@@ -378,6 +402,8 @@ func BenchmarkMetadata_UpdateBulk_vs_Individual(b *testing.B) {
 						b.Fatalf("Update failed: %v", err)
 					}
 				}
+
+				benchSink = updates
 			}
 		})
 
@@ -393,15 +419,17 @@ func BenchmarkMetadata_UpdateBulk_vs_Individual(b *testing.B) {
 
 			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				b.StopTimer()
 				updates := createBenchmarkUpdateBatch(metadata)
 				b.StartTimer()
 
-				_, err := infra.repo.UpdateBulk(ctx, "benchmark_entity", updates)
+				result, err := infra.repo.UpdateBulk(ctx, "benchmark_entity", updates)
 				if err != nil {
 					b.Fatalf("UpdateBulk failed: %v", err)
 				}
+
+				benchSink = result
 			}
 		})
 	}
@@ -439,7 +467,7 @@ func BenchmarkMetadata_UpdateBulk_Chunking(b *testing.B) {
 
 			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				b.StopTimer()
 				updates := createBenchmarkUpdateBatch(metadata)
 				b.StartTimer()
@@ -452,6 +480,8 @@ func BenchmarkMetadata_UpdateBulk_Chunking(b *testing.B) {
 				if result.Matched != int64(bm.batchSize) {
 					b.Fatalf("expected %d matched, got %d", bm.batchSize, result.Matched)
 				}
+
+				benchSink = result
 			}
 		})
 	}
@@ -482,23 +512,25 @@ func BenchmarkMetadata_CreateThenUpdate(b *testing.B) {
 
 			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				b.StopTimer()
 				metadata := createBenchmarkMetadataBatch(bm.batchSize)
 				b.StartTimer()
 
 				// Create
-				_, err := infra.repo.CreateBulk(ctx, "benchmark_entity", metadata)
+				createResult, err := infra.repo.CreateBulk(ctx, "benchmark_entity", metadata)
 				if err != nil {
 					b.Fatalf("CreateBulk failed: %v", err)
 				}
 
 				// Update
 				updates := createBenchmarkUpdateBatch(metadata)
-				_, err = infra.repo.UpdateBulk(ctx, "benchmark_entity", updates)
+				updateResult, err := infra.repo.UpdateBulk(ctx, "benchmark_entity", updates)
 				if err != nil {
 					b.Fatalf("UpdateBulk failed: %v", err)
 				}
+
+				benchSink = []any{createResult, updateResult}
 			}
 		})
 	}

@@ -599,6 +599,7 @@ func (mmr *MetadataMongoDBRepository) insertMetadataChunk(ctx context.Context, c
 // Large batches are chunked (1000 docs/chunk) to stay within MongoDB's BSON limits.
 // Returns MongoDBBulkUpdateResult with counts of attempted, modified, and matched documents.
 //
+// NOTE: Uses upsert semantics - will insert new documents if no match is found, consistent with single Update method.
 // NOTE: The input slice is sorted in-place by EntityID. Callers should not rely on original order.
 func (mmr *MetadataMongoDBRepository) UpdateBulk(ctx context.Context, collection string, updates []MetadataBulkUpdate) (*repository.MongoDBBulkUpdateResult, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)

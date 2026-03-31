@@ -191,7 +191,7 @@ func (mmr *MetadataMongoDBRepository) CreateBulk(ctx context.Context, collection
 	coll := db.Collection(strings.ToLower(collection))
 
 	result := &repository.MongoDBBulkInsertResult{
-		Attempted:   int64(len(metadata)),
+		Attempted:   0,
 		InsertedIDs: make([]string, 0, len(metadata)),
 	}
 
@@ -210,6 +210,7 @@ func (mmr *MetadataMongoDBRepository) CreateBulk(ctx context.Context, collection
 		}
 
 		end := min(i+chunkSize, len(metadata))
+		result.Attempted += int64(end - i)
 
 		chunkResult, err := mmr.insertMetadataChunk(ctx, coll, metadata[i:end])
 		if err != nil {
@@ -312,6 +313,7 @@ func (mmr *MetadataMongoDBRepository) insertMetadataChunk(ctx context.Context, c
 // Large batches are chunked (1000 docs/chunk) to stay within MongoDB's BSON limits.
 // Returns MongoDBBulkUpdateResult with counts of attempted, modified, and matched documents.
 //
+// NOTE: Uses upsert semantics - will insert new documents if no match is found, consistent with single Update method.
 // NOTE: The input slice is sorted in-place by EntityID. Callers should not rely on original order.
 func (mmr *MetadataMongoDBRepository) UpdateBulk(ctx context.Context, collection string, updates []MetadataBulkUpdate) (*repository.MongoDBBulkUpdateResult, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
@@ -407,7 +409,7 @@ func (mmr *MetadataMongoDBRepository) updateMetadataChunk(ctx context.Context, c
 		model := mongo.NewUpdateOneModel().
 			SetFilter(filter).
 			SetUpdate(update).
-			SetUpsert(false) // Don't create if not exists
+			SetUpsert(true)
 
 		models = append(models, model)
 	}
