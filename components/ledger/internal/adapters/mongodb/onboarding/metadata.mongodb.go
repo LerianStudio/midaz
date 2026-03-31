@@ -485,7 +485,7 @@ func (mmr *MetadataMongoDBRepository) CreateBulk(ctx context.Context, collection
 	coll := db.Collection(strings.ToLower(collection))
 
 	result := &repository.MongoDBBulkInsertResult{
-		Attempted:   int64(len(metadata)),
+		Attempted:   0,
 		InsertedIDs: make([]string, 0, len(metadata)),
 	}
 
@@ -504,6 +504,7 @@ func (mmr *MetadataMongoDBRepository) CreateBulk(ctx context.Context, collection
 		}
 
 		end := min(i+chunkSize, len(metadata))
+		result.Attempted += int64(end - i)
 
 		chunkResult, err := mmr.insertMetadataChunk(ctx, coll, metadata[i:end])
 		if err != nil {
