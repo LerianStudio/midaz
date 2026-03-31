@@ -627,7 +627,7 @@ func (mmr *MetadataMongoDBRepository) UpdateBulk(ctx context.Context, collection
 	coll := db.Collection(strings.ToLower(collection))
 
 	result := &repository.MongoDBBulkUpdateResult{
-		Attempted: int64(len(updates)),
+		Attempted: 0,
 	}
 
 	// Chunk into batches of 1000
@@ -645,6 +645,7 @@ func (mmr *MetadataMongoDBRepository) UpdateBulk(ctx context.Context, collection
 		}
 
 		end := min(i+chunkSize, len(updates))
+		result.Attempted += int64(end - i)
 
 		chunkModified, chunkMatched, err := mmr.updateMetadataChunk(ctx, coll, updates[i:end])
 		if err != nil {
