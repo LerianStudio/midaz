@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	"github.com/LerianStudio/midaz/v3/pkg/repository"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -31,10 +33,12 @@ import (
 //go:generate mockgen --destination=metadata.mongodb_mock.go --package=mongodb . Repository
 type Repository interface {
 	Create(ctx context.Context, collection string, metadata *Metadata) error
+	CreateBulk(ctx context.Context, collection string, metadataList []*Metadata) (*repository.MongoDBBulkInsertResult, error)
 	FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error)
 	FindByEntity(ctx context.Context, collection, id string) (*Metadata, error)
 	FindByEntityIDs(ctx context.Context, collection string, entityIDs []string) ([]*Metadata, error)
 	Update(ctx context.Context, collection, id string, metadata map[string]any) error
+	UpdateBulk(ctx context.Context, collection string, updates []MetadataBulkUpdate) (*repository.MongoDBBulkUpdateResult, error)
 	Delete(ctx context.Context, collection, id string) error
 	CreateIndex(ctx context.Context, collection string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error)
 	FindAllIndexes(ctx context.Context, collection string) ([]*mmodel.MetadataIndex, error)
@@ -429,6 +433,286 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 	}
 
 	return nil
+}
+
+// metadataChunkResult holds the result of inserting a chunk of metadata documents.
+type metadataChunkResult struct {
+	inserted    int64
+	matched     int64
+	insertedIDs []string
+}
+
+// CreateBulk inserts multiple metadata entities into mongodb using BulkWrite with upsert semantics.
+// Documents are sorted by EntityID before insert to prevent deadlock-like contention in concurrent scenarios.
+// Large batches are chunked (1000 docs/chunk) to stay within MongoDB's BSON document size limits.
+// Returns MongoDBBulkInsertResult with counts of attempted, inserted, and matched (duplicate) documents.
+//
+// NOTE: Uses $setOnInsert with upsert to ensure idempotency - if a document exists, it's not modified.
+// NOTE: The input slice is sorted in-place by EntityID. Callers should not rely on original order.
+func (mmr *MetadataMongoDBRepository) CreateBulk(ctx context.Context, collection string, metadata []*Metadata) (*repository.MongoDBBulkInsertResult, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.create_bulk_metadata")
+	defer span.End()
+
+	// Early return for empty input
+	if len(metadata) == 0 {
+		return &repository.MongoDBBulkInsertResult{}, nil
+	}
+
+	// Validate no nil elements
+	for i, m := range metadata {
+		if m == nil {
+			err := fmt.Errorf("nil metadata at index %d", i)
+			libOpentelemetry.HandleSpanError(span, "Invalid input: nil metadata", err)
+
+			return nil, err
+		}
+	}
+
+	// Sort by EntityID to prevent deadlock-like contention
+	sort.Slice(metadata, func(i, j int) bool {
+		return metadata[i].EntityID < metadata[j].EntityID
+	})
+
+	db, err := mmr.getDatabase(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	coll := db.Collection(strings.ToLower(collection))
+
+	result := &repository.MongoDBBulkInsertResult{
+		Attempted:   0,
+		InsertedIDs: make([]string, 0, len(metadata)),
+	}
+
+	// Chunk into batches of 1000 to stay within MongoDB limits
+	const chunkSize = 1000
+
+	for i := 0; i < len(metadata); i += chunkSize {
+		// Check for context cancellation between chunks
+		select {
+		case <-ctx.Done():
+			libOpentelemetry.HandleSpanError(span, "Context cancelled during bulk insert", ctx.Err())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Context cancelled during bulk insert: %v", ctx.Err()))
+
+			return result, ctx.Err()
+		default:
+		}
+
+		end := min(i+chunkSize, len(metadata))
+		result.Attempted += int64(end - i)
+
+		chunkResult, err := mmr.insertMetadataChunk(ctx, coll, metadata[i:end])
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to insert metadata chunk", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to insert metadata chunk: %v", err))
+
+			return result, err
+		}
+
+		result.Inserted += chunkResult.inserted
+		result.Matched += chunkResult.matched
+		result.InsertedIDs = append(result.InsertedIDs, chunkResult.insertedIDs...)
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
+		"Bulk insert metadata: attempted=%d, inserted=%d, matched=%d",
+		result.Attempted, result.Inserted, result.Matched,
+	))
+
+	return result, nil
+}
+
+// insertMetadataChunk inserts a chunk of metadata using MongoDB BulkWrite.
+// Uses UpdateOne with $setOnInsert and upsert:true for idempotency.
+func (mmr *MetadataMongoDBRepository) insertMetadataChunk(ctx context.Context, coll *mongo.Collection, metadata []*Metadata) (*metadataChunkResult, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_ = logger // silence unused warning - parent function handles logging
+
+	ctx, span := tracer.Start(ctx, "mongodb.insert_metadata_chunk")
+	defer span.End()
+
+	if len(metadata) == 0 {
+		return &metadataChunkResult{}, nil
+	}
+
+	// Build BulkWrite models
+	models := make([]mongo.WriteModel, 0, len(metadata))
+
+	for _, m := range metadata {
+		record := &MetadataMongoDBModel{}
+		if err := record.FromEntity(m); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to convert metadata to model", err)
+
+			return nil, err
+		}
+
+		// Use UpdateOne with upsert and $setOnInsert for idempotency
+		filter := bson.M{
+			"entity_id":   m.EntityID,
+			"entity_name": m.EntityName,
+		}
+
+		update := bson.M{
+			"$setOnInsert": record,
+		}
+
+		model := mongo.NewUpdateOneModel().
+			SetFilter(filter).
+			SetUpdate(update).
+			SetUpsert(true)
+
+		models = append(models, model)
+	}
+
+	// Execute BulkWrite with ordered:false for parallel execution
+	opts := options.BulkWrite().SetOrdered(false)
+
+	bulkResult, err := coll.BulkWrite(ctx, models, opts)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "BulkWrite failed", err)
+
+		return nil, err
+	}
+
+	result := &metadataChunkResult{
+		inserted:    bulkResult.UpsertedCount,
+		matched:     bulkResult.MatchedCount,
+		insertedIDs: make([]string, 0, bulkResult.UpsertedCount),
+	}
+
+	// Track which documents were actually inserted by checking UpsertedIDs indices
+	for idx := range bulkResult.UpsertedIDs {
+		if idx >= 0 && idx < int64(len(metadata)) {
+			result.insertedIDs = append(result.insertedIDs, metadata[idx].EntityID)
+		}
+	}
+
+	return result, nil
+}
+
+// UpdateBulk updates multiple metadata entities in mongodb using BulkWrite.
+// Documents are sorted by EntityID before update to prevent deadlock-like contention.
+// Large batches are chunked (1000 docs/chunk) to stay within MongoDB's BSON limits.
+// Returns MongoDBBulkUpdateResult with counts of attempted, modified, and matched documents.
+//
+// NOTE: Uses upsert semantics - will insert new documents if no match is found, consistent with single Update method.
+// NOTE: The input slice is sorted in-place by EntityID. Callers should not rely on original order.
+func (mmr *MetadataMongoDBRepository) UpdateBulk(ctx context.Context, collection string, updates []MetadataBulkUpdate) (*repository.MongoDBBulkUpdateResult, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.update_bulk_metadata")
+	defer span.End()
+
+	// Early return for empty input
+	if len(updates) == 0 {
+		return &repository.MongoDBBulkUpdateResult{}, nil
+	}
+
+	// Sort by EntityID to prevent deadlock-like contention
+	sort.Slice(updates, func(i, j int) bool {
+		return updates[i].EntityID < updates[j].EntityID
+	})
+
+	db, err := mmr.getDatabase(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	coll := db.Collection(strings.ToLower(collection))
+
+	result := &repository.MongoDBBulkUpdateResult{
+		Attempted: 0,
+	}
+
+	// Chunk into batches of 1000
+	const chunkSize = 1000
+
+	for i := 0; i < len(updates); i += chunkSize {
+		// Check for context cancellation between chunks
+		select {
+		case <-ctx.Done():
+			libOpentelemetry.HandleSpanError(span, "Context cancelled during bulk update", ctx.Err())
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Context cancelled during bulk update: %v", ctx.Err()))
+
+			return result, ctx.Err()
+		default:
+		}
+
+		end := min(i+chunkSize, len(updates))
+		result.Attempted += int64(end - i)
+
+		chunkModified, chunkMatched, err := mmr.updateMetadataChunk(ctx, coll, updates[i:end])
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to update metadata chunk", err)
+			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update metadata chunk: %v", err))
+
+			return result, err
+		}
+
+		result.Modified += chunkModified
+		result.Matched += chunkMatched
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
+		"Bulk update metadata: attempted=%d, modified=%d, matched=%d",
+		result.Attempted, result.Modified, result.Matched,
+	))
+
+	return result, nil
+}
+
+// updateMetadataChunk updates a chunk of metadata using MongoDB BulkWrite.
+func (mmr *MetadataMongoDBRepository) updateMetadataChunk(ctx context.Context, coll *mongo.Collection, updates []MetadataBulkUpdate) (int64, int64, error) {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+	_ = logger // silence unused warning - parent function handles logging
+
+	ctx, span := tracer.Start(ctx, "mongodb.update_metadata_chunk")
+	defer span.End()
+
+	if len(updates) == 0 {
+		return 0, 0, nil
+	}
+
+	// Build BulkWrite models
+	models := make([]mongo.WriteModel, 0, len(updates))
+	now := time.Now()
+
+	for _, u := range updates {
+		filter := bson.M{"entity_id": u.EntityID}
+
+		update := bson.D{
+			{Key: "$set", Value: bson.D{
+				{Key: "metadata", Value: u.Data},
+				{Key: "updated_at", Value: now},
+			}},
+		}
+
+		model := mongo.NewUpdateOneModel().
+			SetFilter(filter).
+			SetUpdate(update).
+			SetUpsert(true)
+
+		models = append(models, model)
+	}
+
+	// Execute BulkWrite with ordered:false for parallel execution
+	opts := options.BulkWrite().SetOrdered(false)
+
+	bulkResult, err := coll.BulkWrite(ctx, models, opts)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "BulkWrite failed", err)
+
+		return 0, 0, err
+	}
+
+	return bulkResult.ModifiedCount, bulkResult.MatchedCount, nil
 }
 
 // CreateIndex creates an index on the mongodb.

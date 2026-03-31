@@ -60,14 +60,14 @@ type ContainerResult struct {
 
 // SetupContainer starts a MongoDB container for integration testing.
 // Returns client and connection info.
-func SetupContainer(t *testing.T) *ContainerResult {
-	t.Helper()
-	return SetupContainerWithConfig(t, DefaultContainerConfig())
+func SetupContainer(tb testing.TB) *ContainerResult {
+	tb.Helper()
+	return SetupContainerWithConfig(tb, DefaultContainerConfig())
 }
 
 // SetupContainerWithConfig starts a MongoDB container with custom configuration.
-func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResult {
-	t.Helper()
+func SetupContainerWithConfig(tb testing.TB, cfg ContainerConfig) *ContainerResult {
+	tb.Helper()
 
 	ctx := context.Background()
 
@@ -83,31 +83,31 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		},
 	}
 
-	ctr := startMongoContainerWithRetry(t, ctx, req, "failed to start MongoDB container")
+	ctr := startMongoContainerWithRetry(tb, ctx, req, "failed to start MongoDB container")
 
 	host, err := ctr.Host(ctx)
-	require.NoError(t, err, "failed to get MongoDB container host")
+	require.NoError(tb, err, "failed to get MongoDB container host")
 
 	port, err := ctr.MappedPort(ctx, "27017")
-	require.NoError(t, err, "failed to get MongoDB container port")
+	require.NoError(tb, err, "failed to get MongoDB container port")
 
 	uri := fmt.Sprintf("mongodb://%s:%s", host, port.Port())
 
 	clientOpts := options.Client().ApplyURI(uri)
 	client, err := mongo.Connect(ctx, clientOpts)
-	require.NoError(t, err, "failed to connect to MongoDB container")
+	require.NoError(tb, err, "failed to connect to MongoDB container")
 
 	// Verify connection
 	err = client.Ping(ctx, nil)
-	require.NoError(t, err, "failed to ping MongoDB container")
+	require.NoError(tb, err, "failed to ping MongoDB container")
 
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		if err := client.Disconnect(context.Background()); err != nil {
-			t.Logf("failed to disconnect MongoDB client: %v", err)
+			tb.Logf("failed to disconnect MongoDB client: %v", err)
 		}
 
 		if err := ctr.Terminate(context.Background()); err != nil {
-			t.Logf("failed to terminate MongoDB container: %v", err)
+			tb.Logf("failed to terminate MongoDB container: %v", err)
 		}
 	})
 
@@ -120,8 +120,8 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 	}
 }
 
-func startMongoContainerWithRetry(t *testing.T, ctx context.Context, req testcontainers.ContainerRequest, failureMessage string) testcontainers.Container {
-	t.Helper()
+func startMongoContainerWithRetry(tb testing.TB, ctx context.Context, req testcontainers.ContainerRequest, failureMessage string) testcontainers.Container {
+	tb.Helper()
 
 	var (
 		ctr testcontainers.Container
@@ -137,31 +137,31 @@ func startMongoContainerWithRetry(t *testing.T, ctx context.Context, req testcon
 			return ctr
 		}
 
-		t.Logf("MongoDB container start attempt %d/%d failed: %v", attempt, mongoStartupAttempts, err)
+		tb.Logf("MongoDB container start attempt %d/%d failed: %v", attempt, mongoStartupAttempts, err)
 
 		if attempt < mongoStartupAttempts {
 			time.Sleep(time.Duration(attempt) * time.Second)
 		}
 	}
 
-	require.NoError(t, err, failureMessage)
+	require.NoError(tb, err, failureMessage)
 
 	return nil
 }
 
 // CreateConnection creates a libMongo.Client wrapper for testing.
-func CreateConnection(t *testing.T, uri, dbName string) *libMongo.Client {
-	t.Helper()
+func CreateConnection(tb testing.TB, uri, dbName string) *libMongo.Client {
+	tb.Helper()
 
 	conn, err := libMongo.NewClient(context.Background(), libMongo.Config{
 		URI:      uri,
 		Database: dbName,
 	})
-	require.NoError(t, err, "failed to initialize mongo connection")
+	require.NoError(tb, err, "failed to initialize mongo connection")
 
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		if closeErr := conn.Close(context.Background()); closeErr != nil {
-			t.Logf("failed to close mongo connection: %v", closeErr)
+			tb.Logf("failed to close mongo connection: %v", closeErr)
 		}
 	})
 
