@@ -427,10 +427,28 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 			}
 		}
 
+		// Prefer persisted action from backup payload (e.g. revert), then
+		// fall back to status-derived action only for statuses with an
+		// unambiguous mapping. CREATED is intentionally left empty because
+		// legacy payloads may be either "direct" or "revert".
+		action := m.Action
+		if action == "" {
+			switch m.TransactionStatus {
+			case constant.PENDING:
+				action = constant.ActionHold
+			case constant.APPROVED:
+				action = constant.ActionCommit
+			case constant.CANCELED:
+				action = constant.ActionCancel
+			case constant.NOTED:
+				action = constant.ActionDirect
+			}
+		}
+
 		var buildErr error
 
 		operations, _, buildErr = r.TransactionHandler.BuildOperations(
-			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache,
+			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action,
 		)
 		if buildErr != nil {
 			libOpentelemetry.HandleSpanError(msgSpan, "Failed to validate balances", buildErr)
