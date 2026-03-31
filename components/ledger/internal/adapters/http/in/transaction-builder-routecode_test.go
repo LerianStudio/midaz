@@ -230,7 +230,7 @@ func TestResolveRouteCodesFromCache_NilCache(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID},
 	}
 
-	resolveRouteCodesFromCache(ops, nil, "CREATED")
+	resolveRouteCodesFromCache(ops, nil, "direct")
 
 	assert.Nil(t, ops[0].RouteCode, "RouteCode should remain nil when cache is nil")
 }
@@ -243,7 +243,7 @@ func TestResolveRouteCodesFromCache_NoRouteID(t *testing.T) {
 		{ID: "op-1", RouteID: nil},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "CREATED")
+	resolveRouteCodesFromCache(ops, cache, "direct")
 
 	assert.Nil(t, ops[0].RouteCode, "RouteCode should remain nil when RouteID is nil")
 }
@@ -258,7 +258,7 @@ func TestResolveRouteCodesFromCache_SourceRoute(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "debit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "CREATED")
+	resolveRouteCodesFromCache(ops, cache, "direct")
 
 	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated from accounting entry debit rubric code")
 	assert.Equal(t, "1001", *ops[0].RouteCode)
@@ -276,7 +276,7 @@ func TestResolveRouteCodesFromCache_DestinationRoute(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "credit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "CREATED")
+	resolveRouteCodesFromCache(ops, cache, "direct")
 
 	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated from accounting entry credit rubric code")
 	assert.Equal(t, "2001", *ops[0].RouteCode)
@@ -291,7 +291,7 @@ func TestResolveRouteCodesFromCache_BidirectionalRoute(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "debit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "PENDING")
+	resolveRouteCodesFromCache(ops, cache, "hold")
 
 	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated from bidirectional route's accounting entry")
 	assert.Equal(t, "3001", *ops[0].RouteCode)
@@ -341,7 +341,7 @@ func TestResolveRouteCodesFromCache_MultipleOperations(t *testing.T) {
 		{ID: "op-4", RouteID: nil},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "CREATED")
+	resolveRouteCodesFromCache(ops, cache, "direct")
 
 	require.NotNil(t, ops[0].RouteCode)
 	assert.Equal(t, "SRC-DEBIT", *ops[0].RouteCode)
@@ -362,7 +362,7 @@ func TestResolveRouteCodesFromCache_EmptyRouteID(t *testing.T) {
 		{ID: "op-1", RouteID: &emptyRouteID},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "CREATED")
+	resolveRouteCodesFromCache(ops, cache, "direct")
 
 	assert.Nil(t, ops[0].RouteCode, "RouteCode should remain nil for empty RouteID")
 }
@@ -391,7 +391,7 @@ func TestResolveRouteCodesFromCache_NoAccountingEntries(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "debit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "CREATED")
+	resolveRouteCodesFromCache(ops, cache, "direct")
 
 	assert.Nil(t, ops[0].RouteCode, "RouteCode should remain nil when no AccountingEntries exist")
 	assert.Nil(t, ops[0].RouteDescription, "RouteDescription should remain nil when no accounting rubric is resolved")
@@ -406,7 +406,7 @@ func TestResolveRouteCodesFromCache_HoldAction(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "credit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "PENDING")
+	resolveRouteCodesFromCache(ops, cache, "hold")
 
 	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated for hold action")
 	assert.Equal(t, "HOLD-CREDIT", *ops[0].RouteCode)
@@ -421,7 +421,7 @@ func TestResolveRouteCodesFromCache_CommitAction(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "debit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "APPROVED")
+	resolveRouteCodesFromCache(ops, cache, "commit")
 
 	require.NotNil(t, ops[0].RouteCode, "RouteCode should be populated for commit action")
 	assert.Equal(t, "COMMIT-DEBIT", *ops[0].RouteCode)
@@ -532,7 +532,7 @@ func TestResolveRouteCodesFromCache_ActionMissingEntry(t *testing.T) {
 		{ID: "op-1", RouteID: &routeID, Direction: "debit"},
 	}
 
-	resolveRouteCodesFromCache(ops, cache, "CREATED")
+	resolveRouteCodesFromCache(ops, cache, "direct")
 
 	assert.Nil(t, ops[0].RouteCode, "RouteCode should remain nil when action entry is missing from AccountingEntries")
 	assert.Nil(t, ops[0].RouteDescription, "RouteDescription should remain nil when no matching accounting rubric is resolved")

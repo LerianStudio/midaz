@@ -427,10 +427,23 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 			}
 		}
 
+		// Derive the accounting action from the transaction status so that
+		// resolveRouteCodesFromCache picks the correct AccountingEntries rubric.
+		action := constant.ActionDirect
+
+		switch m.TransactionStatus {
+		case constant.PENDING:
+			action = constant.ActionHold
+		case constant.APPROVED:
+			action = constant.ActionCommit
+		case constant.CANCELED:
+			action = constant.ActionCancel
+		}
+
 		var buildErr error
 
 		operations, _, buildErr = r.TransactionHandler.BuildOperations(
-			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache,
+			msgCtxWithSpan, balances, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action,
 		)
 		if buildErr != nil {
 			libOpentelemetry.HandleSpanError(msgSpan, "Failed to validate balances", buildErr)

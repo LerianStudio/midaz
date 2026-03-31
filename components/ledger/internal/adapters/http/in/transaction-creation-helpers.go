@@ -156,6 +156,7 @@ func (handler *TransactionHandler) BuildOperations(
 	isAnnotation bool,
 	routeValidationEnabled bool,
 	transactionRouteCache *mmodel.TransactionRouteCache,
+	action string,
 ) ([]*operation.Operation, []*mmodel.Balance, error) {
 	var operations []*operation.Operation
 
@@ -233,7 +234,7 @@ func (handler *TransactionHandler) BuildOperations(
 		}
 	}
 
-	resolveRouteCodesFromCache(operations, transactionRouteCache, tran.Status.Code)
+	resolveRouteCodesFromCache(operations, transactionRouteCache, action)
 
 	return operations, preBalances, nil
 }
@@ -255,18 +256,15 @@ func statusToAction(statusCode string) string {
 
 // resolveRouteCodesFromCache populates the RouteCode and RouteDescription fields
 // on each operation by looking up the operation's RouteID in the transaction route
-// cache for the given transaction status.
+// cache for the given accounting action (direct, hold, commit, cancel, revert).
 //
 // RouteCode is resolved from the AccountingEntries rubric that matches the
-// operation's action (derived from transactionStatus) and direction
-// (debit → Debit rubric, credit → Credit rubric).
+// operation's action and direction (debit → Debit rubric, credit → Credit rubric).
 // RouteDescription is resolved from the OperationRoute-level Description field.
-func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache, transactionStatus string) {
+func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache, action string) {
 	if cache == nil {
 		return
 	}
-
-	action := statusToAction(transactionStatus)
 
 	actionCache, ok := cache.Actions[action]
 	if !ok {
@@ -800,7 +798,7 @@ func (handler *TransactionHandler) buildStandardOp(
 	}, nil
 }
 
-func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string) error {
+func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string, actionOverride ...string) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -891,6 +889,10 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		action = constant.ActionHold
 	}
 
+	if len(actionOverride) > 0 && actionOverride[0] != "" {
+		action = actionOverride[0]
+	}
+
 	balancesBefore, balancesAfter, routeCache, err := handler.Query.GetBalances(ctx, scope.OrganizationID, scope.LedgerID, transactionID, &transactionInput, validate, transactionStatus, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(spanGetBalances, "Failed to get balances", err)
@@ -934,7 +936,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		},
 	}
 
-	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache)
+	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 

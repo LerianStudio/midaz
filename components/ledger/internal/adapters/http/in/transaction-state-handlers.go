@@ -283,7 +283,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		}
 	}
 
-	response := handler.createTransaction(c, transactionReverted, constant.CREATED)
+	response := handler.createTransaction(c, transactionReverted, constant.CREATED, constant.ActionRevert)
 
 	return response
 }
@@ -478,7 +478,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		Description: &transactionStatus,
 	}
 
-	operations, preBalances, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, time.Now(), false, ledgerSettings.Accounting.ValidateRoutes, routeCache)
+	operations, preBalances, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, time.Now(), false, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
