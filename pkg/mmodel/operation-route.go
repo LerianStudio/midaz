@@ -24,11 +24,12 @@ type AccountingRubric struct {
 // AccountingEntry represents a single accounting entry with debit and credit rubrics.
 //
 // @Description AccountingEntry object containing debit and credit rubrics for a specific action.
+// Field requirements depend on operationType and scenario - validated by validateEntryFieldRequirements.
 type AccountingEntry struct {
-	// The debit rubric for this entry.
-	Debit *AccountingRubric `json:"debit" validate:"required" msgpack:"debit"`
-	// The credit rubric for this entry.
-	Credit *AccountingRubric `json:"credit" validate:"required" msgpack:"credit"`
+	// The debit rubric for this entry. Required based on operationType/scenario matrix.
+	Debit *AccountingRubric `json:"debit" validate:"omitempty" msgpack:"debit"`
+	// The credit rubric for this entry. Required based on operationType/scenario matrix.
+	Credit *AccountingRubric `json:"credit" validate:"omitempty" msgpack:"credit"`
 } // @name AccountingEntry
 
 // AccountingEntries groups accounting entries by transaction action type.
