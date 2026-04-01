@@ -262,9 +262,17 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 			return http.WithError(c, err)
 		}
 
-		// Merge incoming entries with existing to get final state
-		// Pass raw JSON to properly handle explicit null removals (RFC 7396)
-		mergedEntries := mergeAccountingEntries(existingRoute.AccountingEntries, payload.AccountingEntries, payload.AccountingEntriesRaw)
+		// Handle explicit top-level null for accountingEntries (RFC 7396: clear all)
+		var mergedEntries *mmodel.AccountingEntries
+		rawTrimmed := strings.TrimSpace(string(payload.AccountingEntriesRaw))
+		if rawTrimmed == "null" {
+			// Explicit null at top level - clear all entries
+			mergedEntries = nil
+		} else {
+			// Merge incoming entries with existing to get final state
+			// Pass raw JSON to properly handle explicit null removals (RFC 7396)
+			mergedEntries = mergeAccountingEntries(existingRoute.AccountingEntries, payload.AccountingEntries, payload.AccountingEntriesRaw)
+		}
 
 		// Validate the merged entries against the direction×scenario matrix
 		if err := handler.validateAccountingRulesMatrix(ctx, existingRoute.OperationType, mergedEntries); err != nil {

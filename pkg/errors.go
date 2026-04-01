@@ -1321,7 +1321,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Too Many Operation Routes",
 			Message:    "The number of operation routes exceeds the maximum allowed. Please reduce the number of operation routes and try again.",
 		},
-		// Accounting Rules Validation Errors (0162-0165)
+		// Accounting Rules Validation Errors (0162-0166)
 		constant.ErrScenarioNotAllowedForDirection: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrScenarioNotAllowedForDirection.Error(),
