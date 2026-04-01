@@ -9,3 +9,10 @@ const (
 	AccountRuleTypeAlias       = "alias"
 	AccountRuleTypeAccountType = "account_type"
 )
+
+// Operation Route Types (Directions)
+const (
+	OperationRouteTypeSource        = "source"
+	OperationRouteTypeDestination   = "destination"
+	OperationRouteTypeBidirectional = "bidirectional"
+)

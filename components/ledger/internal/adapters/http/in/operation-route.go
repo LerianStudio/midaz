@@ -81,6 +81,10 @@ func (handler *OperationRouteHandler) CreateOperationRoute(i any, c *fiber.Ctx) 
 		return http.WithError(c, err)
 	}
 
+	if err := handler.validateAccountingRulesMatrix(ctx, payload.OperationType, payload.AccountingEntries); err != nil {
+		return http.WithError(c, err)
+	}
+
 	// Reject unknown keys inside accountingEntries (e.g., "foobar") that Go's
 	// json.Unmarshal silently ignores but could confuse clients into thinking
 	// their data was accepted.
@@ -246,6 +250,24 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 				payload.AccountingEntriesRaw = raw
 			}
+		}
+	}
+
+	// Validate accounting rules matrix for PATCH operations
+	// We need to fetch the existing route to get operation type and merge entries
+	if payload.AccountingEntries != nil {
+		existingRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
+		if err != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve existing Operation Route for validation", err)
+			return http.WithError(c, err)
+		}
+
+		// Merge incoming entries with existing to get final state
+		mergedEntries := mergeAccountingEntries(existingRoute.AccountingEntries, payload.AccountingEntries)
+
+		// Validate the merged entries against the direction×scenario matrix
+		if err := handler.validateAccountingRulesMatrix(ctx, existingRoute.OperationType, mergedEntries); err != nil {
+			return http.WithError(c, err)
 		}
 	}
 
@@ -653,4 +675,268 @@ func findUnknownAccountingEntryKeys(raw json.RawMessage) map[string]any {
 	}
 
 	return unknowns
+}
+
+// validateAccountingRulesMatrix validates that the accounting entries comply with
+// the direction × scenario matrix defined in accounting-rules.md.
+//
+// Matrix rules:
+//   - source: direct[D], hold[D][C], commit[D], cancel[D][C], revert[✗]
+//   - destination: direct[C], hold[✗], commit[C], cancel[✗], revert[✗]
+//   - bidirectional: all scenarios allowed with [D][C]
+//
+// Additional rules:
+//   - Reserve group (hold, commit, cancel) must be atomic for source/bidirectional
+//   - direct is mandatory when any other scenario is present
+//   - revert is only allowed for bidirectional
+func (handler *OperationRouteHandler) validateAccountingRulesMatrix(
+	ctx context.Context,
+	operationType string,
+	entries *mmodel.AccountingEntries,
+) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_accounting_rules_matrix")
+	defer span.End()
+
+	// If no entries, nothing to validate
+	if entries == nil {
+		return nil
+	}
+
+	entityName := reflect.TypeOf(mmodel.OperationRoute{}).Name()
+
+	// Check direction × scenario matrix
+	if err := handler.validateDirectionScenarioMatrix(ctx, operationType, entries, entityName); err != nil {
+		return err
+	}
+
+	// Check reserve group atomicity (hold requires commit and cancel)
+	if err := handler.validateReserveGroupAtomicity(ctx, operationType, entries, entityName); err != nil {
+		return err
+	}
+
+	// Check direct is mandatory when other scenarios exist
+	if err := handler.validateDirectMandatory(ctx, entries, entityName); err != nil {
+		return err
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Accounting rules matrix validation passed")
+
+	return nil
+}
+
+// validateDirectionScenarioMatrix checks that scenarios are valid for the given direction.
+func (handler *OperationRouteHandler) validateDirectionScenarioMatrix(
+	ctx context.Context,
+	operationType string,
+	entries *mmodel.AccountingEntries,
+	entityName string,
+) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_direction_scenario_matrix")
+	defer span.End()
+
+	switch operationType {
+	case constant.OperationRouteTypeSource:
+		// source: revert is NOT allowed
+		if entries.Revert != nil {
+			err := pkg.ValidateBusinessError(
+				constant.ErrRevertOnlyBidirectional,
+				entityName,
+				"revert is only allowed for bidirectional operation routes",
+			)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Revert not allowed for source direction", err)
+			logger.Log(ctx, libLog.LevelWarn, "Revert scenario not allowed for source direction")
+
+			return err
+		}
+
+	case constant.OperationRouteTypeDestination:
+		// destination: hold, cancel, revert are NOT allowed
+		invalidScenarios := []struct {
+			name  string
+			entry *mmodel.AccountingEntry
+		}{
+			{constant.ActionHold, entries.Hold},
+			{constant.ActionCancel, entries.Cancel},
+			{constant.ActionRevert, entries.Revert},
+		}
+
+		for _, scenario := range invalidScenarios {
+			if scenario.entry != nil {
+				err := pkg.ValidateBusinessError(
+					constant.ErrScenarioNotAllowedForDirection,
+					entityName,
+					fmt.Sprintf("%s scenario is not allowed for destination direction", scenario.name),
+				)
+
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("%s not allowed for destination", scenario.name), err)
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("%s scenario not allowed for destination direction", scenario.name))
+
+				return err
+			}
+		}
+
+	case constant.OperationRouteTypeBidirectional:
+		// bidirectional: all scenarios allowed - no restrictions
+
+	default:
+		// Invalid operation type - should be caught by struct validation
+	}
+
+	return nil
+}
+
+// validateReserveGroupAtomicity ensures that hold, commit, and cancel form an atomic group.
+// For source/bidirectional: if hold exists, commit AND cancel must also exist.
+// For destination: reserve group is not applicable (hold/cancel not allowed).
+func (handler *OperationRouteHandler) validateReserveGroupAtomicity(
+	ctx context.Context,
+	operationType string,
+	entries *mmodel.AccountingEntries,
+	entityName string,
+) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_reserve_group_atomicity")
+	defer span.End()
+
+	// Reserve group only applies to source and bidirectional
+	if operationType == constant.OperationRouteTypeDestination {
+		return nil
+	}
+
+	hasHold := entries.Hold != nil
+	hasCommit := entries.Commit != nil
+	hasCancel := entries.Cancel != nil
+
+	// If hold exists, both commit and cancel must exist
+	if hasHold {
+		var missing []string
+
+		if !hasCommit {
+			missing = append(missing, "commit")
+		}
+
+		if !hasCancel {
+			missing = append(missing, "cancel")
+		}
+
+		if len(missing) > 0 {
+			err := pkg.ValidateBusinessError(
+				constant.ErrReserveGroupIncomplete,
+				entityName,
+				fmt.Sprintf("reserve group incomplete: hold requires %s", strings.Join(missing, " and ")),
+			)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserve group incomplete", err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Reserve group incomplete: missing %v", missing))
+
+			return err
+		}
+	}
+
+	// If commit or cancel exists without hold, that's also incomplete
+	if (hasCommit || hasCancel) && !hasHold {
+		err := pkg.ValidateBusinessError(
+			constant.ErrReserveGroupIncomplete,
+			entityName,
+			"reserve group incomplete: commit and cancel require hold",
+		)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserve group incomplete - missing hold", err)
+		logger.Log(ctx, libLog.LevelWarn, "Reserve group incomplete: commit/cancel without hold")
+
+		return err
+	}
+
+	return nil
+}
+
+// validateDirectMandatory ensures that direct scenario is present when other scenarios exist.
+func (handler *OperationRouteHandler) validateDirectMandatory(
+	ctx context.Context,
+	entries *mmodel.AccountingEntries,
+	entityName string,
+) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_direct_mandatory")
+	defer span.End()
+
+	hasDirect := entries.Direct != nil
+	hasOtherScenarios := entries.Hold != nil || entries.Commit != nil ||
+		entries.Cancel != nil || entries.Revert != nil
+
+	// If any other scenario exists, direct must also exist
+	if hasOtherScenarios && !hasDirect {
+		err := pkg.ValidateBusinessError(
+			constant.ErrDirectScenarioRequired,
+			entityName,
+			"direct scenario is required when other scenarios are present",
+		)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Direct scenario required", err)
+		logger.Log(ctx, libLog.LevelWarn, "Direct scenario is required when other scenarios are present")
+
+		return err
+	}
+
+	return nil
+}
+
+// mergeAccountingEntries creates a merged view of existing and incoming accounting entries.
+// Used for PATCH operations where only partial updates are provided.
+// For each scenario, if incoming has a value, use it; otherwise, use existing.
+// Note: This does NOT handle explicit null (removal) - that's handled by AccountingEntriesRaw.
+func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries) *mmodel.AccountingEntries {
+	if existing == nil && incoming == nil {
+		return nil
+	}
+
+	if existing == nil {
+		return incoming
+	}
+
+	if incoming == nil {
+		return existing
+	}
+
+	merged := &mmodel.AccountingEntries{}
+
+	// For each scenario: incoming wins if present, otherwise keep existing
+	if incoming.Direct != nil {
+		merged.Direct = incoming.Direct
+	} else {
+		merged.Direct = existing.Direct
+	}
+
+	if incoming.Hold != nil {
+		merged.Hold = incoming.Hold
+	} else {
+		merged.Hold = existing.Hold
+	}
+
+	if incoming.Commit != nil {
+		merged.Commit = incoming.Commit
+	} else {
+		merged.Commit = existing.Commit
+	}
+
+	if incoming.Cancel != nil {
+		merged.Cancel = incoming.Cancel
+	} else {
+		merged.Cancel = existing.Cancel
+	}
+
+	if incoming.Revert != nil {
+		merged.Revert = incoming.Revert
+	} else {
+		merged.Revert = existing.Revert
+	}
+
+	return merged
 }
