@@ -1,0 +1,609 @@
+# Lerian Midaz — Full Reference
+
+> Enterprise-grade open-source double-entry ledger system. Go 1.25 monorepo (v3 module path) with a unified Ledger HTTP API (onboarding + transaction) and a CRM plugin. Uses PostgreSQL (primary/replica), MongoDB (metadata), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via lib-commons v4 tenant-manager. Elastic License 2.0.
+
+---
+
+## 1. Product Overview
+
+Midaz is the ledger component of a core banking platform. It implements a financial hierarchy:
+
+```
+Organization → Ledger → Asset
+                      → Portfolio → Account
+                      → Segment → Account
+                      → Account Type
+             → Transaction → Operation → Balance
+```
+
+Key capabilities:
+- **Double-entry accounting**: Every transaction produces balanced debit/credit operations
+- **N:N transactions**: Multiple sources and destinations in a single transaction
+- **Multiple creation modes**: JSON, Gold DSL, Inflow, Outflow, Annotation
+- **Transaction lifecycle**: Create → Commit/Cancel/Revert (pending transactions support)
+- **Async processing**: RabbitMQ-based balance updates with bulk recorder (10x throughput)
+- **Multi-asset**: Currency (ISO-4217), crypto, commodities, custom asset types
+- **Multi-tenant**: Database-per-tenant isolation via lib-commons v4 tenant-manager
+- **Accounting routes**: Configurable operation routes and transaction routes for validation
+
+## 2. Architecture
+
+### 2.1 Components
+
+| Component | Port | Description | Data Stores |
+|-----------|------|-------------|-------------|
+| **Ledger** | 3002 | Unified HTTP API (onboarding + transaction) | PostgreSQL (onboarding DB + transaction DB), MongoDB (metadata), Redis, RabbitMQ |
+| **CRM** | 4003 | Customer relationship management plugin | MongoDB |
+| **Infra** | — | Docker Compose infrastructure | PostgreSQL 17, MongoDB 8, RabbitMQ 4.1, Valkey 8, Grafana/OTEL-LGTM |
+
+### 2.2 Pattern: Hexagonal Architecture with CQRS
+
+```
+Handlers (HTTP) → Services (Command/Query) → Repositories (Postgres/Mongo/Redis/RabbitMQ)
+       ↓                    ↓                           ↓
+    Models (pkg/mmodel)  Models                      Models
+```
+
+Dependencies flow inward. Inner layers must not depend on outer layers. Interfaces defined where used.
+
+### 2.3 Directory Structure
+
+```
+midaz/
+├── components/
+│   ├── ledger/              # Unified ledger (onboarding + transaction)
+│   │   ├── cmd/app/         # main.go entry point
+│   │   ├── internal/
+│   │   │   ├── adapters/
+│   │   │   │   ├── http/in/ # Fiber HTTP handlers + routes
+│   │   │   │   ├── http/out/# Outbound HTTP clients
+│   │   │   │   ├── postgres/# PostgreSQL repositories (onboarding + transaction)
+│   │   │   │   ├── mongodb/ # MongoDB metadata repositories
+│   │   │   │   ├── redis/   # Redis cache repositories
+│   │   │   │   └── rabbitmq/# RabbitMQ producer/consumer
+│   │   │   ├── bootstrap/   # Config, DI, server lifecycle, workers
+│   │   │   └── services/
+│   │   │       ├── command/ # Write operations (CQRS)
+│   │   │       └── query/   # Read operations (CQRS)
+│   │   ├── migrations/
+│   │   │   ├── onboarding/  # SQL migrations for onboarding DB
+│   │   │   └── transaction/ # SQL migrations for transaction DB
+│   │   └── api/             # Swagger docs
+│   ├── crm/                 # CRM plugin
+│   │   ├── cmd/app/         # main.go entry point
+│   │   ├── internal/
+│   │   │   ├── adapters/
+│   │   │   │   ├── http/    # Fiber HTTP handlers
+│   │   │   │   └── mongodb/ # MongoDB repositories
+│   │   │   ├── bootstrap/   # Config, DI
+│   │   │   └── services/    # CRM business logic
+│   │   └── api/             # Swagger docs
+│   └── infra/               # Docker Compose + config
+│       ├── docker-compose.yml
+│       ├── postgres/        # Init scripts
+│       ├── mongo/           # Replica set init
+│       ├── rabbitmq/        # Definitions, config
+│       └── grafana/         # OTEL collector config
+├── pkg/                     # Shared packages
+│   ├── mmodel/              # Domain models (32 files)
+│   ├── constant/            # Error codes, action constants, HTTP constants
+│   ├── errors.go            # Typed error structs + ValidateBusinessError
+│   ├── gold/                # ANTLR4 transaction DSL grammar + parser
+│   ├── net/http/            # Middleware, pagination, protected routes
+│   ├── transaction/         # Transaction processing utilities
+│   ├── mongo/               # MongoDB utilities
+│   ├── repository/          # Repository interfaces
+│   ├── pagination/          # Pagination helpers
+│   └── utils/               # General utilities
+├── tests/                   # Integration + chaos tests
+├── scripts/                 # Build/CI scripts
+├── mk/                      # Makefile includes (coverage, tests)
+├── docs/PROJECT_RULES.md    # Coding standards (1130 lines)
+├── Makefile                 # Root orchestrator
+├── go.mod                   # Module: github.com/LerianStudio/midaz/v3
+└── go.sum
+```
+
+## 3. Domain Models
+
+All models live in `pkg/mmodel/`. Key entities:
+
+### 3.1 Organization
+- Fields: ID, ParentOrganizationID, LegalName, DoingBusinessAs, LegalDocument, Address, Status, Metadata, CreatedAt, UpdatedAt, DeletedAt
+- Address follows ISO 3166-1 alpha-2 for country codes
+
+### 3.2 Ledger
+- Fields: ID, Name, OrganizationID, Status, Settings, Metadata, CreatedAt, UpdatedAt, DeletedAt
+- Settings support per-ledger configuration (accounting validation, route validation, account type validation)
+
+### 3.3 Account
+- Fields: ID, Name, ParentAccountID, EntityID, AssetCode, OrganizationID, LedgerID, PortfolioID, SegmentID, Status, Alias, Type, Blocked, Metadata, CreatedAt, UpdatedAt, DeletedAt
+- Alias format: `@<identifier>` (unique per ledger)
+- Type: user-defined (e.g., "deposit", "expense", "revenue"); "external" is system-reserved
+- Sub-accounts via ParentAccountID
+
+### 3.4 Asset
+- Fields: ID, Name, Type, Code, Status, OrganizationID, LedgerID, Metadata, CreatedAt, UpdatedAt, DeletedAt
+- Types: currency, crypto, commodities, others
+- Code: uppercase alphanumeric; currency codes follow ISO-4217
+
+### 3.5 Transaction
+- Fields: ID, ParentTransactionID, Description, Template, Status, Amount, AmountScale, AssetCode, ChartOfAccountsGroupName, Source, Destination, Metadata, CreatedAt, UpdatedAt, DeletedAt
+- Status lifecycle: ACTIVE → (revert) | PENDING → COMMIT/CANCEL
+- Source/Destination contain arrays of operations with amount/share/remaining distribution
+
+### 3.6 Balance
+- Fields: ID, OrganizationID, LedgerID, AccountID, Alias, AssetCode, Available, OnHold, Scale, Status, AllowSending, AllowReceiving, Version, CreatedAt, UpdatedAt, DeletedAt
+- Optimistic concurrency via Version field (lock version)
+- Supports additional balances per account (e.g., multi-currency)
+- Balance history queries via timestamp
+
+### 3.7 Operation Route / Transaction Route
+- Operation routes define per-operation rules (source/destination/bidirectional)
+- Transaction routes compose multiple operation routes for accounting validation
+- Account rules: alias-based or account-type-based validation
+
+### 3.8 Account Type
+- Custom account types per organization/ledger
+- KeyValue identifier (alphanumeric + underscore + hyphen)
+
+### 3.9 Holder (CRM)
+- Customer/entity management with encrypted PII
+- Alias management with account associations
+- Related parties support
+
+## 4. API Reference
+
+### 4.1 Ledger API (port 3002)
+
+Base path: `/v1`
+
+#### Onboarding Resources
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /organizations | Create organization |
+| GET | /organizations | List organizations |
+| GET | /organizations/:id | Get organization |
+| PATCH | /organizations/:id | Update organization |
+| DELETE | /organizations/:id | Delete organization |
+| HEAD | /organizations/metrics/count | Count organizations |
+| POST | /organizations/:org_id/ledgers | Create ledger |
+| GET | /organizations/:org_id/ledgers | List ledgers |
+| GET | /organizations/:org_id/ledgers/:id | Get ledger |
+| PATCH | /organizations/:org_id/ledgers/:id | Update ledger |
+| DELETE | /organizations/:org_id/ledgers/:id | Delete ledger |
+| GET | /organizations/:org_id/ledgers/:id/settings | Get ledger settings |
+| PATCH | /organizations/:org_id/ledgers/:id/settings | Update ledger settings |
+| POST | /organizations/:org_id/ledgers/:lid/assets | Create asset |
+| GET | /organizations/:org_id/ledgers/:lid/assets | List assets |
+| GET | /organizations/:org_id/ledgers/:lid/assets/:id | Get asset |
+| PATCH | /organizations/:org_id/ledgers/:lid/assets/:id | Update asset |
+| DELETE | /organizations/:org_id/ledgers/:lid/assets/:id | Delete asset |
+| POST | /organizations/:org_id/ledgers/:lid/portfolios | Create portfolio |
+| GET | /organizations/:org_id/ledgers/:lid/portfolios | List portfolios |
+| GET | /organizations/:org_id/ledgers/:lid/portfolios/:id | Get portfolio |
+| PATCH | /organizations/:org_id/ledgers/:lid/portfolios/:id | Update portfolio |
+| DELETE | /organizations/:org_id/ledgers/:lid/portfolios/:id | Delete portfolio |
+| POST | /organizations/:org_id/ledgers/:lid/segments | Create segment |
+| GET | /organizations/:org_id/ledgers/:lid/segments | List segments |
+| GET | /organizations/:org_id/ledgers/:lid/segments/:id | Get segment |
+| PATCH | /organizations/:org_id/ledgers/:lid/segments/:id | Update segment |
+| DELETE | /organizations/:org_id/ledgers/:lid/segments/:id | Delete segment |
+| POST | /organizations/:org_id/ledgers/:lid/accounts | Create account |
+| GET | /organizations/:org_id/ledgers/:lid/accounts | List accounts |
+| GET | /organizations/:org_id/ledgers/:lid/accounts/:id | Get account |
+| GET | /organizations/:org_id/ledgers/:lid/accounts/alias/:alias | Get account by alias |
+| GET | /organizations/:org_id/ledgers/:lid/accounts/external/:code | Get external account |
+| PATCH | /organizations/:org_id/ledgers/:lid/accounts/:id | Update account |
+| DELETE | /organizations/:org_id/ledgers/:lid/accounts/:id | Delete account |
+| POST | /organizations/:org_id/ledgers/:lid/account-types | Create account type |
+| GET | /organizations/:org_id/ledgers/:lid/account-types | List account types |
+| GET | /organizations/:org_id/ledgers/:lid/account-types/:id | Get account type |
+| PATCH | /organizations/:org_id/ledgers/:lid/account-types/:id | Update account type |
+| DELETE | /organizations/:org_id/ledgers/:lid/account-types/:id | Delete account type |
+
+#### Transaction Resources
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | .../transactions/json | Create transaction (JSON) |
+| POST | .../transactions/dsl | Create transaction (Gold DSL) |
+| POST | .../transactions/inflow | Create inflow transaction |
+| POST | .../transactions/outflow | Create outflow transaction |
+| POST | .../transactions/annotation | Create annotation transaction |
+| POST | .../transactions/:tid/commit | Commit pending transaction |
+| POST | .../transactions/:tid/cancel | Cancel pending transaction |
+| POST | .../transactions/:tid/revert | Revert transaction |
+| PATCH | .../transactions/:tid | Update transaction metadata |
+| GET | .../transactions | List transactions |
+| GET | .../transactions/:tid | Get transaction |
+| HEAD | .../transactions/metrics/count | Count transactions |
+| GET | .../accounts/:aid/operations | List operations by account |
+| GET | .../accounts/:aid/operations/:oid | Get operation |
+| PATCH | .../transactions/:tid/operations/:oid | Update operation |
+| PUT | .../asset-rates | Create/update asset rate |
+| GET | .../asset-rates/:external_id | Get asset rate |
+| GET | .../asset-rates/from/:asset_code | List asset rates by code |
+| GET | .../balances | List balances |
+| GET | .../balances/:bid | Get balance |
+| GET | .../balances/:bid/history | Get balance at timestamp |
+| PATCH | .../balances/:bid | Update balance |
+| DELETE | .../balances/:bid | Delete balance |
+| GET | .../accounts/:aid/balances | List balances by account |
+| GET | .../accounts/:aid/balances/history | Account balances at timestamp |
+| GET | .../accounts/alias/:alias/balances | Balances by alias |
+| GET | .../accounts/external/:code/balances | Balances by external code |
+| POST | .../accounts/:aid/balances | Create additional balance |
+| POST | .../operation-routes | Create operation route |
+| GET | .../operation-routes | List operation routes |
+| GET | .../operation-routes/:orid | Get operation route |
+| PATCH | .../operation-routes/:orid | Update operation route |
+| DELETE | .../operation-routes/:orid | Delete operation route |
+| POST | .../transaction-routes | Create transaction route |
+| GET | .../transaction-routes | List transaction routes |
+| GET | .../transaction-routes/:trid | Get transaction route |
+| PATCH | .../transaction-routes/:trid | Update transaction route |
+| DELETE | .../transaction-routes/:trid | Delete transaction route |
+
+#### Settings / Metadata
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /v1/settings/metadata-indexes/entities/:entity_name | Create metadata index |
+| GET | /v1/settings/metadata-indexes | List metadata indexes |
+| DELETE | /v1/settings/metadata-indexes/entities/:entity_name/key/:key | Delete metadata index |
+
+#### System
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /health | Health check |
+| GET | /version | Version info |
+| GET | /swagger/* | Swagger UI |
+
+### 4.2 CRM API (port 4003)
+
+Manages holders, aliases, related parties. Uses MongoDB for persistence. Supports encrypted PII fields.
+
+## 5. Error System
+
+### 5.1 Error Codes (pkg/constant/errors.go)
+
+Numeric codes 0001–0161 for ledger errors. CRM errors prefixed with `CRM-`.
+
+Key error codes:
+- `0007` ErrEntityNotFound
+- `0009` ErrMissingFieldsInRequest
+- `0017` ErrInvalidScriptFormat (DSL errors)
+- `0018` ErrInsufficientFunds
+- `0020` ErrAliasUnavailability
+- `0041` ErrTokenMissing
+- `0042` ErrInvalidToken
+- `0043` ErrInsufficientPrivileges
+- `0046` ErrInternalServer
+- `0047` ErrBadRequest
+- `0084` ErrIdempotencyKey
+- `0086` ErrLockVersionAccountBalance (race condition)
+- `0095` ErrMessageBrokerUnavailable
+- `0146` ErrTenantNotProvisioned
+- `0159` ErrTenantServiceSuspended
+- `0160` ErrTenantNotFound
+
+### 5.2 Error Types (pkg/errors.go)
+
+| Type | HTTP Status | Use Case |
+|------|-------------|----------|
+| EntityNotFoundError | 404 | Entity not found |
+| ValidationError | 400 | Input validation failures |
+| EntityConflictError | 409 | Duplicate entities |
+| UnauthorizedError | 401 | Missing/invalid auth |
+| ForbiddenError | 403 | Insufficient privileges |
+| UnprocessableOperationError | 422 | Business rule violations |
+| FailedPreconditionError | 412 | Configuration errors |
+| ServiceUnavailableError | 503 | Infrastructure failures |
+| InternalServerError | 500 | Unexpected errors |
+| ValidationKnownFieldsError | 400 | Field-level validation |
+| ValidationUnknownFieldsError | 400 | Unexpected fields |
+
+### 5.3 Error Handling Pattern
+
+```go
+// Business errors: return directly
+if errors.Is(err, constant.ErrEntityNotFound) {
+    return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "Entity")
+}
+
+// Technical errors: wrap with context
+return nil, fmt.Errorf("failed to create entity: %w", err)
+```
+
+## 6. Environment Variables
+
+### 6.1 Ledger Component
+
+#### Server
+| Variable | Default | Description |
+|----------|---------|-------------|
+| ENV_NAME | development | Environment name |
+| VERSION | v3.6.0 | Application version |
+| SERVER_PORT | 3002 | HTTP port |
+| SERVER_ADDRESS | :3002 | Listen address |
+| LOG_LEVEL | debug | Log level |
+
+#### Auth
+| Variable | Default | Description |
+|----------|---------|-------------|
+| PLUGIN_AUTH_ENABLED | false | Enable auth middleware |
+| PLUGIN_AUTH_HOST | — | Auth service host |
+
+#### PostgreSQL — Onboarding
+| Variable | Default | Description |
+|----------|---------|-------------|
+| DB_ONBOARDING_HOST | midaz-postgres-primary | Primary host |
+| DB_ONBOARDING_USER | midaz | Username |
+| DB_ONBOARDING_PASSWORD | lerian | Password |
+| DB_ONBOARDING_NAME | onboarding | Database name |
+| DB_ONBOARDING_PORT | 5701 | Port |
+| DB_ONBOARDING_SSLMODE | disable | SSL mode |
+| DB_ONBOARDING_REPLICA_HOST | midaz-postgres-replica | Replica host |
+| DB_ONBOARDING_REPLICA_PORT | 5702 | Replica port |
+| DB_ONBOARDING_MAX_OPEN_CONNS | 3000 | Max open connections |
+| DB_ONBOARDING_MAX_IDLE_CONNS | 3000 | Max idle connections |
+
+#### PostgreSQL — Transaction
+| Variable | Default | Description |
+|----------|---------|-------------|
+| DB_TRANSACTION_HOST | midaz-postgres-primary | Primary host |
+| DB_TRANSACTION_USER | midaz | Username |
+| DB_TRANSACTION_PASSWORD | lerian | Password |
+| DB_TRANSACTION_NAME | transaction | Database name |
+| DB_TRANSACTION_PORT | 5701 | Port |
+| DB_TRANSACTION_SSLMODE | disable | SSL mode |
+| DB_TRANSACTION_REPLICA_HOST | midaz-postgres-replica | Replica host |
+| DB_TRANSACTION_REPLICA_PORT | 5702 | Replica port |
+| DB_TRANSACTION_MAX_OPEN_CONNS | 3000 | Max open connections |
+| DB_TRANSACTION_MAX_IDLE_CONNS | 3000 | Max idle connections |
+
+#### MongoDB — Onboarding
+| Variable | Default | Description |
+|----------|---------|-------------|
+| MONGO_ONBOARDING_URI | mongodb | Connection URI scheme |
+| MONGO_ONBOARDING_HOST | midaz-mongodb | Host |
+| MONGO_ONBOARDING_NAME | onboarding | Database name |
+| MONGO_ONBOARDING_USER | midaz | Username |
+| MONGO_ONBOARDING_PASSWORD | lerian | Password |
+| MONGO_ONBOARDING_PORT | 5703 | Port |
+| MONGO_ONBOARDING_MAX_POOL_SIZE | 1000 | Max pool size |
+
+#### MongoDB — Transaction
+| Variable | Default | Description |
+|----------|---------|-------------|
+| MONGO_TRANSACTION_URI | mongodb | Connection URI scheme |
+| MONGO_TRANSACTION_HOST | midaz-mongodb | Host |
+| MONGO_TRANSACTION_NAME | transaction | Database name |
+| MONGO_TRANSACTION_USER | midaz | Username |
+| MONGO_TRANSACTION_PASSWORD | lerian | Password |
+| MONGO_TRANSACTION_PORT | 5703 | Port |
+| MONGO_TRANSACTION_MAX_POOL_SIZE | 1000 | Max pool size |
+
+#### Redis
+| Variable | Default | Description |
+|----------|---------|-------------|
+| REDIS_HOST | midaz-valkey:5704 | Host(s), comma-separated for cluster |
+| REDIS_MASTER_NAME | — | Sentinel master name |
+| REDIS_TLS | false | Enable TLS |
+| REDIS_PASSWORD | lerian | Password |
+| REDIS_DB | 0 | Database index |
+| REDIS_PROTOCOL | 3 | RESP protocol version |
+| REDIS_POOL_SIZE | 10 | Connection pool size |
+| REDIS_MAX_RETRIES | 3 | Max retries |
+
+#### RabbitMQ
+| Variable | Default | Description |
+|----------|---------|-------------|
+| RABBITMQ_URI | amqp | Protocol scheme |
+| RABBITMQ_HOST | midaz-rabbitmq | Host |
+| RABBITMQ_PORT_HOST | 3003 | Management port |
+| RABBITMQ_PORT_AMQP | 3004 | AMQP port |
+| RABBITMQ_DEFAULT_USER | transaction | Username |
+| RABBITMQ_DEFAULT_PASS | lerian | Password |
+| RABBITMQ_NUMBERS_OF_WORKERS | 5 | Consumer workers |
+| RABBITMQ_NUMBERS_OF_PREFETCH | 10 | Prefetch count |
+| RABBITMQ_TRANSACTION_ASYNC | false | Enable async mode |
+| RABBITMQ_VHOST | — | Virtual host |
+
+#### Bulk Recorder
+| Variable | Default | Description |
+|----------|---------|-------------|
+| BULK_RECORDER_ENABLED | true | Enable bulk mode |
+| BULK_RECORDER_SIZE | workers×prefetch | Batch size |
+| BULK_RECORDER_FLUSH_TIMEOUT_MS | 100 | Flush timeout (ms) |
+| BULK_RECORDER_MAX_ROWS_PER_INSERT | 1000 | Max rows per INSERT |
+
+#### Circuit Breaker (RabbitMQ)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES | 15 | Failures before open |
+| RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO | 50 | Failure % to trigger |
+| RABBITMQ_CIRCUIT_BREAKER_INTERVAL | 120 | Counting window (sec) |
+| RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS | 3 | Half-open requests |
+| RABBITMQ_CIRCUIT_BREAKER_TIMEOUT | 30 | Open→half-open wait (sec) |
+
+#### OpenTelemetry
+| Variable | Default | Description |
+|----------|---------|-------------|
+| OTEL_RESOURCE_SERVICE_NAME | ledger | Service name |
+| OTEL_LIBRARY_NAME | github.com/LerianStudio/midaz/v3/components/ledger | Library name |
+| OTEL_EXPORTER_OTLP_ENDPOINT | midaz-otel-lgtm:4317 | OTLP gRPC endpoint |
+| ENABLE_TELEMETRY | false | Enable telemetry |
+
+#### Multi-Tenant
+| Variable | Default | Description |
+|----------|---------|-------------|
+| MULTI_TENANT_ENABLED | false | Enable multi-tenant mode |
+| MULTI_TENANT_URL | — | Tenant Manager API URL |
+| MULTI_TENANT_SERVICE_API_KEY | — | Service API key |
+| MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD | 5 | CB failures threshold |
+| MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC | 30 | CB timeout |
+| MULTI_TENANT_CACHE_TTL_SEC | 120 | Tenant config cache TTL |
+| MULTI_TENANT_REDIS_HOST | — | Redis for tenant Pub/Sub |
+| MULTI_TENANT_REDIS_PORT | 6379 | Redis port |
+| MULTI_TENANT_REDIS_TLS | false | Redis TLS |
+
+#### Pagination
+| Variable | Default | Description |
+|----------|---------|-------------|
+| MAX_PAGINATION_LIMIT | 100 | Max items per page |
+| MAX_PAGINATION_MONTH_DATE_RANGE | 3 | Max date range (months) |
+
+#### Workers
+| Variable | Default | Description |
+|----------|---------|-------------|
+| BALANCE_SYNC_MAX_WORKERS | 5 | Balance sync worker count |
+| SETTINGS_CACHE_TTL | 5m | Settings cache duration |
+
+### 6.2 CRM Component
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| SERVER_PORT | 4003 | HTTP port |
+| MONGO_URI | mongodb | Connection scheme |
+| MONGO_HOST | midaz-mongodb | Host |
+| MONGO_NAME | crm | Database |
+| MONGO_USER | midaz | Username |
+| MONGO_PASSWORD | lerian | Password |
+| MONGO_PORT | 5703 | Port |
+| LCRYPTO_HASH_SECRET_KEY | — | PII hash key |
+| LCRYPTO_ENCRYPT_SECRET_KEY | — | PII encryption key |
+| PLUGIN_AUTH_ENABLED | false | Enable auth |
+| APPLICATION_NAME | ledger | Application identity |
+
+### 6.3 Infrastructure
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| DB_HOST | midaz-postgres-primary | PostgreSQL primary |
+| DB_PORT | 5701 | PostgreSQL port |
+| DB_REPLICA_PORT | 5702 | Replica port |
+| MONGO_PORT | 5703 | MongoDB port |
+| REDIS_PORT | 5704 | Valkey/Redis port |
+| RABBITMQ_PORT_HOST | 3003 | RabbitMQ management |
+| RABBITMQ_PORT_AMQP | 3004 | RabbitMQ AMQP |
+
+## 7. Build & Development
+
+### 7.1 Prerequisites
+
+- Go 1.25+
+- Docker (with `docker compose`)
+- golangci-lint v2.4.0
+
+### 7.2 Makefile Commands
+
+```bash
+# Setup
+make set-env                  # Copy .env.example → .env for all components
+make dev-setup                # Install tools + git hooks + env files
+make setup-git-hooks          # Configure git hooks
+
+# Build & Run
+make build                    # Build ledger + CRM
+make up                       # Start all services (infra → ledger → CRM)
+make down                     # Stop all services
+make restart                  # Restart all services
+make rebuild-up               # Rebuild and restart
+make logs                     # Show logs
+
+# Quality
+make lint                     # Lint all components
+make format                   # Format code
+make tidy                     # go mod tidy
+make sec                      # Security checks (gosec + govulncheck)
+
+# Testing
+make test                     # Run all tests
+make test-unit                # Unit tests
+make test-integration         # Integration tests (testcontainers)
+make test-fuzz                # Fuzz tests
+make test-bench               # Benchmarks
+make test-chaos-system        # Chaos tests with Docker stack
+
+# Coverage
+make coverage-unit            # Unit test coverage
+make coverage-integration     # Integration test coverage
+make coverage                 # All coverage
+
+# Migrations
+make migrate-lint             # Lint migrations
+make migrate-create COMPONENT=onboarding NAME=my_migration
+
+# Docs
+make generate-docs            # Generate Swagger docs
+```
+
+### 7.3 Docker Images
+
+- **Ledger**: `golang:1.25-alpine` → `gcr.io/distroless/static-debian12`, exposed port 3002
+- **CRM**: `golang:1.25-alpine` → `gcr.io/distroless/static-debian12`, exposed port 4003
+- Both run as `nonroot:nonroot`
+
+## 8. Key Dependencies
+
+| Dependency | Version | Purpose |
+|------------|---------|---------|
+| github.com/LerianStudio/lib-commons/v4 | — | Shared library (logging, telemetry, Redis, tenant-manager, HTTP) |
+| github.com/LerianStudio/lib-auth/v2 | v2.6.0 | Authentication middleware |
+| github.com/gofiber/fiber/v2 | v2.52.12 | HTTP framework |
+| github.com/jackc/pgx/v5 | v5.9.1 | PostgreSQL driver |
+| go.mongodb.org/mongo-driver | v1.17.9 | MongoDB driver |
+| github.com/rabbitmq/amqp091-go | v1.10.0 | RabbitMQ AMQP client |
+| github.com/redis/go-redis/v9 | v9.18.0 | Redis client |
+| github.com/shopspring/decimal | v1.4.0 | Precise decimal arithmetic |
+| github.com/antlr4-go/antlr/v4 | v4.13.1 | ANTLR4 for Gold DSL parser |
+| github.com/Masterminds/squirrel | v1.5.4 | SQL query builder |
+| github.com/testcontainers/testcontainers-go | v0.41.0 | Integration test containers |
+| github.com/vmihailenco/msgpack/v5 | v5.4.1 | MessagePack serialization |
+| go.opentelemetry.io/otel | v1.42.0 | OpenTelemetry tracing |
+| go.uber.org/mock | v0.6.0 | Mock generation |
+
+## 9. Multi-Tenancy
+
+When `MULTI_TENANT_ENABLED=true`:
+
+1. **Requires** `PLUGIN_AUTH_ENABLED=true` (JWT provides tenant ID)
+2. Tenant-manager client resolves per-tenant database connections
+3. TenantMiddleware injects tenant-scoped PG/Mongo connections into request context
+4. Event-driven tenant discovery via Redis Pub/Sub
+5. TenantCache provides process-local caching with configurable TTL
+6. On tenant suspend/delete: all connections (PG, Mongo, RabbitMQ) are closed and cache invalidated
+7. RabbitMQ consumers are started/stopped per tenant dynamically
+8. Modules: `onboarding` and `transaction` with independent PG and Mongo managers
+
+## 10. Gold DSL
+
+The Gold DSL (`pkg/gold/`) is an ANTLR4-based domain-specific language for defining transactions:
+
+```
+send $100.00 USD
+  from @source_account
+  to @destination_account
+```
+
+Grammar: `pkg/gold/Transaction.g4`
+Parser: `pkg/gold/parser/`
+Transaction builder: `pkg/gold/transaction/`
+
+## 11. Testing
+
+### Test Types
+- **Unit tests**: `*_test.go` files alongside source
+- **Integration tests**: `*_integration_test.go` with testcontainers
+- **Fuzz tests**: `*_fuzz_test.go` for property-based testing
+- **Property tests**: `*_property_test.go` for invariant verification
+- **Chaos tests**: `*_chaos_test.go` for resilience testing
+- **Goroutine leak detection**: `goleak_test.go` in bootstrap
+
+### Build Tags
+- `integration`: testcontainers-based integration tests
+- No tag: unit tests (default)
