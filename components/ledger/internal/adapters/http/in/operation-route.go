@@ -262,17 +262,9 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 			return http.WithError(c, err)
 		}
 
-		// Handle explicit top-level null for accountingEntries (RFC 7396: clear all)
-		var mergedEntries *mmodel.AccountingEntries
-		rawTrimmed := strings.TrimSpace(string(payload.AccountingEntriesRaw))
-		if rawTrimmed == "null" {
-			// Explicit null at top level - clear all entries
-			mergedEntries = nil
-		} else {
-			// Merge incoming entries with existing to get final state
-			// Pass raw JSON to properly handle explicit null removals (RFC 7396)
-			mergedEntries = mergeAccountingEntries(existingRoute.AccountingEntries, payload.AccountingEntries, payload.AccountingEntriesRaw)
-		}
+		// Merge incoming entries with existing to get final state
+		// Pass raw JSON to properly handle explicit null removals (RFC 7396)
+		mergedEntries := mergeAccountingEntries(existingRoute.AccountingEntries, payload.AccountingEntries, payload.AccountingEntriesRaw)
 
 		// Validate the merged entries against the direction×scenario matrix
 		if err := handler.validateAccountingRulesMatrix(ctx, existingRoute.OperationType, mergedEntries); err != nil {
@@ -1032,6 +1024,78 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 	return nil
 }
 
+// mergeAccountingEntry merges a single accounting entry at the sub-field level.
+// It applies RFC 7396 semantics to the debit and credit rubric pointers so that
+// a PATCH containing only one side (e.g. {"debit":{...}}) preserves the other
+// side from the existing entry rather than dropping it.
+//
+//   - Sub-field absent in rawEntry  → keep existing rubric
+//   - Sub-field explicitly null     → set to nil (remove)
+//   - Sub-field set to a value      → use incoming rubric
+func mergeAccountingEntry(existing, incoming *mmodel.AccountingEntry, rawEntry json.RawMessage) *mmodel.AccountingEntry {
+	// Nothing to merge into — return incoming as-is (may itself be nil)
+	if existing == nil {
+		return incoming
+	}
+
+	result := &mmodel.AccountingEntry{
+		Debit:  existing.Debit,
+		Credit: existing.Credit,
+	}
+
+	// If we have no raw bytes we cannot detect omitted vs explicit-null; fall back
+	// to non-nil-wins so that an incoming non-nil rubric always overwrites.
+	if len(rawEntry) == 0 {
+		if incoming != nil {
+			if incoming.Debit != nil {
+				result.Debit = incoming.Debit
+			}
+
+			if incoming.Credit != nil {
+				result.Credit = incoming.Credit
+			}
+		}
+
+		return result
+	}
+
+	var rawSubFields map[string]json.RawMessage
+	if err := json.Unmarshal(rawEntry, &rawSubFields); err != nil {
+		// Unparseable raw — fall back to incoming-wins for non-nil rubrics
+		if incoming != nil {
+			if incoming.Debit != nil {
+				result.Debit = incoming.Debit
+			}
+
+			if incoming.Credit != nil {
+				result.Credit = incoming.Credit
+			}
+		}
+
+		return result
+	}
+
+	// Apply sub-field level merge for debit
+	if rawDebit, present := rawSubFields["debit"]; present {
+		if string(rawDebit) == "null" {
+			result.Debit = nil
+		} else if incoming != nil {
+			result.Debit = incoming.Debit
+		}
+	}
+
+	// Apply sub-field level merge for credit
+	if rawCredit, present := rawSubFields["credit"]; present {
+		if string(rawCredit) == "null" {
+			result.Credit = nil
+		} else if incoming != nil {
+			result.Credit = incoming.Credit
+		}
+	}
+
+	return result
+}
+
 // mergeAccountingEntries creates a merged view of existing and incoming accounting entries.
 // Used for PATCH operations where only partial updates are provided.
 //
@@ -1079,13 +1143,10 @@ func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries, rawUpd
 			return nil
 		}
 
-		// Field has a value - use incoming (which was unmarshaled from the same JSON)
-		if incomingEntry != nil {
-			return incomingEntry
-		}
-
-		// Incoming is nil but raw wasn't null - keep existing as fallback
-		return existingEntry
+		// Field has a value - merge at sub-field level so that a PATCH sending only
+		// one side (e.g. {"direct":{"debit":{...}}}) preserves the other side
+		// (e.g. existing direct.credit) instead of discarding it.
+		return mergeAccountingEntry(existingEntry, incomingEntry, raw)
 	}
 
 	var incomingDirect, incomingHold, incomingCommit, incomingCancel, incomingRevert *mmodel.AccountingEntry

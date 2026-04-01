@@ -1052,6 +1052,121 @@ func TestMergeAccountingEntries_ExplicitNullRemoval(t *testing.T) {
 	}
 }
 
+func TestMergeAccountingEntries_FieldLevelMerge(t *testing.T) {
+	t.Parallel()
+
+	existingDebit := &mmodel.AccountingRubric{Code: "D-OLD", Description: "Existing Debit"}
+	existingCredit := &mmodel.AccountingRubric{Code: "C-OLD", Description: "Existing Credit"}
+	newDebit := &mmodel.AccountingRubric{Code: "D-NEW", Description: "New Debit"}
+	newCredit := &mmodel.AccountingRubric{Code: "C-NEW", Description: "New Credit"}
+
+	existingEntries := &mmodel.AccountingEntries{
+		Direct: &mmodel.AccountingEntry{
+			Debit:  existingDebit,
+			Credit: existingCredit,
+		},
+	}
+
+	tests := []struct {
+		name           string
+		existing       *mmodel.AccountingEntries
+		incoming       *mmodel.AccountingEntries
+		rawUpdates     string
+		wantDebit      *mmodel.AccountingRubric
+		wantCredit     *mmodel.AccountingRubric
+		wantDirectNil  bool
+	}{
+		{
+			name:     "patch only debit preserves existing credit",
+			existing: existingEntries,
+			incoming: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Debit: newDebit,
+					// Credit omitted in JSON → incoming.Credit is nil
+				},
+			},
+			rawUpdates: `{"direct": {"debit": {"code": "D-NEW", "description": "New Debit"}}}`,
+			wantDebit:  newDebit,
+			wantCredit: existingCredit, // must be preserved
+		},
+		{
+			name:     "patch only credit preserves existing debit",
+			existing: existingEntries,
+			incoming: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Credit: newCredit,
+					// Debit omitted in JSON → incoming.Debit is nil
+				},
+			},
+			rawUpdates: `{"direct": {"credit": {"code": "C-NEW", "description": "New Credit"}}}`,
+			wantDebit:  existingDebit, // must be preserved
+			wantCredit: newCredit,
+		},
+		{
+			name:     "patch both debit and credit replaces both",
+			existing: existingEntries,
+			incoming: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Debit:  newDebit,
+					Credit: newCredit,
+				},
+			},
+			rawUpdates: `{"direct": {"debit": {"code": "D-NEW", "description": "New Debit"}, "credit": {"code": "C-NEW", "description": "New Credit"}}}`,
+			wantDebit:  newDebit,
+			wantCredit: newCredit,
+		},
+		{
+			name:     "explicit null debit drops existing debit",
+			existing: existingEntries,
+			incoming: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{},
+			},
+			rawUpdates:    `{"direct": {"debit": null}}`,
+			wantDebit:     nil,
+			wantCredit:    existingCredit, // credit preserved
+		},
+		{
+			name:     "explicit null credit drops existing credit",
+			existing: existingEntries,
+			incoming: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{},
+			},
+			rawUpdates:    `{"direct": {"credit": null}}`,
+			wantDebit:     existingDebit, // debit preserved
+			wantCredit:    nil,
+		},
+		{
+			name:     "absent scenario keeps both sides intact",
+			existing: existingEntries,
+			incoming: &mmodel.AccountingEntries{},
+			rawUpdates:  `{}`,
+			wantDebit:   existingDebit,
+			wantCredit:  existingCredit,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := mergeAccountingEntries(tt.existing, tt.incoming, []byte(tt.rawUpdates))
+
+			if tt.wantDirectNil {
+				if result != nil {
+					assert.Nil(t, result.Direct, "Direct should be nil")
+				}
+
+				return
+			}
+
+			require.NotNil(t, result)
+			require.NotNil(t, result.Direct, "Direct entry should not be nil")
+			assert.Equal(t, tt.wantDebit, result.Direct.Debit, "Debit mismatch")
+			assert.Equal(t, tt.wantCredit, result.Direct.Credit, "Credit mismatch")
+		})
+	}
+}
+
 func TestOperationRouteHandler_validateAccountingRulesMatrix(t *testing.T) {
 	t.Parallel()
 
