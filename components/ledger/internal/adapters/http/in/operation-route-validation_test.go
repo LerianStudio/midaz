@@ -68,24 +68,22 @@ func TestOperationRouteHandler_validateAccountingEntries(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "direct entry missing debit returns error",
+			name: "direct entry with only credit passes structure validation",
 			entries: &mmodel.AccountingEntries{
 				Direct: &mmodel.AccountingEntry{
 					Credit: &mmodel.AccountingRubric{Code: "2001", Description: "Revenue"},
 				},
 			},
-			expectError: true,
-			errorField:  "accountingEntries.direct.debit",
+			expectError: false, // Structure is valid; field requirements validated separately
 		},
 		{
-			name: "hold entry missing credit returns error",
+			name: "hold entry with only debit passes structure validation",
 			entries: &mmodel.AccountingEntries{
 				Hold: &mmodel.AccountingEntry{
 					Debit: &mmodel.AccountingRubric{Code: "1002", Description: "Held Funds"},
 				},
 			},
-			expectError: true,
-			errorField:  "accountingEntries.hold.credit",
+			expectError: false, // Structure is valid; field requirements validated separately
 		},
 		{
 			name: "debit with empty code returns error",
@@ -362,7 +360,7 @@ func TestOperationRouteHandler_validateDirectionScenarioMatrix(t *testing.T) {
 			errorCode:   "0162",
 		},
 		{
-			name:          "destination with revert - invalid",
+			name:          "destination with revert - invalid (uses 0165 same as source)",
 			operationType: constant.OperationRouteTypeDestination,
 			entries: &mmodel.AccountingEntries{
 				Direct: &mmodel.AccountingEntry{
@@ -375,7 +373,7 @@ func TestOperationRouteHandler_validateDirectionScenarioMatrix(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorCode:   "0162",
+			errorCode:   "0165",
 		},
 
 		// Bidirectional direction tests
@@ -1222,6 +1220,289 @@ func TestOperationRouteHandler_validateAccountingRulesMatrix(t *testing.T) {
 			if tt.expectError {
 				require.Error(t, err, "expected validation error")
 				assert.Contains(t, err.Error(), tt.errorCode, "error should contain expected code")
+			} else {
+				require.NoError(t, err, "expected no validation error")
+			}
+		})
+	}
+}
+
+func TestGetFieldRequirements(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		operationType string
+		scenario      string
+		expectDebit   bool
+		expectCredit  bool
+	}{
+		// Source direction
+		{
+			name:          "source/direct requires only debit",
+			operationType: constant.OperationRouteTypeSource,
+			scenario:      constant.ActionDirect,
+			expectDebit:   true,
+			expectCredit:  false,
+		},
+		{
+			name:          "source/hold requires both",
+			operationType: constant.OperationRouteTypeSource,
+			scenario:      constant.ActionHold,
+			expectDebit:   true,
+			expectCredit:  true,
+		},
+		{
+			name:          "source/commit requires only debit",
+			operationType: constant.OperationRouteTypeSource,
+			scenario:      constant.ActionCommit,
+			expectDebit:   true,
+			expectCredit:  false,
+		},
+		{
+			name:          "source/cancel requires both",
+			operationType: constant.OperationRouteTypeSource,
+			scenario:      constant.ActionCancel,
+			expectDebit:   true,
+			expectCredit:  true,
+		},
+		// Destination direction
+		{
+			name:          "destination/direct requires only credit",
+			operationType: constant.OperationRouteTypeDestination,
+			scenario:      constant.ActionDirect,
+			expectDebit:   false,
+			expectCredit:  true,
+		},
+		{
+			name:          "destination/commit requires only credit",
+			operationType: constant.OperationRouteTypeDestination,
+			scenario:      constant.ActionCommit,
+			expectDebit:   false,
+			expectCredit:  true,
+		},
+		// Bidirectional direction
+		{
+			name:          "bidirectional/direct requires both",
+			operationType: constant.OperationRouteTypeBidirectional,
+			scenario:      constant.ActionDirect,
+			expectDebit:   true,
+			expectCredit:  true,
+		},
+		{
+			name:          "bidirectional/hold requires both",
+			operationType: constant.OperationRouteTypeBidirectional,
+			scenario:      constant.ActionHold,
+			expectDebit:   true,
+			expectCredit:  true,
+		},
+		{
+			name:          "bidirectional/revert requires both",
+			operationType: constant.OperationRouteTypeBidirectional,
+			scenario:      constant.ActionRevert,
+			expectDebit:   true,
+			expectCredit:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := getFieldRequirements(tt.operationType, tt.scenario)
+
+			assert.Equal(t, tt.expectDebit, req.debitRequired, "debit requirement mismatch")
+			assert.Equal(t, tt.expectCredit, req.creditRequired, "credit requirement mismatch")
+		})
+	}
+}
+
+func TestOperationRouteHandler_validateEntryFieldRequirements(t *testing.T) {
+	t.Parallel()
+
+	handler := &OperationRouteHandler{}
+
+	tests := []struct {
+		name          string
+		operationType string
+		entries       *mmodel.AccountingEntries
+		expectError   bool
+		errorCode     string
+		errorField    string
+	}{
+		// Source direction - direct requires only debit
+		{
+			name:          "source/direct with only debit - valid",
+			operationType: constant.OperationRouteTypeSource,
+			entries: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Debit: &mmodel.AccountingRubric{Code: "1001", Description: "Debit"},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:          "source/direct with both debit and credit - valid (permissive)",
+			operationType: constant.OperationRouteTypeSource,
+			entries: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Debit:  &mmodel.AccountingRubric{Code: "1001", Description: "Debit"},
+					Credit: &mmodel.AccountingRubric{Code: "2001", Description: "Credit"},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:          "source/direct with only credit - invalid (debit required)",
+			operationType: constant.OperationRouteTypeSource,
+			entries: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Credit: &mmodel.AccountingRubric{Code: "2001", Description: "Credit"},
+				},
+			},
+			expectError: true,
+			errorCode:   "0166",
+			errorField:  "debit",
+		},
+		// Source direction - hold requires both
+		{
+			name:          "source/hold with both - valid",
+			operationType: constant.OperationRouteTypeSource,
+			entries: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Debit: &mmodel.AccountingRubric{Code: "1001", Description: "Debit"},
+				},
+				Hold: &mmodel.AccountingEntry{
+					Debit:  &mmodel.AccountingRubric{Code: "1002", Description: "Hold Debit"},
+					Credit: &mmodel.AccountingRubric{Code: "2002", Description: "Hold Credit"},
+				},
+				Commit: &mmodel.AccountingEntry{
+					Debit: &mmodel.AccountingRubric{Code: "1003", Description: "Commit Debit"},
+				},
+				Cancel: &mmodel.AccountingEntry{
+					Debit:  &mmodel.AccountingRubric{Code: "1004", Description: "Cancel Debit"},
+					Credit: &mmodel.AccountingRubric{Code: "2004", Description: "Cancel Credit"},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:          "source/hold missing credit - invalid",
+			operationType: constant.OperationRouteTypeSource,
+			entries: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Debit: &mmodel.AccountingRubric{Code: "1001", Description: "Debit"},
+				},
+				Hold: &mmodel.AccountingEntry{
+					Debit: &mmodel.AccountingRubric{Code: "1002", Description: "Hold Debit"},
+				},
+				Commit: &mmodel.AccountingEntry{
+					Debit: &mmodel.AccountingRubric{Code: "1003", Description: "Commit Debit"},
+				},
+				Cancel: &mmodel.AccountingEntry{
+					Debit:  &mmodel.AccountingRubric{Code: "1004", Description: "Cancel Debit"},
+					Credit: &mmodel.AccountingRubric{Code: "2004", Description: "Cancel Credit"},
+				},
+			},
+			expectError: true,
+			errorCode:   "0166",
+			errorField:  "credit",
+		},
+		// Destination direction - direct requires only credit
+		{
+			name:          "destination/direct with only credit - valid",
+			operationType: constant.OperationRouteTypeDestination,
+			entries: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Credit: &mmodel.AccountingRubric{Code: "2001", Description: "Credit"},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:          "destination/direct with only debit - invalid (credit required)",
+			operationType: constant.OperationRouteTypeDestination,
+			entries: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Debit: &mmodel.AccountingRubric{Code: "1001", Description: "Debit"},
+				},
+			},
+			expectError: true,
+			errorCode:   "0166",
+			errorField:  "credit",
+		},
+		{
+			name:          "destination/direct and commit with only credit - valid",
+			operationType: constant.OperationRouteTypeDestination,
+			entries: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Credit: &mmodel.AccountingRubric{Code: "2001", Description: "Credit"},
+				},
+				Commit: &mmodel.AccountingEntry{
+					Credit: &mmodel.AccountingRubric{Code: "2003", Description: "Commit Credit"},
+				},
+			},
+			expectError: false,
+		},
+		// Bidirectional direction - all scenarios require both
+		{
+			name:          "bidirectional/direct with both - valid",
+			operationType: constant.OperationRouteTypeBidirectional,
+			entries: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Debit:  &mmodel.AccountingRubric{Code: "1001", Description: "Debit"},
+					Credit: &mmodel.AccountingRubric{Code: "2001", Description: "Credit"},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:          "bidirectional/direct missing debit - invalid",
+			operationType: constant.OperationRouteTypeBidirectional,
+			entries: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Credit: &mmodel.AccountingRubric{Code: "2001", Description: "Credit"},
+				},
+			},
+			expectError: true,
+			errorCode:   "0166",
+			errorField:  "debit",
+		},
+		{
+			name:          "bidirectional/direct missing credit - invalid",
+			operationType: constant.OperationRouteTypeBidirectional,
+			entries: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Debit: &mmodel.AccountingRubric{Code: "1001", Description: "Debit"},
+				},
+			},
+			expectError: true,
+			errorCode:   "0166",
+			errorField:  "credit",
+		},
+		// Nil entries - valid
+		{
+			name:          "nil entries - valid",
+			operationType: constant.OperationRouteTypeSource,
+			entries:       nil,
+			expectError:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			err := handler.validateEntryFieldRequirements(ctx, tt.operationType, tt.entries, "OperationRoute")
+
+			if tt.expectError {
+				require.Error(t, err, "expected validation error")
+				assert.Contains(t, err.Error(), tt.errorCode, "error should contain expected code")
+				if tt.errorField != "" {
+					assert.Contains(t, err.Error(), tt.errorField, "error should reference the missing field")
+				}
 			} else {
 				require.NoError(t, err, "expected no validation error")
 			}

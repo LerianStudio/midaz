@@ -179,6 +179,7 @@ var (
 	ErrReserveGroupIncomplete         = errors.New("0163")
 	ErrDirectScenarioRequired         = errors.New("0164")
 	ErrRevertOnlyBidirectional        = errors.New("0165")
+	ErrAccountingEntryFieldRequired   = errors.New("0166")
 )
 
 // List of CRM errors.

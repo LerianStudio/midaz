@@ -1346,6 +1346,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Revert Only for Bidirectional",
 			Message:    fmt.Sprintf("The revert scenario is only allowed for bidirectional operation routes. %v", args...),
 		},
+		constant.ErrAccountingEntryFieldRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountingEntryFieldRequired.Error(),
+			Title:      "Accounting Entry Field Required",
+			Message:    fmt.Sprintf("A required field is missing in the accounting entry. %v", args...),
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

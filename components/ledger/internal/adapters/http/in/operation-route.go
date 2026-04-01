@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
@@ -22,9 +23,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.opentelemetry.io/otel/attribute"
-
-	// OperationRouteHandler is a struct that contains the command and query use cases.
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type OperationRouteHandler struct {
@@ -539,8 +538,10 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 	return nil
 }
 
-// validateAccountingEntries validates accounting entries configuration for operation routes.
-// It ensures each action entry has both debit and credit rubrics with non-empty code and description.
+// validateAccountingEntries validates the structure of accounting entries.
+// It ensures that any present rubric (debit/credit) has non-empty code and description.
+// Note: This function validates STRUCTURE only. Field REQUIREMENTS (which fields are mandatory
+// based on direction+scenario) are validated by validateAccountingRulesMatrix.
 func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Context, entries *mmodel.AccountingEntries) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -571,6 +572,7 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 			continue
 		}
 
+		// An entry with neither debit nor credit is invalid structure
 		if action.entry.Debit == nil && action.entry.Credit == nil {
 			fieldPath := "accountingEntries." + action.name + ".debit, accountingEntries." + action.name + ".credit"
 
@@ -583,63 +585,54 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 			return err
 		}
 
-		if action.entry.Debit == nil {
-			fieldPath := "accountingEntries." + action.name + ".debit"
-
-			err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting entry missing debit", err)
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s missing debit, Error: %s", action.name, err.Error()))
-
-			return err
-		}
-
-		if action.entry.Credit == nil {
-			fieldPath := "accountingEntries." + action.name + ".credit"
-
-			err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting entry missing credit", err)
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s missing credit, Error: %s", action.name, err.Error()))
-
-			return err
-		}
-
-		rubrics := []struct {
-			side   string
-			rubric *mmodel.AccountingRubric
-		}{
-			{"debit", action.entry.Debit},
-			{"credit", action.entry.Credit},
-		}
-
-		for _, r := range rubrics {
-			if strings.TrimSpace(r.rubric.Code) == "" {
-				fieldPath := "accountingEntries." + action.name + "." + r.side + ".code"
-
-				err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
-
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric code is empty", err)
-
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s %s code is empty, Error: %s", action.name, r.side, err.Error()))
-
-				return err
-			}
-
-			if strings.TrimSpace(r.rubric.Description) == "" {
-				fieldPath := "accountingEntries." + action.name + "." + r.side + ".description"
-
-				err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
-
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric description is empty", err)
-
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s %s description is empty, Error: %s", action.name, r.side, err.Error()))
-
+		// Validate debit rubric if present
+		if action.entry.Debit != nil {
+			if err := handler.validateRubricStructure(ctx, span, logger, entityName, action.name, "debit", action.entry.Debit); err != nil {
 				return err
 			}
 		}
+
+		// Validate credit rubric if present
+		if action.entry.Credit != nil {
+			if err := handler.validateRubricStructure(ctx, span, logger, entityName, action.name, "credit", action.entry.Credit); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateRubricStructure validates that a rubric has non-empty code and description.
+func (handler *OperationRouteHandler) validateRubricStructure(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	entityName, actionName, side string,
+	rubric *mmodel.AccountingRubric,
+) error {
+	if strings.TrimSpace(rubric.Code) == "" {
+		fieldPath := "accountingEntries." + actionName + "." + side + ".code"
+
+		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric code is empty", err)
+
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s %s code is empty, Error: %s", actionName, side, err.Error()))
+
+		return err
+	}
+
+	if strings.TrimSpace(rubric.Description) == "" {
+		fieldPath := "accountingEntries." + actionName + "." + side + ".description"
+
+		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, entityName, fieldPath)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric description is empty", err)
+
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Accounting entry %s %s description is empty, Error: %s", actionName, side, err.Error()))
+
+		return err
 	}
 
 	return nil
@@ -679,6 +672,53 @@ func findUnknownAccountingEntryKeys(raw json.RawMessage) map[string]any {
 	return unknowns
 }
 
+// fieldRequirement defines which fields (debit/credit) are required for a direction+scenario.
+type fieldRequirement struct {
+	debitRequired  bool
+	creditRequired bool
+}
+
+// getFieldRequirements returns the field requirements based on operationType and scenario.
+// This implements the direction × scenario matrix from accounting-rules.md:
+//
+//	source:      direct[D], hold[D][C], commit[D], cancel[D][C]
+//	destination: direct[C], commit[C]
+//	bidirectional: all scenarios require [D][C]
+//
+// Note: Blocked scenarios (source/revert, destination/hold, etc.) are validated
+// separately by validateDirectionScenarioMatrix. This function assumes the
+// scenario is allowed for the direction.
+func getFieldRequirements(operationType, scenario string) fieldRequirement {
+	// Bidirectional always requires both
+	if operationType == constant.OperationRouteTypeBidirectional {
+		return fieldRequirement{debitRequired: true, creditRequired: true}
+	}
+
+	// Source direction requirements
+	if operationType == constant.OperationRouteTypeSource {
+		switch scenario {
+		case constant.ActionDirect, constant.ActionCommit:
+			// Unilateral operations at origin - only debit
+			return fieldRequirement{debitRequired: true, creditRequired: false}
+		case constant.ActionHold, constant.ActionCancel:
+			// Move between available ↔ on_hold in same account - both required
+			return fieldRequirement{debitRequired: true, creditRequired: true}
+		}
+	}
+
+	// Destination direction requirements
+	if operationType == constant.OperationRouteTypeDestination {
+		switch scenario {
+		case constant.ActionDirect, constant.ActionCommit:
+			// Unilateral operations at destination - only credit
+			return fieldRequirement{debitRequired: false, creditRequired: true}
+		}
+	}
+
+	// Default: require both (safe fallback)
+	return fieldRequirement{debitRequired: true, creditRequired: true}
+}
+
 // validateAccountingRulesMatrix validates that the accounting entries comply with
 // the direction × scenario matrix defined in accounting-rules.md.
 //
@@ -708,8 +748,13 @@ func (handler *OperationRouteHandler) validateAccountingRulesMatrix(
 
 	entityName := reflect.TypeOf(mmodel.OperationRoute{}).Name()
 
-	// Check direction × scenario matrix
+	// Check direction × scenario matrix (which scenarios are allowed)
 	if err := handler.validateDirectionScenarioMatrix(ctx, operationType, entries, entityName); err != nil {
+		return err
+	}
+
+	// Check field requirements per direction+scenario (which debit/credit are required)
+	if err := handler.validateEntryFieldRequirements(ctx, operationType, entries, entityName); err != nil {
 		return err
 	}
 
@@ -757,14 +802,13 @@ func (handler *OperationRouteHandler) validateDirectionScenarioMatrix(
 		}
 
 	case constant.OperationRouteTypeDestination:
-		// destination: hold, cancel, revert are NOT allowed
+		// destination: hold, cancel are NOT allowed (return 0162)
 		invalidScenarios := []struct {
 			name  string
 			entry *mmodel.AccountingEntry
 		}{
 			{constant.ActionHold, entries.Hold},
 			{constant.ActionCancel, entries.Cancel},
-			{constant.ActionRevert, entries.Revert},
 		}
 
 		for _, scenario := range invalidScenarios {
@@ -780,6 +824,20 @@ func (handler *OperationRouteHandler) validateDirectionScenarioMatrix(
 
 				return err
 			}
+		}
+
+		// destination: revert is NOT allowed (return 0165 - same as source)
+		if entries.Revert != nil {
+			err := pkg.ValidateBusinessError(
+				constant.ErrRevertOnlyBidirectional,
+				entityName,
+				"revert is only allowed for bidirectional operation routes",
+			)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Revert not allowed for destination direction", err)
+			logger.Log(ctx, libLog.LevelWarn, "Revert scenario not allowed for destination direction")
+
+			return err
 		}
 
 	case constant.OperationRouteTypeBidirectional:
@@ -886,6 +944,82 @@ func (handler *OperationRouteHandler) validateDirectMandatory(
 
 		return err
 	}
+
+	return nil
+}
+
+// validateEntryFieldRequirements validates that required fields (debit/credit) are present
+// based on the direction × scenario matrix. This is a permissive validation:
+// - Required fields MUST be present
+// - Non-required fields MAY be present (accepted but not enforced)
+func (handler *OperationRouteHandler) validateEntryFieldRequirements(
+	ctx context.Context,
+	operationType string,
+	entries *mmodel.AccountingEntries,
+	entityName string,
+) error {
+	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.validate_entry_field_requirements")
+	defer span.End()
+
+	// If no entries, nothing to validate
+	if entries == nil {
+		return nil
+	}
+
+	actions := []struct {
+		name  string
+		entry *mmodel.AccountingEntry
+	}{
+		{constant.ActionDirect, entries.Direct},
+		{constant.ActionHold, entries.Hold},
+		{constant.ActionCommit, entries.Commit},
+		{constant.ActionCancel, entries.Cancel},
+		{constant.ActionRevert, entries.Revert},
+	}
+
+	for _, action := range actions {
+		if action.entry == nil {
+			continue
+		}
+
+		req := getFieldRequirements(operationType, action.name)
+
+		// Check debit requirement
+		if req.debitRequired && action.entry.Debit == nil {
+			fieldPath := fmt.Sprintf("accountingEntries.%s.debit", action.name)
+
+			err := pkg.ValidateBusinessError(
+				constant.ErrAccountingEntryFieldRequired,
+				entityName,
+				fmt.Sprintf("%s is required for %s/%s", "debit", operationType, action.name),
+			)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("Debit required for %s/%s", operationType, action.name), err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Missing required field %s, Error: %s", fieldPath, err.Error()))
+
+			return err
+		}
+
+		// Check credit requirement
+		if req.creditRequired && action.entry.Credit == nil {
+			fieldPath := fmt.Sprintf("accountingEntries.%s.credit", action.name)
+
+			err := pkg.ValidateBusinessError(
+				constant.ErrAccountingEntryFieldRequired,
+				entityName,
+				fmt.Sprintf("%s is required for %s/%s", "credit", operationType, action.name),
+			)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("Credit required for %s/%s", operationType, action.name), err)
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Missing required field %s, Error: %s", fieldPath, err.Error()))
+
+			return err
+		}
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Entry field requirements validation passed")
 
 	return nil
 }
