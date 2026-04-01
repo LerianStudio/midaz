@@ -53,6 +53,7 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 		OperationType: &filter.OperationType,
 		Direction:     filter.Direction,
 		RouteID:       filter.RouteID,
+		RouteCode:     filter.RouteCode,
 	}
 
 	oper, cur, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, opFilter, filter.ToCursorPagination())

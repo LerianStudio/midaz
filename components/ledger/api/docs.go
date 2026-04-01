@@ -2749,6 +2749,12 @@ const docTemplate = `
             "description": "Filter by operation route ID",
             "name": "route_id",
             "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter by operation route code",
+            "name": "route_code",
+            "in": "query"
           }
         ],
         "responses": {
@@ -8996,7 +9002,7 @@ const docTemplate = `
           ]
         },
         "code": {
-          "description": "External reference of the operation route.",
+          "description": "Deprecated: external reference code kept for backward compatibility. Use the rubric codes inside accountingEntries instead.\nexample: EXT-001\nmaxLength: 100\ndeprecated: true",
           "type": "string",
           "maxLength": 100,
           "example": "EXT-001"
@@ -9735,7 +9741,7 @@ const docTemplate = `
           ]
         },
         "code": {
-          "description": "External reference of the operation route.",
+          "description": "Deprecated: external reference code kept for backward compatibility. Use the rubric codes inside accountingEntries instead.\nexample: EXT-001\ndeprecated: true",
           "type": "string",
           "example": "EXT-001"
         },
@@ -10374,7 +10380,7 @@ const docTemplate = `
           ]
         },
         "code": {
-          "description": "External reference of the operation route.",
+          "description": "Deprecated: external reference code kept for backward compatibility. Use the rubric codes inside accountingEntries instead.\nexample: EXT-001\nmaxLength: 100\ndeprecated: true",
           "type": "string",
           "maxLength": 100,
           "example": "EXT-001"

@@ -2245,6 +2245,11 @@ paths:
         schema:
           format: uuid
           type: string
+      - description: Filter by operation route code
+        in: query
+        name: route_code
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -7799,7 +7804,11 @@ components:
             with this operation route.
           type: object
         code:
-          description: External reference of the operation route.
+          description: |-
+            Deprecated: external reference code kept for backward compatibility. Use the rubric codes inside accountingEntries instead.
+            example: EXT-001
+            maxLength: 100
+            deprecated: true
           example: EXT-001
           maxLength: 100
           type: string
@@ -8643,7 +8652,10 @@ components:
             with this operation route.
           type: object
         code:
-          description: External reference of the operation route.
+          description: |-
+            Deprecated: external reference code kept for backward compatibility. Use the rubric codes inside accountingEntries instead.
+            example: EXT-001
+            deprecated: true
           example: EXT-001
           type: string
         createdAt:
@@ -9489,7 +9501,11 @@ components:
             with this operation route.
           type: object
         code:
-          description: External reference of the operation route.
+          description: |-
+            Deprecated: external reference code kept for backward compatibility. Use the rubric codes inside accountingEntries instead.
+            example: EXT-001
+            maxLength: 100
+            deprecated: true
           example: EXT-001
           maxLength: 100
           type: string
