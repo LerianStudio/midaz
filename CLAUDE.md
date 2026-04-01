@@ -237,21 +237,324 @@ Migrations in `components/ledger/migrations/onboarding/` and `components/ledger/
 - **transaction** database: metadata collections
 - **crm** database: holders, aliases, related parties
 
-## Build Commands
+## Environment Variables — Complete Reference
 
+Source: `components/ledger/internal/bootstrap/config.go` (Ledger) and `components/crm/internal/bootstrap/config.go` (CRM).
+Defaults shown in parentheses where set by `applyConfigDefaults()` or env tags.
+
+### Application
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APPLICATION_NAME` | — | Application identity (used for tenant-manager service name) |
+| `ENV_NAME` | development | Environment: development, staging, uat, production, local |
+| `VERSION` | — | Application version string |
+| `LOG_LEVEL` | debug | Log level |
+| `SERVER_ADDRESS` | :3002 | Listen address (Ledger) |
+
+### Auth / Casdoor
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PLUGIN_AUTH_ENABLED` | false | Enable auth middleware |
+| `PLUGIN_AUTH_HOST` | — | Auth service host (Ledger) |
+| `CASDOOR_JWK_ADDRESS` | — | JWK endpoint for Casdoor JWT validation |
+
+### PostgreSQL — Onboarding (Primary + Replica)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_ONBOARDING_HOST` | midaz-postgres-primary | Primary host |
+| `DB_ONBOARDING_USER` | midaz | Username |
+| `DB_ONBOARDING_PASSWORD` | lerian | Password |
+| `DB_ONBOARDING_NAME` | onboarding | Database name |
+| `DB_ONBOARDING_PORT` | 5701 | Port |
+| `DB_ONBOARDING_SSLMODE` | disable | SSL mode |
+| `DB_ONBOARDING_REPLICA_HOST` | midaz-postgres-replica | Replica host |
+| `DB_ONBOARDING_REPLICA_USER` | midaz | Replica username |
+| `DB_ONBOARDING_REPLICA_PASSWORD` | lerian | Replica password |
+| `DB_ONBOARDING_REPLICA_NAME` | onboarding | Replica database name |
+| `DB_ONBOARDING_REPLICA_PORT` | 5702 | Replica port |
+| `DB_ONBOARDING_REPLICA_SSLMODE` | disable | Replica SSL mode |
+| `DB_ONBOARDING_MAX_OPEN_CONNS` | 3000 | Max open connections |
+| `DB_ONBOARDING_MAX_IDLE_CONNS` | 3000 | Max idle connections |
+
+### PostgreSQL — Transaction (Primary + Replica)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_TRANSACTION_HOST` | midaz-postgres-primary | Primary host |
+| `DB_TRANSACTION_USER` | midaz | Username |
+| `DB_TRANSACTION_PASSWORD` | lerian | Password |
+| `DB_TRANSACTION_NAME` | transaction | Database name |
+| `DB_TRANSACTION_PORT` | 5701 | Port |
+| `DB_TRANSACTION_SSLMODE` | disable | SSL mode |
+| `DB_TRANSACTION_REPLICA_HOST` | midaz-postgres-replica | Replica host |
+| `DB_TRANSACTION_REPLICA_USER` | midaz | Replica username |
+| `DB_TRANSACTION_REPLICA_PASSWORD` | lerian | Replica password |
+| `DB_TRANSACTION_REPLICA_NAME` | transaction | Replica database name |
+| `DB_TRANSACTION_REPLICA_PORT` | 5702 | Replica port |
+| `DB_TRANSACTION_REPLICA_SSLMODE` | disable | Replica SSL mode |
+| `DB_TRANSACTION_MAX_OPEN_CONNS` | 3000 | Max open connections |
+| `DB_TRANSACTION_MAX_IDLE_CONNS` | 3000 | Max idle connections |
+
+### MongoDB — Onboarding
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MONGO_ONBOARDING_URI` | mongodb | Connection URI scheme |
+| `MONGO_ONBOARDING_HOST` | midaz-mongodb | Host |
+| `MONGO_ONBOARDING_NAME` | onboarding | Database name |
+| `MONGO_ONBOARDING_USER` | midaz | Username |
+| `MONGO_ONBOARDING_PASSWORD` | lerian | Password |
+| `MONGO_ONBOARDING_PORT` | 5703 | Port |
+| `MONGO_ONBOARDING_PARAMETERS` | — | Extra connection params (appended to URI) |
+| `MONGO_ONBOARDING_MAX_POOL_SIZE` | 1000 | Max pool size |
+
+### MongoDB — Transaction
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MONGO_TRANSACTION_URI` | mongodb | Connection URI scheme |
+| `MONGO_TRANSACTION_HOST` | midaz-mongodb | Host |
+| `MONGO_TRANSACTION_NAME` | transaction | Database name |
+| `MONGO_TRANSACTION_USER` | midaz | Username |
+| `MONGO_TRANSACTION_PASSWORD` | lerian | Password |
+| `MONGO_TRANSACTION_PORT` | 5703 | Port |
+| `MONGO_TRANSACTION_PARAMETERS` | — | Extra connection params |
+| `MONGO_TRANSACTION_MAX_POOL_SIZE` | 1000 | Max pool size |
+
+### Redis / Valkey
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REDIS_HOST` | midaz-valkey:5704 | Host(s); comma-separated for cluster/sentinel |
+| `REDIS_MASTER_NAME` | — | Sentinel master name (enables sentinel mode) |
+| `REDIS_PASSWORD` | lerian | Password |
+| `REDIS_DB` | 0 | Database index |
+| `REDIS_PROTOCOL` | (3) | RESP protocol version |
+| `REDIS_TLS` | false | Enable TLS |
+| `REDIS_CA_CERT` | — | CA certificate (base64) for TLS |
+| `REDIS_USE_GCP_IAM` | false | Use GCP IAM auth instead of password |
+| `REDIS_SERVICE_ACCOUNT` | — | GCP service account for IAM auth |
+| `GOOGLE_APPLICATION_CREDENTIALS` | — | GCP credentials (base64) for IAM auth |
+| `REDIS_TOKEN_LIFETIME` | (60) | GCP IAM token lifetime (minutes) |
+| `REDIS_TOKEN_REFRESH_DURATION` | (45) | GCP IAM token refresh interval (minutes) |
+| `REDIS_POOL_SIZE` | (10) | Connection pool size |
+| `REDIS_MIN_IDLE_CONNS` | 0 | Minimum idle connections |
+| `REDIS_READ_TIMEOUT` | (3) | Read timeout (seconds) |
+| `REDIS_WRITE_TIMEOUT` | (3) | Write timeout (seconds) |
+| `REDIS_DIAL_TIMEOUT` | (5) | Dial timeout (seconds) |
+| `REDIS_POOL_TIMEOUT` | (2) | Pool wait timeout (seconds) |
+| `REDIS_MAX_RETRIES` | (3) | Max retries per command |
+| `REDIS_MIN_RETRY_BACKOFF` | (8) | Min retry backoff (milliseconds) |
+| `REDIS_MAX_RETRY_BACKOFF` | (1) | Max retry backoff (seconds) |
+
+### RabbitMQ
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RABBITMQ_URI` | amqp | Protocol scheme (amqp/amqps) |
+| `RABBITMQ_HOST` | midaz-rabbitmq | Host |
+| `RABBITMQ_PORT_HOST` | 3003 | Management port |
+| `RABBITMQ_PORT_AMQP` | 3004 | AMQP port |
+| `RABBITMQ_DEFAULT_USER` | transaction | Producer username |
+| `RABBITMQ_DEFAULT_PASS` | lerian | Producer password |
+| `RABBITMQ_CONSUMER_USER` | consumer | Consumer username |
+| `RABBITMQ_CONSUMER_PASS` | lerian | Consumer password |
+| `RABBITMQ_VHOST` | — | Virtual host (empty = default "/") |
+| `RABBITMQ_NUMBERS_OF_WORKERS` | 5 | Consumer worker count |
+| `RABBITMQ_NUMBERS_OF_PREFETCH` | 10 | Prefetch count per worker |
+| `RABBITMQ_HEALTH_CHECK_URL` | — | Health check URL |
+| `RABBITMQ_TLS` | false | Enable TLS |
+| `RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE` | — | Balance operation queue name |
+| `RABBITMQ_TRANSACTION_ASYNC` | false | Enable async transaction processing |
+| `RABBITMQ_OPERATION_TIMEOUT` | — | Operation timeout (e.g., "30s") |
+| `RABBITMQ_TRANSACTION_EVENTS_ENABLED` | false | Enable transaction event exchange |
+| `RABBITMQ_TRANSACTION_EVENTS_EXCHANGE` | — | Events exchange name |
+| `AUDIT_LOG_ENABLED` | false | Enable audit log publishing |
+| `RABBITMQ_AUDIT_EXCHANGE` | — | Audit exchange name |
+| `RABBITMQ_AUDIT_KEY` | — | Audit routing key |
+
+### RabbitMQ Circuit Breaker
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES` | 15 | Consecutive failures before open |
+| `RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO` | 50 | Failure % to trigger open (0-100) |
+| `RABBITMQ_CIRCUIT_BREAKER_INTERVAL` | 120 | Failure counting window (seconds) |
+| `RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS` | 3 | Requests allowed in half-open |
+| `RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS` | 10 | Min requests before ratio evaluated |
+| `RABBITMQ_CIRCUIT_BREAKER_TIMEOUT` | 30 | Open → half-open wait (seconds) |
+| `RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_INTERVAL` | 30 | Health check interval (seconds) |
+| `RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_TIMEOUT` | 10 | Health check timeout (seconds) |
+
+### Bulk Recorder
+
+Activates only when `RABBITMQ_TRANSACTION_ASYNC=true` AND `BULK_RECORDER_ENABLED=true`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BULK_RECORDER_ENABLED` | (true) | Enable bulk mode |
+| `BULK_RECORDER_SIZE` | (workers×prefetch) | Batch size (0 = auto-calculated) |
+| `BULK_RECORDER_FLUSH_TIMEOUT_MS` | (100) | Max wait before flush (ms) |
+| `BULK_RECORDER_MAX_ROWS_PER_INSERT` | (1000) | Max rows per INSERT statement |
+
+### Balance Sync / Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BALANCE_SYNC_MAX_WORKERS` | (5) | Balance sync worker count |
+| `SETTINGS_CACHE_TTL` | (5m) | Settings cache duration (Go duration) |
+
+### Pagination
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MAX_PAGINATION_LIMIT` | 100 | Max items per page |
+| `MAX_PAGINATION_MONTH_DATE_RANGE` | 3 | Max date range for queries (months) |
+
+### Telemetry (OpenTelemetry)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OTEL_RESOURCE_SERVICE_NAME` | ledger | Service name in traces |
+| `OTEL_LIBRARY_NAME` | — | Instrumentation library name |
+| `OTEL_RESOURCE_SERVICE_VERSION` | — | Service version in traces |
+| `OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT` | — | Deployment environment in traces |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | midaz-otel-lgtm:4317 | OTLP gRPC collector endpoint |
+| `ENABLE_TELEMETRY` | false | Enable telemetry export |
+
+### Multi-Tenant (Ledger)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MULTI_TENANT_ENABLED` | false | Enable multi-tenant mode |
+| `MULTI_TENANT_URL` | — | Tenant Manager API URL |
+| `MULTI_TENANT_SERVICE_API_KEY` | — | Service API key for tenant-manager |
+| `MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD` | (5) | CB failures before open |
+| `MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC` | (30) | CB open → half-open (seconds) |
+| `MULTI_TENANT_CONNECTIONS_CHECK_INTERVAL_SEC` | — | Interval for revalidation checks |
+| `MULTI_TENANT_CACHE_TTL_SEC` | (120) | Tenant config cache TTL (seconds) |
+| `MULTI_TENANT_REDIS_HOST` | — | Redis for tenant Pub/Sub events |
+| `MULTI_TENANT_REDIS_PORT` | 6379 | Redis port for Pub/Sub |
+| `MULTI_TENANT_REDIS_PASSWORD` | — | Redis password for Pub/Sub |
+| `MULTI_TENANT_REDIS_TLS` | false | Enable TLS for Pub/Sub Redis |
+
+### CRM-Specific Variables
+
+Source: `components/crm/internal/bootstrap/config.go`
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENV_NAME` | development | Environment name |
+| `PROTO_ADDRESS` | — | gRPC address (CRM-only) |
+| `SERVER_ADDRESS` | :4003 | HTTP listen address |
+| `LOG_LEVEL` | debug | Log level |
+| `MONGO_URI` | mongodb | Connection URI scheme |
+| `MONGO_HOST` | midaz-mongodb | MongoDB host |
+| `MONGO_NAME` | crm | Database name |
+| `MONGO_USER` | midaz | Username |
+| `MONGO_PASSWORD` | lerian | Password |
+| `MONGO_PORT` | 5703 | Port |
+| `MONGO_PARAMETERS` | — | Extra connection parameters |
+| `MONGO_MAX_POOL_SIZE` | 1000 | Max pool size |
+| `LCRYPTO_HASH_SECRET_KEY` | — | PII hash key (data security) |
+| `LCRYPTO_ENCRYPT_SECRET_KEY` | — | PII encryption key (data security) |
+| `PLUGIN_AUTH_ADDRESS` | — | Auth service address (CRM uses different var from Ledger) |
+| `PLUGIN_AUTH_ENABLED` | false | Enable auth |
+| `APPLICATION_NAME` | ledger | Application identity |
+| `MULTI_TENANT_ENABLED` | false | Enable multi-tenant |
+| `MULTI_TENANT_URL` | — | Tenant Manager API URL |
+| `MULTI_TENANT_TIMEOUT` | — | HTTP client timeout (seconds) |
+| `MULTI_TENANT_IDLE_TIMEOUT_SEC` | — | Idle connection eviction (seconds) |
+| `MULTI_TENANT_MAX_TENANT_POOLS` | — | Max concurrent tenant pools |
+| `MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD` | — | CB failures before open |
+| `MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC` | — | CB open → half-open (seconds) |
+| `MULTI_TENANT_SERVICE_API_KEY` | — | Service API key |
+| `MULTI_TENANT_CONNECTIONS_CHECK_INTERVAL_SEC` | — | Revalidation interval (seconds) |
+| `MULTI_TENANT_CACHE_TTL_SEC` | (120) | Tenant config cache TTL (seconds) |
+| `MULTI_TENANT_REDIS_HOST` | — | Redis for Pub/Sub |
+| `MULTI_TENANT_REDIS_PORT` | 6379 | Redis port |
+| `MULTI_TENANT_REDIS_PASSWORD` | — | Redis password |
+| `MULTI_TENANT_REDIS_TLS` | false | TLS for Redis |
+
+## Build & Make Targets — Complete Reference
+
+### Setup
 ```bash
-make set-env          # Setup .env files from .env.example
-make build            # Build ledger + CRM
-make up               # Start infra → ledger → CRM
-make down             # Stop all
-make lint             # Lint all components (golangci-lint v2)
-make test             # Run tests
-make test-unit        # Unit tests only
-make test-integration # Integration tests (testcontainers)
-make coverage-unit    # Unit test coverage
-make generate-docs    # Swagger docs
-make migrate-lint     # Lint SQL migrations
-make sec              # Security scans (gosec + govulncheck)
+make set-env              # Copy .env.example → .env for all components
+make clear-envs           # Remove all .env files
+make dev-setup            # Install tools (gitleaks, gofumpt, goimports, gosec, golangci-lint) + git hooks
+make setup-git-hooks      # Configure git hooks (core.hooksPath = .githooks)
+```
+
+### Build & Run
+```bash
+make build                # Build ledger + CRM binaries
+make up                   # Start all services (infra → ledger → CRM)
+make down                 # Stop all services (CRM → ledger → infra)
+make start                # Start existing containers
+make stop                 # Stop containers (no removal)
+make restart              # down + up
+make rebuild-up           # Rebuild images and restart
+make logs                 # Show logs for all services (tail 50)
+make clean                # Clean build artifacts (./scripts/clean-artifacts.sh)
+make clean-docker         # Clean Docker resources (containers, networks, volumes, prune)
+```
+
+### Code Quality
+```bash
+make lint                 # Lint all components + tests/ + pkg/ (golangci-lint v2.4.0)
+make format               # Format code in all components
+make tidy                 # go mod tidy
+make check-logs           # Verify error logging in usecases
+make check-tests          # Verify test coverage for components
+make check-hooks          # Verify git hooks installation
+make check-envs           # Check hooks + secret env files not exposed
+make sec                  # Run gosec + govulncheck
+make sec-gosec            # Run gosec only (SARIF=1 for GitHub Security tab)
+make sec-govulncheck      # Run govulncheck only
+```
+
+### Testing
+```bash
+make test                 # Run all tests (scripts/run-tests.sh)
+make test-unit            # Unit tests only (excludes tests/ and api/ dirs)
+make test-all             # Unit + integration tests
+make test-integration     # Integration tests (testcontainers, -p=1; RUN=, PKG=, CHAOS=1)
+make test-fuzz            # Native Go fuzz tests (FUZZ=target, FUZZTIME=10s)
+make test-bench           # Benchmark tests (BENCH=pattern, BENCH_PKG=./...)
+make test-chaos-system    # Chaos tests with full Docker stack (starts/stops services)
+```
+
+### Coverage
+```bash
+make cover                # Legacy coverage (scripts/coverage.sh → coverage.html)
+make coverage             # All coverage targets (unit + integration)
+make coverage-unit        # Unit test coverage (PKG=, uses .ignorecoverunit)
+make coverage-integration # Integration test coverage (PKG=, CHAOS=1)
+```
+
+### Component Delegation
+```bash
+make infra COMMAND=<cmd>          # Run make target in infra component
+make ledger COMMAND=<cmd>         # Run make target in ledger component
+make all-components COMMAND=<cmd> # Run make target across all components
+```
+
+### Documentation & Migrations
+```bash
+make generate-docs                 # Generate Swagger docs (scripts/generate-docs.sh)
+make migrate-lint                  # Lint SQL migrations for dangerous patterns
+make migrate-create COMPONENT=<onboarding|transaction> NAME=<name>  # Create new migration
+```
+
+### Test Tooling
+```bash
+make tools                # Install test tools (gotestsum)
+make tools-gotestsum      # Install gotestsum
+make wait-for-services    # Wait for backend services healthy (TEST_HEALTH_WAIT=60s)
 ```
 
 ## Coding Conventions

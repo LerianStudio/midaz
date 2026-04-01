@@ -270,25 +270,59 @@ Manages holders, aliases, related parties. Uses MongoDB for persistence. Support
 
 ### 5.1 Error Codes (pkg/constant/errors.go)
 
-Numeric codes 0001–0161 for ledger errors. CRM errors prefixed with `CRM-`.
+161 numeric codes (0001–0161) for ledger errors. 29 CRM errors prefixed with `CRM-`.
 
-Key error codes:
-- `0007` ErrEntityNotFound
-- `0009` ErrMissingFieldsInRequest
-- `0017` ErrInvalidScriptFormat (DSL errors)
-- `0018` ErrInsufficientFunds
-- `0020` ErrAliasUnavailability
-- `0041` ErrTokenMissing
-- `0042` ErrInvalidToken
-- `0043` ErrInsufficientPrivileges
-- `0046` ErrInternalServer
-- `0047` ErrBadRequest
-- `0084` ErrIdempotencyKey
-- `0086` ErrLockVersionAccountBalance (race condition)
-- `0095` ErrMessageBrokerUnavailable
-- `0146` ErrTenantNotProvisioned
-- `0159` ErrTenantServiceSuspended
-- `0160` ErrTenantNotFound
+#### Ledger Error Codes (selected key codes)
+- `0007` ErrEntityNotFound — entity not found
+- `0009` ErrMissingFieldsInRequest — required fields missing
+- `0017` ErrInvalidScriptFormat — Gold DSL parse error
+- `0018` ErrInsufficientFunds — insufficient funds
+- `0020` ErrAliasUnavailability — alias already in use
+- `0041` ErrTokenMissing — no auth token
+- `0042` ErrInvalidToken — expired/invalid token
+- `0043` ErrInsufficientPrivileges — forbidden
+- `0046` ErrInternalServer — unexpected server error
+- `0047` ErrBadRequest — malformed request
+- `0084` ErrIdempotencyKey — duplicate idempotency key
+- `0086` ErrLockVersionAccountBalance — race condition detected
+- `0095` ErrMessageBrokerUnavailable — RabbitMQ down
+- `0097` ErrOverFlowInt64 — integer overflow
+- `0125` ErrInvalidTransactionNonPositiveValue — zero/negative value
+- `0146` ErrTenantNotProvisioned — tenant DB not initialized
+- `0159` ErrTenantServiceSuspended — tenant service suspended
+- `0160` ErrTenantNotFound — tenant does not exist
+- `0161` ErrTenantServiceUnavailable — tenant resolution failed
+
+#### CRM Error Codes (all 29)
+- `CRM-0001` ErrInvalidMetadataNestingCRM — nested metadata not allowed
+- `CRM-0002` ErrMetadataKeyLengthExceededCRM — key too long
+- `CRM-0003` ErrMissingFieldsInRequestCRM — required fields missing
+- `CRM-0004` ErrInvalidFieldTypeInRequest — wrong field type
+- `CRM-0005` ErrInvalidPathParameterCRM — invalid path parameter
+- `CRM-0006` ErrHolderNotFound — holder not found
+- `CRM-0007` ErrUnexpectedFieldsInTheRequestCRM — unexpected fields
+- `CRM-0008` ErrAliasNotFound — alias not found
+- `CRM-0009` ErrPaginationLimitExceededCRM — pagination limit exceeded
+- `CRM-0010` ErrDocumentAssociationError — document association error
+- `CRM-0011` ErrInvalidSortOrderCRM — invalid sort order
+- `CRM-0012` ErrMetadataValueLengthExceededCRM — value too long
+- `CRM-0013` ErrAccountAlreadyAssociated — account already associated
+- `CRM-0014` ErrInternalServerCRM — internal server error
+- `CRM-0015` ErrBadRequestCRM — bad request
+- `CRM-0016` ErrInvalidQueryParameterCRM — invalid query parameter
+- `CRM-0017` ErrHolderHasAliases — holder has aliases (cannot delete)
+- `CRM-0018` ErrMissingHeadersInRequest — required headers missing
+- `CRM-0019` ErrMetadataQueryInvalidFormat — metadata query format error
+- `CRM-0020` ErrMetadataQueryInvalidKey — metadata query invalid key
+- `CRM-0021` ErrMetadataQueryContainsOperator — metadata query contains operator
+- `CRM-0022` ErrInvalidHeaderValue — invalid header value
+- `CRM-0023` ErrAliasClosingDateBeforeCreation — closing date before creation
+- `CRM-0024` ErrRelatedPartyNotFound — related party not found
+- `CRM-0025` ErrInvalidRelatedPartyRole — invalid related party role
+- `CRM-0026` ErrRelatedPartyDocumentRequired — document required
+- `CRM-0027` ErrRelatedPartyNameRequired — name required
+- `CRM-0028` ErrRelatedPartyStartDateRequired — start date required
+- `CRM-0029` ErrRelatedPartyEndDateInvalid — end date before start date
 
 ### 5.2 Error Types (pkg/errors.go)
 
@@ -320,24 +354,29 @@ return nil, fmt.Errorf("failed to create entity: %w", err)
 
 ## 6. Environment Variables
 
+Source of truth: `components/ledger/internal/bootstrap/config.go` (Ledger Config struct) and
+`components/crm/internal/bootstrap/config.go` (CRM Config struct). Defaults in parentheses
+are set programmatically by `applyConfigDefaults()`.
+
 ### 6.1 Ledger Component
 
-#### Server
+#### Application
 | Variable | Default | Description |
 |----------|---------|-------------|
-| ENV_NAME | development | Environment name |
+| APPLICATION_NAME | — | Application identity (tenant-manager service name) |
+| ENV_NAME | development | Environment: development, staging, uat, production, local |
 | VERSION | v3.6.0 | Application version |
-| SERVER_PORT | 3002 | HTTP port |
-| SERVER_ADDRESS | :3002 | Listen address |
+| SERVER_ADDRESS | :3002 | Listen address (single port for all APIs) |
 | LOG_LEVEL | debug | Log level |
 
-#### Auth
+#### Auth / Casdoor
 | Variable | Default | Description |
 |----------|---------|-------------|
 | PLUGIN_AUTH_ENABLED | false | Enable auth middleware |
 | PLUGIN_AUTH_HOST | — | Auth service host |
+| CASDOOR_JWK_ADDRESS | — | JWK endpoint for Casdoor JWT validation |
 
-#### PostgreSQL — Onboarding
+#### PostgreSQL — Onboarding (Primary)
 | Variable | Default | Description |
 |----------|---------|-------------|
 | DB_ONBOARDING_HOST | midaz-postgres-primary | Primary host |
@@ -346,12 +385,20 @@ return nil, fmt.Errorf("failed to create entity: %w", err)
 | DB_ONBOARDING_NAME | onboarding | Database name |
 | DB_ONBOARDING_PORT | 5701 | Port |
 | DB_ONBOARDING_SSLMODE | disable | SSL mode |
-| DB_ONBOARDING_REPLICA_HOST | midaz-postgres-replica | Replica host |
-| DB_ONBOARDING_REPLICA_PORT | 5702 | Replica port |
-| DB_ONBOARDING_MAX_OPEN_CONNS | 3000 | Max open connections |
-| DB_ONBOARDING_MAX_IDLE_CONNS | 3000 | Max idle connections |
 
-#### PostgreSQL — Transaction
+#### PostgreSQL — Onboarding (Replica)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| DB_ONBOARDING_REPLICA_HOST | midaz-postgres-replica | Replica host |
+| DB_ONBOARDING_REPLICA_USER | midaz | Replica username |
+| DB_ONBOARDING_REPLICA_PASSWORD | lerian | Replica password |
+| DB_ONBOARDING_REPLICA_NAME | onboarding | Replica database name |
+| DB_ONBOARDING_REPLICA_PORT | 5702 | Replica port |
+| DB_ONBOARDING_REPLICA_SSLMODE | disable | Replica SSL mode |
+| DB_ONBOARDING_MAX_OPEN_CONNS | 3000 | Max open connections (shared) |
+| DB_ONBOARDING_MAX_IDLE_CONNS | 3000 | Max idle connections (shared) |
+
+#### PostgreSQL — Transaction (Primary)
 | Variable | Default | Description |
 |----------|---------|-------------|
 | DB_TRANSACTION_HOST | midaz-postgres-primary | Primary host |
@@ -360,10 +407,18 @@ return nil, fmt.Errorf("failed to create entity: %w", err)
 | DB_TRANSACTION_NAME | transaction | Database name |
 | DB_TRANSACTION_PORT | 5701 | Port |
 | DB_TRANSACTION_SSLMODE | disable | SSL mode |
+
+#### PostgreSQL — Transaction (Replica)
+| Variable | Default | Description |
+|----------|---------|-------------|
 | DB_TRANSACTION_REPLICA_HOST | midaz-postgres-replica | Replica host |
+| DB_TRANSACTION_REPLICA_USER | midaz | Replica username |
+| DB_TRANSACTION_REPLICA_PASSWORD | lerian | Replica password |
+| DB_TRANSACTION_REPLICA_NAME | transaction | Replica database name |
 | DB_TRANSACTION_REPLICA_PORT | 5702 | Replica port |
-| DB_TRANSACTION_MAX_OPEN_CONNS | 3000 | Max open connections |
-| DB_TRANSACTION_MAX_IDLE_CONNS | 3000 | Max idle connections |
+| DB_TRANSACTION_REPLICA_SSLMODE | disable | Replica SSL mode |
+| DB_TRANSACTION_MAX_OPEN_CONNS | 3000 | Max open connections (shared) |
+| DB_TRANSACTION_MAX_IDLE_CONNS | 3000 | Max idle connections (shared) |
 
 #### MongoDB — Onboarding
 | Variable | Default | Description |
@@ -374,6 +429,7 @@ return nil, fmt.Errorf("failed to create entity: %w", err)
 | MONGO_ONBOARDING_USER | midaz | Username |
 | MONGO_ONBOARDING_PASSWORD | lerian | Password |
 | MONGO_ONBOARDING_PORT | 5703 | Port |
+| MONGO_ONBOARDING_PARAMETERS | — | Extra connection params (appended to URI) |
 | MONGO_ONBOARDING_MAX_POOL_SIZE | 1000 | Max pool size |
 
 #### MongoDB — Transaction
@@ -385,71 +441,103 @@ return nil, fmt.Errorf("failed to create entity: %w", err)
 | MONGO_TRANSACTION_USER | midaz | Username |
 | MONGO_TRANSACTION_PASSWORD | lerian | Password |
 | MONGO_TRANSACTION_PORT | 5703 | Port |
+| MONGO_TRANSACTION_PARAMETERS | — | Extra connection params |
 | MONGO_TRANSACTION_MAX_POOL_SIZE | 1000 | Max pool size |
 
-#### Redis
+#### Redis / Valkey
 | Variable | Default | Description |
 |----------|---------|-------------|
-| REDIS_HOST | midaz-valkey:5704 | Host(s), comma-separated for cluster |
-| REDIS_MASTER_NAME | — | Sentinel master name |
-| REDIS_TLS | false | Enable TLS |
+| REDIS_HOST | midaz-valkey:5704 | Host(s); comma-separated for cluster/sentinel |
+| REDIS_MASTER_NAME | — | Sentinel master name (enables sentinel topology) |
 | REDIS_PASSWORD | lerian | Password |
 | REDIS_DB | 0 | Database index |
-| REDIS_PROTOCOL | 3 | RESP protocol version |
-| REDIS_POOL_SIZE | 10 | Connection pool size |
-| REDIS_MAX_RETRIES | 3 | Max retries |
+| REDIS_PROTOCOL | (3) | RESP protocol version |
+| REDIS_TLS | false | Enable TLS |
+| REDIS_CA_CERT | — | CA certificate (base64) for TLS |
+| REDIS_USE_GCP_IAM | false | Use GCP IAM auth instead of static password |
+| REDIS_SERVICE_ACCOUNT | — | GCP service account for IAM auth |
+| GOOGLE_APPLICATION_CREDENTIALS | — | GCP credentials (base64) for IAM auth |
+| REDIS_TOKEN_LIFETIME | (60) | GCP IAM token lifetime (minutes) |
+| REDIS_TOKEN_REFRESH_DURATION | (45) | GCP IAM token refresh interval (minutes) |
+| REDIS_POOL_SIZE | (10) | Connection pool size |
+| REDIS_MIN_IDLE_CONNS | 0 | Minimum idle connections |
+| REDIS_READ_TIMEOUT | (3) | Read timeout (seconds) |
+| REDIS_WRITE_TIMEOUT | (3) | Write timeout (seconds) |
+| REDIS_DIAL_TIMEOUT | (5) | Dial timeout (seconds) |
+| REDIS_POOL_TIMEOUT | (2) | Pool wait timeout (seconds) |
+| REDIS_MAX_RETRIES | (3) | Max retries per command |
+| REDIS_MIN_RETRY_BACKOFF | (8) | Min retry backoff (milliseconds) |
+| REDIS_MAX_RETRY_BACKOFF | (1) | Max retry backoff (seconds) |
 
 #### RabbitMQ
 | Variable | Default | Description |
 |----------|---------|-------------|
-| RABBITMQ_URI | amqp | Protocol scheme |
+| RABBITMQ_URI | amqp | Protocol scheme (amqp/amqps) |
 | RABBITMQ_HOST | midaz-rabbitmq | Host |
 | RABBITMQ_PORT_HOST | 3003 | Management port |
 | RABBITMQ_PORT_AMQP | 3004 | AMQP port |
-| RABBITMQ_DEFAULT_USER | transaction | Username |
-| RABBITMQ_DEFAULT_PASS | lerian | Password |
-| RABBITMQ_NUMBERS_OF_WORKERS | 5 | Consumer workers |
-| RABBITMQ_NUMBERS_OF_PREFETCH | 10 | Prefetch count |
-| RABBITMQ_TRANSACTION_ASYNC | false | Enable async mode |
-| RABBITMQ_VHOST | — | Virtual host |
+| RABBITMQ_DEFAULT_USER | transaction | Producer username |
+| RABBITMQ_DEFAULT_PASS | lerian | Producer password |
+| RABBITMQ_CONSUMER_USER | consumer | Consumer username |
+| RABBITMQ_CONSUMER_PASS | lerian | Consumer password |
+| RABBITMQ_VHOST | — | Virtual host (empty = default "/") |
+| RABBITMQ_NUMBERS_OF_WORKERS | 5 | Consumer worker count |
+| RABBITMQ_NUMBERS_OF_PREFETCH | 10 | Prefetch count per worker |
+| RABBITMQ_HEALTH_CHECK_URL | — | Health check URL |
+| RABBITMQ_TLS | false | Enable TLS |
+| RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE | — | Balance operation queue name |
+| RABBITMQ_TRANSACTION_ASYNC | false | Enable async transaction processing |
+| RABBITMQ_OPERATION_TIMEOUT | — | Operation timeout (e.g., "30s") |
+| RABBITMQ_TRANSACTION_EVENTS_ENABLED | false | Enable transaction event exchange |
+| RABBITMQ_TRANSACTION_EVENTS_EXCHANGE | — | Events exchange name |
+| AUDIT_LOG_ENABLED | false | Enable audit log publishing |
+| RABBITMQ_AUDIT_EXCHANGE | — | Audit exchange name |
+| RABBITMQ_AUDIT_KEY | — | Audit routing key |
+
+#### RabbitMQ Circuit Breaker
+| Variable | Default | Description |
+|----------|---------|-------------|
+| RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES | 15 | Consecutive failures before open |
+| RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO | 50 | Failure % to trigger open (0-100) |
+| RABBITMQ_CIRCUIT_BREAKER_INTERVAL | 120 | Failure counting window (seconds) |
+| RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS | 3 | Requests allowed in half-open state |
+| RABBITMQ_CIRCUIT_BREAKER_MIN_REQUESTS | 10 | Min requests before ratio evaluated |
+| RABBITMQ_CIRCUIT_BREAKER_TIMEOUT | 30 | Open → half-open wait (seconds) |
+| RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_INTERVAL | 30 | Health check interval (seconds) |
+| RABBITMQ_CIRCUIT_BREAKER_HEALTH_CHECK_TIMEOUT | 10 | Health check timeout (seconds) |
 
 #### Bulk Recorder
 | Variable | Default | Description |
 |----------|---------|-------------|
-| BULK_RECORDER_ENABLED | true | Enable bulk mode |
-| BULK_RECORDER_SIZE | workers×prefetch | Batch size |
-| BULK_RECORDER_FLUSH_TIMEOUT_MS | 100 | Flush timeout (ms) |
-| BULK_RECORDER_MAX_ROWS_PER_INSERT | 1000 | Max rows per INSERT |
-
-#### Circuit Breaker (RabbitMQ)
-| Variable | Default | Description |
-|----------|---------|-------------|
-| RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES | 15 | Failures before open |
-| RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO | 50 | Failure % to trigger |
-| RABBITMQ_CIRCUIT_BREAKER_INTERVAL | 120 | Counting window (sec) |
-| RABBITMQ_CIRCUIT_BREAKER_MAX_REQUESTS | 3 | Half-open requests |
-| RABBITMQ_CIRCUIT_BREAKER_TIMEOUT | 30 | Open→half-open wait (sec) |
+| BULK_RECORDER_ENABLED | (true) | Enable bulk mode |
+| BULK_RECORDER_SIZE | (workers×prefetch) | Batch size (0 = auto-calculated) |
+| BULK_RECORDER_FLUSH_TIMEOUT_MS | (100) | Flush timeout (ms) |
+| BULK_RECORDER_MAX_ROWS_PER_INSERT | (1000) | Max rows per INSERT |
 
 #### OpenTelemetry
 | Variable | Default | Description |
 |----------|---------|-------------|
-| OTEL_RESOURCE_SERVICE_NAME | ledger | Service name |
-| OTEL_LIBRARY_NAME | github.com/LerianStudio/midaz/v3/components/ledger | Library name |
-| OTEL_EXPORTER_OTLP_ENDPOINT | midaz-otel-lgtm:4317 | OTLP gRPC endpoint |
-| ENABLE_TELEMETRY | false | Enable telemetry |
+| OTEL_RESOURCE_SERVICE_NAME | ledger | Service name in traces |
+| OTEL_LIBRARY_NAME | — | Instrumentation library name |
+| OTEL_RESOURCE_SERVICE_VERSION | — | Service version in traces |
+| OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT | — | Deployment environment in traces |
+| OTEL_EXPORTER_OTLP_ENDPOINT | midaz-otel-lgtm:4317 | OTLP gRPC collector endpoint |
+| ENABLE_TELEMETRY | false | Enable telemetry export |
 
 #### Multi-Tenant
 | Variable | Default | Description |
 |----------|---------|-------------|
 | MULTI_TENANT_ENABLED | false | Enable multi-tenant mode |
 | MULTI_TENANT_URL | — | Tenant Manager API URL |
-| MULTI_TENANT_SERVICE_API_KEY | — | Service API key |
-| MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD | 5 | CB failures threshold |
-| MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC | 30 | CB timeout |
-| MULTI_TENANT_CACHE_TTL_SEC | 120 | Tenant config cache TTL |
-| MULTI_TENANT_REDIS_HOST | — | Redis for tenant Pub/Sub |
-| MULTI_TENANT_REDIS_PORT | 6379 | Redis port |
-| MULTI_TENANT_REDIS_TLS | false | Redis TLS |
+| MULTI_TENANT_SERVICE_API_KEY | — | Service API key for tenant-manager |
+| MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD | (5) | CB failures before open |
+| MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC | (30) | CB open → half-open (seconds) |
+| MULTI_TENANT_CONNECTIONS_CHECK_INTERVAL_SEC | — | Revalidation check interval (seconds) |
+| MULTI_TENANT_CACHE_TTL_SEC | (120) | Tenant config cache TTL (seconds, 0=disabled) |
+| MULTI_TENANT_REDIS_HOST | — | Redis for tenant Pub/Sub events |
+| MULTI_TENANT_REDIS_PORT | 6379 | Redis port for Pub/Sub |
+| MULTI_TENANT_REDIS_PASSWORD | — | Redis password for Pub/Sub |
+| MULTI_TENANT_REDIS_TLS | false | Enable TLS for Pub/Sub Redis |
 
 #### Pagination
 | Variable | Default | Description |
@@ -457,39 +545,88 @@ return nil, fmt.Errorf("failed to create entity: %w", err)
 | MAX_PAGINATION_LIMIT | 100 | Max items per page |
 | MAX_PAGINATION_MONTH_DATE_RANGE | 3 | Max date range (months) |
 
-#### Workers
+#### Balance Sync / Settings
 | Variable | Default | Description |
 |----------|---------|-------------|
-| BALANCE_SYNC_MAX_WORKERS | 5 | Balance sync worker count |
-| SETTINGS_CACHE_TTL | 5m | Settings cache duration |
+| BALANCE_SYNC_MAX_WORKERS | (5) | Balance sync worker count |
+| SETTINGS_CACHE_TTL | (5m) | Settings cache duration (Go duration) |
 
 ### 6.2 CRM Component
 
+Source: `components/crm/internal/bootstrap/config.go`
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| SERVER_PORT | 4003 | HTTP port |
-| MONGO_URI | mongodb | Connection scheme |
-| MONGO_HOST | midaz-mongodb | Host |
-| MONGO_NAME | crm | Database |
+| ENV_NAME | development | Environment name |
+| PROTO_ADDRESS | — | gRPC listen address (CRM-only) |
+| SERVER_ADDRESS | :4003 | HTTP listen address |
+| LOG_LEVEL | debug | Log level |
+| MONGO_URI | mongodb | Connection URI scheme |
+| MONGO_HOST | midaz-mongodb | MongoDB host |
+| MONGO_NAME | crm | Database name |
 | MONGO_USER | midaz | Username |
 | MONGO_PASSWORD | lerian | Password |
 | MONGO_PORT | 5703 | Port |
-| LCRYPTO_HASH_SECRET_KEY | — | PII hash key |
-| LCRYPTO_ENCRYPT_SECRET_KEY | — | PII encryption key |
-| PLUGIN_AUTH_ENABLED | false | Enable auth |
+| MONGO_PARAMETERS | — | Extra connection parameters |
+| MONGO_MAX_POOL_SIZE | 1000 | Max pool size |
+| LCRYPTO_HASH_SECRET_KEY | — | PII hash key (data security) |
+| LCRYPTO_ENCRYPT_SECRET_KEY | — | PII encryption key (data security) |
+| PLUGIN_AUTH_ADDRESS | — | Auth service address |
+| PLUGIN_AUTH_ENABLED | false | Enable auth middleware |
 | APPLICATION_NAME | ledger | Application identity |
+| OTEL_RESOURCE_SERVICE_NAME | crm | Service name |
+| OTEL_LIBRARY_NAME | — | Instrumentation library name |
+| OTEL_RESOURCE_SERVICE_VERSION | — | Service version |
+| OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT | — | Deployment environment |
+| OTEL_EXPORTER_OTLP_ENDPOINT | — | OTLP endpoint |
+| ENABLE_TELEMETRY | false | Enable telemetry |
+| MULTI_TENANT_ENABLED | false | Enable multi-tenant mode |
+| MULTI_TENANT_URL | — | Tenant Manager API URL |
+| MULTI_TENANT_TIMEOUT | — | HTTP client timeout (seconds) |
+| MULTI_TENANT_IDLE_TIMEOUT_SEC | — | Idle connection eviction (seconds) |
+| MULTI_TENANT_MAX_TENANT_POOLS | — | Max concurrent tenant pools |
+| MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD | — | CB failures before open |
+| MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC | — | CB timeout (seconds) |
+| MULTI_TENANT_SERVICE_API_KEY | — | Service API key |
+| MULTI_TENANT_CONNECTIONS_CHECK_INTERVAL_SEC | — | Revalidation interval (seconds) |
+| MULTI_TENANT_CACHE_TTL_SEC | (120) | Tenant config cache TTL (seconds) |
+| MULTI_TENANT_REDIS_HOST | — | Redis for Pub/Sub |
+| MULTI_TENANT_REDIS_PORT | 6379 | Redis port |
+| MULTI_TENANT_REDIS_PASSWORD | — | Redis password |
+| MULTI_TENANT_REDIS_TLS | false | TLS for Redis |
 
 ### 6.3 Infrastructure
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | DB_HOST | midaz-postgres-primary | PostgreSQL primary |
+| DB_USER | midaz | PostgreSQL username |
+| DB_PASSWORD | lerian | PostgreSQL password |
 | DB_PORT | 5701 | PostgreSQL port |
+| MAX_CONNECTIONS | 3000 | PostgreSQL max connections |
+| SHARED_BUFFERS | 1GB | PostgreSQL shared buffers |
+| DB_REPLICA_HOST | midaz-postgres-replica | Replica host |
 | DB_REPLICA_PORT | 5702 | Replica port |
+| REPLICATION_USER | replicator | Replication username |
+| REPLICATION_PASSWORD | — | Replication password |
+| MONGO_HOST | midaz-mongodb | MongoDB host |
+| MONGO_USER | midaz | MongoDB username |
+| MONGO_PASSWORD | lerian | MongoDB password |
 | MONGO_PORT | 5703 | MongoDB port |
+| REDIS_HOST | midaz-valkey | Valkey/Redis host |
 | REDIS_PORT | 5704 | Valkey/Redis port |
-| RABBITMQ_PORT_HOST | 3003 | RabbitMQ management |
-| RABBITMQ_PORT_AMQP | 3004 | RabbitMQ AMQP |
+| REDIS_USER | midaz | Redis username |
+| REDIS_PASSWORD | lerian | Redis password |
+| RABBITMQ_PORT_HOST | 3003 | RabbitMQ management port |
+| RABBITMQ_PORT_AMQP | 3004 | RabbitMQ AMQP port |
+| RABBITMQ_DEFAULT_USER | midaz | RabbitMQ username |
+| RABBITMQ_DEFAULT_PASS | lerian | RabbitMQ password |
+| OTEL_LGTM_INTERNAL_PORT | 3000 | Grafana internal port |
+| OTEL_LGTM_EXTERNAL_PORT | 3100 | Grafana external port |
+| OTEL_LGTM_RECEIVER_GRPC_PORT | 4317 | OTLP gRPC receiver port |
+| OTEL_LGTM_RECEIVER_HTTP_PORT | 4318 | OTLP HTTP receiver port |
+| OTEL_LGTM_ADMIN_USER | midaz | Grafana admin username |
+| OTEL_LGTM_ADMIN_PASSWORD | lerian | Grafana admin password |
 
 ## 7. Build & Development
 
