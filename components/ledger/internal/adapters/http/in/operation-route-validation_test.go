@@ -905,7 +905,8 @@ func TestMergeAccountingEntries(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := mergeAccountingEntries(tt.existing, tt.incoming)
+			// Pass nil for rawUpdates to use simple merge (backward compatible behavior)
+			result := mergeAccountingEntries(tt.existing, tt.incoming, nil)
 
 			if tt.expected == nil {
 				assert.Nil(t, result)
@@ -918,6 +919,137 @@ func TestMergeAccountingEntries(t *testing.T) {
 			assert.Equal(t, tt.expected.Commit, result.Commit)
 			assert.Equal(t, tt.expected.Cancel, result.Cancel)
 			assert.Equal(t, tt.expected.Revert, result.Revert)
+		})
+	}
+}
+
+func TestMergeAccountingEntries_ExplicitNullRemoval(t *testing.T) {
+	t.Parallel()
+
+	directEntry := &mmodel.AccountingEntry{
+		Debit:  &mmodel.AccountingRubric{Code: "1001", Description: "Direct Debit"},
+		Credit: &mmodel.AccountingRubric{Code: "2001", Description: "Direct Credit"},
+	}
+	holdEntry := &mmodel.AccountingEntry{
+		Debit:  &mmodel.AccountingRubric{Code: "1002", Description: "Hold Debit"},
+		Credit: &mmodel.AccountingRubric{Code: "2002", Description: "Hold Credit"},
+	}
+	commitEntry := &mmodel.AccountingEntry{
+		Debit:  &mmodel.AccountingRubric{Code: "1003", Description: "Commit Debit"},
+		Credit: &mmodel.AccountingRubric{Code: "2003", Description: "Commit Credit"},
+	}
+	cancelEntry := &mmodel.AccountingEntry{
+		Debit:  &mmodel.AccountingRubric{Code: "1004", Description: "Cancel Debit"},
+		Credit: &mmodel.AccountingRubric{Code: "2004", Description: "Cancel Credit"},
+	}
+
+	tests := []struct {
+		name       string
+		existing   *mmodel.AccountingEntries
+		incoming   *mmodel.AccountingEntries
+		rawUpdates string // JSON to simulate raw request body
+		expected   *mmodel.AccountingEntries
+	}{
+		{
+			name: "explicit null removes hold entry",
+			existing: &mmodel.AccountingEntries{
+				Direct: directEntry,
+				Hold:   holdEntry,
+				Commit: commitEntry,
+				Cancel: cancelEntry,
+			},
+			incoming:   &mmodel.AccountingEntries{}, // unmarshaled result when hold: null
+			rawUpdates: `{"hold": null}`,
+			expected: &mmodel.AccountingEntries{
+				Direct: directEntry,
+				Hold:   nil, // explicitly removed
+				Commit: commitEntry,
+				Cancel: cancelEntry,
+			},
+		},
+		{
+			name: "explicit null removes entire reserve group",
+			existing: &mmodel.AccountingEntries{
+				Direct: directEntry,
+				Hold:   holdEntry,
+				Commit: commitEntry,
+				Cancel: cancelEntry,
+			},
+			incoming:   &mmodel.AccountingEntries{},
+			rawUpdates: `{"hold": null, "commit": null, "cancel": null}`,
+			expected: &mmodel.AccountingEntries{
+				Direct: directEntry,
+				Hold:   nil,
+				Commit: nil,
+				Cancel: nil,
+			},
+		},
+		{
+			name: "absent field keeps existing value",
+			existing: &mmodel.AccountingEntries{
+				Direct: directEntry,
+				Hold:   holdEntry,
+			},
+			incoming:   &mmodel.AccountingEntries{},
+			rawUpdates: `{}`, // empty object means keep all existing
+			expected: &mmodel.AccountingEntries{
+				Direct: directEntry,
+				Hold:   holdEntry,
+			},
+		},
+		{
+			name: "explicit null removes all entries returns nil",
+			existing: &mmodel.AccountingEntries{
+				Direct: directEntry,
+			},
+			incoming:   &mmodel.AccountingEntries{},
+			rawUpdates: `{"direct": null}`,
+			expected:   nil,
+		},
+		{
+			name: "mixed: update one, remove another, keep rest",
+			existing: &mmodel.AccountingEntries{
+				Direct: directEntry,
+				Hold:   holdEntry,
+				Commit: commitEntry,
+				Cancel: cancelEntry,
+			},
+			incoming: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Debit:  &mmodel.AccountingRubric{Code: "NEW1", Description: "Updated"},
+					Credit: &mmodel.AccountingRubric{Code: "NEW2", Description: "Updated"},
+				},
+			},
+			rawUpdates: `{"direct": {"debit": {"code": "NEW1", "description": "Updated"}, "credit": {"code": "NEW2", "description": "Updated"}}, "hold": null}`,
+			expected: &mmodel.AccountingEntries{
+				Direct: &mmodel.AccountingEntry{
+					Debit:  &mmodel.AccountingRubric{Code: "NEW1", Description: "Updated"},
+					Credit: &mmodel.AccountingRubric{Code: "NEW2", Description: "Updated"},
+				},
+				Hold:   nil, // explicitly removed
+				Commit: commitEntry,
+				Cancel: cancelEntry,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := mergeAccountingEntries(tt.existing, tt.incoming, []byte(tt.rawUpdates))
+
+			if tt.expected == nil {
+				assert.Nil(t, result)
+				return
+			}
+
+			require.NotNil(t, result)
+			assert.Equal(t, tt.expected.Direct, result.Direct, "Direct mismatch")
+			assert.Equal(t, tt.expected.Hold, result.Hold, "Hold mismatch")
+			assert.Equal(t, tt.expected.Commit, result.Commit, "Commit mismatch")
+			assert.Equal(t, tt.expected.Cancel, result.Cancel, "Cancel mismatch")
+			assert.Equal(t, tt.expected.Revert, result.Revert, "Revert mismatch")
 		})
 	}
 }

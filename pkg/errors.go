@@ -1321,6 +1321,31 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Too Many Operation Routes",
 			Message:    "The number of operation routes exceeds the maximum allowed. Please reduce the number of operation routes and try again.",
 		},
+		// Accounting Rules Validation Errors (0162-0165)
+		constant.ErrScenarioNotAllowedForDirection: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrScenarioNotAllowedForDirection.Error(),
+			Title:      "Scenario Not Allowed for Direction",
+			Message:    fmt.Sprintf("The accounting scenario is not allowed for the specified operation direction. %v", args...),
+		},
+		constant.ErrReserveGroupIncomplete: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReserveGroupIncomplete.Error(),
+			Title:      "Reserve Group Incomplete",
+			Message:    fmt.Sprintf("The reserve group (hold, commit, cancel) must be complete. %v", args...),
+		},
+		constant.ErrDirectScenarioRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrDirectScenarioRequired.Error(),
+			Title:      "Direct Scenario Required",
+			Message:    fmt.Sprintf("The direct scenario is required when other scenarios are present. %v", args...),
+		},
+		constant.ErrRevertOnlyBidirectional: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrRevertOnlyBidirectional.Error(),
+			Title:      "Revert Only for Bidirectional",
+			Message:    fmt.Sprintf("The revert scenario is only allowed for bidirectional operation routes. %v", args...),
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

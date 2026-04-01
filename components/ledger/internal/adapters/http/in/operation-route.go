@@ -255,7 +255,8 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 	// Validate accounting rules matrix for PATCH operations
 	// We need to fetch the existing route to get operation type and merge entries
-	if payload.AccountingEntries != nil {
+	// Validation runs when accountingEntries is present (even if removing entries via explicit null)
+	if payload.AccountingEntries != nil || len(payload.AccountingEntriesRaw) > 0 {
 		existingRoute, err := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, id)
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve existing Operation Route for validation", err)
@@ -263,7 +264,8 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 		}
 
 		// Merge incoming entries with existing to get final state
-		mergedEntries := mergeAccountingEntries(existingRoute.AccountingEntries, payload.AccountingEntries)
+		// Pass raw JSON to properly handle explicit null removals (RFC 7396)
+		mergedEntries := mergeAccountingEntries(existingRoute.AccountingEntries, payload.AccountingEntries, payload.AccountingEntriesRaw)
 
 		// Validate the merged entries against the direction×scenario matrix
 		if err := handler.validateAccountingRulesMatrix(ctx, existingRoute.OperationType, mergedEntries); err != nil {
@@ -890,9 +892,15 @@ func (handler *OperationRouteHandler) validateDirectMandatory(
 
 // mergeAccountingEntries creates a merged view of existing and incoming accounting entries.
 // Used for PATCH operations where only partial updates are provided.
-// For each scenario, if incoming has a value, use it; otherwise, use existing.
-// Note: This does NOT handle explicit null (removal) - that's handled by AccountingEntriesRaw.
-func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries) *mmodel.AccountingEntries {
+//
+// This function implements RFC 7396 JSON Merge Patch semantics:
+//   - Field absent in rawUpdates: keep existing value
+//   - Field explicitly set to null in rawUpdates: remove entry (set to nil)
+//   - Field set to a value in rawUpdates: use new value
+//
+// The rawUpdates parameter is required to distinguish between "field omitted" and
+// "field: null" since Go's json.Unmarshal sets both to nil.
+func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries, rawUpdates json.RawMessage) *mmodel.AccountingEntries {
 	if existing == nil && incoming == nil {
 		return nil
 	}
@@ -901,40 +909,103 @@ func mergeAccountingEntries(existing, incoming *mmodel.AccountingEntries) *mmode
 		return incoming
 	}
 
+	// If no raw updates provided, fall back to simple merge (incoming wins if non-nil)
+	if len(rawUpdates) == 0 {
+		return mergeAccountingEntriesSimple(existing, incoming)
+	}
+
+	// Parse raw JSON to detect which fields are explicitly present
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(rawUpdates, &rawFields); err != nil {
+		// If parsing fails, fall back to simple merge
+		return mergeAccountingEntriesSimple(existing, incoming)
+	}
+
+	merged := &mmodel.AccountingEntries{}
+
+	// Helper to apply merge logic for each field
+	applyMerge := func(fieldName string, existingEntry, incomingEntry *mmodel.AccountingEntry) *mmodel.AccountingEntry {
+		raw, fieldPresent := rawFields[fieldName]
+		if !fieldPresent {
+			// Field not in update - keep existing
+			return existingEntry
+		}
+
+		// Field is present in raw update
+		if string(raw) == "null" {
+			// Explicit null - remove entry
+			return nil
+		}
+
+		// Field has a value - use incoming (which was unmarshaled from the same JSON)
+		if incomingEntry != nil {
+			return incomingEntry
+		}
+
+		// Incoming is nil but raw wasn't null - keep existing as fallback
+		return existingEntry
+	}
+
+	var incomingDirect, incomingHold, incomingCommit, incomingCancel, incomingRevert *mmodel.AccountingEntry
+	if incoming != nil {
+		incomingDirect = incoming.Direct
+		incomingHold = incoming.Hold
+		incomingCommit = incoming.Commit
+		incomingCancel = incoming.Cancel
+		incomingRevert = incoming.Revert
+	}
+
+	merged.Direct = applyMerge("direct", existing.Direct, incomingDirect)
+	merged.Hold = applyMerge("hold", existing.Hold, incomingHold)
+	merged.Commit = applyMerge("commit", existing.Commit, incomingCommit)
+	merged.Cancel = applyMerge("cancel", existing.Cancel, incomingCancel)
+	merged.Revert = applyMerge("revert", existing.Revert, incomingRevert)
+
+	// Check if all entries are nil - return nil instead of empty struct
+	if merged.Direct == nil && merged.Hold == nil && merged.Commit == nil &&
+		merged.Cancel == nil && merged.Revert == nil {
+		return nil
+	}
+
+	return merged
+}
+
+// mergeAccountingEntriesSimple performs a simple merge where incoming non-nil values win.
+// Used as fallback when raw JSON is not available.
+func mergeAccountingEntriesSimple(existing, incoming *mmodel.AccountingEntries) *mmodel.AccountingEntries {
 	if incoming == nil {
 		return existing
 	}
 
 	merged := &mmodel.AccountingEntries{}
 
-	// For each scenario: incoming wins if present, otherwise keep existing
 	if incoming.Direct != nil {
 		merged.Direct = incoming.Direct
-	} else {
+	} else if existing != nil {
 		merged.Direct = existing.Direct
 	}
 
 	if incoming.Hold != nil {
 		merged.Hold = incoming.Hold
-	} else {
+	} else if existing != nil {
 		merged.Hold = existing.Hold
 	}
 
 	if incoming.Commit != nil {
 		merged.Commit = incoming.Commit
-	} else {
+	} else if existing != nil {
 		merged.Commit = existing.Commit
 	}
 
 	if incoming.Cancel != nil {
 		merged.Cancel = incoming.Cancel
-	} else {
+	} else if existing != nil {
 		merged.Cancel = existing.Cancel
 	}
 
 	if incoming.Revert != nil {
 		merged.Revert = incoming.Revert
-	} else {
+	} else if existing != nil {
 		merged.Revert = existing.Revert
 	}
 
