@@ -1,0 +1,72 @@
+# Lerian Midaz
+
+> Enterprise-grade open-source double-entry ledger system. Go 1.25 monorepo (v3 module path) with a unified Ledger HTTP API (onboarding + transaction) and a CRM plugin. Uses PostgreSQL (primary/replica), MongoDB (metadata), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via lib-commons v4 tenant-manager. Elastic License 2.0.
+
+Midaz implements a financial hierarchy: Organizations → Ledgers → Assets, Portfolios, Segments → Accounts → Transactions/Operations → Balances. The Ledger component exposes a single-port REST API (default :3002) covering both onboarding (org/ledger/asset/portfolio/segment/account management) and transaction processing (n:n double-entry with DSL, JSON, inflow/outflow, and annotation creation modes). The CRM component (default :4003) manages holders and account aliases via MongoDB. Infrastructure is provisioned via Docker Compose with PostgreSQL 17, MongoDB 8, RabbitMQ 4.1, Valkey 8, and Grafana/OTEL-LGTM.
+
+## Documentation
+
+- [README](README.md): Project overview, architecture, core banking vision
+- [License](LICENSE): Elastic License 2.0
+- [Changelog](CHANGELOG.md): Release history
+- [Security](SECURITY.md): Vulnerability reporting policy
+- [Structure](STRUCTURE.md): Directory layout guide
+
+## AI Agent Guides
+
+- [AGENTS.md](AGENTS.md): Universal AI agent entry point — quick start, architecture, conventions, what not to do
+- [CLAUDE.md](CLAUDE.md): Deep reference for AI agents — code patterns, interfaces, commands, configuration, debugging
+
+## API
+
+- [Ledger OpenAPI Spec](components/ledger/api/): Swagger documentation for all ledger endpoints
+- [CRM OpenAPI Spec](components/crm/api/): Swagger documentation for CRM endpoints
+
+## Architecture
+
+- [Ledger Component](components/ledger/): Unified HTTP API — onboarding + transaction in single process
+  - [Bootstrap](components/ledger/internal/bootstrap/): Composition root — config, DI, server lifecycle, multi-tenant middleware
+  - [HTTP Handlers](components/ledger/internal/adapters/http/in/): Fiber handlers, routes, middleware
+  - [PostgreSQL Repos](components/ledger/internal/adapters/postgres/): Onboarding + transaction repositories
+  - [MongoDB Repos](components/ledger/internal/adapters/mongodb/): Metadata storage
+  - [Redis Adapters](components/ledger/internal/adapters/redis/): Caching, queue consumers
+  - [RabbitMQ Adapters](components/ledger/internal/adapters/rabbitmq/): Async transaction processing, bulk recorder
+  - [Services](components/ledger/internal/services/): Business logic — CQRS command/query use cases
+  - [Migrations](components/ledger/migrations/): SQL migrations for onboarding and transaction databases
+- [CRM Component](components/crm/): Customer relationship management plugin
+  - [Bootstrap](components/crm/internal/bootstrap/): Config, DI, server lifecycle
+  - [HTTP Handlers](components/crm/internal/adapters/http/): Fiber handlers for holders and aliases
+  - [MongoDB Repos](components/crm/internal/adapters/mongodb/): CRM data persistence
+  - [Services](components/crm/internal/services/): CRM business logic
+- [Infrastructure](components/infra/): Docker Compose for PostgreSQL, MongoDB, RabbitMQ, Valkey, Grafana/OTEL
+- [Shared Packages](pkg/): Cross-component libraries
+  - [Domain Models](pkg/mmodel/): Organization, Ledger, Account, Asset, Transaction, Balance, etc.
+  - [Error Constants](pkg/constant/errors.go): Numeric error codes (0001–0161) and CRM error codes
+  - [Error Types](pkg/errors.go): Typed errors — EntityNotFound, Validation, Conflict, Unauthorized, Forbidden, etc.
+  - [Gold DSL](pkg/gold/): ANTLR4 grammar and parser for transaction DSL
+  - [HTTP Utilities](pkg/net/http/): Middleware, pagination, protected routes, response helpers
+  - [Transaction Logic](pkg/transaction/): Transaction validation and processing utilities
+
+## Configuration
+
+- [Ledger .env.example](components/ledger/.env.example): Ledger environment variables (PostgreSQL, MongoDB, Redis, RabbitMQ, OTEL, multi-tenant)
+- [CRM .env.example](components/crm/.env.example): CRM environment variables (MongoDB, OTEL, crypto, auth)
+- [Infra .env.example](components/infra/.env.example): Infrastructure environment variables
+- [Ledger Dockerfile](components/ledger/Dockerfile): Multi-stage build (golang:1.25-alpine → distroless)
+- [CRM Dockerfile](components/crm/Dockerfile): Multi-stage build (golang:1.25-alpine → distroless)
+- [Linter Config](.golangci.yml): golangci-lint v2 configuration
+- [Infra Docker Compose](components/infra/docker-compose.yml): Full infrastructure stack
+
+## Development
+
+- [Makefile](Makefile): Build, test, lint, Docker, security, migration commands
+- [Project Rules](docs/PROJECT_RULES.md): Architecture patterns, coding conventions, testing standards (1130 lines)
+- [Tests](tests/): Integration, chaos, and helper test suites
+- [Scripts](scripts/): Coverage, docs generation, environment checks
+
+## Optional
+
+- [Security Policy](SECURITY.md): Vulnerability reporting
+- [Contributing](CONTRIBUTING.md): Contribution guidelines
+- [Code of Conduct](CODE_OF_CONDUCT.md): Community standards
+- [Governance](GOVERNANCE.md): Project governance
