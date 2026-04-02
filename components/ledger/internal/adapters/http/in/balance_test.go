@@ -1416,7 +1416,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 
 				// Then find last operation before date
 				operationRepo.EXPECT().
-					FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, balanceID, gomock.Any()).
+					FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, balanceID, gomock.Any()).
 					Return(&operation.Operation{
 						ID:         uuid.New().String(),
 						AccountID:  accountID.String(),
@@ -1525,6 +1525,8 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 			name: "no balance data at date returns 404",
 			date: "2024-01-15 10:30:00",
 			setupMocks: func(balanceRepo *balance.MockRepository, operationRepo *operation.MockRepository, orgID, ledgerID, balanceID uuid.UUID, date time.Time) {
+				accountID := uuid.New()
+
 				// Balance exists but was created AFTER the query date
 				balanceRepo.EXPECT().
 					Find(gomock.Any(), orgID, ledgerID, balanceID).
@@ -1532,7 +1534,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 						ID:             balanceID.String(),
 						OrganizationID: orgID.String(),
 						LedgerID:       ledgerID.String(),
-						AccountID:      uuid.New().String(),
+						AccountID:      accountID.String(),
 						Alias:          "@user1",
 						Key:            "default",
 						AssetCode:      "USD",
@@ -1542,7 +1544,7 @@ func TestBalanceHandler_GetBalanceAtTimestamp(t *testing.T) {
 
 				// No operation found before date (implementation checks this before CreatedAt)
 				operationRepo.EXPECT().
-					FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, balanceID, gomock.Any()).
+					FindLastOperationBeforeTimestamp(gomock.Any(), orgID, ledgerID, accountID, balanceID, gomock.Any()).
 					Return(nil, nil).
 					Times(1)
 			},

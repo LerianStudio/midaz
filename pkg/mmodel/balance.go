@@ -515,6 +515,7 @@ type TransactionRedisQueue struct {
 	TTL               time.Time                  `json:"ttl"`
 	Validate          *pkgTransaction.Responses  `json:"validate"`
 	TransactionStatus string                     `json:"transaction_status"`
+	Action            string                     `json:"action,omitempty"`
 	TransactionDate   time.Time                  `json:"transaction_date"`
 	Operations        []OperationRedis           `json:"operations,omitempty"`
 }

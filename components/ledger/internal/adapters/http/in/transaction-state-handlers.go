@@ -283,7 +283,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		}
 	}
 
-	response := handler.createTransaction(c, transactionReverted, constant.CREATED)
+	response := handler.createTransaction(c, transactionReverted, constant.CREATED, constant.ActionRevert)
 
 	return response
 }
@@ -478,7 +478,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		Description: &transactionStatus,
 	}
 
-	operations, preBalances, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, time.Now(), false, ledgerSettings.Accounting.ValidateRoutes, routeCache)
+	operations, preBalances, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, time.Now(), false, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
@@ -493,7 +493,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	ctxBackup, spanBackup := tracer.Start(ctx, "handler.commit_or_cancel_transaction.send_to_redis_queue")
 
-	if backupErr := handler.Command.SendTransactionToRedisQueue(ctxBackup, organizationID, ledgerID, tran.IDtoUUID(), transactionInput, validate, transactionStatus, time.Now(), preBalances); backupErr != nil {
+	if backupErr := handler.Command.SendTransactionToRedisQueue(ctxBackup, organizationID, ledgerID, tran.IDtoUUID(), transactionInput, validate, transactionStatus, action, time.Now(), preBalances); backupErr != nil {
 		libOpentelemetry.HandleSpanError(spanBackup, "Failed to send transaction to backup cache", backupErr)
 
 		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to send commit/cancel transaction to backup cache: %v", backupErr))

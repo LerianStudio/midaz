@@ -4,7 +4,6 @@
 *.iml
 ide/
 tmp/
-CLAUDE.md
 .claude/
 .mcp.json
 .windsurf/

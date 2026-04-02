@@ -40,6 +40,7 @@ type QueryHeader struct {
 	OperationType                       string
 	Direction                           *string
 	RouteID                             *string
+	RouteCode                           *string
 	ToAssetCodes                        []string
 	HolderID                            *string
 	ExternalID                          *string
@@ -101,6 +102,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		operationType                       string
 		direction                           *string
 		routeID                             *string
+		routeCode                           *string
 		toAssetCodes                        []string
 		startDate                           time.Time
 		endDate                             time.Time
@@ -164,6 +166,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			direction = &v
 		case key == "route_id":
 			routeID = &value
+		case key == "route_code":
+			routeCode = &value
 		case strings.Contains(key, "to"):
 			toAssetCodes = strings.Split(value, ",")
 		case strings.Contains(key, "holder_id"):
@@ -259,6 +263,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		OperationType:                       operationType,
 		Direction:                           direction,
 		RouteID:                             routeID,
+		RouteCode:                           routeCode,
 		ToAssetCodes:                        toAssetCodes,
 		HolderID:                            holderID,
 		ExternalID:                          externalID,

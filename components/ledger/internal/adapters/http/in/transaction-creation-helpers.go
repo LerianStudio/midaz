@@ -156,6 +156,7 @@ func (handler *TransactionHandler) BuildOperations(
 	isAnnotation bool,
 	routeValidationEnabled bool,
 	transactionRouteCache *mmodel.TransactionRouteCache,
+	action string,
 ) ([]*operation.Operation, []*mmodel.Balance, error) {
 	var operations []*operation.Operation
 
@@ -233,17 +234,40 @@ func (handler *TransactionHandler) BuildOperations(
 		}
 	}
 
-	resolveRouteCodesFromCache(operations, transactionRouteCache)
+	resolveRouteCodesFromCache(operations, transactionRouteCache, action)
 
 	return operations, preBalances, nil
 }
 
+// statusToAction maps a transaction status code to the corresponding accounting
+// action used for looking up the correct AccountingEntries rubric.
+func statusToAction(statusCode string) string {
+	switch statusCode {
+	case constant.PENDING:
+		return constant.ActionHold
+	case constant.APPROVED:
+		return constant.ActionCommit
+	case constant.CANCELED:
+		return constant.ActionCancel
+	default:
+		return constant.ActionDirect
+	}
+}
+
 // resolveRouteCodesFromCache populates the RouteCode and RouteDescription fields
 // on each operation by looking up the operation's RouteID in the transaction route
-// cache. The cache is keyed by routeID within each action's Source, Destination,
-// and Bidirectional maps.
-func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache) {
+// cache for the given accounting action (direct, hold, commit, cancel, revert).
+//
+// Both RouteCode and RouteDescription are resolved from the AccountingRubric
+// that matches the operation's action and direction (debit → Debit rubric,
+// credit → Credit rubric).
+func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel.TransactionRouteCache, action string) {
 	if cache == nil {
+		return
+	}
+
+	actionCache, ok := cache.Actions[action]
+	if !ok {
 		return
 	}
 
@@ -254,22 +278,55 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 
 		routeID := *op.RouteID
 
-		for _, actionCache := range cache.Actions {
-			if rc, ok := findRouteInActionCache(actionCache, routeID); ok {
-				if rc.Code != "" {
-					code := rc.Code
-					op.RouteCode = &code
-				}
+		if rc, ok := findRouteInActionCache(actionCache, routeID); ok {
+			if rubric := resolveAccountingRubric(rc.AccountingEntries, action, op.Direction); rubric != nil && rubric.Code != "" {
+				code := rubric.Code
+				op.RouteCode = &code
 
-				if rc.Description != "" {
-					desc := rc.Description
+				if rubric.Description != "" {
+					desc := rubric.Description
 					op.RouteDescription = &desc
 				}
-
-				break
 			}
 		}
 	}
+}
+
+// resolveAccountingRubric selects the appropriate AccountingRubric from the given
+// AccountingEntries based on the action name and operation direction.
+// Returns nil when no matching entry or rubric exists.
+func resolveAccountingRubric(entries *mmodel.AccountingEntries, action, direction string) *mmodel.AccountingRubric {
+	if entries == nil {
+		return nil
+	}
+
+	var entry *mmodel.AccountingEntry
+
+	switch strings.ToLower(action) {
+	case constant.ActionDirect:
+		entry = entries.Direct
+	case constant.ActionHold:
+		entry = entries.Hold
+	case constant.ActionCommit:
+		entry = entries.Commit
+	case constant.ActionCancel:
+		entry = entries.Cancel
+	case constant.ActionRevert:
+		entry = entries.Revert
+	}
+
+	if entry == nil {
+		return nil
+	}
+
+	switch strings.ToLower(direction) {
+	case constant.DirectionDebit:
+		return entry.Debit
+	case constant.DirectionCredit:
+		return entry.Credit
+	}
+
+	return nil
 }
 
 // findRouteInActionCache searches for a routeID across Source, Destination, and
@@ -741,7 +798,7 @@ func (handler *TransactionHandler) buildStandardOp(
 	}, nil
 }
 
-func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string) error {
+func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionInput pkgTransaction.Transaction, transactionStatus string, actionOverride ...string) error {
 	ctx := c.UserContext()
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -820,17 +877,18 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		propagateRouteValidation(ctx, validate, transactionInput.Pending, transactionStatus)
 	}
 
-	err = handler.sendTransactionToRedisQueue(ctx, scope.OrganizationID, scope.LedgerID, transactionID, transactionInput, validate, transactionStatus, transactionDate, idempotencyState.internalKey)
+	action := statusToAction(transactionStatus)
+
+	if len(actionOverride) > 0 && actionOverride[0] != "" {
+		action = actionOverride[0]
+	}
+
+	err = handler.sendTransactionToRedisQueue(ctx, scope.OrganizationID, scope.LedgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, idempotencyState.internalKey)
 	if err != nil {
 		return http.WithError(c, err)
 	}
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
-
-	action := constant.ActionDirect
-	if transactionStatus == constant.PENDING {
-		action = constant.ActionHold
-	}
 
 	balancesBefore, balancesAfter, routeCache, err := handler.Query.GetBalances(ctx, scope.OrganizationID, scope.LedgerID, transactionID, &transactionInput, validate, transactionStatus, action)
 	if err != nil {
@@ -875,7 +933,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		},
 	}
 
-	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache)
+	operations, _, err := handler.BuildOperations(ctx, balancesBefore, fromTo, transactionInput, *tran, validate, transactionDate, transactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
 
@@ -888,7 +946,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	tran.Destination = getAliasWithoutKey(validate.Destinations)
 	tran.Operations = operations
 
-	handler.Command.UpdateTransactionBackupOperations(ctx, scope.OrganizationID, scope.LedgerID, transactionID.String(), operations)
+	handler.Command.UpdateTransactionBackupOperations(ctx, scope.OrganizationID, scope.LedgerID, transactionID.String(), operations, action)
 
 	originalStatus := tran.Status
 
@@ -971,6 +1029,7 @@ func (handler *TransactionHandler) sendTransactionToRedisQueue(
 	transactionInput pkgTransaction.Transaction,
 	validate *pkgTransaction.Responses,
 	transactionStatus string,
+	action string,
 	transactionDate time.Time,
 	internalKey *string,
 ) error {
@@ -979,7 +1038,7 @@ func (handler *TransactionHandler) sendTransactionToRedisQueue(
 	ctxSendTransactionToRedisQueue, spanSendTransactionToRedisQueue := tracer.Start(ctx, "handler.create_transaction.send_transaction_to_redis_queue")
 	defer spanSendTransactionToRedisQueue.End()
 
-	err := handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, transactionInput, validate, transactionStatus, transactionDate, nil)
+	err := handler.Command.SendTransactionToRedisQueue(ctxSendTransactionToRedisQueue, organizationID, ledgerID, transactionID, transactionInput, validate, transactionStatus, action, transactionDate, nil)
 	if err == nil {
 		return nil
 	}

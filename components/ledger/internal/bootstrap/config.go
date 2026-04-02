@@ -92,17 +92,17 @@ type Config struct {
 	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF"`
 
 	// Multi-tenant configuration
-	MultiTenantEnabled                  bool   `env:"MULTI_TENANT_ENABLED"`
-	MultiTenantURL                      string `env:"MULTI_TENANT_URL"`
-	MultiTenantCircuitBreakerThreshold  int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`
-	MultiTenantCircuitBreakerTimeoutSec int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"`
-	MultiTenantServiceAPIKey            string `env:"MULTI_TENANT_SERVICE_API_KEY"`
+	MultiTenantEnabled                     bool   `env:"MULTI_TENANT_ENABLED"`
+	MultiTenantURL                         string `env:"MULTI_TENANT_URL"`
+	MultiTenantCircuitBreakerThreshold     int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD"`
+	MultiTenantCircuitBreakerTimeoutSec    int    `env:"MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC"`
+	MultiTenantServiceAPIKey               string `env:"MULTI_TENANT_SERVICE_API_KEY"`
 	MultiTenantConnectionsCheckIntervalSec int    `env:"MULTI_TENANT_CONNECTIONS_CHECK_INTERVAL_SEC"`
-	MultiTenantCacheTTLSec              int    `env:"MULTI_TENANT_CACHE_TTL_SEC" default:"120"` // seconds for tenant config cache TTL (0 = disabled)
-	MultiTenantRedisHost                string `env:"MULTI_TENANT_REDIS_HOST"`
-	MultiTenantRedisPort                string `env:"MULTI_TENANT_REDIS_PORT"`
-	MultiTenantRedisPassword            string `env:"MULTI_TENANT_REDIS_PASSWORD"`
-	MultiTenantRedisTLS                 bool   `env:"MULTI_TENANT_REDIS_TLS"`
+	MultiTenantCacheTTLSec                 int    `env:"MULTI_TENANT_CACHE_TTL_SEC" default:"120"` // seconds for tenant config cache TTL (0 = disabled)
+	MultiTenantRedisHost                   string `env:"MULTI_TENANT_REDIS_HOST"`
+	MultiTenantRedisPort                   string `env:"MULTI_TENANT_REDIS_PORT"`
+	MultiTenantRedisPassword               string `env:"MULTI_TENANT_REDIS_PASSWORD"`
+	MultiTenantRedisTLS                    bool   `env:"MULTI_TENANT_REDIS_TLS"`
 
 	// --- Onboarding PostgreSQL fields (DB_ONBOARDING_* env tags) ---
 	OnbPrefixedPrimaryDBHost     string `env:"DB_ONBOARDING_HOST"`
@@ -196,7 +196,7 @@ type Config struct {
 	BulkRecorderMaxRowsPerInsert int  `env:"BULK_RECORDER_MAX_ROWS_PER_INSERT"`
 
 	// --- Balance/Worker fields ---
-	BalanceSyncMaxWorkers    int  `env:"BALANCE_SYNC_MAX_WORKERS"`
+	BalanceSyncMaxWorkers int `env:"BALANCE_SYNC_MAX_WORKERS"`
 
 	// --- Settings ---
 	SettingsCacheTTL string `env:"SETTINGS_CACHE_TTL"`
@@ -462,6 +462,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 				if tenantClient != nil {
 					_ = tenantClient.InvalidateConfig(ctx, tenantID, tenantServiceName)
 				}
+
 				if rmq != nil && rmq.multiTenantConsumer != nil {
 					rmq.multiTenantConsumer.EnsureConsumerStarted(ctx, tenantID)
 				}

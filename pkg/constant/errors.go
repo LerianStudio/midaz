@@ -173,6 +173,13 @@ var (
 	ErrTenantServiceSuspended                   = errors.New("0159")
 	ErrTenantNotFound                           = errors.New("0160")
 	ErrTenantServiceUnavailable                 = errors.New("0161")
+
+	// Accounting Rules Validation Errors
+	ErrScenarioNotAllowedForDirection = errors.New("0162")
+	ErrReserveGroupIncomplete         = errors.New("0163")
+	ErrDirectScenarioRequired         = errors.New("0164")
+	ErrRevertOnlyBidirectional        = errors.New("0165")
+	ErrAccountingEntryFieldRequired   = errors.New("0166")
 )
 
 // List of CRM errors.

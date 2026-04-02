@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMigration000026_FilesExist(t *testing.T) {
+func TestMigration000024_FilesExist(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
@@ -25,11 +25,11 @@ func TestMigration000026_FilesExist(t *testing.T) {
 	}{
 		{
 			name:     "up migration file exists",
-			filename: "000026_add_route_description_to_operation.up.sql",
+			filename: "000024_add_route_description_to_operation.up.sql",
 		},
 		{
 			name:     "down migration file exists",
-			filename: "000026_add_route_description_to_operation.down.sql",
+			filename: "000024_add_route_description_to_operation.down.sql",
 		},
 	}
 
@@ -48,11 +48,11 @@ func TestMigration000026_FilesExist(t *testing.T) {
 	}
 }
 
-func TestMigration000026_UpSQL_AddRouteDescriptionColumn(t *testing.T) {
+func TestMigration000024_UpSQL_AddRouteDescriptionColumn(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
-	path := filepath.Join(dir, "000026_add_route_description_to_operation.up.sql")
+	path := filepath.Join(dir, "000024_add_route_description_to_operation.up.sql")
 
 	content, err := os.ReadFile(path)
 	require.NoError(t, err, "up migration file must be readable")
@@ -82,11 +82,11 @@ func TestMigration000026_UpSQL_AddRouteDescriptionColumn(t *testing.T) {
 	assert.NotContains(t, sql, "default", "must NOT have a DEFAULT value")
 }
 
-func TestMigration000026_DownSQL_DropRouteDescriptionColumn(t *testing.T) {
+func TestMigration000024_DownSQL_DropRouteDescriptionColumn(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
-	path := filepath.Join(dir, "000026_add_route_description_to_operation.down.sql")
+	path := filepath.Join(dir, "000024_add_route_description_to_operation.down.sql")
 
 	content, err := os.ReadFile(path)
 	require.NoError(t, err, "down migration file must be readable")

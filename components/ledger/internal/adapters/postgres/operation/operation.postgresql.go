@@ -42,6 +42,7 @@ type OperationFilter struct {
 	OperationType *string
 	Direction     *string
 	RouteID       *string
+	RouteCode     *string
 }
 
 type Repository interface {
@@ -56,7 +57,7 @@ type Repository interface {
 	Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *Operation) (*Operation, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	// Point-in-time balance queries
-	FindLastOperationBeforeTimestamp(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, timestamp time.Time) (*Operation, error)
+	FindLastOperationBeforeTimestamp(ctx context.Context, organizationID, ledgerID, accountID, balanceID uuid.UUID, timestamp time.Time) (*Operation, error)
 	FindLastOperationsForAccountBeforeTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
 }
 
@@ -104,8 +105,8 @@ var operationColumnList = []string{
 var operationColumns = strings.Join(operationColumnList, ", ")
 
 // operationPointInTimeColumns contains only the columns needed for point-in-time balance queries.
-// This reduced column list enables PostgreSQL to use Index-Only Scan with the covering index
-// idx_operation_point_in_time, avoiding expensive heap fetches.
+// These columns are served by idx_operation_account_balance_pit via heap fetches (the index
+// is a lean key-only index without INCLUDE columns for optimal storage).
 // Note: 'id' is included for cursor pagination support in list queries.
 var operationPointInTimeColumns = []string{
 	"id",
@@ -1136,6 +1137,10 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		findAll = findAll.Where(squirrel.Expr("route_id = ?", *opFilter.RouteID))
 	}
 
+	if !libCommons.IsNilOrEmpty(opFilter.RouteCode) {
+		findAll = findAll.Where(squirrel.Expr("route_code = ?", *opFilter.RouteCode))
+	}
+
 	findAll, err = applyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to apply cursor pagination", err)
@@ -1240,7 +1245,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 
 // FindLastOperationBeforeTimestamp finds the last operation for a specific balance before a given timestamp.
 // This is used for point-in-time balance queries to determine the balance state at a specific moment.
-func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, timestamp time.Time) (*Operation, error) {
+func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx context.Context, organizationID, ledgerID, accountID, balanceID uuid.UUID, timestamp time.Time) (*Operation, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_last_operation_before_timestamp")
@@ -1255,11 +1260,12 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 	}
 
 	// Build query to find the last operation for this balance before the timestamp
-	// Uses optimized column list (9 columns vs 26) to enable Index-Only Scan with covering index
+	// Uses optimized column list (9 columns vs 26) to match idx_operation_account_balance_pit
 	findQuery := squirrel.Select(operationPointInTimeColumns...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"account_id": accountID}).
 		Where(squirrel.Eq{"balance_id": balanceID}).
 		Where(squirrel.LtOrEq{"created_at": timestamp}).
 		Where(squirrel.Eq{"deleted_at": nil}).
