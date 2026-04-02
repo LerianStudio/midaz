@@ -1322,31 +1322,31 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Message:    "The number of operation routes exceeds the maximum allowed. Please reduce the number of operation routes and try again.",
 		},
 		// Accounting Rules Validation Errors (0162-0166)
-		constant.ErrScenarioNotAllowedForDirection: ValidationError{
+		constant.ErrScenarioNotAllowedForDirection: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrScenarioNotAllowedForDirection.Error(),
-			Title:      "Scenario Not Allowed for Direction",
+			Title:      "Scenario Not Allowed For Direction",
 			Message:    fmt.Sprintf("The accounting scenario is not allowed for the specified operation direction. %v", args...),
 		},
-		constant.ErrReserveGroupIncomplete: ValidationError{
+		constant.ErrReserveGroupIncomplete: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrReserveGroupIncomplete.Error(),
 			Title:      "Reserve Group Incomplete",
 			Message:    fmt.Sprintf("The reserve group (hold, commit, cancel) must be complete. %v", args...),
 		},
-		constant.ErrDirectScenarioRequired: ValidationError{
+		constant.ErrDirectScenarioRequired: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrDirectScenarioRequired.Error(),
 			Title:      "Direct Scenario Required",
 			Message:    fmt.Sprintf("The direct scenario is required when other scenarios are present. %v", args...),
 		},
-		constant.ErrRevertOnlyBidirectional: ValidationError{
+		constant.ErrRevertOnlyBidirectional: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrRevertOnlyBidirectional.Error(),
-			Title:      "Revert Only for Bidirectional",
+			Title:      "Revert Only Bidirectional",
 			Message:    fmt.Sprintf("The revert scenario is only allowed for bidirectional operation routes. %v", args...),
 		},
-		constant.ErrAccountingEntryFieldRequired: ValidationError{
+		constant.ErrAccountingEntryFieldRequired: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountingEntryFieldRequired.Error(),
 			Title:      "Accounting Entry Field Required",
