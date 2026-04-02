@@ -13,6 +13,7 @@ import (
 	"time"
 
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,12 +34,14 @@ type flushRecorder struct {
 	batches []flushedBatch
 }
 
-func (r *flushRecorder) record(_ context.Context, keys []string) bool {
+func (r *flushRecorder) record(_ context.Context, keys []redisTransaction.SyncKey) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	cp := make([]string, len(keys))
-	copy(cp, keys)
+	for i, k := range keys {
+		cp[i] = k.Key
+	}
 
 	r.batches = append(r.batches, flushedBatch{keys: cp, at: time.Now()})
 
@@ -78,7 +81,7 @@ func (r *flushRecorder) getBatches() []flushedBatch {
 // When the channel is empty it blocks until a value arrives or the context is cancelled.
 // On context cancellation it returns nil, ctx.Err().
 func fetchFunc(ch <-chan []string) FetchKeysFunc {
-	return func(ctx context.Context, _ int64) ([]string, error) {
+	return func(ctx context.Context, _ int64) ([]redisTransaction.SyncKey, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -88,7 +91,12 @@ func fetchFunc(ch <-chan []string) FetchKeysFunc {
 				return nil, nil
 			}
 
-			return keys, nil
+			syncKeys := make([]redisTransaction.SyncKey, len(keys))
+			for i, k := range keys {
+				syncKeys[i] = redisTransaction.SyncKey{Key: k}
+			}
+
+			return syncKeys, nil
 		}
 	}
 }
@@ -96,14 +104,19 @@ func fetchFunc(ch <-chan []string) FetchKeysFunc {
 // fetchFuncImmediate returns a FetchKeysFunc that pulls the next value
 // from a channel without blocking (returns empty slice if nothing ready).
 func fetchFuncImmediate(ch <-chan []string) FetchKeysFunc {
-	return func(ctx context.Context, _ int64) ([]string, error) {
+	return func(ctx context.Context, _ int64) ([]redisTransaction.SyncKey, error) {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 
 		select {
 		case keys := <-ch:
-			return keys, nil
+			syncKeys := make([]redisTransaction.SyncKey, len(keys))
+			for i, k := range keys {
+				syncKeys[i] = redisTransaction.SyncKey{Key: k}
+			}
+
+			return syncKeys, nil
 		default:
 			return nil, nil
 		}
@@ -226,14 +239,14 @@ func TestSetFlushCallback(t *testing.T) {
 	assert.Nil(t, c.flushFn, "flushFn should be nil before SetFlushCallback")
 
 	called := false
-	c.SetFlushCallback(func(_ context.Context, _ []string) bool {
+	c.SetFlushCallback(func(_ context.Context, _ []redisTransaction.SyncKey) bool {
 		called = true
 		return true
 	})
 
 	require.NotNil(t, c.flushFn)
 
-	c.flushFn(context.Background(), []string{"k"})
+	c.flushFn(context.Background(), []redisTransaction.SyncKey{{Key: "k"}})
 	assert.True(t, called)
 }
 
@@ -249,7 +262,7 @@ func TestSize_ReflectsBuffer(t *testing.T) {
 	assert.Equal(t, 0, c.Size())
 
 	c.mu.Lock()
-	c.buffer = append(c.buffer, "a", "b", "c")
+	c.buffer = append(c.buffer, redisTransaction.SyncKey{Key: "a"}, redisTransaction.SyncKey{Key: "b"}, redisTransaction.SyncKey{Key: "c"})
 	c.mu.Unlock()
 
 	assert.Equal(t, 3, c.Size())
@@ -281,7 +294,7 @@ func TestFlush_WithItems(t *testing.T) {
 	c.SetFlushCallback(rec.record)
 
 	c.mu.Lock()
-	c.buffer = append(c.buffer, "key1", "key2")
+	c.buffer = append(c.buffer, redisTransaction.SyncKey{Key: "key1"}, redisTransaction.SyncKey{Key: "key2"})
 	c.mu.Unlock()
 
 	c.flush(context.Background())
@@ -298,7 +311,7 @@ func TestFlush_NilCallback(t *testing.T) {
 	// Deliberately do NOT set a callback.
 
 	c.mu.Lock()
-	c.buffer = append(c.buffer, "k")
+	c.buffer = append(c.buffer, redisTransaction.SyncKey{Key: "k"})
 	c.mu.Unlock()
 
 	// Should not panic.
@@ -489,7 +502,7 @@ func TestRun_EmptyBuffer_NoFlushOnTimeout(t *testing.T) {
 
 	// fetchKeys always returns empty — collector enters idle mode,
 	// waitForNext sees cancellation.
-	emptyFetch := func(_ context.Context, _ int64) ([]string, error) {
+	emptyFetch := func(_ context.Context, _ int64) ([]redisTransaction.SyncKey, error) {
 		return nil, nil
 	}
 
@@ -512,12 +525,12 @@ func TestRun_IdleMode_CallsWaitForNext(t *testing.T) {
 	var waitCalled atomic.Int32
 
 	c := NewBalanceSyncCollector(10, time.Second, 50*time.Millisecond, 10*time.Second, nopLogger())
-	c.SetFlushCallback(func(_ context.Context, _ []string) bool { return true })
+	c.SetFlushCallback(func(_ context.Context, _ []redisTransaction.SyncKey) bool { return true })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	emptyFetch := func(ctx context.Context, _ int64) ([]string, error) {
+	emptyFetch := func(ctx context.Context, _ int64) ([]redisTransaction.SyncKey, error) {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
@@ -615,7 +628,7 @@ func TestRun_TransientFetchError_ContinuesLoop(t *testing.T) {
 
 	var callCount atomic.Int32
 
-	fetchFn := func(ctx context.Context, limit int64) ([]string, error) {
+	fetchFn := func(ctx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
 		n := callCount.Add(1)
 		switch {
 		case n <= 2:
@@ -623,7 +636,7 @@ func TestRun_TransientFetchError_ContinuesLoop(t *testing.T) {
 			return nil, errors.New("redis timeout")
 		case n == 3:
 			// Third call: success
-			return []string{"a", "b", "c"}, nil
+			return []redisTransaction.SyncKey{{Key: "a"}, {Key: "b"}, {Key: "c"}}, nil
 		default:
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
@@ -783,7 +796,7 @@ func TestRun_IdleResumeAfterWaitForNext(t *testing.T) {
 
 	var fetchCallCount atomic.Int32
 
-	fetchFn := func(ctx context.Context, limit int64) ([]string, error) {
+	fetchFn := func(ctx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
@@ -797,7 +810,12 @@ func TestRun_IdleResumeAfterWaitForNext(t *testing.T) {
 		// After resume: check channel for keys
 		select {
 		case keys := <-keyCh:
-			return keys, nil
+			syncKeys := make([]redisTransaction.SyncKey, len(keys))
+			for i, k := range keys {
+				syncKeys[i] = redisTransaction.SyncKey{Key: k}
+			}
+
+			return syncKeys, nil
 		default:
 			return nil, nil
 		}
@@ -875,10 +893,10 @@ func TestRun_ImmediateCancel_ExitsCleanly(t *testing.T) {
 
 	// Pre-load buffer to verify final flush
 	c.mu.Lock()
-	c.buffer = append(c.buffer, "leftover")
+	c.buffer = append(c.buffer, redisTransaction.SyncKey{Key: "leftover"})
 	c.mu.Unlock()
 
-	c.Run(ctx, func(_ context.Context, _ int64) ([]string, error) {
+	c.Run(ctx, func(_ context.Context, _ int64) ([]redisTransaction.SyncKey, error) {
 		return nil, nil
 	}, waitForNextShutdown())
 
@@ -902,7 +920,7 @@ func TestRun_FinalFlush_EmptyBuffer_NoFlush(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	c.Run(ctx, func(_ context.Context, _ int64) ([]string, error) {
+	c.Run(ctx, func(_ context.Context, _ int64) ([]redisTransaction.SyncKey, error) {
 		return nil, nil
 	}, waitForNextShutdown())
 
@@ -973,7 +991,7 @@ func TestRun_ConcurrentSizeAccess(t *testing.T) {
 	t.Parallel()
 
 	c := NewBalanceSyncCollector(100, 200*time.Millisecond, 20*time.Millisecond, 10*time.Second, nopLogger())
-	c.SetFlushCallback(func(_ context.Context, _ []string) bool { return true })
+	c.SetFlushCallback(func(_ context.Context, _ []redisTransaction.SyncKey) bool { return true })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1031,7 +1049,7 @@ func TestRun_BlockingFetch_ContextCancellation(t *testing.T) {
 	t.Parallel()
 
 	c := NewBalanceSyncCollector(10, time.Second, 50*time.Millisecond, 10*time.Second, nopLogger())
-	c.SetFlushCallback(func(_ context.Context, _ []string) bool { return true })
+	c.SetFlushCallback(func(_ context.Context, _ []redisTransaction.SyncKey) bool { return true })
 
 	ctx, cancel := context.WithCancel(context.Background())
 

@@ -75,6 +75,15 @@ func tenantKeysFromContext(ctx context.Context, keys []string) ([]string, error)
 // Callers MUST check for empty string to detect cache miss. Do not store
 // empty strings as values; use JSON or another format that is never empty.
 //
+// SyncKey holds a balance schedule member together with the ZADD score it had
+// when the worker claimed it.  The score is passed back to
+// RemoveBalanceSyncKeysBatch so the Lua script can skip removal when a newer
+// mutation re-scheduled the same member (conditional ZREM).
+type SyncKey struct {
+	Key   string
+	Score float64
+}
+
 //go:generate mockgen --destination=consumer.redis_mock.go --package=redis . RedisRepository
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
@@ -92,7 +101,7 @@ type RedisRepository interface {
 	ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error)
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
 	RemoveMessageFromQueue(ctx context.Context, key string) error
-	GetBalanceSyncKeys(ctx context.Context, limit int64) ([]string, error)
+	GetBalanceSyncKeys(ctx context.Context, limit int64) ([]SyncKey, error)
 	RemoveBalanceSyncKey(ctx context.Context, member string) error
 	// ScheduleBalanceSyncBatch schedules multiple balance keys for sync using ZADD NX.
 	// Each member is a balance key with score = scheduled sync time (Unix timestamp).
@@ -104,9 +113,11 @@ type RedisRepository interface {
 	// Returns a map of key -> *mmodel.BalanceRedis (nil if key does not exist).
 	// This enables batch retrieval for the aggregation engine.
 	GetBalancesByKeys(ctx context.Context, keys []string) (map[string]*mmodel.BalanceRedis, error)
-	// RemoveBalanceSyncKeysBatch removes multiple keys from the sync schedule and their locks.
+	// RemoveBalanceSyncKeysBatch conditionally removes keys from the sync schedule.
+	// Only removes a member if its current ZSET score matches the claimed score,
+	// preventing removal of entries re-scheduled by newer mutations.
 	// Returns the number of keys actually removed from the schedule.
-	RemoveBalanceSyncKeysBatch(ctx context.Context, keys []string) (int64, error)
+	RemoveBalanceSyncKeysBatch(ctx context.Context, keys []SyncKey) (int64, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -956,7 +967,7 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 }
 
 // GetBalanceSyncKeys returns due scheduled balance keys limited by 'limit'.
-func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit int64) ([]string, error) {
+func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit int64) ([]SyncKey, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.get_balance_sync_keys")
@@ -988,29 +999,41 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 		return nil, err
 	}
 
-	var out []string
+	// Parse alternating [member, score, member, score, ...] from Lua result
+	var raw []string
 
 	switch vv := res.(type) {
 	case []any:
-		out = make([]string, 0, len(vv))
+		raw = make([]string, 0, len(vv))
 		for _, it := range vv {
 			switch s := it.(type) {
 			case string:
-				out = append(out, s)
+				raw = append(raw, s)
 			case []byte:
-				out = append(out, string(s))
+				raw = append(raw, string(s))
 			default:
-				out = append(out, fmt.Sprint(it))
+				raw = append(raw, fmt.Sprint(it))
 			}
 		}
 	case []string:
-		out = vv
+		raw = vv
 	default:
 		err = fmt.Errorf("unexpected result type from Redis script: %T", res)
 
 		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Warning: %v", err))
 
 		return nil, err
+	}
+
+	out := make([]SyncKey, 0, len(raw)/2)
+	for i := 0; i+1 < len(raw); i += 2 {
+		score, parseErr := strconv.ParseFloat(raw[i+1], 64)
+		if parseErr != nil {
+			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to parse score for %s: %v", raw[i], parseErr))
+			continue
+		}
+
+		out = append(out, SyncKey{Key: raw[i], Score: score})
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("fetch_due returned %d keys", len(out)))
@@ -1281,10 +1304,12 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 	return result, nil
 }
 
-// RemoveBalanceSyncKeysBatch removes multiple keys from the balance sync schedule.
-// Also removes associated lock keys. Returns count of removed schedule entries.
+// RemoveBalanceSyncKeysBatch conditionally removes keys from the balance sync schedule.
+// Only removes a member if its current ZSET score matches the claimed score,
+// preventing removal of entries re-scheduled by newer mutations.
+// Also removes associated lock keys unconditionally.
 // Large inputs are processed in chunks of maxRedisBatchSize to prevent oversized payloads.
-func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Context, keys []string) (int64, error) {
+func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Context, keys []SyncKey) (int64, error) {
 	if len(keys) == 0 {
 		return 0, nil
 	}
@@ -1326,12 +1351,12 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 		end := min(start+maxRedisBatchSize, len(keys))
 		chunk := keys[start:end]
 
-		// Build args: [lockPrefix, member1, member2, ...]
-		args := make([]any, 0, len(chunk)+1)
+		// Build args: [lockPrefix, member1, score1, member2, score2, ...]
+		args := make([]any, 0, len(chunk)*2+1)
 		args = append(args, prefixedLockPrefix)
 
-		for _, key := range chunk {
-			args = append(args, key)
+		for _, sk := range chunk {
+			args = append(args, sk.Key, strconv.FormatFloat(sk.Score, 'f', -1, 64))
 		}
 
 		result, err := client.Eval(ctx, removeBalanceSyncKeysBatchScript, []string{prefixedScheduleKey}, args...).Result()

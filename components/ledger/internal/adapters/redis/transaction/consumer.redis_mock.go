@@ -92,10 +92,10 @@ func (mr *MockRedisRepositoryMockRecorder) Get(ctx, key any) *gomock.Call {
 }
 
 // GetBalanceSyncKeys mocks base method.
-func (m *MockRedisRepository) GetBalanceSyncKeys(ctx context.Context, limit int64) ([]string, error) {
+func (m *MockRedisRepository) GetBalanceSyncKeys(ctx context.Context, limit int64) ([]SyncKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBalanceSyncKeys", ctx, limit)
-	ret0, _ := ret[0].([]string)
+	ret0, _ := ret[0].([]SyncKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -240,7 +240,7 @@ func (mr *MockRedisRepositoryMockRecorder) RemoveBalanceSyncKey(ctx, member any)
 }
 
 // RemoveBalanceSyncKeysBatch mocks base method.
-func (m *MockRedisRepository) RemoveBalanceSyncKeysBatch(ctx context.Context, keys []string) (int64, error) {
+func (m *MockRedisRepository) RemoveBalanceSyncKeysBatch(ctx context.Context, keys []SyncKey) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RemoveBalanceSyncKeysBatch", ctx, keys)
 	ret0, _ := ret[0].(int64)

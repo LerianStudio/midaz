@@ -11,6 +11,7 @@ import (
 	"time"
 
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
+	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 )
 
 // BalanceSyncCollector accumulates Redis ZSET keys for batch processing.
@@ -28,18 +29,18 @@ type BalanceSyncCollector struct {
 	flushTimeout time.Duration
 	pollInterval time.Duration
 	idleBackoff  time.Duration
-	buffer       []string
+	buffer       []redisTransaction.SyncKey
 	flushFn      FlushFunc
 	logger       libLog.Logger
 }
 
 // FlushFunc is called when the collector flushes accumulated keys.
 // It receives the batch of keys and returns true if any processing occurred.
-type FlushFunc func(ctx context.Context, keys []string) bool
+type FlushFunc func(ctx context.Context, keys []redisTransaction.SyncKey) bool
 
 // FetchKeysFunc fetches eligible keys from the ZSET schedule.
 // limit is the maximum number of keys to return.
-type FetchKeysFunc func(ctx context.Context, limit int64) ([]string, error)
+type FetchKeysFunc func(ctx context.Context, limit int64) ([]redisTransaction.SyncKey, error)
 
 // WaitForNextFunc waits until the next scheduled key is due or a backoff period elapses.
 // Returns true if shutdown was requested during the wait.
@@ -74,7 +75,7 @@ func NewBalanceSyncCollector(
 		flushTimeout: flushTimeout,
 		pollInterval: pollInterval,
 		idleBackoff:  idleBackoff,
-		buffer:       make([]string, 0, batchSize),
+		buffer:       make([]redisTransaction.SyncKey, 0, batchSize),
 		logger:       logger,
 	}
 }
@@ -104,7 +105,7 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc,
 		// Final flush on shutdown
 		c.mu.Lock()
 		remaining := c.buffer
-		c.buffer = make([]string, 0, c.batchSize)
+		c.buffer = make([]redisTransaction.SyncKey, 0, c.batchSize)
 		c.mu.Unlock()
 
 		if len(remaining) > 0 && c.flushFn != nil {
@@ -174,6 +175,7 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc,
 				}
 
 				timer.Reset(c.flushTimeout)
+
 				timerActive = true
 
 				continue // tight loop — fetch more immediately
@@ -200,6 +202,7 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc,
 				c.flush(ctx)
 
 				timer.Reset(c.flushTimeout)
+
 				timerActive = true
 			case <-time.After(c.pollInterval):
 				// Poll again to check for new keys
@@ -211,6 +214,7 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc,
 		// 5. Idle mode: buffer empty and nothing in ZSET
 		c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: idle mode — no keys in ZSET, waiting for next scheduled key")
 		timer.Stop()
+
 		timerActive = false
 
 		if waitForNext(ctx) {
@@ -221,6 +225,7 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc,
 
 		// Re-arm timer for next accumulation cycle
 		timer.Reset(c.flushTimeout)
+
 		timerActive = true
 	}
 }
@@ -228,13 +233,14 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc,
 // flush drains the buffer and calls the flush callback.
 func (c *BalanceSyncCollector) flush(ctx context.Context) {
 	c.mu.Lock()
+
 	if len(c.buffer) == 0 {
 		c.mu.Unlock()
 		return
 	}
 
 	keys := c.buffer
-	c.buffer = make([]string, 0, c.batchSize)
+	c.buffer = make([]redisTransaction.SyncKey, 0, c.batchSize)
 	c.mu.Unlock()
 
 	if c.flushFn != nil {

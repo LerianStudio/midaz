@@ -159,7 +159,7 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedBatchScheduleAndRemove(t *t
 			conn: newMockEvalConnection(mockClient),
 		}
 
-		_, err := repo.RemoveBalanceSyncKeysBatch(ctx, []string{"balance:key"})
+		_, err := repo.RemoveBalanceSyncKeysBatch(ctx, []SyncKey{{Key: "balance:key", Score: 0}})
 		require.Error(t, err)
 	})
 }

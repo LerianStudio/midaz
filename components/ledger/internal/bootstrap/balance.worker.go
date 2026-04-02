@@ -21,6 +21,7 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
+	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -160,12 +161,12 @@ func (w *BalanceSyncWorker) runSingleTenant() error {
 		w.logger,
 	)
 
-	collector.SetFlushCallback(func(flushCtx context.Context, keys []string) bool {
+	collector.SetFlushCallback(func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
 		return w.flushBatch(flushCtx, keys)
 	})
 
 	collector.Run(ctx,
-		func(fetchCtx context.Context, limit int64) ([]string, error) {
+		func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
 			return w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(fetchCtx, limit)
 		},
 		func(waitCtx context.Context) bool {
@@ -295,12 +296,12 @@ func (w *BalanceSyncWorker) shouldShutdown(ctx context.Context) bool {
 type orgLedgerGroup struct {
 	orgID    uuid.UUID
 	ledgerID uuid.UUID
-	keys     []string
+	keys     []redisTransaction.SyncKey
 }
 
 // flushBatch groups keys by (orgID, ledgerID) and processes each group via SyncBalancesBatch.
 // This is the flush callback used by the BalanceSyncCollector.
-func (w *BalanceSyncWorker) flushBatch(ctx context.Context, keys []string) bool {
+func (w *BalanceSyncWorker) flushBatch(ctx context.Context, keys []redisTransaction.SyncKey) bool {
 	if len(keys) == 0 {
 		return false
 	}
@@ -323,18 +324,18 @@ func (w *BalanceSyncWorker) flushBatch(ctx context.Context, keys []string) bool 
 
 // groupKeysByOrgLedger groups Redis balance keys by their (organizationID, ledgerID) pair.
 // Keys that cannot be parsed are logged and skipped.
-func (w *BalanceSyncWorker) groupKeysByOrgLedger(keys []string) []orgLedgerGroup {
+func (w *BalanceSyncWorker) groupKeysByOrgLedger(keys []redisTransaction.SyncKey) []orgLedgerGroup {
 	type groupKey struct {
 		orgID    uuid.UUID
 		ledgerID uuid.UUID
 	}
 
-	grouped := make(map[groupKey][]string, 1) // typically 1 group in single-tenant
+	grouped := make(map[groupKey][]redisTransaction.SyncKey, 1) // typically 1 group in single-tenant
 
 	for _, key := range keys {
-		orgID, ledgerID, err := w.extractIDsFromMember(key)
+		orgID, ledgerID, err := w.extractIDsFromMember(key.Key)
 		if err != nil {
-			w.logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to extract IDs from key %s: %v", key, err))
+			w.logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to extract IDs from key %s: %v", key.Key, err))
 
 			continue
 		}
@@ -378,7 +379,7 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 	// This is guaranteed by the worker's scheduling mechanism which fetches keys
 	// from a single ZSET scoped per tenant context. In multi-tenant mode,
 	// processTenantBalances is called per-tenant, ensuring batch homogeneity.
-	orgID, ledgerID, extractErr := w.extractIDsFromMember(members[0])
+	orgID, ledgerID, extractErr := w.extractIDsFromMember(members[0].Key)
 	if extractErr == nil {
 		return w.processBalancesToExpireBatch(ctx, orgID, ledgerID, members)
 	}
@@ -406,7 +407,7 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 			return true
 		}
 
-		member := m
+		member := m.Key
 
 		sem <- struct{}{}
 
@@ -444,7 +445,7 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 //  4. Removes all processed keys in batch
 //
 // Returns true if any balances were processed.
-func (w *BalanceSyncWorker) processBalancesToExpireBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string) bool {
+func (w *BalanceSyncWorker) processBalancesToExpireBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []redisTransaction.SyncKey) bool {
 	if len(keys) == 0 {
 		return false
 	}

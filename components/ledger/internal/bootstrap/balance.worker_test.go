@@ -373,7 +373,7 @@ func TestProcessBalancesToExpire_NoMembers(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockRedisRepo.EXPECT().
 		GetBalanceSyncKeys(gomock.Any(), int64(50)).
-		Return([]string{}, nil).
+		Return([]redis.SyncKey{}, nil).
 		Times(1)
 
 	useCase := &command.UseCase{
@@ -464,7 +464,7 @@ func TestProcessBalancesToExpire_ShutdownDuringProcessing(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockRedisRepo.EXPECT().
 		GetBalanceSyncKeys(gomock.Any(), int64(50)).
-		Return([]string{member}, nil).
+		Return([]redis.SyncKey{{Key: member, Score: 1000}}, nil).
 		Times(1)
 
 	useCase := &command.UseCase{
