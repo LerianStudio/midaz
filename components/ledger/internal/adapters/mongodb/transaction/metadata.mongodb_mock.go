@@ -188,18 +188,3 @@ func (mr *MockRepositoryMockRecorder) Update(ctx, collection, id, metadata any) 
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, collection, id, metadata)
 }
-
-// UpdateBulk mocks base method.
-func (m *MockRepository) UpdateBulk(ctx context.Context, collection string, updates []MetadataBulkUpdate) (*repository.MongoDBBulkUpdateResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateBulk", ctx, collection, updates)
-	ret0, _ := ret[0].(*repository.MongoDBBulkUpdateResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateBulk indicates an expected call of UpdateBulk.
-func (mr *MockRepositoryMockRecorder) UpdateBulk(ctx, collection, updates any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBulk", reflect.TypeOf((*MockRepository)(nil).UpdateBulk), ctx, collection, updates)
-}

@@ -66,11 +66,3 @@ type MongoDBBulkInsertResult struct {
 	Matched     int64    // Documents that matched filter (already existed)
 	InsertedIDs []string // EntityIDs of documents that were actually inserted
 }
-
-// MongoDBBulkUpdateResult contains the counts from a MongoDB bulk update operation.
-// It tracks how many documents were attempted and actually modified.
-type MongoDBBulkUpdateResult struct {
-	Attempted int64 // Documents sent to BulkWrite
-	Modified  int64 // Documents actually modified
-	Matched   int64 // Documents that matched filter
-}

@@ -127,10 +127,3 @@ func (mim *MetadataIndexMongoDBModel) FromEntity(mi *MetadataIndex) error {
 
 	return nil
 }
-
-// MetadataBulkUpdate represents an update operation for bulk metadata updates.
-// It contains the entity ID and the new metadata values to set.
-type MetadataBulkUpdate struct {
-	EntityID string         // The entity_id to update
-	Data     map[string]any // New metadata values to set
-}
