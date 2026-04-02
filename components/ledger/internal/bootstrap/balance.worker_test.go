@@ -66,12 +66,12 @@ func TestNewBalanceSyncWorker(t *testing.T) {
 			logger := newTestLogger()
 			useCase := &command.UseCase{}
 
-			worker := NewBalanceSyncWorker(conn, logger, useCase, tt.maxWorkers)
+			worker := NewBalanceSyncWorker(conn, logger, useCase, tt.maxWorkers, BalanceSyncConfig{})
 
 			require.NotNil(t, worker)
 			assert.Equal(t, tt.expectedMaxWorkers, worker.maxWorkers)
-			assert.Equal(t, int64(tt.expectedMaxWorkers), worker.batchSize)
-			assert.Equal(t, 600*time.Second, worker.idleWait)
+			assert.Equal(t, int64(50), worker.batchSize)
+			assert.Equal(t, 1*time.Second, worker.idleWait) // 2 * FlushTimeoutMs(500) = 1000ms, clamped to 1s
 			assert.Same(t, conn, worker.redisConn)
 			assert.Same(t, useCase, worker.useCase)
 		})
@@ -372,7 +372,7 @@ func TestProcessBalancesToExpire_NoMembers(t *testing.T) {
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockRedisRepo.EXPECT().
-		GetBalanceSyncKeys(gomock.Any(), int64(5)).
+		GetBalanceSyncKeys(gomock.Any(), int64(50)).
 		Return([]string{}, nil).
 		Times(1)
 
@@ -382,7 +382,7 @@ func TestProcessBalancesToExpire_NoMembers(t *testing.T) {
 
 	worker := &BalanceSyncWorker{
 		logger:     newTestLogger(),
-		batchSize:  5,
+		batchSize:  50,
 		maxWorkers: 5,
 		useCase:    useCase,
 	}
@@ -401,7 +401,7 @@ func TestProcessBalancesToExpire_ErrorGettingKeys(t *testing.T) {
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockRedisRepo.EXPECT().
-		GetBalanceSyncKeys(gomock.Any(), int64(5)).
+		GetBalanceSyncKeys(gomock.Any(), int64(50)).
 		Return(nil, errors.New("redis connection error")).
 		Times(1)
 
@@ -411,7 +411,7 @@ func TestProcessBalancesToExpire_ErrorGettingKeys(t *testing.T) {
 
 	worker := &BalanceSyncWorker{
 		logger:     newTestLogger(),
-		batchSize:  5,
+		batchSize:  50,
 		maxWorkers: 5,
 		useCase:    useCase,
 	}
@@ -430,7 +430,7 @@ func TestProcessBalancesToExpire_RedisNilError(t *testing.T) {
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockRedisRepo.EXPECT().
-		GetBalanceSyncKeys(gomock.Any(), int64(5)).
+		GetBalanceSyncKeys(gomock.Any(), int64(50)).
 		Return(nil, goredis.Nil).
 		Times(1)
 
@@ -440,7 +440,7 @@ func TestProcessBalancesToExpire_RedisNilError(t *testing.T) {
 
 	worker := &BalanceSyncWorker{
 		logger:     newTestLogger(),
-		batchSize:  5,
+		batchSize:  50,
 		maxWorkers: 5,
 		useCase:    useCase,
 	}
@@ -463,7 +463,7 @@ func TestProcessBalancesToExpire_ShutdownDuringProcessing(t *testing.T) {
 
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockRedisRepo.EXPECT().
-		GetBalanceSyncKeys(gomock.Any(), int64(5)).
+		GetBalanceSyncKeys(gomock.Any(), int64(50)).
 		Return([]string{member}, nil).
 		Times(1)
 
@@ -473,7 +473,7 @@ func TestProcessBalancesToExpire_ShutdownDuringProcessing(t *testing.T) {
 
 	worker := &BalanceSyncWorker{
 		logger:     newTestLogger(),
-		batchSize:  5,
+		batchSize:  50,
 		maxWorkers: 5,
 		useCase:    useCase,
 	}

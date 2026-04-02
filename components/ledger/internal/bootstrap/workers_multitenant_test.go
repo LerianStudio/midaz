@@ -68,7 +68,7 @@ func TestBalanceSyncWorker_MultiTenantFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			worker := NewBalanceSyncWorker(conn, logger, useCase, 5)
+			worker := NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
 
 			// These fields must exist on the struct for multi-tenant support.
 			// The test will fail to compile until the fields are added.
@@ -104,7 +104,7 @@ func TestBalanceSyncWorker_FallbackWhenPGManagerNil(t *testing.T) {
 	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 
-	worker := NewBalanceSyncWorker(conn, logger, useCase, 5)
+	worker := NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
 
 	// Set multiTenantEnabled = true but leave pgManager nil
 	worker.multiTenantEnabled = true
@@ -224,7 +224,7 @@ func TestNewBalanceSyncWorkerMultiTenant(t *testing.T) {
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 	cache := tenantcache.NewTenantCache()
 
-	worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, 5, true, cache, pgMgr, "transaction")
+	worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, 5, BalanceSyncConfig{}, true, cache, pgMgr, "transaction")
 
 	require.NotNil(t, worker, "worker should not be nil")
 	assert.True(t, worker.multiTenantEnabled,
@@ -359,7 +359,7 @@ func TestBalanceSyncWorker_IsMultiTenantReady(t *testing.T) {
 			if tt.name == "false_for_zero_value_struct" {
 				worker = &BalanceSyncWorker{}
 			} else {
-				worker = NewBalanceSyncWorker(conn, logger, useCase, 5)
+				worker = NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
 				worker.multiTenantEnabled = tt.multiTenantEnabled
 				worker.pgManager = tt.pgManager
 				worker.tenantCache = tt.tenantCache
@@ -509,7 +509,7 @@ func TestNewBalanceSyncWorkerMultiTenant_EdgeCases(t *testing.T) {
 			t.Parallel()
 
 			worker := NewBalanceSyncWorkerMultiTenant(
-				conn, logger, useCase, 5,
+				conn, logger, useCase, 5, BalanceSyncConfig{},
 				tt.multiTenantEnabled, tt.tenantCache, tt.pgManager, "transaction",
 			)
 
@@ -632,7 +632,7 @@ func TestNewBalanceSyncWorker_ZeroValueMultiTenantFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			worker := NewBalanceSyncWorker(conn, logger, useCase, tt.maxWorkers)
+			worker := NewBalanceSyncWorker(conn, logger, useCase, tt.maxWorkers, BalanceSyncConfig{})
 
 			require.NotNil(t, worker, "base constructor must return non-nil")
 			assert.Equal(t, tt.wantMaxWorkers, worker.maxWorkers,
@@ -766,7 +766,7 @@ func TestBalanceSyncWorker_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			worker := NewBalanceSyncWorker(conn, logger, useCase, 5)
+			worker := NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
 			worker.multiTenantEnabled = tt.multiTenantEnabled
 			worker.pgManager = tt.pgManager
 			worker.tenantCache = tt.tenantCache
@@ -922,7 +922,7 @@ func TestBalanceSyncWorker_MultiTenantConstructorPreservesRunBehavior(t *testing
 			t.Parallel()
 
 			worker := NewBalanceSyncWorkerMultiTenant(
-				conn, logger, useCase, 5,
+				conn, logger, useCase, 5, BalanceSyncConfig{},
 				tt.multiTenantEnabled, cache, tt.pgManager, "transaction",
 			)
 

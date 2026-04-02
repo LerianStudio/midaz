@@ -76,7 +76,7 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, maxWorkers int, multiTenantEnabled bool, serviceName string) {
 		// Property: constructor must never panic (enforced by test execution).
-		worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, maxWorkers, multiTenantEnabled, cache, pgMgr, serviceName)
+		worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, maxWorkers, BalanceSyncConfig{}, multiTenantEnabled, cache, pgMgr, serviceName)
 
 		// Property: returned worker is never nil.
 		if worker == nil {
@@ -108,9 +108,9 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 			t.Fatal("isMultiTenantReady() should be false when multiTenantEnabled is false")
 		}
 
-		// Property: batchSize equals maxWorkers (post-default).
-		if worker.batchSize != int64(worker.maxWorkers) {
-			t.Fatalf("batchSize (%d) should equal maxWorkers (%d)", worker.batchSize, worker.maxWorkers)
+		// Property: batchSize equals default BatchSize (50) when BalanceSyncConfig{} is used.
+		if worker.batchSize != int64(50) {
+			t.Fatalf("batchSize (%d) should equal default BatchSize (50)", worker.batchSize)
 		}
 	})
 }
@@ -216,7 +216,7 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, workerEnabled bool, workerHasPGMgr bool, consumerEnabled bool, consumerHasPGMgr bool) {
 		// --- BalanceSyncWorker predicate ---
-		worker := NewBalanceSyncWorker(conn, logger, useCase, 5)
+		worker := NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
 		worker.multiTenantEnabled = workerEnabled
 
 		if workerHasPGMgr {
