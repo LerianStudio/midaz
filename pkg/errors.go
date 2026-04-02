@@ -1325,7 +1325,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrScenarioNotAllowedForDirection: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrScenarioNotAllowedForDirection.Error(),
-			Title:      "Scenario Not Allowed for Direction",
+			Title:      "Scenario Not Allowed For Direction",
 			Message:    fmt.Sprintf("The accounting scenario is not allowed for the specified operation direction. %v", args...),
 		},
 		constant.ErrReserveGroupIncomplete: UnprocessableOperationError{
@@ -1343,7 +1343,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrRevertOnlyBidirectional: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrRevertOnlyBidirectional.Error(),
-			Title:      "Revert Only for Bidirectional",
+			Title:      "Revert Only Bidirectional",
 			Message:    fmt.Sprintf("The revert scenario is only allowed for bidirectional operation routes. %v", args...),
 		},
 		constant.ErrAccountingEntryFieldRequired: UnprocessableOperationError{

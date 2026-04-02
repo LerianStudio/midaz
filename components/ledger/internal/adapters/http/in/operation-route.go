@@ -264,6 +264,7 @@ func (handler *OperationRouteHandler) UpdateOperationRoute(i any, c *fiber.Ctx) 
 
 		// Handle explicit top-level null for accountingEntries (RFC 7396: clear all)
 		var mergedEntries *mmodel.AccountingEntries
+
 		rawTrimmed := strings.TrimSpace(string(payload.AccountingEntriesRaw))
 		if rawTrimmed == "null" {
 			// Explicit null at top level - clear all entries
