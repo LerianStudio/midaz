@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	pkg "github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
@@ -444,7 +445,10 @@ func TestOperationRouteHandler_validateDirectionScenarioMatrix(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err, "expected validation error")
-				assert.Contains(t, err.Error(), tt.errorCode, "error should contain expected code")
+
+				var unprocessableErr pkg.UnprocessableOperationError
+				require.ErrorAs(t, err, &unprocessableErr, "expected UnprocessableOperationError")
+				assert.Equal(t, tt.errorCode, unprocessableErr.Code, "error code mismatch")
 			} else {
 				require.NoError(t, err, "expected no validation error")
 			}
@@ -689,7 +693,10 @@ func TestOperationRouteHandler_validateReserveGroupAtomicity(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err, "expected validation error")
-				assert.Contains(t, err.Error(), tt.errorCode, "error should contain expected code")
+
+				var unprocessableErr pkg.UnprocessableOperationError
+				require.ErrorAs(t, err, &unprocessableErr, "expected UnprocessableOperationError")
+				assert.Equal(t, tt.errorCode, unprocessableErr.Code, "error code mismatch")
 			} else {
 				require.NoError(t, err, "expected no validation error")
 			}
@@ -793,7 +800,10 @@ func TestOperationRouteHandler_validateDirectMandatory(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err, "expected validation error")
-				assert.Contains(t, err.Error(), tt.errorCode, "error should contain expected code")
+
+				var unprocessableErr pkg.UnprocessableOperationError
+				require.ErrorAs(t, err, &unprocessableErr, "expected UnprocessableOperationError")
+				assert.Equal(t, tt.errorCode, unprocessableErr.Code, "error code mismatch")
 			} else {
 				require.NoError(t, err, "expected no validation error")
 			}
@@ -1219,7 +1229,10 @@ func TestOperationRouteHandler_validateAccountingRulesMatrix(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err, "expected validation error")
-				assert.Contains(t, err.Error(), tt.errorCode, "error should contain expected code")
+
+				var unprocessableErr pkg.UnprocessableOperationError
+				require.ErrorAs(t, err, &unprocessableErr, "expected UnprocessableOperationError")
+				assert.Equal(t, tt.errorCode, unprocessableErr.Code, "error code mismatch")
 			} else {
 				require.NoError(t, err, "expected no validation error")
 			}
@@ -1499,9 +1512,13 @@ func TestOperationRouteHandler_validateEntryFieldRequirements(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err, "expected validation error")
-				assert.Contains(t, err.Error(), tt.errorCode, "error should contain expected code")
+
+				var unprocessableErr pkg.UnprocessableOperationError
+				require.ErrorAs(t, err, &unprocessableErr, "expected UnprocessableOperationError")
+				assert.Equal(t, tt.errorCode, unprocessableErr.Code, "error code mismatch")
+
 				if tt.errorField != "" {
-					assert.Contains(t, err.Error(), tt.errorField, "error should reference the missing field")
+					assert.Contains(t, unprocessableErr.Message, tt.errorField, "error should reference the missing field")
 				}
 			} else {
 				require.NoError(t, err, "expected no validation error")
