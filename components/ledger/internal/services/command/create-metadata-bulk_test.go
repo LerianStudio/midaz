@@ -534,15 +534,24 @@ func TestCreateMetadataBulk_EmptyCollection_ReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "collection is required")
 }
 
-func TestCreateMetadataBulk_ExceedsMaxEntries_ReturnsError(t *testing.T) {
+func TestCreateMetadataBulk_ExceedsMaxEntries_ChunksProcessing(t *testing.T) {
 	t.Parallel()
 
-	uc := &UseCase{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+	}
 
 	ctx := context.Background()
 
-	// Create more entries than the maximum allowed
-	entries := make([]MetadataEntry, maxBulkMetadataEntries+1)
+	// Create more entries than maxBulkMetadataEntries to verify chunking.
+	// Use a small count above the limit to keep the test fast.
+	entryCount := maxBulkMetadataEntries + 5
+	entries := make([]MetadataEntry, entryCount)
 	for i := range entries {
 		entries[i] = MetadataEntry{
 			EntityID:   uuid.New().String(),
@@ -551,10 +560,27 @@ func TestCreateMetadataBulk_ExceedsMaxEntries_ReturnsError(t *testing.T) {
 		}
 	}
 
+	// Expect two CreateBulk calls: one for the first chunk (maxBulkMetadataEntries)
+	// and one for the remaining 5 entries.
+	mockMetadataRepo.EXPECT().
+		CreateBulk(gomock.Any(), "Transaction", gomock.Len(maxBulkMetadataEntries)).
+		Return(&repository.MongoDBBulkInsertResult{
+			Attempted: int64(maxBulkMetadataEntries),
+			Inserted:  int64(maxBulkMetadataEntries),
+		}, nil).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().
+		CreateBulk(gomock.Any(), "Transaction", gomock.Len(5)).
+		Return(&repository.MongoDBBulkInsertResult{
+			Attempted: 5,
+			Inserted:  5,
+		}, nil).
+		Times(1)
+
 	err := uc.createMetadataBulk(ctx, entries)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "bulk metadata entries exceed limit")
+	require.NoError(t, err)
 }
 
 // TestCollectMetadataFromPayloads_Success tests that metadata entries are correctly

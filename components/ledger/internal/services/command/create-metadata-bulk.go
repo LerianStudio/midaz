@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -65,14 +66,6 @@ func (uc *UseCase) createMetadataBulk(ctx context.Context, entries []MetadataEnt
 	ctx, span := tracer.Start(ctx, "command.create_metadata_bulk")
 	defer span.End()
 
-	// Check input size limit to prevent resource exhaustion
-	if len(entries) > maxBulkMetadataEntries {
-		err := fmt.Errorf("bulk metadata entries exceed limit: %d > %d", len(entries), maxBulkMetadataEntries)
-		libOpentelemetry.HandleSpanError(span, "Input size exceeds limit", err)
-
-		return err
-	}
-
 	// Filter and validate entries
 	validEntries := make([]MetadataEntry, 0, len(entries))
 
@@ -96,23 +89,29 @@ func (uc *UseCase) createMetadataBulk(ctx context.Context, entries []MetadataEnt
 		return nil
 	}
 
-	// Group entries by collection
-	grouped := groupMetadataByCollection(validEntries)
-
+	// Process in chunks of maxBulkMetadataEntries to bound per-batch resource usage.
+	// Each chunk is grouped by collection and processed independently.
 	var (
 		totalFailures  int
 		totalAttempted int
 	)
 
-	for collection, collectionEntries := range grouped {
-		totalAttempted += len(collectionEntries)
+	for chunkStart := 0; chunkStart < len(validEntries); chunkStart += maxBulkMetadataEntries {
+		chunkEnd := min(chunkStart+maxBulkMetadataEntries, len(validEntries))
+		chunk := validEntries[chunkStart:chunkEnd]
 
-		failures, err := uc.createMetadataForCollection(ctx, logger, collection, collectionEntries)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, fmt.Sprintf("Failed to create metadata for collection %s", collection), err)
+		grouped := groupMetadataByCollection(chunk)
+
+		for collection, collectionEntries := range grouped {
+			totalAttempted += len(collectionEntries)
+
+			failures, err := uc.createMetadataForCollection(ctx, logger, collection, collectionEntries)
+			if err != nil {
+				libOpentelemetry.HandleSpanError(span, fmt.Sprintf("Failed to create metadata for collection %s", collection), err)
+			}
+
+			totalFailures += failures
 		}
-
-		totalFailures += failures
 	}
 
 	if totalFailures > 0 {
@@ -386,8 +385,8 @@ func isInfrastructureError(err error) bool {
 		return false
 	}
 
-	// Context cancellation / deadline exceeded
-	if err == context.Canceled || err == context.DeadlineExceeded {
+	// Context cancellation / deadline exceeded (errors.Is handles wrapped sentinels)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
 
