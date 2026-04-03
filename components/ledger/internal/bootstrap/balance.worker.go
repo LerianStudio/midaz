@@ -643,11 +643,13 @@ func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool
 	}
 }
 
-// waitUntilDue waits until the given dueAtUnix time.
+// waitUntilDue waits until the given dueAt score time.
+// The score uses microsecond precision (seconds*1e6 + microseconds) to match
+// the ZADD scores set by the Lua balance_atomic_operation script.
 // Returns true if the context was cancelled while waiting.
-func (w *BalanceSyncWorker) waitUntilDue(ctx context.Context, dueAtUnix int64, logger libLog.Logger) bool {
-	nowUnix := time.Now().Unix()
-	if dueAtUnix <= nowUnix {
+func (w *BalanceSyncWorker) waitUntilDue(ctx context.Context, dueAtScore int64, logger libLog.Logger) bool {
+	nowMicro := time.Now().UnixMicro()
+	if dueAtScore <= nowMicro {
 		// Due time already passed but item not processed (ZSET/sync-queue desync).
 		// Apply minimal backoff to prevent busy loop when:
 		// - ZSET has entry with expired score
@@ -656,7 +658,7 @@ func (w *BalanceSyncWorker) waitUntilDue(ctx context.Context, dueAtUnix int64, l
 		return waitOrDone(ctx, 500*time.Millisecond, logger)
 	}
 
-	waitFor := time.Duration(dueAtUnix-nowUnix) * time.Second
+	waitFor := time.Duration(dueAtScore-nowMicro) * time.Microsecond
 	if waitFor <= 0 {
 		return waitOrDone(ctx, 500*time.Millisecond, logger)
 	}
