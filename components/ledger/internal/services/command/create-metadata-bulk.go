@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -170,6 +171,22 @@ func (uc *UseCase) createMetadataForCollection(
 	// Try bulk insert
 	result, err := uc.TransactionMetadataRepo.CreateBulk(ctx, collection, metadataList)
 	if err != nil {
+		// Classify the error: infrastructure errors (timeout, network, server unavailable)
+		// should not fan out into individual writes that will all fail too.
+		if isInfrastructureError(err) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Bulk insert failed with infrastructure error, skipping fallback", err)
+
+			if logger != nil {
+				logger.Log(ctx, libLog.LevelError, fmt.Sprintf(
+					"Bulk metadata insert failed for %s with infrastructure error (no fallback): %v",
+					collection, err,
+				))
+			}
+
+			return len(entries), fmt.Errorf("infrastructure error during bulk insert for %s: %w", collection, err)
+		}
+
+		// Document-level errors (duplicate key, validation) — fall back to individual creates.
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Bulk insert failed, falling back to individual creates", err)
 
 		if logger != nil {
@@ -324,16 +341,16 @@ func collectMetadataFromPayloads(
 
 		tx := payload.Transaction
 
-		// Skip if this transaction was not actually inserted (duplicate)
-		// If insertedTxIDs is empty, process all (fallback or status-update scenarios)
-		if len(insertedTxIDs) > 0 {
-			if _, wasInserted := insertedTxIDs[tx.ID]; !wasInserted {
-				continue
-			}
+		// Determine if this transaction was actually inserted (not a duplicate).
+		// If insertedTxIDs is empty, process all (fallback or status-update scenarios).
+		txWasInserted := len(insertedTxIDs) == 0
+		if !txWasInserted {
+			_, txWasInserted = insertedTxIDs[tx.ID]
 		}
 
-		// Collect transaction metadata if present
-		if tx.Metadata != nil {
+		// Collect transaction-level metadata only for newly inserted transactions.
+		// Status-transitioned (updated) transactions already have their metadata persisted.
+		if txWasInserted && tx.Metadata != nil {
 			entries = append(entries, MetadataEntry{
 				EntityID:   tx.ID,
 				Collection: transactionTypeName,
@@ -341,7 +358,9 @@ func collectMetadataFromPayloads(
 			})
 		}
 
-		// Collect operation metadata
+		// Always collect operation metadata regardless of transaction insert status.
+		// Operations may be newly created even when the parent transaction was a
+		// status-transition (update) rather than a fresh insert.
 		for _, op := range tx.Operations {
 			if op == nil || op.Metadata == nil {
 				continue
@@ -356,4 +375,31 @@ func collectMetadataFromPayloads(
 	}
 
 	return entries
+}
+
+// isInfrastructureError returns true when the error indicates an infrastructure-level
+// failure (timeout, network, context cancellation) rather than a document-level issue
+// (duplicate key, validation). Infrastructure errors should not trigger per-entry
+// fallback because individual writes would fail with the same root cause.
+func isInfrastructureError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Context cancellation / deadline exceeded
+	if err == context.Canceled || err == context.DeadlineExceeded {
+		return true
+	}
+
+	// MongoDB driver timeout (covers both client and server-side timeouts)
+	if mongo.IsTimeout(err) {
+		return true
+	}
+
+	// MongoDB driver network errors (connection refused, reset, DNS, etc.)
+	if mongo.IsNetworkError(err) {
+		return true
+	}
+
+	return false
 }

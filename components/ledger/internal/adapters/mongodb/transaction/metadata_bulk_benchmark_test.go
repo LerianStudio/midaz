@@ -305,14 +305,13 @@ func BenchmarkMetadata_CreateBulk_Chunking(b *testing.B) {
 	benchmarks := []struct {
 		name      string
 		batchSize int
-		chunks    int // Expected number of chunks
 	}{
-		{"SingleChunk_500", 500, 1},
-		{"SingleChunk_1000", 1000, 1},
-		{"TwoChunks_1500", 1500, 2},
-		{"TwoChunks_2000", 2000, 2},
-		{"ThreeChunks_2500", 2500, 3},
-		{"TenChunks_10000", 10000, 10},
+		{"SingleChunk_500", 500},
+		{"SingleChunk_1000", 1000},
+		{"TwoChunks_1500", 1500},
+		{"TwoChunks_2000", 2000},
+		{"ThreeChunks_2500", 2500},
+		{"TenChunks_10000", 10000},
 	}
 
 	for _, bm := range benchmarks {

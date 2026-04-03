@@ -213,6 +213,48 @@ func TestCreateMetadataBulk_AllNilData(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCreateMetadataBulk_InfrastructureError_SkipsFallback(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+	}
+
+	ctx := context.Background()
+
+	entries := []MetadataEntry{
+		{
+			EntityID:   uuid.New().String(),
+			Collection: "Transaction",
+			Data:       map[string]any{"key1": "value1"},
+		},
+		{
+			EntityID:   uuid.New().String(),
+			Collection: "Transaction",
+			Data:       map[string]any{"key2": "value2"},
+		},
+	}
+
+	// CreateBulk fails with a context timeout (infrastructure error)
+	mockMetadataRepo.EXPECT().
+		CreateBulk(gomock.Any(), "Transaction", gomock.Any()).
+		Return(nil, context.DeadlineExceeded).
+		Times(1)
+
+	// Create should NOT be called — infrastructure errors skip fallback.
+	// gomock strict controller will panic if Create is called unexpectedly.
+
+	err := uc.createMetadataBulk(ctx, entries)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create 2 of 2 metadata entries")
+}
+
 func TestCreateMetadataBulk_FallbackOnBulkFailure(t *testing.T) {
 	t.Parallel()
 
@@ -577,9 +619,10 @@ func TestCollectMetadataFromPayloads_Success(t *testing.T) {
 	require.Len(t, opEntries, 3)
 }
 
-// TestCollectMetadataFromPayloads_SkipsDuplicates tests that transactions not in
-// insertedTxIDs are skipped during metadata collection.
-func TestCollectMetadataFromPayloads_SkipsDuplicates(t *testing.T) {
+// TestCollectMetadataFromPayloads_SkipsDuplicateTxMetadata tests that transaction-level
+// metadata for transactions not in insertedTxIDs is skipped, while their operation
+// metadata is still collected.
+func TestCollectMetadataFromPayloads_SkipsDuplicateTxMetadata(t *testing.T) {
 	t.Parallel()
 
 	tx1ID := uuid.New().String()
@@ -602,7 +645,7 @@ func TestCollectMetadataFromPayloads_SkipsDuplicates(t *testing.T) {
 		},
 		{
 			Transaction: &transaction.Transaction{
-				ID:       tx2ID, // This one was a duplicate, not in insertedTxIDs
+				ID:       tx2ID, // Not in insertedTxIDs (duplicate/status-transition)
 				Metadata: map[string]any{"tx2_key": "tx2_value"},
 				Operations: []*operation.Operation{
 					{
@@ -621,9 +664,84 @@ func TestCollectMetadataFromPayloads_SkipsDuplicates(t *testing.T) {
 
 	entries := collectMetadataFromPayloads(payloads, insertedTxIDs)
 
-	// Should have 1 transaction entry + 1 operation entry = 2 total
-	// tx2 and its operation should be skipped
-	require.Len(t, entries, 2)
+	transactionTypeName := reflect.TypeOf(transaction.Transaction{}).Name()
+	operationTypeName := reflect.TypeOf(operation.Operation{}).Name()
+
+	// tx-level metadata: only tx1 (1 entry). tx2's metadata is skipped.
+	txEntries := filterEntriesByCollection(entries, transactionTypeName)
+	require.Len(t, txEntries, 1)
+	assert.Equal(t, tx1ID, txEntries[0].EntityID)
+
+	// op-level metadata: both op1 and op2 (2 entries). Operations are always collected.
+	opEntries := filterEntriesByCollection(entries, operationTypeName)
+	require.Len(t, opEntries, 2)
+}
+
+// TestCollectMetadataFromPayloads_MixedInsertAndStatusTransition tests that in a batch
+// containing both newly inserted transactions and status-transitioned (updated) ones,
+// operation metadata is preserved for all payloads while transaction-level metadata is
+// only collected for newly inserted transactions.
+func TestCollectMetadataFromPayloads_MixedInsertAndStatusTransition(t *testing.T) {
+	t.Parallel()
+
+	// tx1 is newly inserted (present in insertedTxIDs)
+	tx1ID := uuid.New().String()
+	op1ID := uuid.New().String()
+	op2ID := uuid.New().String()
+
+	// tx2 is a status-transition (NOT in insertedTxIDs)
+	tx2ID := uuid.New().String()
+	op3ID := uuid.New().String()
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{
+			Transaction: &transaction.Transaction{
+				ID:       tx1ID,
+				Metadata: map[string]any{"tx1_key": "tx1_value"},
+				Operations: []*operation.Operation{
+					{ID: op1ID, Metadata: map[string]any{"op1_key": "op1_value"}},
+					{ID: op2ID, Metadata: map[string]any{"op2_key": "op2_value"}},
+				},
+			},
+		},
+		{
+			Transaction: &transaction.Transaction{
+				ID:       tx2ID,
+				Metadata: map[string]any{"tx2_key": "tx2_value"},
+				Operations: []*operation.Operation{
+					{ID: op3ID, Metadata: map[string]any{"op3_key": "op3_value"}},
+				},
+			},
+		},
+	}
+
+	// Only tx1 was newly inserted; tx2 is a status-transition (update)
+	insertedTxIDs := map[string]struct{}{
+		tx1ID: {},
+	}
+
+	entries := collectMetadataFromPayloads(payloads, insertedTxIDs)
+
+	transactionTypeName := reflect.TypeOf(transaction.Transaction{}).Name()
+	operationTypeName := reflect.TypeOf(operation.Operation{}).Name()
+
+	// Transaction metadata: only tx1 (newly inserted), NOT tx2 (status-transition)
+	txEntries := filterEntriesByCollection(entries, transactionTypeName)
+	require.Len(t, txEntries, 1, "only the newly inserted transaction should have tx-level metadata")
+	assert.Equal(t, tx1ID, txEntries[0].EntityID)
+
+	// Operation metadata: all 3 operations from BOTH transactions
+	opEntries := filterEntriesByCollection(entries, operationTypeName)
+	require.Len(t, opEntries, 3, "operations from both inserted and status-transitioned transactions must be collected")
+
+	opIDs := make(map[string]bool, len(opEntries))
+	for _, e := range opEntries {
+		opIDs[e.EntityID] = true
+	}
+
+	assert.True(t, opIDs[op1ID], "op1 from inserted tx1 should be present")
+	assert.True(t, opIDs[op2ID], "op2 from inserted tx1 should be present")
+	assert.True(t, opIDs[op3ID], "op3 from status-transitioned tx2 should be present")
 }
 
 // TestCollectMetadataFromPayloads_SkipsNilMetadata tests that entries with nil
@@ -777,9 +895,10 @@ func TestProcessMetadataAndEventsBulk_UsesBulkOperations(t *testing.T) {
 	uc.processMetadataAndEventsBulk(ctx, nil, payloads, insertedTxIDs)
 }
 
-// TestProcessMetadataAndEventsBulk_SkipsDuplicates tests that duplicate transactions
-// (those not in insertedTxIDs) are not processed.
-func TestProcessMetadataAndEventsBulk_SkipsDuplicates(t *testing.T) {
+// TestProcessMetadataAndEventsBulk_SkipsDuplicateTxMetadata tests that duplicate transaction
+// metadata (those not in insertedTxIDs) is not processed, while their operation metadata is
+// still created.
+func TestProcessMetadataAndEventsBulk_SkipsDuplicateTxMetadata(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -794,7 +913,7 @@ func TestProcessMetadataAndEventsBulk_SkipsDuplicates(t *testing.T) {
 	ctx := context.Background()
 
 	tx1ID := uuid.New().String()
-	tx2ID := uuid.New().String() // This will be a duplicate
+	tx2ID := uuid.New().String() // Not in insertedTxIDs (duplicate/status-transition)
 	op1ID := uuid.New().String()
 	op2ID := uuid.New().String()
 
@@ -810,7 +929,7 @@ func TestProcessMetadataAndEventsBulk_SkipsDuplicates(t *testing.T) {
 		},
 		{
 			Transaction: &transaction.Transaction{
-				ID:       tx2ID, // Duplicate - not in insertedTxIDs
+				ID:       tx2ID,
 				Metadata: map[string]any{"tx2_key": "tx2_value"},
 				Operations: []*operation.Operation{
 					{ID: op2ID, Metadata: map[string]any{"op2_key": "op2_value"}},
@@ -824,16 +943,19 @@ func TestProcessMetadataAndEventsBulk_SkipsDuplicates(t *testing.T) {
 		tx1ID: {},
 	}
 
-	// Only 1 transaction should be processed (single entry uses Create)
+	// Only 1 transaction metadata entry (tx1), single entry uses Create
 	mockMetadataRepo.EXPECT().
 		Create(gomock.Any(), "Transaction", gomock.Any()).
 		Return(nil).
 		Times(1)
 
-	// Only 1 operation should be processed (single entry uses Create)
+	// 2 operation metadata entries (op1 + op2) — operations are always collected
 	mockMetadataRepo.EXPECT().
-		Create(gomock.Any(), "Operation", gomock.Any()).
-		Return(nil).
+		CreateBulk(gomock.Any(), "Operation", gomock.Len(2)).
+		Return(&repository.MongoDBBulkInsertResult{
+			Attempted: 2,
+			Inserted:  2,
+		}, nil).
 		Times(1)
 
 	uc.processMetadataAndEventsBulk(ctx, nil, payloads, insertedTxIDs)
