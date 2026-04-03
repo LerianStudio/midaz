@@ -113,6 +113,7 @@ func (bc *BulkCollector) SetContextCancelHandler(handler ContextCancelHandler) {
 // Returns ErrCollectorStopped if the collector has been stopped.
 func (bc *BulkCollector) Add(msg amqp.Delivery) error {
 	bc.mu.Lock()
+
 	if bc.stopped {
 		bc.mu.Unlock()
 		return ErrCollectorStopped
@@ -122,6 +123,7 @@ func (bc *BulkCollector) Add(msg amqp.Delivery) error {
 		bc.mu.Unlock()
 		return ErrCollectorNotStarted
 	}
+
 	bc.mu.Unlock()
 
 	select {
@@ -301,6 +303,7 @@ func (bc *BulkCollector) cleanupOnExit(ctx context.Context, timer *time.Timer) {
 	bc.drainInputChan()
 
 	bc.mu.Lock()
+
 	if len(bc.messages) > 0 {
 		messages := bc.messages
 		bc.messages = make([]amqp.Delivery, 0, bc.bulkSize)
@@ -360,6 +363,7 @@ func (bc *BulkCollector) executeFlush(ctx context.Context, messages []amqp.Deliv
 // Once stopped, the collector cannot be restarted.
 func (bc *BulkCollector) Stop() {
 	bc.mu.Lock()
+
 	if bc.stopped || !bc.started {
 		bc.mu.Unlock()
 		return
