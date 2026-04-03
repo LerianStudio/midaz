@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"sort"
 	"time"
 
@@ -464,6 +463,10 @@ func (uc *UseCase) processMetadataAndEvents(
 	payloads []transaction.TransactionProcessingPayload,
 	insertedTxIDs map[string]struct{},
 ) {
+	// Create all metadata in bulk (reduces N round-trips to 1 per collection)
+	uc.processMetadataAndEventsBulk(ctx, logger, payloads, insertedTxIDs)
+
+	// Process events and cleanup for each inserted transaction
 	for _, payload := range payloads {
 		if payload.Transaction == nil {
 			continue
@@ -476,25 +479,9 @@ func (uc *UseCase) processMetadataAndEvents(
 		if len(insertedTxIDs) > 0 {
 			if _, wasInserted := insertedTxIDs[tx.ID]; !wasInserted {
 				logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf(
-					"Skipping metadata/events for duplicate transaction %s", tx.ID))
+					"Skipping events for duplicate transaction %s", tx.ID))
 
 				continue
-			}
-		}
-
-		// Create transaction metadata
-		if err := uc.CreateMetadataAsync(ctx, logger, tx.Metadata, tx.ID, reflect.TypeOf(transaction.Transaction{}).Name()); err != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to create transaction metadata: %v", err))
-		}
-
-		// Create operation metadata
-		for _, op := range tx.Operations {
-			if op == nil {
-				continue
-			}
-
-			if err := uc.CreateMetadataAsync(ctx, logger, op.Metadata, op.ID, reflect.TypeOf(operation.Operation{}).Name()); err != nil {
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to create operation metadata: %v", err))
 			}
 		}
 

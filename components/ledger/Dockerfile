@@ -1,5 +1,5 @@
 FROM --platform=$BUILDPLATFORM golang:1.25.8-alpine AS builder
-# Force rebuild for develop branch - 2026-04-01 (4)
+# Force rebuild for develop branch - 2026-04-03 (5)
 
 WORKDIR /ledger-app
 
