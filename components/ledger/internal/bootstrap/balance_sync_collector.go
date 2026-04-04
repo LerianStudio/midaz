@@ -102,7 +102,7 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc,
 	defer func() {
 		timer.Stop()
 		pollTimer.Stop()
-		c.flushRemaining()
+		c.flushRemaining(ctx)
 	}()
 
 	for {
@@ -223,7 +223,10 @@ func (c *BalanceSyncCollector) handleIdleMode(ctx context.Context, timer *time.T
 }
 
 // flushRemaining drains any leftover buffer on shutdown.
-func (c *BalanceSyncCollector) flushRemaining() {
+// ctx carries context values (tenant ID, PG connection) needed by the flush callback.
+// The cancellation signal is stripped via context.WithoutCancel so the final flush
+// can complete even after the parent context has been cancelled.
+func (c *BalanceSyncCollector) flushRemaining(ctx context.Context) {
 	c.mu.Lock()
 	remaining := c.buffer
 	c.buffer = make([]redisTransaction.SyncKey, 0, c.batchSize)
@@ -232,7 +235,7 @@ func (c *BalanceSyncCollector) flushRemaining() {
 	if len(remaining) > 0 && c.flushFn != nil {
 		c.logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncCollector: shutdown — final flush of %d remaining keys", len(remaining)))
 
-		flushCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
 
 		c.flushFn(flushCtx, remaining)
