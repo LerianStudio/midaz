@@ -77,6 +77,10 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	aggregatedBalances := make([]*redisBalance.AggregatedBalance, 0, len(keys))
 	orphanedKeys := make([]redisTransaction.SyncKey, 0)
 
+	// Track all Redis keys that map to each composite key so dedup losers
+	// are also removed from the ZSET schedule (not just the winner).
+	compositeToRedisKeys := make(map[string][]string)
+
 	for _, key := range plainKeys {
 		balance := balanceMap[key]
 		if balance == nil {
@@ -104,6 +108,9 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		if parsedIsGeneric && balanceHasSpecificKey {
 			compositeKey.PartitionKey = balance.Key
 		}
+
+		keyStr := compositeKey.String()
+		compositeToRedisKeys[keyStr] = append(compositeToRedisKeys[keyStr], key)
 
 		aggregatedBalances = append(aggregatedBalances, &redisBalance.AggregatedBalance{
 			RedisKey: key,
@@ -147,14 +154,22 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	}
 
 	balancesToSync := make([]mmodel.BalanceRedis, 0, len(deduplicated))
-	keysToRemove := make([]redisTransaction.SyncKey, 0, len(deduplicated)+len(orphanedKeys))
+	keysToRemove := make([]redisTransaction.SyncKey, 0, len(plainKeys))
 
 	// Add orphaned keys first (they need cleanup regardless of DB sync outcome)
 	keysToRemove = append(keysToRemove, orphanedKeys...)
 
 	for _, ab := range deduplicated {
 		balancesToSync = append(balancesToSync, *ab.Balance)
-		keysToRemove = append(keysToRemove, redisTransaction.SyncKey{Key: ab.RedisKey, Score: scoreMap[ab.RedisKey]})
+
+		// Remove ALL Redis keys that mapped to this composite key, not just the
+		// dedup winner. Loser keys point to the same balance and were already
+		// superseded by the winner's version — leaving them would cause
+		// unnecessary re-processing on the next sync cycle.
+		compositeStr := ab.Key.String()
+		for _, redisKey := range compositeToRedisKeys[compositeStr] {
+			keysToRemove = append(keysToRemove, redisTransaction.SyncKey{Key: redisKey, Score: scoreMap[redisKey]})
+		}
 	}
 
 	synced, syncErr := uc.BalanceRepo.SyncBatch(ctx, organizationID, ledgerID, balancesToSync)

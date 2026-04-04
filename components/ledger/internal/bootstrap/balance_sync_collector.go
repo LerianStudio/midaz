@@ -117,6 +117,17 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc,
 		if err != nil {
 			c.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncCollector: fetch keys error: "+err.Error())
 
+			// If the buffer already has items, skip the sleep and re-enter the
+			// draining path so the timeout trigger can still flush on time.
+			// Only sleep when the buffer is empty to avoid a tight error loop.
+			c.mu.Lock()
+			hasItems := len(c.buffer) > 0
+			c.mu.Unlock()
+
+			if hasItems {
+				continue
+			}
+
 			if waitOrShutdown(ctx, c.pollInterval) {
 				return
 			}
