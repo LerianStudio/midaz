@@ -57,6 +57,18 @@ type BalanceSyncWorker struct {
 	serviceName        string
 }
 
+// tenantCollector tracks a running BalanceSyncCollector goroutine for a specific tenant.
+// Each tenant gets its own independent collector with dual-trigger batching.
+type tenantCollector struct {
+	tenantID string
+	cancel   context.CancelFunc
+	done     chan struct{} // closed when the collector goroutine exits
+}
+
+// tenantReconcileInterval is how often the multi-tenant worker checks for
+// added/removed tenants in the TenantCache.
+const tenantReconcileInterval = 10 * time.Second
+
 func NewBalanceSyncWorker(conn *libRedis.Client, logger libLog.Logger, useCase *command.UseCase, maxWorkers int, syncCfg BalanceSyncConfig) *BalanceSyncWorker {
 	if maxWorkers <= 0 {
 		maxWorkers = 5
@@ -179,108 +191,198 @@ func (w *BalanceSyncWorker) runSingleTenant() error {
 	return nil
 }
 
-// runMultiTenant runs the balance sync loop iterating over all active tenants.
-// Each tenant gets its own dual-trigger collector for independent batch accumulation.
-// If a tenant's connection fails, it logs and skips that tenant without affecting others.
+// runMultiTenant runs one BalanceSyncCollector per active tenant, each with its own
+// dual-trigger (size OR timeout) batch accumulation. A reconciliation loop periodically
+// checks the TenantCache for added/removed tenants and starts/stops collectors accordingly.
+//
+// Unlike the single-tenant path which runs a single collector inline, the multi-tenant
+// path launches each collector as a goroutine. When the parent context is cancelled
+// (SIGTERM/SIGINT), all tenant collectors are stopped and their remaining buffers are flushed.
 func (w *BalanceSyncWorker) runMultiTenant() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker started (multi-tenant, dual-trigger: batch_size=%d, flush_timeout=%dms, poll_interval=%dms)",
-		w.syncConfig.BatchSize, w.syncConfig.FlushTimeoutMs, w.syncConfig.PollIntervalMs))
+	w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker started (multi-tenant, dual-trigger: batch_size=%d, flush_timeout=%dms, poll_interval=%dms, reconcile_interval=%s)",
+		w.syncConfig.BatchSize, w.syncConfig.FlushTimeoutMs, w.syncConfig.PollIntervalMs, tenantReconcileInterval))
 
-	rds, err := w.redisConn.GetClient(ctx)
-	if err != nil {
-		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get redis client: %v", err))
+	collectors := make(map[string]*tenantCollector)
+	defer w.stopAllCollectors(ctx, collectors)
 
-		return err
-	}
+	// Reconcile immediately on startup, then on a ticker.
+	w.reconcileCollectors(ctx, collectors)
+
+	ticker := time.NewTicker(tenantReconcileInterval)
+	defer ticker.Stop()
 
 	for {
-		if w.shouldShutdown(ctx) {
+		select {
+		case <-ctx.Done():
 			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
 
 			return nil
-		}
-
-		tenantIDs, ok := w.discoverActiveTenants(ctx, rds)
-		if !ok {
-			continue
-		}
-
-		if tenantIDs == nil {
-			return nil
-		}
-
-		processed := false
-
-		for _, tenantID := range tenantIDs {
-			if w.shouldShutdown(ctx) {
-				w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
-
-				return nil
-			}
-
-			if w.processTenantBalances(ctx, tenantID, rds) {
-				processed = true
-			}
-		}
-
-		if !processed {
-			if w.waitForNextOrBackoff(ctx, rds) {
-				w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
-
-				return nil
-			}
+		case <-ticker.C:
+			w.reconcileCollectors(ctx, collectors)
 		}
 	}
 }
 
-// discoverActiveTenants reads tenant IDs from the shared TenantCache.
-// Returns (tenantIDs, true) on success, (nil, false) if no tenants are cached
-// (backs off and retries), or (nil, true) if shutdown was requested during backoff.
-func (w *BalanceSyncWorker) discoverActiveTenants(ctx context.Context, rds redis.UniversalClient) ([]string, bool) {
+// reconcileCollectors synchronizes the set of running collectors with the active tenants
+// in the TenantCache. It has three phases:
+//  1. Reap: detect collectors whose goroutines exited unexpectedly (e.g., panic)
+//  2. Stop: cancel collectors for tenants no longer in the cache
+//  3. Start: launch collectors for newly discovered tenants
+func (w *BalanceSyncWorker) reconcileCollectors(ctx context.Context, collectors map[string]*tenantCollector) {
 	tenantIDs := w.tenantCache.TenantIDs()
 
-	if len(tenantIDs) == 0 {
-		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: no tenants in cache, backing off")
-
-		if w.waitForNextOrBackoff(ctx, rds) {
-			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
-
-			return nil, true
-		}
-
-		return nil, false
+	activeSet := make(map[string]struct{}, len(tenantIDs))
+	for _, id := range tenantIDs {
+		activeSet[id] = struct{}{}
 	}
 
-	return tenantIDs, true
+	// Phase 1: Reap dead collectors (goroutine exited unexpectedly).
+	// Removing them from the map allows Phase 3 to restart them if the tenant is still active.
+	for id, tc := range collectors {
+		select {
+		case <-tc.done:
+			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: collector for tenant %s exited unexpectedly, will restart", id))
+
+			delete(collectors, id)
+		default:
+		}
+	}
+
+	// Phase 2: Cancel collectors for removed tenants (non-blocking cancel, deferred wait).
+	var removed []*tenantCollector
+
+	for id, tc := range collectors {
+		if _, ok := activeSet[id]; !ok {
+			w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: tenant %s removed from cache, stopping collector", id))
+
+			tc.cancel()
+
+			removed = append(removed, tc)
+
+			delete(collectors, id)
+		}
+	}
+
+	// Phase 3: Start collectors for new tenants.
+	for _, id := range tenantIDs {
+		if _, ok := collectors[id]; ok {
+			continue // already running
+		}
+
+		tc := w.startTenantCollector(ctx, id)
+		if tc != nil {
+			collectors[id] = tc
+		}
+	}
+
+	// Phase 4: Wait for removed collectors to finish (all cancellations already sent in Phase 2).
+	for _, tc := range removed {
+		<-tc.done
+
+		w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: collector for tenant %s stopped", tc.tenantID))
+	}
+
+	if len(tenantIDs) == 0 {
+		w.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncWorker: no tenants in cache, will retry on next reconciliation")
+	}
 }
 
-// processTenantBalances resolves the per-tenant PostgreSQL connection, augments the context
-// with the tenant ID and module connection, then processes expired balances for that tenant.
-// Returns true if any balances were processed.
-func (w *BalanceSyncWorker) processTenantBalances(ctx context.Context, tenantID string, rds redis.UniversalClient) bool {
-	tenantCtx := tmcore.ContextWithTenantID(ctx, tenantID)
+// startTenantCollector resolves the tenant's PostgreSQL connection, creates a
+// BalanceSyncCollector with tenant-scoped fetch/flush functions, and launches it
+// as a goroutine. Returns nil if the tenant's PG connection cannot be established.
+func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tenantID string) *tenantCollector {
+	tenantCtx := tmcore.ContextWithTenantID(parentCtx, tenantID)
 
 	conn, err := w.pgManager.GetConnection(tenantCtx, tenantID)
 	if err != nil {
-		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get PG connection for tenant %s: %v", tenantID, err))
+		w.logger.Log(parentCtx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get PG connection for tenant %s: %v", tenantID, err))
 
-		return false
+		return nil
 	}
 
 	db, err := conn.GetDB()
 	if err != nil {
-		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get DB for tenant %s: %v", tenantID, err))
+		w.logger.Log(parentCtx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get DB for tenant %s: %v", tenantID, err))
 
-		return false
+		return nil
 	}
 
 	tenantCtx = tmcore.ContextWithPG(tenantCtx, db)
 	tenantCtx = tmcore.ContextWithPG(tenantCtx, db, constant.ModuleTransaction)
 
-	return w.processBalancesToExpire(tenantCtx, rds)
+	collectorCtx, cancel := context.WithCancel(tenantCtx)
+
+	collector := NewBalanceSyncCollector(
+		w.syncConfig.BatchSize,
+		time.Duration(w.syncConfig.FlushTimeoutMs)*time.Millisecond,
+		time.Duration(w.syncConfig.PollIntervalMs)*time.Millisecond,
+		w.idleWait,
+		w.logger,
+	)
+
+	collector.SetFlushCallback(func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
+		return w.flushBatch(flushCtx, keys)
+	})
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		defer func() {
+			if r := recover(); r != nil {
+				w.logger.Log(parentCtx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: collector for tenant %s panicked: %v", tenantID, r))
+			}
+		}()
+
+		w.logger.Log(collectorCtx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: collector started for tenant %s", tenantID))
+
+		collector.Run(collectorCtx,
+			// FetchKeysFunc: tenant context enables Redis key namespacing via tmvalkey.GetKeyContext
+			func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
+				return w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(fetchCtx, limit)
+			},
+			// WaitForNextFunc: fixed backoff when idle (ZSET empty for this tenant)
+			func(waitCtx context.Context) bool {
+				return waitOrDone(waitCtx, w.idleWait, w.logger)
+			},
+		)
+
+		w.logger.Log(parentCtx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: collector stopped for tenant %s", tenantID))
+	}()
+
+	return &tenantCollector{
+		tenantID: tenantID,
+		cancel:   cancel,
+		done:     done,
+	}
+}
+
+// stopAllCollectors cancels all running tenant collectors and waits for them to finish.
+// Each collector's deferred flushRemaining runs on cancellation, draining any buffered keys.
+func (w *BalanceSyncWorker) stopAllCollectors(ctx context.Context, collectors map[string]*tenantCollector) {
+	if len(collectors) == 0 {
+		return
+	}
+
+	w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: stopping %d tenant collector(s)...", len(collectors)))
+
+	// Cancel all collectors concurrently
+	for _, tc := range collectors {
+		tc.cancel()
+	}
+
+	// Wait for all to finish (each flushes its remaining buffer)
+	for id, tc := range collectors {
+		<-tc.done
+
+		w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: collector stopped for tenant %s", id))
+
+		delete(collectors, id)
+	}
 }
 
 func (w *BalanceSyncWorker) shouldShutdown(ctx context.Context) bool {
