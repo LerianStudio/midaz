@@ -737,13 +737,18 @@ func TestRemoveBalanceSyncKeysBatch_SingleKey(t *testing.T) {
 		conn: newMockEvalConnection(mockClient),
 	}
 
-	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{{Key: "balance:key1", Score: 0}})
+	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{{Key: "balance:key1", Score: 100}})
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), count)
 	assert.NotEmpty(t, capturedScript, "Lua script should be passed")
-	assert.Len(t, capturedKeys, 1, "Should have 1 key (schedule key)")
-	assert.Len(t, capturedArgs, 3, "Should have lock prefix + 1 member + 1 score")
+	assert.Equal(t, []string{utils.BalanceSyncScheduleKey}, capturedKeys, "KEYS[1] should be the schedule key")
+	// ARGV contract: [lockPrefix, member1, score1]
+	assert.Equal(t, []any{
+		utils.BalanceSyncLockPrefix,
+		"balance:key1",
+		"100",
+	}, capturedArgs, "ARGV should be [lockPrefix, member, score_as_string]")
 }
 
 func TestRemoveBalanceSyncKeysBatch_MultipleKeys(t *testing.T) {
@@ -764,12 +769,21 @@ func TestRemoveBalanceSyncKeysBatch_MultipleKeys(t *testing.T) {
 		conn: newMockEvalConnection(mockClient),
 	}
 
-	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{{Key: "key1", Score: 0}, {Key: "key2", Score: 0}, {Key: "key3", Score: 0}})
+	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{
+		{Key: "key1", Score: 100},
+		{Key: "key2", Score: 200},
+		{Key: "key3", Score: 300},
+	})
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), count)
-	// Args should be: [lockPrefix, key1, score1, key2, score2, key3, score3]
-	assert.Len(t, capturedArgs, 7, "Should have lock prefix + 3 members + 3 scores")
+	// ARGV contract: [lockPrefix, member1, score1, member2, score2, member3, score3]
+	assert.Equal(t, []any{
+		utils.BalanceSyncLockPrefix,
+		"key1", "100",
+		"key2", "200",
+		"key3", "300",
+	}, capturedArgs, "ARGV should alternate member/score pairs after lock prefix")
 }
 
 func TestRemoveBalanceSyncKeysBatch_PartialRemoval(t *testing.T) {
@@ -788,7 +802,11 @@ func TestRemoveBalanceSyncKeysBatch_PartialRemoval(t *testing.T) {
 		conn: newMockEvalConnection(mockClient),
 	}
 
-	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{{Key: "key1", Score: 0}, {Key: "key2", Score: 0}, {Key: "key3", Score: 0}})
+	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{
+		{Key: "key1", Score: 100},
+		{Key: "key2", Score: 200},
+		{Key: "key3", Score: 300},
+	})
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), count, "Should return actual count of removed keys")

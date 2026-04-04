@@ -15,14 +15,13 @@ for i = 2, #ARGV, 2 do
     local member = ARGV[i]
     local claimedScore = tonumber(ARGV[i + 1])
 
-    -- Only remove if the score has NOT been updated by a newer mutation.
-    -- If a new ZADD happened after our claim, currentScore > claimedScore
-    -- and we must NOT remove (the newer mutation needs to be synced).
+    -- Only remove if the score is exactly what we claimed.
+    -- Any change (higher from a newer mutation, or lower from clock drift)
+    -- means this entry should survive for the next sync cycle.
     local currentScore = redis.call('ZSCORE', scheduleKey, member)
 
     if currentScore then
-        currentScore = tonumber(currentScore)
-        if currentScore <= claimedScore then
+        if tonumber(currentScore) == claimedScore then
             redis.call('ZREM', scheduleKey, member)
             removed = removed + 1
         end

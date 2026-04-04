@@ -335,7 +335,14 @@ func (w *BalanceSyncWorker) groupKeysByOrgLedger(keys []redisTransaction.SyncKey
 	for _, key := range keys {
 		orgID, ledgerID, err := w.extractIDsFromMember(key.Key)
 		if err != nil {
-			w.logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to extract IDs from key %s: %v", key.Key, err))
+			w.logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to extract IDs from key %s: %v — removing from schedule", key.Key, err))
+
+			// Clean up the claimed entry to prevent it from becoming a poison record.
+			// Uses the batch variant with a single element so the conditional ZREM
+			// and lock cleanup run through the same Lua script path.
+			if _, remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(context.Background(), []redisTransaction.SyncKey{key}); remErr != nil {
+				w.logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove unparseable key %s: %v", key.Key, remErr))
+			}
 
 			continue
 		}

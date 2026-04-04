@@ -157,12 +157,25 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		keysToRemove = append(keysToRemove, redisTransaction.SyncKey{Key: ab.RedisKey, Score: scoreMap[ab.RedisKey]})
 	}
 
-	synced, err := uc.BalanceRepo.SyncBatch(ctx, organizationID, ledgerID, balancesToSync)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to sync batch to database", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to sync batch to database: %v", err))
+	synced, syncErr := uc.BalanceRepo.SyncBatch(ctx, organizationID, ledgerID, balancesToSync)
+	if syncErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to sync batch to database", syncErr)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to sync batch to database: %v", syncErr))
 
-		return nil, err
+		// Still clean up orphaned keys even though DB failed — these are expired/unparseable
+		// entries that would otherwise become permanent poison records in the ZSET.
+		// Only skip removing the valid-balance keys (those need to be retried on next cycle).
+		if len(orphanedKeys) > 0 {
+			removed, cleanupErr := uc.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(ctx, orphanedKeys)
+			if cleanupErr != nil {
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove orphaned keys after DB error: %v", cleanupErr))
+			} else {
+				result.KeysRemoved = removed
+				logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Cleaned up %d orphaned keys despite DB error", removed))
+			}
+		}
+
+		return result, syncErr
 	}
 
 	result.BalancesSynced = synced
