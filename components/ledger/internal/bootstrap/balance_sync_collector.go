@@ -97,9 +97,11 @@ func (c *BalanceSyncCollector) SetFlushCallback(fn FlushFunc) {
 //   - Idle mode: nothing to do, sleep until next scheduled key
 func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc, waitForNext WaitForNextFunc) {
 	timer := time.NewTimer(c.flushTimeout)
+	pollTimer := time.NewTimer(c.pollInterval)
 
 	defer func() {
 		timer.Stop()
+		pollTimer.Stop()
 		c.flushRemaining()
 	}()
 
@@ -147,7 +149,7 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc,
 		c.mu.Unlock()
 
 		if bufLen > 0 {
-			c.handleDrainingMode(ctx, bufLen, timer)
+			c.handleDrainingMode(ctx, bufLen, timer, pollTimer)
 			continue
 		}
 
@@ -187,7 +189,11 @@ func (c *BalanceSyncCollector) handleBusyMode(ctx context.Context, keys []redisT
 
 // handleDrainingMode waits for either the TIMEOUT trigger or the poll interval
 // when the buffer has items but no new keys are arriving.
-func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen int, timer *time.Timer) {
+// pollTimer is a reusable timer for the poll interval (avoids time.After allocation leak).
+func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen int, timer *time.Timer, pollTimer *time.Timer) {
+	stopAndDrain(pollTimer)
+	pollTimer.Reset(c.pollInterval)
+
 	select {
 	case <-ctx.Done():
 		return
@@ -195,7 +201,7 @@ func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen in
 		c.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncCollector: TIMEOUT trigger fired (%v elapsed, buffer=%d), flushing now", c.flushTimeout, bufLen))
 		c.flush(ctx)
 		timer.Reset(c.flushTimeout)
-	case <-time.After(c.pollInterval):
+	case <-pollTimer.C:
 		// Poll again to check for new keys
 	}
 }
@@ -204,7 +210,7 @@ func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen in
 // Returns true if shutdown was requested.
 func (c *BalanceSyncCollector) handleIdleMode(ctx context.Context, timer *time.Timer, waitForNext WaitForNextFunc) bool {
 	c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: idle mode — no keys in ZSET, waiting for next scheduled key")
-	timer.Stop()
+	stopAndDrain(timer)
 
 	if waitForNext(ctx) {
 		return true
