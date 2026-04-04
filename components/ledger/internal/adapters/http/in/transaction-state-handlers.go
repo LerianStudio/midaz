@@ -501,6 +501,11 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	spanBackup.End()
 
+	// Materialize operation IDs in the backup entry to prevent duplicate
+	// operations if the Redis backup consumer replays this transaction.
+	// Without this, BuildOperations() generates new UUIDs on replay.
+	handler.Command.UpdateTransactionBackupOperations(ctx, organizationID, ledgerID, tran.IDtoUUID().String(), operations, action)
+
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
 		_, err = handler.Command.UpdateTransactionStatus(ctx, tran)
 		if err != nil {

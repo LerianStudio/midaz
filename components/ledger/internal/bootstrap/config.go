@@ -196,7 +196,10 @@ type Config struct {
 	BulkRecorderMaxRowsPerInsert int  `env:"BULK_RECORDER_MAX_ROWS_PER_INSERT"`
 
 	// --- Balance/Worker fields ---
-	BalanceSyncMaxWorkers int `env:"BALANCE_SYNC_MAX_WORKERS"`
+	BalanceSyncMaxWorkers     int `env:"BALANCE_SYNC_MAX_WORKERS"`
+	BalanceSyncBatchSize      int `env:"BALANCE_SYNC_BATCH_SIZE"`
+	BalanceSyncFlushTimeoutMs int `env:"BALANCE_SYNC_FLUSH_TIMEOUT_MS"`
+	BalanceSyncPollIntervalMs int `env:"BALANCE_SYNC_POLL_INTERVAL_MS"`
 
 	// --- Settings ---
 	SettingsCacheTTL string `env:"SETTINGS_CACHE_TTL"`
@@ -842,15 +845,22 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 		logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers))
 	}
 
+	syncCfg := BalanceSyncConfig{
+		BatchSize:      cfg.BalanceSyncBatchSize,
+		FlushTimeoutMs: cfg.BalanceSyncFlushTimeoutMs,
+		PollIntervalMs: cfg.BalanceSyncPollIntervalMs,
+	}
+
 	var balanceSyncWorker *BalanceSyncWorker
 
 	if opts != nil && opts.MultiTenantEnabled && opts.TenantCache != nil {
-		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, true, opts.TenantCache, pgManager, tenantServiceName)
+		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, syncCfg, true, opts.TenantCache, pgManager, tenantServiceName)
 	} else {
-		balanceSyncWorker = NewBalanceSyncWorker(redisConn, logger, commandUC, balanceSyncMaxWorkers)
+		balanceSyncWorker = NewBalanceSyncWorker(redisConn, logger, commandUC, balanceSyncMaxWorkers, syncCfg)
 	}
 
-	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker enabled with %d max workers.", balanceSyncMaxWorkers))
+	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker enabled: max_workers=%d, batch_size=%d, flush_timeout_ms=%d, poll_interval_ms=%d",
+		balanceSyncMaxWorkers, syncCfg.BatchSize, syncCfg.FlushTimeoutMs, syncCfg.PollIntervalMs))
 
 	return balanceSyncWorker
 }
@@ -1101,4 +1111,9 @@ func applyConfigDefaults(cfg *Config) {
 
 		cfg.BulkRecorderSize = workers * prefetch
 	}
+
+	// Balance Sync Worker defaults (dual-trigger)
+	intDefault(&cfg.BalanceSyncBatchSize, 50)
+	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
+	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
 }

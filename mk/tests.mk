@@ -47,20 +47,10 @@ else
   LOW_RES_RACE_FLAG := -race
 endif
 
-# macOS ld64 workaround: newer ld emits noisy LC_DYSYMTAB warnings when linking test binaries with -race.
-# If available, prefer Apple's classic linker to silence them.
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Darwin)
-  # Prefer classic mode to suppress LC_DYSYMTAB warnings on macOS.
-  # Set DISABLE_OSX_LINKER_WORKAROUND=1 to disable this behavior.
-  ifneq ($(DISABLE_OSX_LINKER_WORKAROUND),1)
-    GO_TEST_LDFLAGS := -ldflags="-linkmode=external -extldflags=-ld_classic"
-  else
-    GO_TEST_LDFLAGS :=
-  endif
-else
-  GO_TEST_LDFLAGS :=
-endif
+# macOS ld64 workaround removed: -ld_classic is deprecated and produces warnings
+# on modern Xcode toolchains. The original LC_DYSYMTAB warnings it suppressed
+# are no longer emitted by recent Go + linker versions.
+GO_TEST_LDFLAGS :=
 
 define wait_for_services
 	echo "Waiting for services to become healthy..."

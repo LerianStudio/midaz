@@ -62,7 +62,7 @@ func TestProperty_BalanceSyncWorker_PredicateEqualsEnabledAndPGManagerNonNil(t *
 	cache := tenantcache.NewTenantCache()
 
 	property := func(enabled bool, hasPGManager bool, hasTenantCache bool) bool {
-		worker := NewBalanceSyncWorker(conn, logger, useCase, 5)
+		worker := NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
 		worker.multiTenantEnabled = enabled
 
 		if hasPGManager {
@@ -151,7 +151,7 @@ func TestProperty_RedisQueueConsumer_PredicateEqualsEnabledAndPGManagerNonNil(t 
 //   - redisConn, logger, useCase are the same instances passed in
 //   - idleWait is the base default (600s)
 //   - maxWorkers > 0 always (clamped to 5 if input <= 0, preserved otherwise)
-//   - batchSize == int64(maxWorkers) after clamping
+//   - batchSize == int64(50) (default from BalanceSyncConfig{})
 //   - multiTenantEnabled matches the input bool
 //   - tenantClient and pgManager are the exact instances passed in
 func TestProperty_NewBalanceSyncWorkerMultiTenant_PreservesBaseFields(t *testing.T) {
@@ -178,7 +178,7 @@ func TestProperty_NewBalanceSyncWorkerMultiTenant_PreservesBaseFields(t *testing
 			maxWorkers = -maxBound
 		}
 
-		worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, maxWorkers, enabled, cache, pgMgr, "transaction")
+		worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, maxWorkers, BalanceSyncConfig{}, enabled, cache, pgMgr, "transaction")
 
 		// Property: constructor never returns nil.
 		if worker == nil {
@@ -194,8 +194,8 @@ func TestProperty_NewBalanceSyncWorkerMultiTenant_PreservesBaseFields(t *testing
 			return false
 		}
 
-		// Property: idleWait is the base default.
-		if worker.idleWait != 600*time.Second {
+		// Property: idleWait is 2x flushTimeout (default 500ms = 1s), clamped to min 1s.
+		if worker.idleWait != 1*time.Second {
 			return false
 		}
 
@@ -214,8 +214,8 @@ func TestProperty_NewBalanceSyncWorkerMultiTenant_PreservesBaseFields(t *testing
 			return false
 		}
 
-		// Property: batchSize == int64(maxWorkers) after clamping.
-		if worker.batchSize != int64(worker.maxWorkers) {
+		// Property: batchSize == int64(50) (default from BalanceSyncConfig{}).
+		if worker.batchSize != int64(50) {
 			return false
 		}
 
@@ -360,7 +360,7 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 		// Note: logger is always non-nil because the base constructor calls
 		// logger methods; passing nil logger would panic in production too,
 		// but that is a caller contract, not a multi-tenant invariant.
-		worker := NewBalanceSyncWorkerMultiTenant(wConn, logger, wUseCase, 0, workerEnabled, wTenantCache, wPGManager, "transaction")
+		worker := NewBalanceSyncWorkerMultiTenant(wConn, logger, wUseCase, 0, BalanceSyncConfig{}, workerEnabled, wTenantCache, wPGManager, "transaction")
 		if worker == nil {
 			return false
 		}

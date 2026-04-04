@@ -242,11 +242,15 @@ local function main()
     -- First argument: whether to schedule balance sync (1 = enabled, 0 = disabled)
     local scheduleSync = tonumber(ARGV[1]) or 1
 
-    -- schedule a pre-expire warning 10 minutes before the TTL
-    local warnBefore = 600 -- 10 minutes
+    -- Schedule balance sync immediately (eligible for worker pickup right away).
+    -- The worker uses a dual-trigger (size OR timeout) to batch multiple keys
+    -- before flushing to PostgreSQL, so immediate eligibility does not mean
+    -- immediate DB write — the worker accumulates keys efficiently.
+    --
+    -- Uses microsecond precision (seconds * 1e6 + microseconds) to prevent
+    -- the conditional ZREM from removing entries re-scheduled in the same second.
     local timeNow = redis.call("TIME")
-    local nowSec = tonumber(timeNow[1])
-    local dueAt = nowSec + (ttl - warnBefore)
+    local dueAt = tonumber(timeNow[1]) * 1000000 + tonumber(timeNow[2])
 
     -- Start from index 2 since ARGV[1] is the scheduleSync flag
     for i = 2, #ARGV, groupSize do

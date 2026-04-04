@@ -687,7 +687,7 @@ func TestRemoveBalanceSyncKeysBatch_EmptyInput(t *testing.T) {
 	}
 
 	// Empty input should return 0 without any Redis call
-	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{})
+	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{})
 
 	assert.NoError(t, err, "Empty keys should return nil error")
 	assert.Equal(t, int64(0), count, "Empty keys should return 0 count")
@@ -707,7 +707,7 @@ func TestRemoveBalanceSyncKeysBatch_EmptyInput_NoRedisCall(t *testing.T) {
 		conn: newMockEvalConnection(mockClient),
 	}
 
-	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{})
+	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{})
 
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), count)
@@ -737,13 +737,18 @@ func TestRemoveBalanceSyncKeysBatch_SingleKey(t *testing.T) {
 		conn: newMockEvalConnection(mockClient),
 	}
 
-	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"balance:key1"})
+	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{{Key: "balance:key1", Score: 100}})
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), count)
 	assert.NotEmpty(t, capturedScript, "Lua script should be passed")
-	assert.Len(t, capturedKeys, 1, "Should have 1 key (schedule key)")
-	assert.Len(t, capturedArgs, 2, "Should have lock prefix + 1 member")
+	assert.Equal(t, []string{utils.BalanceSyncScheduleKey}, capturedKeys, "KEYS[1] should be the schedule key")
+	// ARGV contract: [lockPrefix, member1, score1]
+	assert.Equal(t, []any{
+		utils.BalanceSyncLockPrefix,
+		"balance:key1",
+		"100",
+	}, capturedArgs, "ARGV should be [lockPrefix, member, score_as_string]")
 }
 
 func TestRemoveBalanceSyncKeysBatch_MultipleKeys(t *testing.T) {
@@ -764,12 +769,21 @@ func TestRemoveBalanceSyncKeysBatch_MultipleKeys(t *testing.T) {
 		conn: newMockEvalConnection(mockClient),
 	}
 
-	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"key1", "key2", "key3"})
+	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{
+		{Key: "key1", Score: 100},
+		{Key: "key2", Score: 200},
+		{Key: "key3", Score: 300},
+	})
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), count)
-	// Args should be: [lockPrefix, key1, key2, key3]
-	assert.Len(t, capturedArgs, 4, "Should have lock prefix + 3 members")
+	// ARGV contract: [lockPrefix, member1, score1, member2, score2, member3, score3]
+	assert.Equal(t, []any{
+		utils.BalanceSyncLockPrefix,
+		"key1", "100",
+		"key2", "200",
+		"key3", "300",
+	}, capturedArgs, "ARGV should alternate member/score pairs after lock prefix")
 }
 
 func TestRemoveBalanceSyncKeysBatch_PartialRemoval(t *testing.T) {
@@ -788,7 +802,11 @@ func TestRemoveBalanceSyncKeysBatch_PartialRemoval(t *testing.T) {
 		conn: newMockEvalConnection(mockClient),
 	}
 
-	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"key1", "key2", "key3"})
+	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{
+		{Key: "key1", Score: 100},
+		{Key: "key2", Score: 200},
+		{Key: "key3", Score: 300},
+	})
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), count, "Should return actual count of removed keys")
@@ -810,7 +828,7 @@ func TestRemoveBalanceSyncKeysBatch_RedisError(t *testing.T) {
 		conn: newMockEvalConnection(mockClient),
 	}
 
-	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"balance:key1"})
+	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{{Key: "balance:key1", Score: 0}})
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, expectedError)
@@ -832,7 +850,7 @@ func TestRemoveBalanceSyncKeysBatch_UnexpectedResultType(t *testing.T) {
 		conn: newMockEvalConnection(mockClient),
 	}
 
-	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"balance:key1"})
+	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{{Key: "balance:key1", Score: 0}})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected result type")
@@ -875,7 +893,7 @@ func TestRemoveBalanceSyncKeysBatch_ScriptUsesCorrectPattern(t *testing.T) {
 		conn: newMockEvalConnection(mockClient),
 	}
 
-	_, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"balance:key1"})
+	_, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{{Key: "balance:key1", Score: 0}})
 
 	require.NoError(t, err)
 
@@ -899,7 +917,7 @@ func TestRemoveBalanceSyncKeysBatch_ZeroKeysRemoved(t *testing.T) {
 		conn: newMockEvalConnection(mockClient),
 	}
 
-	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []string{"nonexistent:key1", "nonexistent:key2"})
+	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{{Key: "nonexistent:key1", Score: 0}, {Key: "nonexistent:key2", Score: 0}})
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), count, "Should return 0 when no keys were removed")
@@ -907,7 +925,7 @@ func TestRemoveBalanceSyncKeysBatch_ZeroKeysRemoved(t *testing.T) {
 
 func TestRemoveBalanceSyncKeysBatch_InterfaceCompliance(t *testing.T) {
 	type BatchRemover interface {
-		RemoveBalanceSyncKeysBatch(ctx context.Context, keys []string) (int64, error)
+		RemoveBalanceSyncKeysBatch(ctx context.Context, keys []SyncKey) (int64, error)
 	}
 
 	var _ BatchRemover = (*RedisConsumerRepository)(nil)

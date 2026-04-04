@@ -11,6 +11,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
+	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	redisBalance "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction/balance"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -42,7 +43,7 @@ type SyncBalancesBatchResult struct {
 //   - Missing keys (already expired): skipped in aggregation
 //   - Version conflicts: optimistic locking in DB update
 //   - Partial failures: keys only removed after successful DB write
-func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string) (*SyncBalancesBatchResult, error) {
+func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []redisTransaction.SyncKey) (*SyncBalancesBatchResult, error) {
 	logger, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.sync_balances_batch")
@@ -56,7 +57,16 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		return result, nil
 	}
 
-	balanceMap, err := uc.TransactionRedisRepo.GetBalancesByKeys(ctx, keys)
+	// Build a map from plain key string to its claimed score, and extract plain keys for MGET.
+	scoreMap := make(map[string]float64, len(keys))
+	plainKeys := make([]string, 0, len(keys))
+
+	for _, sk := range keys {
+		scoreMap[sk.Key] = sk.Score
+		plainKeys = append(plainKeys, sk.Key)
+	}
+
+	balanceMap, err := uc.TransactionRedisRepo.GetBalancesByKeys(ctx, plainKeys)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get balances by keys", err)
 		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances by keys: %v", err))
@@ -65,13 +75,17 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	}
 
 	aggregatedBalances := make([]*redisBalance.AggregatedBalance, 0, len(keys))
-	orphanedKeys := make([]string, 0)
+	orphanedKeys := make([]redisTransaction.SyncKey, 0)
 
-	for _, key := range keys {
+	// Track all Redis keys that map to each composite key so dedup losers
+	// are also removed from the ZSET schedule (not just the winner).
+	compositeToRedisKeys := make(map[string][]string)
+
+	for _, key := range plainKeys {
 		balance := balanceMap[key]
 		if balance == nil {
 			logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Balance key %s has no data (expired), marking as orphaned", key))
-			orphanedKeys = append(orphanedKeys, key)
+			orphanedKeys = append(orphanedKeys, redisTransaction.SyncKey{Key: key, Score: scoreMap[key]})
 
 			continue
 		}
@@ -79,7 +93,7 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		compositeKey, parseErr := redisBalance.BalanceCompositeKeyFromRedisKey(key)
 		if parseErr != nil {
 			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to parse composite key from %s: %v", key, parseErr))
-			orphanedKeys = append(orphanedKeys, key)
+			orphanedKeys = append(orphanedKeys, redisTransaction.SyncKey{Key: key, Score: scoreMap[key]})
 
 			continue
 		}
@@ -94,6 +108,9 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		if parsedIsGeneric && balanceHasSpecificKey {
 			compositeKey.PartitionKey = balance.Key
 		}
+
+		keyStr := compositeKey.String()
+		compositeToRedisKeys[keyStr] = append(compositeToRedisKeys[keyStr], key)
 
 		aggregatedBalances = append(aggregatedBalances, &redisBalance.AggregatedBalance{
 			RedisKey: key,
@@ -137,22 +154,43 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	}
 
 	balancesToSync := make([]mmodel.BalanceRedis, 0, len(deduplicated))
-	keysToRemove := make([]string, 0, len(deduplicated)+len(orphanedKeys))
+	keysToRemove := make([]redisTransaction.SyncKey, 0, len(plainKeys))
 
 	// Add orphaned keys first (they need cleanup regardless of DB sync outcome)
 	keysToRemove = append(keysToRemove, orphanedKeys...)
 
 	for _, ab := range deduplicated {
 		balancesToSync = append(balancesToSync, *ab.Balance)
-		keysToRemove = append(keysToRemove, ab.RedisKey)
+
+		// Remove ALL Redis keys that mapped to this composite key, not just the
+		// dedup winner. Loser keys point to the same balance and were already
+		// superseded by the winner's version — leaving them would cause
+		// unnecessary re-processing on the next sync cycle.
+		compositeStr := ab.Key.String()
+		for _, redisKey := range compositeToRedisKeys[compositeStr] {
+			keysToRemove = append(keysToRemove, redisTransaction.SyncKey{Key: redisKey, Score: scoreMap[redisKey]})
+		}
 	}
 
-	synced, err := uc.BalanceRepo.SyncBatch(ctx, organizationID, ledgerID, balancesToSync)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to sync batch to database", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to sync batch to database: %v", err))
+	synced, syncErr := uc.BalanceRepo.SyncBatch(ctx, organizationID, ledgerID, balancesToSync)
+	if syncErr != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to sync batch to database", syncErr)
+		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to sync batch to database: %v", syncErr))
 
-		return nil, err
+		// Still clean up orphaned keys even though DB failed — these are expired/unparseable
+		// entries that would otherwise become permanent poison records in the ZSET.
+		// Only skip removing the valid-balance keys (those need to be retried on next cycle).
+		if len(orphanedKeys) > 0 {
+			removed, cleanupErr := uc.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(ctx, orphanedKeys)
+			if cleanupErr != nil {
+				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove orphaned keys after DB error: %v", cleanupErr))
+			} else {
+				result.KeysRemoved = removed
+				logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Cleaned up %d orphaned keys despite DB error", removed))
+			}
+		}
+
+		return result, syncErr
 	}
 
 	result.BalancesSynced = synced

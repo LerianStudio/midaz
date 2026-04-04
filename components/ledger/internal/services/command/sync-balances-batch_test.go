@@ -19,6 +19,23 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+// toSyncKeys converts a string slice to SyncKey slice for test convenience.
+// Each key gets a distinct score (1001, 1002, ...) so tests can detect if
+// SyncBalancesBatch or RemoveBalanceSyncKeysBatch drops, rewrites, or reorders scores.
+func toSyncKeys(keys []string) []redis.SyncKey {
+	syncKeys := make([]redis.SyncKey, len(keys))
+	for i, k := range keys {
+		syncKeys[i] = redis.SyncKey{Key: k, Score: float64(1001 + i)}
+	}
+
+	return syncKeys
+}
+
+// syncKeyScore returns the score that toSyncKeys assigns to the i-th key (0-indexed).
+func syncKeyScore(i int) float64 {
+	return float64(1001 + i)
+}
+
 // TestSyncBalancesBatch_EmptyKeys verifies that when given empty keys,
 // the use case returns immediately with zero synced and no error.
 func TestSyncBalancesBatch_EmptyKeys(t *testing.T) {
@@ -27,7 +44,7 @@ func TestSyncBalancesBatch_EmptyKeys(t *testing.T) {
 
 	uc := UseCase{}
 
-	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, []string{})
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, []redis.SyncKey{})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -63,8 +80,13 @@ func TestSyncBalancesBatch_AllKeysExpired(t *testing.T) {
 	// With the fix: orphaned keys are cleaned up even when no valid balances exist
 	mockRedis.EXPECT().
 		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, keysToRemove []string) (int64, error) {
+		DoAndReturn(func(_ context.Context, keysToRemove []redis.SyncKey) (int64, error) {
 			assert.Len(t, keysToRemove, 2, "Both expired keys should be removed")
+			for i, sk := range keysToRemove {
+				assert.Equal(t, keys[i], sk.Key, "Key mismatch at index %d", i)
+				assert.Equal(t, syncKeyScore(i), sk.Score, "Score mismatch at index %d — claimed score must be preserved", i)
+			}
+
 			return 2, nil
 		}).
 		Times(1)
@@ -73,7 +95,7 @@ func TestSyncBalancesBatch_AllKeysExpired(t *testing.T) {
 		TransactionRedisRepo: mockRedis,
 	}
 
-	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, toSyncKeys(keys))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -145,7 +167,7 @@ func TestSyncBalancesBatch_SuccessWithAggregation(t *testing.T) {
 		BalanceRepo:          mockBalance,
 	}
 
-	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, toSyncKeys(keys))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -208,7 +230,7 @@ func TestSyncBalancesBatch_PartialData(t *testing.T) {
 		BalanceRepo:          mockBalance,
 	}
 
-	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, toSyncKeys(keys))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -241,7 +263,7 @@ func TestSyncBalancesBatch_RedisError(t *testing.T) {
 		TransactionRedisRepo: mockRedis,
 	}
 
-	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, toSyncKeys(keys))
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -291,10 +313,12 @@ func TestSyncBalancesBatch_DBError(t *testing.T) {
 		BalanceRepo:          mockBalance,
 	}
 
-	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, toSyncKeys(keys))
 
 	assert.Error(t, err)
-	assert.Nil(t, result)
+	assert.NotNil(t, result, "Result should be returned even on DB error (contains partial metrics)")
+	assert.Equal(t, int64(0), result.BalancesSynced, "No balances should be synced on DB error")
+	assert.Equal(t, int64(0), result.KeysRemoved, "No keys removed (no orphaned keys in this test)")
 	assert.Contains(t, err.Error(), "database connection error")
 }
 
@@ -345,7 +369,7 @@ func TestSyncBalancesBatch_ScheduleCleanupFailure(t *testing.T) {
 	}
 
 	// Should succeed despite cleanup failure
-	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, toSyncKeys(keys))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -422,7 +446,7 @@ func TestSyncBalancesBatch_AggregationKeepsHighestVersion(t *testing.T) {
 		BalanceRepo:          mockBalance,
 	}
 
-	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, toSyncKeys(keys))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -496,14 +520,26 @@ func TestSyncBalancesBatch_InvalidKeyFormat(t *testing.T) {
 		Times(1)
 
 	// All 4 keys removed: 1 valid + 3 invalid (orphaned due to parse errors)
+	// Build expected score map from input so we can verify scores are preserved through the pipeline
+	inputSyncKeys := toSyncKeys(keys)
+	expectedScores := make(map[string]float64, len(inputSyncKeys))
+	for _, sk := range inputSyncKeys {
+		expectedScores[sk.Key] = sk.Score
+	}
+
 	mockRedis.EXPECT().
 		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, keysToRemove []string) (int64, error) {
+		DoAndReturn(func(_ context.Context, keysToRemove []redis.SyncKey) (int64, error) {
 			assert.Len(t, keysToRemove, 4, "All keys should be removed (valid + invalid)")
-			assert.Contains(t, keysToRemove, validKey, "valid key should be removed")
-			assert.Contains(t, keysToRemove, invalidKey1, "invalid key 1 should be removed")
-			assert.Contains(t, keysToRemove, invalidKey2, "invalid key 2 should be removed")
-			assert.Contains(t, keysToRemove, invalidKey3, "invalid key 3 should be removed")
+			removedStrs := make([]string, len(keysToRemove))
+			for i, k := range keysToRemove {
+				removedStrs[i] = k.Key
+				assert.Equal(t, expectedScores[k.Key], k.Score, "Score for %s must be preserved from input", k.Key)
+			}
+			assert.Contains(t, removedStrs, validKey, "valid key should be removed")
+			assert.Contains(t, removedStrs, invalidKey1, "invalid key 1 should be removed")
+			assert.Contains(t, removedStrs, invalidKey2, "invalid key 2 should be removed")
+			assert.Contains(t, removedStrs, invalidKey3, "invalid key 3 should be removed")
 			return 4, nil
 		}).
 		Times(1)
@@ -513,7 +549,7 @@ func TestSyncBalancesBatch_InvalidKeyFormat(t *testing.T) {
 		BalanceRepo:          mockBalance,
 	}
 
-	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, toSyncKeys(keys))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -570,13 +606,24 @@ func TestSyncBalancesBatch_ExactKeysRemoved(t *testing.T) {
 		Times(1)
 
 	// Verify ALL keys are removed: key1, key2 (orphaned), and key3
+	inputSyncKeys := toSyncKeys(keys)
+	expectedScores := make(map[string]float64, len(inputSyncKeys))
+	for _, sk := range inputSyncKeys {
+		expectedScores[sk.Key] = sk.Score
+	}
+
 	mockRedis.EXPECT().
 		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, keysToRemove []string) (int64, error) {
+		DoAndReturn(func(_ context.Context, keysToRemove []redis.SyncKey) (int64, error) {
 			assert.Len(t, keysToRemove, 3, "Expected all 3 keys to be removed")
-			assert.Contains(t, keysToRemove, key1, "key1 should be in removal list")
-			assert.Contains(t, keysToRemove, key2, "key2 (orphaned) MUST be in removal list")
-			assert.Contains(t, keysToRemove, key3, "key3 should be in removal list")
+			removedStrs := make([]string, len(keysToRemove))
+			for i, k := range keysToRemove {
+				removedStrs[i] = k.Key
+				assert.Equal(t, expectedScores[k.Key], k.Score, "Score for %s must be preserved", k.Key)
+			}
+			assert.Contains(t, removedStrs, key1, "key1 should be in removal list")
+			assert.Contains(t, removedStrs, key2, "key2 (orphaned) MUST be in removal list")
+			assert.Contains(t, removedStrs, key3, "key3 should be in removal list")
 			return 3, nil
 		}).
 		Times(1)
@@ -586,7 +633,7 @@ func TestSyncBalancesBatch_ExactKeysRemoved(t *testing.T) {
 		BalanceRepo:          mockBalance,
 	}
 
-	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, toSyncKeys(keys))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -625,7 +672,7 @@ func TestSyncBalancesBatch_ContextCancellation(t *testing.T) {
 		TransactionRedisRepo: mockRedis,
 	}
 
-	result, err := uc.SyncBalancesBatch(ctx, organizationID, ledgerID, keys)
+	result, err := uc.SyncBalancesBatch(ctx, organizationID, ledgerID, toSyncKeys(keys))
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -681,13 +728,24 @@ func TestSyncBalancesBatch_OrphanedKeysCleanedUp(t *testing.T) {
 
 	// KEY ASSERTION: ALL 3 keys should be removed (1 valid + 2 orphaned)
 	// This is the bug fix: orphaned keys MUST be in removal list
+	inputSyncKeys := toSyncKeys(keys)
+	expectedScores := make(map[string]float64, len(inputSyncKeys))
+	for _, sk := range inputSyncKeys {
+		expectedScores[sk.Key] = sk.Score
+	}
+
 	mockRedis.EXPECT().
 		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, keysToRemove []string) (int64, error) {
+		DoAndReturn(func(_ context.Context, keysToRemove []redis.SyncKey) (int64, error) {
 			assert.Len(t, keysToRemove, 3, "Expected 3 keys to be removed (1 valid + 2 orphaned)")
-			assert.Contains(t, keysToRemove, validKey, "valid key should be in removal list")
-			assert.Contains(t, keysToRemove, orphanedKey1, "orphaned key 1 should be in removal list")
-			assert.Contains(t, keysToRemove, orphanedKey2, "orphaned key 2 should be in removal list")
+			removedStrs := make([]string, len(keysToRemove))
+			for i, k := range keysToRemove {
+				removedStrs[i] = k.Key
+				assert.Equal(t, expectedScores[k.Key], k.Score, "Score for %s must be preserved", k.Key)
+			}
+			assert.Contains(t, removedStrs, validKey, "valid key should be in removal list")
+			assert.Contains(t, removedStrs, orphanedKey1, "orphaned key 1 should be in removal list")
+			assert.Contains(t, removedStrs, orphanedKey2, "orphaned key 2 should be in removal list")
 			return 3, nil
 		}).
 		Times(1)
@@ -697,7 +755,7 @@ func TestSyncBalancesBatch_OrphanedKeysCleanedUp(t *testing.T) {
 		BalanceRepo:          mockBalance,
 	}
 
-	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, toSyncKeys(keys))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -754,10 +812,21 @@ func TestSyncBalancesBatch_MalformedKeyWithTrailingHash(t *testing.T) {
 
 	// KEY ASSERTION: Verify malformed key is removed from schedule to break the infinite loop.
 	// Before this fix, the key would remain in the schedule and be reprocessed indefinitely.
+	inputSyncKeys := toSyncKeys(keys)
+	expectedScores := make(map[string]float64, len(inputSyncKeys))
+	for _, sk := range inputSyncKeys {
+		expectedScores[sk.Key] = sk.Score
+	}
+
 	mockRedis.EXPECT().
 		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, keysToRemove []string) (int64, error) {
-			assert.Contains(t, keysToRemove, malformedKey, "Malformed key MUST be removed from schedule to prevent infinite loop")
+		DoAndReturn(func(_ context.Context, keysToRemove []redis.SyncKey) (int64, error) {
+			removedStrs := make([]string, len(keysToRemove))
+			for i, k := range keysToRemove {
+				removedStrs[i] = k.Key
+				assert.Equal(t, expectedScores[k.Key], k.Score, "Score for %s must be preserved", k.Key)
+			}
+			assert.Contains(t, removedStrs, malformedKey, "Malformed key MUST be removed from schedule to prevent infinite loop")
 			return int64(len(keysToRemove)), nil
 		}).
 		Times(1)
@@ -767,7 +836,7 @@ func TestSyncBalancesBatch_MalformedKeyWithTrailingHash(t *testing.T) {
 		BalanceRepo:          mockBalance,
 	}
 
-	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, toSyncKeys(keys))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -831,7 +900,7 @@ func TestSyncBalancesBatch_MalformedKeyFallbackToDefault(t *testing.T) {
 		BalanceRepo:          mockBalance,
 	}
 
-	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, keys)
+	result, err := uc.SyncBalancesBatch(context.TODO(), organizationID, ledgerID, toSyncKeys(keys))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)

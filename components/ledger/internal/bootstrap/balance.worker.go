@@ -21,6 +21,7 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
+	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -29,14 +30,26 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// BalanceSyncWorker continuously processes keys scheduled for pre-expiry actions.
-// Ensures that the balance is synced before the key expires.
+// BalanceSyncConfig holds configuration for the balance sync dual-trigger.
+type BalanceSyncConfig struct {
+	// BatchSize is the number of keys to accumulate before flushing (SIZE trigger).
+	BatchSize int
+	// FlushTimeoutMs is the max time in milliseconds before flushing an incomplete batch (TIMEOUT trigger).
+	FlushTimeoutMs int
+	// PollIntervalMs is the ZSET polling interval in milliseconds when buffer has items but no new keys.
+	PollIntervalMs int
+}
+
+// BalanceSyncWorker continuously processes balance keys using a dual-trigger collector.
+// Keys become eligible immediately after balance mutation (Lua ZADD with dueAt=now).
+// The worker accumulates keys and flushes based on batch size OR timeout, whichever comes first.
 type BalanceSyncWorker struct {
 	redisConn          *libRedis.Client
 	logger             libLog.Logger
 	idleWait           time.Duration
 	batchSize          int64
 	maxWorkers         int
+	syncConfig         BalanceSyncConfig
 	useCase            *command.UseCase
 	multiTenantEnabled bool
 	tenantCache        *tenantcache.TenantCache
@@ -44,17 +57,40 @@ type BalanceSyncWorker struct {
 	serviceName        string
 }
 
-func NewBalanceSyncWorker(conn *libRedis.Client, logger libLog.Logger, useCase *command.UseCase, maxWorkers int) *BalanceSyncWorker {
+func NewBalanceSyncWorker(conn *libRedis.Client, logger libLog.Logger, useCase *command.UseCase, maxWorkers int, syncCfg BalanceSyncConfig) *BalanceSyncWorker {
 	if maxWorkers <= 0 {
 		maxWorkers = 5
+	}
+
+	// Apply safe defaults for zero-value config (e.g., in tests)
+	if syncCfg.BatchSize <= 0 {
+		syncCfg.BatchSize = 50
+	}
+
+	if syncCfg.FlushTimeoutMs <= 0 {
+		syncCfg.FlushTimeoutMs = 500
+	}
+
+	if syncCfg.PollIntervalMs <= 0 {
+		syncCfg.PollIntervalMs = 50
+	}
+
+	// Idle wait defaults to 2x the flush timeout. With dual-trigger and dueAt=now,
+	// a long idle backoff (e.g. 10 min) would delay pickup of new keys. Using a short
+	// idle wait ensures the worker re-checks the ZSET frequently when transitioning
+	// from idle to busy mode.
+	idleWait := time.Duration(syncCfg.FlushTimeoutMs*2) * time.Millisecond
+	if idleWait < 1*time.Second {
+		idleWait = 1 * time.Second
 	}
 
 	return &BalanceSyncWorker{
 		redisConn:  conn,
 		logger:     logger,
-		idleWait:   600 * time.Second,
-		batchSize:  int64(maxWorkers),
+		idleWait:   idleWait,
+		batchSize:  int64(syncCfg.BatchSize),
 		maxWorkers: maxWorkers,
+		syncConfig: syncCfg,
 		useCase:    useCase,
 	}
 }
@@ -70,12 +106,13 @@ func NewBalanceSyncWorkerMultiTenant(
 	logger libLog.Logger,
 	useCase *command.UseCase,
 	maxWorkers int,
+	syncCfg BalanceSyncConfig,
 	multiTenantEnabled bool,
 	cache *tenantcache.TenantCache,
 	pgManager *tmpostgres.Manager,
 	serviceName string,
 ) *BalanceSyncWorker {
-	w := NewBalanceSyncWorker(conn, logger, useCase, maxWorkers)
+	w := NewBalanceSyncWorker(conn, logger, useCase, maxWorkers, syncCfg)
 	w.multiTenantEnabled = multiTenantEnabled
 	w.tenantCache = cache
 	w.pgManager = pgManager
@@ -101,12 +138,13 @@ func (w *BalanceSyncWorker) Run(_ *libCommons.Launcher) error {
 }
 
 // runSingleTenant runs the balance sync loop using the default (shared) database connection.
-// This is the original Run() behavior preserved for backward compatibility.
+// Uses the dual-trigger collector (size OR timeout) for near-real-time balance persistence.
 func (w *BalanceSyncWorker) runSingleTenant() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker started (single-tenant mode)")
+	w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker started (single-tenant, dual-trigger: batch_size=%d, flush_timeout=%dms, poll_interval=%dms)",
+		w.syncConfig.BatchSize, w.syncConfig.FlushTimeoutMs, w.syncConfig.PollIntervalMs))
 
 	rds, err := w.redisConn.GetClient(ctx)
 	if err != nil {
@@ -115,34 +153,41 @@ func (w *BalanceSyncWorker) runSingleTenant() error {
 		return err
 	}
 
-	for {
-		if w.shouldShutdown(ctx) {
-			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
+	collector := NewBalanceSyncCollector(
+		w.syncConfig.BatchSize,
+		time.Duration(w.syncConfig.FlushTimeoutMs)*time.Millisecond,
+		time.Duration(w.syncConfig.PollIntervalMs)*time.Millisecond,
+		w.idleWait,
+		w.logger,
+	)
 
-			return nil
-		}
+	collector.SetFlushCallback(func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
+		return w.flushBatch(flushCtx, keys)
+	})
 
-		if w.processBalancesToExpire(ctx, rds) {
-			continue
-		}
+	collector.Run(ctx,
+		func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
+			return w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(fetchCtx, limit)
+		},
+		func(waitCtx context.Context) bool {
+			return w.waitForNextOrBackoff(waitCtx, rds)
+		},
+	)
 
-		if w.waitForNextOrBackoff(ctx, rds) {
-			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
+	w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
 
-			return nil
-		}
-	}
+	return nil
 }
 
 // runMultiTenant runs the balance sync loop iterating over all active tenants.
-// For each tenant, it resolves a per-tenant PostgreSQL connection and injects it
-// into the context before processing. If a tenant's connection fails, it logs and
-// skips that tenant without affecting others.
+// Each tenant gets its own dual-trigger collector for independent batch accumulation.
+// If a tenant's connection fails, it logs and skips that tenant without affecting others.
 func (w *BalanceSyncWorker) runMultiTenant() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker started (multi-tenant mode)")
+	w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker started (multi-tenant, dual-trigger: batch_size=%d, flush_timeout=%dms, poll_interval=%dms)",
+		w.syncConfig.BatchSize, w.syncConfig.FlushTimeoutMs, w.syncConfig.PollIntervalMs))
 
 	rds, err := w.redisConn.GetClient(ctx)
 	if err != nil {
@@ -247,6 +292,77 @@ func (w *BalanceSyncWorker) shouldShutdown(ctx context.Context) bool {
 	}
 }
 
+// orgLedgerGroup holds keys grouped by organization and ledger for batch processing.
+type orgLedgerGroup struct {
+	orgID    uuid.UUID
+	ledgerID uuid.UUID
+	keys     []redisTransaction.SyncKey
+}
+
+// flushBatch groups keys by (orgID, ledgerID) and processes each group via SyncBalancesBatch.
+// This is the flush callback used by the BalanceSyncCollector.
+func (w *BalanceSyncWorker) flushBatch(ctx context.Context, keys []redisTransaction.SyncKey) bool {
+	if len(keys) == 0 {
+		return false
+	}
+
+	w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: flushBatch called with %d keys", len(keys)))
+
+	groups := w.groupKeysByOrgLedger(keys)
+	processed := false
+
+	for _, group := range groups {
+		w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: syncing group org=%s ledger=%s with %d keys", group.orgID, group.ledgerID, len(group.keys)))
+
+		if w.processBalancesToExpireBatch(ctx, group.orgID, group.ledgerID, group.keys) {
+			processed = true
+		}
+	}
+
+	return processed
+}
+
+// groupKeysByOrgLedger groups Redis balance keys by their (organizationID, ledgerID) pair.
+// Keys that cannot be parsed are logged and skipped.
+func (w *BalanceSyncWorker) groupKeysByOrgLedger(keys []redisTransaction.SyncKey) []orgLedgerGroup {
+	type groupKey struct {
+		orgID    uuid.UUID
+		ledgerID uuid.UUID
+	}
+
+	grouped := make(map[groupKey][]redisTransaction.SyncKey, 1) // typically 1 group in single-tenant
+
+	for _, key := range keys {
+		orgID, ledgerID, err := w.extractIDsFromMember(key.Key)
+		if err != nil {
+			w.logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to extract IDs from key %s: %v — removing from schedule", key.Key, err))
+
+			// Clean up the claimed entry to prevent it from becoming a poison record.
+			// Uses the batch variant with a single element so the conditional ZREM
+			// and lock cleanup run through the same Lua script path.
+			if _, remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(context.Background(), []redisTransaction.SyncKey{key}); remErr != nil {
+				w.logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove unparseable key %s: %v", key.Key, remErr))
+			}
+
+			continue
+		}
+
+		gk := groupKey{orgID: orgID, ledgerID: ledgerID}
+		grouped[gk] = append(grouped[gk], key)
+	}
+
+	result := make([]orgLedgerGroup, 0, len(grouped))
+	for gk, groupKeys := range grouped {
+		result = append(result, orgLedgerGroup{
+			orgID:    gk.orgID,
+			ledgerID: gk.ledgerID,
+			keys:     groupKeys,
+		})
+	}
+
+	return result
+}
+
 func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds redis.UniversalClient) bool {
 	members, err := w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(ctx, w.batchSize)
 	if err != nil {
@@ -270,7 +386,7 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 	// This is guaranteed by the worker's scheduling mechanism which fetches keys
 	// from a single ZSET scoped per tenant context. In multi-tenant mode,
 	// processTenantBalances is called per-tenant, ensuring batch homogeneity.
-	orgID, ledgerID, extractErr := w.extractIDsFromMember(members[0])
+	orgID, ledgerID, extractErr := w.extractIDsFromMember(members[0].Key)
 	if extractErr == nil {
 		return w.processBalancesToExpireBatch(ctx, orgID, ledgerID, members)
 	}
@@ -298,7 +414,7 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 			return true
 		}
 
-		member := m
+		member := m.Key
 
 		sem <- struct{}{}
 
@@ -336,7 +452,7 @@ func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds red
 //  4. Removes all processed keys in batch
 //
 // Returns true if any balances were processed.
-func (w *BalanceSyncWorker) processBalancesToExpireBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string) bool {
+func (w *BalanceSyncWorker) processBalancesToExpireBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []redisTransaction.SyncKey) bool {
 	if len(keys) == 0 {
 		return false
 	}
@@ -534,11 +650,13 @@ func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool
 	}
 }
 
-// waitUntilDue waits until the given dueAtUnix time.
+// waitUntilDue waits until the given dueAt score time.
+// The score uses microsecond precision (seconds*1e6 + microseconds) to match
+// the ZADD scores set by the Lua balance_atomic_operation script.
 // Returns true if the context was cancelled while waiting.
-func (w *BalanceSyncWorker) waitUntilDue(ctx context.Context, dueAtUnix int64, logger libLog.Logger) bool {
-	nowUnix := time.Now().Unix()
-	if dueAtUnix <= nowUnix {
+func (w *BalanceSyncWorker) waitUntilDue(ctx context.Context, dueAtScore int64, logger libLog.Logger) bool {
+	nowMicro := time.Now().UnixMicro()
+	if dueAtScore <= nowMicro {
 		// Due time already passed but item not processed (ZSET/sync-queue desync).
 		// Apply minimal backoff to prevent busy loop when:
 		// - ZSET has entry with expired score
@@ -547,7 +665,7 @@ func (w *BalanceSyncWorker) waitUntilDue(ctx context.Context, dueAtUnix int64, l
 		return waitOrDone(ctx, 500*time.Millisecond, logger)
 	}
 
-	waitFor := time.Duration(dueAtUnix-nowUnix) * time.Second
+	waitFor := time.Duration(dueAtScore-nowMicro) * time.Microsecond
 	if waitFor <= 0 {
 		return waitOrDone(ctx, 500*time.Millisecond, logger)
 	}
