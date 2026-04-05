@@ -6,12 +6,9 @@ package bootstrap
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -24,10 +21,8 @@ import (
 	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v3/pkg/utils"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 )
 
 // BalanceSyncConfig holds configuration for the balance sync dual-trigger.
@@ -141,6 +136,10 @@ func (w *BalanceSyncWorker) isMultiTenantReady() bool {
 }
 
 // Run dispatches to multi-tenant or single-tenant execution based on configuration.
+// The Launcher parameter is intentionally unused: lib-commons Launcher (v4) does not
+// expose a cancellable context or coordinate shutdown between apps. Each execution
+// mode creates its own signal.NotifyContext(context.Background(), ...) to handle
+// SIGTERM/SIGINT independently — this is the standard pattern across all Midaz workers.
 func (w *BalanceSyncWorker) Run(_ *libCommons.Launcher) error {
 	if w.isMultiTenantReady() {
 		return w.runMultiTenant()
@@ -155,15 +154,11 @@ func (w *BalanceSyncWorker) runSingleTenant() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker started (single-tenant, dual-trigger: batch_size=%d, flush_timeout=%dms, poll_interval=%dms)",
-		w.syncConfig.BatchSize, w.syncConfig.FlushTimeoutMs, w.syncConfig.PollIntervalMs))
-
-	rds, err := w.redisConn.GetClient(ctx)
-	if err != nil {
-		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get redis client: %v", err))
-
-		return err
-	}
+	w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker started (single-tenant, dual-trigger)",
+		libLog.Int("batch_size", w.syncConfig.BatchSize),
+		libLog.Int("flush_timeout_ms", w.syncConfig.FlushTimeoutMs),
+		libLog.Int("poll_interval_ms", w.syncConfig.PollIntervalMs),
+	)
 
 	collector := NewBalanceSyncCollector(
 		w.syncConfig.BatchSize,
@@ -182,7 +177,7 @@ func (w *BalanceSyncWorker) runSingleTenant() error {
 			return w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(fetchCtx, limit)
 		},
 		func(waitCtx context.Context) bool {
-			return w.waitForNextOrBackoff(waitCtx, rds)
+			return waitOrDone(waitCtx, w.idleWait, w.logger)
 		},
 	)
 
@@ -385,15 +380,6 @@ func (w *BalanceSyncWorker) stopAllCollectors(ctx context.Context, collectors ma
 	}
 }
 
-func (w *BalanceSyncWorker) shouldShutdown(ctx context.Context) bool {
-	select {
-	case <-ctx.Done():
-		return true
-	default:
-		return false
-	}
-}
-
 // orgLedgerGroup holds keys grouped by organization and ledger for batch processing.
 type orgLedgerGroup struct {
 	orgID    uuid.UUID
@@ -465,87 +451,6 @@ func (w *BalanceSyncWorker) groupKeysByOrgLedger(keys []redisTransaction.SyncKey
 	return result
 }
 
-func (w *BalanceSyncWorker) processBalancesToExpire(ctx context.Context, rds redis.UniversalClient) bool {
-	members, err := w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(ctx, w.batchSize)
-	if err != nil {
-		if !errors.Is(err, redis.Nil) {
-			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: get balance sync keys error: %v", err))
-		}
-
-		return false
-	}
-
-	if len(members) == 0 {
-		return false
-	}
-
-	// Check for shutdown before starting batch processing
-	if w.shouldShutdown(ctx) {
-		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
-		return true
-	}
-
-	// This is guaranteed by the worker's scheduling mechanism which fetches keys
-	// from a single ZSET scoped per tenant context. In multi-tenant mode,
-	// processTenantBalances is called per-tenant, ensuring batch homogeneity.
-	orgID, ledgerID, extractErr := w.extractIDsFromMember(members[0].Key)
-	if extractErr == nil {
-		return w.processBalancesToExpireBatch(ctx, orgID, ledgerID, members)
-	}
-
-	w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to extract IDs for batch, falling back to individual processing: %v", extractErr))
-
-	// Fallback: individual processing (only when batch mode fails)
-	workers := w.maxWorkers
-	if int64(workers) > w.batchSize {
-		workers = int(w.batchSize)
-	}
-
-	if workers <= 0 {
-		workers = 1
-	}
-
-	sem := make(chan struct{}, workers)
-
-	var wg sync.WaitGroup
-
-	for _, m := range members {
-		if w.shouldShutdown(ctx) {
-			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: shutting down...")
-
-			return true
-		}
-
-		member := m.Key
-
-		sem <- struct{}{}
-
-		wg.Add(1)
-
-		go func(member string) {
-			defer func() { <-sem }()
-
-			defer wg.Done()
-
-			defer func() {
-				if r := recover(); r != nil {
-					w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: panic recovered while processing %s: %v", member, r))
-				}
-			}()
-
-			if w.shouldShutdown(ctx) {
-				return
-			}
-
-			w.processBalanceToExpire(ctx, rds, member)
-		}(member)
-	}
-
-	wg.Wait()
-
-	return true
-}
-
 // processBalancesToExpireBatch processes all due keys using batch aggregation.
 // This is more efficient than individual processing as it:
 //  1. Fetches all balance values in single MGET
@@ -612,127 +517,6 @@ func (w *BalanceSyncWorker) processBalancesToExpireBatch(ctx context.Context, or
 	return result.BalancesSynced > 0 || result.BalancesAggregated > 0
 }
 
-// waitForNextOrBackoff waits based on the next schedule entry or backs off if none.
-// Returns true if it shut down while waiting.
-func (w *BalanceSyncWorker) waitForNextOrBackoff(ctx context.Context, rds redis.UniversalClient) bool {
-	next, err := rds.ZRangeWithScores(ctx, utils.BalanceSyncScheduleKey, 0, 0).Result()
-	if err != nil && !errors.Is(err, redis.Nil) {
-		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: zrangewithscores error: %v", err))
-
-		return waitOrDone(ctx, w.idleWait, w.logger)
-	}
-
-	if len(next) == 0 {
-		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: nothing scheduled; back off.")
-
-		return waitOrDone(ctx, w.idleWait, w.logger)
-	}
-
-	w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: next: %+v", next[0]))
-
-	return w.waitUntilDue(ctx, int64(next[0].Score), w.logger)
-}
-
-// processBalanceToExpire handles a single scheduled member lifecycle.
-// WHY: Reduce cognitive complexity of Run by isolating the per-member logic.
-func (w *BalanceSyncWorker) processBalanceToExpire(ctx context.Context, rds redis.UniversalClient, member string) {
-	// Timeout shorter than lock TTL (600s) to ensure operations don't exceed the lock duration
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-
-	_, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "balance.worker.process_balance_to_expire")
-	defer span.End()
-
-	if member == "" {
-		return
-	}
-
-	ttl, err := rds.TTL(ctx, member).Result()
-	if err != nil {
-		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: TTL error for %s: %v", member, err))
-
-		return
-	}
-
-	// Handle missing key regardless of TTL sentinel representation (-2 or -2s)
-	if ttl == -2 || ttl == -2*time.Second {
-		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: already-gone key: %s, removing from schedule", member))
-
-		if remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove expired balance sync key %s: %v", member, remErr))
-		}
-
-		return
-	}
-
-	val, err := rds.Get(ctx, member).Result()
-	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: missing key on GET: %s, removing from schedule", member))
-
-			if remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-				w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove missing balance sync key %s: %v", member, remErr))
-			}
-		} else {
-			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: GET error for %s: %v", member, err))
-		}
-
-		return
-	}
-
-	organizationID, ledgerID, err := w.extractIDsFromMember(member)
-	if err != nil {
-		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: extractIDsFromMember error for %s: %v", member, err))
-
-		if remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove unparsable balance sync key %s: %v", member, remErr))
-		}
-
-		return
-	}
-
-	var balance mmodel.BalanceRedis
-	if err := json.Unmarshal([]byte(val), &balance); err != nil {
-		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: Unmarshal error for %s: %v", member, err))
-
-		if remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove unmarshalable balance sync key %s: %v", member, remErr))
-		}
-
-		return
-	}
-
-	synced, err := w.useCase.SyncBalance(ctx, organizationID, ledgerID, balance)
-	if err != nil {
-		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: SyncBalance error for member %s, balanceID=%s: %v", member, balance.ID, err))
-
-		return
-	}
-
-	if synced {
-		counter, counterErr := metricFactory.Counter(utils.BalanceSynced)
-		if counterErr != nil {
-			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to create counter %v: %v", utils.BalanceSynced, counterErr))
-		} else {
-			if metricErr := counter.WithLabels(map[string]string{
-				"organization_id": organizationID.String(),
-				"ledger_id":       ledgerID.String(),
-				"mode":            "individual",
-			}).AddOne(ctx); metricErr != nil {
-				w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to increment counter %v: %v", utils.BalanceSynced, metricErr))
-			}
-		}
-
-		w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: Synced key %s", member))
-	}
-
-	if remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKey(ctx, member); remErr != nil {
-		w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove balance sync key %s: %v", member, remErr))
-	}
-}
-
 // waitOrDone waits for d or returns true if ctx is done first.
 func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool {
 	if d <= 0 {
@@ -750,29 +534,6 @@ func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool
 	case <-t.C:
 		return false
 	}
-}
-
-// waitUntilDue waits until the given dueAt score time.
-// The score uses microsecond precision (seconds*1e6 + microseconds) to match
-// the ZADD scores set by the Lua balance_atomic_operation script.
-// Returns true if the context was cancelled while waiting.
-func (w *BalanceSyncWorker) waitUntilDue(ctx context.Context, dueAtScore int64, logger libLog.Logger) bool {
-	nowMicro := time.Now().UnixMicro()
-	if dueAtScore <= nowMicro {
-		// Due time already passed but item not processed (ZSET/sync-queue desync).
-		// Apply minimal backoff to prevent busy loop when:
-		// - ZSET has entry with expired score
-		// - Sync queue is empty (lock already claimed or data expired)
-		// Without this delay, the worker would spin indefinitely.
-		return waitOrDone(ctx, 500*time.Millisecond, logger)
-	}
-
-	waitFor := time.Duration(dueAtScore-nowMicro) * time.Microsecond
-	if waitFor <= 0 {
-		return waitOrDone(ctx, 500*time.Millisecond, logger)
-	}
-
-	return waitOrDone(ctx, waitFor, logger)
 }
 
 // extractIDsFromMember parses a Redis member key that follows the pattern
