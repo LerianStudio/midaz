@@ -404,13 +404,19 @@ func (w *BalanceSyncWorker) flushBatch(ctx context.Context, keys []redisTransact
 		return false
 	}
 
-	w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: flushBatch called with %d keys", len(keys)))
+	w.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncWorker: flushBatch called",
+		libLog.Int("keys", len(keys)),
+	)
 
-	groups := w.groupKeysByOrgLedger(keys)
+	groups := w.groupKeysByOrgLedger(ctx, keys)
 	processed := false
 
 	for _, group := range groups {
-		w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: syncing group org=%s ledger=%s with %d keys", group.orgID, group.ledgerID, len(group.keys)))
+		w.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncWorker: syncing group",
+			libLog.String("org_id", group.orgID.String()),
+			libLog.String("ledger_id", group.ledgerID.String()),
+			libLog.Int("keys", len(group.keys)),
+		)
 
 		if w.processBalancesToExpireBatch(ctx, group.orgID, group.ledgerID, group.keys) {
 			processed = true
@@ -421,8 +427,15 @@ func (w *BalanceSyncWorker) flushBatch(ctx context.Context, keys []redisTransact
 }
 
 // groupKeysByOrgLedger groups Redis balance keys by their (organizationID, ledgerID) pair.
-// Keys that cannot be parsed are logged and skipped.
-func (w *BalanceSyncWorker) groupKeysByOrgLedger(keys []redisTransaction.SyncKey) []orgLedgerGroup {
+// Grouping is necessary because SyncBalancesBatch operates within a single org+ledger scope:
+// the PostgreSQL query filters by (organization_id, ledger_id), and the aggregation engine
+// deduplicates by composite key within that scope. A mixed batch would either require
+// multiple DB queries or risk incorrect deduplication across ledgers.
+// In practice, single-tenant and MT modes almost always produce a single group (one
+// collector per tenant), but the grouping protects against edge cases in key namespacing.
+// Keys that cannot be parsed are logged, removed from the ZSET (poison record cleanup),
+// and skipped.
+func (w *BalanceSyncWorker) groupKeysByOrgLedger(ctx context.Context, keys []redisTransaction.SyncKey) []orgLedgerGroup {
 	type groupKey struct {
 		orgID    uuid.UUID
 		ledgerID uuid.UUID
@@ -433,13 +446,15 @@ func (w *BalanceSyncWorker) groupKeysByOrgLedger(keys []redisTransaction.SyncKey
 	for _, key := range keys {
 		orgID, ledgerID, err := w.extractIDsFromMember(key.Key)
 		if err != nil {
-			w.logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to extract IDs from key %s: %v — removing from schedule", key.Key, err))
+			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to extract IDs from key, removing from schedule",
+				libLog.String("key", key.Key), libLog.Err(err))
 
 			// Clean up the claimed entry to prevent it from becoming a poison record.
 			// Uses the batch variant with a single element so the conditional ZREM
 			// and lock cleanup run through the same Lua script path.
-			if _, remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(context.Background(), []redisTransaction.SyncKey{key}); remErr != nil {
-				w.logger.Log(context.Background(), libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to remove unparseable key %s: %v", key.Key, remErr))
+			if _, remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(ctx, []redisTransaction.SyncKey{key}); remErr != nil {
+				w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to remove unparseable key",
+					libLog.String("key", key.Key), libLog.Err(remErr))
 			}
 
 			continue
@@ -461,20 +476,17 @@ func (w *BalanceSyncWorker) groupKeysByOrgLedger(keys []redisTransaction.SyncKey
 	return result
 }
 
-// processBalancesToExpireBatch processes all due keys using batch aggregation.
-// This is more efficient than individual processing as it:
-//  1. Fetches all balance values in single MGET
-//  2. Aggregates by composite key, keeping only highest version
-//  3. Persists in single database transaction
-//  4. Removes all processed keys in batch
-//
-// Returns true if any balances were processed.
+// processBalancesToExpireBatch delegates to SyncBalancesBatch and emits metrics.
+// The use case handles the full pipeline: MGET → aggregate → persist → conditional ZREM.
+// Returns true if any balances were synced or aggregated.
+const syncBatchTimeout = 5 * time.Minute
+
 func (w *BalanceSyncWorker) processBalancesToExpireBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []redisTransaction.SyncKey) bool {
 	if len(keys) == 0 {
 		return false
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, syncBatchTimeout)
 	defer cancel()
 
 	_, tracer, _, metricFactory := libCommons.NewTrackingFromContext(ctx)
@@ -484,18 +496,18 @@ func (w *BalanceSyncWorker) processBalancesToExpireBatch(ctx context.Context, or
 
 	result, err := w.useCase.SyncBalancesBatch(ctx, organizationID, ledgerID, keys)
 	if err != nil {
-		w.logger.Log(ctx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: batch sync failed: %v", err))
+		w.logger.Log(ctx, libLog.LevelError, "BalanceSyncWorker: batch sync failed", libLog.Err(err))
 
 		// Emit failure metric for monitoring
 		counter, counterErr := metricFactory.Counter(utils.BalanceSyncBatchFailures)
 		if counterErr != nil {
-			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to create counter %v: %v", utils.BalanceSyncBatchFailures, counterErr))
+			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to create failure counter", libLog.Err(counterErr))
 		} else {
 			if metricErr := counter.WithLabels(map[string]string{
 				"organization_id": organizationID.String(),
 				"ledger_id":       ledgerID.String(),
 			}).AddOne(ctx); metricErr != nil {
-				w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to increment counter %v: %v", utils.BalanceSyncBatchFailures, metricErr))
+				w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit failure counter", libLog.Err(metricErr))
 			}
 		}
 
@@ -505,23 +517,24 @@ func (w *BalanceSyncWorker) processBalancesToExpireBatch(ctx context.Context, or
 	if result.BalancesSynced > 0 {
 		counter, counterErr := metricFactory.Counter(utils.BalanceSynced)
 		if counterErr != nil {
-			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to create counter %v: %v", utils.BalanceSynced, counterErr))
+			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to create synced counter", libLog.Err(counterErr))
 		} else {
 			if metricErr := counter.WithLabels(map[string]string{
 				"organization_id": organizationID.String(),
 				"ledger_id":       ledgerID.String(),
 				"mode":            "batch",
 			}).Add(ctx, result.BalancesSynced); metricErr != nil {
-				w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: failed to add counter %v: %v", utils.BalanceSynced, metricErr))
+				w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit synced counter", libLog.Err(metricErr))
 			}
 		}
 	}
 
-	// Log aggregation ratio for monitoring deduplication effectiveness
 	if result.KeysProcessed > 0 {
-		aggregationRatio := float64(result.BalancesAggregated) / float64(result.KeysProcessed)
-		w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: batch processed=%d, aggregated=%d (ratio=%.2f), synced=%d",
-			result.KeysProcessed, result.BalancesAggregated, aggregationRatio, result.BalancesSynced))
+		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: batch sync completed",
+			libLog.Int("processed", int(result.KeysProcessed)),
+			libLog.Int("aggregated", int(result.BalancesAggregated)),
+			libLog.Int("synced", int(result.BalancesSynced)),
+		)
 	}
 
 	return result.BalancesSynced > 0 || result.BalancesAggregated > 0
@@ -551,8 +564,14 @@ func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool
 	}
 }
 
-// extractIDsFromMember parses a Redis member key that follows the pattern
-// balance:{transactions}:<organizationID>:<ledgerID>:@account#key
+// extractIDsFromMember parses the organizationID and ledgerID from a Redis balance key.
+// Key pattern: balance:{transactions}:<orgID>:<ledgerID>:<alias>#<balanceKey>
+//
+// Instead of strings.Split (which allocates a []string), the parser scans byte-by-byte
+// looking for colon-separated segments of exactly 36 characters (UUID string length).
+// The first valid UUID found is orgID, the second is ledgerID. This approach is
+// allocation-free and position-independent — it works even if the key format gains
+// additional prefixes or suffixes.
 func (w *BalanceSyncWorker) extractIDsFromMember(member string) (organizationID uuid.UUID, ledgerID uuid.UUID, err error) {
 	var (
 		first     uuid.UUID
