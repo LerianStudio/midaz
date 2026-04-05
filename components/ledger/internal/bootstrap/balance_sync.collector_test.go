@@ -966,7 +966,9 @@ func TestRun_MultipleFlushCycles(t *testing.T) {
 	}()
 
 	// Cycle 1: size trigger
+	// Send keys and wake idle mode so the collector fetches them.
 	keyCh <- []string{"c1a", "c1b"}
+	waitCh <- struct{}{}
 
 	require.Eventually(t, func() bool {
 		return rec.count() >= 1
