@@ -178,12 +178,15 @@ func (w *BalanceSyncWorker) runSingleTenant() error {
 	)
 
 	collector.Run(ctx,
+		// FlushFunc: batch flush grouped by org/ledger, then persisted to PostgreSQL
 		func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
 			return w.flushBatch(flushCtx, keys)
 		},
+		// FetchKeysFunc: claims due keys from the ZSET via Lua (ZRANGEBYSCORE + SET NX)
 		func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
 			return w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(fetchCtx, limit)
 		},
+		// WaitForNextFunc: fixed backoff when idle (ZSET empty)
 		func(waitCtx context.Context) bool {
 			return waitOrDone(waitCtx, w.idleWait, w.logger)
 		},
