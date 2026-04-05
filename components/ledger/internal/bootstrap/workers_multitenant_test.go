@@ -22,8 +22,8 @@ import (
 
 // TestBalanceSyncWorker_MultiTenantFields verifies that the BalanceSyncWorker
 // struct contains the multi-tenant fields required for per-tenant dispatching.
-// These fields (multiTenantEnabled, tenantCache, pgManager) must exist on the
-// struct so that Run() can dispatch to runMultiTenant() or runSingleTenant().
+// These fields (mtEnabled, tenantCache, pgManager) must exist on the
+// struct so that Run() can dispatch to runWorkerMT() or runWorker().
 func TestBalanceSyncWorker_MultiTenantFields(t *testing.T) {
 	t.Parallel()
 
@@ -35,32 +35,32 @@ func TestBalanceSyncWorker_MultiTenantFields(t *testing.T) {
 	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
-		name               string
-		multiTenantEnabled bool
-		tenantCache        *tenantcache.TenantCache
-		pgManager          *tmpostgres.Manager
-		wantMultiTenant    bool
+		name            string
+		mtEnabled       bool
+		tenantCache     *tenantcache.TenantCache
+		pgManager       *tmpostgres.Manager
+		wantMultiTenant bool
 	}{
 		{
-			name:               "multi-tenant enabled with pgManager",
-			multiTenantEnabled: true,
-			tenantCache:        cache,
-			pgManager:          tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger)),
-			wantMultiTenant:    true,
+			name:            "multi-tenant enabled with pgManager",
+			mtEnabled:       true,
+			tenantCache:     cache,
+			pgManager:       tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger)),
+			wantMultiTenant: true,
 		},
 		{
-			name:               "single-tenant when pgManager is nil",
-			multiTenantEnabled: true,
-			tenantCache:        cache,
-			pgManager:          nil,
-			wantMultiTenant:    false,
+			name:            "single-tenant when pgManager is nil",
+			mtEnabled:       true,
+			tenantCache:     cache,
+			pgManager:       nil,
+			wantMultiTenant: false,
 		},
 		{
-			name:               "single-tenant when multiTenantEnabled is false",
-			multiTenantEnabled: false,
-			tenantCache:        nil,
-			pgManager:          nil,
-			wantMultiTenant:    false,
+			name:            "single-tenant when mtEnabled is false",
+			mtEnabled:       false,
+			tenantCache:     nil,
+			pgManager:       nil,
+			wantMultiTenant: false,
 		},
 	}
 
@@ -72,12 +72,12 @@ func TestBalanceSyncWorker_MultiTenantFields(t *testing.T) {
 
 			// These fields must exist on the struct for multi-tenant support.
 			// The test will fail to compile until the fields are added.
-			worker.multiTenantEnabled = tt.multiTenantEnabled
+			worker.mtEnabled = tt.mtEnabled
 			worker.tenantCache = tt.tenantCache
 			worker.pgManager = tt.pgManager
 
-			assert.Equal(t, tt.multiTenantEnabled, worker.multiTenantEnabled,
-				"multiTenantEnabled field should be set on BalanceSyncWorker")
+			assert.Equal(t, tt.mtEnabled, worker.mtEnabled,
+				"mtEnabled field should be set on BalanceSyncWorker")
 
 			if tt.wantMultiTenant {
 				assert.NotNil(t, worker.pgManager,
@@ -85,9 +85,9 @@ func TestBalanceSyncWorker_MultiTenantFields(t *testing.T) {
 				assert.NotNil(t, worker.tenantCache,
 					"tenantCache should be non-nil in multi-tenant mode")
 			} else {
-				if !tt.multiTenantEnabled {
+				if !tt.mtEnabled {
 					assert.Nil(t, worker.pgManager,
-						"pgManager should be nil when multiTenantEnabled is false")
+						"pgManager should be nil when mtEnabled is false")
 				}
 			}
 		})
@@ -106,22 +106,22 @@ func TestBalanceSyncWorker_FallbackWhenPGManagerNil(t *testing.T) {
 
 	worker := NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
 
-	// Set multiTenantEnabled = true but leave pgManager nil
-	worker.multiTenantEnabled = true
+	// Set mtEnabled = true but leave pgManager nil
+	worker.mtEnabled = true
 	worker.pgManager = nil
 
 	// The dispatch logic in Run() should use: pgManager != nil -> multi-tenant
 	// This asserts the fallback invariant at the struct level.
-	assert.True(t, worker.multiTenantEnabled,
-		"multiTenantEnabled should be true")
+	assert.True(t, worker.mtEnabled,
+		"mtEnabled should be true")
 	assert.Nil(t, worker.pgManager,
 		"pgManager should be nil, causing fallback to single-tenant behavior")
 
-	// Verify that isMultiTenantReady() returns false when pgManager is nil.
+	// Verify that isMTReady() returns false when pgManager is nil.
 	// This method encapsulates the dispatch predicate.
-	ready := worker.isMultiTenantReady()
+	ready := worker.isMTReady()
 	assert.False(t, ready,
-		"isMultiTenantReady() should return false when pgManager is nil")
+		"isMTReady() should return false when pgManager is nil")
 }
 
 // TestRedisQueueConsumer_MultiTenantFields verifies that the RedisQueueConsumer
@@ -211,9 +211,9 @@ func TestRedisQueueConsumer_FallbackWhenPGManagerNil(t *testing.T) {
 		"isMultiTenantReady() should return false when pgManager is nil")
 }
 
-// TestNewBalanceSyncWorkerMultiTenant verifies that a multi-tenant-aware
+// TestNewBalanceSyncWorkerMT verifies that a multi-tenant-aware
 // constructor correctly populates all multi-tenant fields.
-func TestNewBalanceSyncWorkerMultiTenant(t *testing.T) {
+func TestNewBalanceSyncWorkerMT(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
@@ -224,11 +224,11 @@ func TestNewBalanceSyncWorkerMultiTenant(t *testing.T) {
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 	cache := tenantcache.NewTenantCache()
 
-	worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, 5, BalanceSyncConfig{}, true, cache, pgMgr, "transaction")
+	worker := NewBalanceSyncWorkerMT(conn, logger, useCase, 5, BalanceSyncConfig{}, true, cache, pgMgr, "transaction")
 
 	require.NotNil(t, worker, "worker should not be nil")
-	assert.True(t, worker.multiTenantEnabled,
-		"multiTenantEnabled should be true")
+	assert.True(t, worker.mtEnabled,
+		"mtEnabled should be true")
 	assert.Same(t, cache, worker.tenantCache,
 		"tenantCache should be the same instance")
 	assert.Same(t, pgMgr, worker.pgManager,
@@ -286,10 +286,10 @@ func TestRabbitMQConsumerHandlerReceivesPGManager(t *testing.T) {
 		"rabbitMQComponents should carry pgManager for consumer handler")
 }
 
-// TestBalanceSyncWorker_IsMultiTenantReady exercises the isMultiTenantReady()
-// predicate across all combinations of multiTenantEnabled x pgManager x tenantCache,
+// TestBalanceSyncWorker_IsMTReady exercises the isMTReady()
+// predicate across all combinations of mtEnabled x pgManager x tenantCache,
 // plus the zero-value struct edge case.
-func TestBalanceSyncWorker_IsMultiTenantReady(t *testing.T) {
+func TestBalanceSyncWorker_IsMTReady(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
@@ -301,53 +301,53 @@ func TestBalanceSyncWorker_IsMultiTenantReady(t *testing.T) {
 	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
-		name               string
-		multiTenantEnabled bool
-		pgManager          *tmpostgres.Manager
-		tenantCache        *tenantcache.TenantCache
-		want               bool
+		name        string
+		mtEnabled   bool
+		pgManager   *tmpostgres.Manager
+		tenantCache *tenantcache.TenantCache
+		want        bool
 	}{
 		{
-			name:               "true_when_enabled_pgManager_and_tenantCache_set",
-			multiTenantEnabled: true,
-			pgManager:          pgMgr,
-			tenantCache:        cache,
-			want:               true,
+			name:        "true_when_enabled_pgManager_and_tenantCache_set",
+			mtEnabled:   true,
+			pgManager:   pgMgr,
+			tenantCache: cache,
+			want:        true,
 		},
 		{
-			name:               "false_when_enabled_but_pgManager_nil",
-			multiTenantEnabled: true,
-			pgManager:          nil,
-			tenantCache:        cache,
-			want:               false,
+			name:        "false_when_enabled_but_pgManager_nil",
+			mtEnabled:   true,
+			pgManager:   nil,
+			tenantCache: cache,
+			want:        false,
 		},
 		{
-			name:               "false_when_enabled_but_tenantCache_nil",
-			multiTenantEnabled: true,
-			pgManager:          pgMgr,
-			tenantCache:        nil,
-			want:               false,
+			name:        "false_when_enabled_but_tenantCache_nil",
+			mtEnabled:   true,
+			pgManager:   pgMgr,
+			tenantCache: nil,
+			want:        false,
 		},
 		{
-			name:               "false_when_disabled_but_pgManager_set",
-			multiTenantEnabled: false,
-			pgManager:          pgMgr,
-			tenantCache:        cache,
-			want:               false,
+			name:        "false_when_disabled_but_pgManager_set",
+			mtEnabled:   false,
+			pgManager:   pgMgr,
+			tenantCache: cache,
+			want:        false,
 		},
 		{
-			name:               "false_when_disabled_and_pgManager_nil",
-			multiTenantEnabled: false,
-			pgManager:          nil,
-			tenantCache:        nil,
-			want:               false,
+			name:        "false_when_disabled_and_pgManager_nil",
+			mtEnabled:   false,
+			pgManager:   nil,
+			tenantCache: nil,
+			want:        false,
 		},
 		{
-			name:               "false_for_zero_value_struct",
-			multiTenantEnabled: false,
-			pgManager:          nil,
-			tenantCache:        nil,
-			want:               false,
+			name:        "false_for_zero_value_struct",
+			mtEnabled:   false,
+			pgManager:   nil,
+			tenantCache: nil,
+			want:        false,
 		},
 	}
 
@@ -360,14 +360,14 @@ func TestBalanceSyncWorker_IsMultiTenantReady(t *testing.T) {
 				worker = &BalanceSyncWorker{}
 			} else {
 				worker = NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
-				worker.multiTenantEnabled = tt.multiTenantEnabled
+				worker.mtEnabled = tt.mtEnabled
 				worker.pgManager = tt.pgManager
 				worker.tenantCache = tt.tenantCache
 			}
 
-			got := worker.isMultiTenantReady()
+			got := worker.isMTReady()
 			assert.Equal(t, tt.want, got,
-				"isMultiTenantReady() should return %v", tt.want)
+				"isMTReady() should return %v", tt.want)
 		})
 	}
 }
@@ -457,9 +457,9 @@ func TestRedisQueueConsumer_IsMultiTenantReady(t *testing.T) {
 	}
 }
 
-// TestNewBalanceSyncWorkerMultiTenant_EdgeCases covers constructor edge cases:
+// TestNewBalanceSyncWorkerMT_EdgeCases covers constructor edge cases:
 // disabled mode with non-nil deps, nil tenantCache with non-nil pgManager, and all-nil.
-func TestNewBalanceSyncWorkerMultiTenant_EdgeCases(t *testing.T) {
+func TestNewBalanceSyncWorkerMT_EdgeCases(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
@@ -471,36 +471,36 @@ func TestNewBalanceSyncWorkerMultiTenant_EdgeCases(t *testing.T) {
 	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
-		name               string
-		multiTenantEnabled bool
-		tenantCache        *tenantcache.TenantCache
-		pgManager          *tmpostgres.Manager
-		wantEnabled        bool
-		wantReady          bool
+		name        string
+		mtEnabled   bool
+		tenantCache *tenantcache.TenantCache
+		pgManager   *tmpostgres.Manager
+		wantEnabled bool
+		wantReady   bool
 	}{
 		{
-			name:               "disabled_with_non_nil_deps",
-			multiTenantEnabled: false,
-			tenantCache:        cache,
-			pgManager:          pgMgr,
-			wantEnabled:        false,
-			wantReady:          false,
+			name:        "disabled_with_non_nil_deps",
+			mtEnabled:   false,
+			tenantCache: cache,
+			pgManager:   pgMgr,
+			wantEnabled: false,
+			wantReady:   false,
 		},
 		{
-			name:               "nil_tenantCache_with_non_nil_pgManager",
-			multiTenantEnabled: true,
-			tenantCache:        nil,
-			pgManager:          pgMgr,
-			wantEnabled:        true,
-			wantReady:          false,
+			name:        "nil_tenantCache_with_non_nil_pgManager",
+			mtEnabled:   true,
+			tenantCache: nil,
+			pgManager:   pgMgr,
+			wantEnabled: true,
+			wantReady:   false,
 		},
 		{
-			name:               "all_nil_disabled",
-			multiTenantEnabled: false,
-			tenantCache:        nil,
-			pgManager:          nil,
-			wantEnabled:        false,
-			wantReady:          false,
+			name:        "all_nil_disabled",
+			mtEnabled:   false,
+			tenantCache: nil,
+			pgManager:   nil,
+			wantEnabled: false,
+			wantReady:   false,
 		},
 	}
 
@@ -508,16 +508,16 @@ func TestNewBalanceSyncWorkerMultiTenant_EdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			worker := NewBalanceSyncWorkerMultiTenant(
+			worker := NewBalanceSyncWorkerMT(
 				conn, logger, useCase, 5, BalanceSyncConfig{},
-				tt.multiTenantEnabled, tt.tenantCache, tt.pgManager, "transaction",
+				tt.mtEnabled, tt.tenantCache, tt.pgManager, "transaction",
 			)
 
 			require.NotNil(t, worker, "constructor must return non-nil")
-			assert.Equal(t, tt.wantEnabled, worker.multiTenantEnabled,
-				"multiTenantEnabled should match input")
-			assert.Equal(t, tt.wantReady, worker.isMultiTenantReady(),
-				"isMultiTenantReady() should reflect field combination")
+			assert.Equal(t, tt.wantEnabled, worker.mtEnabled,
+				"mtEnabled should match input")
+			assert.Equal(t, tt.wantReady, worker.isMTReady(),
+				"isMTReady() should reflect field combination")
 
 			if tt.tenantCache == nil {
 				assert.Nil(t, worker.tenantCache,
@@ -637,14 +637,14 @@ func TestNewBalanceSyncWorker_ZeroValueMultiTenantFields(t *testing.T) {
 			require.NotNil(t, worker, "base constructor must return non-nil")
 			assert.Equal(t, tt.wantMaxWorkers, worker.maxWorkers,
 				"maxWorkers should be %d", tt.wantMaxWorkers)
-			assert.False(t, worker.multiTenantEnabled,
-				"multiTenantEnabled should default to false")
+			assert.False(t, worker.mtEnabled,
+				"mtEnabled should default to false")
 			assert.Nil(t, worker.tenantCache,
 				"tenantCache should default to nil")
 			assert.Nil(t, worker.pgManager,
 				"pgManager should default to nil")
-			assert.False(t, worker.isMultiTenantReady(),
-				"isMultiTenantReady() should be false for base constructor")
+			assert.False(t, worker.isMTReady(),
+				"isMTReady() should be false for base constructor")
 		})
 	}
 }
@@ -718,11 +718,11 @@ func TestRabbitMQComponents_PGManagerField(t *testing.T) {
 	}
 }
 
-// TestBalanceSyncWorker_RunDispatchesBasedOnMultiTenantReady verifies that the
-// Run() dispatch predicate (isMultiTenantReady) returns the correct value for
+// TestBalanceSyncWorker_RunDispatchesBasedOnMTReady verifies that the
+// Run() dispatch predicate (isMTReady) returns the correct value for
 // single-tenant and multi-tenant configurations. Run() itself blocks, so we
 // test the predicate that governs which branch Run() takes.
-func TestBalanceSyncWorker_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
+func TestBalanceSyncWorker_RunDispatchesBasedOnMTReady(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
@@ -734,31 +734,31 @@ func TestBalanceSyncWorker_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
-		name               string
-		multiTenantEnabled bool
-		pgManager          *tmpostgres.Manager
-		tenantCache        *tenantcache.TenantCache
-		wantReady          bool
+		name        string
+		mtEnabled   bool
+		pgManager   *tmpostgres.Manager
+		tenantCache *tenantcache.TenantCache
+		wantReady   bool
 	}{
 		{
-			name:               "single_tenant_dispatches_to_runSingleTenant",
-			multiTenantEnabled: false,
-			pgManager:          nil,
-			wantReady:          false,
+			name:      "single_tenant_dispatches_to_runWorker",
+			mtEnabled: false,
+			pgManager: nil,
+			wantReady: false,
 		},
 		{
-			name:               "multi_tenant_dispatches_to_runMultiTenant",
-			multiTenantEnabled: true,
-			pgManager:          pgMgr,
-			tenantCache:        cache,
-			wantReady:          true,
+			name:        "multi_tenant_dispatches_to_runWorkerMT",
+			mtEnabled:   true,
+			pgManager:   pgMgr,
+			tenantCache: cache,
+			wantReady:   true,
 		},
 		{
-			name:               "enabled_but_nil_pgManager_falls_back_to_single",
-			multiTenantEnabled: true,
-			pgManager:          nil,
-			tenantCache:        cache,
-			wantReady:          false,
+			name:        "enabled_but_nil_pgManager_falls_back_to_single",
+			mtEnabled:   true,
+			pgManager:   nil,
+			tenantCache: cache,
+			wantReady:   false,
 		},
 	}
 
@@ -767,13 +767,13 @@ func TestBalanceSyncWorker_RunDispatchesBasedOnMultiTenantReady(t *testing.T) {
 			t.Parallel()
 
 			worker := NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
-			worker.multiTenantEnabled = tt.multiTenantEnabled
+			worker.mtEnabled = tt.mtEnabled
 			worker.pgManager = tt.pgManager
 			worker.tenantCache = tt.tenantCache
 
-			got := worker.isMultiTenantReady()
+			got := worker.isMTReady()
 			assert.Equal(t, tt.wantReady, got,
-				"isMultiTenantReady() governs Run() dispatch: want %v", tt.wantReady)
+				"isMTReady() governs Run() dispatch: want %v", tt.wantReady)
 		})
 	}
 }
@@ -882,11 +882,11 @@ func TestResolveTenantConnections_NilManagers(t *testing.T) {
 	}
 }
 
-// TestBalanceSyncWorker_MultiTenantConstructorPreservesRunBehavior verifies that
-// NewBalanceSyncWorkerMultiTenant produces a worker where isMultiTenantReady()
+// TestBalanceSyncWorker_MTConstructorPreservesRunBehavior verifies that
+// NewBalanceSyncWorkerMT produces a worker where isMTReady()
 // matches the expected value and the Run method is callable (compile-time check
 // via interface satisfaction with *libCommons.Launcher).
-func TestBalanceSyncWorker_MultiTenantConstructorPreservesRunBehavior(t *testing.T) {
+func TestBalanceSyncWorker_MTConstructorPreservesRunBehavior(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
@@ -898,22 +898,22 @@ func TestBalanceSyncWorker_MultiTenantConstructorPreservesRunBehavior(t *testing
 	cache := tenantcache.NewTenantCache()
 
 	tests := []struct {
-		name               string
-		multiTenantEnabled bool
-		pgManager          *tmpostgres.Manager
-		wantReady          bool
+		name      string
+		mtEnabled bool
+		pgManager *tmpostgres.Manager
+		wantReady bool
 	}{
 		{
-			name:               "multi_tenant_ready",
-			multiTenantEnabled: true,
-			pgManager:          pgMgr,
-			wantReady:          true,
+			name:      "multi_tenant_ready",
+			mtEnabled: true,
+			pgManager: pgMgr,
+			wantReady: true,
 		},
 		{
-			name:               "single_tenant_fallback",
-			multiTenantEnabled: false,
-			pgManager:          nil,
-			wantReady:          false,
+			name:      "single_tenant_fallback",
+			mtEnabled: false,
+			pgManager: nil,
+			wantReady: false,
 		},
 	}
 
@@ -921,14 +921,14 @@ func TestBalanceSyncWorker_MultiTenantConstructorPreservesRunBehavior(t *testing
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			worker := NewBalanceSyncWorkerMultiTenant(
+			worker := NewBalanceSyncWorkerMT(
 				conn, logger, useCase, 5, BalanceSyncConfig{},
-				tt.multiTenantEnabled, cache, tt.pgManager, "transaction",
+				tt.mtEnabled, cache, tt.pgManager, "transaction",
 			)
 
 			require.NotNil(t, worker, "constructor must return non-nil worker")
-			assert.Equal(t, tt.wantReady, worker.isMultiTenantReady(),
-				"isMultiTenantReady() should match expected dispatch path")
+			assert.Equal(t, tt.wantReady, worker.isMTReady(),
+				"isMTReady() should match expected dispatch path")
 
 			// Compile-time verification that Run() accepts *libCommons.Launcher.
 			// We assign to a func variable to prove the method exists without

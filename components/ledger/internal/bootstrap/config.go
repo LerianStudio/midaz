@@ -854,7 +854,7 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 	var balanceSyncWorker *BalanceSyncWorker
 
 	if opts != nil && opts.MultiTenantEnabled && opts.TenantCache != nil {
-		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, syncCfg, true, opts.TenantCache, pgManager, tenantServiceName)
+		balanceSyncWorker = NewBalanceSyncWorkerMT(redisConn, logger, commandUC, balanceSyncMaxWorkers, syncCfg, true, opts.TenantCache, pgManager, tenantServiceName)
 	} else {
 		balanceSyncWorker = NewBalanceSyncWorker(redisConn, logger, commandUC, balanceSyncMaxWorkers, syncCfg)
 	}

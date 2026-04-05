@@ -49,17 +49,17 @@ func (c BalanceSyncConfig) PollInterval() time.Duration {
 // Keys become eligible immediately after balance mutation (Lua ZADD with dueAt=now).
 // The worker accumulates keys and flushes based on batch size OR timeout, whichever comes first.
 type BalanceSyncWorker struct {
-	redisConn          *libRedis.Client
-	logger             libLog.Logger
-	idleWait           time.Duration
-	batchSize          int64
-	maxWorkers         int
-	syncConfig         BalanceSyncConfig
-	useCase            *command.UseCase
-	multiTenantEnabled bool
-	tenantCache        *tenantcache.TenantCache
-	pgManager          *tmpostgres.Manager
-	serviceName        string
+	redisConn   *libRedis.Client
+	logger      libLog.Logger
+	idleWait    time.Duration
+	batchSize   int64
+	maxWorkers  int
+	syncConfig  BalanceSyncConfig
+	useCase     *command.UseCase
+	mtEnabled   bool
+	tenantCache *tenantcache.TenantCache
+	pgManager   *tmpostgres.Manager
+	serviceName string
 }
 
 // tenantCollector tracks a running BalanceSyncCollector goroutine for a specific tenant.
@@ -112,25 +112,25 @@ func NewBalanceSyncWorker(conn *libRedis.Client, logger libLog.Logger, useCase *
 	}
 }
 
-// NewBalanceSyncWorkerMultiTenant creates a BalanceSyncWorker with multi-tenant fields populated.
-// When multiTenantEnabled is true, both tenantCache and pgManager must be non-nil for the worker
-// to be considered ready (isMultiTenantReady). The worker reads tenant IDs from the shared
+// NewBalanceSyncWorkerMT creates a BalanceSyncWorker with MT (multi-tenant) fields populated.
+// When mtEnabled is true, both tenantCache and pgManager must be non-nil for the worker
+// to be considered ready (isMTReady). The worker reads tenant IDs from the shared
 // TenantCache (populated by the TenantEventListener) and uses pgManager to resolve per-tenant
 // PostgreSQL connections.
 // serviceName is the service identifier for logging purposes.
-func NewBalanceSyncWorkerMultiTenant(
+func NewBalanceSyncWorkerMT(
 	conn *libRedis.Client,
 	logger libLog.Logger,
 	useCase *command.UseCase,
 	maxWorkers int,
 	syncCfg BalanceSyncConfig,
-	multiTenantEnabled bool,
+	mtEnabled bool,
 	cache *tenantcache.TenantCache,
 	pgManager *tmpostgres.Manager,
 	serviceName string,
 ) *BalanceSyncWorker {
 	w := NewBalanceSyncWorker(conn, logger, useCase, maxWorkers, syncCfg)
-	w.multiTenantEnabled = multiTenantEnabled
+	w.mtEnabled = mtEnabled
 	w.tenantCache = cache
 	w.pgManager = pgManager
 	w.serviceName = serviceName
@@ -138,11 +138,11 @@ func NewBalanceSyncWorkerMultiTenant(
 	return w
 }
 
-// isMultiTenantReady returns true when the worker is configured for multi-tenant
-// dispatching. multiTenantEnabled, pgManager, and tenantCache must all be set;
-// if any is missing the worker falls back to single-tenant behavior.
-func (w *BalanceSyncWorker) isMultiTenantReady() bool {
-	return w.multiTenantEnabled && w.pgManager != nil && w.tenantCache != nil
+// isMTReady returns true when the worker is configured for MT (multi-tenant)
+// dispatching. mtEnabled, pgManager, and tenantCache must all be set;
+// if any is missing the worker falls back to default (single-tenant) behavior.
+func (w *BalanceSyncWorker) isMTReady() bool {
+	return w.mtEnabled && w.pgManager != nil && w.tenantCache != nil
 }
 
 // Run dispatches to multi-tenant or single-tenant execution based on configuration.
@@ -151,16 +151,16 @@ func (w *BalanceSyncWorker) isMultiTenantReady() bool {
 // mode creates its own signal.NotifyContext(context.Background(), ...) to handle
 // SIGTERM/SIGINT independently — this is the standard pattern across all Midaz workers.
 func (w *BalanceSyncWorker) Run(_ *libCommons.Launcher) error {
-	if w.isMultiTenantReady() {
-		return w.runMultiTenant()
+	if w.isMTReady() {
+		return w.runWorkerMT()
 	}
 
-	return w.runSingleTenant()
+	return w.runWorker()
 }
 
-// runSingleTenant runs the balance sync loop using the default (shared) database connection.
+// runWorker runs the default balance sync loop using the shared database connection.
 // Uses the dual-trigger collector (size OR timeout) for near-real-time balance persistence.
-func (w *BalanceSyncWorker) runSingleTenant() error {
+func (w *BalanceSyncWorker) runWorker() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -197,14 +197,14 @@ func (w *BalanceSyncWorker) runSingleTenant() error {
 	return nil
 }
 
-// runMultiTenant runs one BalanceSyncCollector per active tenant, each with its own
+// runWorkerMT runs one BalanceSyncCollector per active tenant, each with its own
 // dual-trigger (size OR timeout) batch accumulation. A reconciliation loop periodically
 // checks the TenantCache for added/removed tenants and starts/stops collectors accordingly.
 //
-// Unlike the single-tenant path which runs a single collector inline, the multi-tenant
-// path launches each collector as a goroutine. When the parent context is cancelled
-// (SIGTERM/SIGINT), all tenant collectors are stopped and their remaining buffers are flushed.
-func (w *BalanceSyncWorker) runMultiTenant() error {
+// Unlike runWorker which runs a single collector inline, the MT path launches each
+// collector as a goroutine. When the parent context is cancelled (SIGTERM/SIGINT),
+// all tenant collectors are stopped and their remaining buffers are flushed.
+func (w *BalanceSyncWorker) runWorkerMT() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

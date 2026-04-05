@@ -10,13 +10,13 @@ package bootstrap
 // These fuzz tests verify that the multi-tenant constructors and predicates
 // never panic regardless of input values. The fuzzable surface is:
 //
-//   - maxWorkers (int) in NewBalanceSyncWorkerMultiTenant
-//   - multiTenantEnabled (bool) combined with nil/non-nil pointer parameters
-//   - isMultiTenantReady() predicates on both BalanceSyncWorker and RedisQueueConsumer
+//   - maxWorkers (int) in NewBalanceSyncWorkerMT
+//   - mtEnabled (bool) combined with nil/non-nil pointer parameters
+//   - isMTReady() / isMultiTenantReady() predicates on BalanceSyncWorker and RedisQueueConsumer
 //
 // Run with:
 //
-//	go test -run='^$' -fuzz=FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers -fuzztime=30s \
+//	go test -run='^$' -fuzz=FuzzNewBalanceSyncWorkerMT_MaxWorkers -fuzztime=30s \
 //	    ./components/transaction/internal/bootstrap/
 //	go test -run='^$' -fuzz=FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled -fuzztime=30s \
 //	    ./components/transaction/internal/bootstrap/
@@ -37,17 +37,17 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 )
 
-// FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers fuzzes the maxWorkers parameter,
-// multiTenantEnabled flag, and serviceName of the NewBalanceSyncWorkerMultiTenant constructor.
+// FuzzNewBalanceSyncWorkerMT_MaxWorkers fuzzes the maxWorkers parameter,
+// mtEnabled flag, and serviceName of the NewBalanceSyncWorkerMT constructor.
 //
 // Properties verified (not specific values):
 //  1. Constructor never panics for any int/bool/string combination.
 //  2. Returned worker is never nil.
 //  3. maxWorkers is always > 0 after construction (default applied for <= 0).
-//  4. multiTenantEnabled matches the input value.
-//  5. isMultiTenantReady() is consistent with field state.
+//  4. mtEnabled matches the input value.
+//  5. isMTReady() is consistent with field state.
 //  6. serviceName is stored exactly as provided (no implicit trimming).
-func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
+func FuzzNewBalanceSyncWorkerMT_MaxWorkers(f *testing.F) {
 	// Seed 1: typical valid input
 	f.Add(5, true, "transaction")
 	// Seed 2: zero maxWorkers (boundary -- triggers default)
@@ -74,13 +74,13 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 
 	cache := tenantcache.NewTenantCache()
 
-	f.Fuzz(func(t *testing.T, maxWorkers int, multiTenantEnabled bool, serviceName string) {
+	f.Fuzz(func(t *testing.T, maxWorkers int, mtEnabled bool, serviceName string) {
 		// Property: constructor must never panic (enforced by test execution).
-		worker := NewBalanceSyncWorkerMultiTenant(conn, logger, useCase, maxWorkers, BalanceSyncConfig{}, multiTenantEnabled, cache, pgMgr, serviceName)
+		worker := NewBalanceSyncWorkerMT(conn, logger, useCase, maxWorkers, BalanceSyncConfig{}, mtEnabled, cache, pgMgr, serviceName)
 
 		// Property: returned worker is never nil.
 		if worker == nil {
-			t.Fatal("NewBalanceSyncWorkerMultiTenant returned nil")
+			t.Fatal("NewBalanceSyncWorkerMT returned nil")
 		}
 
 		// Property: maxWorkers is always positive after construction.
@@ -88,9 +88,9 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 			t.Fatalf("maxWorkers should be > 0 after construction, got %d (input was %d)", worker.maxWorkers, maxWorkers)
 		}
 
-		// Property: multiTenantEnabled matches input.
-		if worker.multiTenantEnabled != multiTenantEnabled {
-			t.Fatalf("multiTenantEnabled mismatch: got %v, want %v", worker.multiTenantEnabled, multiTenantEnabled)
+		// Property: mtEnabled matches input.
+		if worker.mtEnabled != mtEnabled {
+			t.Fatalf("mtEnabled mismatch: got %v, want %v", worker.mtEnabled, mtEnabled)
 		}
 
 		// Property: serviceName is stored exactly as provided.
@@ -98,14 +98,14 @@ func FuzzNewBalanceSyncWorkerMultiTenant_MaxWorkers(f *testing.F) {
 			t.Fatalf("serviceName mismatch: got %q, want %q", worker.serviceName, serviceName)
 		}
 
-		// Property: isMultiTenantReady() is true only when enabled AND pgManager AND tenantCache non-nil.
-		ready := worker.isMultiTenantReady()
-		if multiTenantEnabled && worker.pgManager != nil && worker.tenantCache != nil && !ready {
-			t.Fatal("isMultiTenantReady() should be true when enabled, pgManager, and tenantCache are non-nil")
+		// Property: isMTReady() is true only when enabled AND pgManager AND tenantCache non-nil.
+		ready := worker.isMTReady()
+		if mtEnabled && worker.pgManager != nil && worker.tenantCache != nil && !ready {
+			t.Fatal("isMTReady() should be true when enabled, pgManager, and tenantCache are non-nil")
 		}
 
-		if !multiTenantEnabled && ready {
-			t.Fatal("isMultiTenantReady() should be false when multiTenantEnabled is false")
+		if !mtEnabled && ready {
+			t.Fatal("isMTReady() should be false when mtEnabled is false")
 		}
 
 		// Property: batchSize equals default BatchSize (50) when BalanceSyncConfig{} is used.
@@ -217,7 +217,7 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 	f.Fuzz(func(t *testing.T, workerEnabled bool, workerHasPGMgr bool, consumerEnabled bool, consumerHasPGMgr bool) {
 		// --- BalanceSyncWorker predicate ---
 		worker := NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
-		worker.multiTenantEnabled = workerEnabled
+		worker.mtEnabled = workerEnabled
 
 		if workerHasPGMgr {
 			worker.pgManager = pgMgr
@@ -226,19 +226,19 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 		}
 
 		// Property: never panics.
-		workerReady := worker.isMultiTenantReady()
+		workerReady := worker.isMTReady()
 
 		// Property: result matches predicate logic.
-		// tenantCache is not set in this fuzz test, so isMultiTenantReady() is always false.
+		// tenantCache is not set in this fuzz test, so isMTReady() is always false.
 		expectWorkerReady := workerEnabled && workerHasPGMgr && worker.tenantCache != nil
 		if workerReady != expectWorkerReady {
-			t.Fatalf("BalanceSyncWorker.isMultiTenantReady() = %v, want %v (enabled=%v, hasPGMgr=%v, hasTenantCache=%v)",
+			t.Fatalf("BalanceSyncWorker.isMTReady() = %v, want %v (enabled=%v, hasPGMgr=%v, hasTenantCache=%v)",
 				workerReady, expectWorkerReady, workerEnabled, workerHasPGMgr, worker.tenantCache != nil)
 		}
 
 		// Property: idempotent.
-		if worker.isMultiTenantReady() != workerReady {
-			t.Fatal("BalanceSyncWorker.isMultiTenantReady() is not idempotent")
+		if worker.isMTReady() != workerReady {
+			t.Fatal("BalanceSyncWorker.isMTReady() is not idempotent")
 		}
 
 		// --- RedisQueueConsumer predicate ---
@@ -269,8 +269,8 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 
 		// --- Zero-value struct edge case ---
 		zeroWorker := &BalanceSyncWorker{}
-		if zeroWorker.isMultiTenantReady() {
-			t.Fatal("zero-value BalanceSyncWorker.isMultiTenantReady() should be false")
+		if zeroWorker.isMTReady() {
+			t.Fatal("zero-value BalanceSyncWorker.isMTReady() should be false")
 		}
 
 		zeroConsumer := &RedisQueueConsumer{}

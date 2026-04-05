@@ -69,7 +69,7 @@ func newTestWorkerWithCache(t *testing.T, cache *tenantcache.TenantCache) *Balan
 
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
-	return NewBalanceSyncWorkerMultiTenant(
+	return NewBalanceSyncWorkerMT(
 		conn, logger, useCase, 5, BalanceSyncConfig{},
 		true, cache, pgMgr, "transaction",
 	)
