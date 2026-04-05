@@ -128,9 +128,8 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, flushFn FlushFunc, fetch
 		}
 
 		if len(keys) > 0 {
-			if c.handleBusyMode(ctx, keys, timer) {
-				continue
-			}
+			c.handleBusyMode(ctx, keys, timer)
+			continue
 		}
 
 		// No keys fetched from ZSET
@@ -149,37 +148,50 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, flushFn FlushFunc, fetch
 	}
 }
 
-// handleBusyMode processes newly fetched keys: appends to buffer, flushes on SIZE trigger,
-// or continues the tight poll loop. Returns true if the main loop should continue immediately.
-func (c *BalanceSyncCollector) handleBusyMode(ctx context.Context, keys []redisTransaction.SyncKey, timer *time.Timer) bool {
+// handleBusyMode processes newly fetched keys: appends to buffer and flushes on
+// SIZE trigger. After this, the main loop always continues immediately (tight poll).
+func (c *BalanceSyncCollector) handleBusyMode(ctx context.Context, keys []redisTransaction.SyncKey, timer *time.Timer) {
 	c.mu.Lock()
 	wasEmpty := len(c.buffer) == 0
 	c.buffer = append(c.buffer, keys...)
 	bufLen := len(c.buffer)
 	c.mu.Unlock()
 
-	c.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncCollector: fetched %d keys, buffer=%d/%d", len(keys), bufLen, c.batchSize))
+	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: fetched keys",
+		libLog.Int("fetched", len(keys)),
+		libLog.Int("buffer", bufLen),
+		libLog.Int("batch_size", c.batchSize),
+	)
 
-	// Reset timer when first keys arrive in a previously empty buffer
+	// Start the flush timeout window when the first keys arrive in an empty buffer.
+	// The timer is NOT reset on subsequent fetches — otherwise a steady trickle of
+	// keys (few per poll) would keep pushing the deadline forward and the TIMEOUT
+	// trigger would never fire, leaving partial batches stuck indefinitely.
 	if wasEmpty {
 		stopAndDrain(timer)
 		timer.Reset(c.flushTimeout)
 	}
 
-	// SIZE trigger: buffer full → flush immediately
+	// SIZE trigger: buffer full → flush immediately and reset the timeout
+	// window for the next batch cycle.
 	if bufLen >= c.batchSize {
-		c.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncCollector: SIZE trigger fired (buffer=%d >= batch_size=%d), flushing now", bufLen, c.batchSize))
+		c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: SIZE trigger fired, flushing now",
+			libLog.Int("buffer", bufLen),
+			libLog.Int("batch_size", c.batchSize),
+		)
 		c.flush(ctx)
 		stopAndDrain(timer)
 		timer.Reset(c.flushTimeout)
 	}
-
-	return true // always continue tight loop after fetching keys
 }
 
-// handleDrainingMode waits for either the TIMEOUT trigger or the poll interval
-// when the buffer has items but no new keys are arriving.
-// pollTimer is a reusable timer for the poll interval (avoids time.After allocation leak).
+// handleDrainingMode is entered when the buffer has items but the last fetch
+// returned no new keys. It blocks on a select between three events:
+//   - ctx.Done: shutdown requested, return and let flushRemaining handle the buffer
+//   - timer.C: flush timeout elapsed (TIMEOUT trigger), flush the partial batch
+//   - pollTimer.C: poll interval elapsed, return to the loop to try fetching again
+//
+// pollTimer is reusable across iterations (avoids time.After allocation leak).
 func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen int, timer *time.Timer, pollTimer *time.Timer) {
 	stopAndDrain(pollTimer)
 	pollTimer.Reset(c.pollInterval)
@@ -188,22 +200,28 @@ func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen in
 	case <-ctx.Done():
 		return
 	case <-timer.C:
-		c.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncCollector: TIMEOUT trigger fired (%v elapsed, buffer=%d), flushing now", c.flushTimeout, bufLen))
+		c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: TIMEOUT trigger fired, flushing now",
+			libLog.String("flush_timeout", c.flushTimeout.String()),
+			libLog.Int("buffer", bufLen),
+		)
 		c.flush(ctx)
 		timer.Reset(c.flushTimeout)
 	case <-pollTimer.C:
-		// Poll again to check for new keys
+		// No action — return to the main loop to try fetching again
 	}
 }
 
-// handleIdleMode stops the timer and waits for the next scheduled key or shutdown.
-// Returns true if shutdown was requested.
+// handleIdleMode is entered when both the buffer and the ZSET are empty —
+// there is nothing to flush and nothing to fetch. The flush timer is stopped
+// (no point counting a timeout with an empty buffer) and the collector sleeps
+// via waitForNext until either new keys arrive or shutdown is requested.
+// Returns true if shutdown was requested during the wait.
 func (c *BalanceSyncCollector) handleIdleMode(ctx context.Context, timer *time.Timer, waitForNext WaitForNextFunc) bool {
-	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: idle mode — no keys in ZSET, waiting for next scheduled key")
+	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: idle mode, waiting for new keys")
 	stopAndDrain(timer)
 
 	if waitForNext(ctx) {
-		return true
+		return true // shutdown requested
 	}
 
 	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: woke up from idle, resuming polling")
@@ -258,7 +276,13 @@ func (c *BalanceSyncCollector) Size() int {
 	return len(c.buffer)
 }
 
-// stopAndDrain stops a timer and drains its channel if needed.
+// stopAndDrain stops a timer and drains any stale event from its channel,
+// making it safe to call Reset afterwards. This is necessary because
+// time.Timer.Reset does NOT clear the channel — if the timer already fired
+// but nobody read timer.C, the old event stays buffered and the next
+// select { case <-timer.C } would fire immediately with the stale event
+// instead of waiting for the new deadline. The select-with-default makes the
+// drain non-blocking in case the channel is already empty.
 func stopAndDrain(t *time.Timer) {
 	if !t.Stop() {
 		select {
@@ -268,7 +292,10 @@ func stopAndDrain(t *time.Timer) {
 	}
 }
 
-// waitOrShutdown waits for duration d or returns true if ctx is cancelled.
+// waitOrShutdown pauses the collector for duration d, used as a backoff after
+// transient errors (e.g., fetch failure with empty buffer). Returns true if the
+// context was cancelled during the wait (shutdown requested), false if the
+// duration elapsed normally and the caller should continue.
 func waitOrShutdown(ctx context.Context, d time.Duration) bool {
 	t := time.NewTimer(d)
 	defer t.Stop()
