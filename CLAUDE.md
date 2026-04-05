@@ -404,7 +404,10 @@ Activates only when `RABBITMQ_TRANSACTION_ASYNC=true` AND `BULK_RECORDER_ENABLED
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BALANCE_SYNC_MAX_WORKERS` | (5) | Balance sync worker count |
+| `BALANCE_SYNC_MAX_WORKERS` | (5) | Legacy max goroutines (fallback path) |
+| `BALANCE_SYNC_BATCH_SIZE` | (50) | Keys accumulated before flush (SIZE trigger) |
+| `BALANCE_SYNC_FLUSH_TIMEOUT_MS` | (500) | Max ms before flushing incomplete batch (TIMEOUT trigger) |
+| `BALANCE_SYNC_POLL_INTERVAL_MS` | (50) | ZSET polling interval when draining |
 | `SETTINGS_CACHE_TTL` | (5m) | Settings cache duration (Go duration) |
 
 ### Pagination
@@ -562,7 +565,7 @@ make wait-for-services    # Wait for backend services healthy (TEST_HEALTH_WAIT=
 Full rules in `docs/PROJECT_RULES.md` (1130 lines). Key points:
 
 1. **Go 1.25+**: Use `any` not `interface{}`, use generics for utilities
-2. **File naming**: `snake_case.go`, one handler/service per file
+2. **File naming**: `snake_case.go` with dot-separated component types (e.g., `balance_sync.worker.go`, `redis.consumer.go`)
 3. **Import groups**: stdlib → external → internal (blank-line separated)
 4. **Context**: Always first param, check `ctx.Err()` before work
 5. **Error wrapping**: `%w` for technical, direct return for business errors
@@ -572,6 +575,8 @@ Full rules in `docs/PROJECT_RULES.md` (1130 lines). Key points:
 9. **IDs**: Use `uuid.UUID` type, not strings
 10. **Soft delete**: `DeletedAt` field, status `DELETED`
 11. **Pagination**: Page-based (page + limit), max 100 per page
+12. **Structured logging**: Use `libLog.Err(err)`, `libLog.String()`, `libLog.Int()` fields instead of `fmt.Sprintf` inside log calls
+13. **MT naming**: Multi-tenant code uses `MT` suffix (`NewFooMT`, `runFooMT`, `mtEnabled`, `isMTReady`). Default (single-tenant) uses no qualifier.
 
 ## What NOT To Do
 
