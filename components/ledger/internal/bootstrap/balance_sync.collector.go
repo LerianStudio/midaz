@@ -119,7 +119,7 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, flushFn FlushFunc, fetch
 				continue
 			}
 
-			if waitOrShutdown(ctx, c.pollInterval) {
+			if waitOrDone(ctx, c.pollInterval, c.logger) {
 				return
 			}
 
@@ -297,21 +297,5 @@ func stopAndDrain(t *time.Timer) {
 		case <-t.C:
 		default:
 		}
-	}
-}
-
-// waitOrShutdown pauses the collector for duration d, used as a backoff after
-// transient errors (e.g., fetch failure with empty buffer). Returns true if the
-// context was cancelled during the wait (shutdown requested), false if the
-// duration elapsed normally and the caller should continue.
-func waitOrShutdown(ctx context.Context, d time.Duration) bool {
-	t := time.NewTimer(d)
-	defer t.Stop()
-
-	select {
-	case <-ctx.Done():
-		return true
-	case <-t.C:
-		return false
 	}
 }

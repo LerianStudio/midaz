@@ -527,7 +527,10 @@ func (w *BalanceSyncWorker) processBalancesToExpireBatch(ctx context.Context, or
 	return result.BalancesSynced > 0 || result.BalancesAggregated > 0
 }
 
-// waitOrDone waits for d or returns true if ctx is done first.
+// waitOrDone sleeps for duration d and returns false, or returns true immediately
+// if the context is cancelled during the wait (shutdown requested). Used both as
+// the WaitForNextFunc callback (idle backoff between polls) and as error backoff
+// in the collector's fetch loop. A duration <= 0 returns false without sleeping.
 func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool {
 	if d <= 0 {
 		return false

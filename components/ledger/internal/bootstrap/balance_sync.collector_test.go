@@ -316,24 +316,24 @@ func TestFlush_NilCallback(t *testing.T) {
 }
 
 // --------------------------------------------------------------------
-// waitOrShutdown (package-level helper)
+// waitOrDone (package-level helper)
 // --------------------------------------------------------------------
 
-func TestWaitOrShutdown_TimerExpires(t *testing.T) {
+func TestWaitOrDone_TimerExpires(t *testing.T) {
 	t.Parallel()
 
-	result := waitOrShutdown(context.Background(), 1*time.Millisecond)
+	result := waitOrDone(context.Background(), 1*time.Millisecond, nopLogger())
 
 	assert.False(t, result, "should return false when timer fires")
 }
 
-func TestWaitOrShutdown_ContextCancelled(t *testing.T) {
+func TestWaitOrDone_ContextCancelled(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	result := waitOrShutdown(ctx, time.Hour)
+	result := waitOrDone(ctx, time.Hour, nopLogger())
 
 	assert.True(t, result, "should return true when context is cancelled")
 }
