@@ -1,1 +1,1 @@
-ALTER TABLE "transaction" VALIDATE CONSTRAINT fk_transaction_route_id;
+-- No-op: FK constraint was removed from migration 000025.
