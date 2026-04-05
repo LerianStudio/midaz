@@ -971,31 +971,68 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get redis client: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get redis client", libLog.Err(err))
 
 		return nil, err
 	}
 
+	// Use the claim_balance_sync_keys.lua script to claim the balance sync keys.
 	script := redis.NewScript(claimBalanceSyncKeysLua)
 
 	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
 	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace schedule key", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace schedule key", libLog.Err(err))
+
 		return nil, err
 	}
 
 	prefixedLockPrefix, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncLockPrefix)
 	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace lock prefix", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace lock prefix", libLog.Err(err))
+
 		return nil, err
 	}
 
-	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, int64(600), prefixedLockPrefix).Result()
+	// claimTTLSeconds is the distributed lock TTL for claimed keys.
+	// Must be longer than the worst-case flush cycle (fetch → aggregate → persist → remove).
+	// If a worker crashes after claiming, keys become re-claimable after this TTL expires.
+	const claimTTLSeconds int64 = 600 // 10 minutes
+
+	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to run claim_balance_sync_keys.lua: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to run claim_balance_sync_keys.lua", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to run claim_balance_sync_keys.lua", libLog.Err(err))
 
 		return nil, err
 	}
 
-	// Parse alternating [member, score, member, score, ...] from Lua result
+	out, err := parseSyncKeysFromLuaResult(res, logger, ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to parse claim script result", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to parse claim script result", libLog.Err(err))
+
+		return nil, err
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, "Claimed balance sync keys",
+		libLog.Int("count", len(out)))
+
+	return out, nil
+}
+
+// parseSyncKeysFromLuaResult converts the raw Lua script result (alternating
+// [member, score, member, score, ...]) into a typed []SyncKey slice.
+//
+// Resilience: malformed entries never block other keys from being synced.
+//   - Unparseable score: the pair is skipped, remaining keys continue. The skipped
+//     key stays claimed (lock held) and becomes re-claimable after claimTTL expires.
+//   - Odd number of elements: the trailing orphan member is ignored by the loop guard.
+//   - Invalid member format (no UUIDs): passes through here as a plain string; caught
+//     later by extractIDsFromMember in the worker, which removes it as a poison record.
+func parseSyncKeysFromLuaResult(res any, logger libLog.Logger, ctx context.Context) ([]SyncKey, error) {
 	var raw []string
 
 	switch vv := res.(type) {
@@ -1014,25 +1051,21 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	case []string:
 		raw = vv
 	default:
-		err = fmt.Errorf("unexpected result type from Redis script: %T", res)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Warning: %v", err))
-
-		return nil, err
+		return nil, fmt.Errorf("unexpected result type from Redis script: %T", res)
 	}
 
 	out := make([]SyncKey, 0, len(raw)/2)
 	for i := 0; i+1 < len(raw); i += 2 {
 		score, parseErr := strconv.ParseFloat(raw[i+1], 64)
 		if parseErr != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to parse score for %s: %v", raw[i], parseErr))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to parse score for claimed key",
+				libLog.String("key", raw[i]), libLog.Err(parseErr))
+
 			continue
 		}
 
 		out = append(out, SyncKey{Key: raw[i], Score: score})
 	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("fetch_due returned %d keys", len(out)))
 
 	return out, nil
 }

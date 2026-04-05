@@ -96,14 +96,18 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, flushFn FlushFunc, fetch
 			return
 		}
 
-		// Poll: fetch eligible keys from ZSET
+		// Calculate how many keys to request: only ask for enough to fill the
+		// buffer up to batchSize. This avoids over-fetching and claiming more
+		// keys than we can flush in one batch.
+		// The mutex guards against concurrent reads from Size() which is public
+		// and may be called from another goroutine (e.g., monitoring, tests).
 		c.mu.Lock()
 		remaining := c.batchSize - len(c.buffer)
 		c.mu.Unlock()
 
 		keys, err := fetchKeys(ctx, int64(remaining))
 		if err != nil {
-			c.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncCollector: fetch keys error: "+err.Error())
+			c.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncCollector: fetch keys error", libLog.Err(err))
 
 			// If the buffer already has items, skip the sleep and re-enter the
 			// draining path so the timeout trigger can still flush on time.

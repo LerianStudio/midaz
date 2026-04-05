@@ -13,6 +13,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -1479,4 +1480,79 @@ func TestKeyNamespacing_BackwardsCompatible_NoTenantInContext(t *testing.T) {
 		assert.Equal(t, msgKey, recorder.hsetCalls[0].Values[0],
 			"AddMessageToQueue: message field key must be unchanged without tenant")
 	})
+}
+
+// =============================================================================
+// parseSyncKeysFromLuaResult — resilience tests
+// =============================================================================
+
+func TestParseSyncKeysFromLuaResult_ValidPairs(t *testing.T) {
+	t.Parallel()
+
+	res := []any{"balance:key1", "1000.5", "balance:key2", "2000.75"}
+	out, err := parseSyncKeysFromLuaResult(res, libLog.NewNop(), context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+	assert.Equal(t, "balance:key1", out[0].Key)
+	assert.Equal(t, 1000.5, out[0].Score)
+	assert.Equal(t, "balance:key2", out[1].Key)
+	assert.Equal(t, 2000.75, out[1].Score)
+}
+
+func TestParseSyncKeysFromLuaResult_BadScoreSkippedOthersContinue(t *testing.T) {
+	t.Parallel()
+
+	// Second pair has an unparseable score; first and third should still be returned.
+	res := []any{"key1", "100", "key2", "not-a-number", "key3", "300"}
+	out, err := parseSyncKeysFromLuaResult(res, libLog.NewNop(), context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, out, 2, "bad score should be skipped, not block other keys")
+	assert.Equal(t, "key1", out[0].Key)
+	assert.Equal(t, "key3", out[1].Key)
+}
+
+func TestParseSyncKeysFromLuaResult_OddElementCount(t *testing.T) {
+	t.Parallel()
+
+	// Trailing member without a score partner is ignored.
+	res := []any{"key1", "100", "orphan-key"}
+	out, err := parseSyncKeysFromLuaResult(res, libLog.NewNop(), context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, out, 1, "orphan member without score should be silently ignored")
+	assert.Equal(t, "key1", out[0].Key)
+}
+
+func TestParseSyncKeysFromLuaResult_UnexpectedResultType(t *testing.T) {
+	t.Parallel()
+
+	// A non-slice result (e.g., int64) should return an error.
+	_, err := parseSyncKeysFromLuaResult(int64(42), libLog.NewNop(), context.Background())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unexpected result type")
+}
+
+func TestParseSyncKeysFromLuaResult_EmptyResult(t *testing.T) {
+	t.Parallel()
+
+	out, err := parseSyncKeysFromLuaResult([]any{}, libLog.NewNop(), context.Background())
+
+	require.NoError(t, err)
+	assert.Empty(t, out)
+}
+
+func TestParseSyncKeysFromLuaResult_ByteSliceElements(t *testing.T) {
+	t.Parallel()
+
+	// Some Redis drivers return []byte instead of string.
+	res := []any{[]byte("key1"), []byte("500")}
+	out, err := parseSyncKeysFromLuaResult(res, libLog.NewNop(), context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	assert.Equal(t, "key1", out[0].Key)
+	assert.Equal(t, float64(500), out[0].Score)
 }
