@@ -208,13 +208,19 @@ func (w *BalanceSyncWorker) runWorkerMT() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker started (multi-tenant, dual-trigger: batch_size=%d, flush_timeout=%dms, poll_interval=%dms, reconcile_interval=%s)",
-		w.syncConfig.BatchSize, w.syncConfig.FlushTimeoutMs, w.syncConfig.PollIntervalMs, tenantReconcileInterval))
+	w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker started (multi-tenant, dual-trigger)",
+		libLog.Int("batch_size", w.syncConfig.BatchSize),
+		libLog.Int("flush_timeout_ms", w.syncConfig.FlushTimeoutMs),
+		libLog.Int("poll_interval_ms", w.syncConfig.PollIntervalMs),
+		libLog.String("reconcile_interval", tenantReconcileInterval.String()),
+	)
 
 	collectors := make(map[string]*tenantCollector)
 	defer w.stopAllCollectors(ctx, collectors)
 
-	// Reconcile immediately on startup, then on a ticker.
+	// Reconcile immediately on startup so collectors start without waiting for the
+	// first tick (10s). On the first call the map is empty, so phases 1-2 are no-ops
+	// and phase 3 launches a collector for every tenant in the cache.
 	w.reconcileCollectors(ctx, collectors)
 
 	ticker := time.NewTicker(tenantReconcileInterval)
@@ -250,7 +256,8 @@ func (w *BalanceSyncWorker) reconcileCollectors(ctx context.Context, collectors 
 	for id, tc := range collectors {
 		select {
 		case <-tc.done:
-			w.logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("BalanceSyncWorker: collector for tenant %s exited unexpectedly, will restart", id))
+			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: collector exited unexpectedly, will restart",
+				libLog.String("tenant_id", id))
 
 			delete(collectors, id)
 		default:
@@ -262,7 +269,8 @@ func (w *BalanceSyncWorker) reconcileCollectors(ctx context.Context, collectors 
 
 	for id, tc := range collectors {
 		if _, ok := activeSet[id]; !ok {
-			w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: tenant %s removed from cache, stopping collector", id))
+			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: tenant removed from cache, stopping collector",
+				libLog.String("tenant_id", id))
 
 			tc.cancel()
 
@@ -288,7 +296,8 @@ func (w *BalanceSyncWorker) reconcileCollectors(ctx context.Context, collectors 
 	for _, tc := range removed {
 		<-tc.done
 
-		w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: collector for tenant %s stopped", tc.tenantID))
+		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: collector stopped",
+			libLog.String("tenant_id", tc.tenantID))
 	}
 
 	if len(tenantIDs) == 0 {
@@ -304,19 +313,23 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 
 	conn, err := w.pgManager.GetConnection(tenantCtx, tenantID)
 	if err != nil {
-		w.logger.Log(parentCtx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get PG connection for tenant %s: %v", tenantID, err))
+		w.logger.Log(parentCtx, libLog.LevelError, "BalanceSyncWorker: failed to get PG connection for tenant",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return nil
 	}
 
 	db, err := conn.GetDB()
 	if err != nil {
-		w.logger.Log(parentCtx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: failed to get DB for tenant %s: %v", tenantID, err))
+		w.logger.Log(parentCtx, libLog.LevelError, "BalanceSyncWorker: failed to get DB for tenant",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return nil
 	}
 
-	tenantCtx = tmcore.ContextWithPG(tenantCtx, db)
+	// Set the PG connection for the transaction module. The worker only operates
+	// on the transaction database — the generic (no-module) context entry is not
+	// needed because getDB always finds the module-specific one first.
 	tenantCtx = tmcore.ContextWithPG(tenantCtx, db, constant.ModuleTransaction)
 
 	collectorCtx, cancel := context.WithCancel(tenantCtx)
@@ -335,11 +348,13 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 
 		defer func() {
 			if r := recover(); r != nil {
-				w.logger.Log(parentCtx, libLog.LevelError, fmt.Sprintf("BalanceSyncWorker: collector for tenant %s panicked: %v", tenantID, r))
+				w.logger.Log(parentCtx, libLog.LevelError, "BalanceSyncWorker: collector panicked",
+					libLog.String("tenant_id", tenantID), libLog.String("panic", fmt.Sprint(r)))
 			}
 		}()
 
-		w.logger.Log(collectorCtx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: collector started for tenant %s", tenantID))
+		w.logger.Log(collectorCtx, libLog.LevelInfo, "BalanceSyncWorker: collector started",
+			libLog.String("tenant_id", tenantID))
 
 		collector.Run(collectorCtx,
 			// FlushFunc: batch flush grouped by org/ledger
@@ -356,7 +371,8 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 			},
 		)
 
-		w.logger.Log(parentCtx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: collector stopped for tenant %s", tenantID))
+		w.logger.Log(parentCtx, libLog.LevelInfo, "BalanceSyncWorker: collector stopped",
+			libLog.String("tenant_id", tenantID))
 	}()
 
 	return &tenantCollector{
@@ -373,7 +389,8 @@ func (w *BalanceSyncWorker) stopAllCollectors(ctx context.Context, collectors ma
 		return
 	}
 
-	w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: stopping %d tenant collector(s)...", len(collectors)))
+	w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: stopping all tenant collectors",
+		libLog.Int("count", len(collectors)))
 
 	// Cancel all collectors concurrently
 	for _, tc := range collectors {
@@ -384,7 +401,8 @@ func (w *BalanceSyncWorker) stopAllCollectors(ctx context.Context, collectors ma
 	for id, tc := range collectors {
 		<-tc.done
 
-		w.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: collector stopped for tenant %s", id))
+		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: collector stopped",
+			libLog.String("tenant_id", id))
 
 		delete(collectors, id)
 	}
