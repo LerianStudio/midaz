@@ -246,24 +246,6 @@ func TestFlushFnSetByRun(t *testing.T) {
 }
 
 // --------------------------------------------------------------------
-// Size
-// --------------------------------------------------------------------
-
-func TestSize_ReflectsBuffer(t *testing.T) {
-	t.Parallel()
-
-	c := NewBalanceSyncCollector(10, time.Second, time.Second, nopLogger())
-
-	assert.Equal(t, 0, c.Size())
-
-	c.mu.Lock()
-	c.buffer = append(c.buffer, redisTransaction.SyncKey{Key: "a"}, redisTransaction.SyncKey{Key: "b"}, redisTransaction.SyncKey{Key: "c"})
-	c.mu.Unlock()
-
-	assert.Equal(t, 3, c.Size())
-}
-
-// --------------------------------------------------------------------
 // flush (internal)
 // --------------------------------------------------------------------
 
@@ -296,7 +278,6 @@ func TestFlush_WithItems(t *testing.T) {
 
 	assert.Equal(t, 1, rec.count())
 	assert.Equal(t, []string{"key1", "key2"}, rec.allKeys())
-	assert.Equal(t, 0, c.Size(), "buffer should be empty after flush")
 }
 
 func TestFlush_NilCallback(t *testing.T) {
@@ -311,8 +292,6 @@ func TestFlush_NilCallback(t *testing.T) {
 
 	// Should not panic.
 	c.flush(context.Background())
-
-	assert.Equal(t, 0, c.Size(), "buffer should be drained even without callback")
 }
 
 // --------------------------------------------------------------------
@@ -572,7 +551,10 @@ func TestRun_ContextCancellation_FinalFlush(t *testing.T) {
 
 	// Wait for the keys to be consumed into the buffer
 	require.Eventually(t, func() bool {
-		return c.Size() >= 2
+		c.mu.Lock()
+		n := len(c.buffer)
+		c.mu.Unlock()
+		return n >= 2
 	}, 3*time.Second, 10*time.Millisecond, "keys should be accumulated in buffer")
 
 	// Now cancel — the deferred final flush should fire
@@ -941,62 +923,6 @@ func TestRun_TimerResetOnFirstKeys(t *testing.T) {
 
 	cancel()
 	<-done
-}
-
-// --------------------------------------------------------------------
-// Run — Concurrent safety: multiple goroutines checking Size()
-// --------------------------------------------------------------------
-
-func TestRun_ConcurrentSizeAccess(t *testing.T) {
-	t.Parallel()
-
-	c := NewBalanceSyncCollector(100, 200*time.Millisecond, 20*time.Millisecond, nopLogger())
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	keyCh := make(chan []string, 100)
-
-	// Feed keys continuously
-	go func() {
-		for i := 0; i < 50; i++ {
-			select {
-			case keyCh <- []string{"k"}:
-			case <-ctx.Done():
-				return
-			}
-
-			time.Sleep(5 * time.Millisecond)
-		}
-	}()
-
-	done := make(chan struct{})
-
-	go func() {
-		c.Run(ctx, func(_ context.Context, _ []redisTransaction.SyncKey) bool { return true }, fetchFuncImmediate(keyCh), waitForNextShutdown())
-		close(done)
-	}()
-
-	// Concurrently read Size() while Run is active
-	var wg sync.WaitGroup
-
-	for range 5 {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			for range 20 {
-				_ = c.Size()
-				time.Sleep(2 * time.Millisecond)
-			}
-		}()
-	}
-
-	wg.Wait()
-	cancel()
-	<-done
-	// No race condition = test passed.
 }
 
 // --------------------------------------------------------------------

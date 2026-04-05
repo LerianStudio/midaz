@@ -276,14 +276,6 @@ func (c *BalanceSyncCollector) flush(ctx context.Context) {
 	}
 }
 
-// Size returns the current number of accumulated keys.
-func (c *BalanceSyncCollector) Size() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return len(c.buffer)
-}
-
 // stopAndDrain stops a timer and drains any stale event from its channel,
 // making it safe to call Reset afterwards. This is necessary because
 // time.Timer.Reset does NOT clear the channel — if the timer already fired

@@ -11,7 +11,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -28,46 +27,14 @@ func newTestLogger() libLog.Logger {
 func TestNewBalanceSyncWorker(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name               string
-		maxWorkers         int
-		expectedMaxWorkers int
-	}{
-		{
-			name:               "positive max workers",
-			maxWorkers:         10,
-			expectedMaxWorkers: 10,
-		},
-		{
-			name:               "zero max workers defaults to 5",
-			maxWorkers:         0,
-			expectedMaxWorkers: 5,
-		},
-		{
-			name:               "negative max workers defaults to 5",
-			maxWorkers:         -1,
-			expectedMaxWorkers: 5,
-		},
-	}
+	logger := newTestLogger()
+	useCase := &command.UseCase{}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	worker := NewBalanceSyncWorker(logger, useCase, BalanceSyncConfig{})
 
-			conn := &libRedis.Client{}
-			logger := newTestLogger()
-			useCase := &command.UseCase{}
-
-			worker := NewBalanceSyncWorker(conn, logger, useCase, tt.maxWorkers, BalanceSyncConfig{})
-
-			require.NotNil(t, worker)
-			assert.Equal(t, tt.expectedMaxWorkers, worker.maxWorkers)
-			assert.Equal(t, int64(50), worker.batchSize)
-			assert.Equal(t, 1*time.Second, worker.idleWait) // 2 * FlushTimeoutMs(500) = 1000ms, clamped to 1s
-			assert.Same(t, conn, worker.redisConn)
-			assert.Same(t, useCase, worker.useCase)
-		})
-	}
+	require.NotNil(t, worker)
+	assert.Equal(t, 1*time.Second, worker.idleWait) // 2 * FlushTimeoutMs(500) = 1000ms, clamped to 1s
+	assert.Same(t, useCase, worker.useCase)
 }
 
 // --- Tests for extractIDsFromMember ---

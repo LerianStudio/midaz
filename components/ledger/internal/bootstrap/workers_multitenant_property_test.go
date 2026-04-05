@@ -32,9 +32,7 @@ package bootstrap
 import (
 	"testing"
 	"testing/quick"
-	"time"
 
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
@@ -54,7 +52,6 @@ func TestProperty_BalanceSyncWorker_PredicateEqualsEnabledAndPGManagerNonNil(t *
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
@@ -62,7 +59,7 @@ func TestProperty_BalanceSyncWorker_PredicateEqualsEnabledAndPGManagerNonNil(t *
 	cache := tenantcache.NewTenantCache()
 
 	property := func(enabled bool, hasPGManager bool, hasTenantCache bool) bool {
-		worker := NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
+		worker := NewBalanceSyncWorker(logger, useCase, BalanceSyncConfig{})
 		worker.mtEnabled = enabled
 
 		if hasPGManager {
@@ -145,20 +142,16 @@ func TestProperty_RedisQueueConsumer_PredicateEqualsEnabledAndPGManagerNonNil(t 
 
 // TestProperty_NewBalanceSyncWorkerMT_PreservesBaseFields verifies that
 // the multi-tenant constructor preserves all base constructor fields AND correctly
-// applies the maxWorkers default guard (clamp to 5 when <= 0).
+// sets multi-tenant fields.
 //
-// Properties checked for every generated maxWorkers (int) and enabled (bool):
-//   - redisConn, logger, useCase are the same instances passed in
-//   - idleWait is the base default (600s)
-//   - maxWorkers > 0 always (clamped to 5 if input <= 0, preserved otherwise)
-//   - batchSize == int64(50) (default from BalanceSyncConfig{})
+// Properties checked for every generated enabled (bool):
+//   - useCase is the same instance passed in
 //   - mtEnabled matches the input bool
-//   - tenantClient and pgManager are the exact instances passed in
+//   - tenantCache and pgManager are the exact instances passed in
 func TestProperty_NewBalanceSyncWorkerMT_PreservesBaseFields(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
@@ -166,19 +159,8 @@ func TestProperty_NewBalanceSyncWorkerMT_PreservesBaseFields(t *testing.T) {
 
 	cache := tenantcache.NewTenantCache()
 
-	property := func(maxWorkers int, enabled bool) bool {
-		// Bound maxWorkers to avoid extreme memory allocation from huge ints.
-		// The property still covers negative, zero, and large positive values
-		// because quick.Check generates across the full int range and we only
-		// cap at +/-10_000_000 to prevent pathological test runtimes.
-		const maxBound = 10_000_000
-		if maxWorkers > maxBound {
-			maxWorkers = maxBound
-		} else if maxWorkers < -maxBound {
-			maxWorkers = -maxBound
-		}
-
-		worker := NewBalanceSyncWorkerMT(conn, logger, useCase, maxWorkers, BalanceSyncConfig{}, enabled, cache, pgMgr, "transaction")
+	property := func(enabled bool) bool {
+		worker := NewBalanceSyncWorkerMT(logger, useCase, BalanceSyncConfig{}, enabled, cache, pgMgr, "transaction")
 
 		// Property: constructor never returns nil.
 		if worker == nil {
@@ -186,36 +168,7 @@ func TestProperty_NewBalanceSyncWorkerMT_PreservesBaseFields(t *testing.T) {
 		}
 
 		// Property: base fields preserved (referential equality).
-		if worker.redisConn != conn {
-			return false
-		}
-
 		if worker.useCase != useCase {
-			return false
-		}
-
-		// Property: idleWait is 2x flushTimeout (default 500ms = 1s), clamped to min 1s.
-		if worker.idleWait != 1*time.Second {
-			return false
-		}
-
-		// Property: maxWorkers default guard -- always > 0.
-		if worker.maxWorkers <= 0 {
-			return false
-		}
-
-		// Property: if input was <= 0, maxWorkers is clamped to 5.
-		if maxWorkers <= 0 && worker.maxWorkers != 5 {
-			return false
-		}
-
-		// Property: if input was > 0, maxWorkers is preserved.
-		if maxWorkers > 0 && worker.maxWorkers != maxWorkers {
-			return false
-		}
-
-		// Property: batchSize == int64(50) (default from BalanceSyncConfig{}).
-		if worker.batchSize != int64(50) {
 			return false
 		}
 
@@ -237,7 +190,7 @@ func TestProperty_NewBalanceSyncWorkerMT_PreservesBaseFields(t *testing.T) {
 
 	err = quick.Check(property, &quick.Config{MaxCount: 100})
 	require.NoError(t, err,
-		"Property violated: NewBalanceSyncWorkerMT did not preserve base fields or apply maxWorkers default guard")
+		"Property violated: NewBalanceSyncWorkerMT did not preserve base fields")
 }
 
 // TestProperty_NewRedisQueueConsumerMultiTenant_PreservesBaseFields verifies that
@@ -320,7 +273,6 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	handler := in.TransactionHandler{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
@@ -330,17 +282,12 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 	neverPanicCache := tenantcache.NewTenantCache()
 
 	property := func(
-		workerEnabled bool, workerHasConn bool, workerHasLogger bool,
+		workerEnabled bool,
 		workerHasUseCase bool, workerHasTenantCache bool, workerHasPGManager bool,
-		consumerEnabled bool, consumerHasLogger bool,
+		consumerEnabled bool,
 		consumerHasTenantCache bool, consumerHasPGManager bool,
 	) bool {
 		// --- BalanceSyncWorker constructor with varying nil pointers ---
-		var wConn *libRedis.Client
-		if workerHasConn {
-			wConn = conn
-		}
-
 		var wUseCase *command.UseCase
 		if workerHasUseCase {
 			wUseCase = useCase
@@ -360,7 +307,7 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 		// Note: logger is always non-nil because the base constructor calls
 		// logger methods; passing nil logger would panic in production too,
 		// but that is a caller contract, not a multi-tenant invariant.
-		worker := NewBalanceSyncWorkerMT(wConn, logger, wUseCase, 0, BalanceSyncConfig{}, workerEnabled, wTenantCache, wPGManager, "transaction")
+		worker := NewBalanceSyncWorkerMT(logger, wUseCase, BalanceSyncConfig{}, workerEnabled, wTenantCache, wPGManager, "transaction")
 		if worker == nil {
 			return false
 		}

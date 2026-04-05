@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
@@ -28,7 +27,6 @@ func TestBalanceSyncWorker_MultiTenantFields(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
@@ -68,7 +66,7 @@ func TestBalanceSyncWorker_MultiTenantFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			worker := NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
+			worker := NewBalanceSyncWorker(logger, useCase, BalanceSyncConfig{})
 
 			// These fields must exist on the struct for multi-tenant support.
 			// The test will fail to compile until the fields are added.
@@ -101,10 +99,9 @@ func TestBalanceSyncWorker_FallbackWhenPGManagerNil(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 
-	worker := NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
+	worker := NewBalanceSyncWorker(logger, useCase, BalanceSyncConfig{})
 
 	// Set mtEnabled = true but leave pgManager nil
 	worker.mtEnabled = true
@@ -217,14 +214,13 @@ func TestNewBalanceSyncWorkerMT(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 	cache := tenantcache.NewTenantCache()
 
-	worker := NewBalanceSyncWorkerMT(conn, logger, useCase, 5, BalanceSyncConfig{}, true, cache, pgMgr, "transaction")
+	worker := NewBalanceSyncWorkerMT(logger, useCase, BalanceSyncConfig{}, true, cache, pgMgr, "transaction")
 
 	require.NotNil(t, worker, "worker should not be nil")
 	assert.True(t, worker.mtEnabled,
@@ -233,8 +229,6 @@ func TestNewBalanceSyncWorkerMT(t *testing.T) {
 		"tenantCache should be the same instance")
 	assert.Same(t, pgMgr, worker.pgManager,
 		"pgManager should be the same instance")
-	assert.Equal(t, 5, worker.maxWorkers,
-		"maxWorkers should be set correctly")
 	assert.Equal(t, "transaction", worker.serviceName,
 		"serviceName should be set correctly")
 }
@@ -293,7 +287,6 @@ func TestBalanceSyncWorker_IsMTReady(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
@@ -359,7 +352,7 @@ func TestBalanceSyncWorker_IsMTReady(t *testing.T) {
 			if tt.name == "false_for_zero_value_struct" {
 				worker = &BalanceSyncWorker{}
 			} else {
-				worker = NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
+				worker = NewBalanceSyncWorker(logger, useCase, BalanceSyncConfig{})
 				worker.mtEnabled = tt.mtEnabled
 				worker.pgManager = tt.pgManager
 				worker.tenantCache = tt.tenantCache
@@ -463,7 +456,6 @@ func TestNewBalanceSyncWorkerMT_EdgeCases(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
@@ -509,7 +501,7 @@ func TestNewBalanceSyncWorkerMT_EdgeCases(t *testing.T) {
 			t.Parallel()
 
 			worker := NewBalanceSyncWorkerMT(
-				conn, logger, useCase, 5, BalanceSyncConfig{},
+				logger, useCase, BalanceSyncConfig{},
 				tt.mtEnabled, tt.tenantCache, tt.pgManager, "transaction",
 			)
 
@@ -603,50 +595,19 @@ func TestNewBalanceSyncWorker_ZeroValueMultiTenantFields(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 
-	tests := []struct {
-		name           string
-		maxWorkers     int
-		wantMaxWorkers int
-	}{
-		{
-			name:           "positive_maxWorkers_preserved",
-			maxWorkers:     5,
-			wantMaxWorkers: 5,
-		},
-		{
-			name:           "zero_maxWorkers_defaults_to_5",
-			maxWorkers:     0,
-			wantMaxWorkers: 5,
-		},
-		{
-			name:           "negative_maxWorkers_defaults_to_5",
-			maxWorkers:     -1,
-			wantMaxWorkers: 5,
-		},
-	}
+	worker := NewBalanceSyncWorker(logger, useCase, BalanceSyncConfig{})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			worker := NewBalanceSyncWorker(conn, logger, useCase, tt.maxWorkers, BalanceSyncConfig{})
-
-			require.NotNil(t, worker, "base constructor must return non-nil")
-			assert.Equal(t, tt.wantMaxWorkers, worker.maxWorkers,
-				"maxWorkers should be %d", tt.wantMaxWorkers)
-			assert.False(t, worker.mtEnabled,
-				"mtEnabled should default to false")
-			assert.Nil(t, worker.tenantCache,
-				"tenantCache should default to nil")
-			assert.Nil(t, worker.pgManager,
-				"pgManager should default to nil")
-			assert.False(t, worker.isMTReady(),
-				"isMTReady() should be false for base constructor")
-		})
-	}
+	require.NotNil(t, worker, "base constructor must return non-nil")
+	assert.False(t, worker.mtEnabled,
+		"mtEnabled should default to false")
+	assert.Nil(t, worker.tenantCache,
+		"tenantCache should default to nil")
+	assert.Nil(t, worker.pgManager,
+		"pgManager should default to nil")
+	assert.False(t, worker.isMTReady(),
+		"isMTReady() should be false for base constructor")
 }
 
 // TestNewRedisQueueConsumer_ZeroValueMultiTenantFields verifies that the base
@@ -726,7 +687,6 @@ func TestBalanceSyncWorker_RunDispatchesBasedOnMTReady(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
@@ -766,7 +726,7 @@ func TestBalanceSyncWorker_RunDispatchesBasedOnMTReady(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			worker := NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
+			worker := NewBalanceSyncWorker(logger, useCase, BalanceSyncConfig{})
 			worker.mtEnabled = tt.mtEnabled
 			worker.pgManager = tt.pgManager
 			worker.tenantCache = tt.tenantCache
@@ -890,7 +850,6 @@ func TestBalanceSyncWorker_MTConstructorPreservesRunBehavior(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
@@ -922,7 +881,7 @@ func TestBalanceSyncWorker_MTConstructorPreservesRunBehavior(t *testing.T) {
 			t.Parallel()
 
 			worker := NewBalanceSyncWorkerMT(
-				conn, logger, useCase, 5, BalanceSyncConfig{},
+				logger, useCase, BalanceSyncConfig{},
 				tt.mtEnabled, cache, tt.pgManager, "transaction",
 			)
 

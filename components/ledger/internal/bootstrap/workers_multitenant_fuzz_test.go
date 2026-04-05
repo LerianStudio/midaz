@@ -26,10 +26,8 @@ package bootstrap
 // =============================================================================
 
 import (
-	"math"
 	"testing"
 
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
@@ -37,34 +35,28 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 )
 
-// FuzzNewBalanceSyncWorkerMT_MaxWorkers fuzzes the maxWorkers parameter,
-// mtEnabled flag, and serviceName of the NewBalanceSyncWorkerMT constructor.
+// FuzzNewBalanceSyncWorkerMT_MaxWorkers fuzzes the mtEnabled flag and serviceName
+// of the NewBalanceSyncWorkerMT constructor.
 //
 // Properties verified (not specific values):
-//  1. Constructor never panics for any int/bool/string combination.
+//  1. Constructor never panics for any bool/string combination.
 //  2. Returned worker is never nil.
-//  3. maxWorkers is always > 0 after construction (default applied for <= 0).
-//  4. mtEnabled matches the input value.
-//  5. isMTReady() is consistent with field state.
-//  6. serviceName is stored exactly as provided (no implicit trimming).
+//  3. mtEnabled matches the input value.
+//  4. isMTReady() is consistent with field state.
+//  5. serviceName is stored exactly as provided (no implicit trimming).
 func FuzzNewBalanceSyncWorkerMT_MaxWorkers(f *testing.F) {
 	// Seed 1: typical valid input
-	f.Add(5, true, "transaction")
-	// Seed 2: zero maxWorkers (boundary -- triggers default)
-	f.Add(0, false, "ledger")
-	// Seed 3: negative maxWorkers (boundary -- triggers default)
-	f.Add(-1, true, "")
-	// Seed 4: large maxWorkers (stress)
-	f.Add(math.MaxInt32, false, " ")
-	// Seed 5: minimum int (extreme negative boundary)
-	f.Add(math.MinInt32, true, "  ledger  ")
-	// Seed 6: one worker (minimum valid)
-	f.Add(1, false, "transaction")
-	// Seed 7: large negative (another extreme)
-	f.Add(-1000000, false, "my-service")
+	f.Add(true, "transaction")
+	// Seed 2: disabled
+	f.Add(false, "ledger")
+	// Seed 3: enabled with empty service name
+	f.Add(true, "")
+	// Seed 4: disabled with whitespace service name
+	f.Add(false, " ")
+	// Seed 5: enabled with padded service name
+	f.Add(true, "  ledger  ")
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	if err != nil {
@@ -74,18 +66,13 @@ func FuzzNewBalanceSyncWorkerMT_MaxWorkers(f *testing.F) {
 
 	cache := tenantcache.NewTenantCache()
 
-	f.Fuzz(func(t *testing.T, maxWorkers int, mtEnabled bool, serviceName string) {
+	f.Fuzz(func(t *testing.T, mtEnabled bool, serviceName string) {
 		// Property: constructor must never panic (enforced by test execution).
-		worker := NewBalanceSyncWorkerMT(conn, logger, useCase, maxWorkers, BalanceSyncConfig{}, mtEnabled, cache, pgMgr, serviceName)
+		worker := NewBalanceSyncWorkerMT(logger, useCase, BalanceSyncConfig{}, mtEnabled, cache, pgMgr, serviceName)
 
 		// Property: returned worker is never nil.
 		if worker == nil {
 			t.Fatal("NewBalanceSyncWorkerMT returned nil")
-		}
-
-		// Property: maxWorkers is always positive after construction.
-		if worker.maxWorkers <= 0 {
-			t.Fatalf("maxWorkers should be > 0 after construction, got %d (input was %d)", worker.maxWorkers, maxWorkers)
 		}
 
 		// Property: mtEnabled matches input.
@@ -106,11 +93,6 @@ func FuzzNewBalanceSyncWorkerMT_MaxWorkers(f *testing.F) {
 
 		if !mtEnabled && ready {
 			t.Fatal("isMTReady() should be false when mtEnabled is false")
-		}
-
-		// Property: batchSize equals default BatchSize (50) when BalanceSyncConfig{} is used.
-		if worker.batchSize != int64(50) {
-			t.Fatalf("batchSize (%d) should equal default BatchSize (50)", worker.batchSize)
 		}
 	})
 }
@@ -205,7 +187,6 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 	f.Add(false, true, true, true)
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 	handler := in.TransactionHandler{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
@@ -216,7 +197,7 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, workerEnabled bool, workerHasPGMgr bool, consumerEnabled bool, consumerHasPGMgr bool) {
 		// --- BalanceSyncWorker predicate ---
-		worker := NewBalanceSyncWorker(conn, logger, useCase, 5, BalanceSyncConfig{})
+		worker := NewBalanceSyncWorker(logger, useCase, BalanceSyncConfig{})
 		worker.mtEnabled = workerEnabled
 
 		if workerHasPGMgr {

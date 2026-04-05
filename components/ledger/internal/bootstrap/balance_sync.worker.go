@@ -14,7 +14,6 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/tenantcache"
@@ -49,11 +48,8 @@ func (c BalanceSyncConfig) PollInterval() time.Duration {
 // Keys become eligible immediately after balance mutation (Lua ZADD with dueAt=now).
 // The worker accumulates keys and flushes based on batch size OR timeout, whichever comes first.
 type BalanceSyncWorker struct {
-	redisConn   *libRedis.Client
 	logger      libLog.Logger
 	idleWait    time.Duration
-	batchSize   int64
-	maxWorkers  int
 	syncConfig  BalanceSyncConfig
 	useCase     *command.UseCase
 	mtEnabled   bool
@@ -74,11 +70,7 @@ type tenantCollector struct {
 // added/removed tenants in the TenantCache.
 const tenantReconcileInterval = 10 * time.Second
 
-func NewBalanceSyncWorker(conn *libRedis.Client, logger libLog.Logger, useCase *command.UseCase, maxWorkers int, syncCfg BalanceSyncConfig) *BalanceSyncWorker {
-	if maxWorkers <= 0 {
-		maxWorkers = 5
-	}
-
+func NewBalanceSyncWorker(logger libLog.Logger, useCase *command.UseCase, syncCfg BalanceSyncConfig) *BalanceSyncWorker {
 	// Apply safe defaults for zero-value config (e.g., in tests)
 	if syncCfg.BatchSize <= 0 {
 		syncCfg.BatchSize = 50
@@ -102,11 +94,8 @@ func NewBalanceSyncWorker(conn *libRedis.Client, logger libLog.Logger, useCase *
 	}
 
 	return &BalanceSyncWorker{
-		redisConn:  conn,
 		logger:     logger,
 		idleWait:   idleWait,
-		batchSize:  int64(syncCfg.BatchSize),
-		maxWorkers: maxWorkers,
 		syncConfig: syncCfg,
 		useCase:    useCase,
 	}
@@ -119,17 +108,15 @@ func NewBalanceSyncWorker(conn *libRedis.Client, logger libLog.Logger, useCase *
 // PostgreSQL connections.
 // serviceName is the service identifier for logging purposes.
 func NewBalanceSyncWorkerMT(
-	conn *libRedis.Client,
 	logger libLog.Logger,
 	useCase *command.UseCase,
-	maxWorkers int,
 	syncCfg BalanceSyncConfig,
 	mtEnabled bool,
 	cache *tenantcache.TenantCache,
 	pgManager *tmpostgres.Manager,
 	serviceName string,
 ) *BalanceSyncWorker {
-	w := NewBalanceSyncWorker(conn, logger, useCase, maxWorkers, syncCfg)
+	w := NewBalanceSyncWorker(logger, useCase, syncCfg)
 	w.mtEnabled = mtEnabled
 	w.tenantCache = cache
 	w.pgManager = pgManager

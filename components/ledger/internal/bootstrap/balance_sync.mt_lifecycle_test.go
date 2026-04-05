@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
@@ -56,7 +55,6 @@ func newTestWorkerWithCache(t *testing.T, cache *tenantcache.TenantCache) *Balan
 	t.Helper()
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 
 	tenantClient, err := tmclient.NewClient(
@@ -70,7 +68,7 @@ func newTestWorkerWithCache(t *testing.T, cache *tenantcache.TenantCache) *Balan
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
 	return NewBalanceSyncWorkerMT(
-		conn, logger, useCase, 5, BalanceSyncConfig{},
+		logger, useCase, BalanceSyncConfig{},
 		true, cache, pgMgr, "transaction",
 	)
 }
