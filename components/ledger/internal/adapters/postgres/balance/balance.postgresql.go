@@ -69,7 +69,6 @@ type Repository interface {
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error
-	Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
 	UpdateMany(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error)
 	UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error
 	ListByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error)
@@ -1387,55 +1386,6 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	return record.ToEntity(), nil
-}
-
-func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "postgres.sync_balance")
-	defer span.End()
-
-	id, err := uuid.Parse(b.ID)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "invalid balance ID", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("invalid balance ID: %v", err))
-
-		return false, err
-	}
-
-	db, err := r.getDB(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
-
-		return false, err
-	}
-
-	res, err := db.ExecContext(ctx, `
-		UPDATE balance
-		SET available = $1, on_hold = $2, version = $3, updated_at = $4
-		WHERE organization_id = $5 AND ledger_id = $6 AND id = $7 AND deleted_at IS NULL AND version < $3
-	`, b.Available, b.OnHold, b.Version, time.Now(), organizationID, ledgerID, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to update balance from redis", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balance from redis: %v", err))
-
-		return false, err
-	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to read rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to read rows affected: %v", err))
-
-		return false, err
-	}
-
-	return affected > 0, nil
 }
 
 // UpdateMany persists multiple balances to the database in a single UPDATE statement.
