@@ -138,24 +138,25 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	deduplicated := aggregator.Aggregate(ctx, aggregatedBalances)
 	result.BalancesAggregated = len(deduplicated)
 
-	// Handle case where all keys are orphaned (no valid balances to sync)
+	// Early return: all keys were orphaned or unparseable, no valid balances to persist.
 	if len(deduplicated) == 0 {
 		if len(orphanedKeys) > 0 {
-			logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("No valid balances to sync, cleaning up %d orphaned keys", len(orphanedKeys)))
+			logger.Log(ctx, libLog.LevelInfo, "No valid balances to sync, cleaning up orphaned keys",
+				libLog.Int("orphaned", len(orphanedKeys)))
 
 			removed, cleanupErr := uc.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(ctx, orphanedKeys)
 			if cleanupErr != nil {
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove orphaned keys from schedule: %v", cleanupErr))
+				logger.Log(ctx, libLog.LevelWarn, "Failed to remove orphaned keys from schedule", libLog.Err(cleanupErr))
 
 				counter, counterErr := metricFactory.Counter(utils.BalanceSyncCleanupFailures)
 				if counterErr != nil {
-					logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to create counter %v: %v", utils.BalanceSyncCleanupFailures, counterErr))
+					logger.Log(ctx, libLog.LevelWarn, "Failed to create cleanup failure counter", libLog.Err(counterErr))
 				} else {
 					if metricErr := counter.WithLabels(map[string]string{
 						"organization_id": organizationID.String(),
 						"ledger_id":       ledgerID.String(),
 					}).AddOne(ctx); metricErr != nil {
-						logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to increment counter %v: %v", utils.BalanceSyncCleanupFailures, metricErr))
+						logger.Log(ctx, libLog.LevelWarn, "Failed to emit cleanup failure counter", libLog.Err(metricErr))
 					}
 				}
 			}
@@ -190,7 +191,7 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	synced, syncErr := uc.BalanceRepo.SyncBatch(ctx, organizationID, ledgerID, balancesToSync)
 	if syncErr != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to sync batch to database", syncErr)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to sync batch to database: %v", syncErr))
+		logger.Log(ctx, libLog.LevelError, "Failed to sync batch to database", libLog.Err(syncErr))
 
 		// Still clean up orphaned keys even though DB failed — these are expired/unparseable
 		// entries that would otherwise become permanent poison records in the ZSET.
@@ -198,10 +199,11 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		if len(orphanedKeys) > 0 {
 			removed, cleanupErr := uc.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(ctx, orphanedKeys)
 			if cleanupErr != nil {
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove orphaned keys after DB error: %v", cleanupErr))
+				logger.Log(ctx, libLog.LevelWarn, "Failed to remove orphaned keys after DB error", libLog.Err(cleanupErr))
 			} else {
 				result.KeysRemoved = removed
-				logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Cleaned up %d orphaned keys despite DB error", removed))
+				logger.Log(ctx, libLog.LevelInfo, "Cleaned up orphaned keys despite DB error",
+					libLog.Int("removed", int(removed)))
 			}
 		}
 
