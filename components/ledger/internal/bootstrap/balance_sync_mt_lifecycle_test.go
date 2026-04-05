@@ -407,14 +407,14 @@ func TestFlushRemaining_PreservesContextValues(t *testing.T) {
 	var tenantVal, pgVal any
 	var callCount atomic.Int32
 
-	collector := NewBalanceSyncCollector(10, 500*time.Millisecond, 50*time.Millisecond, 1*time.Second, newTestLogger())
-	collector.SetFlushCallback(func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
+	collector := NewBalanceSyncCollector(10, 500*time.Millisecond, 50*time.Millisecond, newTestLogger())
+	collector.flushFn = func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
 		ctxErr = flushCtx.Err()
 		tenantVal = flushCtx.Value(tenantKey)
 		pgVal = flushCtx.Value(pgKey)
 		callCount.Add(1)
 		return true
-	})
+	}
 
 	// Manually fill the buffer
 	collector.mu.Lock()
@@ -441,11 +441,11 @@ func TestFlushRemaining_EmptyBufferNoFlush(t *testing.T) {
 
 	var callCount atomic.Int32
 
-	collector := NewBalanceSyncCollector(10, 500*time.Millisecond, 50*time.Millisecond, 1*time.Second, newTestLogger())
-	collector.SetFlushCallback(func(_ context.Context, _ []redisTransaction.SyncKey) bool {
+	collector := NewBalanceSyncCollector(10, 500*time.Millisecond, 50*time.Millisecond, newTestLogger())
+	collector.flushFn = func(_ context.Context, _ []redisTransaction.SyncKey) bool {
 		callCount.Add(1)
 		return true
-	})
+	}
 
 	collector.flushRemaining(context.Background())
 

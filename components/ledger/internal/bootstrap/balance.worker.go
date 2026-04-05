@@ -35,6 +35,16 @@ type BalanceSyncConfig struct {
 	PollIntervalMs int
 }
 
+// FlushTimeout returns FlushTimeoutMs as a time.Duration.
+func (c BalanceSyncConfig) FlushTimeout() time.Duration {
+	return time.Duration(c.FlushTimeoutMs) * time.Millisecond
+}
+
+// PollInterval returns PollIntervalMs as a time.Duration.
+func (c BalanceSyncConfig) PollInterval() time.Duration {
+	return time.Duration(c.PollIntervalMs) * time.Millisecond
+}
+
 // BalanceSyncWorker continuously processes balance keys using a dual-trigger collector.
 // Keys become eligible immediately after balance mutation (Lua ZADD with dueAt=now).
 // The worker accumulates keys and flushes based on batch size OR timeout, whichever comes first.
@@ -162,17 +172,15 @@ func (w *BalanceSyncWorker) runSingleTenant() error {
 
 	collector := NewBalanceSyncCollector(
 		w.syncConfig.BatchSize,
-		time.Duration(w.syncConfig.FlushTimeoutMs)*time.Millisecond,
-		time.Duration(w.syncConfig.PollIntervalMs)*time.Millisecond,
-		w.idleWait,
+		w.syncConfig.FlushTimeout(),
+		w.syncConfig.PollInterval(),
 		w.logger,
 	)
 
-	collector.SetFlushCallback(func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
-		return w.flushBatch(flushCtx, keys)
-	})
-
 	collector.Run(ctx,
+		func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
+			return w.flushBatch(flushCtx, keys)
+		},
 		func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
 			return w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(fetchCtx, limit)
 		},
@@ -312,15 +320,10 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 
 	collector := NewBalanceSyncCollector(
 		w.syncConfig.BatchSize,
-		time.Duration(w.syncConfig.FlushTimeoutMs)*time.Millisecond,
-		time.Duration(w.syncConfig.PollIntervalMs)*time.Millisecond,
-		w.idleWait,
+		w.syncConfig.FlushTimeout(),
+		w.syncConfig.PollInterval(),
 		w.logger,
 	)
-
-	collector.SetFlushCallback(func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
-		return w.flushBatch(flushCtx, keys)
-	})
 
 	done := make(chan struct{})
 
@@ -336,6 +339,10 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 		w.logger.Log(collectorCtx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: collector started for tenant %s", tenantID))
 
 		collector.Run(collectorCtx,
+			// FlushFunc: batch flush grouped by org/ledger
+			func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
+				return w.flushBatch(flushCtx, keys)
+			},
 			// FetchKeysFunc: tenant context enables Redis key namespacing via tmvalkey.GetKeyContext
 			func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
 				return w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(fetchCtx, limit)

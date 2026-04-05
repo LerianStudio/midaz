@@ -28,7 +28,6 @@ type BalanceSyncCollector struct {
 	batchSize    int
 	flushTimeout time.Duration
 	pollInterval time.Duration
-	idleBackoff  time.Duration
 	buffer       []redisTransaction.SyncKey
 	flushFn      FlushFunc
 	logger       libLog.Logger
@@ -51,7 +50,6 @@ func NewBalanceSyncCollector(
 	batchSize int,
 	flushTimeout time.Duration,
 	pollInterval time.Duration,
-	idleBackoff time.Duration,
 	logger libLog.Logger,
 ) *BalanceSyncCollector {
 	if batchSize <= 0 {
@@ -66,26 +64,13 @@ func NewBalanceSyncCollector(
 		pollInterval = 50 * time.Millisecond
 	}
 
-	if idleBackoff <= 0 {
-		idleBackoff = 10 * time.Second
-	}
-
 	return &BalanceSyncCollector{
 		batchSize:    batchSize,
 		flushTimeout: flushTimeout,
 		pollInterval: pollInterval,
-		idleBackoff:  idleBackoff,
 		buffer:       make([]redisTransaction.SyncKey, 0, batchSize),
 		logger:       logger,
 	}
-}
-
-// SetFlushCallback sets the function called when the collector flushes accumulated keys.
-func (c *BalanceSyncCollector) SetFlushCallback(fn FlushFunc) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.flushFn = fn
 }
 
 // Run starts the collector's main loop. It polls for eligible keys and flushes
@@ -95,7 +80,8 @@ func (c *BalanceSyncCollector) SetFlushCallback(fn FlushFunc) {
 //   - Busy mode: keys are available, tight poll loop to accumulate quickly
 //   - Draining mode: buffer has items but no new keys, wait for timeout or poll
 //   - Idle mode: nothing to do, sleep until next scheduled key
-func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc, waitForNext WaitForNextFunc) {
+func (c *BalanceSyncCollector) Run(ctx context.Context, flushFn FlushFunc, fetchKeys FetchKeysFunc, waitForNext WaitForNextFunc) {
+	c.flushFn = flushFn
 	timer := time.NewTimer(c.flushTimeout)
 	pollTimer := time.NewTimer(c.pollInterval)
 
