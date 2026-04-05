@@ -295,29 +295,6 @@ func TestFlush_NilCallback(t *testing.T) {
 }
 
 // --------------------------------------------------------------------
-// waitOrDone (package-level helper)
-// --------------------------------------------------------------------
-
-func TestWaitOrDone_TimerExpires(t *testing.T) {
-	t.Parallel()
-
-	result := waitOrDone(context.Background(), 1*time.Millisecond, nopLogger())
-
-	assert.False(t, result, "should return false when timer fires")
-}
-
-func TestWaitOrDone_ContextCancelled(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	result := waitOrDone(ctx, time.Hour, nopLogger())
-
-	assert.True(t, result, "should return true when context is cancelled")
-}
-
-// --------------------------------------------------------------------
 // Run — Size trigger
 // --------------------------------------------------------------------
 

@@ -481,18 +481,6 @@ func TestProcessBalanceAtomicOperation_NotedStatus(t *testing.T) {
 // UNIT TESTS - ScheduleBalanceSyncBatch
 // =============================================================================
 
-func TestScheduleBalanceSyncBatch_EmptyInput(t *testing.T) {
-	// Create a repository with nil connection to test early return
-	repo := &RedisConsumerRepository{
-		conn: nil,
-	}
-
-	// Empty input should return nil without any Redis call
-	err := repo.ScheduleBalanceSyncBatch(context.Background(), []redis.Z{})
-
-	assert.NoError(t, err, "Empty batch should return nil without error")
-}
-
 func TestScheduleBalanceSyncBatch_EmptyInput_NoRedisCall(t *testing.T) {
 	// Create mock that fails if called
 	mockClient := &mockZAddNXClient{
@@ -680,19 +668,6 @@ func TestScheduleBalanceSyncBatch_DeduplicatesWithMinScore(t *testing.T) {
 // =============================================================================
 // UNIT TESTS - RemoveBalanceSyncKeysBatch
 // =============================================================================
-
-func TestRemoveBalanceSyncKeysBatch_EmptyInput(t *testing.T) {
-	// Create a repository with nil connection to test early return
-	repo := &RedisConsumerRepository{
-		conn: nil,
-	}
-
-	// Empty input should return 0 without any Redis call
-	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{})
-
-	assert.NoError(t, err, "Empty keys should return nil error")
-	assert.Equal(t, int64(0), count, "Empty keys should return 0 count")
-}
 
 func TestRemoveBalanceSyncKeysBatch_EmptyInput_NoRedisCall(t *testing.T) {
 	// Create mock that fails if called
