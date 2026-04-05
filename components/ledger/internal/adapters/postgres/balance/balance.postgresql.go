@@ -1445,6 +1445,10 @@ func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, 
 // Optimistic locking: only updates rows where version < incoming version.
 // A single statement is atomic in PostgreSQL — no explicit transaction needed.
 // Returns count of actually updated rows (rows with stale versions are skipped).
+//
+// Note: this method uses raw SQL instead of Squirrel because UPDATE ... FROM (VALUES ...)
+// is a PostgreSQL-specific extension that Squirrel's Update builder does not support.
+// Wrapping it in squirrel.Expr would add complexity without benefit.
 func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 	if len(balances) == 0 {
 		return 0, nil
