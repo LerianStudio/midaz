@@ -6,7 +6,6 @@ package bootstrap
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -234,6 +233,8 @@ func (c *BalanceSyncCollector) handleIdleMode(ctx context.Context, timer *time.T
 // ctx carries context values (tenant ID, PG connection) needed by the flush callback.
 // The cancellation signal is stripped via context.WithoutCancel so the final flush
 // can complete even after the parent context has been cancelled.
+const shutdownFlushTimeout = 30 * time.Second
+
 func (c *BalanceSyncCollector) flushRemaining(ctx context.Context) {
 	c.mu.Lock()
 	remaining := c.buffer
@@ -241,16 +242,23 @@ func (c *BalanceSyncCollector) flushRemaining(ctx context.Context) {
 	c.mu.Unlock()
 
 	if len(remaining) > 0 && c.flushFn != nil {
-		c.logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncCollector: shutdown — final flush of %d remaining keys", len(remaining)))
-
-		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		// Use WithoutCancel to preserve context values (tenant ID, PG connection)
+		// while removing the cancellation signal that already fired.
+		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownFlushTimeout)
 		defer cancel()
+
+		c.logger.Log(flushCtx, libLog.LevelInfo, "BalanceSyncCollector: shutdown — final flush",
+			libLog.Int("remaining_keys", len(remaining)),
+		)
 
 		c.flushFn(flushCtx, remaining)
 	}
 }
 
-// flush drains the buffer and calls the flush callback.
+// flush swaps the buffer for a fresh slice under the mutex, then calls the flush
+// callback outside the lock. This swap-and-release pattern keeps the critical section
+// short (no I/O under lock) while the callback may perform expensive work
+// (Redis MGET, PostgreSQL batch update, conditional ZREM).
 func (c *BalanceSyncCollector) flush(ctx context.Context) {
 	c.mu.Lock()
 
