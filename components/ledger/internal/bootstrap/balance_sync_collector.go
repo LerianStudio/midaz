@@ -209,14 +209,14 @@ func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen in
 // handleIdleMode stops the timer and waits for the next scheduled key or shutdown.
 // Returns true if shutdown was requested.
 func (c *BalanceSyncCollector) handleIdleMode(ctx context.Context, timer *time.Timer, waitForNext WaitForNextFunc) bool {
-	c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: idle mode — no keys in ZSET, waiting for next scheduled key")
+	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: idle mode — no keys in ZSET, waiting for next scheduled key")
 	stopAndDrain(timer)
 
 	if waitForNext(ctx) {
 		return true
 	}
 
-	c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: woke up from idle, resuming polling")
+	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: woke up from idle, resuming polling")
 	timer.Reset(c.flushTimeout)
 
 	return false

@@ -523,7 +523,9 @@ func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool
 		return false
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker: waiting for %s", d.String()))
+	logger.Log(ctx, libLog.LevelDebug, "BalanceSyncWorker: idle wait",
+		libLog.String("duration", d.String()),
+	)
 
 	t := time.NewTimer(d)
 	defer t.Stop()
