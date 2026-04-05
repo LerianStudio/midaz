@@ -31,8 +31,8 @@ import (
 //go:embed scripts/balance_atomic_operation.lua
 var balanceAtomicOperationLua string
 
-//go:embed scripts/get_balances_near_expiration.lua
-var getBalancesNearExpirationLua string
+//go:embed scripts/claim_balance_sync_keys.lua
+var claimBalanceSyncKeysLua string
 
 //go:embed scripts/unschedule_synced_balance.lua
 var unscheduleSyncedBalanceLua string
@@ -980,7 +980,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 		return nil, err
 	}
 
-	script := redis.NewScript(getBalancesNearExpirationLua)
+	script := redis.NewScript(claimBalanceSyncKeysLua)
 
 	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
 	if err != nil {
@@ -994,7 +994,7 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 
 	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, int64(600), prefixedLockPrefix).Result()
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to run get_balances_near_expiration.lua: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to run claim_balance_sync_keys.lua: %v", err))
 
 		return nil, err
 	}

@@ -1,3 +1,19 @@
+-- claim_balance_sync_keys.lua
+-- Fetches due balance sync keys from the ZSET schedule with distributed locking.
+--
+-- The ZSET score is a microsecond timestamp set by balance_atomic_operation.lua
+-- at mutation time (dueAt = now). With the dual-trigger collector (batch size OR
+-- timeout), the score no longer controls *when* sync happens — the collector
+-- flushes on its own schedule. However, the score still serves as an optimistic
+-- concurrency token: if a newer mutation overwrites the score via ZADD between
+-- claim and removal, remove_balance_sync_keys_batch.lua detects the mismatch
+-- and skips ZREM, preserving the entry for the next sync cycle.
+--
+-- KEYS[1]: schedule sorted set (e.g., "schedule:{transactions}:balance-sync")
+-- ARGV[1]: max number of keys to return
+-- ARGV[2]: claim lock TTL in seconds (default 600)
+-- ARGV[3]: lock key prefix (default "lock:{transactions}:balance-sync:")
+
 local scheduleKey = KEYS[1]
 if not scheduleKey then
   return {}
@@ -28,5 +44,3 @@ for i = 1, #due, 2 do
 end
 
 return claimed
-
-

@@ -1401,7 +1401,7 @@ func TestKeyNamespacing_GetBalanceSyncKeys(t *testing.T) {
 				"GetBalanceSyncKeys should have invoked Eval (via script.Run NOSCRIPT fallback)")
 
 			luaKeys := scripter.capturedScriptKeys()
-			require.Len(t, luaKeys, 1, "get_balances_near_expiration.lua receives exactly 1 KEY (schedule key)")
+			require.Len(t, luaKeys, 1, "claim_balance_sync_keys.lua receives exactly 1 KEY (schedule key)")
 			assert.Equal(t, tc.expectedScheduleKey, luaKeys[0],
 				"KEYS[1] (balance sync schedule key) should be namespaced")
 
