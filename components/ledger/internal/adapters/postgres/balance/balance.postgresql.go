@@ -70,7 +70,7 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error
 	Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
-	SyncBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error)
+	UpdateMany(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error)
 	UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error
 	ListByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAccountIDAtTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time) ([]*mmodel.Balance, error)
@@ -1438,14 +1438,14 @@ func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, 
 	return affected > 0, nil
 }
 
-// SyncBatch persists multiple balances from cache to database in a single UPDATE statement.
+// UpdateMany persists multiple balances to the database in a single UPDATE statement.
 // Uses a VALUES clause to send all balances in one round-trip, which is significantly
 // faster than individual UPDATEs (1 round-trip vs N).
 //
 // Optimistic locking: only updates rows where version < incoming version.
 // A single statement is atomic in PostgreSQL — no explicit transaction needed.
 // Returns count of actually updated rows (rows with stale versions are skipped).
-func (r *BalancePostgreSQLRepository) SyncBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
+func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 	if len(balances) == 0 {
 		return 0, nil
 	}
@@ -1529,7 +1529,7 @@ func (r *BalancePostgreSQLRepository) SyncBatch(ctx context.Context, organizatio
 		return 0, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "SyncBatch completed",
+	logger.Log(ctx, libLog.LevelInfo, "UpdateMany completed",
 		libLog.Int("updated", int(totalUpdated)),
 		libLog.Int("total", len(balances)),
 	)

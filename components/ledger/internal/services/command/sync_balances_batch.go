@@ -188,7 +188,7 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		}
 	}
 
-	synced, syncErr := uc.BalanceRepo.SyncBatch(ctx, organizationID, ledgerID, balancesToSync)
+	synced, syncErr := uc.BalanceRepo.UpdateMany(ctx, organizationID, ledgerID, balancesToSync)
 	if syncErr != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to sync batch to database", syncErr)
 		logger.Log(ctx, libLog.LevelError, "Failed to sync batch to database", libLog.Err(syncErr))

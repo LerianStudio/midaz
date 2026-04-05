@@ -149,7 +149,7 @@ func TestSyncBalancesBatch_SuccessWithAggregation(t *testing.T) {
 
 	// Step 2: Persist to database
 	mockBalance.EXPECT().
-		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		UpdateMany(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 			assert.Len(t, balances, 2)
 			return 2, nil
@@ -212,7 +212,7 @@ func TestSyncBalancesBatch_PartialData(t *testing.T) {
 		Times(1)
 
 	mockBalance.EXPECT().
-		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		UpdateMany(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 			assert.Len(t, balances, 1)
 			return 1, nil
@@ -302,7 +302,7 @@ func TestSyncBalancesBatch_DBError(t *testing.T) {
 		Times(1)
 
 	mockBalance.EXPECT().
-		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		UpdateMany(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return(int64(0), errors.New("database connection error")).
 		Times(1)
 
@@ -354,7 +354,7 @@ func TestSyncBalancesBatch_ScheduleCleanupFailure(t *testing.T) {
 		Times(1)
 
 	mockBalance.EXPECT().
-		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		UpdateMany(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return(int64(1), nil).
 		Times(1)
 
@@ -427,7 +427,7 @@ func TestSyncBalancesBatch_AggregationKeepsHighestVersion(t *testing.T) {
 
 	// Verify that only 1 balance is synced after deduplication of identical keys
 	mockBalance.EXPECT().
-		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		UpdateMany(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 			assert.Len(t, balances, 1, "Expected exactly 1 balance after deduplication")
 			assert.Equal(t, int64(10), balances[0].Version, "Expected the single map entry's version")
@@ -511,7 +511,7 @@ func TestSyncBalancesBatch_InvalidKeyFormat(t *testing.T) {
 
 	// Only the valid key should result in a balance being synced
 	mockBalance.EXPECT().
-		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		UpdateMany(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 			assert.Len(t, balances, 1, "Only valid key should produce a balance")
 			assert.Equal(t, balanceID.String(), balances[0].ID)
@@ -601,7 +601,7 @@ func TestSyncBalancesBatch_ExactKeysRemoved(t *testing.T) {
 		Times(1)
 
 	mockBalance.EXPECT().
-		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		UpdateMany(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		Return(int64(2), nil).
 		Times(1)
 
@@ -719,7 +719,7 @@ func TestSyncBalancesBatch_OrphanedKeysCleanedUp(t *testing.T) {
 
 	// Only valid balance is synced to DB
 	mockBalance.EXPECT().
-		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		UpdateMany(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 			assert.Len(t, balances, 1, "Only valid key should produce a balance")
 			return 1, nil
@@ -802,7 +802,7 @@ func TestSyncBalancesBatch_MalformedKeyWithTrailingHash(t *testing.T) {
 
 	// Verify the balance is synced with the correct key from BalanceRedis
 	mockBalance.EXPECT().
-		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		UpdateMany(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 			assert.Len(t, balances, 1)
 			assert.Equal(t, "asset-freeze", balances[0].Key, "Should use BalanceRedis.Key, not parsed empty key")
@@ -882,7 +882,7 @@ func TestSyncBalancesBatch_MalformedKeyFallbackToDefault(t *testing.T) {
 
 	// Verify the balance is synced with "default" key
 	mockBalance.EXPECT().
-		SyncBatch(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		UpdateMany(gomock.Any(), organizationID, ledgerID, gomock.Any()).
 		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 			assert.Len(t, balances, 1)
 			assert.Equal(t, "default", balances[0].Key, "Should keep default when both parsed and BalanceRedis.Key are default")
