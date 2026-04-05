@@ -13,7 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 )
 
-// FuzzNewBalanceSyncWorkerMT_MaxWorkers fuzzes the mtEnabled flag and serviceName
+// FuzzNewBalanceSyncWorkerMT fuzzes the mtEnabled flag and serviceName
 // of the NewBalanceSyncWorkerMT constructor.
 //
 // Properties verified (not specific values):
@@ -22,7 +22,7 @@ import (
 //  3. mtEnabled matches the input value.
 //  4. isMTReady() is consistent with field state.
 //  5. serviceName is stored exactly as provided (no implicit trimming).
-func FuzzNewBalanceSyncWorkerMT_MaxWorkers(f *testing.F) {
+func FuzzNewBalanceSyncWorkerMT(f *testing.F) {
 	// Seed 1: typical valid input
 	f.Add(true, "transaction")
 	// Seed 2: disabled

@@ -70,10 +70,19 @@ type tenantCollector struct {
 // added/removed tenants in the TenantCache.
 const tenantReconcileInterval = 10 * time.Second
 
+// maxBatchSize is the upper bound for batch size, derived from PostgreSQL's 65535
+// bind-parameter limit. Each balance uses 4 params + 3 shared = (65535-3)/4 = 16383.
+// In practice, batches above a few hundred rarely make sense for this workload.
+const maxBatchSize = 16000
+
 func NewBalanceSyncWorker(logger libLog.Logger, useCase *command.UseCase, syncCfg BalanceSyncConfig) *BalanceSyncWorker {
 	// Apply safe defaults for zero-value config (e.g., in tests)
 	if syncCfg.BatchSize <= 0 {
 		syncCfg.BatchSize = 50
+	}
+
+	if syncCfg.BatchSize > maxBatchSize {
+		syncCfg.BatchSize = maxBatchSize
 	}
 
 	if syncCfg.FlushTimeoutMs <= 0 {
@@ -536,13 +545,14 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 
 	if result.KeysProcessed > 0 {
 		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: batch sync completed",
-			libLog.Int("processed", int(result.KeysProcessed)),
-			libLog.Int("aggregated", int(result.BalancesAggregated)),
+			libLog.Int("processed", result.KeysProcessed),
+			libLog.Int("aggregated", result.BalancesAggregated),
 			libLog.Int("synced", int(result.BalancesSynced)),
+			libLog.Int("removed", int(result.KeysRemoved)),
 		)
 	}
 
-	return result.BalancesSynced > 0 || result.BalancesAggregated > 0
+	return result.BalancesSynced > 0 || result.BalancesAggregated > 0 || result.KeysRemoved > 0
 }
 
 // waitOrDone sleeps for duration d and returns false, or returns true immediately
@@ -554,7 +564,7 @@ func waitOrDone(ctx context.Context, d time.Duration, logger libLog.Logger) bool
 		return false
 	}
 
-	logger.Log(ctx, libLog.LevelDebug, "BalanceSyncWorker: idle wait",
+	logger.Log(ctx, libLog.LevelDebug, "balance_sync: idle wait",
 		libLog.String("duration", d.String()),
 	)
 

@@ -849,10 +849,12 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 		balanceSyncWorker = NewBalanceSyncWorker(logger, commandUC, syncCfg)
 	}
 
+	// Log the effective config (after defaults applied by the constructor).
+	effectiveCfg := balanceSyncWorker.syncConfig
 	logger.Log(context.Background(), libLog.LevelInfo, "BalanceSyncWorker enabled",
-		libLog.Int("batch_size", syncCfg.BatchSize),
-		libLog.Int("flush_timeout_ms", syncCfg.FlushTimeoutMs),
-		libLog.Int("poll_interval_ms", syncCfg.PollIntervalMs),
+		libLog.Int("batch_size", effectiveCfg.BatchSize),
+		libLog.Int("flush_timeout_ms", effectiveCfg.FlushTimeoutMs),
+		libLog.Int("poll_interval_ms", effectiveCfg.PollIntervalMs),
 	)
 
 	return balanceSyncWorker

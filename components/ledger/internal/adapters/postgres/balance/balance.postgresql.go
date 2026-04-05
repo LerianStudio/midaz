@@ -1451,6 +1451,8 @@ func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizati
 	// Build a single UPDATE ... FROM (VALUES ...) statement.
 	// Each balance contributes 4 parameters: (id, available, on_hold, version).
 	// Shared parameters (updated_at, organization_id, ledger_id) are appended at the end.
+	// Note: batch size is capped at construction time (maxBatchSize = 16000) to stay
+	// within PostgreSQL's 65535 bind-parameter limit.
 	now := time.Now()
 	valuesClauses := make([]string, len(deduped))
 	args := make([]any, 0, len(deduped)*4+3)
@@ -1467,6 +1469,7 @@ func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizati
 	nowIdx := paramIdx
 	orgIdx := paramIdx + 1
 	ledgerIdx := paramIdx + 2
+
 	args = append(args, now, organizationID, ledgerID)
 
 	query := fmt.Sprintf(`

@@ -108,6 +108,10 @@ func TestIntegration_BalanceSyncSchedule_FullFlow(t *testing.T) {
 		assert.NotEqual(t, balanceKey, k.Key, "key should be removed from schedule")
 	}
 
+	// Direct ZSET assertion: verify the member is actually gone from the schedule
+	score := container.Client.ZScore(ctx, utils.BalanceSyncScheduleKey, balanceKey)
+	require.Error(t, score.Err(), "balance key should not exist in ZSET after removal")
+
 	t.Log("Integration test passed: balance sync schedule full flow verified")
 }
 
