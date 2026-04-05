@@ -6,7 +6,6 @@ package command
 
 import (
 	"context"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
@@ -214,25 +213,29 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 
 	removed, err := uc.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(ctx, keysToRemove)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to remove synced keys from schedule: %v", err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to remove synced keys from schedule", libLog.Err(err))
 
 		counter, counterErr := metricFactory.Counter(utils.BalanceSyncCleanupFailures)
 		if counterErr != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to create counter %v: %v", utils.BalanceSyncCleanupFailures, counterErr))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to create cleanup failure counter", libLog.Err(counterErr))
 		} else {
 			if metricErr := counter.WithLabels(map[string]string{
 				"organization_id": organizationID.String(),
 				"ledger_id":       ledgerID.String(),
 			}).AddOne(ctx); metricErr != nil {
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to increment counter %v: %v", utils.BalanceSyncCleanupFailures, metricErr))
+				logger.Log(ctx, libLog.LevelWarn, "Failed to emit cleanup failure counter", libLog.Err(metricErr))
 			}
 		}
 	}
 
 	result.KeysRemoved = removed
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("SyncBalancesBatch: processed=%d, aggregated=%d, synced=%d, removed=%d",
-		result.KeysProcessed, result.BalancesAggregated, result.BalancesSynced, result.KeysRemoved))
+	logger.Log(ctx, libLog.LevelInfo, "SyncBalancesBatch completed",
+		libLog.Int("processed", result.KeysProcessed),
+		libLog.Int("aggregated", result.BalancesAggregated),
+		libLog.Int("synced", int(result.BalancesSynced)),
+		libLog.Int("removed", int(result.KeysRemoved)),
+	)
 
 	return result, nil
 }
