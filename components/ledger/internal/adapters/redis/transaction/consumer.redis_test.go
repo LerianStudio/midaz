@@ -269,7 +269,7 @@ func (s *scriptCapturingRedisClient) Eval(ctx context.Context, script string, ke
 	s.evalCalls = append(s.evalCalls, recordedScriptCall{Script: script, Keys: keys, Args: args})
 
 	// Return a placeholder result — tests verify KEYS/ARGS before this point.
-	// ProcessBalanceAtomicOperation expects JSON; GetBalanceSyncKeys expects []any; RemoveBalanceSyncKey ignores result.
+	// ProcessBalanceAtomicOperation expects JSON; GetBalanceSyncKeys expects []any.
 	cmd := redis.NewCmd(ctx)
 	cmd.SetVal([]any{})
 
@@ -1410,64 +1410,6 @@ func TestKeyNamespacing_GetBalanceSyncKeys(t *testing.T) {
 			require.True(t, len(luaArgs) >= 3, "ARGV must contain at least: limit, ttl, lockPrefix")
 			assert.Equal(t, tc.expectedLockPrefixInArg, luaArgs[2],
 				"ARGV[3] (lock prefix) should be namespaced")
-		})
-	}
-}
-
-// TestKeyNamespacing_RemoveBalanceSyncKey verifies that RemoveBalanceSyncKey namespaces
-// the schedule key (KEYS[1]) and passes the namespaced lock prefix in ARGV.
-// RemoveBalanceSyncKey namespaces schedule key and lock prefix.
-func TestKeyNamespacing_RemoveBalanceSyncKey(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name                    string
-		tenantID                string
-		expectedScheduleKey     string
-		expectedLockPrefixInArg string
-	}{
-		{
-			name:                    "with_tenant_id_schedule_key_and_lock_prefix_namespaced",
-			tenantID:                "test-tenant",
-			expectedScheduleKey:     "tenant:test-tenant:" + utils.BalanceSyncScheduleKey,
-			expectedLockPrefixInArg: "tenant:test-tenant:" + utils.BalanceSyncLockPrefix,
-		},
-		{
-			name:                    "without_tenant_id_schedule_key_and_lock_prefix_unchanged",
-			tenantID:                "",
-			expectedScheduleKey:     utils.BalanceSyncScheduleKey,
-			expectedLockPrefixInArg: utils.BalanceSyncLockPrefix,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			conn, scripter := newScriptCapturingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn}
-
-			ctx := context.Background()
-			if tc.tenantID != "" {
-				ctx = tmcore.ContextWithTenantID(ctx, tc.tenantID)
-			}
-
-			member := "balance:{transactions}:org:ledger:default"
-			_ = repo.RemoveBalanceSyncKey(ctx, member)
-
-			require.NotEmpty(t, scripter.evalCalls,
-				"RemoveBalanceSyncKey should have invoked Eval (via script.Run NOSCRIPT fallback)")
-
-			luaKeys := scripter.capturedScriptKeys()
-			require.Len(t, luaKeys, 1, "unschedule_synced_balance.lua receives exactly 1 KEY (schedule key)")
-			assert.Equal(t, tc.expectedScheduleKey, luaKeys[0],
-				"KEYS[1] (balance sync schedule key) should be namespaced")
-
-			// ARGV layout: [member, lockPrefix]
-			luaArgs := scripter.capturedScriptArgs()
-			require.True(t, len(luaArgs) >= 2, "ARGV must contain: member and lockPrefix")
-			assert.Equal(t, tc.expectedLockPrefixInArg, luaArgs[1],
-				"ARGV[2] (lock prefix) should be namespaced")
 		})
 	}
 }

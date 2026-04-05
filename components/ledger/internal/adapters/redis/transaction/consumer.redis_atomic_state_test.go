@@ -88,17 +88,6 @@ func TestKeyNamespacing_MalformedTenantID_FailsClosedBalanceSyncScripts(t *testi
 		assert.Empty(t, scripter.evalCalls, "GetBalanceSyncKeys must fail closed before EVAL")
 	})
 
-	t.Run("remove balance sync key", func(t *testing.T) {
-		t.Parallel()
-
-		conn, scripter := newScriptCapturingConnection(t)
-		repo := &RedisConsumerRepository{conn: conn}
-
-		err := repo.RemoveBalanceSyncKey(ctx, "balance:key")
-		require.Error(t, err)
-		assert.Empty(t, scripter.evalShaCalls, "RemoveBalanceSyncKey must fail closed before EVALSHA")
-		assert.Empty(t, scripter.evalCalls, "RemoveBalanceSyncKey must fail closed before EVAL")
-	})
 }
 
 func TestKeyNamespacing_MalformedTenantID_FailsClosedGetBalancesByKeys(t *testing.T) {

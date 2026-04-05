@@ -34,9 +34,6 @@ var balanceAtomicOperationLua string
 //go:embed scripts/claim_balance_sync_keys.lua
 var claimBalanceSyncKeysLua string
 
-//go:embed scripts/unschedule_synced_balance.lua
-var unscheduleSyncedBalanceLua string
-
 //go:embed scripts/remove_balance_sync_keys_batch.lua
 var removeBalanceSyncKeysBatchScript string
 
@@ -102,7 +99,6 @@ type RedisRepository interface {
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
 	RemoveMessageFromQueue(ctx context.Context, key string) error
 	GetBalanceSyncKeys(ctx context.Context, limit int64) ([]SyncKey, error)
-	RemoveBalanceSyncKey(ctx context.Context, member string) error
 	// ScheduleBalanceSyncBatch schedules multiple balance keys for sync using ZADD NX.
 	// Each member is a balance key with score = scheduled sync time (Unix timestamp).
 	// Uses NX mode: only adds new members, does not update scores of existing ones.
@@ -1039,44 +1035,6 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("fetch_due returned %d keys", len(out)))
 
 	return out, nil
-}
-
-// RemoveScheduledMember removes a single scheduled member from the ZSET.
-func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, member string) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.remove_balance_sync_key")
-	defer span.End()
-
-	rds, err := rr.conn.GetClient(ctx)
-	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get redis client: %v", err))
-
-		return err
-	}
-
-	script := redis.NewScript(unscheduleSyncedBalanceLua)
-
-	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
-	if err != nil {
-		return err
-	}
-
-	prefixedLockPrefix, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncLockPrefix)
-	if err != nil {
-		return err
-	}
-
-	_, err = script.Run(ctx, rds, []string{prefixedScheduleKey}, member, prefixedLockPrefix).Result()
-	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to run unschedule_synced_balance.lua for %s: %v", member, err))
-
-		return err
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Unscheduled synced balance: %s", member))
-
-	return nil
 }
 
 // ScheduleBalanceSyncBatch schedules multiple balance keys for sync using batch ZADD NX.
