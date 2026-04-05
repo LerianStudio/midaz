@@ -510,25 +510,23 @@ func TestReconcileCollectors_ConcurrentSafety(t *testing.T) {
 
 	collectors := make(map[string]*tenantCollector)
 
-	// Inject a collector that will die on its own after a short delay
+	// Simulates a collector that crashes/exits on its own
 	shortLived := func() *tenantCollector {
-		_, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 
 		go func() {
 			defer close(done)
 			// Die after a short time
 			time.Sleep(10 * time.Millisecond)
-			cancel()
 		}()
 
-		return &tenantCollector{tenantID: "tenant-1", cancel: cancel, done: done}
+		return &tenantCollector{tenantID: "tenant-1", cancel: func() {}, done: done}
 	}
 
 	collectors["tenant-1"] = shortLived()
 
 	// Wait for the collector to die
-	time.Sleep(50 * time.Millisecond)
+	<-collectors["tenant-1"].done
 
 	// Reconcile should detect the dead collector and attempt restart
 	w.reconcileCollectors(ctx, collectors)

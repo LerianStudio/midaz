@@ -95,28 +95,16 @@ func TestBalanceSyncWorker_IsMTReady(t *testing.T) {
 			tenantCache: nil,
 			want:        false,
 		},
-		{
-			name:        "false_for_zero_value_struct",
-			mtEnabled:   false,
-			pgManager:   nil,
-			tenantCache: nil,
-			want:        false,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var worker *BalanceSyncWorker
-			if tt.name == "false_for_zero_value_struct" {
-				worker = &BalanceSyncWorker{}
-			} else {
-				worker = NewBalanceSyncWorker(logger, useCase, BalanceSyncConfig{})
-				worker.mtEnabled = tt.mtEnabled
-				worker.pgManager = tt.pgManager
-				worker.tenantCache = tt.tenantCache
-			}
+			worker := NewBalanceSyncWorker(logger, useCase, BalanceSyncConfig{})
+			worker.mtEnabled = tt.mtEnabled
+			worker.pgManager = tt.pgManager
+			worker.tenantCache = tt.tenantCache
 
 			got := worker.isMTReady()
 			assert.Equal(t, tt.want, got,

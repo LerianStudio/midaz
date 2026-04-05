@@ -1417,9 +1417,14 @@ func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizati
 		return 0, err
 	}
 
-	// Validate all IDs upfront before building the query.
-	ids := make([]uuid.UUID, len(balances))
-	for i, balance := range balances {
+	// Validate IDs and deduplicate by balance ID, keeping only the highest version.
+	// Without dedup, UPDATE ... FROM (VALUES ...) would join one target row to multiple
+	// source rows, and PostgreSQL picks one unpredictably — a lower version could win.
+	deduped := make([]mmodel.BalanceRedis, 0, len(balances))
+	ids := make([]uuid.UUID, 0, len(balances))
+	indexByID := make(map[uuid.UUID]int, len(balances))
+
+	for _, balance := range balances {
 		id, parseErr := uuid.Parse(balance.ID)
 		if parseErr != nil {
 			libOpentelemetry.HandleSpanError(span, "Invalid balance ID", parseErr)
@@ -1429,18 +1434,29 @@ func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizati
 			return 0, parseErr
 		}
 
-		ids[i] = id
+		if idx, ok := indexByID[id]; ok {
+			if balance.Version > deduped[idx].Version {
+				deduped[idx] = balance
+				ids[idx] = id
+			}
+
+			continue
+		}
+
+		indexByID[id] = len(deduped)
+		deduped = append(deduped, balance)
+		ids = append(ids, id)
 	}
 
 	// Build a single UPDATE ... FROM (VALUES ...) statement.
 	// Each balance contributes 4 parameters: (id, available, on_hold, version).
 	// Shared parameters (updated_at, organization_id, ledger_id) are appended at the end.
 	now := time.Now()
-	valuesClauses := make([]string, len(balances))
-	args := make([]any, 0, len(balances)*4+3)
+	valuesClauses := make([]string, len(deduped))
+	args := make([]any, 0, len(deduped)*4+3)
 	paramIdx := 1
 
-	for i, balance := range balances {
+	for i, balance := range deduped {
 		valuesClauses[i] = fmt.Sprintf("($%d::uuid, $%d::numeric, $%d::numeric, $%d::bigint)",
 			paramIdx, paramIdx+1, paramIdx+2, paramIdx+3)
 		args = append(args, ids[i], balance.Available, balance.OnHold, balance.Version)

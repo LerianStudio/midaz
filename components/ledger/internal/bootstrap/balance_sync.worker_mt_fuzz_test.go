@@ -63,14 +63,11 @@ func FuzzNewBalanceSyncWorkerMT_MaxWorkers(f *testing.F) {
 			t.Fatalf("serviceName mismatch: got %q, want %q", worker.serviceName, serviceName)
 		}
 
-		// Property: isMTReady() is true only when enabled AND pgManager AND tenantCache non-nil.
-		ready := worker.isMTReady()
-		if mtEnabled && worker.pgManager != nil && worker.tenantCache != nil && !ready {
-			t.Fatal("isMTReady() should be true when enabled, pgManager, and tenantCache are non-nil")
-		}
-
-		if !mtEnabled && ready {
-			t.Fatal("isMTReady() should be false when mtEnabled is false")
+		// Property: isMTReady() equals the conjunction of all three conditions.
+		expectedReady := mtEnabled && worker.pgManager != nil && worker.tenantCache != nil
+		if worker.isMTReady() != expectedReady {
+			t.Fatalf("isMTReady() = %v, want %v (mtEnabled=%v, pgManager=%v, tenantCache=%v)",
+				worker.isMTReady(), expectedReady, mtEnabled, worker.pgManager != nil, worker.tenantCache != nil)
 		}
 	})
 }

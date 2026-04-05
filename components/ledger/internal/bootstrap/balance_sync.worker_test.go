@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -206,7 +207,11 @@ func TestProperty_ExtractIDsFromMember_ValidKeys(t *testing.T) {
 		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 		for _, tc := range testCases {
-			t.Run(tc.prefix+tc.suffix, func(t *testing.T) {
+			tc := tc
+			orgID := orgID
+			ledgerID := ledgerID
+
+			t.Run(fmt.Sprintf("%d_%s%s", i, tc.prefix, tc.suffix), func(t *testing.T) {
 				t.Parallel()
 
 				member := tc.prefix + orgID.String() + ":" + ledgerID.String() + tc.suffix

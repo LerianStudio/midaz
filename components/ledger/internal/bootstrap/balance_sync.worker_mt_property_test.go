@@ -62,10 +62,10 @@ func TestProperty_BalanceSyncWorker_PredicateEqualsEnabledAndPGManagerNonNil(t *
 		"Property violated: BalanceSyncWorker.isMTReady() != (mtEnabled && pgManager != nil && tenantCache != nil)")
 }
 
-// TestProperty_NewBalanceSyncWorkerMT_PreservesBaseFields verifies that
+// TestNewBalanceSyncWorkerMT_PreservesBaseFields verifies that
 // the multi-tenant constructor preserves all base constructor fields AND correctly
-// sets multi-tenant fields.
-func TestProperty_NewBalanceSyncWorkerMT_PreservesBaseFields(t *testing.T) {
+// sets multi-tenant fields for both enabled and disabled states.
+func TestNewBalanceSyncWorkerMT_PreservesBaseFields(t *testing.T) {
 	t.Parallel()
 
 	logger := newTestLogger()
@@ -76,36 +76,25 @@ func TestProperty_NewBalanceSyncWorkerMT_PreservesBaseFields(t *testing.T) {
 
 	cache := tenantcache.NewTenantCache()
 
-	property := func(enabled bool) bool {
-		worker := NewBalanceSyncWorkerMT(logger, useCase, BalanceSyncConfig{}, enabled, cache, pgMgr, "transaction")
-
-		// Property: constructor never returns nil.
-		if worker == nil {
-			return false
-		}
-
-		// Property: base fields preserved (referential equality).
-		if worker.useCase != useCase {
-			return false
-		}
-
-		// Property: multi-tenant fields set correctly.
-		if worker.mtEnabled != enabled {
-			return false
-		}
-
-		if worker.tenantCache != cache {
-			return false
-		}
-
-		if worker.pgManager != pgMgr {
-			return false
-		}
-
-		return true
+	tests := []struct {
+		name    string
+		enabled bool
+	}{
+		{name: "multi-tenant enabled", enabled: true},
+		{name: "multi-tenant disabled", enabled: false},
 	}
 
-	err = quick.Check(property, &quick.Config{MaxCount: 100})
-	require.NoError(t, err,
-		"Property violated: NewBalanceSyncWorkerMT did not preserve base fields")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			worker := NewBalanceSyncWorkerMT(logger, useCase, BalanceSyncConfig{}, tt.enabled, cache, pgMgr, "transaction")
+
+			require.NotNil(t, worker, "constructor must never return nil")
+			require.Equal(t, useCase, worker.useCase, "base field useCase must be preserved")
+			require.Equal(t, tt.enabled, worker.mtEnabled, "mtEnabled must match input")
+			require.Equal(t, cache, worker.tenantCache, "tenantCache must be set")
+			require.Equal(t, pgMgr, worker.pgManager, "pgManager must be set")
+		})
+	}
 }
