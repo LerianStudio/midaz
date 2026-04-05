@@ -1250,8 +1250,7 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 	client, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get redis client: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get redis client", libLog.Err(err))
 
 		return nil, err
 	}
@@ -1259,12 +1258,14 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 	prefixedKeys, err := tenantKeysFromContext(ctx, keys)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis keys", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis keys: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace redis keys", libLog.Err(err))
 
 		return nil, err
 	}
 
-	// Process in chunks to prevent oversized payloads
+	// Process in chunks to prevent oversized payloads.
+	// chunk (prefixed) is sent to Redis; originalKeysChunk (unprefixed) is used as
+	// map keys in the result so callers can look up by the keys they know.
 	for start := 0; start < len(prefixedKeys); start += maxRedisBatchSize {
 		end := min(start+maxRedisBatchSize, len(prefixedKeys))
 		chunk := prefixedKeys[start:end]
@@ -1273,8 +1274,7 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 		values, err := client.MGet(ctx, chunk...).Result()
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to MGET balances", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to MGET balances: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to MGET balances", libLog.Err(err))
 
 			return nil, err
 		}
@@ -1294,7 +1294,8 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 			case []byte:
 				strVal = string(v)
 			default:
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Unexpected value type for key %s: %T", key, values[i]))
+				logger.Log(ctx, libLog.LevelWarn, "Unexpected value type for balance key",
+					libLog.String("key", key))
 
 				result[key] = nil
 
@@ -1303,7 +1304,8 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 
 			var balance mmodel.BalanceRedis
 			if err := json.Unmarshal([]byte(strVal), &balance); err != nil {
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to unmarshal balance for key %s: %v", key, err))
+				logger.Log(ctx, libLog.LevelWarn, "Failed to unmarshal balance",
+					libLog.String("key", key), libLog.Err(err))
 
 				result[key] = nil
 

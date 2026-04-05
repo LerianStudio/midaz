@@ -57,7 +57,9 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		return result, nil
 	}
 
-	// Build a map from plain key string to its claimed score, and extract plain keys for MGET.
+	// Separate key strings (for MGET) from their claimed scores (needed later for
+	// conditional ZREM — the removal Lua script compares the claimed score against
+	// the current score to avoid removing keys re-scheduled by newer mutations).
 	scoreMap := make(map[string]float64, len(keys))
 	plainKeys := make([]string, 0, len(keys))
 
@@ -69,12 +71,14 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	balanceMap, err := uc.TransactionRedisRepo.GetBalancesByKeys(ctx, plainKeys)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get balances by keys", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get balances by keys: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get balances by keys", libLog.Err(err))
 
 		return nil, err
 	}
 
 	aggregatedBalances := make([]*redisBalance.AggregatedBalance, 0, len(keys))
+	// orphanedKeys collects ZSET entries whose Redis value is missing (TTL expired)
+	// or unparseable. They must be removed from the schedule to prevent poison records.
 	orphanedKeys := make([]redisTransaction.SyncKey, 0)
 
 	// Track all Redis keys that map to each composite key so dedup losers
@@ -84,7 +88,10 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	for _, key := range plainKeys {
 		balance := balanceMap[key]
 		if balance == nil {
-			logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Balance key %s has no data (expired), marking as orphaned", key))
+			// Value expired in Redis (TTL) between ZADD and MGET — mark as orphaned for cleanup.
+			logger.Log(ctx, libLog.LevelDebug, "Balance key has no data (expired), marking as orphaned",
+				libLog.String("key", key))
+
 			orphanedKeys = append(orphanedKeys, redisTransaction.SyncKey{Key: key, Score: scoreMap[key]})
 
 			continue
@@ -92,12 +99,16 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 
 		compositeKey, parseErr := redisBalance.BalanceCompositeKeyFromRedisKey(key)
 		if parseErr != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to parse composite key from %s: %v", key, parseErr))
+			// Key format is unrecognizable — treat as orphaned to prevent poison record.
+			logger.Log(ctx, libLog.LevelWarn, "Failed to parse composite key, marking as orphaned",
+				libLog.String("key", key), libLog.Err(parseErr))
+
 			orphanedKeys = append(orphanedKeys, redisTransaction.SyncKey{Key: key, Score: scoreMap[key]})
 
 			continue
 		}
 
+		// AssetCode is not encoded in the Redis key pattern — enrich from the balance value.
 		compositeKey.AssetCode = balance.AssetCode
 
 		// Fall back to BalanceRedis.Key if parsed partition key is empty/default and balance has specific key.
@@ -112,6 +123,10 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		keyStr := compositeKey.String()
 		compositeToRedisKeys[keyStr] = append(compositeToRedisKeys[keyStr], key)
 
+		// Collect the balance with its composite key for the aggregation step.
+		// Multiple Redis keys may map to the same composite key (same balance
+		// mutated multiple times between syncs). The aggregator will deduplicate
+		// by keeping only the highest version.
 		aggregatedBalances = append(aggregatedBalances, &redisBalance.AggregatedBalance{
 			RedisKey: key,
 			Balance:  balance,

@@ -52,12 +52,12 @@ func BalanceCompositeKeyFromRedisKey(redisKey string) (BalanceCompositeKey, erro
 	// Parts: [balance, {transactions}, orgID, ledgerID, alias...#key]
 	orgID, err := uuid.Parse(parts[2])
 	if err != nil {
-		return BalanceCompositeKey{}, fmt.Errorf("invalid organization ID at position 2: %w", err)
+		return BalanceCompositeKey{}, fmt.Errorf("invalid organization ID in redis key %q: %w", redisKey, err)
 	}
 
 	ledgerID, err := uuid.Parse(parts[3])
 	if err != nil {
-		return BalanceCompositeKey{}, fmt.Errorf("invalid ledger ID at position 3: %w", err)
+		return BalanceCompositeKey{}, fmt.Errorf("invalid ledger ID in redis key %q: %w", redisKey, err)
 	}
 
 	// Join all parts from index 4 onwards to handle aliases with colons (e.g., "test:account:100#other")
@@ -75,7 +75,7 @@ func BalanceCompositeKeyFromRedisKey(redisKey string) (BalanceCompositeKey, erro
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		AccountID:      alias,
-		AssetCode:      "", // Will be populated from balance data
+		AssetCode:      "", // Not in Redis key pattern; enriched by SyncBalancesBatch from the balance value
 		PartitionKey:   partitionKey,
 	}, nil
 }
