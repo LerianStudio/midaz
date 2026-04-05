@@ -134,7 +134,7 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		})
 	}
 
-	aggregator := redisBalance.NewInMemoryAggregator()
+	aggregator := redisBalance.NewInMemorySyncAggregator()
 	deduplicated := aggregator.Aggregate(ctx, aggregatedBalances)
 	result.BalancesAggregated = len(deduplicated)
 
