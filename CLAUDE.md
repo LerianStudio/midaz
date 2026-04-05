@@ -404,7 +404,6 @@ Activates only when `RABBITMQ_TRANSACTION_ASYNC=true` AND `BULK_RECORDER_ENABLED
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BALANCE_SYNC_MAX_WORKERS` | (5) | Legacy max goroutines (fallback path) |
 | `BALANCE_SYNC_BATCH_SIZE` | (50) | Keys accumulated before flush (SIZE trigger) |
 | `BALANCE_SYNC_FLUSH_TIMEOUT_MS` | (500) | Max ms before flushing incomplete batch (TIMEOUT trigger) |
 | `BALANCE_SYNC_POLL_INTERVAL_MS` | (50) | ZSET polling interval when draining |
