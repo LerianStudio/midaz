@@ -418,7 +418,7 @@ func (w *BalanceSyncWorker) flushBatch(ctx context.Context, keys []redisTransact
 			libLog.Int("keys", len(group.keys)),
 		)
 
-		if w.processBalancesToExpireBatch(ctx, group.orgID, group.ledgerID, group.keys) {
+		if w.processSyncBatch(ctx, group.orgID, group.ledgerID, group.keys) {
 			processed = true
 		}
 	}
@@ -476,12 +476,12 @@ func (w *BalanceSyncWorker) groupKeysByOrgLedger(ctx context.Context, keys []red
 	return result
 }
 
-// processBalancesToExpireBatch delegates to SyncBalancesBatch and emits metrics.
+// processSyncBatch delegates to SyncBalancesBatch and emits metrics.
 // The use case handles the full pipeline: MGET → aggregate → persist → conditional ZREM.
 // Returns true if any balances were synced or aggregated.
 const syncBatchTimeout = 5 * time.Minute
 
-func (w *BalanceSyncWorker) processBalancesToExpireBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []redisTransaction.SyncKey) bool {
+func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []redisTransaction.SyncKey) bool {
 	if len(keys) == 0 {
 		return false
 	}
