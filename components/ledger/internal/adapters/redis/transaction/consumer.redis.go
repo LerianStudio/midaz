@@ -83,27 +83,49 @@ type SyncKey struct {
 
 //go:generate mockgen --destination=consumer.redis_mock.go --package=redis . RedisRepository
 type RedisRepository interface {
+	// Set stores a key-value pair with a TTL.
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
+	// SetNX stores a key-value pair only if the key does not already exist (atomic).
+	// Returns true if the key was set, false if it already existed.
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	// Get retrieves a value by key. Returns ("", nil) on cache miss (key not found).
 	// Returns ("", error) on connection or other errors.
 	Get(ctx context.Context, key string) (string, error)
+	// MGet retrieves multiple values by key. Returns a map of key -> value.
+	// Missing keys are omitted from the result (not included with empty string).
 	MGet(ctx context.Context, keys []string) (map[string]string, error)
+	// Del removes a key from Redis.
 	Del(ctx context.Context, key string) error
+	// Incr atomically increments a key's integer value and returns the new value.
+	// Returns 0 on error (connection failure, namespace failure).
 	Incr(ctx context.Context, key string) int64
+	// ProcessBalanceAtomicOperation executes the Lua balance mutation script.
+	// Atomically updates balances, records backup, and schedules sync in a single round-trip.
+	// Returns before/after balance snapshots for event emission.
 	ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error)
+	// SetBytes stores binary data with a TTL.
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
+	// GetBytes retrieves binary data by key.
 	GetBytes(ctx context.Context, key string) ([]byte, error)
+	// AddMessageToQueue appends a message to the transaction backup hash queue.
 	AddMessageToQueue(ctx context.Context, key string, msg []byte) error
+	// ReadMessageFromQueue reads a specific message from the backup queue by key.
 	ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error)
+	// ReadAllMessagesFromQueue reads all messages from the backup queue.
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
+	// RemoveMessageFromQueue removes a specific message from the backup queue by key.
 	RemoveMessageFromQueue(ctx context.Context, key string) error
+	// GetBalanceSyncKeys claims due balance keys from the ZSET schedule using a Lua script.
+	// Each claimed key gets a distributed lock (SET NX EX) to prevent concurrent processing.
+	// Returns the claimed keys with their scores for conditional removal later.
 	GetBalanceSyncKeys(ctx context.Context, limit int64) ([]SyncKey, error)
 	// ScheduleBalanceSyncBatch schedules multiple balance keys for sync using ZADD NX.
 	// Each member is a balance key with score = scheduled sync time (Unix timestamp).
 	// Uses NX mode: only adds new members, does not update scores of existing ones.
 	// This preserves the earliest scheduled sync time for each balance key.
 	ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error
+	// ListBalanceByKey retrieves a single balance from Redis by its internal key
+	// and converts it from the cache format (BalanceRedis) to the domain model (Balance).
 	ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error)
 	// GetBalancesByKeys retrieves multiple balance values by their Redis keys using MGET.
 	// Returns a map of key -> *mmodel.BalanceRedis (nil if key does not exist).
