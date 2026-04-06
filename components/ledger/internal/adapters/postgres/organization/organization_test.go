@@ -134,8 +134,7 @@ func TestOrganizationPostgreSQLModel_FromEntity(t *testing.T) {
 		var model OrganizationPostgreSQLModel
 		model.FromEntity(entity)
 
-		assert.NotEmpty(t, model.ID, "ID should be generated")
-		assert.NotEqual(t, entity.ID, model.ID, "ID should be newly generated, not copied from entity")
+		assert.Equal(t, entity.ID, model.ID, "ID should be mapped from entity")
 		assert.Equal(t, entity.ParentOrganizationID, model.ParentOrganizationID)
 		assert.Equal(t, entity.LegalName, model.LegalName)
 		assert.Equal(t, entity.DoingBusinessAs, model.DoingBusinessAs)
@@ -152,6 +151,7 @@ func TestOrganizationPostgreSQLModel_FromEntity(t *testing.T) {
 
 	t.Run("with_optional_fields_nil", func(t *testing.T) {
 		entity := &mmodel.Organization{
+			ID:            "simple-corp-id",
 			LegalName:     "Simple Corp",
 			LegalDocument: "98765432109876",
 			Status: mmodel.Status{
@@ -164,7 +164,7 @@ func TestOrganizationPostgreSQLModel_FromEntity(t *testing.T) {
 		var model OrganizationPostgreSQLModel
 		model.FromEntity(entity)
 
-		assert.NotEmpty(t, model.ID, "ID should be generated")
+		assert.Equal(t, "simple-corp-id", model.ID, "ID should be mapped from entity")
 		assert.Nil(t, model.ParentOrganizationID)
 		assert.Equal(t, entity.LegalName, model.LegalName)
 		assert.Nil(t, model.DoingBusinessAs)
@@ -174,9 +174,10 @@ func TestOrganizationPostgreSQLModel_FromEntity(t *testing.T) {
 		assert.False(t, model.DeletedAt.Valid, "DeletedAt should not be valid when entity.DeletedAt is nil")
 	})
 
-	t.Run("generates_uuid_v7", func(t *testing.T) {
+	t.Run("maps_entity_id", func(t *testing.T) {
 		entity := &mmodel.Organization{
-			LegalName:     "UUID Test Corp",
+			ID:            "fixed-id-for-test",
+			LegalName:     "ID Test Corp",
 			LegalDocument: "33333333333333",
 			Status:        mmodel.Status{Code: "ACTIVE"},
 			CreatedAt:     time.Now(),
@@ -188,10 +189,8 @@ func TestOrganizationPostgreSQLModel_FromEntity(t *testing.T) {
 		model1.FromEntity(entity)
 		model2.FromEntity(entity)
 
-		assert.NotEmpty(t, model1.ID)
-		assert.NotEmpty(t, model2.ID)
-		assert.NotEqual(t, model1.ID, model2.ID, "Each call should generate a unique ID")
-		assert.Len(t, model1.ID, 36, "ID should be a valid UUID string (36 chars with hyphens)")
+		assert.Equal(t, "fixed-id-for-test", model1.ID, "ID should be mapped from entity")
+		assert.Equal(t, model1.ID, model2.ID, "Same entity should produce same ID")
 	})
 }
 

@@ -114,14 +114,14 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return nil, err
 	}
 
 	record := &OrganizationPostgreSQLModel{}
 	record.FromEntity(organization)
+	record.ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	address, err := json.Marshal(record.Address)
 	if err != nil {
@@ -130,54 +130,62 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 		return nil, err
 	}
 
-	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+	builder := squirrel.Insert(r.tableName).
+		Columns(organizationColumnList...).
+		Values(
+			record.ID,
+			record.ParentOrganizationID,
+			record.LegalName,
+			record.DoingBusinessAs,
+			record.LegalDocument,
+			address,
+			record.Status,
+			record.StatusDescription,
+			record.CreatedAt,
+			record.UpdatedAt,
+			record.DeletedAt,
+		).
+		PlaceholderFormat(squirrel.Dollar)
 
-	result, err := db.ExecContext(ctx, `INSERT INTO organization VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-		record.ID,
-		record.ParentOrganizationID,
-		record.LegalName,
-		record.DoingBusinessAs,
-		record.LegalDocument,
-		address,
-		record.Status,
-		record.StatusDescription,
-		record.CreatedAt,
-		record.UpdatedAt,
-		record.DeletedAt)
+	query, args, err := builder.ToSql()
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Organization{}).Name())
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to execute update query: %v", err))
-
-			return nil, err
-		}
-
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to build insert query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build insert query", libLog.Err(err))
 
 		return nil, err
 	}
 
-	spanExec.End()
+	_, spanExec := tracer.Start(ctx, "postgres.create_organization.exec")
+	defer spanExec.End()
+
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			err := services.ValidatePGError(pgErr, constant.EntityOrganization)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute insert query", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to execute insert query", libLog.Err(err))
+
+			return nil, err
+		}
+
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute insert query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to execute insert query", libLog.Err(err))
+
+		return nil, err
+	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get rows affected", libLog.Err(err))
 
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization. Rows affected is 0", err)
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityOrganization)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization: no rows affected", err)
 
 		return nil, err
 	}
