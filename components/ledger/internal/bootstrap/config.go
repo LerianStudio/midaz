@@ -196,7 +196,6 @@ type Config struct {
 	BulkRecorderMaxRowsPerInsert int  `env:"BULK_RECORDER_MAX_ROWS_PER_INSERT"`
 
 	// --- Balance/Worker fields ---
-	BalanceSyncMaxWorkers     int `env:"BALANCE_SYNC_MAX_WORKERS"`
 	BalanceSyncBatchSize      int `env:"BALANCE_SYNC_BATCH_SIZE"`
 	BalanceSyncFlushTimeoutMs int `env:"BALANCE_SYNC_FLUSH_TIMEOUT_MS"`
 	BalanceSyncPollIntervalMs int `env:"BALANCE_SYNC_POLL_INTERVAL_MS"`
@@ -706,7 +705,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// BalanceSyncWorker: multi-tenant or single-tenant
-	balanceSyncWorker := initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, redisConnection, txnPG.pgManager, tenantServiceName)
+	balanceSyncWorker := initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
 		libLog.String("version", cfg.Version),
@@ -835,16 +834,7 @@ func initRedisConnection(cfg *Config, logger libLog.Logger) (*libRedis.Client, e
 }
 
 // initBalanceSyncWorker creates the balance sync worker (multi-tenant or single-tenant).
-func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, redisConn *libRedis.Client, pgManager *tmpostgres.Manager, tenantServiceName string) *BalanceSyncWorker {
-	const defaultBalanceSyncMaxWorkers = 5
-
-	balanceSyncMaxWorkers := cfg.BalanceSyncMaxWorkers
-
-	if balanceSyncMaxWorkers <= 0 {
-		balanceSyncMaxWorkers = defaultBalanceSyncMaxWorkers
-		logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker using default: BALANCE_SYNC_MAX_WORKERS=%d", defaultBalanceSyncMaxWorkers))
-	}
-
+func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, pgManager *tmpostgres.Manager, tenantServiceName string) *BalanceSyncWorker {
 	syncCfg := BalanceSyncConfig{
 		BatchSize:      cfg.BalanceSyncBatchSize,
 		FlushTimeoutMs: cfg.BalanceSyncFlushTimeoutMs,
@@ -854,13 +844,18 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 	var balanceSyncWorker *BalanceSyncWorker
 
 	if opts != nil && opts.MultiTenantEnabled && opts.TenantCache != nil {
-		balanceSyncWorker = NewBalanceSyncWorkerMultiTenant(redisConn, logger, commandUC, balanceSyncMaxWorkers, syncCfg, true, opts.TenantCache, pgManager, tenantServiceName)
+		balanceSyncWorker = NewBalanceSyncWorkerMT(logger, commandUC, syncCfg, true, opts.TenantCache, pgManager, tenantServiceName)
 	} else {
-		balanceSyncWorker = NewBalanceSyncWorker(redisConn, logger, commandUC, balanceSyncMaxWorkers, syncCfg)
+		balanceSyncWorker = NewBalanceSyncWorker(logger, commandUC, syncCfg)
 	}
 
-	logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncWorker enabled: max_workers=%d, batch_size=%d, flush_timeout_ms=%d, poll_interval_ms=%d",
-		balanceSyncMaxWorkers, syncCfg.BatchSize, syncCfg.FlushTimeoutMs, syncCfg.PollIntervalMs))
+	// Log the effective config (after defaults applied by the constructor).
+	effectiveCfg := balanceSyncWorker.syncConfig
+	logger.Log(context.Background(), libLog.LevelInfo, "BalanceSyncWorker enabled",
+		libLog.Int("batch_size", effectiveCfg.BatchSize),
+		libLog.Int("flush_timeout_ms", effectiveCfg.FlushTimeoutMs),
+		libLog.Int("poll_interval_ms", effectiveCfg.PollIntervalMs),
+	)
 
 	return balanceSyncWorker
 }

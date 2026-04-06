@@ -161,44 +161,36 @@ func TestNewBalanceSyncCollector_Defaults(t *testing.T) {
 		batchSize        int
 		flushTimeout     time.Duration
 		pollInterval     time.Duration
-		idleBackoff      time.Duration
 		wantBatchSize    int
 		wantFlushTimeout time.Duration
 		wantPollInterval time.Duration
-		wantIdleBackoff  time.Duration
 	}{
 		{
 			name:             "all zero values get safe defaults",
 			batchSize:        0,
 			flushTimeout:     0,
 			pollInterval:     0,
-			idleBackoff:      0,
 			wantBatchSize:    50,
 			wantFlushTimeout: 500 * time.Millisecond,
 			wantPollInterval: 50 * time.Millisecond,
-			wantIdleBackoff:  10 * time.Second,
 		},
 		{
 			name:             "all negative values get safe defaults",
 			batchSize:        -1,
 			flushTimeout:     -1,
 			pollInterval:     -1,
-			idleBackoff:      -1,
 			wantBatchSize:    50,
 			wantFlushTimeout: 500 * time.Millisecond,
 			wantPollInterval: 50 * time.Millisecond,
-			wantIdleBackoff:  10 * time.Second,
 		},
 		{
 			name:             "positive values are preserved",
 			batchSize:        10,
 			flushTimeout:     2 * time.Second,
 			pollInterval:     100 * time.Millisecond,
-			idleBackoff:      5 * time.Second,
 			wantBatchSize:    10,
 			wantFlushTimeout: 2 * time.Second,
 			wantPollInterval: 100 * time.Millisecond,
-			wantIdleBackoff:  5 * time.Second,
 		},
 	}
 
@@ -206,13 +198,12 @@ func TestNewBalanceSyncCollector_Defaults(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := NewBalanceSyncCollector(tt.batchSize, tt.flushTimeout, tt.pollInterval, tt.idleBackoff, nopLogger())
+			c := NewBalanceSyncCollector(tt.batchSize, tt.flushTimeout, tt.pollInterval, nopLogger())
 
 			require.NotNil(t, c)
 			assert.Equal(t, tt.wantBatchSize, c.batchSize)
 			assert.Equal(t, tt.wantFlushTimeout, c.flushTimeout)
 			assert.Equal(t, tt.wantPollInterval, c.pollInterval)
-			assert.Equal(t, tt.wantIdleBackoff, c.idleBackoff)
 			assert.NotNil(t, c.buffer)
 			assert.Equal(t, 0, len(c.buffer))
 		})
@@ -222,50 +213,36 @@ func TestNewBalanceSyncCollector_Defaults(t *testing.T) {
 func TestNewBalanceSyncCollector_BufferCapacity(t *testing.T) {
 	t.Parallel()
 
-	c := NewBalanceSyncCollector(25, time.Second, time.Second, time.Second, nopLogger())
+	c := NewBalanceSyncCollector(25, time.Second, time.Second, nopLogger())
 
 	assert.Equal(t, 25, cap(c.buffer), "buffer capacity should equal batchSize")
 }
 
 // --------------------------------------------------------------------
-// SetFlushCallback
+// FlushFunc passed to Run
 // --------------------------------------------------------------------
 
-func TestSetFlushCallback(t *testing.T) {
+func TestFlushFnSetByRun(t *testing.T) {
 	t.Parallel()
 
-	c := NewBalanceSyncCollector(10, time.Second, time.Second, time.Second, nopLogger())
+	c := NewBalanceSyncCollector(10, time.Second, time.Second, nopLogger())
 
-	assert.Nil(t, c.flushFn, "flushFn should be nil before SetFlushCallback")
+	assert.Nil(t, c.flushFn, "flushFn should be nil before Run")
 
-	called := false
-	c.SetFlushCallback(func(_ context.Context, _ []redisTransaction.SyncKey) bool {
-		called = true
-		return true
-	})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately so Run exits right away
 
-	require.NotNil(t, c.flushFn)
+	c.Run(ctx,
+		func(_ context.Context, _ []redisTransaction.SyncKey) bool {
+			return true
+		},
+		func(_ context.Context, _ int64) ([]redisTransaction.SyncKey, error) {
+			return nil, nil
+		},
+		func(_ context.Context) bool { return false },
+	)
 
-	c.flushFn(context.Background(), []redisTransaction.SyncKey{{Key: "k"}})
-	assert.True(t, called)
-}
-
-// --------------------------------------------------------------------
-// Size
-// --------------------------------------------------------------------
-
-func TestSize_ReflectsBuffer(t *testing.T) {
-	t.Parallel()
-
-	c := NewBalanceSyncCollector(10, time.Second, time.Second, time.Second, nopLogger())
-
-	assert.Equal(t, 0, c.Size())
-
-	c.mu.Lock()
-	c.buffer = append(c.buffer, redisTransaction.SyncKey{Key: "a"}, redisTransaction.SyncKey{Key: "b"}, redisTransaction.SyncKey{Key: "c"})
-	c.mu.Unlock()
-
-	assert.Equal(t, 3, c.Size())
+	require.NotNil(t, c.flushFn, "flushFn should be set after Run")
 }
 
 // --------------------------------------------------------------------
@@ -277,8 +254,8 @@ func TestFlush_EmptyBuffer(t *testing.T) {
 
 	rec := &flushRecorder{}
 
-	c := NewBalanceSyncCollector(10, time.Second, time.Second, time.Second, nopLogger())
-	c.SetFlushCallback(rec.record)
+	c := NewBalanceSyncCollector(10, time.Second, time.Second, nopLogger())
+	c.flushFn = rec.record
 
 	c.flush(context.Background())
 
@@ -290,8 +267,8 @@ func TestFlush_WithItems(t *testing.T) {
 
 	rec := &flushRecorder{}
 
-	c := NewBalanceSyncCollector(10, time.Second, time.Second, time.Second, nopLogger())
-	c.SetFlushCallback(rec.record)
+	c := NewBalanceSyncCollector(10, time.Second, time.Second, nopLogger())
+	c.flushFn = rec.record
 
 	c.mu.Lock()
 	c.buffer = append(c.buffer, redisTransaction.SyncKey{Key: "key1"}, redisTransaction.SyncKey{Key: "key2"})
@@ -301,13 +278,12 @@ func TestFlush_WithItems(t *testing.T) {
 
 	assert.Equal(t, 1, rec.count())
 	assert.Equal(t, []string{"key1", "key2"}, rec.allKeys())
-	assert.Equal(t, 0, c.Size(), "buffer should be empty after flush")
 }
 
 func TestFlush_NilCallback(t *testing.T) {
 	t.Parallel()
 
-	c := NewBalanceSyncCollector(10, time.Second, time.Second, time.Second, nopLogger())
+	c := NewBalanceSyncCollector(10, time.Second, time.Second, nopLogger())
 	// Deliberately do NOT set a callback.
 
 	c.mu.Lock()
@@ -316,31 +292,6 @@ func TestFlush_NilCallback(t *testing.T) {
 
 	// Should not panic.
 	c.flush(context.Background())
-
-	assert.Equal(t, 0, c.Size(), "buffer should be drained even without callback")
-}
-
-// --------------------------------------------------------------------
-// waitOrShutdown (package-level helper)
-// --------------------------------------------------------------------
-
-func TestWaitOrShutdown_TimerExpires(t *testing.T) {
-	t.Parallel()
-
-	result := waitOrShutdown(context.Background(), 1*time.Millisecond)
-
-	assert.False(t, result, "should return false when timer fires")
-}
-
-func TestWaitOrShutdown_ContextCancelled(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	result := waitOrShutdown(ctx, time.Hour)
-
-	assert.True(t, result, "should return true when context is cancelled")
 }
 
 // --------------------------------------------------------------------
@@ -357,11 +308,8 @@ func TestRun_SizeTrigger_FlushesWhenBatchFull(t *testing.T) {
 		batchSize,
 		10*time.Second, // large timeout so only size triggers
 		50*time.Millisecond,
-		10*time.Second,
 		nopLogger(),
 	)
-	c.SetFlushCallback(rec.record)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -373,7 +321,7 @@ func TestRun_SizeTrigger_FlushesWhenBatchFull(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		c.Run(ctx, fetchFuncImmediate(keyCh), waitForNextShutdown())
+		c.Run(ctx, rec.record, fetchFuncImmediate(keyCh), waitForNextShutdown())
 		close(done)
 	}()
 
@@ -400,11 +348,8 @@ func TestRun_SizeTrigger_AccumulatesAcrossPolls(t *testing.T) {
 		batchSize,
 		10*time.Second, // large timeout
 		50*time.Millisecond,
-		10*time.Second,
 		nopLogger(),
 	)
-	c.SetFlushCallback(rec.record)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -417,7 +362,7 @@ func TestRun_SizeTrigger_AccumulatesAcrossPolls(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		c.Run(ctx, fetchFuncImmediate(keyCh), waitForNextShutdown())
+		c.Run(ctx, rec.record, fetchFuncImmediate(keyCh), waitForNextShutdown())
 		close(done)
 	}()
 
@@ -449,11 +394,8 @@ func TestRun_TimeoutTrigger_FlushesPartialBatch(t *testing.T) {
 		batchSize,
 		200*time.Millisecond, // short timeout to trigger quickly
 		50*time.Millisecond,
-		10*time.Second,
 		nopLogger(),
 	)
-	c.SetFlushCallback(rec.record)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -465,7 +407,7 @@ func TestRun_TimeoutTrigger_FlushesPartialBatch(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		c.Run(ctx, fetchFuncImmediate(keyCh), waitForNextShutdown())
+		c.Run(ctx, rec.record, fetchFuncImmediate(keyCh), waitForNextShutdown())
 		close(done)
 	}()
 
@@ -492,11 +434,8 @@ func TestRun_EmptyBuffer_NoFlushOnTimeout(t *testing.T) {
 		10,
 		100*time.Millisecond,
 		50*time.Millisecond,
-		10*time.Second,
 		nopLogger(),
 	)
-	c.SetFlushCallback(rec.record)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
@@ -506,7 +445,7 @@ func TestRun_EmptyBuffer_NoFlushOnTimeout(t *testing.T) {
 		return nil, nil
 	}
 
-	c.Run(ctx, emptyFetch, func(ctx context.Context) bool {
+	c.Run(ctx, rec.record, emptyFetch, func(ctx context.Context) bool {
 		// Block until context is cancelled
 		<-ctx.Done()
 		return true
@@ -524,8 +463,7 @@ func TestRun_IdleMode_CallsWaitForNext(t *testing.T) {
 
 	var waitCalled atomic.Int32
 
-	c := NewBalanceSyncCollector(10, time.Second, 50*time.Millisecond, 10*time.Second, nopLogger())
-	c.SetFlushCallback(func(_ context.Context, _ []redisTransaction.SyncKey) bool { return true })
+	c := NewBalanceSyncCollector(10, time.Second, 50*time.Millisecond, nopLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -541,7 +479,7 @@ func TestRun_IdleMode_CallsWaitForNext(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		c.Run(ctx, emptyFetch, func(ctx context.Context) bool {
+		c.Run(ctx, func(_ context.Context, _ []redisTransaction.SyncKey) bool { return true }, emptyFetch, func(ctx context.Context) bool {
 			waitCalled.Add(1)
 			// First call: return false (continue loop) to verify re-entry
 			if waitCalled.Load() <= 1 {
@@ -572,11 +510,8 @@ func TestRun_ContextCancellation_FinalFlush(t *testing.T) {
 		batchSize,
 		10*time.Second, // long timeout
 		50*time.Millisecond,
-		10*time.Second,
 		nopLogger(),
 	)
-	c.SetFlushCallback(rec.record)
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	keyCh := make(chan []string, 10)
@@ -587,13 +522,16 @@ func TestRun_ContextCancellation_FinalFlush(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		c.Run(ctx, fetchFuncImmediate(keyCh), waitForNextShutdown())
+		c.Run(ctx, rec.record, fetchFuncImmediate(keyCh), waitForNextShutdown())
 		close(done)
 	}()
 
 	// Wait for the keys to be consumed into the buffer
 	require.Eventually(t, func() bool {
-		return c.Size() >= 2
+		c.mu.Lock()
+		n := len(c.buffer)
+		c.mu.Unlock()
+		return n >= 2
 	}, 3*time.Second, 10*time.Millisecond, "keys should be accumulated in buffer")
 
 	// Now cancel — the deferred final flush should fire
@@ -618,11 +556,8 @@ func TestRun_TransientFetchError_ContinuesLoop(t *testing.T) {
 		3,
 		10*time.Second,
 		10*time.Millisecond,
-		10*time.Second,
 		nopLogger(),
 	)
-	c.SetFlushCallback(rec.record)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -649,7 +584,7 @@ func TestRun_TransientFetchError_ContinuesLoop(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		c.Run(ctx, fetchFn, waitForNextShutdown())
+		c.Run(ctx, rec.record, fetchFn, waitForNextShutdown())
 		close(done)
 	}()
 
@@ -678,11 +613,8 @@ func TestRun_BusyMode_MultipleBatches(t *testing.T) {
 		batchSize,
 		10*time.Second,
 		50*time.Millisecond,
-		10*time.Second,
 		nopLogger(),
 	)
-	c.SetFlushCallback(rec.record)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -696,7 +628,7 @@ func TestRun_BusyMode_MultipleBatches(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		c.Run(ctx, fetchFuncImmediate(keyCh), waitForNextShutdown())
+		c.Run(ctx, rec.record, fetchFuncImmediate(keyCh), waitForNextShutdown())
 		close(done)
 	}()
 
@@ -726,11 +658,8 @@ func TestRun_MixedTrigger_TimeoutThenSize(t *testing.T) {
 		batchSize,
 		200*time.Millisecond, // short timeout
 		50*time.Millisecond,
-		10*time.Second,
 		nopLogger(),
 	)
-	c.SetFlushCallback(rec.record)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -743,7 +672,7 @@ func TestRun_MixedTrigger_TimeoutThenSize(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		c.Run(ctx, fetchFuncImmediate(keyCh), waitForNextResume(waitCh))
+		c.Run(ctx, rec.record, fetchFuncImmediate(keyCh), waitForNextResume(waitCh))
 		close(done)
 	}()
 
@@ -783,11 +712,8 @@ func TestRun_IdleResumeAfterWaitForNext(t *testing.T) {
 		batchSize,
 		200*time.Millisecond,
 		50*time.Millisecond,
-		10*time.Second,
 		nopLogger(),
 	)
-	c.SetFlushCallback(rec.record)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -824,7 +750,7 @@ func TestRun_IdleResumeAfterWaitForNext(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		c.Run(ctx, fetchFn, waitForNextResume(waitCh))
+		c.Run(ctx, rec.record, fetchFn, waitForNextResume(waitCh))
 		close(done)
 	}()
 
@@ -853,8 +779,8 @@ func TestRun_IdleResumeAfterWaitForNext(t *testing.T) {
 func TestRun_NilFlushCallback_NoPanic(t *testing.T) {
 	t.Parallel()
 
-	c := NewBalanceSyncCollector(2, 100*time.Millisecond, 50*time.Millisecond, 10*time.Second, nopLogger())
-	// Deliberately do NOT call SetFlushCallback.
+	c := NewBalanceSyncCollector(2, 100*time.Millisecond, 50*time.Millisecond, nopLogger())
+	// Deliberately pass nil flushFn.
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -864,7 +790,7 @@ func TestRun_NilFlushCallback_NoPanic(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		c.Run(ctx, fetchFuncImmediate(keyCh), waitForNextShutdown())
+		c.Run(ctx, nil, fetchFuncImmediate(keyCh), waitForNextShutdown())
 		close(done)
 	}()
 
@@ -885,9 +811,7 @@ func TestRun_ImmediateCancel_ExitsCleanly(t *testing.T) {
 
 	rec := &flushRecorder{}
 
-	c := NewBalanceSyncCollector(10, time.Second, 50*time.Millisecond, 10*time.Second, nopLogger())
-	c.SetFlushCallback(rec.record)
-
+	c := NewBalanceSyncCollector(10, time.Second, 50*time.Millisecond, nopLogger())
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
@@ -896,7 +820,7 @@ func TestRun_ImmediateCancel_ExitsCleanly(t *testing.T) {
 	c.buffer = append(c.buffer, redisTransaction.SyncKey{Key: "leftover"})
 	c.mu.Unlock()
 
-	c.Run(ctx, func(_ context.Context, _ int64) ([]redisTransaction.SyncKey, error) {
+	c.Run(ctx, rec.record, func(_ context.Context, _ int64) ([]redisTransaction.SyncKey, error) {
 		return nil, nil
 	}, waitForNextShutdown())
 
@@ -914,13 +838,11 @@ func TestRun_FinalFlush_EmptyBuffer_NoFlush(t *testing.T) {
 
 	rec := &flushRecorder{}
 
-	c := NewBalanceSyncCollector(10, time.Second, 50*time.Millisecond, 10*time.Second, nopLogger())
-	c.SetFlushCallback(rec.record)
-
+	c := NewBalanceSyncCollector(10, time.Second, 50*time.Millisecond, nopLogger())
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	c.Run(ctx, func(_ context.Context, _ int64) ([]redisTransaction.SyncKey, error) {
+	c.Run(ctx, rec.record, func(_ context.Context, _ int64) ([]redisTransaction.SyncKey, error) {
 		return nil, nil
 	}, waitForNextShutdown())
 
@@ -941,11 +863,8 @@ func TestRun_TimerResetOnFirstKeys(t *testing.T) {
 		batchSize,
 		300*time.Millisecond,
 		50*time.Millisecond,
-		10*time.Second,
 		nopLogger(),
 	)
-	c.SetFlushCallback(rec.record)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -955,7 +874,7 @@ func TestRun_TimerResetOnFirstKeys(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		c.Run(ctx, fetchFuncImmediate(keyCh), waitForNextResume(waitCh))
+		c.Run(ctx, rec.record, fetchFuncImmediate(keyCh), waitForNextResume(waitCh))
 		close(done)
 	}()
 
@@ -984,63 +903,6 @@ func TestRun_TimerResetOnFirstKeys(t *testing.T) {
 }
 
 // --------------------------------------------------------------------
-// Run — Concurrent safety: multiple goroutines checking Size()
-// --------------------------------------------------------------------
-
-func TestRun_ConcurrentSizeAccess(t *testing.T) {
-	t.Parallel()
-
-	c := NewBalanceSyncCollector(100, 200*time.Millisecond, 20*time.Millisecond, 10*time.Second, nopLogger())
-	c.SetFlushCallback(func(_ context.Context, _ []redisTransaction.SyncKey) bool { return true })
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	keyCh := make(chan []string, 100)
-
-	// Feed keys continuously
-	go func() {
-		for i := 0; i < 50; i++ {
-			select {
-			case keyCh <- []string{"k"}:
-			case <-ctx.Done():
-				return
-			}
-
-			time.Sleep(5 * time.Millisecond)
-		}
-	}()
-
-	done := make(chan struct{})
-
-	go func() {
-		c.Run(ctx, fetchFuncImmediate(keyCh), waitForNextShutdown())
-		close(done)
-	}()
-
-	// Concurrently read Size() while Run is active
-	var wg sync.WaitGroup
-
-	for range 5 {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			for range 20 {
-				_ = c.Size()
-				time.Sleep(2 * time.Millisecond)
-			}
-		}()
-	}
-
-	wg.Wait()
-	cancel()
-	<-done
-	// No race condition = test passed.
-}
-
-// --------------------------------------------------------------------
 // Run — fetchKeys blocking: uses channel-based fetchFunc
 // (verifies that a blocking fetch properly yields on ctx cancellation)
 // --------------------------------------------------------------------
@@ -1048,8 +910,7 @@ func TestRun_ConcurrentSizeAccess(t *testing.T) {
 func TestRun_BlockingFetch_ContextCancellation(t *testing.T) {
 	t.Parallel()
 
-	c := NewBalanceSyncCollector(10, time.Second, 50*time.Millisecond, 10*time.Second, nopLogger())
-	c.SetFlushCallback(func(_ context.Context, _ []redisTransaction.SyncKey) bool { return true })
+	c := NewBalanceSyncCollector(10, time.Second, 50*time.Millisecond, nopLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -1059,7 +920,7 @@ func TestRun_BlockingFetch_ContextCancellation(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		c.Run(ctx, fetchFunc(keyCh), waitForNextShutdown())
+		c.Run(ctx, func(_ context.Context, _ []redisTransaction.SyncKey) bool { return true }, fetchFunc(keyCh), waitForNextShutdown())
 		close(done)
 	}()
 
@@ -1089,11 +950,8 @@ func TestRun_MultipleFlushCycles(t *testing.T) {
 		batchSize,
 		150*time.Millisecond,
 		20*time.Millisecond,
-		10*time.Second,
 		nopLogger(),
 	)
-	c.SetFlushCallback(rec.record)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -1103,12 +961,14 @@ func TestRun_MultipleFlushCycles(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		c.Run(ctx, fetchFuncImmediate(keyCh), waitForNextResume(waitCh))
+		c.Run(ctx, rec.record, fetchFuncImmediate(keyCh), waitForNextResume(waitCh))
 		close(done)
 	}()
 
 	// Cycle 1: size trigger
+	// Send keys and wake idle mode so the collector fetches them.
 	keyCh <- []string{"c1a", "c1b"}
+	waitCh <- struct{}{}
 
 	require.Eventually(t, func() bool {
 		return rec.count() >= 1

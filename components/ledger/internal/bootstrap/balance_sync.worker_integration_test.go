@@ -31,7 +31,7 @@ import (
 // TestIntegration_BalanceSyncSchedule_FullFlow tests the complete schedule lifecycle:
 // 1. Add a balance key to the sync schedule (sorted set)
 // 2. Verify GetBalanceSyncKeys returns it when due
-// 3. Verify RemoveBalanceSyncKey removes it
+// 3. Verify RemoveBalanceSyncKeysBatch removes it
 func TestIntegration_BalanceSyncSchedule_FullFlow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -81,19 +81,36 @@ func TestIntegration_BalanceSyncSchedule_FullFlow(t *testing.T) {
 	t.Log("Step 3: Verifying GetBalanceSyncKeys returns the scheduled key")
 	keys, err := repo.GetBalanceSyncKeys(ctx, 10)
 	require.NoError(t, err, "GetBalanceSyncKeys should succeed")
-	assert.Contains(t, keys, balanceKey, "should return our scheduled key")
+
+	var claimedKey *redis.SyncKey
+	for i := range keys {
+		if keys[i].Key == balanceKey {
+			claimedKey = &keys[i]
+			break
+		}
+	}
+
+	require.NotNil(t, claimedKey, "should return our scheduled key")
 	t.Logf("GetBalanceSyncKeys returned %d keys", len(keys))
 
-	// Step 4: Remove the key from schedule
+	// Step 4: Remove the key from schedule using batch (conditional on score)
 	t.Log("Step 4: Removing key from schedule")
-	err = repo.RemoveBalanceSyncKey(ctx, balanceKey)
-	require.NoError(t, err, "RemoveBalanceSyncKey should succeed")
+	removed, err := repo.RemoveBalanceSyncKeysBatch(ctx, []redis.SyncKey{*claimedKey})
+	require.NoError(t, err, "RemoveBalanceSyncKeysBatch should succeed")
+	assert.Equal(t, int64(1), removed, "should remove exactly 1 key")
 
 	// Step 5: Verify key is no longer in schedule
 	t.Log("Step 5: Verifying key is removed from schedule")
 	keysAfter, err := repo.GetBalanceSyncKeys(ctx, 10)
 	require.NoError(t, err)
-	assert.NotContains(t, keysAfter, balanceKey, "key should be removed from schedule")
+
+	for _, k := range keysAfter {
+		assert.NotEqual(t, balanceKey, k.Key, "key should be removed from schedule")
+	}
+
+	// Direct ZSET assertion: verify the member is actually gone from the schedule
+	score := container.Client.ZScore(ctx, utils.BalanceSyncScheduleKey, balanceKey)
+	require.Error(t, score.Err(), "balance key should not exist in ZSET after removal")
 
 	t.Log("Integration test passed: balance sync schedule full flow verified")
 }
@@ -193,13 +210,23 @@ func TestIntegration_BalanceSyncSchedule_FutureKeys(t *testing.T) {
 	keys, err := repo.GetBalanceSyncKeys(ctx, 10)
 	require.NoError(t, err)
 
-	assert.Contains(t, keys, dueNowKey, "should return the due key")
-	assert.NotContains(t, keys, futureDueKey, "should NOT return the future key")
+	var foundDueKey, foundFutureKey bool
+	for _, k := range keys {
+		if k.Key == dueNowKey {
+			foundDueKey = true
+		}
+		if k.Key == futureDueKey {
+			foundFutureKey = true
+		}
+	}
+
+	assert.True(t, foundDueKey, "should return the due key")
+	assert.False(t, foundFutureKey, "should NOT return the future key")
 	t.Logf("GetBalanceSyncKeys returned %d keys (expected 1)", len(keys))
 
-	// Cleanup
-	_ = repo.RemoveBalanceSyncKey(ctx, dueNowKey)
-	_ = repo.RemoveBalanceSyncKey(ctx, futureDueKey)
+	// Cleanup: remove directly via ZREM (container is torn down after test anyway)
+	container.Client.ZRem(ctx, utils.BalanceSyncScheduleKey, dueNowKey)
+	container.Client.ZRem(ctx, utils.BalanceSyncScheduleKey, futureDueKey)
 
 	t.Log("Integration test passed: future keys correctly filtered")
 }

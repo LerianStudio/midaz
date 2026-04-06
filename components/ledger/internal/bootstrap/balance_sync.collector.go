@@ -6,7 +6,6 @@ package bootstrap
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -28,7 +27,6 @@ type BalanceSyncCollector struct {
 	batchSize    int
 	flushTimeout time.Duration
 	pollInterval time.Duration
-	idleBackoff  time.Duration
 	buffer       []redisTransaction.SyncKey
 	flushFn      FlushFunc
 	logger       libLog.Logger
@@ -51,7 +49,6 @@ func NewBalanceSyncCollector(
 	batchSize int,
 	flushTimeout time.Duration,
 	pollInterval time.Duration,
-	idleBackoff time.Duration,
 	logger libLog.Logger,
 ) *BalanceSyncCollector {
 	if batchSize <= 0 {
@@ -66,26 +63,13 @@ func NewBalanceSyncCollector(
 		pollInterval = 50 * time.Millisecond
 	}
 
-	if idleBackoff <= 0 {
-		idleBackoff = 10 * time.Second
-	}
-
 	return &BalanceSyncCollector{
 		batchSize:    batchSize,
 		flushTimeout: flushTimeout,
 		pollInterval: pollInterval,
-		idleBackoff:  idleBackoff,
 		buffer:       make([]redisTransaction.SyncKey, 0, batchSize),
 		logger:       logger,
 	}
-}
-
-// SetFlushCallback sets the function called when the collector flushes accumulated keys.
-func (c *BalanceSyncCollector) SetFlushCallback(fn FlushFunc) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.flushFn = fn
 }
 
 // Run starts the collector's main loop. It polls for eligible keys and flushes
@@ -95,7 +79,8 @@ func (c *BalanceSyncCollector) SetFlushCallback(fn FlushFunc) {
 //   - Busy mode: keys are available, tight poll loop to accumulate quickly
 //   - Draining mode: buffer has items but no new keys, wait for timeout or poll
 //   - Idle mode: nothing to do, sleep until next scheduled key
-func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc, waitForNext WaitForNextFunc) {
+func (c *BalanceSyncCollector) Run(ctx context.Context, flushFn FlushFunc, fetchKeys FetchKeysFunc, waitForNext WaitForNextFunc) {
+	c.flushFn = flushFn
 	timer := time.NewTimer(c.flushTimeout)
 	pollTimer := time.NewTimer(c.pollInterval)
 
@@ -110,14 +95,18 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc,
 			return
 		}
 
-		// Poll: fetch eligible keys from ZSET
+		// Calculate how many keys to request: only ask for enough to fill the
+		// buffer up to batchSize. This avoids over-fetching and claiming more
+		// keys than we can flush in one batch.
+		// The mutex guards against concurrent reads from Size() which is public
+		// and may be called from another goroutine (e.g., monitoring, tests).
 		c.mu.Lock()
 		remaining := c.batchSize - len(c.buffer)
 		c.mu.Unlock()
 
 		keys, err := fetchKeys(ctx, int64(remaining))
 		if err != nil {
-			c.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncCollector: fetch keys error: "+err.Error())
+			c.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncCollector: fetch keys error", libLog.Err(err))
 
 			// If the buffer already has items, skip the sleep and re-enter the
 			// draining path so the timeout trigger can still flush on time.
@@ -130,7 +119,7 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc,
 				continue
 			}
 
-			if waitOrShutdown(ctx, c.pollInterval) {
+			if waitOrDone(ctx, c.pollInterval, c.logger) {
 				return
 			}
 
@@ -138,9 +127,8 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc,
 		}
 
 		if len(keys) > 0 {
-			if c.handleBusyMode(ctx, keys, timer) {
-				continue
-			}
+			c.handleBusyMode(ctx, keys, timer)
+			continue
 		}
 
 		// No keys fetched from ZSET
@@ -159,37 +147,50 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, fetchKeys FetchKeysFunc,
 	}
 }
 
-// handleBusyMode processes newly fetched keys: appends to buffer, flushes on SIZE trigger,
-// or continues the tight poll loop. Returns true if the main loop should continue immediately.
-func (c *BalanceSyncCollector) handleBusyMode(ctx context.Context, keys []redisTransaction.SyncKey, timer *time.Timer) bool {
+// handleBusyMode processes newly fetched keys: appends to buffer and flushes on
+// SIZE trigger. After this, the main loop always continues immediately (tight poll).
+func (c *BalanceSyncCollector) handleBusyMode(ctx context.Context, keys []redisTransaction.SyncKey, timer *time.Timer) {
 	c.mu.Lock()
 	wasEmpty := len(c.buffer) == 0
 	c.buffer = append(c.buffer, keys...)
 	bufLen := len(c.buffer)
 	c.mu.Unlock()
 
-	c.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncCollector: fetched %d keys, buffer=%d/%d", len(keys), bufLen, c.batchSize))
+	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: fetched keys",
+		libLog.Int("fetched", len(keys)),
+		libLog.Int("buffer", bufLen),
+		libLog.Int("batch_size", c.batchSize),
+	)
 
-	// Reset timer when first keys arrive in a previously empty buffer
+	// Start the flush timeout window when the first keys arrive in an empty buffer.
+	// The timer is NOT reset on subsequent fetches — otherwise a steady trickle of
+	// keys (few per poll) would keep pushing the deadline forward and the TIMEOUT
+	// trigger would never fire, leaving partial batches stuck indefinitely.
 	if wasEmpty {
 		stopAndDrain(timer)
 		timer.Reset(c.flushTimeout)
 	}
 
-	// SIZE trigger: buffer full → flush immediately
+	// SIZE trigger: buffer full → flush immediately and reset the timeout
+	// window for the next batch cycle.
 	if bufLen >= c.batchSize {
-		c.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncCollector: SIZE trigger fired (buffer=%d >= batch_size=%d), flushing now", bufLen, c.batchSize))
+		c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: SIZE trigger fired, flushing now",
+			libLog.Int("buffer", bufLen),
+			libLog.Int("batch_size", c.batchSize),
+		)
 		c.flush(ctx)
 		stopAndDrain(timer)
 		timer.Reset(c.flushTimeout)
 	}
-
-	return true // always continue tight loop after fetching keys
 }
 
-// handleDrainingMode waits for either the TIMEOUT trigger or the poll interval
-// when the buffer has items but no new keys are arriving.
-// pollTimer is a reusable timer for the poll interval (avoids time.After allocation leak).
+// handleDrainingMode is entered when the buffer has items but the last fetch
+// returned no new keys. It blocks on a select between three events:
+//   - ctx.Done: shutdown requested, return and let flushRemaining handle the buffer
+//   - timer.C: flush timeout elapsed (TIMEOUT trigger), flush the partial batch
+//   - pollTimer.C: poll interval elapsed, return to the loop to try fetching again
+//
+// pollTimer is reusable across iterations (avoids time.After allocation leak).
 func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen int, timer *time.Timer, pollTimer *time.Timer) {
 	stopAndDrain(pollTimer)
 	pollTimer.Reset(c.pollInterval)
@@ -198,25 +199,31 @@ func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen in
 	case <-ctx.Done():
 		return
 	case <-timer.C:
-		c.logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("BalanceSyncCollector: TIMEOUT trigger fired (%v elapsed, buffer=%d), flushing now", c.flushTimeout, bufLen))
+		c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: TIMEOUT trigger fired, flushing now",
+			libLog.String("flush_timeout", c.flushTimeout.String()),
+			libLog.Int("buffer", bufLen),
+		)
 		c.flush(ctx)
 		timer.Reset(c.flushTimeout)
 	case <-pollTimer.C:
-		// Poll again to check for new keys
+		// No action — return to the main loop to try fetching again
 	}
 }
 
-// handleIdleMode stops the timer and waits for the next scheduled key or shutdown.
-// Returns true if shutdown was requested.
+// handleIdleMode is entered when both the buffer and the ZSET are empty —
+// there is nothing to flush and nothing to fetch. The flush timer is stopped
+// (no point counting a timeout with an empty buffer) and the collector sleeps
+// via waitForNext until either new keys arrive or shutdown is requested.
+// Returns true if shutdown was requested during the wait.
 func (c *BalanceSyncCollector) handleIdleMode(ctx context.Context, timer *time.Timer, waitForNext WaitForNextFunc) bool {
-	c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: idle mode — no keys in ZSET, waiting for next scheduled key")
+	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: idle mode, waiting for new keys")
 	stopAndDrain(timer)
 
 	if waitForNext(ctx) {
-		return true
+		return true // shutdown requested
 	}
 
-	c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: woke up from idle, resuming polling")
+	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: woke up from idle, resuming polling")
 	timer.Reset(c.flushTimeout)
 
 	return false
@@ -226,6 +233,8 @@ func (c *BalanceSyncCollector) handleIdleMode(ctx context.Context, timer *time.T
 // ctx carries context values (tenant ID, PG connection) needed by the flush callback.
 // The cancellation signal is stripped via context.WithoutCancel so the final flush
 // can complete even after the parent context has been cancelled.
+const shutdownFlushTimeout = 30 * time.Second
+
 func (c *BalanceSyncCollector) flushRemaining(ctx context.Context) {
 	c.mu.Lock()
 	remaining := c.buffer
@@ -233,16 +242,23 @@ func (c *BalanceSyncCollector) flushRemaining(ctx context.Context) {
 	c.mu.Unlock()
 
 	if len(remaining) > 0 && c.flushFn != nil {
-		c.logger.Log(context.Background(), libLog.LevelInfo, fmt.Sprintf("BalanceSyncCollector: shutdown — final flush of %d remaining keys", len(remaining)))
-
-		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		// Use WithoutCancel to preserve context values (tenant ID, PG connection)
+		// while removing the cancellation signal that already fired.
+		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownFlushTimeout)
 		defer cancel()
+
+		c.logger.Log(flushCtx, libLog.LevelInfo, "BalanceSyncCollector: shutdown — final flush",
+			libLog.Int("remaining_keys", len(remaining)),
+		)
 
 		c.flushFn(flushCtx, remaining)
 	}
 }
 
-// flush drains the buffer and calls the flush callback.
+// flush swaps the buffer for a fresh slice under the mutex, then calls the flush
+// callback outside the lock. This swap-and-release pattern keeps the critical section
+// short (no I/O under lock) while the callback may perform expensive work
+// (Redis MGET, PostgreSQL batch update, conditional ZREM).
 func (c *BalanceSyncCollector) flush(ctx context.Context) {
 	c.mu.Lock()
 
@@ -260,33 +276,18 @@ func (c *BalanceSyncCollector) flush(ctx context.Context) {
 	}
 }
 
-// Size returns the current number of accumulated keys.
-func (c *BalanceSyncCollector) Size() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return len(c.buffer)
-}
-
-// stopAndDrain stops a timer and drains its channel if needed.
+// stopAndDrain stops a timer and drains any stale event from its channel,
+// making it safe to call Reset afterwards. This is necessary because
+// time.Timer.Reset does NOT clear the channel — if the timer already fired
+// but nobody read timer.C, the old event stays buffered and the next
+// select { case <-timer.C } would fire immediately with the stale event
+// instead of waiting for the new deadline. The select-with-default makes the
+// drain non-blocking in case the channel is already empty.
 func stopAndDrain(t *time.Timer) {
 	if !t.Stop() {
 		select {
 		case <-t.C:
 		default:
 		}
-	}
-}
-
-// waitOrShutdown waits for duration d or returns true if ctx is cancelled.
-func waitOrShutdown(ctx context.Context, d time.Duration) bool {
-	t := time.NewTimer(d)
-	defer t.Stop()
-
-	select {
-	case <-ctx.Done():
-		return true
-	case <-t.C:
-		return false
 	}
 }

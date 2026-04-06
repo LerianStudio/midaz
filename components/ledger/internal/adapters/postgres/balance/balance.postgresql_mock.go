@@ -268,34 +268,19 @@ func (mr *MockRepositoryMockRecorder) ListByIDs(ctx, organizationID, ledgerID, i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByIDs", reflect.TypeOf((*MockRepository)(nil).ListByIDs), ctx, organizationID, ledgerID, ids)
 }
 
-// Sync mocks base method.
-func (m *MockRepository) Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error) {
+// UpdateMany mocks base method.
+func (m *MockRepository) UpdateMany(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Sync", ctx, organizationID, ledgerID, b)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Sync indicates an expected call of Sync.
-func (mr *MockRepositoryMockRecorder) Sync(ctx, organizationID, ledgerID, b any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sync", reflect.TypeOf((*MockRepository)(nil).Sync), ctx, organizationID, ledgerID, b)
-}
-
-// SyncBatch mocks base method.
-func (m *MockRepository) SyncBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SyncBatch", ctx, organizationID, ledgerID, balances)
+	ret := m.ctrl.Call(m, "UpdateMany", ctx, organizationID, ledgerID, balances)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// SyncBatch indicates an expected call of SyncBatch.
-func (mr *MockRepositoryMockRecorder) SyncBatch(ctx, organizationID, ledgerID, balances any) *gomock.Call {
+// UpdateMany indicates an expected call of UpdateMany.
+func (mr *MockRepositoryMockRecorder) UpdateMany(ctx, organizationID, ledgerID, balances any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncBatch", reflect.TypeOf((*MockRepository)(nil).SyncBatch), ctx, organizationID, ledgerID, balances)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMany", reflect.TypeOf((*MockRepository)(nil).UpdateMany), ctx, organizationID, ledgerID, balances)
 }
 
 // Update mocks base method.

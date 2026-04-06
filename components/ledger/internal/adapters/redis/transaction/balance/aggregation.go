@@ -52,12 +52,12 @@ func BalanceCompositeKeyFromRedisKey(redisKey string) (BalanceCompositeKey, erro
 	// Parts: [balance, {transactions}, orgID, ledgerID, alias...#key]
 	orgID, err := uuid.Parse(parts[2])
 	if err != nil {
-		return BalanceCompositeKey{}, fmt.Errorf("invalid organization ID at position 2: %w", err)
+		return BalanceCompositeKey{}, fmt.Errorf("invalid organization ID in redis key %q: %w", redisKey, err)
 	}
 
 	ledgerID, err := uuid.Parse(parts[3])
 	if err != nil {
-		return BalanceCompositeKey{}, fmt.Errorf("invalid ledger ID at position 3: %w", err)
+		return BalanceCompositeKey{}, fmt.Errorf("invalid ledger ID in redis key %q: %w", redisKey, err)
 	}
 
 	// Join all parts from index 4 onwards to handle aliases with colons (e.g., "test:account:100#other")
@@ -75,7 +75,7 @@ func BalanceCompositeKeyFromRedisKey(redisKey string) (BalanceCompositeKey, erro
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		AccountID:      alias,
-		AssetCode:      "", // Will be populated from balance data
+		AssetCode:      "", // Not in Redis key pattern; enriched by SyncBalancesBatch from the balance value
 		PartitionKey:   partitionKey,
 	}, nil
 }
@@ -87,21 +87,21 @@ type AggregatedBalance struct {
 	Key      BalanceCompositeKey
 }
 
-// BalanceAggregator defines the interface for aggregating balance updates.
-type BalanceAggregator interface {
+// SyncAggregator defines the interface for aggregating balance updates.
+type SyncAggregator interface {
 	// Aggregate takes a slice of balances and returns deduplicated balances
 	// with only the highest version per composite key.
 	// The result is sorted by composite key for deterministic output.
 	Aggregate(ctx context.Context, balances []*AggregatedBalance) []*AggregatedBalance
 }
 
-// InMemoryAggregator implements BalanceAggregator using in-memory map.
+// InMemorySyncAggregator implements SyncAggregator using in-memory map.
 // It groups balances by composite key and retains only the highest version.
-type InMemoryAggregator struct{}
+type InMemorySyncAggregator struct{}
 
-// NewInMemoryAggregator creates a new in-memory balance aggregator.
-func NewInMemoryAggregator() *InMemoryAggregator {
-	return &InMemoryAggregator{}
+// NewInMemorySyncAggregator creates a new in-memory balance aggregator.
+func NewInMemorySyncAggregator() *InMemorySyncAggregator {
+	return &InMemorySyncAggregator{}
 }
 
 // Aggregate groups balances by composite key and returns only the highest version per key.
@@ -119,11 +119,11 @@ func NewInMemoryAggregator() *InMemoryAggregator {
 //
 // Time complexity: O(n + m log m) where n is input size and m is unique keys
 // Space complexity: O(m) where m is number of unique composite keys
-func (a *InMemoryAggregator) Aggregate(ctx context.Context, balances []*AggregatedBalance) []*AggregatedBalance {
+func (a *InMemorySyncAggregator) Aggregate(ctx context.Context, balances []*AggregatedBalance) []*AggregatedBalance {
 	//nolint:dogsled // standard pattern used throughout codebase
 	_, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "aggregator.aggregate")
+	_, span := tracer.Start(ctx, "balance_sync.aggregate")
 	defer span.End()
 
 	if len(balances) == 0 {
@@ -175,5 +175,5 @@ func (a *InMemoryAggregator) Aggregate(ctx context.Context, balances []*Aggregat
 	return result
 }
 
-// Ensure InMemoryAggregator implements BalanceAggregator at compile time
-var _ BalanceAggregator = (*InMemoryAggregator)(nil)
+// Ensure InMemorySyncAggregator implements SyncAggregator at compile time
+var _ SyncAggregator = (*InMemorySyncAggregator)(nil)

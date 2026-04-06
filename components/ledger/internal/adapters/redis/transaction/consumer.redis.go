@@ -31,11 +31,8 @@ import (
 //go:embed scripts/balance_atomic_operation.lua
 var balanceAtomicOperationLua string
 
-//go:embed scripts/get_balances_near_expiration.lua
-var getBalancesNearExpirationLua string
-
-//go:embed scripts/unschedule_synced_balance.lua
-var unscheduleSyncedBalanceLua string
+//go:embed scripts/claim_balance_sync_keys.lua
+var claimBalanceSyncKeysLua string
 
 //go:embed scripts/remove_balance_sync_keys_batch.lua
 var removeBalanceSyncKeysBatchScript string
@@ -86,28 +83,49 @@ type SyncKey struct {
 
 //go:generate mockgen --destination=consumer.redis_mock.go --package=redis . RedisRepository
 type RedisRepository interface {
+	// Set stores a key-value pair with a TTL.
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
+	// SetNX stores a key-value pair only if the key does not already exist (atomic).
+	// Returns true if the key was set, false if it already existed.
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	// Get retrieves a value by key. Returns ("", nil) on cache miss (key not found).
 	// Returns ("", error) on connection or other errors.
 	Get(ctx context.Context, key string) (string, error)
+	// MGet retrieves multiple values by key. Returns a map of key -> value.
+	// Missing keys are omitted from the result (not included with empty string).
 	MGet(ctx context.Context, keys []string) (map[string]string, error)
+	// Del removes a key from Redis.
 	Del(ctx context.Context, key string) error
+	// Incr atomically increments a key's integer value and returns the new value.
+	// Returns 0 on error (connection failure, namespace failure).
 	Incr(ctx context.Context, key string) int64
+	// ProcessBalanceAtomicOperation executes the Lua balance mutation script.
+	// Atomically updates balances, records backup, and schedules sync in a single round-trip.
+	// Returns before/after balance snapshots for event emission.
 	ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error)
+	// SetBytes stores binary data with a TTL.
 	SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error
+	// GetBytes retrieves binary data by key.
 	GetBytes(ctx context.Context, key string) ([]byte, error)
+	// AddMessageToQueue appends a message to the transaction backup hash queue.
 	AddMessageToQueue(ctx context.Context, key string, msg []byte) error
+	// ReadMessageFromQueue reads a specific message from the backup queue by key.
 	ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error)
+	// ReadAllMessagesFromQueue reads all messages from the backup queue.
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
+	// RemoveMessageFromQueue removes a specific message from the backup queue by key.
 	RemoveMessageFromQueue(ctx context.Context, key string) error
+	// GetBalanceSyncKeys claims due balance keys from the ZSET schedule using a Lua script.
+	// Each claimed key gets a distributed lock (SET NX EX) to prevent concurrent processing.
+	// Returns the claimed keys with their scores for conditional removal later.
 	GetBalanceSyncKeys(ctx context.Context, limit int64) ([]SyncKey, error)
-	RemoveBalanceSyncKey(ctx context.Context, member string) error
 	// ScheduleBalanceSyncBatch schedules multiple balance keys for sync using ZADD NX.
 	// Each member is a balance key with score = scheduled sync time (Unix timestamp).
 	// Uses NX mode: only adds new members, does not update scores of existing ones.
 	// This preserves the earliest scheduled sync time for each balance key.
 	ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error
+	// ListBalanceByKey retrieves a single balance from Redis by its internal key
+	// and converts it from the cache format (BalanceRedis) to the domain model (Balance).
 	ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error)
 	// GetBalancesByKeys retrieves multiple balance values by their Redis keys using MGET.
 	// Returns a map of key -> *mmodel.BalanceRedis (nil if key does not exist).
@@ -975,31 +993,68 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get redis client: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get redis client", libLog.Err(err))
 
 		return nil, err
 	}
 
-	script := redis.NewScript(getBalancesNearExpirationLua)
+	// Use the claim_balance_sync_keys.lua script to claim the balance sync keys.
+	script := redis.NewScript(claimBalanceSyncKeysLua)
 
 	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
 	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace schedule key", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace schedule key", libLog.Err(err))
+
 		return nil, err
 	}
 
 	prefixedLockPrefix, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncLockPrefix)
 	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace lock prefix", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace lock prefix", libLog.Err(err))
+
 		return nil, err
 	}
 
-	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, int64(600), prefixedLockPrefix).Result()
+	// claimTTLSeconds is the distributed lock TTL for claimed keys.
+	// Must be longer than the worst-case flush cycle (fetch → aggregate → persist → remove).
+	// If a worker crashes after claiming, keys become re-claimable after this TTL expires.
+	const claimTTLSeconds int64 = 600 // 10 minutes
+
+	res, err := script.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to run get_balances_near_expiration.lua: %v", err))
+		libOpentelemetry.HandleSpanError(span, "Failed to run claim_balance_sync_keys.lua", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to run claim_balance_sync_keys.lua", libLog.Err(err))
 
 		return nil, err
 	}
 
-	// Parse alternating [member, score, member, score, ...] from Lua result
+	out, err := parseSyncKeysFromLuaResult(res, logger, ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to parse claim script result", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to parse claim script result", libLog.Err(err))
+
+		return nil, err
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, "Claimed balance sync keys",
+		libLog.Int("count", len(out)))
+
+	return out, nil
+}
+
+// parseSyncKeysFromLuaResult converts the raw Lua script result (alternating
+// [member, score, member, score, ...]) into a typed []SyncKey slice.
+//
+// Resilience: malformed entries never block other keys from being synced.
+//   - Unparseable score: the pair is skipped, remaining keys continue. The skipped
+//     key stays claimed (lock held) and becomes re-claimable after claimTTL expires.
+//   - Odd number of elements: the trailing orphan member is ignored by the loop guard.
+//   - Invalid member format (no UUIDs): passes through here as a plain string; caught
+//     later by extractIDsFromMember in the worker, which removes it as a poison record.
+func parseSyncKeysFromLuaResult(res any, logger libLog.Logger, ctx context.Context) ([]SyncKey, error) {
 	var raw []string
 
 	switch vv := res.(type) {
@@ -1018,65 +1073,23 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	case []string:
 		raw = vv
 	default:
-		err = fmt.Errorf("unexpected result type from Redis script: %T", res)
-
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Warning: %v", err))
-
-		return nil, err
+		return nil, fmt.Errorf("unexpected result type from Redis script: %T", res)
 	}
 
 	out := make([]SyncKey, 0, len(raw)/2)
 	for i := 0; i+1 < len(raw); i += 2 {
 		score, parseErr := strconv.ParseFloat(raw[i+1], 64)
 		if parseErr != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to parse score for %s: %v", raw[i], parseErr))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to parse score for claimed key",
+				libLog.String("key", raw[i]), libLog.Err(parseErr))
+
 			continue
 		}
 
 		out = append(out, SyncKey{Key: raw[i], Score: score})
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("fetch_due returned %d keys", len(out)))
-
 	return out, nil
-}
-
-// RemoveScheduledMember removes a single scheduled member from the ZSET.
-func (rr *RedisConsumerRepository) RemoveBalanceSyncKey(ctx context.Context, member string) error {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.remove_balance_sync_key")
-	defer span.End()
-
-	rds, err := rr.conn.GetClient(ctx)
-	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to get redis client: %v", err))
-
-		return err
-	}
-
-	script := redis.NewScript(unscheduleSyncedBalanceLua)
-
-	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
-	if err != nil {
-		return err
-	}
-
-	prefixedLockPrefix, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncLockPrefix)
-	if err != nil {
-		return err
-	}
-
-	_, err = script.Run(ctx, rds, []string{prefixedScheduleKey}, member, prefixedLockPrefix).Result()
-	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to run unschedule_synced_balance.lua for %s: %v", member, err))
-
-		return err
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Unscheduled synced balance: %s", member))
-
-	return nil
 }
 
 // ScheduleBalanceSyncBatch schedules multiple balance keys for sync using batch ZADD NX.
@@ -1237,8 +1250,7 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 	client, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get redis client: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get redis client", libLog.Err(err))
 
 		return nil, err
 	}
@@ -1246,12 +1258,14 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 	prefixedKeys, err := tenantKeysFromContext(ctx, keys)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis keys", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to namespace redis keys: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace redis keys", libLog.Err(err))
 
 		return nil, err
 	}
 
-	// Process in chunks to prevent oversized payloads
+	// Process in chunks to prevent oversized payloads.
+	// chunk (prefixed) is sent to Redis; originalKeysChunk (unprefixed) is used as
+	// map keys in the result so callers can look up by the keys they know.
 	for start := 0; start < len(prefixedKeys); start += maxRedisBatchSize {
 		end := min(start+maxRedisBatchSize, len(prefixedKeys))
 		chunk := prefixedKeys[start:end]
@@ -1260,8 +1274,7 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 		values, err := client.MGet(ctx, chunk...).Result()
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to MGET balances", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to MGET balances: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to MGET balances", libLog.Err(err))
 
 			return nil, err
 		}
@@ -1281,7 +1294,8 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 			case []byte:
 				strVal = string(v)
 			default:
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Unexpected value type for key %s: %T", key, values[i]))
+				logger.Log(ctx, libLog.LevelWarn, "Unexpected value type for balance key",
+					libLog.String("key", key))
 
 				result[key] = nil
 
@@ -1290,7 +1304,8 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 
 			var balance mmodel.BalanceRedis
 			if err := json.Unmarshal([]byte(strVal), &balance); err != nil {
-				logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to unmarshal balance for key %s: %v", key, err))
+				logger.Log(ctx, libLog.LevelWarn, "Failed to unmarshal balance",
+					libLog.String("key", key), libLog.Err(err))
 
 				result[key] = nil
 

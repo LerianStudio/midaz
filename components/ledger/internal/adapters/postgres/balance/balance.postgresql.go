@@ -69,8 +69,7 @@ type Repository interface {
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error
-	Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error)
-	SyncBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error)
+	UpdateMany(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error)
 	UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error
 	ListByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAccountIDAtTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time) ([]*mmodel.Balance, error)
@@ -1389,64 +1388,18 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	return record.ToEntity(), nil
 }
 
-func (r *BalancePostgreSQLRepository) Sync(ctx context.Context, organizationID, ledgerID uuid.UUID, b mmodel.BalanceRedis) (bool, error) {
-	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "postgres.sync_balance")
-	defer span.End()
-
-	id, err := uuid.Parse(b.ID)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "invalid balance ID", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("invalid balance ID: %v", err))
-
-		return false, err
-	}
-
-	db, err := r.getDB(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
-
-		return false, err
-	}
-
-	res, err := db.ExecContext(ctx, `
-		UPDATE balance
-		SET available = $1, on_hold = $2, version = $3, updated_at = $4
-		WHERE organization_id = $5 AND ledger_id = $6 AND id = $7 AND deleted_at IS NULL AND version < $3
-	`, b.Available, b.OnHold, b.Version, time.Now(), organizationID, ledgerID, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to update balance from redis", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balance from redis: %v", err))
-
-		return false, err
-	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to read rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to read rows affected: %v", err))
-
-		return false, err
-	}
-
-	return affected > 0, nil
-}
-
-// SyncBatch persists multiple balances from cache to database in a single transaction.
-// This is more efficient than calling Sync in a loop as it:
-// 1. Uses a single database transaction for all updates
-// 2. Reduces round-trips between application and database
-// 3. Provides atomicity - all updates succeed or all fail
+// UpdateMany persists multiple balances to the database in a single UPDATE statement.
+// Uses a VALUES clause to send all balances in one round-trip, which is significantly
+// faster than individual UPDATEs (1 round-trip vs N).
 //
-// Uses optimistic locking: only updates balances where version < incoming version.
-// Returns count of actually updated rows.
-func (r *BalancePostgreSQLRepository) SyncBatch(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
+// Optimistic locking: only updates rows where version < incoming version.
+// A single statement is atomic in PostgreSQL — no explicit transaction needed.
+// Returns count of actually updated rows (rows with stale versions are skipped).
+//
+// Note: this method uses raw SQL instead of Squirrel because UPDATE ... FROM (VALUES ...)
+// is a PostgreSQL-specific extension that Squirrel's Update builder does not support.
+// Wrapping it in squirrel.Expr would add complexity without benefit.
+func (r *BalancePostgreSQLRepository) UpdateMany(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error) {
 	if len(balances) == 0 {
 		return 0, nil
 	}
@@ -1459,100 +1412,100 @@ func (r *BalancePostgreSQLRepository) SyncBatch(ctx context.Context, organizatio
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
-
-		return 0, err
-	}
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to begin transaction", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to begin transaction: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return 0, err
 	}
 
-	committed := false
-
-	defer func() {
-		if committed {
-			return
-		}
-
-		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to rollback transaction: %v", rollbackErr))
-		}
-	}()
-
-	var totalUpdated int64
-
-	now := time.Now()
+	// Validate IDs and deduplicate by balance ID, keeping only the highest version.
+	// Without dedup, UPDATE ... FROM (VALUES ...) would join one target row to multiple
+	// source rows, and PostgreSQL picks one unpredictably — a lower version could win.
+	deduped := make([]mmodel.BalanceRedis, 0, len(balances))
+	ids := make([]uuid.UUID, 0, len(balances))
+	indexByID := make(map[uuid.UUID]int, len(balances))
 
 	for _, balance := range balances {
-		// Check for context cancellation before processing each balance
-		if ctx.Err() != nil {
-			libOpentelemetry.HandleSpanError(span, "Context cancelled during batch sync", ctx.Err())
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("SyncBatch cancelled: %v", ctx.Err()))
-
-			return 0, ctx.Err()
-		}
-
 		id, parseErr := uuid.Parse(balance.ID)
 		if parseErr != nil {
 			libOpentelemetry.HandleSpanError(span, "Invalid balance ID", parseErr)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid balance ID %s: %v", balance.ID, parseErr))
+			logger.Log(ctx, libLog.LevelError, "Invalid balance ID in batch",
+				libLog.String("balance_id", balance.ID), libLog.Err(parseErr))
 
 			return 0, parseErr
 		}
 
-		result, execErr := tx.ExecContext(ctx, `
-			UPDATE balance
-			SET available = $1, on_hold = $2, version = $3, updated_at = $4
-			WHERE organization_id = $5
-			  AND ledger_id = $6
-			  AND id = $7
-			  AND version < $3
-			  AND deleted_at IS NULL
-		`, balance.Available, balance.OnHold, balance.Version, now, organizationID, ledgerID, id)
-		if execErr != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to update balance", execErr)
+		if idx, ok := indexByID[id]; ok {
+			if balance.Version > deduped[idx].Version {
+				deduped[idx] = balance
+				ids[idx] = id
+			}
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update balance %s: %v", balance.ID, execErr))
-
-			return 0, execErr
+			continue
 		}
 
-		rowsAffected, rowsErr := result.RowsAffected()
-		if rowsErr != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", rowsErr)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected for balance %s: %v", balance.ID, rowsErr))
-
-			return 0, rowsErr
-		}
-
-		totalUpdated += rowsAffected
-
-		if rowsAffected == 0 {
-			logger.Log(ctx, libLog.LevelDebug, fmt.Sprintf("Balance %s skipped: version %d not newer than DB", balance.ID, balance.Version))
-		}
+		indexByID[id] = len(deduped)
+		deduped = append(deduped, balance)
+		ids = append(ids, id)
 	}
 
-	if commitErr := tx.Commit(); commitErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to commit transaction", commitErr)
+	// Build a single UPDATE ... FROM (VALUES ...) statement.
+	// Each balance contributes 4 parameters: (id, available, on_hold, version).
+	// Shared parameters (updated_at, organization_id, ledger_id) are appended at the end.
+	// Note: batch size is capped at construction time (maxBatchSize = 16000) to stay
+	// within PostgreSQL's 65535 bind-parameter limit.
+	now := time.Now()
+	valuesClauses := make([]string, len(deduped))
+	args := make([]any, 0, len(deduped)*4+3)
+	paramIdx := 1
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to commit batch sync: %v", commitErr))
-
-		return 0, commitErr
+	for i, balance := range deduped {
+		valuesClauses[i] = fmt.Sprintf("($%d::uuid, $%d::numeric, $%d::numeric, $%d::bigint)",
+			paramIdx, paramIdx+1, paramIdx+2, paramIdx+3)
+		args = append(args, ids[i], balance.Available, balance.OnHold, balance.Version)
+		paramIdx += 4
 	}
 
-	committed = true
+	// Shared parameters: updated_at, organization_id, ledger_id
+	nowIdx := paramIdx
+	orgIdx := paramIdx + 1
+	ledgerIdx := paramIdx + 2
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("SyncBatch: updated %d of %d balances", totalUpdated, len(balances)))
+	args = append(args, now, organizationID, ledgerID)
+
+	query := fmt.Sprintf(`
+		UPDATE balance AS b
+		SET available = v.available,
+		    on_hold = v.on_hold,
+		    version = v.version,
+		    updated_at = $%d
+		FROM (VALUES %s) AS v(id, available, on_hold, version)
+		WHERE b.id = v.id
+		  AND b.organization_id = $%d
+		  AND b.ledger_id = $%d
+		  AND b.version < v.version
+		  AND b.deleted_at IS NULL
+	`, nowIdx, strings.Join(valuesClauses, ", "), orgIdx, ledgerIdx)
+
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to execute batch sync", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to execute batch sync", libLog.Err(err))
+
+		return 0, err
+	}
+
+	totalUpdated, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get rows affected", libLog.Err(err))
+
+		return 0, err
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, "UpdateMany completed",
+		libLog.Int("updated", int(totalUpdated)),
+		libLog.Int("total", len(balances)),
+	)
 
 	return totalUpdated, nil
 }

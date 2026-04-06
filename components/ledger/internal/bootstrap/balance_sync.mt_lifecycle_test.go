@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	libRedis "github.com/LerianStudio/lib-commons/v4/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/postgres"
@@ -56,7 +55,6 @@ func newTestWorkerWithCache(t *testing.T, cache *tenantcache.TenantCache) *Balan
 	t.Helper()
 
 	logger := newTestLogger()
-	conn := &libRedis.Client{}
 	useCase := &command.UseCase{}
 
 	tenantClient, err := tmclient.NewClient(
@@ -69,8 +67,8 @@ func newTestWorkerWithCache(t *testing.T, cache *tenantcache.TenantCache) *Balan
 
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
 
-	return NewBalanceSyncWorkerMultiTenant(
-		conn, logger, useCase, 5, BalanceSyncConfig{},
+	return NewBalanceSyncWorkerMT(
+		logger, useCase, BalanceSyncConfig{},
 		true, cache, pgMgr, "transaction",
 	)
 }
@@ -407,14 +405,14 @@ func TestFlushRemaining_PreservesContextValues(t *testing.T) {
 	var tenantVal, pgVal any
 	var callCount atomic.Int32
 
-	collector := NewBalanceSyncCollector(10, 500*time.Millisecond, 50*time.Millisecond, 1*time.Second, newTestLogger())
-	collector.SetFlushCallback(func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
+	collector := NewBalanceSyncCollector(10, 500*time.Millisecond, 50*time.Millisecond, newTestLogger())
+	collector.flushFn = func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
 		ctxErr = flushCtx.Err()
 		tenantVal = flushCtx.Value(tenantKey)
 		pgVal = flushCtx.Value(pgKey)
 		callCount.Add(1)
 		return true
-	})
+	}
 
 	// Manually fill the buffer
 	collector.mu.Lock()
@@ -441,11 +439,11 @@ func TestFlushRemaining_EmptyBufferNoFlush(t *testing.T) {
 
 	var callCount atomic.Int32
 
-	collector := NewBalanceSyncCollector(10, 500*time.Millisecond, 50*time.Millisecond, 1*time.Second, newTestLogger())
-	collector.SetFlushCallback(func(_ context.Context, _ []redisTransaction.SyncKey) bool {
+	collector := NewBalanceSyncCollector(10, 500*time.Millisecond, 50*time.Millisecond, newTestLogger())
+	collector.flushFn = func(_ context.Context, _ []redisTransaction.SyncKey) bool {
 		callCount.Add(1)
 		return true
-	})
+	}
 
 	collector.flushRemaining(context.Background())
 
@@ -512,25 +510,23 @@ func TestReconcileCollectors_ConcurrentSafety(t *testing.T) {
 
 	collectors := make(map[string]*tenantCollector)
 
-	// Inject a collector that will die on its own after a short delay
+	// Simulates a collector that crashes/exits on its own
 	shortLived := func() *tenantCollector {
-		_, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 
 		go func() {
 			defer close(done)
 			// Die after a short time
 			time.Sleep(10 * time.Millisecond)
-			cancel()
 		}()
 
-		return &tenantCollector{tenantID: "tenant-1", cancel: cancel, done: done}
+		return &tenantCollector{tenantID: "tenant-1", cancel: func() {}, done: done}
 	}
 
 	collectors["tenant-1"] = shortLived()
 
 	// Wait for the collector to die
-	time.Sleep(50 * time.Millisecond)
+	<-collectors["tenant-1"].done
 
 	// Reconcile should detect the dead collector and attempt restart
 	w.reconcileCollectors(ctx, collectors)

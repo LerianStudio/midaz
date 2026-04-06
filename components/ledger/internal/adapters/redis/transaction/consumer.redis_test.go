@@ -13,6 +13,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
+	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
 	tmcore "github.com/LerianStudio/lib-commons/v4/commons/tenant-manager/core"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -269,7 +270,7 @@ func (s *scriptCapturingRedisClient) Eval(ctx context.Context, script string, ke
 	s.evalCalls = append(s.evalCalls, recordedScriptCall{Script: script, Keys: keys, Args: args})
 
 	// Return a placeholder result — tests verify KEYS/ARGS before this point.
-	// ProcessBalanceAtomicOperation expects JSON; GetBalanceSyncKeys expects []any; RemoveBalanceSyncKey ignores result.
+	// ProcessBalanceAtomicOperation expects JSON; GetBalanceSyncKeys expects []any.
 	cmd := redis.NewCmd(ctx)
 	cmd.SetVal([]any{})
 
@@ -480,18 +481,6 @@ func TestProcessBalanceAtomicOperation_NotedStatus(t *testing.T) {
 // UNIT TESTS - ScheduleBalanceSyncBatch
 // =============================================================================
 
-func TestScheduleBalanceSyncBatch_EmptyInput(t *testing.T) {
-	// Create a repository with nil connection to test early return
-	repo := &RedisConsumerRepository{
-		conn: nil,
-	}
-
-	// Empty input should return nil without any Redis call
-	err := repo.ScheduleBalanceSyncBatch(context.Background(), []redis.Z{})
-
-	assert.NoError(t, err, "Empty batch should return nil without error")
-}
-
 func TestScheduleBalanceSyncBatch_EmptyInput_NoRedisCall(t *testing.T) {
 	// Create mock that fails if called
 	mockClient := &mockZAddNXClient{
@@ -679,19 +668,6 @@ func TestScheduleBalanceSyncBatch_DeduplicatesWithMinScore(t *testing.T) {
 // =============================================================================
 // UNIT TESTS - RemoveBalanceSyncKeysBatch
 // =============================================================================
-
-func TestRemoveBalanceSyncKeysBatch_EmptyInput(t *testing.T) {
-	// Create a repository with nil connection to test early return
-	repo := &RedisConsumerRepository{
-		conn: nil,
-	}
-
-	// Empty input should return 0 without any Redis call
-	count, err := repo.RemoveBalanceSyncKeysBatch(context.Background(), []SyncKey{})
-
-	assert.NoError(t, err, "Empty keys should return nil error")
-	assert.Equal(t, int64(0), count, "Empty keys should return 0 count")
-}
 
 func TestRemoveBalanceSyncKeysBatch_EmptyInput_NoRedisCall(t *testing.T) {
 	// Create mock that fails if called
@@ -1401,7 +1377,7 @@ func TestKeyNamespacing_GetBalanceSyncKeys(t *testing.T) {
 				"GetBalanceSyncKeys should have invoked Eval (via script.Run NOSCRIPT fallback)")
 
 			luaKeys := scripter.capturedScriptKeys()
-			require.Len(t, luaKeys, 1, "get_balances_near_expiration.lua receives exactly 1 KEY (schedule key)")
+			require.Len(t, luaKeys, 1, "claim_balance_sync_keys.lua receives exactly 1 KEY (schedule key)")
 			assert.Equal(t, tc.expectedScheduleKey, luaKeys[0],
 				"KEYS[1] (balance sync schedule key) should be namespaced")
 
@@ -1410,64 +1386,6 @@ func TestKeyNamespacing_GetBalanceSyncKeys(t *testing.T) {
 			require.True(t, len(luaArgs) >= 3, "ARGV must contain at least: limit, ttl, lockPrefix")
 			assert.Equal(t, tc.expectedLockPrefixInArg, luaArgs[2],
 				"ARGV[3] (lock prefix) should be namespaced")
-		})
-	}
-}
-
-// TestKeyNamespacing_RemoveBalanceSyncKey verifies that RemoveBalanceSyncKey namespaces
-// the schedule key (KEYS[1]) and passes the namespaced lock prefix in ARGV.
-// RemoveBalanceSyncKey namespaces schedule key and lock prefix.
-func TestKeyNamespacing_RemoveBalanceSyncKey(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name                    string
-		tenantID                string
-		expectedScheduleKey     string
-		expectedLockPrefixInArg string
-	}{
-		{
-			name:                    "with_tenant_id_schedule_key_and_lock_prefix_namespaced",
-			tenantID:                "test-tenant",
-			expectedScheduleKey:     "tenant:test-tenant:" + utils.BalanceSyncScheduleKey,
-			expectedLockPrefixInArg: "tenant:test-tenant:" + utils.BalanceSyncLockPrefix,
-		},
-		{
-			name:                    "without_tenant_id_schedule_key_and_lock_prefix_unchanged",
-			tenantID:                "",
-			expectedScheduleKey:     utils.BalanceSyncScheduleKey,
-			expectedLockPrefixInArg: utils.BalanceSyncLockPrefix,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			conn, scripter := newScriptCapturingConnection(t)
-			repo := &RedisConsumerRepository{conn: conn}
-
-			ctx := context.Background()
-			if tc.tenantID != "" {
-				ctx = tmcore.ContextWithTenantID(ctx, tc.tenantID)
-			}
-
-			member := "balance:{transactions}:org:ledger:default"
-			_ = repo.RemoveBalanceSyncKey(ctx, member)
-
-			require.NotEmpty(t, scripter.evalCalls,
-				"RemoveBalanceSyncKey should have invoked Eval (via script.Run NOSCRIPT fallback)")
-
-			luaKeys := scripter.capturedScriptKeys()
-			require.Len(t, luaKeys, 1, "unschedule_synced_balance.lua receives exactly 1 KEY (schedule key)")
-			assert.Equal(t, tc.expectedScheduleKey, luaKeys[0],
-				"KEYS[1] (balance sync schedule key) should be namespaced")
-
-			// ARGV layout: [member, lockPrefix]
-			luaArgs := scripter.capturedScriptArgs()
-			require.True(t, len(luaArgs) >= 2, "ARGV must contain: member and lockPrefix")
-			assert.Equal(t, tc.expectedLockPrefixInArg, luaArgs[1],
-				"ARGV[2] (lock prefix) should be namespaced")
 		})
 	}
 }
@@ -1537,4 +1455,79 @@ func TestKeyNamespacing_BackwardsCompatible_NoTenantInContext(t *testing.T) {
 		assert.Equal(t, msgKey, recorder.hsetCalls[0].Values[0],
 			"AddMessageToQueue: message field key must be unchanged without tenant")
 	})
+}
+
+// =============================================================================
+// parseSyncKeysFromLuaResult — resilience tests
+// =============================================================================
+
+func TestParseSyncKeysFromLuaResult_ValidPairs(t *testing.T) {
+	t.Parallel()
+
+	res := []any{"balance:key1", "1000.5", "balance:key2", "2000.75"}
+	out, err := parseSyncKeysFromLuaResult(res, libLog.NewNop(), context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+	assert.Equal(t, "balance:key1", out[0].Key)
+	assert.Equal(t, 1000.5, out[0].Score)
+	assert.Equal(t, "balance:key2", out[1].Key)
+	assert.Equal(t, 2000.75, out[1].Score)
+}
+
+func TestParseSyncKeysFromLuaResult_BadScoreSkippedOthersContinue(t *testing.T) {
+	t.Parallel()
+
+	// Second pair has an unparseable score; first and third should still be returned.
+	res := []any{"key1", "100", "key2", "not-a-number", "key3", "300"}
+	out, err := parseSyncKeysFromLuaResult(res, libLog.NewNop(), context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, out, 2, "bad score should be skipped, not block other keys")
+	assert.Equal(t, "key1", out[0].Key)
+	assert.Equal(t, "key3", out[1].Key)
+}
+
+func TestParseSyncKeysFromLuaResult_OddElementCount(t *testing.T) {
+	t.Parallel()
+
+	// Trailing member without a score partner is ignored.
+	res := []any{"key1", "100", "orphan-key"}
+	out, err := parseSyncKeysFromLuaResult(res, libLog.NewNop(), context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, out, 1, "orphan member without score should be silently ignored")
+	assert.Equal(t, "key1", out[0].Key)
+}
+
+func TestParseSyncKeysFromLuaResult_UnexpectedResultType(t *testing.T) {
+	t.Parallel()
+
+	// A non-slice result (e.g., int64) should return an error.
+	_, err := parseSyncKeysFromLuaResult(int64(42), libLog.NewNop(), context.Background())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unexpected result type")
+}
+
+func TestParseSyncKeysFromLuaResult_EmptyResult(t *testing.T) {
+	t.Parallel()
+
+	out, err := parseSyncKeysFromLuaResult([]any{}, libLog.NewNop(), context.Background())
+
+	require.NoError(t, err)
+	assert.Empty(t, out)
+}
+
+func TestParseSyncKeysFromLuaResult_ByteSliceElements(t *testing.T) {
+	t.Parallel()
+
+	// Some Redis drivers return []byte instead of string.
+	res := []any{[]byte("key1"), []byte("500")}
+	out, err := parseSyncKeysFromLuaResult(res, libLog.NewNop(), context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	assert.Equal(t, "key1", out[0].Key)
+	assert.Equal(t, float64(500), out[0].Score)
 }
