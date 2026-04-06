@@ -47,15 +47,32 @@ var organizationColumnList = []string{
 	"deleted_at",
 }
 
-// Repository provides an interface for operations related to organization entities.
-// It defines methods for creating, updating, finding, and deleting organizations.
+// Repository defines the persistence operations for organization entities.
 type Repository interface {
+	// Create inserts a new organization, generates its ID, and returns the persisted entity.
 	Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error)
+
+	// Update applies non-zero fields from organization to the record identified by id.
+	// Returns the updated entity or ErrEntityNotFound if the id does not exist (or is soft-deleted).
 	Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error)
+
+	// Find retrieves a single organization by id, excluding soft-deleted records.
+	// Returns ErrEntityNotFound when no matching record exists.
 	Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error)
+
+	// FindAll returns a paginated list of organizations matching the optional name filters.
+	// Both legalName and doingBusinessAs perform case-insensitive prefix matching.
 	FindAll(ctx context.Context, filter http.Pagination, legalName, doingBusinessAs *string) ([]*mmodel.Organization, error)
+
+	// ListByIDs returns organizations whose IDs are in the provided slice, excluding soft-deleted records.
+	// Returns an empty slice (not an error) when ids is empty.
 	ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error)
+
+	// Delete performs a soft-delete by setting deleted_at on the record identified by id.
+	// Returns ErrEntityNotFound if the id does not exist or is already deleted.
 	Delete(ctx context.Context, id uuid.UUID) error
+
+	// Count returns the total number of non-deleted organizations.
 	Count(ctx context.Context) (int64, error)
 }
 
@@ -104,7 +121,6 @@ func (r *OrganizationPostgreSQLRepository) getDB(ctx context.Context) (dbresolve
 	return r.connection.Resolver(ctx)
 }
 
-// Create inserts a new Organization entity into Postgresql and returns the created Organization.
 func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -193,7 +209,6 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	return record.ToEntity(), nil
 }
 
-// Update an Organization entity into Postgresql and returns the Organization updated.
 func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -304,7 +319,6 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	return record.ToEntity(), nil
 }
 
-// Find retrieves an Organization entity from the database using the provided ID.
 func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -375,7 +389,6 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 	return organization.ToEntity(), nil
 }
 
-// FindAll retrieves Organizations entities from the database.
 func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter http.Pagination, legalName, doingBusinessAs *string) ([]*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -471,7 +484,6 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 	return organizations, nil
 }
 
-// ListByIDs retrieves Organizations entities from the database using the provided IDs.
 func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -559,7 +571,6 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 	return organizations, nil
 }
 
-// Delete removes an Organization entity from the database using the provided ID.
 func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
@@ -608,7 +619,6 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 	return nil
 }
 
-// Count retrieves the total count of organizations.
 func (r *OrganizationPostgreSQLRepository) Count(ctx context.Context) (int64, error) {
 	logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 
