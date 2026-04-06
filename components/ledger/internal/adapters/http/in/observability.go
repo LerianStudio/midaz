@@ -6,7 +6,6 @@ package in
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"strings"
 
@@ -16,12 +15,53 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// payloadField maps a struct field name to its observability label.
+type payloadField struct {
+	name      string // Go struct field name
+	attrKey   string // OTel attribute key
+	logLabel  string // log summary label
+	mergeWith string // if non-empty, this field is OR-merged with another (e.g. "AccountId" merges with "AccountID")
+}
+
+// payloadFields is the canonical, ordered list of fields inspected for every
+// request payload.  Declared once at package level to avoid per-call allocation.
+var payloadFields = []payloadField{
+	// Common
+	{name: "Metadata", attrKey: "app.request.payload.has_metadata", logLabel: "hasMetadata"},
+	{name: "Alias", attrKey: "app.request.payload.has_alias", logLabel: "hasAlias"},
+	// Onboarding entities
+	{name: "ParentAccountID", attrKey: "app.request.payload.has_parent_account_id", logLabel: "hasParentAccountID"},
+	{name: "ParentOrganizationID", attrKey: "app.request.payload.has_parent_organization_id", logLabel: "hasParentOrganizationID"},
+	{name: "PortfolioID", attrKey: "app.request.payload.has_portfolio_id", logLabel: "hasPortfolioID"},
+	{name: "SegmentID", attrKey: "app.request.payload.has_segment_id", logLabel: "hasSegmentID"},
+	{name: "EntityID", attrKey: "app.request.payload.has_entity_id", logLabel: "hasEntityID"},
+	{name: "LegalDocument", attrKey: "app.request.payload.has_legal_document", logLabel: "hasLegalDocument"},
+	// Transaction entities
+	{name: "Key", attrKey: "app.request.payload.has_key", logLabel: "hasKey"},
+	{name: "AccountID", attrKey: "app.request.payload.has_account_id", logLabel: "hasAccountID"},
+	{name: "AccountId", attrKey: "", logLabel: "", mergeWith: "AccountID"},
+	{name: "LedgerID", attrKey: "app.request.payload.has_ledger_id", logLabel: "hasLedgerID"},
+	{name: "LedgerId", attrKey: "", logLabel: "", mergeWith: "LedgerID"},
+	{name: "OrganizationID", attrKey: "app.request.payload.has_organization_id", logLabel: "hasOrganizationID"},
+	{name: "OrganizationId", attrKey: "", logLabel: "", mergeWith: "OrganizationID"},
+	{name: "TransactionID", attrKey: "app.request.payload.has_transaction_id", logLabel: "hasTransactionID"},
+	{name: "TransactionId", attrKey: "", logLabel: "", mergeWith: "TransactionID"},
+	{name: "ParentTransactionID", attrKey: "app.request.payload.has_parent_transaction_id", logLabel: "hasParentTransactionID"},
+	{name: "ParentTransactionId", attrKey: "", logLabel: "", mergeWith: "ParentTransactionID"},
+	{name: "Document", attrKey: "app.request.payload.has_document", logLabel: "hasDocument"},
+	{name: "Send", attrKey: "app.request.payload.has_send", logLabel: "hasSend"},
+	{name: "Source", attrKey: "app.request.payload.has_source", logLabel: "hasSource"},
+	{name: "Distribution", attrKey: "app.request.payload.has_distribution", logLabel: "hasDistribution"},
+	{name: "Account", attrKey: "app.request.payload.has_account_rule", logLabel: "hasAccountRule"},
+	{name: "ValidIf", attrKey: "app.request.payload.has_valid_if", logLabel: "hasValidIf"},
+}
+
 func logSafePayload(ctx context.Context, logger libLog.Logger, message string, payload any) {
-	if logger == nil {
+	if logger == nil || !logger.Enabled(libLog.LevelInfo) {
 		return
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("%s (%s)", message, safePayloadSummary(payload)))
+	logger.Log(ctx, libLog.LevelInfo, message+" ("+safePayloadSummary(payload)+")")
 }
 
 func recordSafePayloadAttributes(span trace.Span, payload any) {
@@ -40,44 +80,71 @@ func recordSafeQueryAttributes(span trace.Span, query *midazhttp.QueryHeader) {
 	span.SetAttributes(safeQueryAttributes(query)...)
 }
 
-func safePayloadSummary(payload any) string {
-	parts := []string{fmt.Sprintf("type=%s", payloadTypeName(payload))}
+// resolvePayloadValue dereferences the payload through any pointer chain and
+// returns the underlying struct reflect.Value.  If the payload is nil, not a
+// pointer-to-struct, or a nil pointer, the returned value is invalid
+// (value.IsValid() == false).
+func resolvePayloadValue(payload any) reflect.Value {
+	v := reflect.ValueOf(payload)
+	if !v.IsValid() {
+		return v
+	}
 
-	for _, field := range []struct {
-		name  string
-		label string
-	}{
-		// Common
-		{name: "Metadata", label: "hasMetadata"},
-		{name: "Alias", label: "hasAlias"},
-		// Onboarding entities
-		{name: "ParentAccountID", label: "hasParentAccountID"},
-		{name: "ParentOrganizationID", label: "hasParentOrganizationID"},
-		{name: "PortfolioID", label: "hasPortfolioID"},
-		{name: "SegmentID", label: "hasSegmentID"},
-		{name: "EntityID", label: "hasEntityID"},
-		{name: "LegalDocument", label: "hasLegalDocument"},
-		// Transaction entities
-		{name: "Key", label: "hasKey"},
-		{name: "AccountID", label: "hasAccountID"},
-		{name: "AccountId", label: "hasAccountID"},
-		{name: "LedgerID", label: "hasLedgerID"},
-		{name: "LedgerId", label: "hasLedgerID"},
-		{name: "OrganizationID", label: "hasOrganizationID"},
-		{name: "OrganizationId", label: "hasOrganizationID"},
-		{name: "TransactionID", label: "hasTransactionID"},
-		{name: "TransactionId", label: "hasTransactionID"},
-		{name: "ParentTransactionID", label: "hasParentTransactionID"},
-		{name: "ParentTransactionId", label: "hasParentTransactionID"},
-		{name: "Document", label: "hasDocument"},
-		{name: "Send", label: "hasSend"},
-		{name: "Source", label: "hasSource"},
-		{name: "Distribution", label: "hasDistribution"},
-		{name: "Account", label: "hasAccountRule"},
-		{name: "ValidIf", label: "hasValidIf"},
-	} {
-		if payloadFieldPresent(payload, field.name) {
-			parts = append(parts, field.label+"=true")
+	for v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return reflect.Value{}
+		}
+
+		v = v.Elem()
+	}
+
+	if v.Kind() != reflect.Struct {
+		return reflect.Value{}
+	}
+
+	return v
+}
+
+// fieldPresent checks whether the named field exists on the already-resolved
+// struct value and is non-zero.
+func fieldPresent(resolved reflect.Value, fieldName string) bool {
+	if !resolved.IsValid() {
+		return false
+	}
+
+	f := resolved.FieldByName(fieldName)
+	if !f.IsValid() {
+		return false
+	}
+
+	return !f.IsZero()
+}
+
+func safePayloadSummary(payload any) string {
+	resolved := resolvePayloadValue(payload)
+
+	parts := []string{"type=" + payloadTypeName(resolved)}
+
+	// presence tracks OR-merged fields so the log label appears at most once.
+	presence := make(map[string]bool, len(payloadFields))
+
+	for i := range payloadFields {
+		f := &payloadFields[i]
+		present := fieldPresent(resolved, f.name)
+
+		if f.mergeWith != "" {
+			presence[f.mergeWith] = presence[f.mergeWith] || present
+
+			continue
+		}
+
+		presence[f.name] = presence[f.name] || present
+	}
+
+	for i := range payloadFields {
+		f := &payloadFields[i]
+		if f.logLabel != "" && presence[f.name] {
+			parts = append(parts, f.logLabel+"=true")
 		}
 	}
 
@@ -85,31 +152,35 @@ func safePayloadSummary(payload any) string {
 }
 
 func safePayloadAttributes(payload any) []attribute.KeyValue {
-	return []attribute.KeyValue{
-		attribute.String("app.request.payload.type", payloadTypeName(payload)),
-		attribute.Bool("app.request.payload.has_metadata", payloadFieldPresent(payload, "Metadata")),
-		attribute.Bool("app.request.payload.has_alias", payloadFieldPresent(payload, "Alias")),
-		// Onboarding entities
-		attribute.Bool("app.request.payload.has_parent_account_id", payloadFieldPresent(payload, "ParentAccountID")),
-		attribute.Bool("app.request.payload.has_parent_organization_id", payloadFieldPresent(payload, "ParentOrganizationID")),
-		attribute.Bool("app.request.payload.has_portfolio_id", payloadFieldPresent(payload, "PortfolioID")),
-		attribute.Bool("app.request.payload.has_segment_id", payloadFieldPresent(payload, "SegmentID")),
-		attribute.Bool("app.request.payload.has_entity_id", payloadFieldPresent(payload, "EntityID")),
-		attribute.Bool("app.request.payload.has_legal_document", payloadFieldPresent(payload, "LegalDocument")),
-		// Transaction entities
-		attribute.Bool("app.request.payload.has_key", payloadFieldPresent(payload, "Key")),
-		attribute.Bool("app.request.payload.has_account_id", payloadFieldPresent(payload, "AccountID") || payloadFieldPresent(payload, "AccountId")),
-		attribute.Bool("app.request.payload.has_ledger_id", payloadFieldPresent(payload, "LedgerID") || payloadFieldPresent(payload, "LedgerId")),
-		attribute.Bool("app.request.payload.has_organization_id", payloadFieldPresent(payload, "OrganizationID") || payloadFieldPresent(payload, "OrganizationId")),
-		attribute.Bool("app.request.payload.has_transaction_id", payloadFieldPresent(payload, "TransactionID") || payloadFieldPresent(payload, "TransactionId")),
-		attribute.Bool("app.request.payload.has_parent_transaction_id", payloadFieldPresent(payload, "ParentTransactionID") || payloadFieldPresent(payload, "ParentTransactionId")),
-		attribute.Bool("app.request.payload.has_document", payloadFieldPresent(payload, "Document")),
-		attribute.Bool("app.request.payload.has_send", payloadFieldPresent(payload, "Send")),
-		attribute.Bool("app.request.payload.has_source", payloadFieldPresent(payload, "Source")),
-		attribute.Bool("app.request.payload.has_distribution", payloadFieldPresent(payload, "Distribution")),
-		attribute.Bool("app.request.payload.has_account_rule", payloadFieldPresent(payload, "Account")),
-		attribute.Bool("app.request.payload.has_valid_if", payloadFieldPresent(payload, "ValidIf")),
+	resolved := resolvePayloadValue(payload)
+
+	attrs := make([]attribute.KeyValue, 0, len(payloadFields)+1)
+	attrs = append(attrs, attribute.String("app.request.payload.type", payloadTypeName(resolved)))
+
+	// presence tracks OR-merged fields (e.g. AccountID || AccountId).
+	presence := make(map[string]bool, len(payloadFields))
+
+	for i := range payloadFields {
+		f := &payloadFields[i]
+		present := fieldPresent(resolved, f.name)
+
+		if f.mergeWith != "" {
+			presence[f.mergeWith] = presence[f.mergeWith] || present
+
+			continue
+		}
+
+		presence[f.name] = presence[f.name] || present
 	}
+
+	for i := range payloadFields {
+		f := &payloadFields[i]
+		if f.attrKey != "" {
+			attrs = append(attrs, attribute.Bool(f.attrKey, presence[f.name]))
+		}
+	}
+
+	return attrs
 }
 
 func safeQueryAttributes(query *midazhttp.QueryHeader) []attribute.KeyValue {
@@ -139,45 +210,17 @@ func safeQueryAttributes(query *midazhttp.QueryHeader) []attribute.KeyValue {
 	}
 }
 
-func payloadTypeName(payload any) string {
-	typ := reflect.TypeOf(payload)
-	if typ == nil {
+// payloadTypeName returns the struct type name from an already-resolved
+// reflect.Value.  Falls back to "unknown" for invalid values.
+func payloadTypeName(resolved reflect.Value) string {
+	if !resolved.IsValid() {
 		return "unknown"
 	}
 
-	for typ.Kind() == reflect.Ptr {
-		typ = typ.Elem()
+	t := resolved.Type()
+	if t.Name() != "" {
+		return t.Name()
 	}
 
-	if typ.Name() != "" {
-		return typ.Name()
-	}
-
-	return typ.String()
-}
-
-func payloadFieldPresent(payload any, fieldName string) bool {
-	value := reflect.ValueOf(payload)
-	if !value.IsValid() {
-		return false
-	}
-
-	for value.Kind() == reflect.Ptr {
-		if value.IsNil() {
-			return false
-		}
-
-		value = value.Elem()
-	}
-
-	if value.Kind() != reflect.Struct {
-		return false
-	}
-
-	field := value.FieldByName(fieldName)
-	if !field.IsValid() {
-		return false
-	}
-
-	return !field.IsZero()
+	return t.String()
 }
