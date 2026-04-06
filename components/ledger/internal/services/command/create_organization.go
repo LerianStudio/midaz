@@ -33,11 +33,13 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		coi.ParentOrganizationID = nil
 	}
 
-	if err := utils.ValidateCountryAddress(coi.Address.Country); err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, constant.EntityOrganization)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate country address", err)
+	if !coi.Address.IsEmpty() {
+		if err := utils.ValidateCountryAddress(coi.Address.Country); err != nil {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, constant.EntityOrganization)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate country address", err)
 
-		return nil, err
+			return nil, err
+		}
 	}
 
 	now := time.Now()

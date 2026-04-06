@@ -10,9 +10,12 @@ import (
 	"unicode"
 )
 
-// ValidateCountryAddress validate if country in object address contains in countries list using ISO 3166-1 alpha-2
-func ValidateCountryAddress(country string) error {
-	countries := []string{
+// ErrInvalidCountryCode is returned when a country code is not a valid ISO 3166-1 alpha-2 code.
+var ErrInvalidCountryCode = errors.New("0032")
+
+// validCountries is the set of ISO 3166-1 alpha-2 country codes, built once at package init.
+var validCountries = func() map[string]struct{} {
+	codes := []string{
 		"AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AQ", "AR", "AS", "AT", "AU", "AW", "AX", "AZ",
 		"BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS", "BT", "BV", "BW",
 		"BY", "BZ", "CA", "CC", "CD", "CF", "CG", "CH", "CI", "CK", "CL", "CM", "CN", "CO", "CR", "CU", "CV", "CW", "CX",
@@ -29,8 +32,18 @@ func ValidateCountryAddress(country string) error {
 		"YE", "YT", "ZA", "ZM", "ZW",
 	}
 
-	if !slices.Contains(countries, country) {
-		return errors.New("0032")
+	m := make(map[string]struct{}, len(codes))
+	for _, c := range codes {
+		m[c] = struct{}{}
+	}
+
+	return m
+}()
+
+// ValidateCountryAddress validates whether a country code is a valid ISO 3166-1 alpha-2 code.
+func ValidateCountryAddress(country string) error {
+	if _, ok := validCountries[country]; !ok {
+		return ErrInvalidCountryCode
 	}
 
 	return nil
