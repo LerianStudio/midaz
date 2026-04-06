@@ -21,6 +21,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // OrganizationHandler struct contains an organization use case for managing organization related operations.
@@ -60,11 +61,14 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 	organization, err := handler.Command.CreateOrganization(ctx, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization on command", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to create organization", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully created organization with ID: %s", organization.ID))
+	span.SetAttributes(attribute.String("app.organization.id", organization.ID))
+
+	logger.Log(ctx, libLog.LevelInfo, "Successfully created organization with ID: ", libLog.String("id", organization.ID))
 
 	return http.Created(c, organization)
 }
