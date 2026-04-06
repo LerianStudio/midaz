@@ -291,6 +291,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
 
+	// Register telemetry providers as process-global so that the otelzap bridge
+	// (installed in the logger core) can forward log records to the OTLP exporter.
+	if err := telemetry.ApplyGlobals(); err != nil {
+		return nil, fmt.Errorf("failed to apply telemetry globals: %w", err)
+	}
+
 	// Multi-tenant client setup
 	var tenantClient *tmclient.Client
 
