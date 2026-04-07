@@ -181,7 +181,8 @@ func TestHandler_UpdateOrganization(t *testing.T) {
 				LegalName: "Updated Organization Name",
 			},
 			setupMocks: func(orgRepo *organization.MockRepository, metadataRepo *mongodb.MockRepository, id uuid.UUID) {
-				// Update succeeds
+				// Update succeeds — repo now calls Find internally, but the mock
+				// returns the full entity directly from Update.
 				orgRepo.EXPECT().
 					Update(gomock.Any(), id, gomock.Any()).
 					Return(&mmodel.Organization{
@@ -197,24 +198,6 @@ func TestHandler_UpdateOrganization(t *testing.T) {
 				metadataRepo.EXPECT().
 					Update(gomock.Any(), "Organization", id.String(), gomock.Any()).
 					Return(nil).
-					Times(1)
-
-				// Retrieval after update
-				orgRepo.EXPECT().
-					Find(gomock.Any(), id).
-					Return(&mmodel.Organization{
-						ID:        id.String(),
-						LegalName: "Updated Organization Name",
-						Status:    mmodel.Status{Code: "ACTIVE"},
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					}, nil).
-					Times(1)
-
-				// GetOrganizationByID also fetches metadata
-				metadataRepo.EXPECT().
-					FindByEntity(gomock.Any(), "Organization", id.String()).
-					Return(nil, nil).
 					Times(1)
 			},
 			expectedStatus: 200,
@@ -247,39 +230,6 @@ func TestHandler_UpdateOrganization(t *testing.T) {
 
 				assert.Contains(t, errResp, "code", "error response should contain code")
 				assert.Equal(t, cn.ErrEntityNotFound.Error(), errResp["code"])
-			},
-		},
-		{
-			name: "not found on retrieval returns 404",
-			payload: &mmodel.UpdateOrganizationInput{
-				LegalName: "Updated Name",
-			},
-			setupMocks: func(orgRepo *organization.MockRepository, metadataRepo *mongodb.MockRepository, id uuid.UUID) {
-				// Update succeeds
-				orgRepo.EXPECT().
-					Update(gomock.Any(), id, gomock.Any()).
-					Return(&mmodel.Organization{ID: id.String()}, nil).
-					Times(1)
-
-				// UpdateMetadata succeeds
-				metadataRepo.EXPECT().
-					Update(gomock.Any(), "Organization", id.String(), gomock.Any()).
-					Return(nil).
-					Times(1)
-
-				// Retrieval fails
-				orgRepo.EXPECT().
-					Find(gomock.Any(), id).
-					Return(nil, pkg.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())).
-					Times(1)
-			},
-			expectedStatus: 404,
-			validateBody: func(t *testing.T, body []byte) {
-				var errResp map[string]any
-				err := json.Unmarshal(body, &errResp)
-				require.NoError(t, err)
-
-				assert.Contains(t, errResp, "code", "error response should contain code")
 			},
 		},
 		{

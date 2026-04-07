@@ -6,8 +6,6 @@ package command
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
@@ -26,34 +24,25 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	ctx, span := tracer.Start(ctx, "command.create_organization")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, "Trying to create organization")
-
-	var status mmodel.Status
-	if coi.Status.IsEmpty() || libCommons.IsNilOrEmpty(&coi.Status.Code) {
-		status = mmodel.Status{
-			Code: "ACTIVE",
-		}
-	} else {
-		status = coi.Status
+	status := coi.Status
+	if status.Code == "" {
+		status.Code = "ACTIVE"
 	}
-
-	status.Description = coi.Status.Description
 
 	if libCommons.IsNilOrEmpty(coi.ParentOrganizationID) {
 		coi.ParentOrganizationID = nil
 	}
 
-	ctx, spanAddressValidation := tracer.Start(ctx, "command.create_organization.validate_address")
+	if !coi.Address.IsEmpty() {
+		if err := utils.ValidateCountryAddress(coi.Address.Country); err != nil {
+			err := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, constant.EntityOrganization)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate country address", err)
 
-	if err := utils.ValidateCountryAddress(coi.Address.Country); err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, reflect.TypeOf(mmodel.Organization{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanAddressValidation, "Failed to validate country address", err)
-
-		return nil, err
+			return nil, err
+		}
 	}
 
-	spanAddressValidation.End()
+	now := time.Now()
 
 	organization := &mmodel.Organization{
 		ParentOrganizationID: coi.ParentOrganizationID,
@@ -62,24 +51,27 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		LegalDocument:        coi.LegalDocument,
 		Address:              coi.Address,
 		Status:               status,
-		CreatedAt:            time.Now(),
-		UpdatedAt:            time.Now(),
+		CreatedAt:            now,
+		UpdatedAt:            now,
 	}
 
 	org, err := uc.OrganizationRepo.Create(ctx, organization)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization on repository", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating organization: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create organization", libLog.Err(err))
 
 		return nil, err
 	}
 
-	metadata, err := uc.CreateOnboardingMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), org.ID, coi.Metadata)
+	// NOTE: The organization is already persisted at this point. If metadata creation
+	// fails, the org exists in PostgreSQL without its metadata in MongoDB. This is a
+	// known consistency gap that affects all entity creates. A proper fix requires
+	// either a cross-store transaction or an async metadata creation with retries.
+	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityOrganization, org.ID, coi.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization metadata", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating organization metadata: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create organization metadata, organization persisted without metadata",
+			libLog.Err(err), libLog.String("organizationId", org.ID))
 
 		return nil, err
 	}
