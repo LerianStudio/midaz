@@ -36,6 +36,7 @@ jobs:
         migrations
         scripts
         deps
+        workflows
       require_scope: false
       enable_auto_labeler: false
       enforce_source_branches: true
