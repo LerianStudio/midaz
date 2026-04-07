@@ -176,7 +176,8 @@ components/{service}/
 
 > **Note:** Prefer `snake_case` for compound names (`balance_sync`, not `balance-sync`).
 > Dots separate the component type (`worker`, `collector`, `consumer`, `server`).
-> Legacy kebab-case files (`create-account.go`, `unified-server.go`) will be migrated incrementally.
+> The `services/command/` and `services/query/` directories have been fully migrated to `snake_case`.
+> Remaining kebab-case files in other directories will be migrated incrementally.
 
 ### Naming Conventions
 
@@ -252,10 +253,10 @@ logger, tracer, _, _ := libCommons.NewTrackingFromContext(ctx)
 ctx, span := tracer.Start(ctx, "layer.operation_name")
 defer span.End()
 
-// On error: instrument span AND log
+// On error: instrument span AND log with structured fields
 if err != nil {
-    libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Operation description", err)
-    logger.Errorf("Operation failed: %v", err)
+    libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation description", err)
+    logger.Log(ctx, libLog.LevelError, "Operation failed", libLog.Err(err))
     return nil, err
 }
 ```
@@ -333,14 +334,16 @@ if err != nil {
    }
    ```
 
-2. **Log at EVERY error point:**
+2. **Log at EVERY error point using structured fields:**
    ```go
-   logger.Errorf("Failed to create organization: %v", err)
+   logger.Log(ctx, libLog.LevelError, "Failed to create organization", libLog.Err(err))
    ```
+   > Do NOT use `fmt.Sprintf` inside log calls — it buries structured data in the message string
+   > and prevents OTLP attribute extraction in Grafana/Loki.
 
 3. **Instrument spans BEFORE returning:**
    ```go
-   libOpentelemetry.HandleSpanBusinessErrorEvent(&span, "Failed to create organization", err)
+   libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization", err)
    return nil, err
    ```
 
@@ -572,9 +575,13 @@ Examples:
 ```go
 var pgErr *pgconn.PgError
 if errors.As(err, &pgErr) {
-    return services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Organization{}).Name())
+    return services.ValidatePGError(pgErr, constant.EntityOrganization)
 }
 ```
+
+> **Note:** Use `constant.Entity*` constants (from `pkg/constant/entity.go`) instead of
+> `reflect.TypeOf(mmodel.Foo{}).Name()`. The reflect approach allocates a zero-value struct
+> on every call for a value that is known at compile time.
 
 ---
 

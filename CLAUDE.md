@@ -152,11 +152,12 @@ Key entities and their files:
 ### Status Pattern
 ```go
 type Status struct {
-    Code        *string `json:"code"`
-    Description *string `json:"description,omitempty"`
+    Code        string  `json:"code"`
+    Description *string `json:"description"`
 }
 ```
-Common codes: `ACTIVE`, `INACTIVE`, `DELETED`, `PENDING`, `CANCELLED`
+Common codes: `ACTIVE`, `INACTIVE`, `DELETED`, `PENDING`, `CANCELLED`.
+When omitted on create, `Code` defaults to `"ACTIVE"`.
 
 ### Metadata
 - Flat key-value pairs (no nesting allowed)
@@ -576,6 +577,52 @@ Full rules in `docs/PROJECT_RULES.md` (1130 lines). Key points:
 11. **Pagination**: Page-based (page + limit), max 100 per page
 12. **Structured logging**: Use `libLog.Err(err)`, `libLog.String()`, `libLog.Int()` fields instead of `fmt.Sprintf` inside log calls
 13. **MT naming**: Multi-tenant code uses `MT` suffix (`NewFooMT`, `runFooMT`, `mtEnabled`, `isMTReady`). Default (single-tenant) uses no qualifier.
+14. **Query builder**: Use `squirrel` for all SQL query construction (SELECT, INSERT, UPDATE). Do not use raw SQL string concatenation with `strconv.Itoa` for parameter placeholders.
+15. **Entity name constants**: Use `constant.Entity*` instead of `reflect.TypeOf(mmodel.Foo{}).Name()`. See `pkg/constant/entity.go`.
+16. **Timestamps on create**: Capture `time.Now()` once and reuse for both `CreatedAt` and `UpdatedAt` to guarantee identical values.
+
+## Observability Conventions
+
+### Structured Logging
+Use structured fields instead of `fmt.Sprintf` inside log calls. Structured fields are preserved as
+separate attributes in the OTLP pipeline (searchable in Grafana/Loki), while `Sprintf` embeds them in
+the message string.
+
+```go
+// Good — structured fields
+logger.Log(ctx, libLog.LevelError, "Failed to create organization", libLog.Err(err))
+logger.Log(ctx, libLog.LevelInfo, "Organization created", libLog.String("id", org.ID))
+
+// Bad — fmt.Sprintf buries fields in the message
+logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to create organization: %v", err))
+```
+
+### Span Lifecycle
+- Always use `defer span.End()` immediately after `tracer.Start`.
+- Child spans for I/O operations (DB exec, external calls) should use `defer` and must not
+  overwrite the parent `ctx` (use `_, spanExec := tracer.Start(...)` instead of `ctx, spanExec`).
+- Do NOT create child spans for in-memory operations (validation, mapping). The parent span covers them.
+- Redundant "Initiating..." or "Trying to..." log messages add no value when the span already marks
+  the start of the operation. Omit them.
+
+### Entity Name Constants
+Use `constant.Entity*` constants (in `pkg/constant/entity.go`) instead of `reflect.TypeOf(mmodel.Foo{}).Name()`
+for error reporting, metadata tagging, and audit logging. The reflect approach allocates a zero-value struct
+on every call just to obtain a compile-time constant string.
+
+```go
+// Good
+err := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, constant.EntityOrganization)
+
+// Bad — allocates mmodel.Organization{} at runtime
+err := pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, reflect.TypeOf(mmodel.Organization{}).Name())
+```
+
+### Error Sentinel Uniqueness
+Each error code must have exactly one `errors.New` sentinel, defined in `pkg/constant/errors.go`.
+Do NOT create duplicate sentinels in other packages (e.g., `utils.ErrInvalidCountryCode` vs
+`constant.ErrInvalidCountryCode`). `ValidateBusinessError` looks up errors by identity (pointer
+equality), not by string value — duplicates cause silent lookup failures and 500 responses.
 
 ## What NOT To Do
 
@@ -589,3 +636,8 @@ Full rules in `docs/PROJECT_RULES.md` (1130 lines). Key points:
 - Do NOT expose internal error details to API clients
 - Do NOT import outer layers from inner layers
 - Do NOT use string literals for HTTP methods — use `http.Method*` constants
+- Do NOT create duplicate error sentinels — use the single source in `pkg/constant/errors.go`
+- Do NOT use `reflect.TypeOf(mmodel.Foo{}).Name()` — use `constant.Entity*` constants
+- Do NOT use `fmt.Sprintf` inside logger calls — use structured fields (`libLog.Err`, `libLog.String`)
+- Do NOT overwrite `ctx` with child spans (`ctx, spanExec :=`) — use `_, spanExec :=` to preserve parent context
+- Do NOT use `IsNilOrEmpty` to guard optional `*string` fields in PATCH updates — use `!= nil` so empty strings can clear the field
