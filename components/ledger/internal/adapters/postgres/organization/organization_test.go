@@ -83,7 +83,7 @@ func TestOrganizationPostgreSQLModel_ToEntity(t *testing.T) {
 	})
 
 	t.Run("with_deleted_at_valid_but_zero_time", func(t *testing.T) {
-		// Tests the actual branch: source checks .Time.IsZero(), not .Valid
+		// Valid: true means the DB has a non-NULL value, even if the time is zero.
 		model := &OrganizationPostgreSQLModel{
 			ID:            "org-789",
 			LegalName:     "Another Corp",
@@ -97,7 +97,26 @@ func TestOrganizationPostgreSQLModel_ToEntity(t *testing.T) {
 		entity := model.ToEntity()
 
 		require.NotNil(t, entity)
-		assert.Nil(t, entity.DeletedAt, "DeletedAt should be nil when Time is zero, regardless of Valid flag")
+		require.NotNil(t, entity.DeletedAt, "DeletedAt should be set when Valid is true, even with zero time")
+		assert.True(t, entity.DeletedAt.IsZero(), "DeletedAt time value should be zero")
+	})
+
+	t.Run("with_deleted_at_invalid", func(t *testing.T) {
+		// Valid: false means NULL in the DB -- DeletedAt should be nil.
+		model := &OrganizationPostgreSQLModel{
+			ID:            "org-101",
+			LegalName:     "Not Deleted Corp",
+			LegalDocument: "22222222222222",
+			Status:        "ACTIVE",
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+			DeletedAt:     sql.NullTime{Valid: false},
+		}
+
+		entity := model.ToEntity()
+
+		require.NotNil(t, entity)
+		assert.Nil(t, entity.DeletedAt, "DeletedAt should be nil when Valid is false")
 	})
 }
 

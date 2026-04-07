@@ -29,11 +29,6 @@ type OrganizationPostgreSQLModel struct {
 
 // ToEntity converts an OrganizationPostgreSQLModel to entity.Organization
 func (t *OrganizationPostgreSQLModel) ToEntity() *mmodel.Organization {
-	status := mmodel.Status{
-		Code:        t.Status,
-		Description: t.StatusDescription,
-	}
-
 	organization := &mmodel.Organization{
 		ID:                   t.ID,
 		ParentOrganizationID: t.ParentOrganizationID,
@@ -41,12 +36,15 @@ func (t *OrganizationPostgreSQLModel) ToEntity() *mmodel.Organization {
 		DoingBusinessAs:      t.DoingBusinessAs,
 		LegalDocument:        t.LegalDocument,
 		Address:              t.Address,
-		Status:               status,
-		CreatedAt:            t.CreatedAt,
-		UpdatedAt:            t.UpdatedAt,
+		Status: mmodel.Status{
+			Code:        t.Status,
+			Description: t.StatusDescription,
+		},
+		CreatedAt: t.CreatedAt,
+		UpdatedAt: t.UpdatedAt,
 	}
 
-	if !t.DeletedAt.Time.IsZero() {
+	if t.DeletedAt.Valid {
 		deletedAtCopy := t.DeletedAt.Time
 		organization.DeletedAt = &deletedAtCopy
 	}
