@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -218,8 +217,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get database connection: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
 
 		return nil, err
 	}
@@ -227,23 +225,24 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	record := &OrganizationPostgreSQLModel{}
 	record.FromEntity(organization)
 
-	var updates []string
+	record.UpdatedAt = time.Now()
 
-	var args []any
+	builder := squirrel.Update(r.tableName).
+		Set("updated_at", record.UpdatedAt).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		PlaceholderFormat(squirrel.Dollar)
 
 	if !libCommons.IsNilOrEmpty(organization.ParentOrganizationID) {
-		updates = append(updates, "parent_organization_id = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.ParentOrganizationID)
+		builder = builder.Set("parent_organization_id", record.ParentOrganizationID)
 	}
 
 	if !libCommons.IsNilOrEmpty(&organization.LegalName) {
-		updates = append(updates, "legal_name = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.LegalName)
+		builder = builder.Set("legal_name", record.LegalName)
 	}
 
-	if !libCommons.IsNilOrEmpty(organization.DoingBusinessAs) {
-		updates = append(updates, "doing_business_as = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.DoingBusinessAs)
+	if organization.DoingBusinessAs != nil {
+		builder = builder.Set("doing_business_as", record.DoingBusinessAs)
 	}
 
 	if !organization.Address.IsEmpty() {
@@ -254,64 +253,53 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 			return nil, err
 		}
 
-		updates = append(updates, "address = $"+strconv.Itoa(len(args)+1))
-		args = append(args, address)
+		builder = builder.Set("address", address)
 	}
 
 	if !organization.Status.IsEmpty() {
-		updates = append(updates, "status = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.Status)
-
-		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.StatusDescription)
+		builder = builder.Set("status", record.Status).
+			Set("status_description", record.StatusDescription)
 	}
 
-	record.UpdatedAt = time.Now()
+	query, args, err := builder.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build update query", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build update query", libLog.Err(err))
 
-	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+		return nil, err
+	}
 
-	args = append(args, record.UpdatedAt, id)
-	query := `UPDATE organization SET ` + strings.Join(updates, ", ") +
-		` WHERE id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
-
-	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
+	_, spanExec := tracer.Start(ctx, "postgres.update_organization.exec")
+	defer spanExec.End()
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Organization{}).Name())
-
+			err := services.ValidatePGError(pgErr, constant.EntityOrganization)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
-
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to execute update query: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Failed to execute update query", libLog.Err(err))
 
 			return nil, err
 		}
 
 		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to execute update query: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to execute update query", libLog.Err(err))
 
 		return nil, err
 	}
 
-	spanExec.End()
-
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to get rows affected: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get rows affected", libLog.Err(err))
 
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization. Rows affected is 0", err)
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityOrganization)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization: no rows affected", err)
 
 		return nil, err
 	}
