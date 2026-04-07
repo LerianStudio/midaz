@@ -100,7 +100,6 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	defer span.End()
 
 	id := c.Locals("id").(uuid.UUID)
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Organization with ID: %s", id.String()))
 
 	payload := p.(*mmodel.UpdateOrganizationInput)
 	logSafePayload(ctx, logger, "Request to update an organization", payload)
@@ -108,24 +107,20 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 
 	if _, err := handler.Command.UpdateOrganizationByID(ctx, id, payload); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization on command", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Organization with ID: %s, Error: %s", id.String(), err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to update organization", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
 
-	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
+	organization, err := handler.Query.GetOrganizationByID(ctx, id)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve organization on query", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error()))
+		logger.Log(ctx, libLog.LevelError, "Failed to retrieve organization after update", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Organization with ID: %s", id.String()))
-
-	return http.OK(c, organizations)
+	return http.OK(c, organization)
 }
 
 // GetOrganizationByID is a method that retrieves Organization information by a given id.
