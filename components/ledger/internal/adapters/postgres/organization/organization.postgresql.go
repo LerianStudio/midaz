@@ -261,6 +261,8 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 			Set("status_description", record.StatusDescription)
 	}
 
+	builder = builder.Suffix("RETURNING " + strings.Join(organizationColumnList, ", "))
+
 	query, args, err := builder.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build update query", err)
@@ -272,8 +274,31 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	_, spanExec := tracer.Start(ctx, "postgres.update_organization.exec")
 	defer spanExec.End()
 
-	result, err := db.ExecContext(ctx, query, args...)
-	if err != nil {
+	var address string
+
+	updated := &OrganizationPostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, query, args...)
+	if err := row.Scan(
+		&updated.ID,
+		&updated.ParentOrganizationID,
+		&updated.LegalName,
+		&updated.DoingBusinessAs,
+		&updated.LegalDocument,
+		&address,
+		&updated.Status,
+		&updated.StatusDescription,
+		&updated.CreatedAt,
+		&updated.UpdatedAt,
+		&updated.DeletedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityOrganization)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update organization: no rows affected", err)
+
+			return nil, err
+		}
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, constant.EntityOrganization)
@@ -289,22 +314,13 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 		return nil, err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get rows affected", libLog.Err(err))
+	if err := json.Unmarshal([]byte(address), &updated.Address); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to unmarshal address", err)
 
 		return nil, err
 	}
 
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityOrganization)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization: no rows affected", err)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return updated.ToEntity(), nil
 }
 
 func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {

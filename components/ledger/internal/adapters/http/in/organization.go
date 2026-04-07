@@ -105,17 +105,10 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	logSafePayload(ctx, logger, "Request to update an organization", payload)
 	recordSafePayloadAttributes(span, payload)
 
-	if _, err := handler.Command.UpdateOrganizationByID(ctx, id, payload); err != nil {
+	organization, err := handler.Command.UpdateOrganizationByID(ctx, id, payload)
+	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization on command", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to update organization", libLog.Err(err))
-
-		return http.WithError(c, err)
-	}
-
-	organization, err := handler.Query.GetOrganizationByID(ctx, id)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve organization on query", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to retrieve organization after update", libLog.Err(err))
 
 		return http.WithError(c, err)
 	}

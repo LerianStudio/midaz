@@ -63,10 +63,15 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		return nil, err
 	}
 
+	// NOTE: The organization is already persisted at this point. If metadata creation
+	// fails, the org exists in PostgreSQL without its metadata in MongoDB. This is a
+	// known consistency gap that affects all entity creates. A proper fix requires
+	// either a cross-store transaction or an async metadata creation with retries.
 	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityOrganization, org.ID, coi.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization metadata", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create organization metadata", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to create organization metadata, organization persisted without metadata",
+			libLog.Err(err), libLog.String("organizationId", org.ID))
 
 		return nil, err
 	}

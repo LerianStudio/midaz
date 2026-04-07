@@ -5,7 +5,6 @@
 package utils
 
 import (
-	"errors"
 	"slices"
 	"unicode"
 
@@ -53,7 +52,7 @@ func ValidateAccountType(t string) error {
 	types := []string{"deposit", "savings", "loans", "marketplace", "creditCard"}
 
 	if !slices.Contains(types, t) {
-		return errors.New("0066")
+		return constant.ErrInvalidAccountType
 	}
 
 	return nil
@@ -64,18 +63,19 @@ func ValidateType(t string) error {
 	types := []string{"crypto", "currency", "commodity", "others"}
 
 	if !slices.Contains(types, t) {
-		return errors.New("0040")
+		return constant.ErrInvalidType
 	}
 
 	return nil
 }
 
+// ValidateCode validates that a code contains only uppercase letters.
 func ValidateCode(code string) error {
 	for _, r := range code {
 		if !unicode.IsLetter(r) {
-			return errors.New("0033")
+			return constant.ErrInvalidCodeFormat
 		} else if !unicode.IsUpper(r) {
-			return errors.New("0004")
+			return constant.ErrCodeUppercaseRequirement
 		}
 	}
 
@@ -97,7 +97,7 @@ func ValidateCurrency(code string) error {
 	}
 
 	if !slices.Contains(currencies, code) {
-		return errors.New("0005")
+		return constant.ErrCurrencyCodeStandardCompliance
 	}
 
 	return nil
