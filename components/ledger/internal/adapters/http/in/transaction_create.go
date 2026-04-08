@@ -745,11 +745,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 	recordSafePayloadAttributes(span, transactionInput)
 
 	if transactionInput.Send.Value.LessThanOrEqual(decimal.Zero) {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, reflect.TypeOf(transaction.Transaction{}).Name())
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid transaction with non-positive value", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Transaction value must be greater than zero")
+		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction value must be greater than zero", err)
+		logger.Log(ctx, libLog.LevelWarn, "Transaction value must be greater than zero", libLog.String("value", transactionInput.Send.Value.String()))
 
 		return http.WithError(c, err)
 	}
