@@ -87,11 +87,12 @@ func getAliasWithoutKey(array []string) []string {
 // before balance resolution so that the same account appearing multiple times
 // (e.g. transfer + fee) gets distinct keys.
 func concatAccountAliases(entries []pkgTransaction.FromTo) []pkgTransaction.FromTo {
-	result := make([]pkgTransaction.FromTo, 0, len(entries))
+	result := make([]pkgTransaction.FromTo, len(entries))
 
 	for i := range entries {
-		entries[i].AccountAlias = entries[i].ConcatAlias(i)
-		result = append(result, entries[i])
+		entry := entries[i]
+		entry.AccountAlias = entry.ConcatAlias(i)
+		result[i] = entry
 	}
 
 	return result
@@ -101,11 +102,12 @@ func concatAccountAliases(entries []pkgTransaction.FromTo) []pkgTransaction.From
 // restoring the original alias (e.g. "0#@person1#default" → "@person1").
 // This is called after balance resolution to produce clean aliases for the response.
 func splitAccountAliases(entries []pkgTransaction.FromTo) []pkgTransaction.FromTo {
-	result := make([]pkgTransaction.FromTo, 0, len(entries))
+	result := make([]pkgTransaction.FromTo, len(entries))
 
 	for i := range entries {
-		entries[i].AccountAlias = entries[i].SplitAlias()
-		result = append(result, entries[i])
+		entry := entries[i]
+		entry.AccountAlias = entry.SplitAlias()
+		result[i] = entry
 	}
 
 	return result
