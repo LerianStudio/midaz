@@ -5,20 +5,12 @@
 package in
 
 import (
-	"context"
-	"fmt"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
-	libLog "github.com/LerianStudio/lib-commons/v4/commons/log"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/v4/commons/opentelemetry"
-
-	"github.com/LerianStudio/midaz/v3/pkg"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // transactionPathParams holds the IDs extracted from URL path parameters.
@@ -55,24 +47,6 @@ func readPathParams(c *fiber.Ctx) (*transactionPathParams, error) {
 		LedgerID:       ledgerID,
 		TransactionID:  transactionID,
 	}, nil
-}
-
-// generateTransactionID creates a new UUIDv7 for a transaction.
-func generateTransactionID(ctx context.Context, logger libLog.Logger, span trace.Span) (uuid.UUID, error) {
-	transactionID, err := libCommons.GenerateUUIDv7()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to generate transaction id: %v", err))
-
-		return uuid.Nil, pkg.InternalServerError{
-			Code:    "INTERNAL_SERVER_ERROR",
-			Title:   "Internal Server Error",
-			Message: "Failed to generate transaction id",
-			Err:     err,
-		}
-	}
-
-	return transactionID, nil
 }
 
 // buildParentTransactionID converts a parent UUID to a string pointer,

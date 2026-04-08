@@ -750,8 +750,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		return http.WithError(c, err)
 	}
 
-	transactionID, err := generateTransactionID(ctx, logger, span)
+	transactionID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+
 		return http.WithError(c, err)
 	}
 
