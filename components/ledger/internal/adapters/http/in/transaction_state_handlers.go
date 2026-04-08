@@ -409,8 +409,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	var fromTo []pkgTransaction.FromTo
 
-	fromTo = append(fromTo, handleAccountFields(transactionInput.Send.Source.From, true)...)
-	to := handleAccountFields(transactionInput.Send.Distribute.To, true)
+	fromTo = append(fromTo, concatAccountAliases(transactionInput.Send.Source.From)...)
+	to := concatAccountAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.CANCELED {
 		fromTo = append(fromTo, to...)
@@ -465,8 +465,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	fromTo = append(fromTo, handleAccountFields(transactionInput.Send.Source.From, false)...)
-	to = handleAccountFields(transactionInput.Send.Distribute.To, false)
+	fromTo = append(fromTo, splitAccountAliases(transactionInput.Send.Source.From)...)
+	to = splitAccountAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.CANCELED {
 		fromTo = append(fromTo, to...)

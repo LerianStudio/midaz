@@ -82,23 +82,29 @@ func getAliasWithoutKey(array []string) []string {
 	return result
 }
 
-// handleAccountFields transforms account aliases in FromTo entries.
-// When isConcat is true, aliases are prefixed with index and balance key for
-// unique lookup (e.g. "0#@person1#default"). When false, the prefixed alias
-// is split back to the original form.
-func handleAccountFields(entries []pkgTransaction.FromTo, isConcat bool) []pkgTransaction.FromTo {
+// concatAccountAliases prefixes each alias with its index and balance key
+// to produce unique lookup keys (e.g. "0#@person1#default"). This is used
+// before balance resolution so that the same account appearing multiple times
+// (e.g. transfer + fee) gets distinct keys.
+func concatAccountAliases(entries []pkgTransaction.FromTo) []pkgTransaction.FromTo {
 	result := make([]pkgTransaction.FromTo, 0, len(entries))
 
 	for i := range entries {
-		var newAlias string
-		if isConcat {
-			newAlias = entries[i].ConcatAlias(i)
-		} else {
-			newAlias = entries[i].SplitAlias()
-		}
+		entries[i].AccountAlias = entries[i].ConcatAlias(i)
+		result = append(result, entries[i])
+	}
 
-		entries[i].AccountAlias = newAlias
+	return result
+}
 
+// splitAccountAliases strips the index prefix added by concatAccountAliases,
+// restoring the original alias (e.g. "0#@person1#default" → "@person1").
+// This is called after balance resolution to produce clean aliases for the response.
+func splitAccountAliases(entries []pkgTransaction.FromTo) []pkgTransaction.FromTo {
+	result := make([]pkgTransaction.FromTo, 0, len(entries))
+
+	for i := range entries {
+		entries[i].AccountAlias = entries[i].SplitAlias()
 		result = append(result, entries[i])
 	}
 

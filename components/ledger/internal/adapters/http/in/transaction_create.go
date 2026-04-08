@@ -738,8 +738,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	var fromTo []pkgTransaction.FromTo
 
-	fromTo = append(fromTo, handleAccountFields(transactionInput.Send.Source.From, true)...)
-	to := handleAccountFields(transactionInput.Send.Distribute.To, true)
+	fromTo = append(fromTo, concatAccountAliases(transactionInput.Send.Source.From)...)
+	to := concatAccountAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.PENDING {
 		fromTo = append(fromTo, to...)
@@ -801,8 +801,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 
 	spanGetBalances.End()
 
-	fromTo = append(fromTo, handleAccountFields(transactionInput.Send.Source.From, false)...)
-	to = handleAccountFields(transactionInput.Send.Distribute.To, false)
+	fromTo = append(fromTo, splitAccountAliases(transactionInput.Send.Source.From)...)
+	to = splitAccountAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.PENDING {
 		fromTo = append(fromTo, to...)
