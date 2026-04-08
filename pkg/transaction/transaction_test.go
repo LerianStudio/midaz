@@ -119,11 +119,11 @@ func TestFromTo_ConcatAlias(t *testing.T) {
 			want:         "1#@person1#savings",
 		},
 		{
-			name:         "Concat index with alias and empty balance key",
+			name:         "Concat index with alias and empty balance key defaults to 'default'",
 			accountAlias: "@person2",
 			balanceKey:   "",
 			index:        0,
-			want:         "0#@person2#",
+			want:         "0#@person2#default",
 		},
 		{
 			name:         "Concat index with alias and default balance key",

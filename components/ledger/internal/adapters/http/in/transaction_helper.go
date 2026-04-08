@@ -82,49 +82,6 @@ func getAliasWithoutKey(array []string) []string {
 	return result
 }
 
-// concatAccountAliases prefixes each alias with its index and balance key
-// to produce unique lookup keys (e.g. "0#@person1#default"). This is used
-// before balance resolution so that the same account appearing multiple times
-// (e.g. transfer + fee) gets distinct keys.
-func concatAccountAliases(entries []pkgTransaction.FromTo) []pkgTransaction.FromTo {
-	result := make([]pkgTransaction.FromTo, len(entries))
-
-	for i := range entries {
-		entry := entries[i]
-		entry.AccountAlias = entry.ConcatAlias(i)
-		result[i] = entry
-	}
-
-	return result
-}
-
-// splitAccountAliases strips the index prefix added by concatAccountAliases,
-// restoring the original alias (e.g. "0#@person1#default" → "@person1").
-// This is called after balance resolution to produce clean aliases for the response.
-func splitAccountAliases(entries []pkgTransaction.FromTo) []pkgTransaction.FromTo {
-	result := make([]pkgTransaction.FromTo, len(entries))
-
-	for i := range entries {
-		entry := entries[i]
-		entry.AccountAlias = entry.SplitAlias()
-		result[i] = entry
-	}
-
-	return result
-}
-
-// applyDefaultBalanceKeys sets the balance key to "default" for any entry
-// where the caller did not specify one. Midaz supports multiple balances per
-// account (e.g. "default", "asset-freeze", "rewards"), each tracked independently.
-// When the client omits the key, operations target the primary "default" balance.
-func applyDefaultBalanceKeys(entries []pkgTransaction.FromTo) {
-	for i := range entries {
-		if entries[i].BalanceKey == "" {
-			entries[i].BalanceKey = constant.DefaultBalanceKey
-		}
-	}
-}
-
 // checkTransactionDate validates and resolves the transaction date.
 // Returns time.Now() when no date is provided. Rejects future dates
 // and dates combined with pending status.

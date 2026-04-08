@@ -404,13 +404,13 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	transactionInput := tran.Body
 
-	applyDefaultBalanceKeys(transactionInput.Send.Source.From)
-	applyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
+	pkgTransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
+	pkgTransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
 
 	var fromTo []pkgTransaction.FromTo
 
-	fromTo = append(fromTo, concatAccountAliases(transactionInput.Send.Source.From)...)
-	to := concatAccountAliases(transactionInput.Send.Distribute.To)
+	fromTo = append(fromTo, pkgTransaction.MutateConcatAliases(transactionInput.Send.Source.From)...)
+	to := pkgTransaction.MutateConcatAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.CANCELED {
 		fromTo = append(fromTo, to...)
@@ -465,8 +465,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		return http.WithError(c, err)
 	}
 
-	fromTo = append(fromTo, splitAccountAliases(transactionInput.Send.Source.From)...)
-	to = splitAccountAliases(transactionInput.Send.Distribute.To)
+	fromTo = append(fromTo, pkgTransaction.MutateSplitAliases(transactionInput.Send.Source.From)...)
+	to = pkgTransaction.MutateSplitAliases(transactionInput.Send.Distribute.To)
 
 	if transactionStatus != constant.CANCELED {
 		fromTo = append(fromTo, to...)

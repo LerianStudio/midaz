@@ -159,9 +159,79 @@ func SplitAliasWithKey(alias string) string {
 	return alias
 }
 
-// ConcatAlias function to concat alias with index.
+// ConcatAlias builds a composite key from the entry's index, alias, and balance key.
+// If BalanceKey is empty, it defaults to "default" to stay consistent with AliasKey.
 func (ft FromTo) ConcatAlias(i int) string {
-	return strconv.Itoa(i) + "#" + ft.AccountAlias + "#" + ft.BalanceKey
+	balanceKey := ft.BalanceKey
+	if balanceKey == "" {
+		balanceKey = constant.DefaultBalanceKey
+	}
+
+	return strconv.Itoa(i) + "#" + ft.AccountAlias + "#" + balanceKey
+}
+
+// isConcatedAlias returns true if the alias is already in the composite
+// "index#alias#balanceKey" format (starts with a digit followed by #).
+func isConcatedAlias(alias string) bool {
+	if len(alias) < 2 {
+		return false
+	}
+
+	for i, c := range alias {
+		if c == '#' {
+			return i > 0
+		}
+
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+
+	return false
+}
+
+// MutateConcatAliases rewrites each entry's AccountAlias to the composite
+// "index#alias#balanceKey" format in-place. Entries that are already concat'd
+// are left untouched (idempotent). Returns copies of all entries.
+func MutateConcatAliases(entries []FromTo) []FromTo {
+	result := make([]FromTo, 0, len(entries))
+
+	for i := range entries {
+		if !isConcatedAlias(entries[i].AccountAlias) {
+			entries[i].AccountAlias = entries[i].ConcatAlias(i)
+		}
+
+		result = append(result, entries[i])
+	}
+
+	return result
+}
+
+// MutateSplitAliases restores clean aliases by stripping the index prefix
+// added by MutateConcatAliases. Entries that are not concat'd are left
+// untouched (idempotent). Returns copies of all entries.
+func MutateSplitAliases(entries []FromTo) []FromTo {
+	result := make([]FromTo, 0, len(entries))
+
+	for i := range entries {
+		if isConcatedAlias(entries[i].AccountAlias) {
+			entries[i].AccountAlias = entries[i].SplitAlias()
+		}
+
+		result = append(result, entries[i])
+	}
+
+	return result
+}
+
+// ApplyDefaultBalanceKeys sets the balance key to "default" for any entry
+// where the caller did not specify one.
+func ApplyDefaultBalanceKeys(entries []FromTo) {
+	for i := range entries {
+		if entries[i].BalanceKey == "" {
+			entries[i].BalanceKey = constant.DefaultBalanceKey
+		}
+	}
 }
 
 // Distribute structure for marshaling/unmarshalling JSON.

@@ -388,8 +388,8 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key string, m m
 	} else {
 		var fromTo []pkgTransaction.FromTo
 
-		fromTo = append(fromTo, r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Source.From, true)...)
-		to := r.TransactionHandler.HandleAccountFields(m.TransactionInput.Send.Distribute.To, true)
+		fromTo = append(fromTo, pkgTransaction.MutateConcatAliases(m.TransactionInput.Send.Source.From)...)
+		to := pkgTransaction.MutateConcatAliases(m.TransactionInput.Send.Distribute.To)
 
 		if m.TransactionStatus != constant.PENDING && m.TransactionStatus != constant.CANCELED {
 			fromTo = append(fromTo, to...)
