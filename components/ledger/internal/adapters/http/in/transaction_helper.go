@@ -82,6 +82,18 @@ func getAliasWithoutKey(array []string) []string {
 	return result
 }
 
+// applyDefaultBalanceKeys sets the balance key to "default" for any entry
+// where the caller did not specify one. Midaz supports multiple balances per
+// account (e.g. "default", "asset-freeze", "rewards"), each tracked independently.
+// When the client omits the key, operations target the primary "default" balance.
+func applyDefaultBalanceKeys(entries []pkgTransaction.FromTo) {
+	for i := range entries {
+		if entries[i].BalanceKey == "" {
+			entries[i].BalanceKey = constant.DefaultBalanceKey
+		}
+	}
+}
+
 // checkTransactionDate validates and resolves the transaction date.
 // Returns time.Now() when no date is provided. Rejects future dates
 // and dates combined with pending status.

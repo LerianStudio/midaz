@@ -752,8 +752,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, transactionIn
 		return http.WithError(c, err)
 	}
 
-	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
-	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
+	applyDefaultBalanceKeys(transactionInput.Send.Source.From)
+	applyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
 
 	var fromTo []pkgTransaction.FromTo
 
@@ -970,13 +970,5 @@ func (handler *TransactionHandler) sendTransactionToRedisQueue(
 func (handler *TransactionHandler) deleteIdempotencyKey(ctx context.Context, internalKey *string) {
 	if internalKey != nil {
 		_ = handler.Command.TransactionRedisRepo.Del(ctx, *internalKey)
-	}
-}
-
-func (handler *TransactionHandler) ApplyDefaultBalanceKeys(entries []pkgTransaction.FromTo) {
-	for i := range entries {
-		if entries[i].BalanceKey == "" {
-			entries[i].BalanceKey = constant.DefaultBalanceKey
-		}
 	}
 }

@@ -404,8 +404,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 	transactionInput := tran.Body
 
-	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
-	handler.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
+	applyDefaultBalanceKeys(transactionInput.Send.Source.From)
+	applyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
 
 	var fromTo []pkgTransaction.FromTo
 

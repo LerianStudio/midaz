@@ -10,6 +10,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -117,4 +120,18 @@ func TestReadPathParams(t *testing.T) {
 		assert.Equal(t, ledgerID, scope.LedgerID)
 		assert.Equal(t, uuid.Nil, scope.TransactionID)
 	})
+}
+
+func TestApplyDefaultBalanceKeys(t *testing.T) {
+	t.Parallel()
+
+	entries := []pkgTransaction.FromTo{
+		{AccountAlias: "@origin", BalanceKey: ""},
+		{AccountAlias: "@destination", BalanceKey: "custom-key"},
+	}
+
+	applyDefaultBalanceKeys(entries)
+
+	assert.Equal(t, constant.DefaultBalanceKey, entries[0].BalanceKey)
+	assert.Equal(t, "custom-key", entries[1].BalanceKey)
 }
