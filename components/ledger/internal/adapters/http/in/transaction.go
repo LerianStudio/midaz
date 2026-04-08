@@ -7,10 +7,10 @@ package in
 import (
 	libCommons "github.com/LerianStudio/lib-commons/v4/commons"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	pkgTransaction "github.com/LerianStudio/midaz/v3/pkg/transaction"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -31,7 +31,7 @@ type TransactionHandler struct {
 //	@Param			X-Request-Id	header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
+//	@Param			transaction		body		transaction.CreateTransactionInput	true	"Transaction Input"
 //	@Success		201				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -49,7 +49,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 
 	c.SetUserContext(ctx)
 
-	input := p.(*transaction.CreateTransactionInput)
+	input := p.(*pkgTransaction.CreateTransactionInput)
 	transactionInput := input.BuildTransaction()
 	logSafePayload(ctx, logger, "Request to create a transaction", transactionInput)
 

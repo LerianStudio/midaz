@@ -31,7 +31,7 @@ import (
 //	@Param			X-Request-Id	header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			transaction		body		transaction.CreateTransactionSwaggerModel	true	"Transaction Input"
+//	@Param			transaction		body		transaction.CreateTransactionInput	true	"Transaction Input"
 //	@Success		201				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -49,7 +49,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 
 	c.SetUserContext(ctx)
 
-	input := p.(*transaction.CreateTransactionInput)
+	input := p.(*pkgTransaction.CreateTransactionInput)
 	transactionInput := input.BuildTransaction()
 	logSafePayload(ctx, logger, "Create a transaction annotation without an affected balance", transactionInput)
 	recordSafePayloadAttributes(span, transactionInput)
@@ -68,7 +68,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(p any, c *fiber.C
 //	@Param			X-Request-Id	header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
-//	@Param			transaction		body		transaction.CreateTransactionInflowSwaggerModel	true	"Transaction Input"
+//	@Param			transaction		body		transaction.CreateTransactionInflowInput	true	"Transaction Input"
 //	@Success		201				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -86,7 +86,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 
 	c.SetUserContext(ctx)
 
-	input := p.(*transaction.CreateTransactionInflowInput)
+	input := p.(*pkgTransaction.CreateTransactionInflowInput)
 	transactionInput := input.BuildInflowEntry()
 	logSafePayload(ctx, logger, "Request to create a transaction inflow", transactionInput)
 
@@ -108,7 +108,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(p any, c *fiber.Ctx) 
 //	@Param			X-Request-Id	header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
-//	@Param			transaction		body		transaction.CreateTransactionOutflowSwaggerModel	true	"Transaction Input"
+//	@Param			transaction		body		transaction.CreateTransactionOutflowInput	true	"Transaction Input"
 //	@Success		201				{object}	Transaction
 //	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
 //	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
@@ -126,7 +126,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(p any, c *fiber.Ctx)
 
 	c.SetUserContext(ctx)
 
-	input := p.(*transaction.CreateTransactionOutflowInput)
+	input := p.(*pkgTransaction.CreateTransactionOutflowInput)
 	transactionInput := input.BuildOutflowEntry()
 	logSafePayload(ctx, logger, "Request to create a transaction outflow", transactionInput)
 

@@ -1706,7 +1706,7 @@ func TestCreateTransactionJSON_NonPositiveValue_Returns422(t *testing.T) {
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				http.WithBody(new(transaction.CreateTransactionInput), handler.CreateTransactionJSON),
+				http.WithBody(new(pkgTransaction.CreateTransactionInput), handler.CreateTransactionJSON),
 			)
 
 			// Build request body with non-positive value
@@ -1785,7 +1785,7 @@ func TestCreateTransactionInflow_NonPositiveValue_Returns422(t *testing.T) {
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				http.WithBody(new(transaction.CreateTransactionInflowInput), handler.CreateTransactionInflow),
+				http.WithBody(new(pkgTransaction.CreateTransactionInflowInput), handler.CreateTransactionInflow),
 			)
 
 			// Build request body with non-positive value (inflow has no source, only distribute.to)
@@ -1861,7 +1861,7 @@ func TestCreateTransactionOutflow_NonPositiveValue_Returns422(t *testing.T) {
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				http.WithBody(new(transaction.CreateTransactionOutflowInput), handler.CreateTransactionOutflow),
+				http.WithBody(new(pkgTransaction.CreateTransactionOutflowInput), handler.CreateTransactionOutflow),
 			)
 
 			// Build request body with non-positive value (outflow has no distribute.to, only source.from)
@@ -2408,7 +2408,7 @@ func TestCreateTransactionAnnotation_NonPositiveValue_Returns422(t *testing.T) {
 					c.Locals("ledger_id", ledgerID)
 					return c.Next()
 				},
-				http.WithBody(new(transaction.CreateTransactionInput), handler.CreateTransactionAnnotation),
+				http.WithBody(new(pkgTransaction.CreateTransactionInput), handler.CreateTransactionAnnotation),
 			)
 
 			// Build request body with non-positive value
